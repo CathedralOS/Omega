@@ -10,6 +10,7 @@ pub(super) fn produced_partial_module() -> TerminalModule {
     let mut module = partial_affine_field_module();
     let root_type = module.machines[0].structural_parameters[0].structural_type;
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),

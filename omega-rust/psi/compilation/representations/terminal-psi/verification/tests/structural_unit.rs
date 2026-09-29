@@ -79,6 +79,7 @@ fn unused_provider_attachment_module() -> TerminalModule {
         }],
     };
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
@@ -159,6 +160,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
     module.structural_types = vec![leaf.clone(), root.clone()];
     module.structural_domains = vec![domain.clone()];
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
@@ -356,6 +358,7 @@ fn hard_root_module() -> TerminalModule {
     let mut boundary_parameter = structural_parameter(place_id(9));
     boundary_parameter.qualifications.clear();
     let boundary = BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),

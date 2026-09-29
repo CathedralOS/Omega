@@ -158,7 +158,28 @@ fn provider_attachment_verifier_requires_exact_direct_call_roots() {
 
     let mut attached_boundary = module.clone();
     attached_boundary.boundary_machines[0].attachment = Some(structural_type_id(1));
+    assert_eq!(
+        validate_module(&attached_boundary).map(|_| ()),
+        Err(ModuleError::InvalidBoundaryMachineIdentity(boundary_id(1))),
+        "a trait requirement cannot acquire a machine attachment"
+    );
+    attached_boundary.boundary_machines[0].kind = terminal_psi::BoundaryRequirementKind::Machine;
     assert_eq!(validate_module(&attached_boundary).map(|_| ()), invalid);
+
+    for kind in [
+        terminal_psi::BoundaryRequirementKind::Machine,
+        terminal_psi::BoundaryRequirementKind::Operator,
+    ] {
+        let mut independent = module.clone();
+        independent.boundary_machines[0].kind = kind;
+        assert_eq!(
+            validate_module(&independent).map(|_| ()),
+            invalid,
+            "only a trait requirement consumes a provider-field root"
+        );
+        independent.machines[0].structural_places.clear();
+        validate_module(&independent).expect("an independent requirement needs no provider field");
+    }
 
     module.machines[0].blocks[0].operations.clear();
     assert_eq!(

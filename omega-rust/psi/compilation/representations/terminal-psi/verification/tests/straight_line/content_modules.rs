@@ -706,6 +706,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
         },
     };
     let boundary = BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
