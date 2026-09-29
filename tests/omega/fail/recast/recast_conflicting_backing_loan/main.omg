@@ -5,9 +5,9 @@
 // recast spelling.
 data Bits { x: i32; }
 
-machine Bits::mix(&mut self, w: &mut i32, r: &u32) {
+machine mix(w: &mut i32, r: &u32) {
 }
 
 machine Bits::go(&mut self) {
-    self.mix(&mut self.x, &self.x as &u32);
+    mix(&mut self.x, &self.x as &u32);
 }

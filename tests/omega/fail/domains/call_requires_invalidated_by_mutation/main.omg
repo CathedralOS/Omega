@@ -16,18 +16,18 @@ data Main {
     player: Player;
 }
 
-machine Main::mark_valid(&mut self, player: &mut Player)
+machine mark_valid(player: &mut Player)
 ensures
     player in Player::Valid
 {
     player.health = 0;
 }
 
-machine Main::break_valid(&mut self, player: &mut Player) {
+machine break_valid(player: &mut Player) {
     player.health = 200;
 }
 
-machine Main::heal(&mut self, player: &mut Player)
+machine heal(player: &mut Player)
 requires
     player in Player::Valid
 ensures
@@ -37,7 +37,7 @@ ensures
 }
 
 machine Main::main(&mut self) {
-    self.mark_valid(&mut self.player);
-    self.break_valid(&mut self.player);
-    self.heal(&mut self.player);
+    mark_valid(&mut self.player);
+    break_valid(&mut self.player);
+    heal(&mut self.player);
 }
