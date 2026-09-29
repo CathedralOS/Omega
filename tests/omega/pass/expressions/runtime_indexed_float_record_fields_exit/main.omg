@@ -1,0 +1,31 @@
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { tag: u8; narrow: f32; wide: f64; }
+data Main {
+    console: Binding<Console>;
+    cells: [Cell; 2];
+    position: u64;
+    narrow: f32;
+    wide: f64;
+}
+machine Main::main(&mut self) reaches Console {
+    self.cells[0] = Cell { tag: 3, narrow: 1.0f32, wide: 2.0f64 };
+    self.cells[1] = Cell { tag: 5, narrow: 7.5f32, wide: 12.25f64 };
+    self.position = 1;
+    transition self.position < 2 {
+        true -> read()
+        false -> bad()
+    }
+    state read(&mut self) {
+        self.narrow = self.cells[self.position].narrow;
+        self.wide = self.cells[self.position].wide;
+        transition self.narrow == 7.5f32 && self.wide == 12.25f64 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

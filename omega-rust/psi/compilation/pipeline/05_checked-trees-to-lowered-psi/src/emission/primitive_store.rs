@@ -698,9 +698,10 @@ pub(crate) fn lower_indexed_path(
 /// runtime-selected record element (`cells[i].hp`). The prefix ends at the
 /// fixed array, as for a primitive element; the element path walks the
 /// selected record through structural fields and literal indexes and ends at
-/// one relevant, non-address integer or Boolean scalar field. The reader
-/// places its `RuntimeIndex` segment between the two, and the verifier
-/// resolves the same leaf with `terminal_semantics::runtime_element_field`.
+/// one relevant, non-address integer, Boolean, or plain IEEE scalar field.
+/// The reader places its `RuntimeIndex` segment between the two. Independent
+/// read verification checks the exact leaf type and index bound;
+/// accepting IEEE here does not erase bounded-field refinements.
 pub(crate) fn lower_indexed_element_field_path(
     structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
@@ -747,7 +748,13 @@ pub(crate) fn lower_indexed_element_field_path(
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {
             ScalarType::Integer(integer)
         }
-        _ => return unsupported("indexed element field is not an integer or Boolean scalar"),
+        StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => scalar,
+        StructuralFieldType::IeeeFloat(format) => ScalarType::IeeeFloat(format),
+        _ => {
+            return unsupported(
+                "indexed element field is not a non-address integer, Boolean, or plain IEEE scalar",
+            );
+        }
     };
     let mut element_path = super::runtime_elements::static_segments(carrier_steps)?;
     element_path.push(terminal_psi::StructuralPathSegment::Field(
