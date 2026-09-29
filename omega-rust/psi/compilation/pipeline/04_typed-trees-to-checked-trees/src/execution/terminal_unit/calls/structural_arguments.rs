@@ -687,17 +687,45 @@ pub(crate) fn structural_call_arguments(
                         .qualifications
                         .is_empty() =>
             {
-                let (projected_type, path) = projected_borrowed_path(
-                    program,
-                    caller_machine.symbol,
-                    caller_state.symbol,
-                    statement_index,
-                    &place,
-                )?;
-                if base_type_identity(program, projected_type, &[])? != target_identity {
-                    return None;
+                // The open-ended spelling `x[..]`/`x[a..]` survives
+                // canonicalization as an `Index` carrying the range itself,
+                // since its end is not an authored constant. Against a fixed
+                // byte array it is the same fixed-range argument as the
+                // constant-ended spelling, with the backing's literal extent
+                // as its end; any other `Index` keeps the runtime-selector
+                // route.
+                if let Some(path) = (caller_parameters[source_index].multiplicity
+                    == Multiplicity::Unrestricted
+                    && matches!(
+                        caller_parameters[source_index].access,
+                        CheckedStructuralAccess::MutableBorrow
+                            | CheckedStructuralAccess::SharedBorrow
+                    ))
+                .then(|| {
+                    super::argument_paths::open_byte_range_path(
+                        program,
+                        caller_state.symbol,
+                        statement_index,
+                        &place,
+                        target.type_reference,
+                    )
+                })
+                .flatten()
+                {
+                    path
+                } else {
+                    let (projected_type, path) = projected_borrowed_path(
+                        program,
+                        caller_machine.symbol,
+                        caller_state.symbol,
+                        statement_index,
+                        &place,
+                    )?;
+                    if base_type_identity(program, projected_type, &[])? != target_identity {
+                        return None;
+                    }
+                    path
                 }
-                path
             }
             _ => return None,
         };
