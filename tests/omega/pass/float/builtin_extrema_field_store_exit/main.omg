@@ -1,0 +1,39 @@
+// Float shorthand must execute its exact requirement call, including field
+// result stores. Neither the builtin alias nor an ISA shortcut supplies it.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    left32: f32;
+    right32: f32;
+    low32: f32;
+    high32: f32;
+    root32: f32;
+    left64: f64;
+    right64: f64;
+    low64: f64;
+    high64: f64;
+    root64: f64;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.left32 = 9.0f32;
+    self.right32 = 4.0f32;
+    self.left64 = 9.0;
+    self.right64 = 4.0;
+    self.low32 = min(self.left32, self.right32);
+    self.high32 = max(self.left32, self.right32);
+    self.root32 = sqrt(self.low32);
+    self.low64 = min(self.left64, self.right64);
+    self.high64 = max(self.left64, self.right64);
+    self.root64 = sqrt(self.low64);
+    transition self.low32 == 4.0f32 && self.high32 == 9.0f32 && self.root32 == 2.0f32
+        && self.low64 == 4.0 && self.high64 == 9.0 && self.root64 == 2.0 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

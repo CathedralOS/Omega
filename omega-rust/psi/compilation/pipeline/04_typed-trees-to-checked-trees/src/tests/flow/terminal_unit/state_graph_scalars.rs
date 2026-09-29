@@ -38,7 +38,7 @@ fn canonical_float_comparison_cannot_bypass_a_present_machine_body() {
         .unwrap();
     machine.body_is_present = true;
     let symbol = machine.symbol;
-    let bound = crate::operators::bind_token_bound_machine_calls(&mut typed)
+    let bound = crate::operators::bind_selected_operator_calls(&mut typed)
         .expect("a body-bearing comparison must use ordinary call supply");
     assert_eq!(bound, 1);
     let machine = crate::lookup::machine_by_symbol(&typed, symbol).unwrap();

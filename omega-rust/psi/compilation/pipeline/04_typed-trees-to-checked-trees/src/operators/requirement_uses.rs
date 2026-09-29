@@ -163,7 +163,8 @@ mod tests {
     /// `max(..)` over f32 operands is the shorthand for the visible
     /// `F32::maximum` slot; spelled as a top-level boundary requirement, the
     /// shorthand retains the same named requirement use the direct call does
-    /// and no named operator use, and the drift resolver names the requirement.
+    /// and no named operator use. Both calls are normalized to the exact
+    /// requirement entry before checking; neither still targets a builtin.
     #[test]
     fn min_max_shorthand_resolves_to_a_requirement_spelled_slot() {
         let checked = checked(SOURCE);
@@ -184,26 +185,46 @@ mod tests {
                     .expression(selected_use.expression)
                 {
                     typed_trees::expression::ExpressionNode::Call(call) => {
+                        assert_eq!(
+                            call.target_symbol,
+                            checked.typed.machine_states(requirement)[0].symbol,
+                        );
                         call.target.as_str().to_owned()
                     }
                     other => panic!("use is not a call: {other:?}"),
                 };
                 assert_eq!(selected_use.requirement_symbol, requirement.symbol);
-                assert_eq!(
+                assert!(
                     crate::resolve_checked_builtin_float_operator_requirement(
                         &checked.typed,
                         selected_use.expression,
                         selected_use.origin,
                     )
-                    .is_some(),
-                    call == "max",
-                    "the drift resolver names the requirement only for the shorthand"
+                    .is_none(),
+                    "the normalized call no longer needs builtin-alias resolution"
                 );
                 call
             })
             .collect::<Vec<_>>();
         uses.sort();
         assert_eq!(uses, ["max", "maximum"]);
+        let selected_calls = checked
+            .authored_declaration_selections()
+            .iter()
+            .filter(|selection| {
+                selection.kind() == typed_trees::AuthoredDeclarationSelectionKind::Call
+            })
+            .map(|selection| match selection.target() {
+                typed_trees::AuthoredDeclarationSelectionTarget::Resolved(target) => {
+                    target.selected_symbol()
+                }
+                other => panic!("requirement call must retain exact declaration: {other:?}"),
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            selected_calls,
+            vec![checked.typed.machine_states(requirement)[0].symbol; 2]
+        );
         assert_eq!(checked.facts.operators.named_uses().count(), 0);
         assert_eq!(
             checked
