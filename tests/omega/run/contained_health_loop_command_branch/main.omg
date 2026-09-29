@@ -95,7 +95,7 @@ machine Main::main(&mut self) -> i32 {
         transition { _ -> shutdown() }
     }
 
-    state shutdown(&mut self) {
+    state shutdown() {
         0
     }
 }

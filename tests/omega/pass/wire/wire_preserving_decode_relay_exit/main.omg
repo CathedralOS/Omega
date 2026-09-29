@@ -55,7 +55,7 @@ machine Main::main(&mut self) reaches Console {
         DecodeResult::Sound { value } -> inspect(value)
         DecodeResult::Invalid -> refused()
     }
-    state inspect(&mut self, relayed: Relayed<LocalMessage>) {
+    state inspect(relayed: Relayed<LocalMessage>) {
         transition relayed.value.value == 41
             && relayed.remainder.codec_identity == 7
             && relayed.remainder.bytes_and_ordering.len == 2 {
@@ -63,25 +63,25 @@ machine Main::main(&mut self) reaches Console {
             false -> disagreement()
         }
     }
-    state tail_first(&mut self, tail: &[u8], i: u64) {
+    state tail_first(tail: &[u8], i: u64) {
         transition i < tail.len {
             true -> tail_first_byte(tail, tail[i])
             false -> disagreement()
         }
     }
-    state tail_first_byte(&mut self, tail: &[u8], b: u8) {
+    state tail_first_byte(tail: &[u8], b: u8) {
         transition b == 171 {
             true -> tail_second(tail, 1)
             false -> disagreement()
         }
     }
-    state tail_second(&mut self, tail: &[u8], i: u64) {
+    state tail_second(tail: &[u8], i: u64) {
         transition i < tail.len {
             true -> tail_second_byte(tail[i])
             false -> disagreement()
         }
     }
-    state tail_second_byte(&mut self, b: u8) {
+    state tail_second_byte(b: u8) {
         transition b == 205 {
             true -> good()
             false -> disagreement()

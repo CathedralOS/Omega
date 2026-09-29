@@ -37,7 +37,7 @@ machine Main::confirm(&mut self, tail: &[Entry], chosen: i32) -> i32 {
         false -> chosen
     }
 
-    state emit(&mut self, first: i32) -> i32 {
+    state emit(first: i32) -> i32 {
         transition {
             _ -> first
         }

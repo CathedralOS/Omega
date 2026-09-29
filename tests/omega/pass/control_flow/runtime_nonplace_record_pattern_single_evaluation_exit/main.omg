@@ -27,7 +27,7 @@ machine Main::main(&mut self) reaches Console {
             _ -> bad()
         }
     }
-    state check_values(&mut self, x: i32, y: i32) {
+    state check_values(x: i32, y: i32) {
         transition x == 30 && y == 40 { true -> good() _ -> exit_values() }
     }
     state good(&mut self) { self.console.exit_process(70); }

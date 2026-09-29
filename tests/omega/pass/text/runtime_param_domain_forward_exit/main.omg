@@ -22,7 +22,7 @@ machine Main::main(&mut self) reaches Console {
         false -> relay("no", false)
     }
 
-    state relay(&mut self, text: &[u8] in Utf8, go: bool) {
+    state relay(text: &[u8] in Utf8, go: bool) {
         transition go {
             true -> consume(text)
             false -> consume(text)

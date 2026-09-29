@@ -16,7 +16,7 @@ machine Main::main(&mut self) reaches Console {
         true  -> diff_leg()
         false -> bad_sub()
     }
-    state diff_leg(&mut self) {
+    state diff_leg() {
         let a2: addr = 4096;
         let b2: addr = 4000;
         let d: u64 = a2 - b2;
@@ -25,7 +25,7 @@ machine Main::main(&mut self) reaches Console {
             false -> bad_diff()
         }
     }
-    state order_leg(&mut self) {
+    state order_leg() {
         let a3: addr = 4096;
         let b3: addr = 4000;
         let o: bool = b3 < a3;

@@ -31,7 +31,7 @@ machine Main::main(&mut self) reaches Console {
         true -> check_key(found)
         false -> bad()
     }
-    state check_key(&mut self, found: Item) {
+    state check_key(found: Item) {
         transition found.key == 2 {
             true -> good()
             false -> bad()

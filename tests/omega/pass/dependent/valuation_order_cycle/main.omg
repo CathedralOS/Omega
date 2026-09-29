@@ -6,10 +6,10 @@ machine Storage::walk(&mut self, choose_left: bool) {
         true -> seed_left()
         false -> seed_right()
     }
-    state first(&mut self) {
+    state first() {
         transition true { true -> second() false -> done() }
     }
-    state second(&mut self) {
+    state second() {
         transition true { true -> first() false -> done() }
     }
     state seed_left(&mut self) {

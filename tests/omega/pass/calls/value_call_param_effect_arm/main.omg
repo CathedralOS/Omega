@@ -15,7 +15,7 @@ data Picker {}
 data Main { console: Binding<Console>; picker: Picker; tally: Tally; v: i32; }
 machine Picker::pick(&self, x: i32, tally: &mut Tally) -> i32 {
     transition x > 0 { true -> hi(tally) _ -> lo(tally) }
-    state hi(&self, tally: &mut Tally) -> i32 {
+    state hi(tally: &mut Tally) -> i32 {
         tally.count = tally.count + 1;
         100
     }

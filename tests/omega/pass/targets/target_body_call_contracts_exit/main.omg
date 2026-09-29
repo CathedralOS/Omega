@@ -24,6 +24,6 @@ data Main { helper: Helper; }
 machine Main::main(&mut self) crashes Trap {
     let value: u64 = self.helper.run();
     transition value == 42 { true -> done() _ -> bad() }
-    state done(&mut self) {}
-    state bad(&mut self) { crash Trap; }
+    state done() {}
+    state bad() { crash Trap; }
 }

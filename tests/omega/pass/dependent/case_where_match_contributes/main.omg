@@ -16,10 +16,10 @@ machine Main::main(&mut self) {
         Interval::Range { lo, hi } -> take(lo, hi)
         Interval::Empty -> done()
     }
-    state take(&mut self, lo: u64, hi: u64)
+    state take(lo: u64, hi: u64)
     requires
         lo <= hi
     {
     }
-    state done(&mut self) { }
+    state done() { }
 }

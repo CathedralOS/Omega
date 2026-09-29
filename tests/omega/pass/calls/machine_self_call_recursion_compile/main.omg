@@ -23,6 +23,6 @@ machine Main::main(&mut self) {
         true -> yes()
         false -> no()
     }
-    state yes(&mut self) { }
-    state no(&mut self) { }
+    state yes() { }
+    state no() { }
 }

@@ -23,7 +23,7 @@ machine Main::main(&mut self) reaches Console {
         _ -> bad()
     }
 
-    state check_gold(&mut self, gold: i32) {
+    state check_gold(gold: i32) {
         transition gold == 50 {
             true -> good()
             _ -> bad()

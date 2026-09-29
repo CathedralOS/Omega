@@ -73,7 +73,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
             _ -> fail_error_kind()
         }
     }
-    state check_missing(&mut self, kind: ErrorKind) {
+    state check_missing(kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> classify_bad_fd() _ -> fail_error_kind() }
     }
     state classify_bad_fd(&mut self) {
@@ -83,7 +83,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
             _ -> fail_error_kind()
         }
     }
-    state check_bad_fd(&mut self, kind: ErrorKind) {
+    state check_bad_fd(kind: ErrorKind) {
         transition kind { ErrorKind::BadDescriptor -> remove_missing() _ -> fail_error_kind() }
     }
     state remove_missing(&mut self) {
@@ -93,7 +93,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
             _ -> fail_error_kind()
         }
     }
-    state check_remove_missing(&mut self, kind: ErrorKind) {
+    state check_remove_missing(kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> read_missing_directory() _ -> fail_error_kind() }
     }
     state read_missing_directory(&mut self) {
@@ -103,7 +103,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
             _ -> fail_error_kind()
         }
     }
-    state check_directory_missing(&mut self, kind: ErrorKind) {
+    state check_directory_missing(kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> remove_missing_tree() _ -> fail_error_kind() }
     }
     state remove_missing_tree(&mut self) {
@@ -113,7 +113,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
             _ -> fail_error_kind()
         }
     }
-    state check_tree_missing(&mut self, kind: ErrorKind) {
+    state check_tree_missing(kind: ErrorKind) {
         transition kind { ErrorKind::NotFound -> good() _ -> fail_error_kind() }
     }
     state good(&mut self) { self.console.exit_process(70); }

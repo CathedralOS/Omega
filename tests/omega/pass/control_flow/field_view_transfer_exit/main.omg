@@ -35,7 +35,7 @@ machine Store::probe<'ext>(&mut self) -> u64 {
     }
 
     // Shared field view forwarded into the state's `&` parameter.
-    state share(&mut self, names: &'ext [u8]) -> u64
+    state share(names: &'ext [u8]) -> u64
         requires names.len > 0
     {
         transition names[0] == 7 {
@@ -44,7 +44,7 @@ machine Store::probe<'ext>(&mut self) -> u64 {
         }
     }
 
-    state done(&mut self) -> u64 {
+    state done() -> u64 {
         transition { _ -> (70) }
     }
 

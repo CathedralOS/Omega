@@ -9,5 +9,5 @@ machine Guarded::convert(&mut self) {
         _ -> done()
     }
     state bounded(&mut self) { self.converted = self.value as i32; }
-    state done(&mut self) {}
+    state done() {}
 }

@@ -37,13 +37,13 @@ machine Main::read(&mut self, r: &Inner) {
         true -> add()
         false -> zero()
     }
-    state add(&mut self) {
+    state add() {
         transition { _ -> add2() }
     }
-    state add2(&mut self) { }
+    state add2() { }
     state zero(&mut self) {
         self.got = 1;
         transition { _ -> fin() }
     }
-    state fin(&mut self) { }
+    state fin() { }
 }

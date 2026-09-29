@@ -21,6 +21,6 @@ machine Main::main(&mut self) {
         Command::Quit -> leave()
     }
 
-    state idle(&mut self) { }
-    state leave(&mut self) { }
+    state idle() { }
+    state leave() { }
 }
