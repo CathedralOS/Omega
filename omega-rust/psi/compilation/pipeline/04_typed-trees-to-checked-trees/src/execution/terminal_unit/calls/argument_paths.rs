@@ -478,6 +478,73 @@ pub(crate) fn fixed_byte_array_range_path(
     else {
         return None;
     };
+    byte_array_range_path(
+        program,
+        state,
+        statement_index,
+        place,
+        fields,
+        *start,
+        Some(*end),
+        target,
+    )
+}
+
+/// The open-ended spelling `x[..]`/`x[a..]` reaches the argument walk as a
+/// runtime `Index` segment: its range end is not an authored constant, so
+/// place canonicalization cannot pin it. Against a fixed byte array the
+/// omitted end is the collection's literal extent, which this route resolves
+/// from the backing type; a start that is present must still be an authored
+/// constant. An end that survived canonicalization names a dynamic bound and
+/// is not a fixed range.
+pub(crate) fn open_byte_range_path(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    statement_index: usize,
+    place: &crate::flow::CanonicalPlace,
+    target: TypeReferenceHandle,
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
+    let (facts::PlaceSegment::Index { expression }, fields) = place.segments.split_last()? else {
+        return None;
+    };
+    let ExpressionNode::Range(range) = program.expression_table.expression(*expression) else {
+        return None;
+    };
+    let start = if range.start.is_valid() {
+        usize::try_from(
+            program
+                .expression_table
+                .constant_integer_value(range.start)?,
+        )
+        .ok()?
+    } else {
+        0
+    };
+    if range.end.is_valid() {
+        return None;
+    }
+    byte_array_range_path(
+        program,
+        state,
+        statement_index,
+        place,
+        fields,
+        start,
+        None,
+        target,
+    )
+}
+
+fn byte_array_range_path(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    statement_index: usize,
+    place: &crate::flow::CanonicalPlace,
+    fields: &[facts::PlaceSegment],
+    start: usize,
+    end: Option<usize>,
+    target: TypeReferenceHandle,
+) -> Option<Vec<CheckedUnitStructuralPathSegment>> {
     if !fields
         .iter()
         .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
@@ -491,9 +558,11 @@ pub(crate) fn fixed_byte_array_range_path(
     let (backing_type, mut path) =
         projected_argument_path(program, state, statement_index, &backing)?;
     let extent = fixed_array_literal_length(program, backing_type)?;
+    // An omitted end names the backing's literal extent.
+    let end = end.unwrap_or(extent);
     if extent == 0
         || start > end
-        || *end > extent
+        || end > extent
         || !super::boundary_admission::fixed_byte_array_view_is_admitted(
             program,
             backing_type,
@@ -503,8 +572,8 @@ pub(crate) fn fixed_byte_array_range_path(
         return None;
     }
     path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
-        start: u64::try_from(*start).ok()?,
-        end: u64::try_from(*end).ok()?,
+        start: u64::try_from(start).ok()?,
+        end: u64::try_from(end).ok()?,
     });
     Some(path)
 }
