@@ -1,0 +1,20 @@
+// A static machine keeps its record in an ordinary local and lends the whole
+// local `&mut` to another machine twice. The record carries a wrapping field
+// domain, which rides the loan unchanged: the callee is checked against the
+// same declared `Score`. Both writes land in the caller's own storage, so the
+// final read sees 30 + 40. Exits 70 only when both loans updated the local.
+
+use omega_language_std::console;
+
+data Score { points: i32 in Wrapping; }
+
+machine Score::bump(score: &mut Score, by: i32 in Wrapping) {
+    score.points = score.points + by;
+}
+
+machine main() reaches Console {
+    let mut score: Score;
+    Score::bump(&mut score, 30);
+    Score::bump(&mut score, 40);
+    Console::exit_process(score.points as i32);
+}

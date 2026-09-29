@@ -435,3 +435,108 @@ fn shared_local_loan_does_not_authorize_conflicting_mutation() {
         "expected conflicting loan diagnostic: {diagnostics:?}"
     );
 }
+
+#[test]
+fn domain_carrying_local_records_lend_whole_and_projected_loans() {
+    // A field's numeric domain rides a loan of the local's own storage: the
+    // callee sees the same declared record, so whole `&mut`/`&` loans and a
+    // `&mut` field projection all name the local's result binding.
+    let checked = checked_program(
+        r#"
+        data Banner { width: i32 in Wrapping; }
+        data Screen { banner: Banner; height: i32 in Wrapping; }
+        machine Banner::widen(banner: &mut Banner, by: i32 in Wrapping) {
+            banner.width = banner.width + by;
+        }
+        machine Screen::grow(screen: &mut Screen, by: i32 in Wrapping) {
+            screen.height = screen.height + by;
+        }
+        machine Screen::inspect(screen: &Screen) { }
+        machine run() {
+            let mut screen: Screen;
+            Banner::widen(&mut screen.banner, 70);
+            Screen::grow(&mut screen, 1);
+            Screen::inspect(&screen);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "domain-carrying local loans: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let arguments = plan
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::Call(call) => call.structural_arguments.first(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [projected, whole_mutable, whole_shared] = arguments.as_slice() else {
+        panic!("three local loans: {arguments:?}");
+    };
+    assert_eq!(projected.path.len(), 1);
+    assert_eq!(projected.access, CheckedStructuralAccess::MutableBorrow);
+    assert!(whole_mutable.path.is_empty());
+    assert_eq!(whole_mutable.access, CheckedStructuralAccess::MutableBorrow);
+    assert!(whole_shared.path.is_empty());
+    assert_eq!(whole_shared.access, CheckedStructuralAccess::SharedBorrow);
+    let binding = projected.source_structural_result_binding_ordinal();
+    assert!(binding.is_some());
+    assert_eq!(
+        whole_mutable.source_structural_result_binding_ordinal(),
+        binding
+    );
+    assert_eq!(
+        whole_shared.source_structural_result_binding_ordinal(),
+        binding
+    );
+
+    // The projected loan still rejoins its captured borrow: a changed root
+    // on that access withdraws the whole plan rather than trusting the path.
+    let state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+        .expect("caller borrow state");
+    let call = checked
+        .facts
+        .borrow
+        .calls
+        .span_or_empty(state.calls)
+        .first()
+        .expect("captured projected call");
+    let mut facts = checked.facts.clone();
+    facts
+        .borrow
+        .argument_accesses
+        .get_mut(call.accesses.start())
+        .root_symbol = symbols::SymbolHandle::invalid();
+    let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+        &checked.typed,
+        &facts,
+        crate::execution::terminal_unit::ScalarCalleePlans {
+            boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+            structural_returns: &facts.flow.terminal_structural_scalar_returns,
+        },
+    );
+    assert!(
+        rebuilt.for_machine(machine).is_none(),
+        "a projected local loan accepted a changed loan root"
+    );
+}

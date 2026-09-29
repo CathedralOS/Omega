@@ -1417,14 +1417,30 @@ pub(crate) fn validate_consumer(
             continue;
         }
         // A live result binding may lend one of its record's leaves, fixed
-        // elements, or its whole extent through an exclusive borrow: the
-        // binding is not consumed, the projected path (empty for a
-        // whole-place loan) is already rejoined against the authored operand
-        // above, and the borrowed formal carries no claims.
+        // elements, or its whole extent through an exclusive borrow, and a
+        // projected subtree through a shared one: the binding is not
+        // consumed, the projected path (empty for a whole-place loan) is
+        // already rejoined against the authored operand above, and the
+        // borrowed formal carries no claims. A whole-place shared loan keeps
+        // the general check below. The callee returns nothing or a scalar,
+        // so no result custody can retain the loan past the call.
+        let value_free_ordinary_call = operation.call().is_some_and(|call| {
+            !call.is_boundary()
+                && matches!(
+                    call.result(),
+                    CheckedUnitCallResult::Unit | CheckedUnitCallResult::Scalar(_)
+                )
+        });
+        let lent_access = match argument.access {
+            checked_trees::CheckedStructuralAccess::MutableBorrow
+            | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => true,
+            checked_trees::CheckedStructuralAccess::SharedBorrow => !argument.path.is_empty(),
+            checked_trees::CheckedStructuralAccess::Owned => false,
+        };
         let scalar_leaf_borrow = matches!(
             result.multiplicity,
             Multiplicity::Affine | Multiplicity::Unrestricted
-        ) && ordinary_unit_call(operation).is_some()
+        ) && value_free_ordinary_call
             && argument.path.iter().all(|segment| {
                 matches!(
                     segment,
@@ -1433,11 +1449,7 @@ pub(crate) fn validate_consumer(
                         | checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { .. }
                 )
             })
-            && matches!(
-                argument.access,
-                checked_trees::CheckedStructuralAccess::MutableBorrow
-                    | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-            )
+            && lent_access
             && argument.access == parameter.access
             && !parameter.is_self
             && parameter.type_identity == argument.type_identity

@@ -3,7 +3,7 @@
 //! the callee.
 
 use crate::validation::structural::operations::claim_transfers::{
-    validate_service_reach, validate_unit_call_claim_transfers,
+    is_record_loan, validate_service_reach, validate_unit_call_claim_transfers,
 };
 use crate::validation::structural::operations::contract_places::{
     unit_call_contract_propositions, validate_unit_call_contract_places,
@@ -72,7 +72,9 @@ pub(in crate::validation) fn validate_call_unit(
             && !crate::validation::references::is_reference_projection(module, machine, argument)
     });
     // Independent borrowed projections retain each root's authority;
-    // sibling argument counts do not create residual owned custody.
+    // sibling argument counts do not create residual owned custody. A loan
+    // of a completed local record's exact subtree is one of them: the local
+    // keeps its value, so no residual complement rides a continuation.
     let ordinary_borrowed_projections = structural_arguments.len()
         == callee.structural_parameters.len()
         && structural_arguments
@@ -86,6 +88,7 @@ pub(in crate::validation) fn validate_call_unit(
                     || is_unrestricted_write_only_subloan(module, machine, parameter, argument)
                     || is_unrestricted_shared_subloan(module, machine, parameter, argument)
                     || is_unrestricted_mutable_subloan(module, machine, parameter, argument)
+                    || is_record_loan(module, machine, parameter, argument)
             });
     let result_projection = structural_arguments.iter().any(|argument| {
         argument.access == StructuralAccess::Owned
