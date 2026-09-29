@@ -16,6 +16,7 @@ use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;
+    discard: i32;
     mode: i32;
     read_flags: i32;
     cap: u64;
@@ -33,21 +34,21 @@ machine Main::main(&mut self) reaches FilesystemHost {
     transition self.fd >= 0 { true -> wrote() _ -> fail() }
     state wrote(&mut self) {
         self.n = self.fs.write(self.fd, "omega end to end\n");
-        self.n = self.fs.close(self.fd);
+        self.discard = self.fs.close(self.fd);
         self.fd = self.fs.open("/tmp/omega_crud.txt", self.read_flags);
         transition self.fd >= 0 { true -> rd() _ -> fail() }
     }
     state rd(&mut self) {
         self.rn = self.fs.read(self.fd, &mut self.buffer, self.cap);
-        self.n = self.fs.close(self.fd);
+        self.discard = self.fs.close(self.fd);
         transition self.rn == 17 { true -> good() _ -> fail() }
     }
     state good(&mut self) {
         self.n = self.fs.write(1, "PASS: native fs CRUD round-trip (create+write+read 17B+close+remove)\n");
-        self.n = self.fs.remove("/tmp/omega_crud.txt");
+        self.discard = self.fs.remove("/tmp/omega_crud.txt");
     }
     state fail(&mut self) {
         self.n = self.fs.write(1, "FAIL\n");
-        self.n = self.fs.remove("/tmp/omega_crud.txt");
+        self.discard = self.fs.remove("/tmp/omega_crud.txt");
     }
 }
