@@ -148,6 +148,167 @@ fn indexed_scalar_call_rejects_a_substituted_selector() {
     assert!(lower_machine(&checked, TerminalMachineSelection::Name("Holder::probe")).is_err());
 }
 
+const FIELD_INDEXED_CALLS: &str = r#"
+    data Cell { value: u64 in Wrapping; }
+    data Holder { cells: [Cell; 4]; }
+    data Cursor { position: u64[0..4]; other: u64[0..4]; }
+    machine Cell::read(&self) -> u64 in Wrapping { self.value }
+    machine read_cell(cell: &Cell) -> u64 in Wrapping { cell.value }
+    machine probe(holder: &Holder, cursor: &Cursor, other: &Cursor) -> bool {
+        let receiver: u64 in Wrapping = holder.cells[cursor.position].read() + 1;
+        let argument: u64 in Wrapping = read_cell(&holder.cells[cursor.position]) + 1;
+        receiver == 70 && argument == 70
+    }
+"#;
+
+#[test]
+fn field_indexed_scalar_calls_capture_verified_selectors() {
+    let checked = checked_source_with_core_service(FIELD_INDEXED_CALLS);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("probe"))
+        .expect("field selectors compose with receiver and explicit scalar calls");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("captured field values retain their declared bounds");
+}
+
+#[test]
+fn field_indexed_scalar_calls_capture_each_nested_selector() {
+    let source = FIELD_INDEXED_CALLS
+        .replace(
+            "data Holder { cells: [Cell; 4]; }",
+            "data Row { cells: [Cell; 4]; } data Holder { rows: [Row; 2]; }",
+        )
+        .replace("other: u64[0..4]", "other: u64[0..2]")
+        .replace(
+            "holder.cells[cursor.position]",
+            "holder.rows[cursor.other].cells[cursor.position]",
+        );
+    let checked = checked_source_with_core_service(&source);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("probe"))
+        .expect("nested array loans capture both field selectors");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("each captured selector has its own bounded array projection");
+}
+
+#[test]
+fn field_indexed_scalar_calls_interleave_effectful_arguments() {
+    let checked = checked_source_with_core_service(
+        r#"
+        data Cell { value: u64 in Wrapping; }
+        data Holder { cells: [Cell; 4]; }
+        data Cursor { position: u64[0..4]; }
+        machine Cursor::advance(&mut self) -> u64 in Wrapping {
+            self.position = 1;
+            0
+        }
+        machine read_after(cell: &Cell, ignored: u64 in Wrapping) -> u64 in Wrapping {
+            cell.value + ignored
+        }
+        machine read_before(ignored: u64 in Wrapping, cell: &Cell) -> u64 in Wrapping {
+            cell.value + ignored
+        }
+        machine probe(holder: &Holder, cursor: &mut Cursor) -> bool {
+            let first: u64 in Wrapping = read_after(&holder.cells[cursor.position], cursor.advance());
+            cursor.position = 0;
+            let second: u64 in Wrapping = read_before(cursor.advance(), &holder.cells[cursor.position]);
+            first == 10 && second == 20
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("probe"))
+        .expect("selector captures interleave with scalar effects");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("snapshot bounds survive the later selector mutation");
+}
+
+#[test]
+fn field_indexed_scalar_calls_keep_extent_and_access_checks() {
+    for source in [
+        FIELD_INDEXED_CALLS.replace("position: u64[0..4]", "position: u64[0..5]"),
+        FIELD_INDEXED_CALLS.replace("Cell::read(&self)", "Cell::read(&mut self)"),
+    ] {
+        let Ok(checked) = crate::front_end::checked_program_result(&source) else {
+            continue;
+        };
+        let Ok(lowered) = lower_machine(&checked, TerminalMachineSelection::Name("probe")) else {
+            continue;
+        };
+        assert!(
+            terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .is_err(),
+            "capturing a field cannot widen its bound or loan authority"
+        );
+    }
+}
+
+#[test]
+fn field_indexed_scalar_calls_reject_substituted_selector_sources() {
+    for change_root in [false, true] {
+        let mut checked = checked_source_with_core_service(FIELD_INDEXED_CALLS);
+        let handles = checked
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        let mut changed = 0;
+        for handle in handles {
+            let Some(argument) = checked
+                .facts
+                .values
+                .scalar_computations
+                .structural_arguments
+                .get_mut(handle)
+                .as_place_mut()
+            else {
+                continue;
+            };
+            for segment in &mut argument.path {
+                if let checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::StructuralField(field),
+                ) = segment
+                {
+                    if change_root {
+                        field.parameter_position = 2;
+                    } else {
+                        let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) =
+                            &mut field.path[0]
+                        else {
+                            panic!("selector is a record field");
+                        };
+                        let replacement = identity.replace("position", "other");
+                        assert_ne!(*identity, replacement);
+                        *identity = replacement;
+                    }
+                    changed += 1;
+                }
+            }
+        }
+        assert_eq!(changed, 2);
+        assert!(
+            lower_machine(&checked, TerminalMachineSelection::Name("probe")).is_err(),
+            "an equally typed field on the same or another root is not the authored selector"
+        );
+    }
+}
+
 /// A multi-state caller calls a value method on its whole receiver and
 /// dispatches on the result.
 const WHOLE_RECEIVER: &str = r#"

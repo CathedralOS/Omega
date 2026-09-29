@@ -829,6 +829,28 @@ impl ScalarBindings {
         Ok(expression)
     }
 
+    /// Observe a checked index field at its authored operand position. The call
+    /// expansion carries this value across later argument effects.
+    pub(crate) fn runtime_index_field(
+        &self,
+        field: &checked_trees::CheckedStructuralParameterField,
+    ) -> Result<LoweredDirectExpression, LoweringError> {
+        let (source, path, field, scalar_type) = structural_fields::resolve_typed(
+            &self.structural_fields,
+            field.parameter_position,
+            &field.path,
+        )?;
+        if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+            return unsupported("runtime index field selector is not an integer read");
+        }
+        Ok(LoweredDirectExpression::StructuralField {
+            source,
+            path,
+            field,
+            scalar_type,
+        })
+    }
+
     pub(crate) fn expression(
         &self,
         expression: &CheckedScalarExpression,

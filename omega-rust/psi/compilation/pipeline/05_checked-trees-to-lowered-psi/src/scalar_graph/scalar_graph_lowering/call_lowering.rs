@@ -110,10 +110,8 @@ pub(crate) fn lower_scalar_call(
             target_machine,
         )?
     };
-    // Immutable selectors retain their positions in the caller's scalar frame.
-    // A field selector needs an ordered operand read before later arguments;
-    // a store selector belongs to its assignment. Neither may be read lazily
-    // when this call finally emits after its scalar arguments have evaluated.
+    // Field selectors must already have been captured in the authored operand
+    // stream. Emission only resolves those carried values; it never reads fields.
     if target.structural_parameters().len() != structural_arguments.len()
         || !target.entry_claims().is_empty()
         || structural_arguments.iter().any(|argument| {
@@ -128,6 +126,7 @@ pub(crate) fn lower_scalar_call(
                             | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
                             | checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
                                 checked_trees::CheckedRuntimeIndex::Parameter { .. }
+                                    | checked_trees::CheckedRuntimeIndex::StructuralField(_)
                             )
                     )
                 }))

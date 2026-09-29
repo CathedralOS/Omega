@@ -85,6 +85,7 @@ pass/calls/nested_call_tail_roots_exit rejected 456ms
 pass/calls/nested_machine_continuation built 704ms
 pass/calls/nested_value_call_arg_compile rejected 457ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a local initializer` (state 0, statement 0)
+pass/calls/ordered_field_selector_calls_exit built 902ms exit:70 @e3012d6c0627+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 474ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
