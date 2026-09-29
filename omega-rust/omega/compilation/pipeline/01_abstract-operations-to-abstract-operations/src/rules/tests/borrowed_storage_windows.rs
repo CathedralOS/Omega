@@ -271,12 +271,11 @@ fn cycle_machine() -> TerminalMachine {
     }
 }
 
-/// The window operations cannot be placed inside a cyclic machine at all:
-/// the Terminal verifier's cycle-eligibility fence admits only scalar-result
-/// and explicitly whitelisted custody shapes, so the borrowed-parameter
-/// window is unrepresentable in a loop member by construction. Encoding must
-/// fail before the optimizer ever sees the shape — this module documents
-/// that fence.
+/// A window pair in the member block of a self-looping machine. The Terminal
+/// verifier admits it: the frontier replay compares every arrival's open
+/// windows and owned places with the block's established entry, and the
+/// unrestricted displaced value owes no disposal. The member block also holds
+/// one dead constant leaf, the only work loop-invariant motion may relocate.
 fn window_inside_cycle_module() -> TerminalModule {
     let mut cyclic = module(cycle_machine());
     cyclic.entry = id::<MachineId>(70);
@@ -307,34 +306,103 @@ fn window_inside_cycle_module() -> TerminalModule {
             },
         },
     ];
-    machine.blocks[1].operations = vec![extract(42, 12), repair(43, 12)];
+    machine.blocks[1]
+        .operations
+        .extend([extract(42, 12), repair(43, 12)]);
     cyclic
 }
 
-/// A window inside a cyclic machine is unrepresentable upstream: the
-/// verifier's cycle-eligibility fence admits only scalar-result operations
-/// and explicitly whitelisted custody shapes, so the borrowed-parameter pair
-/// is rejected at encoding. This is the fence that keeps loop-invariant
-/// motion from ever seeing a window operation in a member block.
+/// Admit `module` through the real optimizer boundary.
+fn admitted_session(module: &TerminalModule) -> crate::VerifiedPsiOptimizationSession {
+    let semantic =
+        terminal_codec::encode_module(module).expect("the verifier admits the cyclic window");
+    let proof =
+        terminal_codec::encode_proof_section(module, &terminal_verifier::ProofBundle::default())
+            .expect("empty proof section");
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .map(|admitted| {
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input()
+    })
+    .expect("optimizer admission");
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        input,
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("verified optimization unit");
+    crate::VerifiedPsiOptimizationSession::new(verified).expect("cyclic window session")
+}
+
+/// The block holding each window operation and its position there.
+fn window_locations(session: &crate::VerifiedPsiOptimizationSession) -> Vec<(BlockId, usize)> {
+    session
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| {
+            block
+                .nodes
+                .iter()
+                .enumerate()
+                .filter(|(_, node)| {
+                    matches!(
+                        node.operation,
+                        abstract_operations::AbstractOperation::MoveStructuralField { .. }
+                            | abstract_operations::AbstractOperation::StoreStructuralField { .. }
+                    )
+                })
+                .map(move |(position, _)| (block.id, position))
+        })
+        .collect()
+}
+
+/// Loop-invariant motion sees the window in a member block and keeps it
+/// there: the pair is structural custody, and a component holding it
+/// preserves no place observation, so only the dead constant leaf may move.
+/// The move still precedes the store in the member block afterwards.
 #[test]
-fn a_window_inside_a_cycle_is_not_representable() {
-    let module = window_inside_cycle_module();
-    let encoded = terminal_codec::encode_module(&module);
+fn loop_invariant_motion_keeps_a_cyclic_window_in_its_member_block() {
+    let session = admitted_session(&window_inside_cycle_module());
+    let member = id::<BlockId>(73);
+    let before = window_locations(&session);
     assert!(
-        matches!(
-            encoded,
-            Err(terminal_codec::CodecError::InvalidModule(
-                terminal_verifier::ModuleError::ControlCycleIneligible {
-                    block,
-                    reason: terminal_verifier::ControlCycleIneligibility::BlockOperation {
-                        block: operation_block,
-                        operation,
-                    },
-                }
-            )) if block == id::<BlockId>(73)
-                && operation_block == block
-                && operation == id::<OperationId>(42)
-        ),
-        "the cyclic window machine must fail cycle eligibility: {encoded:?}"
+        matches!(before.as_slice(), [(first, move_at), (second, store_at)]
+            if *first == member && *second == member && move_at < store_at),
+        "the pair enters the optimizer in its member block: {before:?}"
+    );
+    let candidates =
+        crate::propose_loop_invariant_scalar_motion(&session, 8).expect("loop-invariant proposal");
+    let [candidate] = candidates.as_slice() else {
+        panic!("the one cyclic component yields one candidate: {candidates:?}")
+    };
+    let moved = candidate
+        .relocations()
+        .iter()
+        .map(|relocation| relocation.node().psi_operation())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        moved,
+        vec![id::<OperationId>(74)],
+        "only the dead constant leaf relocates"
+    );
+    let validated = crate::validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let session = crate::apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application")
+        .into_session();
+    let after = window_locations(&session);
+    assert!(
+        matches!(after.as_slice(), [(first, move_at), (second, store_at)]
+            if *first == member && *second == member && move_at < store_at),
+        "the pair stays in its member block in order: {after:?}"
     );
 }

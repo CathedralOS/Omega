@@ -1,7 +1,9 @@
 //! Eligibility for cyclic scalar work, owned inputs, locals, views, receivers,
 //! unrestricted record establishments, affine empty-record establishments,
-//! trivial affine local establishments, and entry claims pinned on owned
-//! machine parameters for the machine's whole cyclic lifetime.
+//! trivial affine local establishments, unrestricted plain leaf copies,
+//! field-replacement window pairs whose displaced value is disposed before
+//! re-entry, and entry claims pinned on owned machine parameters for the
+//! machine's whole cyclic lifetime.
 
 use super::{
     ModuleError, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
@@ -423,6 +425,26 @@ fn result_discarded_in_cycle(
         .filter(|block| cyclic_blocks.contains(&block.id))
         .flat_map(|block| terminator_discards(&block.terminator))
         .any(|discarded| discarded == place)
+}
+
+/// Whether some window store in a cyclic block consumes `place` as its repair
+/// value — the swap spelling, where one displaced subtree reseats another
+/// hole. The store's consumption is the disposal, which the frontier join
+/// then proves identical on every traversal, as for a discard roster.
+fn reseated_in_cycle(
+    machine: &TerminalMachine,
+    cyclic_blocks: &BTreeSet<BlockId>,
+    place: PlaceId,
+) -> bool {
+    machine
+        .blocks
+        .iter()
+        .filter(|block| cyclic_blocks.contains(&block.id))
+        .flat_map(|block| &block.operations)
+        .any(|operation| {
+            matches!(&operation.kind, OperationKind::StoreStructuralField { value, .. }
+                if value.place == place)
+        })
 }
 
 fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
@@ -857,6 +879,79 @@ fn cycle_operation_eligible(
                                 }))
                     })
                 && claim_transfers.is_empty()
+        }
+        // A field-replacement window pair: `MoveStructuralField` vacates one
+        // declared structural field beneath a borrowed-window root and hands
+        // out the displaced subtree, and `StoreStructuralField` reseats that
+        // hole. The static shapes prove the root is a claim-free
+        // mutable-borrowed parameter or a completed owned home and that the
+        // field's declared type matches the moved result and the repair
+        // value. The frontier replay owns the window's custody on every
+        // arrival: the hole rides `restoration_debt` in each snapshot, so an
+        // arrival whose open windows differ from the block's established
+        // entry — a hole left open across a back edge — fails the fixed-point
+        // join, every non-crash exit rejects pending debt, and the repair
+        // value must be live, claim-free and of the hole's type.
+        //
+        // The displaced value is the remaining obligation. An unrestricted
+        // plain one is a copy payload, as for the unrestricted structural
+        // case and scalar array arms: the frontier never retains it, and it
+        // owes no disposal. An affine one enters `owned_places` at the move.
+        // Outside every cycle the move executes once per activation, and the
+        // exit rosters must dispose it exactly. Inside a cycle it must be
+        // disposed before re-entry: some in-cycle edge schedules its discard,
+        // or an in-cycle window store consumes it as a repair value, and the
+        // fixed-point join proves that disposal identical on every traversal.
+        // An affine move in a cycle that nothing there disposes keeps the
+        // fence closed.
+        //
+        // A runtime-selected element's hole is its whole array prefix, so a
+        // store at another runtime index would close it without proving the
+        // same element was reseated. Vacating and reseating a copy payload
+        // moves no custody either way; an affine element keeps the fence
+        // closed until the window names its element exactly.
+        OperationKind::MoveStructuralField { path, .. } => {
+            crate::validation::borrowed_windows::validate_move_static(module, machine, operation)
+                .is_ok()
+                && operation.result.structural().is_some_and(|result| {
+                    (result.multiplicity == StructuralMultiplicity::Unrestricted
+                        && crate::validation::record::completed_source(
+                            module,
+                            machine,
+                            result.place,
+                        )
+                        .is_some())
+                        || (result.multiplicity == StructuralMultiplicity::Affine
+                            && terminal_psi::is_static_structural_path(path)
+                            && (!cyclic_blocks.contains(&block.id)
+                                || result_discarded_in_cycle(machine, cyclic_blocks, result.place)
+                                || reseated_in_cycle(machine, cyclic_blocks, result.place)))
+                })
+        }
+        OperationKind::StoreStructuralField { .. } => {
+            operation.result == OperationResult::Unit
+                && crate::validation::borrowed_windows::validate_store_static(
+                    module, machine, operation,
+                )
+                .is_ok()
+        }
+        // An unrestricted plain leaf copy observes its owner without
+        // consuming or refining it, the structural sibling of the primitive
+        // read below: the frontier never retains the fresh copy payload as a
+        // disposal obligation, so re-entering the copy each traversal
+        // replaces a custody-free value. The source's liveness, the copy's
+        // producer dominance, and a runtime index's bounds obligation are
+        // still checked by the ordinary walk. A shared-borrow relocation is a
+        // live reference carrier and keeps the fence closed.
+        OperationKind::StructuralLeafCopy { source, path } => {
+            operation.result.structural().is_some_and(|result| {
+                result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && crate::validation::record::completed_source(module, machine, result.place)
+                        .is_some()
+            }) && crate::validation::structural::leaf_copy::validate(
+                module, machine, operation, *source, path,
+            )
+            .is_ok()
         }
         OperationKind::ByteSequenceSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {

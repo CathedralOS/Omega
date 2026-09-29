@@ -549,6 +549,35 @@ fn a_stale_read_under_the_open_window_rejects() {
 }
 
 #[test]
+fn a_scalar_field_beside_the_hole_stays_observable() {
+    // A direct scalar read on the windowed root touches only its own field:
+    // re-reading a counter beside an open `left` window reaches no absent
+    // storage, as the element swap's repair-index re-read does.
+    let mut module = window_module();
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[1].shape else {
+        unreachable!("Envelope is a record")
+    };
+    let count = id(3, StructuralFieldId::new);
+    fields.push(StructuralFieldDeclaration {
+        id: count,
+        identity: "count".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Boolean),
+    });
+    module.machines[0].blocks[0].operations.insert(
+        1,
+        boolean_read(
+            id(5, OperationId::new),
+            id(1, ValueId::new),
+            1,
+            Vec::new(),
+            count,
+        ),
+    );
+    validate_module(&module).expect("a sibling scalar field is not beneath the hole");
+}
+
+#[test]
 fn the_window_cannot_cross_an_edge() {
     for (name, argument, parameter_type) in [
         (

@@ -261,9 +261,24 @@ fn touched_regions(
                 canonical_field_path(module, machine, *source, path).unwrap_or_default(),
             )]
         }
-        OperationKind::BooleanStructuralField { source, path, .. }
-        | OperationKind::IntegerStructuralField { source, path, .. } => {
-            vec![(*source, path.clone())]
+        // The carrier path is already canonical and excludes the read field,
+        // so the observed region is that one scalar leaf: a counter beside an
+        // open element window (`self.items[self.r] = ..` re-reads `self.r`
+        // for the repair store's index) touches no absent storage, while a
+        // read beneath the hole still overlaps it.
+        OperationKind::BooleanStructuralField {
+            source,
+            path,
+            field,
+        }
+        | OperationKind::IntegerStructuralField {
+            source,
+            path,
+            field,
+        } => {
+            let mut region = path.clone();
+            region.push(CanonicalStructuralPathSegment::Field(*field));
+            vec![(*source, region)]
         }
         OperationKind::ByteSequenceSubslice { source, .. }
         | OperationKind::ByteSequenceLength { source }

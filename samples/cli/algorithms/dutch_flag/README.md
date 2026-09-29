@@ -18,9 +18,11 @@ verified port would carry as `requires`/`ensures` facts.
   selected `ProgramEntry` establishment with "rejoins 0 Terminal attachment
   identities; expected one" — an entry/receiver-custody gap routed to
   **ENTRY-CONTENT-ROOTS** per the SAMPLE-CORPUS table, not a sample defect.
-- Other hosted targets (Windows x86-64, Linux ARM64, macOS ARM64) remain
-  unverified; coverage tracking lives in
-  [SAMPLE-CORPUS](../../../../TASKS.md).
+- macOS ARM64 native: after the package review is accepted,
+  `omega run samples/cli/algorithms/dutch_flag/main.omg` prints the partition
+  and PASS lines and exits 70 (stdin closed).
+- Other hosted targets (Windows x86-64, Linux ARM64) remain unverified;
+  coverage tracking lives in [SAMPLE-CORPUS](../../../../TASKS.md).
 
 ## Run the regression
 
