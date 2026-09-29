@@ -21,6 +21,7 @@ use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 
 mod aggregate_argument;
+mod call_arguments;
 mod aggregate_memory;
 mod aggregate_return;
 mod atomic_access;
