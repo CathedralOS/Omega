@@ -26,17 +26,17 @@ ensures
 data Main {
 }
 
-machine Main::consume(&self, token: Token in Issued) {
+machine consume(token: Token in Issued) {
 }
 
 // A constrained bodyless parameter is an implicit call requirement and an
 // entry fact in the callee. Forwarding must retain the owner's evidence rather
 // than treating the matching runtime carrier as sufficient.
-machine Main::forward(&self, token: Token in Issued) {
-    self.consume(token);
+machine forward(token: Token in Issued) {
+    consume(token);
 }
 
 machine Main::main(&mut self) {
     let token: Token = Token::issue(7);
-    self.forward(token);
+    forward(token);
 }

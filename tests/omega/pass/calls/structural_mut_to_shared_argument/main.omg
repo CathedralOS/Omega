@@ -9,7 +9,7 @@ machine Counts::clone(source: &Counts) -> Counts {
     Counts { tally: source.tally }
 }
 
-machine Counts::collect(&mut self, merged: &mut Counts) -> u64 {
+machine collect(merged: &mut Counts) -> u64 {
     let copy: Counts = Counts::clone(&mut merged);
     copy.tally
 }

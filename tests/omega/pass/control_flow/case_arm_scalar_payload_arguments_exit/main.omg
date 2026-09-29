@@ -36,16 +36,16 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::next_token(&mut self) -> NextToken {
+machine next_token() -> NextToken {
     transition { _ -> (NextToken::Token { start: 2, end: 3 }) }
 }
 
-machine Main::line_read(&mut self) -> LineRead {
+machine line_read() -> LineRead {
     transition { _ -> (LineRead::LineComplete { count: 30 }) }
 }
 
 machine Main::main(&mut self) reaches Console {
-    let root: NextToken = self.next_token();
+    let root: NextToken = next_token();
     transition root {
         NextToken::Token { start, end } -> root_token(start, end)
         _ -> refused()
@@ -65,7 +65,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state read_line(&mut self) {
-        let result: LineRead = self.line_read();
+        let result: LineRead = line_read();
         transition result {
             LineRead::LineComplete { count } -> got_line(count, false)
             LineRead::EndOfInput { count } -> got_line(count, true)
