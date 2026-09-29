@@ -1,17 +1,20 @@
 //! Range tests for proof obligations.
 
 use super::{FloatRange, ProofConstraint};
-use crate::obligations::constraints::derived_binary_constraints;
+use crate::obligations::IntegerRange;
+use crate::obligations::constraints::{derived_binary_constraints, expression_constraints};
 use crate::obligations::plan::ConstraintBuffer;
-use crate::obligations::ranges::constraints_prove_finite;
-use crate::obligations::ranges::float_binary_range;
-use crate::obligations::ranges::has_named_constraint;
+use crate::obligations::ranges::{
+    constraints_prove_finite, float_binary_range, has_named_constraint, integer_binary_range,
+    integer_range_from_constraints,
+};
+use numerics::bignum::BigInt;
 use numerics::literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
 use typed_trees::TypedTrees;
-use typed_trees::expression::BinaryOperator;
-use typed_trees::expression::ExpressionNode;
-use typed_trees::expression::FloatLiteral;
+use typed_trees::expression::{BinaryOperator, ExpressionNode, FloatLiteral, TableCastExpression};
+use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
+use typed_trees::state::State;
 use typed_trees::types::TypeConstraintNode;
 use typed_trees::types::TypeReferenceHandle;
 use typed_trees::types::TypeReferenceNode;
@@ -269,4 +272,145 @@ fn derived_float_range_proves_finite_when_the_bound_is_finite() {
 
     assert!(has_named_constraint(&constraints, "finite"));
     assert!(constraints_prove_finite(&constraints));
+}
+
+fn integer_range(minimum: i64, maximum: i64) -> IntegerRange {
+    IntegerRange {
+        minimum: BigInt::from_i64(minimum),
+        maximum: BigInt::from_i64(maximum),
+    }
+}
+
+#[test]
+fn integer_binary_range_folds_or_and_xor_under_the_wider_mask() {
+    // Flag words: `[0,1] | [0,1]` and `[0,1] ^ [0,1]` both fold to `[0,1]`
+    // -- endpoint arithmetic would falsely claim `[0,2]`.
+    for operator in [BinaryOperator::BitwiseOr, BinaryOperator::BitwiseXor] {
+        assert_eq!(
+            integer_binary_range(operator, integer_range(0, 1), integer_range(0, 1)),
+            Some(integer_range(0, 1)),
+        );
+        assert_eq!(
+            integer_binary_range(operator, integer_range(0, 15), integer_range(0, 1)),
+            Some(integer_range(0, 15)),
+        );
+    }
+
+    // OR keeps the wider operand's floor (x | y >= max(x, y)); XOR can
+    // cancel every shared bit, so its honest floor stays zero.
+    assert_eq!(
+        integer_binary_range(
+            BinaryOperator::BitwiseOr,
+            integer_range(2, 3),
+            integer_range(0, 1)
+        ),
+        Some(integer_range(2, 3)),
+    );
+    assert_eq!(
+        integer_binary_range(
+            BinaryOperator::BitwiseXor,
+            integer_range(2, 3),
+            integer_range(0, 1)
+        ),
+        Some(integer_range(0, 3)),
+    );
+
+    // Degenerate bounds: [0,0] | [0,0] has no set bit available.
+    assert_eq!(
+        integer_binary_range(
+            BinaryOperator::BitwiseOr,
+            integer_range(0, 0),
+            integer_range(0, 0)
+        ),
+        Some(integer_range(0, 0)),
+    );
+
+    // A possibly-negative operand carries sign bits: no mask claim.
+    for operator in [BinaryOperator::BitwiseOr, BinaryOperator::BitwiseXor] {
+        assert_eq!(
+            integer_binary_range(operator, integer_range(-8, -1), integer_range(0, 1)),
+            None,
+        );
+        assert_eq!(
+            integer_binary_range(operator, integer_range(0, 1), integer_range(-8, 7)),
+            None,
+        );
+    }
+}
+
+#[test]
+fn bool_to_integer_cast_constraints_mint_the_two_value_range() {
+    // `bool as i32` produces exactly {0,1}: the conversion's constraint
+    // derives a [0,1] range even when the source carries no facts.
+    let (mut program, bool_carrier, i32_carrier) = {
+        let mut builder = symbols::SymbolTableBuilder::new();
+        let root = builder.insert_root(
+            symbols::SymbolKind::Root,
+            symbols::SymbolNameRef::Static("root"),
+        );
+        let builtins = symbols::SymbolTableBuilder::child_handles(
+            builder.insert_children(root, symbols::builtin_type_symbols()),
+        )
+        .collect::<Vec<_>>();
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..TypedTrees::default()
+        };
+        let bool_carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: builtins[symbols::BuiltinTypeAtom::Bool.ordinal()],
+                name: Identifier::generated("bool"),
+            });
+        let i32_carrier = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: builtins[symbols::BuiltinTypeAtom::I32.ordinal()],
+                name: Identifier::generated("i32"),
+            });
+        (program, bool_carrier, i32_carrier)
+    };
+    let machine = Machine::default();
+    let state = State::default();
+    let source = program
+        .expression_table
+        .insert(ExpressionNode::ZeroValue(bool_carrier));
+    let cast = program
+        .expression_table
+        .insert(ExpressionNode::Cast(TableCastExpression {
+            value: source,
+            target_type: i32_carrier,
+            result_type: i32_carrier,
+            target_label: arena::HandleSpan::empty(),
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            semantic_domain: arena::HandleSpan::empty(),
+            semantic_domain_arguments: arena::HandleSpan::empty(),
+            semantic_domain_symbol: symbols::SymbolHandle::invalid(),
+            semantic_domain_id: language_semantics::SemanticDomainId::NULL,
+            form: language_core::cast_form::CastForm::Value,
+        }));
+
+    let constraints = expression_constraints(&program, &machine, &state, cast);
+
+    assert_eq!(
+        integer_range_from_constraints(&constraints),
+        Some(integer_range(0, 1)),
+    );
+    assert!(has_named_constraint(&constraints, "non_negative"));
+
+    // The folded flag-word shape the filesystem encoder stores:
+    // `(bool as i32) | (bool as i32)` proves [0,1] end to end.
+    let mut flag = ConstraintBuffer::new();
+    flag.push(ProofConstraint::IntegerRange {
+        minimum: BigInt::zero(),
+        maximum: BigInt::from_i64(1),
+    });
+    assert_eq!(
+        integer_binary_range(
+            BinaryOperator::BitwiseOr,
+            integer_range_from_constraints(&flag).unwrap(),
+            integer_range_from_constraints(&flag).unwrap()
+        ),
+        Some(integer_range(0, 1)),
+    );
 }
