@@ -8,6 +8,9 @@ pub struct ProjectRoots {
 }
 
 pub fn project_roots(root_path: &std::path::Path) -> ProjectRoots {
+    if root_path.is_dir() {
+        return directory_project_roots(root_path);
+    }
     let mut roots = vec![root_path.to_path_buf()];
     let mut build = (root_path.file_name().and_then(|name| name.to_str()) == Some("build.omg"))
         .then(|| root_path.to_path_buf());
@@ -29,6 +32,31 @@ pub fn project_roots(root_path: &std::path::Path) -> ProjectRoots {
         }
     }
 
+    ProjectRoots {
+        sources: roots,
+        build,
+    }
+}
+
+/// A directory names its declared project sources directly: the directory
+/// itself is not a source file, so seeding it would load a directory as
+/// source text. A directory holding neither root still names itself — the
+/// loader's directory diagnostic stays honest rather than silently skipping.
+fn directory_project_roots(directory: &std::path::Path) -> ProjectRoots {
+    let mut roots = Vec::new();
+    let mut build = None;
+    for name in ["build.omg", "main.omg"] {
+        let candidate = directory.join(name);
+        if candidate.is_file() {
+            if name == "build.omg" {
+                build = Some(candidate.clone());
+            }
+            roots.push(candidate);
+        }
+    }
+    if roots.is_empty() {
+        roots.push(directory.to_path_buf());
+    }
     ProjectRoots {
         sources: roots,
         build,
