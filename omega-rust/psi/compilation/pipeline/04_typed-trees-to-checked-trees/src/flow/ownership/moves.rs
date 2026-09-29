@@ -442,12 +442,17 @@ fn expression_call_is_owned_by_call_flow(
     };
     let (receiver_symbol, receiver_path) =
         crate::lookup::call_receiver_parts(program, call.receiver);
+    // A named boundary operator is an ordinary requirement call: borrow
+    // discovery keys it by its declaration symbol and the call-flow pass moves
+    // its owned arguments. Classify it the same way here.
+    let boundary_operator = typed_trees::operator::resolve_named_expression_call(program, call)
+        .filter(|operator| operator.is_boundary);
     crate::lookup::resolve_state_call_target(
         program,
         machine,
         state,
         receiver_symbol,
-        call.target_symbol,
+        boundary_operator.map_or(call.target_symbol, |operator| operator.symbol),
         receiver_path.as_deref(),
         &call.target,
     )
