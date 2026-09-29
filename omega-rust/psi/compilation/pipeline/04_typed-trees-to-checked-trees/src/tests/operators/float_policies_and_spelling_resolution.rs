@@ -6,6 +6,80 @@ use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::{ExpressionNode, TableIndexedExpression};
 
 #[test]
+fn named_float_conversion_arguments_retain_selected_format() {
+    let checked = checked_program(
+        r#"
+        data I8 {}
+        data Float {}
+        boundary operator - Float::subtract(left: f32, right: f32) -> f32;
+        boundary operator - Float::subtract(left: f64, right: f64) -> f64;
+        boundary operator I8::from_f32(value: f32) -> i8;
+        boundary operator I8::from_f32(value: f32) -> i8 in Trapping;
+        boundary operator I8::from_f32(value: f32) -> i8 in Saturating;
+        boundary operator I8::from_f64(value: f64) -> i8;
+        boundary operator I8::from_f64(value: f64) -> i8 in Trapping;
+        boundary operator I8::from_f64(value: f64) -> i8 in Saturating;
+        machine main() {
+            let first: i8 = I8::from_f32(-8.75f32);
+            let second: i8 = I8::from_f64(-9.75);
+            let trapped: i8 in Trapping = I8::from_f64(-10.75);
+            let saturated: i8 in Saturating = I8::from_f64(-11.75);
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    for (statement, expected) in [
+        (0, numerics::literals::FloatFormat::F32),
+        (1, numerics::literals::FloatFormat::F64),
+        (2, numerics::literals::FloatFormat::F64),
+        (3, numerics::literals::FloatFormat::F64),
+    ] {
+        let typed_trees::statement::StatementNode::LocalData(local) =
+            &checked.statement_table.statements(state.statement_nodes)[statement]
+        else {
+            panic!("local initializer");
+        };
+        let ExpressionNode::Call(call) = checked.expression_table.expression(local.initial_value)
+        else {
+            panic!("conversion call");
+        };
+        let argument = checked.expression_table.expression_handles(call.arguments)[0];
+        let ExpressionNode::Float(literal) = checked.expression_table.expression(argument) else {
+            panic!(
+                "literal argument: {:?}",
+                checked.expression_table.expression(argument)
+            );
+        };
+        assert_eq!(
+            literal.landing(),
+            Some(expected),
+            "conversion argument {statement}"
+        );
+    }
+}
+
+#[test]
+fn selected_float_conversion_does_not_reland_suffixed_arguments() {
+    let diagnostics = crate::tests::front_end::checked_program_result(
+        "data I8 {} boundary operator I8::from_f64(value: f64) -> i8;
+         machine main() { let value: i8 = I8::from_f64(1.0f32); }",
+    )
+    .expect_err("a selected f64 formal cannot reinterpret an f32 argument");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("f32")
+                && diagnostic.message.contains("f64")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn records_checked_float_policy_adapters_from_operand_domains() {
     let source = r#"
         boundary operator + Float::add(left: f32, right: f32) -> f32;

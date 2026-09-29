@@ -282,6 +282,14 @@ fn lower_typed_trees_uncached(
     // specialization and call-identity rebinding above, so validation and
     // every executing consumer see the same call edge a named call would make.
     crate::operators::bind_selected_operator_calls(&mut program)?;
+    // Early landing supports operand-driven selection, but provisional named
+    // targets need not expose their final formal types yet. Result-overload
+    // rebinding and conversion elaboration above can also introduce call
+    // destinations. Finish landing against those exact selected signatures
+    // before scalar plans or either evaluator consumes the frozen program.
+    // Already-landed literals retain their format; this is not a default-f64
+    // fallback or permission to reinterpret a typed argument.
+    validation::land_float_literal_destinations(&mut program);
     // The program is now frozen for checking: specialization and every
     // call-identity rebinding above mutate it, so the plan memo scope can only
     // open here — the first of the consumers below computes the program-pure
