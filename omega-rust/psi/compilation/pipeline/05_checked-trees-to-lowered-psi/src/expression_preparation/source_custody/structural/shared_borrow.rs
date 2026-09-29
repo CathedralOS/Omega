@@ -243,7 +243,23 @@ fn validate_place_root(
     {
         return unsupported("borrowed selection root is not an exact name");
     }
-    if !super::owned_selection::source_plan_matches(checked, authored.symbol, name.symbol, source) {
+    // An authored `self` name retains the durable machine symbol while the
+    // retained source plan names the `is_self` parameter's own symbol.
+    // Resolve through the parameter row so the source match sees the same
+    // identity both sides describe.
+    let root_symbol = if name.symbol == machine.symbol {
+        let mut self_parameters = checked
+            .state_parameters(authored)
+            .iter()
+            .filter(|parameter| parameter.is_self);
+        match self_parameters.next() {
+            Some(parameter) if self_parameters.next().is_none() => parameter.symbol,
+            _ => name.symbol,
+        }
+    } else {
+        name.symbol
+    };
+    if !super::owned_selection::source_plan_matches(checked, authored.symbol, root_symbol, source) {
         return unsupported("borrowed selection source does not match its root");
     }
     // An authored `self` name retains the durable machine symbol; it roots at
