@@ -595,6 +595,11 @@ fn affine_definition_bounds(
             left,
             right,
         }
+        | ScalarTerm::WrappingIntegerDivide {
+            scalar_type,
+            left,
+            right,
+        }
         | ScalarTerm::ExactIntegerRemainder {
             scalar_type,
             left,
@@ -936,6 +941,26 @@ fn cast_source_bounds(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Vec<ProofNode> {
+    if matches!(source, ScalarTerm::Value { .. })
+        && let ScalarType::Integer(integer_type) = source.scalar_type()
+    {
+        // A stored cast result needs the source's proved arithmetic range,
+        // not just its carrier range. The caller cuts the axiom roster before
+        // this cast, so recursive source closures cannot use their own result.
+        return [false, true]
+            .into_iter()
+            .flat_map(|lower| {
+                operand_endpoints(
+                    context,
+                    integer_type,
+                    source,
+                    lower,
+                    assumptions,
+                    semantic_axioms,
+                )
+            })
+            .collect();
+    }
     let ScalarTerm::ExactIntegerRemainder {
         scalar_type: integer_type,
         left,
@@ -987,6 +1012,7 @@ fn operation_expression(term: &ScalarTerm) -> bool {
             | ScalarTerm::ExactIntegerSubtract { .. }
             | ScalarTerm::ExactIntegerMultiply { .. }
             | ScalarTerm::ExactIntegerDivide { .. }
+            | ScalarTerm::WrappingIntegerDivide { .. }
             | ScalarTerm::ExactIntegerRemainder { .. }
             | ScalarTerm::WrappingIntegerRemainder { .. }
             | ScalarTerm::ExactIntegerShiftLeft { .. }

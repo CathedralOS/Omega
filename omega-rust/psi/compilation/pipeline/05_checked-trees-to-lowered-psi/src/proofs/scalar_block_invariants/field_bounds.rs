@@ -154,12 +154,6 @@ pub(super) fn candidates(
                     if guards.contains(predicate) {
                         continue;
                     }
-                    let Some(next) = remaining.checked_sub(1) else {
-                        declines
-                            .record(crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork);
-                        return candidates;
-                    };
-                    *remaining = next;
                     // Reconstructed path facts describe when this demand is
                     // reached. Transport their literal comparisons through the
                     // same live read equations, never treating a read's own
@@ -172,33 +166,142 @@ pub(super) fn candidates(
                         .cloned()
                         .collect::<Vec<_>>();
                     let conclusion = without_refuted_alternatives(predicate.clone(), &guards);
-                    let predicate = match guards.as_slice() {
-                        [] => conclusion,
-                        [guard] => Proposition::Implication {
+                    let guarded = match guards.as_slice() {
+                        [] => None,
+                        [guard] => Some(Proposition::Implication {
                             premise: Box::new(guard.clone()),
                             conclusion: Box::new(conclusion),
-                        },
-                        _ => Proposition::Implication {
+                        }),
+                        _ => Some(Proposition::Implication {
                             premise: Box::new(Proposition::Conjunction(guards)),
                             conclusion: Box::new(conclusion),
-                        },
+                        }),
                     };
-                    // The exact invariant telescope decides scope: a predicate
-                    // naming a block-local value or a dead place cannot become
-                    // an assertion even though its site was reachable.
-                    if scope.validate(&predicate).is_err()
-                        || !proposed.insert((header, predicate.clone()))
-                    {
-                        continue;
+                    // Try the unguarded demand too. Both arrivals may establish
+                    // a byte bound independently of a later index guard; tying
+                    // that bound only to the index loses it when the index is
+                    // assigned after the join. All-arrival checking can drop
+                    // this stronger claim while retaining a guarded loop fact.
+                    for predicate in std::iter::once(predicate.clone()).chain(guarded) {
+                        // The exact invariant telescope rejects block-local
+                        // values and dead places regardless of reachability.
+                        if scope.validate(&predicate).is_err()
+                            || !proposed.insert((header, predicate.clone()))
+                        {
+                            continue;
+                        }
+                        let Some(next) = remaining.checked_sub(1) else {
+                            declines.record(crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork);
+                            return candidates;
+                        };
+                        *remaining = next;
+                        candidates.push(ScalarBlockInvariant {
+                            machine: machine.id,
+                            header,
+                            predicate,
+                            arrivals: Vec::new(),
+                        });
                     }
-                    candidates.push(ScalarBlockInvariant {
-                        machine: machine.id,
-                        header,
-                        predicate,
-                        arrivals: Vec::new(),
-                    });
                 }
             }
+        }
+    }
+    candidates
+}
+
+/// A demanded header can need a bound established before an inner loop even
+/// when that entry is internal to the outer loop's strongly connected component.
+/// Seed its arrivals' atomic storage comparisons at that same header, without
+/// broadcasting them across the component. The transaction proves establishment and
+/// preservation; a branch-local bound or a bound invalidated by a write drops.
+pub(super) fn arrival_bounds(
+    module: &TerminalModule,
+    questions: &ReconstructedTerminalObligationSet,
+    remaining: &mut usize,
+    declines: &mut crate::proofs::ProofSearchDeclines,
+) -> Vec<ScalarBlockInvariant> {
+    let mut candidates = Vec::new();
+    let mut proposed = BTreeSet::new();
+    for site in questions.obligations() {
+        let ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+            machine: owner,
+            header,
+            ..
+        } = site.owner
+        else {
+            continue;
+        };
+        let Some(machine) = module.machines.iter().find(|machine| machine.id == owner) else {
+            continue;
+        };
+        let Some(block) = machine.blocks.iter().find(|block| block.id == header) else {
+            continue;
+        };
+        let Ok(scope) = terminal_verifier::scalar_block_invariant_scope(machine, block) else {
+            continue;
+        };
+        let roots = machine
+            .structural_places
+            .iter()
+            .filter(|place| {
+                matches!(
+                    place.kind,
+                    StructuralPlaceKind::Parameter { .. }
+                        | StructuralPlaceKind::BlockParameter { .. }
+                )
+            })
+            .map(|place| place.id)
+            .collect();
+        let equations = FieldEquations::new(&site.semantic_axioms, &roots);
+        let mut pending = site.semantic_axioms.iter().collect::<Vec<_>>();
+        while let Some(fact) = pending.pop() {
+            // Only conjunction leaves are unconditional. Never promote an
+            // implication's conclusion or one alternative of a disjunction.
+            if let Proposition::Conjunction(members) = fact {
+                pending.extend(members);
+                continue;
+            }
+            if !matches!(
+                fact,
+                Proposition::LessThan(..) | Proposition::LessOrEqual(..)
+            ) || !literal_comparison(fact)
+            {
+                continue;
+            }
+            let Some(predicate) = transport_relation(fact, &equations).map(inclusive_bound) else {
+                continue;
+            };
+            if scope.validate(&predicate).is_err()
+                || !proposed.insert((owner, header, predicate.clone()))
+            {
+                continue;
+            }
+            if module.scalar_block_invariants.iter().any(|existing| {
+                existing.machine == owner
+                    && existing.header == header
+                    && (existing.predicate == predicate
+                        || matches!(
+                            &existing.predicate,
+                            Proposition::Conjunction(members) if members.contains(&predicate)
+                        ))
+            }) {
+                continue;
+            }
+            // The work unit is a new scoped candidate. Do not spend the shared
+            // pool rediscovering an already retained bound on every arrival.
+            let Some(next) = remaining.checked_sub(1) else {
+                declines.record(
+                    crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
+                );
+                return candidates;
+            };
+            *remaining = next;
+            candidates.push(ScalarBlockInvariant {
+                machine: owner,
+                header,
+                predicate,
+                arrivals: Vec::new(),
+            });
         }
     }
     candidates

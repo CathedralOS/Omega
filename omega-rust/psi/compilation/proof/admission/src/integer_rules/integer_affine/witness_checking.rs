@@ -864,21 +864,21 @@ fn apply_definition(
                 },
             )
         }
-        // Unsigned wrapping division by a landed nonzero literal is exact
-        // floor division: both bound directions are monotone and need no
-        // evidence conjunct. A zero divisor still rejects so the chain never
-        // pretends a trapping operation has an image.
+        // Wrapping division is truncating division except at signed MIN/-1.
+        // Every other nonzero literal has a monotone image (order reverses for
+        // a negative divisor), already modeled by Divide. Do not treat the
+        // exceptional wrapped result as that image without separate evidence.
         ScalarTerm::WrappingIntegerDivide {
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type
-            && integer_type.sign() == IntegerSign::Unsigned
-            && left.as_ref() == current =>
-        {
+        } if *scalar_type == integer_type && left.as_ref() == current => {
             let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
             if literal == 0 {
                 return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
+            }
+            if integer_type.sign() == IntegerSign::Signed && literal == -1 {
+                return None;
             }
             (
                 Some(coefficient),
@@ -887,16 +887,14 @@ fn apply_definition(
                 CheckedIntegerEndpointStep::Divide(literal),
             )
         }
-        // Unsigned wrapping remainder has the same nonzero-divisor image as
-        // exact remainder. Signed wrapping policy remains a separate case.
+        // Wrapping remainder keeps the dividend's sign on both carriers.
+        // Unlike division, signed MIN % -1 still has the ordinary remainder
+        // image: zero. Only a zero divisor prevents this bounded image.
         ScalarTerm::WrappingIntegerRemainder {
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type
-            && integer_type.sign() == IntegerSign::Unsigned
-            && left.as_ref() == current =>
-        {
+        } if *scalar_type == integer_type && left.as_ref() == current => {
             let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
             if literal == 0 {
                 return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));

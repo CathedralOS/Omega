@@ -389,7 +389,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/witness_checking.rs",
-        sha256: Some("7eec08107490f943a62a4a27bdee1ced4e6f0226680f948b371862d85a5daf57"),
+        sha256: Some("60cca601a1403b6b0c7df5b4546bbd8e3aa0e5a6293817c5deb6fae521aa4808"),
         inventory_machinery: false,
     },
     ImplementationSite {
