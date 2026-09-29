@@ -3,9 +3,9 @@ mod restricted_build_grants;
 use super::super::PackageSourceVerificationPhase;
 use super::{
     CandidateSourcePreparation, CompileResolvedPackageReviewsError, SemanticBindingReview,
-    TargetEntryDiscovery, candidate_semantic_binding_inputs, compile_pass,
-    compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
-    compile_resolved_package_reviews_reusing,
+    TargetEntryDiscovery, candidate_semantic_binding_inputs, compile_candidate_for_check_reusing,
+    compile_pass, compile_resolved_package_candidate_for_production,
+    compile_resolved_package_reviews, compile_resolved_package_reviews_reusing,
 };
 use crate::resolution::graph::GitResolutionOptions;
 use crate::resolution::graph::{
@@ -967,6 +967,79 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
     assert_eq!(bound.reviews.reviews().len(), occurrences);
 }
 
+/// A minimal application importing `omega_language_std::console` over the
+/// repository's real `source/library/std` package, resolved as an
+/// external-local closure under a fresh temporary root. Returns the fixture
+/// root (its tree is the caller's cleanup), the resolved closure, and the
+/// checked entry inside the resolver's immutable snapshot. `entry_contract`
+/// is the Build-side `roots.bind` spelling for the requested target
+/// (`linux_x86_64::ProgramEntry`, `windows_x86_64::ProgramEntry`, ...).
+fn std_importing_application_closure(
+    entry_contract: &str,
+) -> (
+    PathBuf,
+    crate::resolution::graph::ResolvedPackageSourceClosure,
+    PathBuf,
+) {
+    let root = std::env::temp_dir().join(format!(
+        "omega-candidate-std-check-once-{}-{}",
+        std::process::id(),
+        NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
+    ));
+    let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .map(|ancestor| ancestor.join("source/library/std"))
+        .find(|candidate| candidate.join("build.omg").is_file())
+        .expect("repository source/library/std package")
+        .canonicalize()
+        .expect("canonical standard-library package root");
+    fs::create_dir_all(root.join("application")).unwrap();
+    fs::write(
+        root.join("application/build.omg"),
+        format!(
+            r#"machine build(builder: &mut Build) {{
+    builder.application("std_check_consumer");
+    builder.depend(Source::Path {{ location: "{}" }});
+    builder.roots.bind({entry_contract}, Main::main);
+}}
+"#,
+            standard_library.display().to_string().replace('\\', "/")
+        ),
+    )
+    .unwrap();
+    fs::write(
+        root.join("application/main.omg"),
+        r#"use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self)
+reaches Console
+{
+    self.console.write_line("std check once");
+}
+"#,
+    )
+    .unwrap();
+    let storage =
+        SourceResolver::for_hardened_base(root.join("resolved"), PrimaryGitChoices::default())
+            .unwrap();
+    let closure = resolve_external_local_project_closure(
+        root.join("application"),
+        ExternalSourceContext::derive(b"candidate-std-check-once"),
+        &storage,
+        LocalSourceLimits::default(),
+        PackageSourceClosureLimits::default(),
+        GitResolutionOptions::default(),
+    )
+    .unwrap();
+    let entry = closure
+        .source_root(closure.graph().root())
+        .unwrap()
+        .join("main.omg");
+    (root, closure, entry)
+}
+
 /// The CLI check route over a real std-importing application runs a discovery
 /// pass and a bound pass, and each pass requests the pre-build
 /// declaration-authority check and the settled whole-program check for every
@@ -1004,62 +1077,7 @@ fn std_importing_check_executes_identical_checks_once_across_passes() {
             1_u64,
         ),
     ] {
-        let root = std::env::temp_dir().join(format!(
-            "omega-candidate-std-check-once-{}-{}",
-            std::process::id(),
-            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
-        ));
-        let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .ancestors()
-            .map(|ancestor| ancestor.join("source/library/std"))
-            .find(|candidate| candidate.join("build.omg").is_file())
-            .expect("repository source/library/std package")
-            .canonicalize()
-            .expect("canonical standard-library package root");
-        fs::create_dir_all(root.join("application")).unwrap();
-        fs::write(
-            root.join("application/build.omg"),
-            format!(
-                r#"machine build(builder: &mut Build) {{
-    builder.application("std_check_consumer");
-    builder.depend(Source::Path {{ location: "{}" }});
-    builder.roots.bind({entry_contract}, Main::main);
-}}
-"#,
-                standard_library.display().to_string().replace('\\', "/")
-            ),
-        )
-        .unwrap();
-        fs::write(
-            root.join("application/main.omg"),
-            r#"use omega_language_std::console;
-use omega::language::core::binding;
-
-data Main { console: Binding<Console>; }
-machine Main::main(&mut self)
-reaches Console
-{
-    self.console.write_line("std check once");
-}
-"#,
-        )
-        .unwrap();
-        let storage =
-            SourceResolver::for_hardened_base(root.join("resolved"), PrimaryGitChoices::default())
-                .unwrap();
-        let closure = resolve_external_local_project_closure(
-            root.join("application"),
-            ExternalSourceContext::derive(b"candidate-std-check-once"),
-            &storage,
-            LocalSourceLimits::default(),
-            PackageSourceClosureLimits::default(),
-            GitResolutionOptions::default(),
-        )
-        .unwrap();
-        let entry = closure
-            .source_root(closure.graph().root())
-            .unwrap()
-            .join("main.omg");
+        let (root, closure, entry) = std_importing_application_closure(entry_contract);
         let exact = closure.for_exact_target(profile);
         // The candidate route holds retention across both passes; the test
         // drives them explicitly so each pass's deltas are visible.
@@ -1157,6 +1175,141 @@ reaches Console
              unchanged; on linux_x86_64 the standard library's accepted host \
              bindings mint toolchain plans that stamp fused-service erasures \
              the check reads, so its changed program re-checks once"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+}
+
+/// `compile_candidate_for_check_reusing` is the exact per-target call the
+/// CLI's `--check` makes (`check_one_prepared_target`), and the retention that
+/// keeps a repeated whole-program check from executing twice is
+/// `compile_candidate`'s own guard across its discovery and bound passes —
+/// not anything the caller supplies. The per-pass regression above holds that
+/// guard itself; this one holds none of it, so a route that dropped or
+/// narrowed its retention would re-execute the bound pass's requests against
+/// unretained first-sight results and only these whole-invocation deltas
+/// would move.
+///
+/// windows_x86_64 is the acceptance host's shape: discovered bindings leave
+/// every checked program byte-identical, so the bound pass's requests are
+/// memo hits. linux_x86_64's toolchain-settled host bindings stamp
+/// fused-service erasure authorizations into the library's typed program — a
+/// genuinely changed input checked once on first sight — which is the
+/// authority correctness the item forbids erasing for a manufactured hit. The
+/// fixture issues no restricted build requests, so the audit checkpoint the
+/// verify-mode check route also passes is immaterial.
+///
+/// A second call is the same route repeated: the persisted review cache
+/// replays each carried dependency's retained facts (entry candidates
+/// included) while the memo serves every identical program, so the repeated
+/// invocation executes no check at all.
+#[test]
+fn std_importing_check_invocation_executes_each_distinct_program_once() {
+    for (profile, entry_contract, bound_settled_executed) in [
+        (
+            target::TargetProfile::WindowsX64,
+            "windows_x86_64::ProgramEntry",
+            0_u64,
+        ),
+        (
+            target::TargetProfile::LinuxX64,
+            "linux_x86_64::ProgramEntry",
+            1_u64,
+        ),
+    ] {
+        let (root, closure, entry) = std_importing_application_closure(entry_contract);
+        let exact = closure.for_exact_target(profile);
+        let mut preparation = CandidateSourcePreparation::for_closure(&closure);
+        let preliminary_requests_before = counters::preliminary_check_totals();
+        let settled_requests_before = counters::settled_check_totals();
+        let preliminary_executed_before =
+            compiler::RepeatedCheckRetention::executed_preliminary_check_count();
+        let settled_executed_before =
+            compiler::RepeatedCheckRetention::executed_settled_check_count();
+        let (checked, reviews) = compile_candidate_for_check_reusing(
+            &exact,
+            &root.join("check"),
+            &entry,
+            None,
+            None,
+            &mut preparation,
+        )
+        .expect("the consuming check route completes");
+        let occurrences = reviews.reviews().len() as u64;
+        assert_eq!(occurrences, 2, "the consumer and the standard library");
+        assert!(checked.source_file_count() > 0);
+        assert_eq!(
+            preparation.fresh_preparation_count(),
+            closure.graph().packages().len(),
+            "each package's parse frontier assembled once across both passes"
+        );
+        let preliminary_requests =
+            counters::preliminary_check_totals().0 - preliminary_requests_before.0;
+        let settled_requests = counters::settled_check_totals().0 - settled_requests_before.0;
+        let preliminary_executed =
+            compiler::RepeatedCheckRetention::executed_preliminary_check_count()
+                - preliminary_executed_before;
+        let settled_executed = compiler::RepeatedCheckRetention::executed_settled_check_count()
+            - settled_executed_before;
+        assert_eq!(
+            preliminary_executed, occurrences,
+            "each occurrence's pre-build declaration-authority check ran once \
+             per invocation; the bound pass's identical programs were served"
+        );
+        assert_eq!(
+            settled_executed,
+            occurrences + bound_settled_executed,
+            "each occurrence's whole-program check ran once per invocation; on \
+             linux_x86_64 the library's changed bound program re-checks once"
+        );
+        assert!(
+            preliminary_requests > preliminary_executed,
+            "the bound pass still requested preliminary checks the route's own \
+             retention served without an execution — requests are not checks"
+        );
+        assert!(
+            settled_requests > settled_executed,
+            "the bound pass still requested settled checks the route's own \
+             retention served without an execution — requests are not checks"
+        );
+
+        // A repeated identical candidate — the shape of a second `--check`
+        // invocation on the same resolved closure — executes no check at
+        // all: unchanged dependencies arrive through the persisted review
+        // cache and the memo serves every identical program past the route's
+        // own guard. The two products stage under different session roots,
+        // so custody paths may legitimately differ; the memo's service is
+        // proven by the unchanged executed counters, not product equality.
+        let (checked_again, reviews_again) = compile_candidate_for_check_reusing(
+            &exact,
+            &root.join("check-again"),
+            &entry,
+            None,
+            None,
+            &mut preparation,
+        )
+        .expect("a repeated identical check completes");
+        assert_eq!(reviews_again.reviews().len() as u64, occurrences);
+        assert_eq!(
+            checked_again.source_file_count(),
+            checked.source_file_count()
+        );
+        assert_eq!(
+            preparation.fresh_preparation_count(),
+            closure.graph().packages().len(),
+            "the repeated candidate consumed the retained parse frontiers"
+        );
+        assert_eq!(
+            compiler::RepeatedCheckRetention::executed_preliminary_check_count()
+                - preliminary_executed_before,
+            preliminary_executed,
+            "the repeated candidate executed no preliminary check"
+        );
+        assert_eq!(
+            compiler::RepeatedCheckRetention::executed_settled_check_count()
+                - settled_executed_before,
+            settled_executed,
+            "the repeated candidate executed no settled check"
         );
         let _ = fs::remove_dir_all(&root);
     }
