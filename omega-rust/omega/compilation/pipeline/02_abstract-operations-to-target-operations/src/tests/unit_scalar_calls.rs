@@ -39,32 +39,100 @@ fn boolean_call_result_field_store_keeps_its_dominating_home() {
         for function in &target.functions {
             for block in &function.graph.blocks {
                 for (position, operation) in block.operations.iter().enumerate() {
-                    let TargetUnitOperation::StructuralScalarFieldStore {
-                        source: TargetUnitScalarArgumentSource::Home(home),
-                        ..
-                    } = operation
+                    let TargetUnitOperation::StructuralScalarFieldStore { source, .. } = operation
                     else {
                         continue;
                     };
-                    if home.scalar_type != ScalarType::Boolean {
-                        continue;
+                    match source {
+                        TargetUnitScalarArgumentSource::Home(home)
+                            if home.scalar_type == ScalarType::Boolean =>
+                        {
+                            assert!(
+                                block.operations[..position].iter().any(|producer| matches!(
+                                    producer,
+                                    TargetUnitOperation::Call {
+                                        result: target_operations::TargetCallResult::Scalar(result),
+                                        ..
+                                    } if result == home
+                                )),
+                                "the store must consume the preceding call's exact result home"
+                            );
+                        }
+                        // Ordered receiver-call evaluation hands the result to
+                        // its continuation block. Every edge into that block
+                        // must bind the parameter to the exact result of a call
+                        // in the edge's source block.
+                        TargetUnitScalarArgumentSource::BlockParameter(parameter)
+                            if parameter.scalar_type == ScalarType::Boolean =>
+                        {
+                            assert_eq!(parameter.block, block.block);
+                            let incoming = incoming_successors(&function.graph.blocks, block.block);
+                            assert!(!incoming.is_empty(), "the continuation has a predecessor");
+                            for (predecessor, successor) in incoming {
+                                let binding = successor
+                                    .bindings
+                                    .iter()
+                                    .find(|binding| binding.parameter == parameter.value)
+                                    .expect("each incoming edge binds the stored parameter");
+                                assert!(
+                                    predecessor.operations.iter().any(|producer| {
+                                        is_boolean_call_result(producer, binding.argument)
+                                    }),
+                                    "the edge must carry its source block's exact call result"
+                                );
+                            }
+                        }
+                        _ => continue,
                     }
-                    assert!(
-                        block.operations[..position].iter().any(|producer| matches!(
-                            producer,
-                            TargetUnitOperation::Call {
-                                result: target_operations::TargetCallResult::Scalar(result),
-                                ..
-                            } if result == home
-                        )),
-                        "the store must consume the preceding call's exact result home"
-                    );
                     checked_stores += 1;
                 }
             }
         }
         assert_eq!(checked_stores, 1);
     }
+}
+
+fn is_boolean_call_result(operation: &TargetUnitOperation, value: ValueId) -> bool {
+    matches!(
+        operation,
+        TargetUnitOperation::Call {
+            result: target_operations::TargetCallResult::Scalar(result),
+            ..
+        } if result.source_value == value && result.scalar_type == ScalarType::Boolean
+    )
+}
+
+/// Scalar successors entering `target`. A structural case edge binds payload
+/// fields, never a call result, so it cannot enter the store's block.
+fn incoming_successors(
+    blocks: &[target_operations::TargetControlBlock],
+    target: BlockId,
+) -> Vec<(
+    &target_operations::TargetControlBlock,
+    &target_operations::TargetControlSuccessor,
+)> {
+    let mut incoming = Vec::new();
+    for block in blocks {
+        match &block.terminator {
+            target_operations::TargetControlTerminator::Jump { successor } => {
+                incoming.push((block, successor));
+            }
+            target_operations::TargetControlTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                incoming.push((block, when_true));
+                incoming.push((block, when_false));
+            }
+            target_operations::TargetControlTerminator::StructuralCase { cases, .. } => {
+                assert!(cases.iter().all(|case| case.target != target));
+            }
+            _ => {}
+        }
+    }
+    incoming.retain(|(_, successor)| successor.target == target);
+    incoming
 }
 
 fn fixed_integer(bits: u16) -> IntegerType {
