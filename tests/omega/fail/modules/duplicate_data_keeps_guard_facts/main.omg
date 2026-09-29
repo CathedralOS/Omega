@@ -18,7 +18,7 @@ data Zed { }
 data Zed { }
 
 data Probe { }
-machine Probe::start(&self, x: u64) -> bool {
+machine start(x: u64) -> bool {
     transition x < 255 {
         true -> narrow(x)
         _ -> no()

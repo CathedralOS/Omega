@@ -15,5 +15,5 @@ data Main {
     buffer: FixedBuffer<loud_size()>;
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }

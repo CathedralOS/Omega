@@ -12,5 +12,5 @@ data Main {
     bytes: Loose<u64[0..=256]>;
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }

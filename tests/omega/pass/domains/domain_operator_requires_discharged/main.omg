@@ -26,7 +26,7 @@ requires
 data Main {
 }
 
-machine Main::combine(&self, a: Quantity, b: Quantity)
+machine combine(a: Quantity, b: Quantity)
 requires
     a in Quantity::Additive,
     b in Quantity::Additive

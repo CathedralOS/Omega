@@ -13,5 +13,5 @@ data Main {
     bytes: TinyBytes<u64[0..=256], 512>;
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }

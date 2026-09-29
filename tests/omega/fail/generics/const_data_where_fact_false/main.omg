@@ -11,4 +11,4 @@ data Main {
     buffer: FixedBuffer<0>;
 }
 
-machine Main::main(&mut self) {}
+machine main() {}

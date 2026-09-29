@@ -9,6 +9,6 @@ data Value<T> {
     case Boolean(value: T) where T == bool;
 }
 data Main { v: Value<bool>; }
-machine Main::main(&mut self) {
+machine main() {
     let m: Main = Main {};
 }

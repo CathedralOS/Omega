@@ -14,5 +14,5 @@ data Main {
     invalid: Indexed<FloatingIndices::ONE>;
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }
