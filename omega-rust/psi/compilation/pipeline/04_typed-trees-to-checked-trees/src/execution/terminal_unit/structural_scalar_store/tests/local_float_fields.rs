@@ -5,8 +5,7 @@
 //! correspondence.
 use crate::tests::front_end::checked_program;
 use checked_trees::{
-    CheckedScalarExpression, CheckedStoreValue, CheckedStructuralScalarFieldStoreDestination,
-    CheckedUnitEffectOperationPlan,
+    CheckedScalarExpression, CheckedStoreRoot, CheckedStoreValue, CheckedUnitEffectOperationPlan,
 };
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
@@ -73,10 +72,7 @@ fn local_float_field_store_admits_literal_parameter_and_local_sources() {
         let store = enter_store(&source);
         assert_eq!(store.field_identity, "x");
         assert_eq!(store.primitive_type, expected_primitive);
-        assert!(matches!(
-            store.destination,
-            CheckedStructuralScalarFieldStoreDestination::Local { .. }
-        ));
+        assert!(matches!(store.destination, CheckedStoreRoot::Local { .. }));
         match &store.value {
             CheckedStoreValue::Pure(CheckedScalarExpression::IeeeFloatLiteral { .. })
             | CheckedStoreValue::Pure(CheckedScalarExpression::Parameter { .. })

@@ -194,9 +194,7 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
                 if mutation == 2 {
                     *statement_index = 1;
                 } else {
-                    *destination = checked_trees::CheckedPrimitiveStoreDestination::Parameter {
-                        parameter_index: 1,
-                    };
+                    *destination = checked_trees::CheckedStoreRoot::Parameter { position: 1 };
                 }
             }
             4 => plan.return_statement_ordinal = 0,
@@ -316,9 +314,7 @@ fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows
                         unreachable!();
                     };
                     if mutation == "destination" {
-                        *destination = checked_trees::CheckedPrimitiveStoreDestination::Parameter {
-                            parameter_index: 1,
-                        };
+                        *destination = checked_trees::CheckedStoreRoot::Parameter { position: 1 };
                     } else {
                         *value = checked_trees::CheckedCallScalarArgument::Pure(
                             checked_trees::CheckedScalarExpression::IntegerLiteral {

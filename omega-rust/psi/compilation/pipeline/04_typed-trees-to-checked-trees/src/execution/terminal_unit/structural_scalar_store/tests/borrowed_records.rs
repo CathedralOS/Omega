@@ -67,7 +67,7 @@ fn borrowed_record_store_preserves_parameter_positions_with_an_ambient_receiver(
     };
     assert_eq!(
         store.destination,
-        checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position: 1 }
+        checked_trees::CheckedStoreRoot::Parameter { position: 1 }
     );
     assert!(
         plan(&structural, &[]).is_none(),

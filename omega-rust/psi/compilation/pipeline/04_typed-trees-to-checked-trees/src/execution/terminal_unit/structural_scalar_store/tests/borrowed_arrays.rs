@@ -56,7 +56,7 @@ fn borrowed_fixed_array_element_store_retains_the_exact_index_hop() {
         };
         assert_eq!(
             store.destination,
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position: 0 }
+            checked_trees::CheckedStoreRoot::Parameter { position: 0 }
         );
         assert_eq!(
             store.carrier_path,

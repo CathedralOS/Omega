@@ -689,16 +689,21 @@ impl CheckedStoreValue {
     }
 }
 
-/// Exact source root for a field write. Parameter positions are authored state
-/// positions, not dense structural-parameter indexes; locals keep symbol identity
-/// so ordered lowering can resolve their current home after copies or moves.
+/// Exact source root of one store: a primitive, field, case-field, element,
+/// byte-view, byte-field or whole-byte-owner write. A parameter position is the
+/// authored state position, never a dense structural-parameter index; a
+/// consumer holding a dense roster maps the position through the checked
+/// structural parameters, whose own `position` is authored too. A local keeps
+/// symbol identity so ordered lowering can resolve its current home after
+/// copies or moves. A leaf with no local-rooted lowering (every byte leaf)
+/// refuses `Local` explicitly in its producer, replay and lowering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedStructuralScalarFieldStoreDestination {
+pub enum CheckedStoreRoot {
     Parameter { position: u32 },
     Local { symbol: SymbolHandle },
 }
 
-impl CheckedStructuralScalarFieldStoreDestination {
+impl CheckedStoreRoot {
     /// Parameter-only consumers reject local storage instead of inventing an index.
     pub fn parameter_position(self) -> Option<u32> {
         match self {
@@ -712,7 +717,7 @@ impl CheckedStructuralScalarFieldStoreDestination {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralScalarFieldStorePlan {
     pub statement_index: u32,
-    pub destination: CheckedStructuralScalarFieldStoreDestination,
+    pub destination: CheckedStoreRoot,
     /// Exact structural path from the destination root to the carrier;
     /// the final primitive field is retained separately below.
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
@@ -729,7 +734,7 @@ pub struct CheckedStructuralScalarFieldStorePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralCaseFieldStorePlan {
     pub statement_index: u32,
-    pub destination: CheckedStructuralScalarFieldStoreDestination,
+    pub destination: CheckedStoreRoot,
     /// Exact structural path from the destination root to the carrier;
     /// the final sum-typed field is retained separately below.
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,

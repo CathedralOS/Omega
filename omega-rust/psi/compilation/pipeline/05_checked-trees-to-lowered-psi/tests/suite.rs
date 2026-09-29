@@ -78,6 +78,7 @@ mod payloadless_case_return_source;
 mod policy_cast_conversions_source;
 mod primitive_local_borrow_custody;
 mod primitive_local_unit_calls;
+mod primitive_store_parameter_roots;
 mod primitive_store_return_source;
 mod program_local_root_introduction;
 mod projected_case_observation;

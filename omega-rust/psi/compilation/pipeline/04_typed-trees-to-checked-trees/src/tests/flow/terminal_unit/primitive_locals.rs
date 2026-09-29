@@ -4,7 +4,7 @@ use super::{
 };
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::CheckedPrimitiveStoreDestination;
+use checked_trees::CheckedStoreRoot;
 
 const SOURCE: &str = r#"
     machine reset(value: &mut u64) -> u64 { value = 0; 7 }
@@ -219,7 +219,7 @@ fn computed_primitive_assignment_keeps_exact_rhs_and_destination() {
     let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         path: store_path,
         statement_index: 1,
-        destination: CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+        destination: CheckedStoreRoot::Parameter { position: 0 },
         value: checked_trees::CheckedCallScalarArgument::Computation(value),
     } = &plan.operations[1]
     else {

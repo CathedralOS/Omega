@@ -111,10 +111,7 @@ fn requires_bound_runtime_index_produces_a_runtime_element_store() {
             let [
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: 0,
-                    destination:
-                        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
-                            parameter_index: 0,
-                        },
+                    destination: checked_trees::CheckedStoreRoot::Parameter { position: 0 },
                     path,
                     ..
                 },

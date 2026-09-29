@@ -266,7 +266,7 @@ pub(crate) fn validate(
             value,
         } = operation
         {
-            if let checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } = destination {
+            if let checked_trees::CheckedStoreRoot::Local { symbol } = destination {
                 // Projected stores write into an established structural
                 // local (a zeroed `let mut` array's element); whole stores
                 // stay on initialized primitive storage.
@@ -294,14 +294,13 @@ pub(crate) fn validate(
                 )?;
                 continue;
             }
-            let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
-                destination
-            else {
+            let checked_trees::CheckedStoreRoot::Parameter { position } = destination else {
                 return unsupported("primitive store has no destination");
             };
             let destination = plan
                 .structural_parameters
-                .get(*parameter_index as usize)
+                .iter()
+                .find(|parameter| parameter.position == *position)
                 .ok_or(LoweringError::Unsupported(
                     "primitive store destination is absent",
                 ))?;
@@ -602,7 +601,7 @@ pub(crate) fn validate_assignment(
         assignment.target,
     )?;
     let destination = match store.destination {
-        checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+        checked_trees::CheckedStoreRoot::Parameter { position } => {
             checked
                 .state_parameters(state)
                 .get(position as usize)
@@ -611,7 +610,7 @@ pub(crate) fn validate_assignment(
                 ))?
                 .symbol
         }
-        checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+        checked_trees::CheckedStoreRoot::Local { symbol } => {
             local_destination(checked, state, statement_index, symbol)?;
             symbol
         }
@@ -787,7 +786,7 @@ fn validate_record_stores(
             return unsupported("record store reordered or substituted a field");
         }
         let destination = match store.destination {
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
                 checked
                     .state_parameters(state)
                     .get(position as usize)
@@ -796,7 +795,7 @@ fn validate_record_stores(
                     ))?
                     .symbol
             }
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
                 local_destination(checked, state, statement_index, symbol)?;
                 symbol
             }

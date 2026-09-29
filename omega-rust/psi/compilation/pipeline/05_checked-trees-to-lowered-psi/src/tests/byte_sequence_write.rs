@@ -74,7 +74,7 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
                 else {
                     panic!("write")
                 };
-                write.destination_parameter_position = 1;
+                write.destination = checked_trees::CheckedStoreRoot::Parameter { position: 1 };
             }
             1 => {
                 let CheckedUnitEffectOperationPlan::ByteSequenceWrite(first) =
@@ -154,6 +154,38 @@ fn byte_view_write_refuses_a_computation_value() {
         matches!(
             error,
             LoweringError::Unsupported("byte-view write kept a computation value")
+        ),
+        "{error:?}"
+    );
+}
+
+/// A byte view has no local-rooted lowering: replay refuses a byte-view write
+/// whose shared store root names a local instead of its borrowed parameter.
+#[test]
+fn byte_view_write_refuses_a_local_root() {
+    let mut checked = crate::front_end::checked_program(PUT);
+    let write = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter_mut()
+        .flat_map(|plan| &mut plan.states)
+        .flat_map(|state| &mut state.operations)
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => Some(write),
+            _ => None,
+        })
+        .expect("byte-view write");
+    write.destination = checked_trees::CheckedStoreRoot::Local {
+        symbol: symbols::SymbolHandle::invalid(),
+    };
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("put"))
+        .expect_err("a byte view has no local root");
+    assert!(
+        matches!(
+            error,
+            LoweringError::Unsupported("byte-view write has no parameter root")
         ),
         "{error:?}"
     );

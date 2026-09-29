@@ -46,9 +46,7 @@ pub(super) fn prepare(
         assignment,
         store,
     )?;
-    let checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } =
-        store.destination
-    else {
+    let checked_trees::CheckedStoreRoot::Local { symbol } = store.destination else {
         return unsupported("scalar graph field store needs its local storage join");
     };
     let local = crate::emission::structural_scalar_store_source::local_destination(

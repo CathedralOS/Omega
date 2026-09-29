@@ -31,8 +31,8 @@ use crate::expression_preparation::source_custody;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::TableAssignment;
 use checked_trees::{
-    CheckedByteSequenceWritePlan, CheckedElementViewWritePlan, CheckedStoreValue,
-    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralScalarFieldStoreDestination,
+    CheckedByteSequenceWritePlan, CheckedElementViewWritePlan, CheckedStoreRoot, CheckedStoreValue,
+    CheckedStructuralByteSequenceFieldByteStorePlan,
 };
 use symbols::SymbolHandle;
 
@@ -255,9 +255,13 @@ pub(crate) fn validate_assignment(
     };
     match leaf {
         IndexedWriteLeaf::ByteView(write) => {
+            // A byte view has no local-rooted lowering.
+            let Some(position) = write.destination.parameter_position() else {
+                return unsupported("byte-view write has no parameter root");
+            };
             let parameter = checked
                 .state_parameters(state)
-                .get(write.destination_parameter_position as usize)
+                .get(position as usize)
                 .ok_or(LoweringError::Unsupported(
                     "byte-view write has no authored parameter",
                 ))?;
@@ -292,7 +296,7 @@ pub(crate) fn validate_assignment(
         }
         IndexedWriteLeaf::ElementView(write) => {
             let (destination_root, source_root, source_path_is_empty) = match write.destination {
-                CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+                CheckedStoreRoot::Parameter { position } => {
                     let parameter_symbol = checked
                         .state_parameters(state)
                         .get(position as usize)
@@ -303,7 +307,7 @@ pub(crate) fn validate_assignment(
                     let source = collection()?;
                     (parameter_symbol, source.root, source.path.is_empty())
                 }
-                CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+                CheckedStoreRoot::Local { symbol } => {
                     authored_view_local(
                         checked,
                         checked.statement_table.statements(state.statement_nodes),
@@ -360,9 +364,13 @@ pub(crate) fn validate_assignment(
     }
     if let IndexedWriteLeaf::ByteField(store) = leaf {
         let source = collection()?;
+        // A byte-field element has no local-rooted lowering.
+        let Some(position) = store.destination.parameter_position() else {
+            return unsupported("byte replacement has no parameter root");
+        };
         let parameter = checked
             .state_parameters(state)
-            .get(store.destination_parameter_position as usize)
+            .get(position as usize)
             .ok_or(LoweringError::Unsupported(
                 "byte replacement has no authored parameter",
             ))?;
@@ -531,9 +539,12 @@ impl<'a> IndexedWriteTarget<'a> {
     ) -> Result<Destination, LoweringError> {
         match self {
             Self::ByteView { write, parameters } => {
+                let Some(position) = write.destination.parameter_position() else {
+                    return unsupported("byte-view write destination has no parameter root");
+                };
                 let parameter = parameters
                     .iter()
-                    .find(|parameter| parameter.position == write.destination_parameter_position)
+                    .find(|parameter| parameter.position == position)
                     .ok_or(LoweringError::Unsupported(
                         "byte-view write destination is absent",
                     ))?;
@@ -561,9 +572,12 @@ impl<'a> IndexedWriteTarget<'a> {
                 })
             }
             Self::ByteField { store, parameters } => {
+                let Some(position) = store.destination.parameter_position() else {
+                    return unsupported("byte replacement destination has no parameter root");
+                };
                 let parameter = parameters
                     .iter()
-                    .find(|parameter| parameter.position == store.destination_parameter_position)
+                    .find(|parameter| parameter.position == position)
                     .ok_or(LoweringError::Unsupported(
                         "byte replacement destination is absent",
                     ))?;
@@ -571,7 +585,7 @@ impl<'a> IndexedWriteTarget<'a> {
                     crate::emission::structural_scalar_store::lower_structural_field_place(
                         store.statement_index,
                         store.statement_index,
-                        store.destination_parameter_position,
+                        position,
                         &store.carrier_path,
                         &store.field_identity,
                         parameter,

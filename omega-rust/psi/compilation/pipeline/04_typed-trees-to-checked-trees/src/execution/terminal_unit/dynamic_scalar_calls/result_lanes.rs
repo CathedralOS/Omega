@@ -540,7 +540,7 @@ fn checked_caller_structural_scalar_field_store_plan(
 
     Some(checked_trees::CheckedStructuralScalarFieldStorePlan {
         statement_index: 0,
-        destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+        destination: checked_trees::CheckedStoreRoot::Parameter {
             position: custody.source_parameter_position,
         },
         carrier_path: custody.source_path.clone(),

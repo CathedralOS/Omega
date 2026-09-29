@@ -75,7 +75,9 @@ pub(super) fn view_write(
     Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(
         checked_trees::CheckedByteSequenceWritePlan {
             statement_index,
-            destination_parameter_position: plan.position,
+            destination: checked_trees::CheckedStoreRoot::Parameter {
+                position: plan.position,
+            },
             index: value::runtime_index(facts, state, statement_index, index)?,
             value: value::byte_value(
                 program,
@@ -200,7 +202,9 @@ pub(super) fn whole_store(
     Some(CheckedUnitEffectOperationPlan::ByteSequenceStore(
         checked_trees::CheckedByteSequenceStorePlan {
             statement_index,
-            destination_parameter_position: plan.position,
+            root: checked_trees::CheckedStoreRoot::Parameter {
+                position: plan.position,
+            },
             destination: checked_trees::CheckedByteSequenceStoreDestination::Whole,
             value,
         },
@@ -227,7 +231,11 @@ pub(super) fn field_store(
     source: AssignmentSource,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let destination_parameter_position = destination.root.parameter_position()?;
+    // Byte fields and their elements have no local-rooted lowering: only an
+    // exclusive borrowed parameter roots one.
+    let store_root = checked_trees::CheckedStoreRoot::Parameter {
+        position: destination.root.parameter_position()?,
+    };
     let plain_domain = |symbol, literal_grant: bool| {
         program
             .domain_definitions()
@@ -257,7 +265,7 @@ pub(super) fn field_store(
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(
                 checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan {
                     statement_index,
-                    destination_parameter_position,
+                    destination: store_root,
                     carrier_path,
                     field_identity: terminal_field_identity(program, field.symbol)?,
                     index: value::runtime_index(facts, state, statement_index, index)?,
@@ -304,7 +312,7 @@ pub(super) fn field_store(
     Some(CheckedUnitEffectOperationPlan::ByteSequenceStore(
         checked_trees::CheckedByteSequenceStorePlan {
             statement_index,
-            destination_parameter_position,
+            root: store_root,
             destination: checked_trees::CheckedByteSequenceStoreDestination::Field {
                 carrier_path,
                 field_identity: terminal_field_identity(program, field.symbol)?,

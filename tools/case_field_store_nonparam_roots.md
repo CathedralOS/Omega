@@ -109,7 +109,7 @@ machine Main::main(&mut self) reaches Console {
 `destination.rs` needs a borrowed-local root: unique earlier `LocalData`
 with a `&mut`/`&`-write reference type and an exclusive-access initializer
 (Borrow or call result — the initializer's provenance decides authority).
-Downstream, `CheckedStructuralScalarFieldStoreDestination::Local` currently
+Downstream, `CheckedStoreRoot::Local` currently
 resolves through the structural-homes roster (owned homes); a view local
 must instead write *through* the view's stored place — likely a distinct
 destination variant or the borrowed-windows root vocabulary from

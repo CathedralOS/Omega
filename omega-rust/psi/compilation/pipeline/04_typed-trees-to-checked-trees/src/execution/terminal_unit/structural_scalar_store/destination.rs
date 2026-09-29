@@ -40,20 +40,12 @@ pub(super) enum Root<'a> {
 }
 
 impl Root<'_> {
-    pub(super) fn destination(
-        &self,
-    ) -> checked_trees::CheckedStructuralScalarFieldStoreDestination {
+    pub(super) fn destination(&self) -> checked_trees::CheckedStoreRoot {
         match self {
-            Self::Parameter { plan, .. } => {
-                checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-                    position: plan.position,
-                }
-            }
-            Self::Local { symbol } => {
-                checked_trees::CheckedStructuralScalarFieldStoreDestination::Local {
-                    symbol: *symbol,
-                }
-            }
+            Self::Parameter { plan, .. } => checked_trees::CheckedStoreRoot::Parameter {
+                position: plan.position,
+            },
+            Self::Local { symbol } => checked_trees::CheckedStoreRoot::Local { symbol: *symbol },
         }
     }
 

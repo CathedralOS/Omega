@@ -46,15 +46,21 @@ pub(super) fn validate(
             [
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: 0,
-                    destination:
-                        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
-                            parameter_index: 0,
-                        },
+                    destination: checked_trees::CheckedStoreRoot::Parameter { position },
                     value,
                     path,
                 },
             ],
-        ) if path.is_empty() => (returned, Some(value)),
+        ) if path.is_empty()
+            // The authored root names the first retained structural parameter.
+            && plan
+                .structural_parameters
+                .iter()
+                .position(|parameter| parameter.position == *position)
+                == Some(0) =>
+        {
+            (returned, Some(value))
+        }
         _ => {
             return unsupported(
                 "scalar return effect roster omits or duplicates its authored primitive store",
@@ -355,8 +361,7 @@ pub(super) fn emit(
 ) -> Result<(), LoweringError> {
     for effect in &plan.effects {
         let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            destination:
-                checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index },
+            destination: checked_trees::CheckedStoreRoot::Parameter { position },
             value,
             ..
         } = effect
@@ -368,8 +373,18 @@ pub(super) fn emit(
                 "scalar return prefix computation requires ordinary operation emission",
             );
         };
+        // `parameters` lowers the retained structural roster densely; the
+        // store's authored root selects its entry by that roster's position.
+        let parameter_index = plan
+            .structural_parameters
+            .iter()
+            .position(|parameter| parameter.position == *position)
+            .and_then(|index| u32::try_from(index).ok())
+            .ok_or(LoweringError::Unsupported(
+                "write-only store names an unknown structural parameter",
+            ))?;
         let kind = crate::emission::primitive_store::emit(
-            *parameter_index,
+            parameter_index,
             value,
             parameters,
             structural_types,

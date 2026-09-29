@@ -46,8 +46,7 @@ fn indexed_policy_array_element_store_keeps_its_canonical_path() {
         let [
             CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                 statement_index: store_statement_index,
-                destination:
-                    checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+                destination: checked_trees::CheckedStoreRoot::Parameter { position: 0 },
                 path,
                 ..
             },
