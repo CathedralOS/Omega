@@ -270,6 +270,41 @@ fn shared_address_joins_admit_whole_and_projected_arguments() {
 }
 
 #[test]
+fn mutable_address_joins_admit_projected_arguments_of_their_own_access() {
+    let mut mutable = address_join_fixture(vec![terminal_psi::StructuralPathSegment::Field(
+        "left".into(),
+    )]);
+    let parameter = &mut mutable.machines[0].blocks[1].structural_parameters[0];
+    parameter.structural_type = StructuralTypeId::new(3).unwrap();
+    parameter.access = StructuralAccess::MutableBorrow;
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut mutable.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].access = StructuralAccess::MutableBorrow;
+    assert_eq!(validate_structural_block_bindings(&mutable), Ok(()));
+    // A shared projection cannot arrive in the mutable join either.
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut mutable.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    assert_eq!(
+        validate_structural_block_bindings(&mutable),
+        Err(LoweringError::UnsupportedStructuralSuccessorArguments {
+            machine: MachineId::new(1).unwrap(),
+            edge: EdgeId::new(1).unwrap(),
+        })
+    );
+}
+
+#[test]
 fn address_joins_reject_widened_access_windows_and_descriptor_projections() {
     let edge = EdgeId::new(1).unwrap();
     let block = BlockId::new(2).unwrap();

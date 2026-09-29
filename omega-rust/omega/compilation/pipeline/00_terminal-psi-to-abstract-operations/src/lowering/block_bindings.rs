@@ -4,9 +4,11 @@
 //! An address join (see `abstract_operations::control_flow::address_joins`)
 //! is the only borrowed arrival an edge may bind through a projected path:
 //! its carrier is the address of that static place, so `&a.left` and
-//! `&mut a.left` can meet in one parameter without copying either leaf.
-//! Descriptor views and owned arrivals still bind whole roots; their
-//! projected edges have no downstream carrier.
+//! `&b.right` can meet in one shared parameter, and `&mut a.left` and
+//! `&mut b.right` in one mutable parameter, without copying either leaf. A
+//! projected argument transfers exactly its join's access, as every later
+//! stage replays it. Descriptor views and owned arrivals still bind whole
+//! roots; their projected edges have no downstream carrier.
 
 use terminal_psi::{TerminalModule, Terminator};
 
@@ -135,7 +137,10 @@ fn unsupported_argument(
     )
         && abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
         && parameter.is_some_and(|parameter| {
-            abstract_operations::control_flow::address_joins::is_address_join_in(parameter, types)
+            parameter.access == argument.access
+                && abstract_operations::control_flow::address_joins::is_address_join_in(
+                    parameter, types,
+                )
         });
     (!argument.path.is_empty() && !projected_address)
         || !matches!(
