@@ -181,7 +181,11 @@ fn case_projection(
         (endpoint, offset, runs)
     };
     let declaration = types.get(&identity).ok_or_else(invalid)?;
-    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+    // A mixed shape's tag sits at the same carrier offset as a sum's: its
+    // common fields follow the tag, so the case ordinal alone selects.
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        &declaration.shape
+    else {
         return Err(invalid());
     };
     let case_tag = cases
@@ -208,9 +212,13 @@ pub(super) fn lower(
     let declaration = structural_types
         .get(&home.structural_type())
         .ok_or_else(invalid)?;
-    let StructuralTypeShape::Sum {
+    let (StructuralTypeShape::Sum {
         cases: declared_cases,
-    } = &declaration.shape
+    }
+    | StructuralTypeShape::Mixed {
+        cases: declared_cases,
+        ..
+    }) = &declaration.shape
     else {
         return Err(invalid());
     };
@@ -428,6 +436,95 @@ mod tests {
             case_projection(
                 record,
                 &path,
+                semantic_vocabulary::StructuralCaseId::new(99).unwrap(),
+                &types
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn mixed_case_tag_keeps_carrier_offset_ahead_of_common_fields() {
+        let mixed = StructuralTypeId::new(1).unwrap();
+        let record = StructuralTypeId::new(2).unwrap();
+        let nothing = semantic_vocabulary::StructuralCaseId::new(7).unwrap();
+        let treasure = semantic_vocabulary::StructuralCaseId::new(3).unwrap();
+        let integer = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+                .unwrap(),
+        );
+        let field = |number, identity: &str, field_type| terminal_psi::StructuralFieldDeclaration {
+            id: StructuralFieldId::new(number).unwrap(),
+            identity: identity.into(),
+            relevance: terminal_psi::BindingRelevance::Relevant,
+            field_type,
+        };
+        let catalog: abstract_operations::StructuralTypeCatalog = vec![
+            StructuralTypeDeclaration {
+                id: mixed,
+                identity: "Event".into(),
+                shape: StructuralTypeShape::Mixed {
+                    fields: vec![
+                        field(
+                            1,
+                            "consumed",
+                            StructuralFieldType::Scalar(ScalarType::Boolean),
+                        ),
+                        field(2, "bonus", StructuralFieldType::Scalar(integer)),
+                    ],
+                    cases: vec![
+                        terminal_psi::StructuralCaseDeclaration {
+                            id: nothing,
+                            identity: "Nothing".into(),
+                            fields: Vec::new(),
+                        },
+                        terminal_psi::StructuralCaseDeclaration {
+                            id: treasure,
+                            identity: "Treasure".into(),
+                            fields: vec![field(1, "gold", StructuralFieldType::Scalar(integer))],
+                        },
+                    ],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: record,
+                identity: "Main".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        field(1, "flag", StructuralFieldType::Scalar(ScalarType::Boolean)),
+                        field(2, "event", StructuralFieldType::Structural(mixed)),
+                    ],
+                },
+            },
+        ]
+        .into();
+        let types = StructuralTypeLookup::new(&catalog);
+        let event = vec![StructuralPathSegment::Field("event".into())];
+        // The mixed carrier aligns to its four-byte tag behind the one-byte
+        // flag; the tag is the carrier's first word, whatever the commons.
+        assert_eq!(
+            case_projection(record, &event, treasure, &types).unwrap(),
+            (4, 1, Vec::new())
+        );
+        assert_eq!(
+            case_projection(mixed, &[], nothing, &types).unwrap(),
+            (0, 0, Vec::new())
+        );
+        // A common field or a sibling scalar is not a case carrier, and a case
+        // of another shape has no ordinal here.
+        for invalid in [
+            vec![
+                StructuralPathSegment::Field("event".into()),
+                StructuralPathSegment::Field("consumed".into()),
+            ],
+            vec![StructuralPathSegment::Field("flag".into())],
+        ] {
+            assert!(case_projection(record, &invalid, treasure, &types).is_err());
+        }
+        assert!(
+            case_projection(
+                record,
+                &event,
                 semantic_vocabulary::StructuralCaseId::new(99).unwrap(),
                 &types
             )
