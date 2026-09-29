@@ -287,6 +287,116 @@ impl TypeReferenceTable {
         }
     }
 
+    /// Rewire monomorphization-clone nodes (`arena_index >= type_start`)
+    /// whose direct child still names `parameter_symbol`. Copied compounds
+    /// share child handles: `copy_from` reuses the template's interned
+    /// `Named` leaf, which sits below `type_start` and is never rewritten in
+    /// place (it is the template's own row). The parent therefore keeps a
+    /// dangling parameter reference unless its field is repointed at the
+    /// argument's fresh node. Call after the in-place `Named` occurrence
+    /// substitution so only shared (unsubstituted) leaves remain named.
+    /// Returns the number of rewired parent fields.
+    pub fn substitute_shared_children(
+        &mut self,
+        type_start: usize,
+        parameter_symbol: SymbolHandle,
+        replacement: TypeReferenceHandle,
+    ) -> usize {
+        let parents: Vec<TypeReferenceHandle> = self
+            .type_references
+            .iter()
+            .filter_map(|(handle, _)| {
+                (handle.arena_index() as usize >= type_start).then_some(handle)
+            })
+            .collect();
+        let mut rewritten = 0;
+        for parent in parents {
+            match self.type_references.get(parent).clone() {
+                TypeReferenceNode::Reference {
+                    referee,
+                    access,
+                    lifetime,
+                } if self.named_child_matches(referee, parameter_symbol) => {
+                    self.substitute_node(
+                        parent,
+                        TypeReferenceNode::Reference {
+                            referee: replacement,
+                            access,
+                            lifetime,
+                        },
+                    );
+                    rewritten += 1;
+                }
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } if self.named_child_matches(base_type, parameter_symbol) => {
+                    self.substitute_node(
+                        parent,
+                        TypeReferenceNode::Constrained {
+                            base_type: replacement,
+                            constraints,
+                        },
+                    );
+                    rewritten += 1;
+                }
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                } if self.named_child_matches(element_type, parameter_symbol) => {
+                    self.substitute_node(
+                        parent,
+                        TypeReferenceNode::FixedArray {
+                            element_type: replacement,
+                            length,
+                        },
+                    );
+                    rewritten += 1;
+                }
+                TypeReferenceNode::Slice { element_type }
+                    if self.named_child_matches(element_type, parameter_symbol) =>
+                {
+                    self.substitute_node(
+                        parent,
+                        TypeReferenceNode::Slice {
+                            element_type: replacement,
+                        },
+                    );
+                    rewritten += 1;
+                }
+                TypeReferenceNode::Generic { arguments, .. } => {
+                    for (offset, child) in self
+                        .type_reference_handles(arguments)
+                        .to_vec()
+                        .into_iter()
+                        .enumerate()
+                    {
+                        if self.named_child_matches(child, parameter_symbol) {
+                            self.set_type_reference_handle_at_offset(
+                                arguments,
+                                u32::try_from(offset).expect("generic argument offset"),
+                                replacement,
+                            );
+                            rewritten += 1;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        rewritten
+    }
+
+    fn named_child_matches(&self, child: TypeReferenceHandle, symbol: SymbolHandle) -> bool {
+        matches!(
+            self.type_references.get(child),
+            TypeReferenceNode::Named {
+                symbol: named,
+                ..
+            } if *named == symbol
+        )
+    }
+
     /// Replace a fixed-array type reference's length with a concrete literal
     /// (the comptime const-eval substitution). Panics if `handle` is not a
     /// fixed-array node -- callers obtain handles from `fixed_array_lengths`.
