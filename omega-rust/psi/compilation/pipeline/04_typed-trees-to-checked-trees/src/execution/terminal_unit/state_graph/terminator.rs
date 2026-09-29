@@ -38,7 +38,11 @@ pub(super) fn build(
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: terminator");
     let ordinal = u32::try_from(terminator_index).ok()?;
-    let edge = |operations: &[CheckedUnitEffectOperationPlan], transition, edge_ordinal, kind| {
+    let edge = |operations: &[CheckedUnitEffectOperationPlan],
+                transition,
+                edge_ordinal,
+                kind,
+                shapes: &mut ShapeCollector<'_>| {
         successor(
             program,
             facts,
@@ -49,6 +53,7 @@ pub(super) fn build(
             transition,
             edge_ordinal,
             kind,
+            shapes,
             trace,
         )
     };
@@ -190,7 +195,13 @@ pub(super) fn build(
                     _ => {
                         trace.phase("state graph: terminator: jump successor");
                         CheckedComposedUnitControlTerminatorPlan::Jump {
-                            successor: edge(operations, transition, ordinal, SuccessorEdge::Jump)?,
+                            successor: edge(
+                                operations,
+                                transition,
+                                ordinal,
+                                SuccessorEdge::Jump,
+                                shapes,
+                            )?,
                         }
                     }
                 }
@@ -300,6 +311,7 @@ pub(super) fn build(
                         transition,
                         edge_ordinal,
                         SuccessorEdge::Conditional,
+                        shapes,
                         trace,
                     )
                     .map(Ok)
@@ -436,6 +448,7 @@ pub(super) fn build(
                             transition,
                             arm_ordinal,
                             SuccessorEdge::GuardedJump,
+                            shapes,
                         )?;
                         if successor.target_state != target {
                             trace.phase(
@@ -508,6 +521,7 @@ pub(super) fn build(
                             fallback_transition,
                             fallback_ordinal,
                             SuccessorEdge::GuardedJump,
+                            shapes,
                         )?;
                         if fallback.target_state != selected.target {
                             trace.phase(

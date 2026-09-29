@@ -1786,7 +1786,15 @@ impl<'program> ShapeCollector<'program> {
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
-        let (referent, access) = super::reference_results::parts(self.program, reference)?;
+        // `parts` covers `&mut <primitive>`; the mutable and shared borrow
+        // shapes extend the same Reference shell to named referents — a
+        // `&mut Record` or `&'a V` loans the referent leaf identically.
+        let (referent, access) = super::reference_results::parts(self.program, reference)
+            .or_else(|| super::reference_results::mutable_borrowed_parts(self.program, reference))
+            .or_else(|| {
+                borrowed_named_view_referent(self.program, reference)
+                    .map(|referent| (referent, CheckedStructuralAccess::SharedBorrow))
+            })?;
         let referent_identity = self.add_type(referent, binders, &[])?;
         let identity = self
             .program

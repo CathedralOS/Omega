@@ -394,6 +394,7 @@ pub(super) fn build(
                         ordinal,
                         &payload_parameters,
                         SuccessorEdge::ClosedCase,
+                        shapes,
                         trace,
                     )?;
                     if successor.transfers.iter().any(|transfer| {

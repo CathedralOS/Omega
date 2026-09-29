@@ -570,6 +570,24 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                             seeded
                         })
                 }))
+                .chain(plan.states.iter().flat_map(|state| {
+                    // A projected loan's `EstablishReference` carrier names
+                    // the `&'a V` view identity — a reference shell no
+                    // parameter, operation, or argument declares.
+                    state.successors().into_iter().flat_map(|successor| {
+                        successor.transfers.iter().filter_map(|transfer| {
+                            match &transfer.source {
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                                    carrier_identity,
+                                    ..
+                                } if !carrier_identity.is_empty() => {
+                                    Some(carrier_identity.as_str())
+                                }
+                                _ => None,
+                            }
+                        })
+                    })
+                }))
         }))
         .chain(
             dynamic_dispatch
