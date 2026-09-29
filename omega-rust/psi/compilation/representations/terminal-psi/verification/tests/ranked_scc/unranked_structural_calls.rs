@@ -11,7 +11,9 @@
 //! disposed twice, or bound over a live loop parameter rejects in the replay.
 //! A scalar call may also borrow a call result and copy an unrestricted case
 //! payload, as `bounds.is_opened()` and
-//! `filter.element_count(MemoryAlignment::Alignment4)` do.
+//! `filter.element_count(MemoryAlignment::Alignment4)` do, and a unit call may
+//! lend a borrowed block parameter whole, as `region.set_base_address(base)`
+//! does through the `region` view a state machine threads through its states.
 
 use super::{
     AdmissionProfile, Block, BlockId, ContractId, ControlCycleIneligibility, EdgeId, MachineId,
@@ -36,6 +38,7 @@ const RECEIVER: u64 = 1;
 const CONDITION: u64 = 10;
 const NEXT: u64 = 2;
 const IS_REGION: u64 = 3;
+const TOUCH: u64 = 4;
 
 fn cell() -> StructuralTypeId {
     id(1, StructuralTypeId::new)
@@ -763,5 +766,120 @@ fn cyclic_scalar_call_borrows_a_call_result_and_copies_a_case_payload() {
     assert_verifies(
         &module,
         "a borrowed result and a copied payload move no custody",
+    );
+}
+
+/// The loop block binds a borrowed `Envelope` view at place 6: the prefix
+/// lends the receiver along edge 13 and the back edge re-lends the view. The
+/// loop calls `touch(view, flag)`, a unit callee with one `Envelope` parameter
+/// of `parameter_access`, lending the view whole with `argument_access`.
+fn view_call_cycle(
+    view_access: StructuralAccess,
+    argument_access: StructuralAccess,
+    parameter_access: StructuralAccess,
+) -> TerminalModule {
+    let mut module = call_cycle();
+    let touch = callee(
+        &module,
+        TOUCH,
+        vec![parameter(
+            400,
+            0,
+            envelope(),
+            StructuralMultiplicity::Unrestricted,
+            parameter_access,
+        )],
+        TerminalMachineResult::Unit,
+        Vec::new(),
+        body(
+            TOUCH,
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: id(400, EdgeId::new),
+                trivial_affine_discards: Vec::new(),
+            },
+        ),
+    );
+    module.machines.push(touch);
+    let lend = |place: u64| StructuralArgument {
+        place: id(place, PlaceId::new),
+        path: Vec::new(),
+        access: view_access,
+    };
+    add_prefix(&mut module, Vec::new(), vec![lend(RECEIVER)], Vec::new());
+    declare(
+        &mut module,
+        6,
+        StructuralPlaceKind::BlockParameter {
+            block: id(LOOP, BlockId::new),
+            position: 0,
+        },
+    );
+    let loop_block = block_mut(&mut module, LOOP);
+    loop_block.structural_parameters.push(parameter(
+        6,
+        0,
+        envelope(),
+        StructuralMultiplicity::Unrestricted,
+        view_access,
+    ));
+    loop_block.operations = vec![Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(30, OperationId::new),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            callee: id(TOUCH, MachineId::new),
+            arguments: vec![id(CONDITION, ValueId::new)],
+            structural_arguments: vec![StructuralArgument {
+                place: id(6, PlaceId::new),
+                path: Vec::new(),
+                access: argument_access,
+            }],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    }];
+    let (back, _) = loop_edges(&mut module);
+    back.structural_arguments = vec![lend(6)];
+    module
+}
+
+#[test]
+fn cyclic_unit_call_lends_a_borrowed_block_view_whole() {
+    use StructuralAccess::{MutableBorrow, SharedBorrow};
+    for (view, argument) in [
+        (MutableBorrow, MutableBorrow),
+        (MutableBorrow, SharedBorrow),
+        (SharedBorrow, SharedBorrow),
+    ] {
+        let module = view_call_cycle(view, argument, argument);
+        assert_verifies(
+            &module,
+            &format!("a {argument:?} loan of a {view:?} view lasts for the call alone"),
+        );
+    }
+}
+
+#[test]
+fn cyclic_unit_call_cannot_widen_a_shared_block_view() {
+    // The loan cannot exceed the view's own access. Ordinary argument
+    // validation refuses a shared view lent mutably before the cycle fence
+    // runs, and the fence's view-loan rule refuses it as well.
+    let module = view_call_cycle(
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow,
+    );
+    assert_eq!(
+        validate_module(&module).map(|_| ()),
+        Err(ModuleError::UnknownStructuralArgument {
+            operation: id(30, OperationId::new),
+            argument_index: 0,
+            place: id(6, PlaceId::new),
+        }),
     );
 }

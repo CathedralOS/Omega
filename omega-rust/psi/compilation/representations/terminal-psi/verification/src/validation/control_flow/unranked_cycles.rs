@@ -917,6 +917,7 @@ fn cycle_operation_eligible(
                                         )
                                         .is_ok()))
                                 || borrows_operation_result(machine, argument)
+                                || lends_block_view(machine, argument)
                                 || owned_argument(module, machine, argument)))
                             // A borrowed projection loans one element for the
                             // call's duration only: the loan is created and
@@ -1220,6 +1221,22 @@ fn borrows_operation_result(machine: &TerminalMachine, argument: &StructuralArgu
         && machine.structural_places.iter().any(|place| {
             place.id == argument.place
                 && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
+        })
+}
+
+/// A borrowed block parameter is a view its incoming edges bound, such as the
+/// `region: &mut NormalizedRegion` a state machine threads through its
+/// states. Lending it whole, no wider than the view's own access, loans it for
+/// the call only: `region.set_base_address(base)` writes through the view the
+/// way an in-place field store does, and the view stays bound afterwards. The
+/// frontier still refuses an exclusive loan of a root that a shared view
+/// observes, and ordinary call validation checks the loan's authority.
+fn lends_block_view(machine: &TerminalMachine, argument: &StructuralArgument) -> bool {
+    argument.access != StructuralAccess::Owned
+        && block_views::parameter(machine, argument.place).is_some_and(|parameter| {
+            parameter.access == StructuralAccess::MutableBorrow
+                || (parameter.access == StructuralAccess::SharedBorrow
+                    && argument.access == StructuralAccess::SharedBorrow)
         })
 }
 

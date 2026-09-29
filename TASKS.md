@@ -1139,15 +1139,18 @@ the complete product bar; focused successes below do not establish that baseline
     several effectful calls, unrestricted plain leaf copies, field-replacement
     window pairs, claim-free reference-free affine structural call results
     with call-scoped loans (outside the cycle, or discarded, moved into an
-    owned successor parameter or reseated inside it) and case dispatch over a
-    block's own owned parameter already pass eligibility. Eligibility supplies
-    no proof; verify every arrival before removing a fence. squalr-tests'
-    linux_x86_64 production now passes its entry machine's cycle fence and
-    frontier replay and stops at `UnknownStructuralArgument { operation:
+    owned successor parameter or reseated inside it), case dispatch over a
+    block's own owned parameter and whole unit-call loans of borrowed block
+    views already pass eligibility. Eligibility supplies no proof; verify
+    every arrival before removing a fence. squalr-tests' linux_x86_64
+    production now stops at `UnknownStructuralArgument { operation:
     OperationId(803), argument_index: 0, place: PlaceId(868) }`: machine 41's
     `BoundaryCall` lends `&mut` of block 495's parameter under
     `ParametersOrBoundaryActuals`, and `structural_arguments/argument_checks.rs`
-    admits a mutable block-parameter loan only for ordinary calls.
+    admits a mutable block-parameter loan only for ordinary calls. With that
+    loan admitted as a diagnostic only, no cycle fence remains and production
+    stops at the `proof_search_result_guarantee_work` proof-search capacity
+    (provision 4096) with an obligation unproved.
   - Generalize independently proved invariant proposals beyond
     `proofs/scalar_block_invariants/lockstep.rs`'s divisor/counter recognizer;
     avoid one recognizer per customer or source-state duplication.
