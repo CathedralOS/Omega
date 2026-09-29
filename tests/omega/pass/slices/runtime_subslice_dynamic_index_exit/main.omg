@@ -18,7 +18,7 @@ machine Main::main(&mut self) reaches Console {
     let view: &[Entry] = self.entries.as_slice();
     let tail: &[Entry] = view[1..];
 
-    choose(tail, 1);
+    transition { _ -> choose(tail, 1) }
 
     state choose(&mut self, entries: &[Entry], index: u64) {
         transition entries[index].value == 37 {
