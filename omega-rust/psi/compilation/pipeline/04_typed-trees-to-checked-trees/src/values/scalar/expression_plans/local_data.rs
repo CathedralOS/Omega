@@ -264,11 +264,15 @@ pub(super) fn plan(
     });
 }
 
-/// A shared `&` local's captured place: the borrow target inside its
+/// A place-loan local's captured place: the borrow target inside its
 /// `&place` initializer, possibly under a recast, with the referee's
 /// primitive carrier and domain for the operand reads that re-evaluate
-/// the place. Anything else — an exclusive loan, a view, a non-scalar
-/// or address-sized referee — keeps no scalar operand.
+/// the place. An immutable `&mut place` binding reads the same way: it
+/// cannot be reseated, so it names that one place for its scope, exactly
+/// the carrier `statement_sequence::local_data` plans as an exclusive
+/// place loan and whose writes rejoin that place's store. A reseatable
+/// binding, a view, a non-scalar or address-sized referee keeps no scalar
+/// operand.
 pub(crate) fn shared_loan_place(
     program: &TypedTrees,
     local: &typed_trees::statement::TableLocalData,
@@ -285,7 +289,13 @@ pub(crate) fn shared_loan_place(
     else {
         return None;
     };
-    if *access != language_semantics::ReferenceAccess::Shared {
+    let readable_loan = match access {
+        language_semantics::ReferenceAccess::Shared => true,
+        language_semantics::ReferenceAccess::Mutable => !local.is_mutable,
+        // A write-only loan grants no observation of old contents.
+        language_semantics::ReferenceAccess::WriteOnly => false,
+    };
+    if !readable_loan {
         return None;
     }
     let primitive_type = program.primitive_type_reference(*referee)?;
@@ -295,9 +305,7 @@ pub(crate) fn shared_loan_place(
     let mut initializer = local.initial_value;
     let target = loop {
         match program.expression_table.expression(initializer) {
-            ExpressionNode::Borrow(borrow)
-                if borrow.access == language_semantics::ReferenceAccess::Shared =>
-            {
+            ExpressionNode::Borrow(borrow) if borrow.access == *access => {
                 break borrow.target;
             }
             ExpressionNode::Cast(cast) if cast.form.is_recast() => {
