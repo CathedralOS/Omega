@@ -39,14 +39,10 @@ satisfies RangeSupplier::supply
     region
 }
 
-data App {
-    memory: Binding<WritableMemory>;
-}
-
-machine App::claim_memory(&mut self, region: Range) -> Range in Writable
+machine claim_memory(region: Range) -> Range in Writable
 reaches WritableMemory;
 {
-    self.memory.claim(region)
+    WritableMemory::claim(region)
 }
 
 machine build(builder: &mut Build) {

@@ -142,7 +142,7 @@ For an admitted membership guarantee, the boundary requirement supplies the
 contract and the domain authorizes that requirement. An unrelated accepted
 boundary machine's assertion is insufficient. The subject is bare `result`,
 a selected case payload of the owned result carrier under the spelling above,
-or an exact non-`self` parameter with the domain's carrier. A routed result binds
+or an exact ordinary parameter with the domain's carrier. A routed result binds
 the selected occurrence; a parameter introduction requires an installed
 external-root invocation. At an ordinary call that parameter remains a
 precondition. An explicit root-assumed runtime relationship may instead introduce
