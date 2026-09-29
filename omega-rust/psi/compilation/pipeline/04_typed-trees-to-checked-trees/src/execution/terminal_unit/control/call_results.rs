@@ -172,6 +172,19 @@ pub(crate) fn checked_structural_result_type(
             multiplicity: Multiplicity::Affine,
         });
     }
+    // A `&mut R`/`&mut [T]` exclusive structural view is the exclusive-loan
+    // analog of the shared views above: affine custody against the callee's
+    // storage, minted with the same peeled-borrow identity. `parts` already
+    // covers the primitive-referent case; this arm is what `let cell: &mut
+    // Cell = self.pick(bag)` needs to bind.
+    if crate::execution::terminal_unit::types::mutable_borrowed_view(program, result_type) {
+        return Some(CheckedUnitStructuralResultBindingPlan {
+            statement_index: 0,
+            binding_ordinal: 0,
+            type_identity: shapes.add_type(result_type, binders, &[])?,
+            multiplicity: Multiplicity::Affine,
+        });
+    }
     let multiplicity = crate::checks::type_multiplicity(program, result_type);
     let qualifications = parameter_qualifications(program, shapes, result_type, binders)?;
     if is_unit(program, result_type)

@@ -13,6 +13,7 @@ use super::super::{
 };
 use typed_trees::expression::ExpressionHandle;
 
+#[derive(Clone)]
 pub(in crate::execution::terminal_unit) struct TargetSelectors {
     /// The target's selector expressions from the target inward.
     selectors: Vec<ExpressionHandle>,
