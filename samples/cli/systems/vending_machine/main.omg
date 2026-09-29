@@ -51,7 +51,7 @@ machine Main::price_of(&mut self, item: i32 in Wrapping) -> i32 {
 
 // A dispatch-bodied STRUCT result: quarters greedily, arms are PURE (bare
 // constructor terminals) -- the sound shape for value-position arms.
-machine Main::make_change(&self, paid: i32 in Wrapping, price: i32 in Wrapping) -> Change {
+machine Main::make_change(paid: i32 in Wrapping, price: i32 in Wrapping) -> Change {
     let owed: i32 in Wrapping = paid - price;
     transition owed >= 25 {
         true -> coin(owed)
@@ -75,7 +75,7 @@ machine Main::main(&mut self) reaches Console {
 
     state buy(&mut self) {
         // Struct result delivered straight into a field.
-        self.change = self.make_change(100, 65);
+        self.change = Main::make_change(100, 65);
         transition self.change.quarters == 1 { true -> chk_rem() _ -> bad(91) }
     }
 
@@ -85,7 +85,7 @@ machine Main::main(&mut self) reaches Console {
 
     state handoff(&mut self) {
         // Value calls as transition arguments (different + repeated callees).
-        transition self.a == 35 { true -> report(self.make_change(100, 55), 17) _ -> bad(93) }
+        transition self.a == 35 { true -> report(Main::make_change(100, 55), 17) _ -> bad(93) }
     }
 
     state report(&mut self, extra: Change, bonus: i32 in Wrapping) {
