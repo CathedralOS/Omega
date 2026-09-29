@@ -98,25 +98,24 @@ impl Builder<'_, '_> {
         // The root's dense structural position is its signature ordinal when
         // the name resolves to a carried parameter, exactly as the shared view
         // classifies its own root; anything else is an operation-sequence
-        // local keyed by symbol.
-        let source = if let Some((index, _)) = self
+        // local keyed by symbol. The dense index settles only when no borrowed
+        // `self` precedes the root — that receiver joins the namespace only
+        // when the signature retains it, a decision this emission cannot see —
+        // so `dense_structural_parameter_index` may decline and the root then
+        // keys itself by symbol, which every roster family matches directly.
+        let source = self
             .authored_parameters
             .iter()
-            .filter(|parameter| {
-                crate::execution::terminal_unit::structural_parameter_candidate(
-                    self.program,
-                    parameter,
-                )
+            .position(|parameter| parameter.symbol == symbol)
+            .and_then(|authored_position| self.dense_structural_parameter_index(authored_position))
+            .map(|parameter_index| {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                }
             })
-            .enumerate()
-            .find(|(_, parameter)| parameter.symbol == symbol)
-        {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(index).ok()?,
-            }
-        } else {
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
-        };
+            .unwrap_or(
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+            );
         let Some((projected, path)) =
             crate::execution::terminal_unit::calls::projected_argument_path(
                 self.program,

@@ -8,8 +8,9 @@
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventSource, StatementNode,
-    TypedTrees, call_owns_result, control, local_results, terminator_call_consumes_result,
+    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
+    PermissionEventSource, StatementNode, TypedTrees, call_owns_result, control, local_results,
+    terminator_call_consumes_result,
 };
 use checked_trees::CheckedUnitStructuralParameterPlan;
 
@@ -353,12 +354,10 @@ pub(super) fn account(
                 if facts.values.structural_values.nodes.is_valid(*value) =>
             {
                 match &facts.values.structural_values.nodes.get(*value).kind {
-                    checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
-                        source,
+                    checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
+                    | checked_trees::CheckedStructuralValueKind::MutableSliceView { source } => {
+                        Some(source)
                     }
-                    | checked_trees::CheckedStructuralValueKind::MutableSliceView {
-                        source,
-                    } => Some(source),
                     _ => None,
                 }
             }
@@ -382,28 +381,20 @@ pub(super) fn account(
                     .then_some(machine.symbol)
                     .or(Some(authored.symbol))
             };
-            let same_root =
-                |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| {
-                    match (&argument.source, &view_source.source) {
-                        (
-                            CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                parameter_index,
-                            },
-                            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                                symbol,
-                            },
-                        ) => parameter_symbol(*parameter_index) == Some(*symbol),
-                        (
-                            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-                                symbol,
-                            },
-                            CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                                parameter_index,
-                            },
-                        ) => Some(*symbol) == parameter_symbol(*parameter_index),
-                        _ => argument.source == view_source.source,
-                    }
-                };
+            let same_root = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| match (
+                &argument.source,
+                &view_source.source,
+            ) {
+                (
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                ) => parameter_symbol(*parameter_index) == Some(*symbol),
+                (
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+                ) => Some(*symbol) == parameter_symbol(*parameter_index),
+                _ => argument.source == view_source.source,
+            };
             operations[producer_index + 1..]
                 .iter()
                 .filter(|operation| {
@@ -418,12 +409,50 @@ pub(super) fn account(
         } else {
             0
         };
+        // A view result's custody is also its loan's release: the loan
+        // minted at the establishment ends in exactly one Consume row —
+        // on the selected edge that carries it when control moves, or at
+        // the state exit when the scope simply closes. Count that release
+        // as the owner; an owned-storage disposal never applies to a
+        // reference shell. The Consume's root names the lent place, not
+        // the view local, so the establishment's own claim identifies the
+        // release. Only a loan-bound result needs the owner: an
+        // Unrestricted view is admitted by its dominance permit, and
+        // counting its release beside that permit would double-book.
+        let view_releases = if view_source.is_some() && result.multiplicity == Multiplicity::Affine
+        {
+            facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter(|(_, event)| {
+                    event.kind == PermissionEventKind::Consume
+                        && event.machine_symbol == machine.symbol
+                        && event.state_symbol == state.symbol
+                        && matches!(
+                            event.claim_identity,
+                            language_semantics::PermissionClaimIdentity::Established {
+                                machine_symbol: claim_machine,
+                                state_symbol: claim_state,
+                                source: PermissionEventSource::Statement { statement_index },
+                                ..
+                            } if claim_machine == machine.symbol
+                                && claim_state == state.symbol
+                                && statement_index == result.statement_index as usize
+                        )
+                })
+                .count()
+        } else {
+            0
+        };
         let total = usize::from(consumed || stored || copied_into_construction)
             + call_transfers
             + cleanup_discards
             + construction_transfers
             + reference_releases
-            + reference_reborrows;
+            + reference_reborrows
+            + view_releases;
         if total != 1 {
             return None;
         }
