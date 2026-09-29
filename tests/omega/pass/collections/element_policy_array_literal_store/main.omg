@@ -1,0 +1,40 @@
+// An arithmetic policy on an array's ELEMENT type keeps the whole-array
+// store row: `i32 in Wrapping` qualifies arithmetic on the stored value,
+// never its storage shape, so the policy-constrained element is still a
+// closed primitive carrier. The same policy on the ARRAY was always peeled
+// for the same reason; the element peel now matches it. Reduced from
+// `samples/cli/collections/matrix_multiply`.
+//
+//   [i32; 3]               <- [1, 2, 3]   checks
+//   [u8; 3]                <- [1, 2, 3]   checks
+//   [i32; 3] in Wrapping   <- [1, 2, 3]   checks    <- policy on the ARRAY
+//   [i32 in Wrapping; 3]   <- [1, 2, 3]   checks    <- policy on the ELEMENT
+//   [i32 in Saturating; 3] <- [1, 2, 3]   checks
+//
+// WIDER than a policy is still declined: an array whose element is a RECORD
+// omits at the same phase -- `self.grid = [Cell { v: 1 }, Cell { v: 2 }]`
+// into `[Cell; 2]` -- while the plain `[i32; 2]` control checks. A
+// predicate-domain element (`[i32 in Ten; 3]`) also stays declined: the
+// domain's membership evidence is a separate contract, not a storage fact.
+// `samples/cli/rendering/dungeon_render` is the record-element customer,
+// with `grid: [Cell; 24]`.
+//
+// Storing ONE element (`self.grid[0][0] = 1`) checks. Storing one ROW
+// (`self.grid[0] = [1, 2, 3]`) omits at a neighbouring phase,
+// `structural field store: scalar field type: indexed element destination`,
+// so this fixture pins the whole-composite store, not element stores.
+//
+// Local record-field observations have their own native regression at
+// `tests/omega/pass/structs/runtime_local_record_policy_exit`.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    row: [i32 in Wrapping; 3];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.row = [1, 2, 3];
+    self.console.exit_process(0);
+}

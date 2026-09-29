@@ -200,6 +200,7 @@ pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 373ms
 pass/capabilities/windows_provides_import_exit rejected 2053ms
 	receiving terminal-authority policy version 7 does not classify normalized foreign mechanism NormalizedForeign(NormalizedForeignTerminalMechanismIdentity { target: WindowsX64, locator_identity: ForeignLocatorIdentityDigest([144, 186, 40, 58, 248, 174, 194, 125, 207, 78, 218, 115, 81, 6, 179, 111, 153, 34, 35, 115, 153, 107, 151, 110, 248, 164, 120, 235, 163, 205, 22, 6]), implementation_contract: BoundaryCallingPlanCommitment([246, 184, 138, 50, 13, 152, 237, 214, 207, 93, 41, 7, 127, 141, 216, 133, 187, 126, 81, 213, 47, 186, 45, 181, 193, 80, 17, 8, 120, 50, 204, 58]), argument_contract: AdmittedPlan }) required by `named-callable(path(Beeper::beep),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())`
 pass/collections/array_local_control checked 291ms
+pass/collections/element_policy_array_literal_store checked 8467ms
 pass/collections/owned_array_scalar_comparisons checked 307ms
 pass/collections/runtime_argmax_index_exit checked 1039ms
 pass/collections/runtime_case_array_element_write_exit rejected 986ms
@@ -855,8 +856,8 @@ pass/structs/mutable_record_state_transfer checked 1737ms
 pass/structs/nested_unused_provider_fields checked 1575ms
 pass/structs/runtime_local_record_policy_exit checked 1087ms
 pass/structs/runtime_nested_struct_construction_exit checked 972ms
-pass/structs/runtime_struct_array_literal_exit rejected 766ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
+pass/structs/runtime_struct_array_literal_exit rejected 7490ms
+	terminal-artifact production failed: Lowering(Unsupported("fixed array literal has no Terminal establishment"))
 pass/structs/uninit_record_local_exit checked 1577ms
 pass/structs/uninit_record_member_read checked 1594ms
 pass/structs/uninit_record_member_store checked 1608ms
