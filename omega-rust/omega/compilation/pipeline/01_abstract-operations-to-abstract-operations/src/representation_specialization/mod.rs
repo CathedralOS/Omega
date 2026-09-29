@@ -8,14 +8,19 @@
 //! operation result, the establishment a uniform whole
 //! `Owned`/`SharedBorrow` block-parameter binding forwards to when every
 //! incoming edge names the same place and nothing rewrites or mutably
-//! re-lends it, or a stored-whole child's producer when a `Field` path
-//! descends an `EstablishRecord` field carried by one owned, complete
+//! re-lends it, the source establishment a case-payload
+//! `StructuralLeafCopy` forwards to when its canonical projection prefixes
+//! the path still to resolve, or a stored-whole child's producer when a
+//! `Field` path descends an `EstablishRecord` field or a `Case` then
+//! `Field` pair descends the payload an `EstablishCase` stores whole for
+//! exactly the case it establishes, each carried by one owned, complete
 //! structural argument of exactly the declared carrier type. Zeroed
 //! establishment: the position resolves to an
 //! `EstablishZeroedStructural` — the same producer or bound/child chain
 //! — whose all-zero storage selects each admissible sum's first declared
 //! case; the verifier admits it only on zero-constructible shapes, so the
-//! remaining `Field` and index path descends the declared type alone.
+//! remaining `Field`, `Case`, and index path descends the declared type
+//! alone.
 //! Sole-case roster: the place's declared structural type is a closed `Sum` or
 //! `Mixed` roster of exactly one case, so every inhabitant of the place
 //! holds that case independently of how it arrived — parameters, results,
