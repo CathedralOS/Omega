@@ -13,7 +13,8 @@ use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_scalar_arguments,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
-    boundary_value_result_matches, provider_attachment_receiver_matches,
+    boundary_value_result_matches, parameter_binding_receiver_matches,
+    provider_attachment_receiver_matches,
 };
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
     ParameterArgument, SourceParameter, boundary_parameter_path,
@@ -424,6 +425,14 @@ pub(super) fn build(
         !call.has_receiver
             || (call.receiver_symbol != owner
                 && !provider_attachment_receiver_matches(program, machine, call_site, owner)
+                && !parameter_binding_receiver_matches(
+                    program,
+                    state,
+                    coordinate.statement_index as usize,
+                    caller_parameters,
+                    call_site,
+                    owner,
+                )
                 && !routed_service_parameter_receiver)
     } else {
         false
