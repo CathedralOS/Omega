@@ -27,15 +27,15 @@ use omega::language::core::binding;
 data Engine {
     rpm: i32;
 }
-machine Engine::reading(&self) -> i32 {
-    transition { _ -> (self.rpm) }
+machine Engine::reading(engine: &Engine) -> i32 {
+    transition { _ -> (engine.rpm) }
 }
 
 data Battery {
     percent: i32;
 }
-machine Battery::reading(&self) -> i32 {
-    transition { _ -> (self.percent) }
+machine Battery::reading(battery: &Battery) -> i32 {
+    transition { _ -> (battery.percent) }
 }
 
 data Dashboard {
@@ -53,8 +53,8 @@ machine Main::main(&mut self) reaches Console {
     self.dash.engine.rpm = 3000;
     self.dash.battery.percent = 85;
 
-    let rpm: i32 = self.dash.engine.reading();
-    let batt: i32 = self.dash.battery.reading();
+    let rpm: i32 = Engine::reading(&self.dash.engine);
+    let batt: i32 = Battery::reading(&self.dash.battery);
 
     transition rpm == 3000 {
         true -> check_battery(batt)
