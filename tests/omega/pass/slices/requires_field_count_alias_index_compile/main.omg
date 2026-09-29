@@ -7,10 +7,7 @@ data Room {
     exit_count: u64;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }
 
 machine append_exit(room: &mut Room, destination: u32)

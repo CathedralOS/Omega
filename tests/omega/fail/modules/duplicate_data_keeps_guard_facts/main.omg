@@ -36,5 +36,4 @@ machine local_facts() -> bool {
     state narrow(value: u64 [0..=254]) -> bool { true }
 }
 
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }

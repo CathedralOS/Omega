@@ -1,12 +1,10 @@
 // Ordinary wrappers inherit the helper's declared assembly service.
 use omega::language::core::assembly;
 
-data Main {}
-
 machine helper() reaches MachineControl {
     asm { hlt }
 }
 
-machine Main::main(&mut self) {
+machine main() {
     helper();
 }

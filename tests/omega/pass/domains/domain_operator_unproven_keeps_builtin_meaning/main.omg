@@ -11,12 +11,9 @@ machine + i32::Degrees::add(left: i32, right: i32) -> i32 {
     ((left as i32 in Wrapping) + (right as i32 in Wrapping)) as i32
 }
 
-data Main {
-}
-
 machine rotate(value: i32 in Wrapping, delta: i32 in Wrapping) {
     let sum: i32 in Wrapping = value + delta;
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }

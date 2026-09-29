@@ -2,7 +2,7 @@
 // bracket bound stay legal -- a `[copy]` data type, a scalar primitive, and a
 // generic caller forwarding its own bounded parameter (`U [copy]` counts as
 // carrying `[copy]` in scope) all qualify, through both the attached-method
-// path (`self.copy_it(...)`) and the free-machine path (`copy_free(...)`).
+// path (`copy_it(...)`) and the free-machine path (`copy_free(...)`).
 
 data Light [copy] {
     weight: i32;
@@ -16,16 +16,16 @@ data Main {
 machine copy_free<T [copy]>(x: &T) {
 }
 
-machine Main::copy_it<T [copy]>(&self, x: &T) {
+machine copy_it<T [copy]>(x: &T) {
 }
 
-machine Main::wrap<U [copy]>(&self, y: &U) {
-    self.copy_it(y);
+machine wrap<U [copy]>(y: &U) {
+    copy_it(y);
 }
 
 machine Main::main(&mut self) {
-    self.copy_it(&self.l);
-    self.copy_it(&self.n);
-    self.wrap(&self.l);
+    copy_it(&self.l);
+    copy_it(&self.n);
+    wrap(&self.l);
     copy_free(&self.l);
 }

@@ -15,10 +15,7 @@ use cathedral::interrupt_roots;
 use cathedral::interrupt_table;
 use cathedral::interrupt_validation;
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }
 
 // Keeping the gate, table, membership and verdict types in an ordinary

@@ -10,6 +10,4 @@ machine render(room: &Room, out: &mut i32) {
 }
 
 data RoomFormatter {}
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

@@ -8,10 +8,7 @@
 use cathedral::processor_startup;
 use cathedral::roster;
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }
 
 machine Main::retain(

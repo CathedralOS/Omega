@@ -22,5 +22,4 @@ where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies TaskRuntime::try_start
 via ForeignBinding::CompilerIntrinsic;
 
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }
