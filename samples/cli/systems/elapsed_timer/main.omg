@@ -54,7 +54,7 @@ machine Main::main(&mut self) reaches Console {
         false -> fail_request()
     }
     state read_elapsed(&mut self) {
-        self.elapsed = self.time.elapsed_since(self.start_keep);
+        self.elapsed = Time::elapsed_since(&mut self.time, self.start_keep);
         self.total_result = self.elapsed.checked_as_milliseconds();
         transition self.total_result {
             TotalResult::Ok { total } -> render_ten_thousands(total)
