@@ -878,7 +878,7 @@ fn readable_field_type(
     Some(signature.structural_type)
 }
 
-/// The borrowed machine parameter a restoration-window operation may name,
+/// The borrowed entry or block parameter a restoration-window operation may name,
 /// replayed against the unit's retained rows: the exact declaration,
 /// mutable-borrow authority, a transferable multiplicity, and no
 /// qualifications or entry claims — the same static contract the Terminal
@@ -893,6 +893,12 @@ fn borrowed_window_root(
             function
                 .structural_parameters
                 .iter()
+                .chain(
+                    function
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.structural_parameters),
+                )
                 .find(|candidate| candidate.place == parameter.place)
                 == Some(parameter)
                 && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
@@ -911,11 +917,22 @@ fn borrowed_window_root(
                     .content_entry_claims
                     .iter()
                     .all(|claim| claim.input.root != parameter.place)
-                && matches!(
-                    place_kinds.get(&parameter.place),
-                    Some(StructuralPlaceKind::Parameter { position, is_self })
-                        if *position == parameter.position && *is_self == parameter.is_self
-                )
+                && match place_kinds.get(&parameter.place) {
+                    Some(StructuralPlaceKind::Parameter { position, is_self }) => {
+                        *position == parameter.position
+                            && *is_self == parameter.is_self
+                            && function.structural_parameters.contains(parameter)
+                    }
+                    Some(StructuralPlaceKind::BlockParameter { block, position }) => {
+                        *position == parameter.position
+                            && !parameter.is_self
+                            && function.blocks.iter().any(|candidate| {
+                                candidate.id == *block
+                                    && candidate.structural_parameters.contains(parameter)
+                            })
+                    }
+                    _ => false,
+                }
         }
         abstract_operations::StructuralWindowRoot::OwnedResult { producer, result } => {
             // An owned completed local home: the retained producer names an

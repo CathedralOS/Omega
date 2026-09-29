@@ -176,9 +176,9 @@ pub(super) fn store_field(
     Ok(())
 }
 
-/// The window root is this function's own mutable-borrowed parameter row,
-/// exactly as declared, and its referent pointer is part of the prepared
-/// signature: both copies address the field through that pointer.
+/// The window root retains its exact mutable-borrowed declaration. An entry
+/// parameter has an ABI pointer; a live block arrival has the address forwarded
+/// by its incoming edge. Both copies use that pointer without copying the root.
 fn window_root(
     function: &AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
@@ -188,13 +188,18 @@ fn window_root(
     match root {
         abstract_operations::StructuralWindowRoot::BorrowedParameter(root) => {
             root.access == StructuralAccess::MutableBorrow
-                && function.structural_parameters.contains(root)
-                && super::structural_case::parameter_root(prepared, root.place).is_some_and(
-                    |parameter| {
-                        parameter.access == StructuralAccess::MutableBorrow
-                            && parameter.structural_type == root.structural_type
-                    },
-                )
+                && ((function.structural_parameters.contains(root)
+                    && super::structural_case::parameter_root(prepared, root.place).is_some_and(
+                        |parameter| {
+                            parameter.access == StructuralAccess::MutableBorrow
+                                && parameter.structural_type == root.structural_type
+                        },
+                    ))
+                    || (live.address_joins.contains(&root.place)
+                        && function
+                            .block_entries
+                            .iter()
+                            .any(|block| block.structural_parameters.contains(root))))
         }
         // An owned local home's authority is its live home row: the producer
         // completed it under clean transferable custody and nothing else may

@@ -319,3 +319,105 @@ fn owned_parameter_reseats_window_through_exact_abi_transport() {
         );
     }
 }
+
+#[test]
+fn state_loan_window_uses_the_arriving_address_through_selection_replay() {
+    use abstract_operations::{AbstractBlockEntry, AbstractStructuralBinding};
+    use semantic_vocabulary::{BlockId, EdgeId};
+
+    let mut source = source(StructuralAccess::MutableBorrow);
+    let function = &mut source.functions[0];
+    function.operations.remove(0);
+    let mut arrival = root(StructuralAccess::MutableBorrow);
+    arrival.place = place(4);
+    for operation in &mut function.operations {
+        match operation {
+            AbstractOperation::MoveStructuralField { source, .. } => {
+                *source =
+                    abstract_operations::StructuralWindowRoot::BorrowedParameter(arrival.clone());
+            }
+            AbstractOperation::StoreStructuralField {
+                destination, value, ..
+            } => {
+                *destination =
+                    abstract_operations::StructuralWindowRoot::BorrowedParameter(arrival.clone());
+                value.place = place(3);
+            }
+            _ => {}
+        }
+    }
+    let body = BlockId::new(2).unwrap();
+    function.operations.insert(
+        0,
+        AbstractOperation::Jump {
+            psi_edge: EdgeId::new(2).unwrap(),
+            target: body,
+            bindings: Vec::new(),
+            structural_bindings: vec![AbstractStructuralBinding {
+                parameter: arrival.place,
+                argument: StructuralArgument {
+                    place: place(1),
+                    path: Vec::new(),
+                    access: StructuralAccess::MutableBorrow,
+                },
+            }],
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        },
+    );
+    function.block_entries.push(AbstractBlockEntry {
+        block: body,
+        operation_offset: 1,
+        parameters: Vec::new(),
+        structural_parameters: vec![arrival],
+    });
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(native),
+        )
+        .expect("state loan can open and restore a field window");
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let mut changed = target.clone();
+        let TargetUnitOperation::StoreStructuralField { destination, .. } =
+            &mut changed.functions[0].graph.blocks[1].operations[1]
+        else {
+            unreachable!()
+        };
+        // Equal referent types do not let a stale incoming carrier replace the
+        // transferred loan's declaration.
+        *destination = abstract_operations::StructuralWindowRoot::BorrowedParameter(root(
+            StructuralAccess::MutableBorrow,
+        ));
+        assert!(legalize_target_operations(&changed, &source, &unit).is_err());
+    }
+}

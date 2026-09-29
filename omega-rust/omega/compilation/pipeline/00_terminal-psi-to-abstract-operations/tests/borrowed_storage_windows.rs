@@ -250,6 +250,64 @@ fn lower(
 }
 
 #[test]
+fn window_through_a_state_parameter_retains_exact_borrow_authority() {
+    let mut module = window_module();
+    let machine = &mut module.machines[0];
+    let mut body = machine.blocks[0].clone();
+    body.id = id::<BlockId>(2);
+    let mut parameter = machine.structural_parameters[0].clone();
+    parameter.place = id::<PlaceId>(5);
+    body.structural_parameters.push(parameter.clone());
+    if let OperationKind::MoveStructuralField { source, .. } = &mut body.operations[0].kind {
+        *source = parameter.place;
+    }
+    if let OperationKind::StoreStructuralField { destination, .. } = &mut body.operations[1].kind {
+        *destination = parameter.place;
+    }
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: parameter.place,
+        kind: StructuralPlaceKind::BlockParameter {
+            block: body.id,
+            position: 0,
+        },
+    });
+    machine.blocks[0].operations.clear();
+    machine.blocks[0].terminator = Terminator::Jump {
+        edge: id::<EdgeId>(2),
+        target: body.id,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: vec![StructuralArgument {
+            place: id::<PlaceId>(1),
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+        }],
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    machine.blocks.push(body);
+    let plan =
+        lower(&module).expect("verified state loan lowers without an invented entry parameter");
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &plan,
+        semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+        .expect("independent unit replay retains the block declaration and authority");
+    assert!(plan.functions[0].operations.iter().any(|operation| matches!(operation,
+        AbstractOperation::MoveStructuralField { source: abstract_operations::StructuralWindowRoot::BorrowedParameter(root), .. }
+            if *root == parameter
+    )));
+    module.machines[0].blocks[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    assert!(
+        encode_module(&module).is_err(),
+        "a shared arrival cannot acquire mutation authority"
+    );
+}
+
+#[test]
 fn a_replacement_subtree_repairs_and_lowers() {
     // The debt is keyed on the hole, not the moved place: a freshly
     // established Cell of the exact declared type reseats it just as well.
