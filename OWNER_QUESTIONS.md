@@ -6,8 +6,51 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-No owner-level decisions are currently open. Settled contracts govern the
-unfinished implementation work on the execution boards.
+## Q: how do toolchain-settled providers express marshalled syscalls?
+
+`ProviderBinding::Syscall { number }` is the only realization channel a
+toolchain-settled provider row can carry, and it admits only integer-class
+parameters — every bundled host service that carries a path or slice
+(`Filesystem::open`, `open_at`, `read_at`, `canonicalize`, `read_dir`,
+`TimeHost` clock names) resolves to zero provider rows at terminal-authority
+review, so no program reaching those hosts can produce a native product.
+This is the current wall on the headless Squalr run (`tools/native_probe_resume.md`
+in the Squalr repo) and on every FilesystemHost/TimeHost customer.
+
+The syscall route cannot grow the vocabulary inside itself: `evaluate_syscall`
+admits only ≤8-byte integer-class args into the six syscall registers, has no
+slice→pointer extraction, no NUL-terminated path scratch, no injected
+constants (e.g. AT_FDCWD), and no −errno decode; toolchain-settled provenance
+requires `row_realizations` all-invalid, so a settled row can never name a
+realization machine; `canonicalize` has no Linux syscall at all (realpath is
+a libc composite); and a checked adapter authored in the library would
+circularly need the requirement it adapts.
+
+Two honest settlement forms were identified; the choice is owner-level
+because it changes the provider contract surface:
+
+(a) a new `ProviderBinding` variant carrying a marshalling descriptor —
+    per-argument `scalar | slice-ptr | path-NUL | injected-const`, result
+    errno-decode — consumed by an extended `evaluate_syscall` that
+    synthesizes scratch space and the call prologue. Backend-contained, but
+    adds codec, identity and review surface.
+
+(b) toolchain-synthesized checked adapter machines admitted as
+    `CheckedAdapter` settlement rows — requires a synthesized-body pipeline
+    that does not exist today, relaxed adapter admission (the exact-adapter
+    gate currently requires `target.is_none()` plus matching package
+    identity, while toolchain plans mint `None`), and settlement/dispatch/
+    replay learning the new row kind.
+
+Either route spans provider-planning, calling-conventions, admission
+settlements, review-evidence replay, and adapter-rows dispatch — a
+multi-crate contract change, not a leaf-table extension.
+
+Evidence: bisection on Omega main `df0288f59fd` + bundle `71254d80532`
+(call_plan_evaluation.rs:1045 integer-class admission;
+provider_settlement.rs:265 all-invalid assertion;
+settlements/source_imports.rs Import/Syscall-only admission;
+exact_checked_adapter identity requirements).
 
 Question numbers are mutable queue positions, not permanent decision identities.
 Code, canaries, and settled documentation must cite a stable named decision or
