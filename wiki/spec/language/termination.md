@@ -121,20 +121,22 @@ remain result cases. A crash is not normal return; its frontier is an audit
 lower bound, not proof that unlisted state remains usable. Termination never
 names a crash cause or substitutes for the independent cleanup/control contract.
 
-## Ranked callees on projected receivers
+<a id="ranked-callees-on-projected-receivers"></a>
+## Ranked callees on borrowed subplaces
 
-An ordinary projected call such as `compiler.parser.scan(...)` borrows the
-parser field as the callee's whole receiver. The same original referent remains
-`self` through ranked backedges and return. The callee needs neither the enclosing
+An ordinary static call such as `Parser::scan(&mut compiler.parser, ...)` borrows
+the parser field through an explicit parameter. The same original referent is
+retained through ranked backedges and return; every state edge carries the
+necessary reference explicitly. The callee needs neither the enclosing
 nominal type nor a second parent reference. Caller evidence establishes exact
 projection, type, access, lifetime, and parent relationship; conflicting parent
 access rejects while the subloan is live. Explicitly retaining both parent and
 child references requires their represented loan relationship, not an exception.
 
-A transition does not rebind `self` to another object. Linked traversal may carry
+Transitions carry ordinary explicit arguments. Linked traversal may carry
 a changing node reference as an ordinary cursor parameter, with a remaining
 length, budget, or structural measure. These choices do not introduce new
-receiver syntax or imply general loop-carried-reference implementation support.
+scope or lifetime syntax or imply general loop-carried-reference implementation support.
 
 The caller/callee join independently proves argument/reference preparation,
 callee ranking, return/cleanup, and composed resources. An ordinary outer call

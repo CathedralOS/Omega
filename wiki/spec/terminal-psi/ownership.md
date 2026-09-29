@@ -128,10 +128,10 @@ disposition. The target frontier checks shape, facts, multiplicity, access, and
 operational metadata; predecessor origins need not be identical. The complete
 partition and conservation evidence remain in proof and diagnostic artifacts.
 
-A receiver is an ordinary parameter for this accounting. Receiver metadata
-cannot remove a place or its claims from the frontier. An owned `self` requires
-the same evidenced disposition as any other parameter of its type; a return
-alone supplies none. Affine cleanup/discard retains its ordinary charge and
+Every explicit parameter participates in this accounting. A machine's qualified
+name cannot remove a place or its claims from the frontier. An owned parameter
+requires evidenced disposition; a return alone supplies none.
+Affine cleanup/discard retains its ordinary charge and
 ordering, and linear cleanup still requires the owner's authorized plan.
 
 Calls retain authored order, independently of reverse cleanup order. Whole and
@@ -149,7 +149,7 @@ required on the returning branch.
 
 ## Nominal cleanup
 
-The attached `T::drop(&mut self)` target is a compiler-owned edge dependency,
+The static `T::drop(value: &mut T)` target is a compiler-owned edge dependency,
 not a source-selectable call or static-machine value. Authored early disposal
 uses the ordinary consuming `omega::core::drop(value)` call. The cleanup plan
 keeps Type-side discharge eligibility, logical prerequisites, operational
@@ -165,10 +165,13 @@ teardown. The [normal cleanup contract](calls_and_outcomes.md#normal-cleanup)
 owns sequential execution and suspension.
 
 Cleanup prerequisites must already be proved locally or authored in `requires`;
-analysis cannot add a new caller demand. The bounded proof-only receiver form
-substitutes the exact owned place into each target clause and binds each action's
+analysis cannot add a new caller demand. When the hook's value parameter is
+proof-only after checked erasure, the plan still substitutes the exact owned
+place for that parameter in each target clause and binds each action's
 proof independently, not by assuming identical positions in two fact lists.
-Its operational target remains zero-argument. Proof-site identities erase at
+Only that erased form has a zero-argument operational target; erasure does not
+remove its source parameter, subject substitution or disposition obligations.
+Proof-site identities erase at
 the verified Psi-to-Omega boundary and cannot reappear downstream.
 
 An owning erased descriptor must retain hidden payload/storage custody, size,
