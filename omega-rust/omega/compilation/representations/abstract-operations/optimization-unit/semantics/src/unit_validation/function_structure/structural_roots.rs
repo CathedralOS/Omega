@@ -405,8 +405,9 @@ pub(crate) fn validate_structural_root_operations(
                     source,
                 } => {
                     // Whole-carrier establishment: the result is an affine
-                    // `ref mut` over a primitive referent and the source must
-                    // name exactly that referent under mutable authority.
+                    // reference over a primitive referent and the source must
+                    // name exactly that referent under authority covering the
+                    // reference's own loan.
                     let expected = crate::unit_validation::references::referent(
                         structural_types,
                         result.structural_type,
@@ -424,12 +425,22 @@ pub(crate) fn validate_structural_root_operations(
                             }) if *producer == *psi_operation
                                 && *structural_type == result.structural_type
                         )
-                        && source.access == terminal_psi::StructuralAccess::MutableBorrow
+                        && matches!(
+                            source.access,
+                            terminal_psi::StructuralAccess::MutableBorrow
+                                | terminal_psi::StructuralAccess::SharedBorrow
+                        )
                         && crate::unit_validation::references::reference_source_type(
                             function,
                             structural_types,
                             source,
-                        ) == expected;
+                        ) == expected
+                        && crate::unit_validation::references::leaf_access_within(
+                            structural_types,
+                            result.structural_type,
+                            &[],
+                            source.access,
+                        );
                     if !valid {
                         return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
                             machine: Some(function.machine),

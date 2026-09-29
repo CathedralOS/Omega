@@ -175,10 +175,10 @@ pub(crate) fn leaf_paths(
     Some(output)
 }
 
-/// A whole-carrier result admits an exclusive permission over a primitive
+/// A whole-carrier result admits one borrow permission over a primitive
 /// scalar referent; that is the complete established shape this layer replays.
-/// Mutable and write-only carriers share the same loan structure; the access
-/// stored on the carrier, not the referent identity, separates them.
+/// Shared, mutable and write-only carriers share the same loan structure; the
+/// access stored on the carrier, not the referent identity, separates them.
 pub(crate) fn referent(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
@@ -188,7 +188,8 @@ pub(crate) fn referent(
         terminal_psi::StructuralTypeShape::Reference {
             referent,
             access:
-                terminal_psi::StructuralAccess::MutableBorrow
+                terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow,
         } if matches!(
             types.get(&referent).map(|declaration| &declaration.shape),
@@ -203,6 +204,28 @@ pub(crate) fn referent(
 
 /// A field-only carrier path ending at a reference leaf, then its referent.
 pub(crate) fn leaf_referent(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    current: StructuralTypeId,
+    fields: &[terminal_psi::StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let current = leaf_type(types, current, fields)?;
+    // A referent projection over a leaf that is not itself a reference names
+    // that leaf's own storage, mirroring the codec's structural-path arm.
+    referent(types, current).or_else(|| {
+        types.get(&current).and_then(|declaration| {
+            (!matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::Reference { .. }
+            ))
+            .then_some(current)
+        })
+    })
+}
+
+/// The leaf type declared at `fields` below `current`: the carrier a
+/// `[fields.., Referent]` projection dereferences. Scalar members name the
+/// catalog's matching primitive storage declaration.
+pub(crate) fn leaf_type(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     mut current: StructuralTypeId,
     fields: &[terminal_psi::StructuralPathSegment],
@@ -231,8 +254,22 @@ pub(crate) fn leaf_referent(
             if field.identity != *identity || field.relevance.is_erased() {
                 continue;
             }
-            let terminal_psi::StructuralFieldType::Structural(child) = field.field_type else {
-                return None;
+            let child = match &field.field_type {
+                terminal_psi::StructuralFieldType::Structural(child) => *child,
+                // A scalar member names the catalog's matching primitive
+                // storage declaration; borrowing it carries that leaf type,
+                // not a reference formed at the member.
+                terminal_psi::StructuralFieldType::Scalar(scalar) => types
+                    .iter()
+                    .find(|(_, declaration)| {
+                        matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::PrimitiveScalar(shape)
+                                if shape == *scalar
+                        )
+                    })
+                    .map(|(id, _)| *id)?,
+                _ => return None,
             };
             match resolved {
                 None => resolved = Some(child),
@@ -242,7 +279,53 @@ pub(crate) fn leaf_referent(
         }
         current = resolved?;
     }
-    referent(types, current)
+    Some(current)
+}
+
+/// The access a reference type grants over its referent.
+pub(crate) fn reference_access(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    structural_type: StructuralTypeId,
+) -> Option<terminal_psi::StructuralAccess> {
+    types.get(&structural_type).and_then(|declaration| {
+        match declaration.shape {
+            terminal_psi::StructuralTypeShape::Reference { access, .. } => Some(access),
+            _ => None,
+        }
+    })
+}
+
+/// Loan strength: whether a place held with `authority` may lend `requested`.
+/// Ownership lends any loan, a mutable loan may be reborrowed shared or
+/// write-only, and a shared loan lends only a shared one.
+fn access_covers(
+    authority: terminal_psi::StructuralAccess,
+    requested: terminal_psi::StructuralAccess,
+) -> bool {
+    authority == requested
+        || matches!(
+            (authority, requested),
+            (terminal_psi::StructuralAccess::Owned, _)
+                | (
+                    terminal_psi::StructuralAccess::MutableBorrow,
+                    terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                )
+        )
+}
+
+/// Whether a mapped source's access stays within what the result leaf grants:
+/// the leaf at `path` is a reference and the source's access sits at or below
+/// its declared loan.
+pub(crate) fn leaf_access_within(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    source: terminal_psi::StructuralAccess,
+) -> bool {
+    leaf_type(types, root, path)
+        .and_then(|leaf| reference_access(types, leaf))
+        .is_some_and(|granted| access_covers(source, granted))
 }
 
 /// The referent type behind a `.., Referent` projection, resolved through the
@@ -362,11 +445,20 @@ pub(crate) fn formal_origin(
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == source.place)?;
-    if source.path.is_empty() && parameter.access == terminal_psi::StructuralAccess::MutableBorrow {
+    if source.path.is_empty()
+        && matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::SharedBorrow
+        )
+    {
         Some(ReferenceOrigin::Primitive(source.place))
     } else if let Some((terminal_psi::StructuralPathSegment::Referent, path)) =
         source.path.split_last()
-        && parameter.access == terminal_psi::StructuralAccess::Owned
+        && matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::SharedBorrow
+        )
     {
         Some(ReferenceOrigin::IngressLeaf(ReferenceIdentity {
             place: source.place,
@@ -518,25 +610,31 @@ pub(crate) fn validate_function_references(
         result.structural_type,
         result.reference_sources.len(),
     )
-    .ok_or_else(invalid)?;
+    .unwrap_or_else(|| {
+        std::process::exit(1)
+    });
     // Result sources are a canonical map, not a lifecycle schedule. Constructors
     // and cleanup keep declaration order; only this interface comparison sorts.
     paths.sort();
     if paths.len() != result.reference_sources.len() {
         return Err(invalid());
-    }
-    let mut sources = BTreeSet::new();
+    }    let mut sources = BTreeSet::new();
     for (path, mapping) in paths.iter().zip(&result.reference_sources) {
         let expected_referent =
             leaf_referent(types, result.structural_type, path).ok_or_else(invalid)?;
         if mapping.path != *path
-            || mapping.source.access != terminal_psi::StructuralAccess::MutableBorrow
+            || !matches!(
+                mapping.source.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::SharedBorrow
+            )
             || !sources.insert((mapping.source.place, mapping.source.path.clone()))
             || !function
                 .structural_parameters
                 .iter()
                 .any(|parameter| parameter.place == mapping.source.place)
             || reference_source_type(function, types, &mapping.source) != Some(expected_referent)
+            || !leaf_access_within(types, result.structural_type, path, mapping.source.access)
             || formal_origin(function, &mapping.source).is_none()
         {
             return Err(invalid());
