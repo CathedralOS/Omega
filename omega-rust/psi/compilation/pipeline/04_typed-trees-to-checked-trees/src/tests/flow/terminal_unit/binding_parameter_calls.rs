@@ -20,6 +20,64 @@ fn binding_field_of_explicit_parameter_keeps_boundary_calls() {
 }
 
 #[test]
+fn resultless_binding_field_call_keeps_explicit_context() {
+    assert_boundary_calls_retained(&SOURCE.replace("Host::mark(ticks)", "clock.host.mark(ticks)"));
+}
+
+#[test]
+fn nested_resultless_binding_field_call_keeps_explicit_context() {
+    assert_boundary_calls_retained(
+        &SOURCE
+            .replace("Host::mark(ticks)", "clock.host.mark(ticks)")
+            .replace(
+                "machine read(clock: &mut Clock)",
+                "pub data Context { clock: Clock; } machine read(context: &mut Context)",
+            )
+            .replace("clock.host", "context.clock.host"),
+    );
+}
+
+#[test]
+fn binding_statement_rejects_a_different_requirement_target() {
+    let source = format!(
+        "{} pub boundary trait Other {{ machine mark(value: u64); }}",
+        SOURCE.replace("Host::mark(ticks)", "clock.host.mark(ticks)")
+    );
+    let mut typed = crate::tests::front_end::typed_program_with_core_service(&source);
+    crate::tests::bind_fixture_fused_service_erasures(&mut typed);
+    let foreign = typed
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Other")
+        .map(|definition| typed.trait_machine_signatures(definition)[0].symbol)
+        .expect("foreign requirement");
+    let statements = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "read")
+        .map(|machine| typed.machine_states(machine)[0].statement_nodes)
+        .expect("caller state");
+    let call = typed
+        .statement_table
+        .statements_mut(statements)
+        .iter_mut()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .expect("authored boundary call");
+    call.target_symbol = foreign;
+    let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect_err("the field's requirement cannot be replaced by a same-named one");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("projected binding call target belongs to a different requirement")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn qualified_static_binding_call_has_no_implicit_attachment() {
     assert_boundary_calls_retained(&SOURCE.replace("machine read(", "machine Clock::read("));
 }

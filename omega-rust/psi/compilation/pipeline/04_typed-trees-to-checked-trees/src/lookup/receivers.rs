@@ -65,7 +65,7 @@ pub(crate) fn resolve_projected_receiver_calls(
                     if receiver.depth == 0 {
                         continue;
                     }
-                    let target = attached_target(
+                    let target = declared_receiver_target(
                         program,
                         receiver.type_reference,
                         call.target_symbol,
@@ -114,7 +114,7 @@ pub(crate) fn resolve_projected_receiver_calls(
                         .with_source_span(call.source_span),
                     ]);
                 }
-                let target = attached_target(
+                let target = declared_receiver_target(
                     program,
                     receiver.type_reference,
                     call.target_symbol,
@@ -145,13 +145,47 @@ pub(crate) fn resolve_projected_receiver_calls(
     Ok(())
 }
 
-fn attached_target(
+fn declared_receiver_target(
     program: &TypedTrees,
     type_reference: typed_trees::types::TypeReferenceHandle,
     target: SymbolHandle,
     name: &typed_trees::name::Identifier,
     span: source::SourceSpan,
 ) -> Result<SymbolHandle, Vec<Diagnostic>> {
+    // A Binding<R> carries R's requirement identity, not methods on the
+    // Binding record itself. Resolve statement and expression calls through
+    // that exact identity before considering ordinary data declarations.
+    if let Some(requirement) =
+        typed_trees::service::exact_bound_service_requirement(program, type_reference)
+    {
+        let Some(definition) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.is_boundary && definition.symbol == requirement)
+        else {
+            return Ok(SymbolHandle::invalid());
+        };
+        let mut candidates = program
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|signature| signature.name == *name);
+        let selected = candidates
+            .next()
+            .map(|signature| signature.symbol)
+            .unwrap_or_else(SymbolHandle::invalid);
+        if candidates.next().is_some() {
+            return Ok(SymbolHandle::invalid());
+        }
+        if target.is_valid() && target != selected {
+            return Err(vec![
+                Diagnostic::error(
+                    "projected binding call target belongs to a different requirement",
+                )
+                .with_source_span(span),
+            ]);
+        }
+        return Ok(selected);
+    }
     let nominal = super::machine_symbol_from_type_reference_handle(program, type_reference);
     if !nominal.is_valid()
         || !program

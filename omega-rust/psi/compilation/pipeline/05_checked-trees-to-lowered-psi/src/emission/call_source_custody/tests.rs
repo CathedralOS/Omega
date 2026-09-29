@@ -76,7 +76,7 @@ fn explicit_binding_context_preserves_boundary_source_custody() {
              pub data Context {{ clock: Clock; }}
              machine read({parameter}) reaches Host {{
                  let ticks: u64 = {projection}.ticks();
-                 Host::mark(ticks);
+                 {projection}.mark(ticks);
              }}"
         ));
         let lowered = lower_machine(&checked, TerminalMachineSelection::Name("read"))
