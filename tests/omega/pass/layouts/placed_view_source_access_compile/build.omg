@@ -5,4 +5,5 @@
 
 machine build(builder: &mut Build) {
     builder.package("placed_view_source_access_compile");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
 }

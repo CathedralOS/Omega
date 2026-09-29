@@ -1225,6 +1225,8 @@ fail/build/package_local_calling_copy rejected 98ms expected
 	duplicate data `BoundaryEntryPlan`
 	duplicate data `CallingPolicyRejection`
 	duplicate data `BoundaryPlanResult`
+fail/build/placed_view_program_entry_input rejected 1158ms expected
+	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: parameter source`
 fail/build/program_entry_binding_outside_build rejected 304ms expected
 	root binding requires a compiler-issued &mut Build receiver
 fail/build/program_entry_receiver_not_zii rejected 135ms expected

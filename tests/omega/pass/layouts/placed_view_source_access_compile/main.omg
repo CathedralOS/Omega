@@ -5,7 +5,15 @@
 // source `view.field.op()` call must resolve through the published boundary
 // roster -- the generated accessor machines are real checked boundary
 // declarations, not silently dropped opaque attachments.
+//
+// `Main::main` declares the same `&mut Placed` input a hosted `ProgramEntry`
+// binding lends: the parameter is a custody input, not an arrival parameter,
+// so it checks here and binds a root only once native admission can carry
+// its establishment. The `inspect(view)` call exercises call-bound custody
+// at the source surface the same roster row authorizes.
 use omega::language::core::layout;
+use omega_language_std::console;
+use omega::language::core::binding;
 
 pub data Registers {
     status: u32;
@@ -101,5 +109,9 @@ machine inspect_bound(view: &mut Placed<RegPlacement, Registers>) -> u32 {
     status
 }
 
-data Main {}
-machine Main::main(&mut self) {}
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self, view: &mut Placed<RegPlacement, Registers>) reaches Console {
+    let status: u32 = inspect(view);
+    let code: i32 = (((status & 127) as u8 in Wrapping) as i32) + 9;
+    self.console.exit_process(code);
+}
