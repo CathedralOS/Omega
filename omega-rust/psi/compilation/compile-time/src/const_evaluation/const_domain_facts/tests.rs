@@ -8,17 +8,30 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
 
 fn typed(source: &str) -> TypedTrees {
-    let syntax = crate::front_end::syntax_program(source);
+    let mut sources = source::SourceMap::default();
+    let source_id = sources
+        .add("const-domain.omg".into(), source.to_owned())
+        .source_id;
+    let sources = std::sync::Arc::new(sources);
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
     // Concrete generic instances are materialized by pre-resolution
     // evaluation: generic data normalization owns the named `FixedBuffer<7>`
     // definition and its carried membership facts.
     let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
         syntax_trees: syntax,
-        source_context: None,
+        source_context: Some(crate::BuildTimeSourceContext {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: None,
+        }),
     })
     .expect("fixture survives pre-resolution evaluation");
     let (syntax, _pre_check) = evaluated.into_syntax_and_pre_check();
-    let resolved = crate::syntax_probes::resolve(&syntax, None, &[]).expect("resolve");
+    let resolved = crate::syntax_probes::resolve(&syntax, Some(sources), &[]).expect("resolve");
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
@@ -191,4 +204,57 @@ machine Main::main(&mut self) {}
             .contains("does not fit the build-time evaluator's signed integer boundary")),
         "{diagnostics:?}"
     );
+}
+
+#[test]
+fn discharged_membership_rechecks_remaining_zero_storage_obligations() {
+    for (prefix, constraint, cases, gated, residual_count) in [
+        ("", "used <= N", "", false, 1),
+        ("", "0 <= used && used <= N", "", false, 2),
+        ("", "N > 0 && N <= 8 && used <= N", "", false, 1),
+        ("", "used > 0", "", true, 1),
+        (
+            "",
+            "used <= N",
+            "case Impossible where false; case Valid;",
+            true,
+            1,
+        ),
+        (
+            "data Order {} boundary operator <= Order::compare(left: u64, right: u64) -> bool;",
+            "N <= 8 && used <= N",
+            "",
+            true,
+            2,
+        ),
+    ] {
+        let mut program = typed(&format!(
+            "{prefix}
+             machine positive(value: u64) -> bool {{ value > 0 }}
+             domain u64::Positive requires positive(self);
+             data Buffer<const N: u64> where N in Positive, {constraint},
+             {{ used: u64; values: [u8; N]; {cases} }}
+             data Main {{ buffer: Buffer<4>; }}
+             machine Main::main(&mut self) {{}}"
+        ));
+        let pending = pending_memberships(&program);
+        assert_eq!(pending.len(), 1);
+        evaluate_selected_domain_facts(&mut program, None, SelectedBuildTimeOperators::default())
+            .expect("positive capacity membership discharges");
+        assert!(membership_is_proven(&program, &pending[0]));
+        let instance = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == pending[0].data_symbol)
+            .expect("concrete instance");
+        assert_eq!(instance.zero_gated, gated, "{prefix} {constraint} {cases}");
+        assert_eq!(
+            program
+                .proof_facts
+                .span_or_empty(instance.where_facts)
+                .len(),
+            residual_count,
+            "the field invariant remains a construction and write obligation"
+        );
+    }
 }

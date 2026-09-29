@@ -5,8 +5,10 @@
 //! closed arithmetic facts there, but a fact such as `is_buffer_size(self);`
 //! must wait until its callee has a typed symbol and a normalized build-time
 //! contract summary. This pass runs immediately after the
-//! other typed const-evaluation pass and replaces a proven concrete membership
-//! with the ordinary `true` fact consumed by checking.
+//! other typed const-evaluation pass. Proven static obligations leave the
+//! concrete record's fact roster; only residual runtime invariants flow into
+//! field bounds, stores and entry establishment. Retaining a `true` placeholder
+//! there makes a checked capacity look like an unsupported runtime predicate.
 //!
 //! A fact callee whose reachable closure holds a resolved boundary-operator
 //! use cannot run before provider selection: the owning pre-check continuation
@@ -38,12 +40,12 @@ struct PendingMembership {
 }
 
 /// Concrete const-generic instance memberships whose subject already folded
-/// to an integer literal. The unspecialized template has no angle-bracket
-/// spelling and must retain its symbolic fact for ordinary generic validation.
+/// to an integer literal. Only a retained specialization origin identifies an
+/// instance; diagnostic spelling cannot supply that identity.
 fn pending_memberships(typed: &TypedTrees) -> Vec<PendingMembership> {
     let mut pending = Vec::new();
     for data in typed.data_definitions() {
-        if !data.name.as_str().contains('<') {
+        if data.generic_instance.is_none() {
             continue;
         }
         for offset in 0..data.where_facts.count() {
@@ -174,23 +176,73 @@ pub(crate) fn evaluate_selected_domain_facts(
     for fact in replacements {
         *typed.proof_facts.get_mut(fact) = ProofFact::Expression(proven);
     }
+    let residual_facts = typed
+        .data_definitions()
+        .iter()
+        .filter(|data| affected_data.contains(&data.symbol))
+        .map(|data| {
+            let mut pending = typed
+                .proof_facts
+                .span_or_empty(data.where_facts)
+                .iter()
+                .rev()
+                .cloned()
+                .collect::<Vec<_>>();
+            let mut residual = Vec::new();
+            while let Some(fact) = pending.pop() {
+                if let ProofFact::Expression(expression) = fact {
+                    // Conjunction is the same obligation whether authored in
+                    // one clause or several. Preserve order and source handles
+                    // while removing only independently proved static leaves.
+                    if let ExpressionNode::Binary(binary) =
+                        typed.expression_table.expression(expression)
+                        && binary.operator == typed_trees::expression::BinaryOperator::And
+                    {
+                        pending.push(ProofFact::Expression(binary.right));
+                        pending.push(ProofFact::Expression(binary.left));
+                        continue;
+                    }
+                    if fact_expression::data_fact_is_static_true(typed, data, expression) {
+                        continue;
+                    }
+                }
+                residual.push(fact);
+            }
+            (data.symbol, residual)
+        })
+        .collect::<Vec<_>>();
+    for (symbol, residual) in residual_facts {
+        let facts = typed.proof_facts.insert_many(residual);
+        typed.data_definitions.for_each_mut(|_, data| {
+            if data.symbol == symbol {
+                data.where_facts = facts;
+            }
+        });
+    }
     let ungated: Vec<_> = typed
         .data_definitions()
         .iter()
         .filter(|data| affected_data.contains(&data.symbol))
         .filter(|data| {
+            // A discharged capacity predicate is not a proof of the other
+            // runtime invariants. Re-evaluate those at zero without replacing
+            // them: construction, writes and reads still owe the authored fact.
             typed
                 .proof_facts
                 .span_or_empty(data.where_facts)
                 .iter()
                 .all(|fact| match fact {
-                    ProofFact::Expression(expression) => matches!(
-                        typed.expression_table.expression(*expression),
-                        ExpressionNode::Boolean(true)
-                    ),
+                    ProofFact::Expression(expression) =>
+                        fact_expression::data_fact_holds_at_zero(typed, data, *expression),
                     ProofFact::Membership(_) => false,
                     ProofFact::Proposition(_) => false,
                 })
+                // Zero storage selects the first case. Data-level membership
+                // evaluation cannot discharge that case's separate predicates.
+                && typed.data_members(data).iter().find_map(|member| match member {
+                    typed_trees::data::DataMember::Variant(variant) => Some(variant),
+                    _ => None,
+                }).is_none_or(|variant| variant.where_facts.is_empty())
         })
         .map(|data| data.symbol)
         .collect();

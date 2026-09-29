@@ -490,15 +490,39 @@ fn synthesize_instance(
     let mut const_expressions: HashMap<String, ExpressionNode> = const_parameter_values
         .iter()
         .map(|(name, value)| {
+            use numerics::literals::{IntegerLanding, LandedIntegerType};
+            // Substitution closes a declared value; it does not turn that
+            // value back into an anonymous literal with no operator home.
+            // Typed fact evaluation must still select against this carrier.
+            let landed_type = match const_parameter_type_names.get(name).map(String::as_str) {
+                Some("i8") => LandedIntegerType::I8,
+                Some("i16") => LandedIntegerType::I16,
+                Some("i32") => LandedIntegerType::I32,
+                Some("i64") => LandedIntegerType::I64,
+                Some("u8") => LandedIntegerType::U8,
+                Some("u16") => LandedIntegerType::U16,
+                Some("u32") => LandedIntegerType::U32,
+                Some("u64") => LandedIntegerType::U64,
+                Some("addr") => LandedIntegerType::Addr,
+                _ => {
+                    return Err(vec![Diagnostic::error(format!(
+                        "const parameter `{name}` has no supported integer carrier for substitution"
+                    ))]);
+                }
+            };
             let literal = IntegerLiteral::from_parts(
                 *value < 0,
                 IntegerRadix::Decimal,
                 value.unsigned_abs().to_string().as_str(),
             )
-            .expect("a concrete const argument is a valid decimal integer literal");
-            (name.clone(), ExpressionNode::Integer(literal))
+            .expect("a concrete const argument is a valid decimal integer literal")
+            .with_landing(IntegerLanding {
+                landed_type,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            });
+            Ok((name.clone(), ExpressionNode::Integer(literal)))
         })
-        .collect();
+        .collect::<Result<_, Vec<Diagnostic>>>()?;
     // Structural matching selects Boolean indices without turning them
     // into integer endpoints. Synthesis must retain that same value in
     // constructor facts and attached bodies; leaving the binder symbolic
