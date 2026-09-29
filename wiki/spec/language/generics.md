@@ -438,8 +438,9 @@ private callback slot's selected requirement; it is not missing-contract inferen
 
 Each invocation of a static-machine argument becomes a direct selected call
 after specialization. The binder is not a runtime function value or hidden
-callable argument. Stateful behavior uses ordinary instance data and its receiver
-access contract. Authors construct ordinary context data and explicitly select
+callable argument. Stateful behavior uses ordinary context data passed through
+explicit parameters with their normal ownership and access contracts. Authors
+construct that data and explicitly select
 the named callback declaration. No anonymous body/environment association or
 free-variable capture inference is provided. Dynamic selection still uses
 ordinary sums/wrappers or eligible dynamic conformances.
