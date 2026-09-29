@@ -180,11 +180,8 @@ pub(crate) fn build_checked_machine_residual_parts(
     trace.phase("result type");
     if !is_unit(program, state.return_type)
         && validation::reference_result_custody::parts(program, state.return_type).is_none()
-        && validation::reference_result_custody::mutable_borrowed_parts(
-            program,
-            state.return_type,
-        )
-        .is_none()
+        && validation::reference_result_custody::mutable_borrowed_parts(program, state.return_type)
+            .is_none()
         && !validation::reference_result_custody::is_reference_record(program, state.return_type)
         && !crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type)
         && !crate::execution::terminal_unit::types::borrowed_named_view(program, state.return_type)
@@ -246,48 +243,56 @@ pub(crate) fn build_checked_machine_residual_parts(
                 .primitive_type_reference(parameter.type_reference)
                 .is_some()
     });
-    let (attachment_type_identity, mut structural_parameters, scalar_parameters) =
-        if machine.attached_data.is_none() {
-            if carries_fused_service_parameter {
-                let (structural, scalar) =
-                    free_fused_service_scalar_signature(program, shapes, state, &binders)?;
-                (None, structural, scalar)
-            } else {
-                let (structural, scalar) =
-                    free_structural_scalar_signature(program, shapes, state, &binders)?;
-                (None, structural, scalar)
-            }
-        } else if carries_fused_service_parameter {
-            let (attachment, structural, scalar) = fused_service_scalar_signature(
-                program,
-                shapes,
-                machine,
-                state,
-                &binders,
-                retain_reference_self,
-            )?;
-            (Some(attachment), structural, scalar)
-        } else if carries_scalar_parameter {
-            let (attachment, structural, scalar) = structural_scalar_signature(
-                program,
-                shapes,
-                machine,
-                state,
-                &binders,
-                retain_reference_self,
-            )?;
-            (Some(attachment), structural, scalar)
+    // Qualification names the semantic owner; only a receiver parameter can
+    // request legacy attachment storage during the static-machine migration.
+    let has_receiver = program.machine_states(machine).iter().any(|state| {
+        program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_self)
+    });
+    let (attachment_type_identity, mut structural_parameters, scalar_parameters) = if !has_receiver
+    {
+        if carries_fused_service_parameter {
+            let (structural, scalar) =
+                free_fused_service_scalar_signature(program, shapes, state, &binders)?;
+            (None, structural, scalar)
         } else {
-            let (attachment, structural) = structural_signature(
-                program,
-                shapes,
-                machine,
-                state,
-                &binders,
-                retain_reference_self,
-            )?;
-            (Some(attachment), structural, Vec::new())
-        };
+            let (structural, scalar) =
+                free_structural_scalar_signature(program, shapes, state, &binders)?;
+            (None, structural, scalar)
+        }
+    } else if carries_fused_service_parameter {
+        let (attachment, structural, scalar) = fused_service_scalar_signature(
+            program,
+            shapes,
+            machine,
+            state,
+            &binders,
+            retain_reference_self,
+        )?;
+        (Some(attachment), structural, scalar)
+    } else if carries_scalar_parameter {
+        let (attachment, structural, scalar) = structural_scalar_signature(
+            program,
+            shapes,
+            machine,
+            state,
+            &binders,
+            retain_reference_self,
+        )?;
+        (Some(attachment), structural, scalar)
+    } else {
+        let (attachment, structural) = structural_signature(
+            program,
+            shapes,
+            machine,
+            state,
+            &binders,
+            retain_reference_self,
+        )?;
+        (Some(attachment), structural, Vec::new())
+    };
     trace.phase("state contracts");
     if !checked_state_contracts_supported(program, machine, state, &structural_parameters) {
         return None;

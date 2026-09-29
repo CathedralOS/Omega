@@ -20,6 +20,11 @@ fn binding_field_of_explicit_parameter_keeps_boundary_calls() {
 }
 
 #[test]
+fn qualified_static_binding_call_has_no_implicit_attachment() {
+    assert_boundary_calls_retained(&SOURCE.replace("machine read(", "machine Clock::read("));
+}
+
+#[test]
 fn nested_binding_field_keeps_boundary_calls() {
     assert_boundary_calls_retained(
         &SOURCE
