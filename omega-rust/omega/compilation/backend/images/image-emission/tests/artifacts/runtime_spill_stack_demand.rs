@@ -153,7 +153,13 @@ fn runtime_spilled_entry_frame_reaches_stack_demand_and_receiver_supply() {
         // Supply: the receiver bridge binds exactly the re-derived demand and
         // its private stack partition is sized from it.
         let mut artifact = compiled.artifact;
-        bind_receiver(&mut artifact, &compiled.signature, profile, false);
+        bind_receiver(
+            &mut artifact,
+            &compiled.signature,
+            &compiled.checked_entry,
+            profile,
+            false,
+        );
         let binding = artifact
             .hosted_receiver_binding()
             .expect("the bound receiver is retained");

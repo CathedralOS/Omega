@@ -48,6 +48,7 @@ sha2 = "0.10"
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
+lowered-psi-to-terminal-psi = { path = "../../../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi" }
 abstract-operations-to-abstract-operations = { path = "../../../pipeline/01_abstract-operations-to-abstract-operations" }
 compiler = { path = "../../../driver" }
 image-emission = { path = ".", features = ["test-support", "installed-artifact"] }

@@ -5,6 +5,7 @@ use super::{NativeProgramEntrySettlement, NativeProgramEntrySettlementError};
 pub(super) fn validate_terminal_rows(
     module: &terminal_psi::TerminalModule,
     settlement: NativeProgramEntrySettlement<'_>,
+    eligibility: Option<&terminal_psi::CheckedProgramEntryReceiverEligibility>,
 ) -> Result<(), NativeProgramEntrySettlementError> {
     let rows = settlement.fused_service_establishments();
     if rows.is_empty() {
@@ -21,9 +22,46 @@ pub(super) fn validate_terminal_rows(
     let [entry] = entry_machines.as_slice() else {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
     };
-    let Some(attachment) = entry.attachment else {
+    let eligibility =
+        eligibility.ok_or(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift)?;
+    if receiver_identity != eligibility.source_receiver_type_identity() {
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
-    };
+    }
+    let attachment = eligibility.terminal_receiver_type();
+    if let terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
+        terminal_self,
+        source_position,
+    } = eligibility.projection()
+    {
+        let mut parameters = entry
+            .structural_parameters
+            .iter()
+            .filter(|parameter| parameter.place == terminal_self);
+        let parameter = parameters
+            .next()
+            .ok_or(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift)?;
+        if parameters.next().is_some()
+            || settlement.source().receiver().source_position() != Some(source_position)
+            || parameter.structural_type != attachment
+            || parameter.access != terminal_psi::StructuralAccess::MutableBorrow
+            || parameter.is_self != entry.attachment.is_some()
+            || entry
+                .attachment
+                .is_some_and(|identity| identity != attachment)
+        {
+            return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+        }
+    } else if let terminal_psi::CheckedProgramEntryReceiverProjection::Erased { source_position } =
+        eligibility.projection()
+        && (settlement.source().receiver().source_position() != Some(source_position)
+            || entry.attachment != Some(attachment)
+            || entry
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.is_self))
+    {
+        return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+    }
     let attachment_types = module
         .structural_types
         .iter()
@@ -38,7 +76,8 @@ pub(super) fn validate_terminal_rows(
     // The source receiver is semantic identity while the attachment names the
     // retained Terminal structure. Each rejoins the row independently; they
     // are not required to share one spelling across package compilation.
-    if attachment_type.identity != rows[0].attachment_type_identity()
+    if attachment_type.identity != eligibility.owned_receiver_type_identity()
+        || attachment_type.identity != rows[0].attachment_type_identity()
         || rows.iter().any(|row| {
             row.source_signature_identity() != settlement.source().identity()
                 || row.target_slot() != settlement.source().target_slot()
@@ -105,7 +144,13 @@ pub fn validate_for_artifact_and_selected_plans(
     let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
         NativeProgramEntrySettlementError::CanonicalArtifactReplay(error.to_string())
     })?;
-    validate_terminal_rows(&module, settlement)?;
+    validate_terminal_rows(
+        &module,
+        settlement,
+        settlement
+            .checked_entry
+            .and_then(|receipt| receipt.receiver_eligibility()),
+    )?;
     for row in settlement.fused_service_establishments() {
         let matching_plans = selected_provider_plans
             .plans()

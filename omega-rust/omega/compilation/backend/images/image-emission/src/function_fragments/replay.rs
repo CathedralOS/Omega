@@ -7,6 +7,12 @@ use object_file::StagedOptimizedRelocationFreeObjectContainer;
 #[derive(Debug, Clone)]
 pub(crate) struct FragmentReplay(pub(super) Arc<StagedOptimizedRelocationFreeObjectContainer>);
 
+impl FragmentReplay {
+    pub(crate) fn terminal_module(&self) -> &terminal_psi::TerminalModule {
+        self.0.verified_input().context().module()
+    }
+}
+
 // Object value equality does not admit evidence. Publication always reconstructs
 // the source relationship below, including the complete retained stage evidence.
 impl PartialEq for FragmentReplay {

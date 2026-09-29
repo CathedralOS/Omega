@@ -179,6 +179,7 @@ impl TerminalNativeRealizationProposal {
         program_entry_plan::validate_terminal_fused_service_establishments(
             &module,
             self.program_entry.source(),
+            self.program_entry.checked_entry().receiver_eligibility(),
             self.program_entry.fused_service_establishments(),
             self.providers.selection.plans(),
         )?;

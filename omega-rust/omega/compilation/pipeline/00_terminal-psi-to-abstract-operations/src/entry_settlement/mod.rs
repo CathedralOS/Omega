@@ -65,6 +65,32 @@ pub fn validate_native_program_entry_settlement(
     if entry_count != 1 {
         return Err(NativeProgramEntrySettlementError::TerminalEntryMultiplicity(entry_count));
     }
+    validate_receiver_eligibility(&module, checked_entry, program_entry)?;
+    service_establishment::validate_terminal_rows(
+        &module,
+        program_entry,
+        checked_entry.receiver_eligibility(),
+    )?;
+    Ok(ValidatedNativeProgramEntrySettlement {
+        checked_entry: checked_entry.clone(),
+        target,
+        source: program_entry.source.clone(),
+        semantic_calling_application: program_entry.semantic_calling_application.cloned(),
+        physical_calling_application: program_entry.physical_calling_application.cloned(),
+        storage_entry: program_entry.storage_entry.cloned(),
+        fused_service_establishments: program_entry.fused_service_establishments.to_vec(),
+        // Executable input supplies these loans, not declaration settlement.
+        placed_view_establishments: Vec::new(),
+    })
+}
+
+/// Rejoin source context eligibility to its exact retained Terminal place.
+/// Source positions are declaration ordinals, not dense structural ordinals.
+fn validate_receiver_eligibility(
+    module: &terminal_psi::TerminalModule,
+    checked_entry: &CheckedProgramEntryTerminalReceipt,
+    program_entry: NativeProgramEntrySettlement<'_>,
+) -> Result<(), NativeProgramEntrySettlementError> {
     if let Some(eligibility) = checked_entry.receiver_eligibility() {
         // Only exact source Binding<...> fields require these rows.
         // Runtime erasure alone also covers ordinary proof fields, and cannot
@@ -101,16 +127,14 @@ pub fn validate_native_program_entry_settlement(
             .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
         if declarations.next().is_some()
             || declaration.identity != eligibility.owned_receiver_type_identity()
-            || entry.attachment != Some(eligibility.terminal_receiver_type())
+            || entry
+                .attachment
+                .is_some_and(|attachment| attachment != eligibility.terminal_receiver_type())
             || program_entry.source.receiver().normalized_type_identity()
                 != Some(eligibility.source_receiver_type_identity())
         {
             return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
         }
-        let mut receivers = entry
-            .structural_parameters
-            .iter()
-            .filter(|parameter| parameter.is_self);
         if eligibility.cleanup()
             == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
             && !matches!(
@@ -127,20 +151,33 @@ pub fn validate_native_program_entry_settlement(
                 terminal_self,
                 source_position,
             } => {
+                let mut receivers = entry
+                    .structural_parameters
+                    .iter()
+                    .filter(|parameter| parameter.place == terminal_self);
                 let receiver = receivers
                     .next()
                     .ok_or(NativeProgramEntrySettlementError::ReceiverEligibilityDrift)?;
                 if receivers.next().is_some()
-                    || receiver.place != terminal_self
-                    || receiver.position != source_position
+                    || program_entry.source.receiver().source_position() != Some(source_position)
                     || receiver.access != terminal_psi::StructuralAccess::MutableBorrow
                     || receiver.structural_type != eligibility.terminal_receiver_type()
+                    || receiver.is_self != entry.attachment.is_some()
+                    || entry
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.is_self && parameter.place != terminal_self)
                 {
                     return Err(NativeProgramEntrySettlementError::ReceiverEligibilityDrift);
                 }
             }
             terminal_psi::CheckedProgramEntryReceiverProjection::Erased { source_position } => {
-                if receivers.next().is_some()
+                if program_entry.source.receiver().source_position() != Some(source_position)
+                    || entry.attachment != Some(eligibility.terminal_receiver_type())
+                    || entry
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.is_self)
                     || entry
                         .structural_parameters
                         .iter()
@@ -151,19 +188,10 @@ pub fn validate_native_program_entry_settlement(
             }
         }
     }
-    service_establishment::validate_terminal_rows(&module, program_entry)?;
-    Ok(ValidatedNativeProgramEntrySettlement {
-        checked_entry: checked_entry.clone(),
-        target,
-        source: program_entry.source.clone(),
-        semantic_calling_application: program_entry.semantic_calling_application.cloned(),
-        physical_calling_application: program_entry.physical_calling_application.cloned(),
-        storage_entry: program_entry.storage_entry.cloned(),
-        fused_service_establishments: program_entry.fused_service_establishments.to_vec(),
-        // Placed-view loans are executable-input custody, not program-entry
-        // declaration custody: they attach only when a bound input reopens.
-        placed_view_establishments: Vec::new(),
-    })
+    Ok(())
 }
 
 pub use service_establishment::validate_for_artifact_and_selected_plans as validate_fused_program_entry_establishments;
+
+#[cfg(test)]
+mod tests;

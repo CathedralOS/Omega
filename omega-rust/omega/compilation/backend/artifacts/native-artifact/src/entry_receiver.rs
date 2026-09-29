@@ -35,7 +35,7 @@ pub fn admit_executable_entry_receiver(
     let has_self_parameter = |parameters: &[terminal_psi::StructuralParameterDeclaration]| {
         parameters.iter().any(|parameter| parameter.is_self)
     };
-    let has_receiver = plan.functions.iter().any(|function| {
+    let has_legacy_receiver = plan.functions.iter().any(|function| {
         function.machine == plan.entry && has_self_parameter(&function.structural_parameters)
     });
     // The verified Terminal entry is the receiver-mode frontier the abstract
@@ -46,7 +46,7 @@ pub fn admit_executable_entry_receiver(
     let terminal_has_receiver = terminal.machines.iter().any(|machine| {
         machine.id == terminal.entry && has_self_parameter(&machine.structural_parameters)
     });
-    if has_receiver != terminal_has_receiver {
+    if has_legacy_receiver != terminal_has_receiver {
         return Err(receiver_admission_error(
             "ProgramEntry receiver provisioning",
             "lowered entry does not preserve the source-selected receiver mode",
@@ -57,7 +57,7 @@ pub fn admit_executable_entry_receiver(
         program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable { .. }
     );
     if !source_provisions_receiver {
-        if has_receiver {
+        if has_legacy_receiver {
             // A free source entry cannot acquire a receiver through lowering.
             return Err(receiver_admission_error(
                 "ProgramEntry receiver provisioning",
@@ -76,39 +76,19 @@ pub fn admit_executable_entry_receiver(
         .find(|machine| machine.id == terminal.entry);
     let lowered_attachment = lowered_entry.and_then(|function| function.attachment);
     let terminal_attachment = terminal_entry.and_then(|machine| machine.attachment);
-    if !has_receiver {
-        // Erasure removes the borrow parameter, not the source owner's
-        // initialization and cleanup obligations. The attachment still binds
-        // that owner, and checked eligibility below must justify eliding it.
-        if lowered_attachment.is_none() || lowered_attachment != terminal_attachment {
-            return Err(receiver_admission_error(
-                "ProgramEntry receiver provisioning",
-                "lowered entry does not preserve the source-selected receiver mode",
-            ));
+    // Preserve declarations verbatim; an ordinary context has no attachment
+    // authority. Checked settlement below identifies its exact retained place.
+    let parameters_preserved = match (lowered_entry, terminal_entry) {
+        (Some(function), Some(machine)) => {
+            function.structural_parameters == machine.structural_parameters
         }
-    } else {
-        // A retained borrow is the receiver this realization physically
-        // provisions: the bridge sizes and lends the storage the lowered
-        // declaration spells out, and no later stage rejoins a drifted
-        // receiver to the checked Terminal receiver. The owner attachment and
-        // the exact self declaration must survive lowering unchanged.
-        let receiver_preserved = match (lowered_entry, terminal_entry) {
-            (Some(function), Some(machine)) => function
-                .structural_parameters
-                .iter()
-                .filter(|parameter| parameter.is_self)
-                .eq(machine
-                    .structural_parameters
-                    .iter()
-                    .filter(|parameter| parameter.is_self)),
-            _ => false,
-        };
-        if lowered_attachment != terminal_attachment || !receiver_preserved {
-            return Err(receiver_admission_error(
-                "ProgramEntry receiver provisioning",
-                "lowered entry does not preserve the source-selected receiver identity",
-            ));
-        }
+        _ => false,
+    };
+    if lowered_attachment != terminal_attachment || !parameters_preserved {
+        return Err(receiver_admission_error(
+            "ProgramEntry receiver provisioning",
+            "lowered entry does not preserve the source-selected receiver identity",
+        ));
     }
     let supported_receiver_bridge = native_target == target::NativeTarget::macos_arm64()
         || native_target == target::NativeTarget::linux_x64()
@@ -119,12 +99,6 @@ pub fn admit_executable_entry_receiver(
         // outgoing frame and calls the semantic child, so the root-backed
         // bridge for it is the semantic wrapper object join.
         || native_target == target::NativeTarget::uefi_x64();
-    if has_receiver && !supported_receiver_bridge {
-        return Err(receiver_admission_error(
-            "ProgramEntry receiver provisioning",
-            "the executable entry retains a self parameter, but no root-backed bridge constructs and lends its receiver; source-entry settlement alone does not provision receiver storage",
-        ));
-    }
     let checked_entry = program_entry.checked_entry.ok_or_else(|| {
         receiver_admission_error(
             "ProgramEntry receiver provisioning",
@@ -138,10 +112,20 @@ pub fn admit_executable_entry_receiver(
         native_target,
     )
     .map_err(|error| receiver_admission_error("ProgramEntry receiver custody", error))?;
-    if settled.checked_entry().receiver_eligibility().is_none() {
-        return Err(receiver_admission_error(
+    let eligibility = settled.checked_entry().receiver_eligibility().ok_or_else(|| {
+        receiver_admission_error(
             "ProgramEntry receiver provisioning",
             "hosted receiver requires a checked ZII-valid value with no executable nominal cleanup",
+        )
+    })?;
+    let has_receiver = matches!(
+        eligibility.projection(),
+        terminal_psi::CheckedProgramEntryReceiverProjection::Retained { .. }
+    );
+    if has_receiver && !supported_receiver_bridge {
+        return Err(receiver_admission_error(
+            "ProgramEntry receiver provisioning",
+            "the executable entry retains a context parameter, but no root-backed bridge constructs and lends its context; source-entry settlement alone does not provision context storage",
         ));
     }
     if !has_receiver {

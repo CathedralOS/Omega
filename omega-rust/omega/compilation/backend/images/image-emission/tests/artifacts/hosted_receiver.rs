@@ -31,6 +31,136 @@ const RECEIVER_STORE: &str = r#"
     }
 "#;
 
+const CONTEXT_STORE: &str = r#"
+    data Context { value: i32; }
+    machine launch(context: &mut Context) {
+        context.value = 17;
+    }
+"#;
+
+const RECEIVER_WITH_CLEANUP: &str = r#"
+    data Main { value: i32; }
+    machine Main::drop(&mut self) {}
+    machine Main::launch(&mut self) { self.value = 17; }
+"#;
+
+#[test]
+fn ordinary_context_binds_without_attachment_and_replays_exact_receipt() {
+    for profile in [
+        TargetProfile::LinuxX64,
+        TargetProfile::LinuxArm64,
+        TargetProfile::MacosArm64,
+    ] {
+        let compiled = compile_attached_entry(CONTEXT_STORE, "launch", profile);
+        let entry = compiled.container.verified_input().context().module();
+        let machine = entry
+            .machines
+            .iter()
+            .find(|machine| machine.id == entry.entry)
+            .unwrap();
+        assert!(machine.attachment.is_none());
+        assert!(!machine.structural_parameters[0].is_self);
+        let mut artifact = compiled.artifact;
+        bind_receiver(
+            &mut artifact,
+            &compiled.signature,
+            &compiled.checked_entry,
+            profile,
+            false,
+        );
+        let image = emit_direct_executable_image(&artifact, 3).expect("ordinary context image");
+        validate_direct_executable_image(&artifact, &image).expect("ordinary context replay");
+        if profile == TargetProfile::LinuxX64
+            && cfg!(all(target_os = "linux", target_arch = "x86_64"))
+        {
+            assert_exit(&image.output().bytes, 0);
+        }
+    }
+}
+
+#[test]
+fn ordinary_context_rejects_substituted_receipt_occurrence_and_identity() {
+    use terminal_psi::{
+        CheckedProgramEntryReceiverEligibility, CheckedProgramEntryReceiverProjection,
+        CheckedProgramEntryTerminalReceipt,
+    };
+    let profile = TargetProfile::LinuxX64;
+    let compiled = compile_attached_entry(CONTEXT_STORE, "launch", profile);
+    let receipt = &compiled.checked_entry;
+    let eligibility = receipt
+        .receiver_eligibility()
+        .expect("retained checked context");
+    let CheckedProgramEntryReceiverProjection::Retained {
+        terminal_self,
+        source_position,
+    } = eligibility.projection()
+    else {
+        panic!("context store retains its borrow");
+    };
+    for (signature_identity, projection, owned_identity) in [
+        (
+            [0; 32],
+            eligibility.projection(),
+            eligibility.owned_receiver_type_identity(),
+        ),
+        (
+            receipt.source_signature_identity(),
+            CheckedProgramEntryReceiverProjection::Retained {
+                terminal_self,
+                source_position: source_position + 1,
+            },
+            eligibility.owned_receiver_type_identity(),
+        ),
+        (
+            receipt.source_signature_identity(),
+            CheckedProgramEntryReceiverProjection::Retained {
+                terminal_self: semantic_vocabulary::PlaceId::new(999).unwrap(),
+                source_position,
+            },
+            eligibility.owned_receiver_type_identity(),
+        ),
+        (
+            receipt.source_signature_identity(),
+            eligibility.projection(),
+            "named(name(Other))",
+        ),
+    ] {
+        let changed = CheckedProgramEntryTerminalReceipt::new(
+            signature_identity,
+            receipt.source_machine_name().into(),
+            receipt.source_machine_symbol(),
+            receipt.terminal_psi_identity(),
+            receipt.terminal_entry(),
+            Some(
+                CheckedProgramEntryReceiverEligibility::new(
+                    eligibility.source_receiver_type_identity().into(),
+                    owned_identity.into(),
+                    projection,
+                    eligibility.terminal_receiver_type(),
+                    eligibility.fused_service_fields().to_vec(),
+                    eligibility.cleanup(),
+                )
+                .with_determined_evidence_fields(eligibility.determined_evidence_fields().to_vec()),
+            ),
+        );
+        let mut artifact = compiled.artifact.clone();
+        let demand = derive_stack_demand(&artifact, artifact.entry()).unwrap();
+        assert!(
+            bind_hosted_receiver(
+                &mut artifact,
+                &compiled.signature,
+                &changed,
+                &physical_contract(profile),
+                &[],
+                &[],
+                &demand,
+                false
+            )
+            .is_err()
+        );
+    }
+}
+
 /// The exact admitted physical contract for each bridge target, mirroring the
 /// sealed package plans the production settlement carries.
 pub(super) fn physical_contract(
@@ -93,6 +223,7 @@ pub(super) fn physical_contract(
 pub(super) fn bind_receiver(
     artifact: &mut image_emission::ObjectArtifact,
     signature: &program_entry_plan::SelectedProgramEntrySourceSignature,
+    checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
     profile: TargetProfile,
     cleanup_occupancy: bool,
 ) {
@@ -100,6 +231,7 @@ pub(super) fn bind_receiver(
     bind_hosted_receiver(
         artifact,
         signature,
+        checked_entry,
         &physical_contract(profile),
         &[],
         &[],
@@ -128,7 +260,13 @@ fn hosted_receiver_binds_and_replays_through_emission_on_all_bridge_targets() {
             "{profile:?} the object retains the exact staged container custody",
         );
         let unbound = emit_direct_executable_image(&artifact, 3).expect("unbound image");
-        bind_receiver(&mut artifact, &compiled.signature, profile, false);
+        bind_receiver(
+            &mut artifact,
+            &compiled.signature,
+            &compiled.checked_entry,
+            profile,
+            false,
+        );
         let binding = artifact
             .hosted_receiver_binding()
             .expect("the binding is retained on the sealed object");
@@ -169,16 +307,18 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
     let profile = TargetProfile::LinuxX64;
     let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
     let signature = compiled.signature;
+    let checked_entry = compiled.checked_entry;
     let physical = physical_contract(profile);
 
     // A binding is unique: a second bind on an already-bound object rejects.
     let mut artifact = compiled.artifact;
-    bind_receiver(&mut artifact, &signature, profile, false);
+    bind_receiver(&mut artifact, &signature, &checked_entry, profile, false);
     let demand = derive_stack_demand(&artifact, artifact.entry()).expect("demand");
     assert!(
         bind_hosted_receiver(
             &mut artifact,
             &signature,
+            &checked_entry,
             &physical,
             &[],
             &[],
@@ -196,6 +336,7 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
         bind_hosted_receiver(
             &mut unbound,
             &signature,
+            &checked_entry,
             &physical_contract(TargetProfile::MacosArm64),
             &[],
             &[],
@@ -219,6 +360,7 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
         bind_hosted_receiver(
             &mut unbound,
             &darwin_signature,
+            &checked_entry,
             &physical,
             &[],
             &[],
@@ -248,6 +390,7 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
         bind_hosted_receiver(
             &mut unbound,
             &free_signature,
+            &checked_entry,
             &physical,
             &[],
             &[],
@@ -266,6 +409,7 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
         bind_hosted_receiver(
             &mut unbound,
             &signature,
+            &checked_entry,
             &physical,
             &[],
             &[],
@@ -286,13 +430,12 @@ optimization_core::custody_field_inventory! {
     /// The physical contract, Fused service roster and receiver alignment
     /// have no post-binding substitution hook: `bind_hosted_receiver` admits
     /// them and the tests above pin their refusals at binding. Cleanup
-    /// occupancy is minted from checked eligibility and changes neither the
-    /// partitions nor the bridge bytes, so emission replay cannot observe it
-    /// (see `hosted_receiver_cleanup_occupancy_is_tracked_on_the_binding`).
+    /// occupancy rejoins the retained checked eligibility on every replay.
     pub enum HostedReceiverBindingFieldForTest {
         Source,
         StackCeiling,
         ReceiverByteCount,
+        CleanupOccupancy,
     }
 }
 
@@ -341,6 +484,12 @@ fn substitute_hosted_receiver_binding(
                 .hosted_receiver_byte_count_mut_for_test()
                 .expect("bound receiver extent") += 8;
         }
+        HostedReceiverBindingFieldForTest::CleanupOccupancy => {
+            let occupancy = artifact
+                .hosted_receiver_cleanup_occupancy_mut_for_test()
+                .unwrap();
+            *occupancy = !*occupancy;
+        }
     }
 }
 
@@ -352,23 +501,32 @@ fn hosted_receiver_emission_replays_binding_custody_exactly() {
         TargetProfile::MacosArm64,
     ] {
         let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
-        let bound = |cleanup_occupancy: bool| {
+        let bound = || {
             let mut artifact = compiled.artifact.clone();
             bind_receiver(
                 &mut artifact,
                 &compiled.signature,
+                &compiled.checked_entry,
                 profile,
-                cleanup_occupancy,
+                false,
             );
             artifact
         };
+        let donor = compile_attached_entry(RECEIVER_WITH_CLEANUP, "Main::launch", profile);
+        let mut donor_artifact = donor.artifact;
+        bind_receiver(
+            &mut donor_artifact,
+            &donor.signature,
+            &donor.checked_entry,
+            profile,
+            true,
+        );
         run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
             family: "hosted receiver binding",
             fields: HostedReceiverBindingFieldForTest::INVENTORY,
-            honest: &|| bound(false),
-            // An authentic binding of the same object under admitted cleanup
-            // occupancy: genuinely produced, distinct retained custody.
-            donor: bound(true),
+            honest: &bound,
+            // A real nominal-cleanup source produces distinct checked custody.
+            donor: donor_artifact,
             custody: &|artifact| artifact.hosted_receiver_binding().cloned(),
             substitute: &substitute_hosted_receiver_binding,
             check: &|artifact| {
@@ -398,7 +556,13 @@ fn hosted_receiver_emission_rejects_mutated_fragment_custody() {
     // A byte substitution in the object's current text breaks the exact
     // staged-container replay the emission gate performs first.
     let mut artifact = compiled.artifact.clone();
-    bind_receiver(&mut artifact, &compiled.signature, profile, false);
+    bind_receiver(
+        &mut artifact,
+        &compiled.signature,
+        &compiled.checked_entry,
+        profile,
+        false,
+    );
     artifact.text_bytes_mut_for_test()[0] ^= 0xff;
     assert!(
         emit_direct_executable_image(&artifact, 3).is_err(),
@@ -408,7 +572,13 @@ fn hosted_receiver_emission_rejects_mutated_fragment_custody() {
     // Dropping custody after binding removes the current entry graph the
     // receiver layout is derived from.
     let mut artifact = compiled.artifact;
-    bind_receiver(&mut artifact, &compiled.signature, profile, false);
+    bind_receiver(
+        &mut artifact,
+        &compiled.signature,
+        &compiled.checked_entry,
+        profile,
+        false,
+    );
     artifact.clear_fragment_replay_for_test();
     assert!(
         emit_direct_executable_image(&artifact, 3).is_err(),
@@ -421,7 +591,13 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
     let profile = TargetProfile::LinuxX64;
     let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
     let mut artifact = compiled.artifact;
-    bind_receiver(&mut artifact, &compiled.signature, profile, false);
+    bind_receiver(
+        &mut artifact,
+        &compiled.signature,
+        &compiled.checked_entry,
+        profile,
+        false,
+    );
     let image = emit_direct_executable_image(&artifact, 3).expect("receiver image emits");
     validate_direct_executable_image(&artifact, &image).expect("exact image replays");
 
@@ -451,6 +627,7 @@ fn hosted_receiver_image_replay_rejects_mutated_bridge_bytes() {
     bind_receiver(
         &mut other_artifact,
         &other.signature,
+        &other.checked_entry,
         TargetProfile::LinuxArm64,
         false,
     );
@@ -470,9 +647,15 @@ fn hosted_receiver_cleanup_occupancy_is_tracked_on_the_binding() {
         TargetProfile::LinuxArm64,
         TargetProfile::MacosArm64,
     ] {
-        let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
+        let compiled = compile_attached_entry(RECEIVER_WITH_CLEANUP, "Main::launch", profile);
         let mut artifact = compiled.artifact;
-        bind_receiver(&mut artifact, &compiled.signature, profile, true);
+        bind_receiver(
+            &mut artifact,
+            &compiled.signature,
+            &compiled.checked_entry,
+            profile,
+            true,
+        );
         let binding = artifact
             .hosted_receiver_binding()
             .expect("the binding is retained on the sealed object");
@@ -496,7 +679,13 @@ fn hosted_receiver_darwin_image_replay_rejects_mutated_bridge_bytes() {
     let profile = TargetProfile::MacosArm64;
     let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
     let mut artifact = compiled.artifact;
-    bind_receiver(&mut artifact, &compiled.signature, profile, false);
+    bind_receiver(
+        &mut artifact,
+        &compiled.signature,
+        &compiled.checked_entry,
+        profile,
+        false,
+    );
     let image = emit_direct_executable_image(&artifact, 0).expect("Darwin receiver image emits");
     validate_direct_executable_image(&artifact, &image).expect("exact image replays");
 
@@ -569,6 +758,7 @@ fn determined_evidence_binds_only_against_its_exact_row() {
         bind_hosted_receiver(
             &mut artifact,
             &compiled.signature,
+            &compiled.checked_entry,
             &physical_contract(profile),
             &[],
             rows,
@@ -580,8 +770,14 @@ fn determined_evidence_binds_only_against_its_exact_row() {
     for (rows, case) in [
         (vec![], "an erased field with no row"),
         (vec![row(&carrier, &[&proof])], "a row on a different route"),
-        (vec![row("named(name(Other))", &[&holder, &proof])], "a row for another carrier"),
-        (vec![exact.clone(), row(&carrier, &[&holder])], "a surplus row"),
+        (
+            vec![row("named(name(Other))", &[&holder, &proof])],
+            "a row for another carrier",
+        ),
+        (
+            vec![exact.clone(), row(&carrier, &[&holder])],
+            "a surplus row",
+        ),
     ] {
         assert!(bind(&rows).is_err(), "{case} must reject");
     }

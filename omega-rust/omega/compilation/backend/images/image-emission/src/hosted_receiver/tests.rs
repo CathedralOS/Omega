@@ -1007,22 +1007,35 @@ fn hosted_receiver_binding(
     receiver_alignment: u64,
 ) -> super::HostedReceiverBinding {
     let target = physical.target_slot().owner.native_target();
+    let source = program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+        physical.target_slot(),
+        symbols::SymbolHandle::from_arena_index(1),
+        symbols::SymbolHandle::from_arena_index(2),
+        "Main".into(),
+        "main".into(),
+        "Main::main".into(),
+        program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            source_position: 0,
+            source_symbol: symbols::SymbolHandle::from_arena_index(3),
+            normalized_type_identity: "named(name(Main))".into(),
+        },
+        Vec::new(),
+    )
+    .expect("well-shaped source signature");
+    let checked_entry = terminal_psi::CheckedProgramEntryTerminalReceipt::new(
+        source.identity().bytes(),
+        source.machine_name().into(),
+        source.machine_symbol(),
+        terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([7; 32]),
+        },
+        semantic_vocabulary::MachineId::new(1).unwrap(),
+        None,
+    );
     super::HostedReceiverBinding {
-        source: program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
-            physical.target_slot(),
-            symbols::SymbolHandle::from_arena_index(1),
-            symbols::SymbolHandle::from_arena_index(2),
-            "Main".into(),
-            "main".into(),
-            "Main::main".into(),
-            program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
-                source_position: 0,
-                source_symbol: symbols::SymbolHandle::from_arena_index(3),
-                normalized_type_identity: "named(name(Main))".into(),
-            },
-            Vec::new(),
-        )
-        .expect("well-shaped source signature"),
+        source,
+        checked_entry,
         physical,
         services: Vec::new(),
         determined_evidence: Vec::new(),

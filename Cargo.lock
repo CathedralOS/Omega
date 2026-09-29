@@ -805,6 +805,7 @@ dependencies = [
  "isa-x86_64",
  "layout-plans",
  "legalized-operations",
+ "lowered-psi-to-terminal-psi",
  "machine-code",
  "machine-emission",
  "object-file",

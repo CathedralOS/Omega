@@ -11,6 +11,7 @@ use crate::SelectedProgramEntrySourceSignature;
 pub fn validate_terminal_fused_service_establishments(
     module: &terminal_psi::TerminalModule,
     source: &SelectedProgramEntrySourceSignature,
+    eligibility: Option<&terminal_psi::CheckedProgramEntryReceiverEligibility>,
     rows: &[ProgramEntryFusedServiceEstablishment],
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
 ) -> Result<(), &'static str> {
@@ -28,9 +29,52 @@ pub fn validate_terminal_fused_service_establishments(
     let [entry_machine] = entry_machines.as_slice() else {
         return Err("Terminal proposal has no unique entry machine for root establishment");
     };
-    let Some(attachment) = entry_machine.attachment else {
-        return Err("Terminal proposal root establishment lost its entry attachment");
-    };
+    let eligibility =
+        eligibility.ok_or("Terminal proposal root establishment lost its checked context")?;
+    if source.receiver().normalized_type_identity()
+        != Some(eligibility.source_receiver_type_identity())
+    {
+        return Err("Terminal proposal root establishment substituted its source context");
+    }
+    let attachment = eligibility.terminal_receiver_type();
+    match eligibility.projection() {
+        terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
+            terminal_self,
+            source_position,
+        } => {
+            let mut parameters = entry_machine
+                .structural_parameters
+                .iter()
+                .filter(|parameter| parameter.place == terminal_self);
+            let parameter = parameters
+                .next()
+                .ok_or("Terminal proposal root establishment lost its context parameter")?;
+            if parameters.next().is_some()
+                || source.receiver().source_position() != Some(source_position)
+                || parameter.structural_type != attachment
+                || parameter.access != terminal_psi::StructuralAccess::MutableBorrow
+                || parameter.is_self != entry_machine.attachment.is_some()
+                || entry_machine
+                    .attachment
+                    .is_some_and(|identity| identity != attachment)
+            {
+                return Err(
+                    "Terminal proposal root establishment substituted its context parameter",
+                );
+            }
+        }
+        terminal_psi::CheckedProgramEntryReceiverProjection::Erased { source_position } => {
+            if source.receiver().source_position() != Some(source_position)
+                || entry_machine.attachment != Some(attachment)
+                || entry_machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self)
+            {
+                return Err("Terminal proposal root establishment substituted its erased context");
+            }
+        }
+    }
     let attachment_types = module
         .structural_types
         .iter()
@@ -42,7 +86,8 @@ pub fn validate_terminal_fused_service_establishments(
     let terminal_psi::StructuralTypeShape::Record { fields } = &attachment_type.shape else {
         return Err("Terminal proposal root establishment attachment is not a record");
     };
-    if attachment_type.identity != rows[0].attachment_type_identity()
+    if attachment_type.identity != eligibility.owned_receiver_type_identity()
+        || attachment_type.identity != rows[0].attachment_type_identity()
         || rows
             .iter()
             .any(|row| row.attachment_type_identity() != attachment_type.identity)
