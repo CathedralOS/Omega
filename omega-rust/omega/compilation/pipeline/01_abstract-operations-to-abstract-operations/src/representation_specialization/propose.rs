@@ -4,13 +4,18 @@
 //! observes is proven by the unit itself. Three proofs qualify. An
 //! `EstablishCase` establishment — the place's own producer, or the same
 //! producer reached through `Field` descents across owned, complete
-//! structural children stored by an `EstablishRecord`, where a block
-//! parameter crosses only through the one place every incoming edge binds
-//! it to whole — proves the selected case at its position permanently. An
+//! structural children stored by an `EstablishRecord`, through `Case` then
+//! `Field` descents into the payload child an `EstablishCase` stores whole
+//! for exactly the case it establishes, through the uniform block-parameter
+//! binding every incoming edge spells whole, or through a case-payload
+//! `StructuralLeafCopy` whose canonical projection prefixes the path still
+//! to resolve beneath its source — proves the selected case at its
+//! position permanently. An
 //! `EstablishZeroedStructural` establishment selects each admissible sum's
 //! first declared case at every position of its storage: the verifier
-//! admits it only on zero-constructible shapes, so the remaining `Field`
-//! and index path descends the declared type alone. A single-case roster —
+//! admits it only on zero-constructible shapes, so the remaining `Field`,
+//! `Case`, and index path descends the declared type alone. A single-case
+//! roster —
 //! `StructuralTypeShape::Sum` or `Mixed` — proves the case at any
 //! resolvable path without custody evidence: `Field` segments descend
 //! through `Record` and `Mixed` common fields by identity, `FixedIndex`

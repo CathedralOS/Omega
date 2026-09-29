@@ -629,6 +629,460 @@ fn multi_case_array_element_membership_yields_no_candidate() {
     assert_declines(unit);
 }
 
+/// A case-match arm binds `lease` — the place a case-payload
+/// `StructuralLeafCopy` mints — and hands it whole to `inspect`, whose
+/// block parameter then observes its own case at the empty path: the
+/// uniform binding reaches the copy, whose `Case(Wrap)` then
+/// `Field(lease)` projection resolves beneath its source to the
+/// stored-whole payload child, whose own establishment proves
+/// `Lease::Live` permanently.
+const CASE_PAYLOAD_COPY_ROOT_SOURCE: &str = r#"
+    data Lease [copy] { case Live; case Free; }
+    data Outer { case Wrap(lease: Lease); case None; }
+    data Root {}
+    machine Root::run() {
+        let o: Outer = Outer::Wrap { lease: Lease::Live };
+        transition { _ -> read(o) }
+        state read(o: Outer) {
+            transition o {
+                Outer::Wrap { lease } -> inspect(lease)
+                Outer::None -> bad()
+            }
+        }
+        state inspect(lease: Lease) {
+            let m: bool = lease in Lease::Live;
+            transition m { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// Two memberships read below the payload record the arm copy hands to
+/// `inspect`: `pair.left` resolves through the uniform binding, the copy's
+/// canonical projection, the `EstablishCase` payload child, and the
+/// record's stored-whole `left` child to `Lease::Live`, while `pair.right`
+/// proves `Lease::Free` — so observing `Live` there folds to `false` under
+/// its own witness.
+const CASE_PAYLOAD_COPY_MEMBER_SOURCE: &str = r#"
+    data Lease [copy] { case Live; case Free; }
+    data Pair [copy] { left: Lease; right: Lease; }
+    data Outer { case Wrap(pair: Pair); case None; }
+    data Root {}
+    machine Root::run() {
+        let o: Outer = Outer::Wrap { pair: Pair { left: Lease::Live, right: Lease::Free } };
+        transition { _ -> read(o) }
+        state read(o: Outer) {
+            transition o {
+                Outer::Wrap { pair } -> inspect(pair)
+                Outer::None -> bad()
+            }
+        }
+        state inspect(pair: Pair) {
+            let l: bool = pair.left in Lease::Live;
+            let r: bool = pair.right in Lease::Live;
+            transition l && !r { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// The same arm over a source established under the other case: the copy's
+/// `Case(Wrap)` step names a payload overlay the `Outer::Pair`
+/// establishment never wrote, so the membership stays an observation.
+const CASE_PAYLOAD_COPY_OTHER_CASE_SOURCE: &str = r#"
+    data Lease [copy] { case Live; case Free; }
+    data Outer { case Wrap(lease: Lease); case Pair(lease: Lease); }
+    data Root {}
+    machine Root::run() {
+        let o: Outer = Outer::Pair { lease: Lease::Live };
+        transition { _ -> read(o) }
+        state read(o: Outer) {
+            transition o {
+                Outer::Wrap { lease } -> inspect(lease)
+                Outer::Pair { lease } -> bad()
+            }
+        }
+        state inspect(lease: Lease) {
+            let m: bool = lease in Lease::Live;
+            transition m { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// The case-payload copy place in `machine` — the place a
+/// `Case { payload }` arm binding mints — with its source place and
+/// case-qualified canonical projection. `None` when no arm binding copies
+/// a case payload.
+fn case_payload_copy(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+) -> Option<(
+    PlaceId,
+    PlaceId,
+    Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+)> {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)?;
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::StructuralLeafCopy {
+                result,
+                source,
+                path: abstract_operations::StructuralCopyPath::Case(path),
+                ..
+            } => Some((result.place, *source, path.clone())),
+            _ => None,
+        })
+}
+
+/// The producer `place`'s operation-result kind names.
+fn producer_of(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    place: PlaceId,
+) -> semantic_vocabulary::OperationId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)
+        .expect("the place is rostered");
+    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+        panic!("the place is an operation result")
+    };
+    producer
+}
+
+/// The payload child place the fixture's `EstablishCase` stores whole,
+/// with its own producer — the nested establishment a copy-crossing
+/// membership resolves to.
+fn payload_child(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+) -> (PlaceId, semantic_vocabulary::OperationId) {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let child = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishCase { fields, .. } => {
+                fields
+                    .iter()
+                    .find_map(|initializer| match &initializer.value {
+                        terminal_psi::RecordFieldValue::Structural(argument) => {
+                            Some(argument.place)
+                        }
+                        _ => None,
+                    })
+            }
+            _ => None,
+        })
+        .expect("the fixture's case stores a structural payload");
+    (child, producer_of(unit, machine, child))
+}
+
+/// The producer of the `index`-th structural member the fixture's payload
+/// record establishes whole — `left` then `right` in declaration order.
+fn payload_member_producer(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    index: usize,
+) -> semantic_vocabulary::OperationId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let (_, record_producer) = payload_child(unit, machine);
+    let member = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishRecord {
+                psi_operation,
+                fields,
+                ..
+            } if *psi_operation == record_producer => fields
+                .iter()
+                .filter_map(|initializer| match &initializer.value {
+                    terminal_psi::RecordFieldValue::Structural(argument) => Some(argument.place),
+                    _ => None,
+                })
+                .nth(index),
+            _ => None,
+        })
+        .expect("the payload record stores the member whole");
+    producer_of(unit, machine, member)
+}
+
+#[test]
+fn case_payload_copy_root_membership_folds_through_structural_case() {
+    let unit = lowered_unit_entry(
+        CASE_PAYLOAD_COPY_ROOT_SOURCE,
+        "case payload copy root membership",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (copy, source, projection) =
+        case_payload_copy(&input, machine).expect("the arm binding copies the payload");
+    assert!(
+        matches!(
+            projection.as_slice(),
+            [
+                semantic_vocabulary::CanonicalStructuralPathSegment::Case(_),
+                semantic_vocabulary::CanonicalStructuralPathSegment::Field(_)
+            ]
+        ),
+        "the arm binding copies the case payload field"
+    );
+    // The membership observes `inspect`'s block parameter, bound uniformly
+    // to the copy — the chain crosses binding then copy then payload.
+    let (place, bound) = copy_bound_parameter(&input, machine);
+    assert_eq!(bound, copy, "the parameter binds the case-payload copy");
+    let (site, (psi_operation, _, observed_case)) =
+        membership_on(&input, machine, place).expect("a membership observes the parameter");
+    let (child, witness) = payload_child(&input, machine);
+    // The proof chain ends at the stored-whole payload child's own
+    // establishment — a different operation than any place on the
+    // observed side of the copy.
+    assert_ne!(child, copy);
+    assert_ne!(child, source);
+
+    let run = specialize(unit);
+    let (commit, patch) =
+        commit_for(&run, place).expect("the copy's membership folds through the payload chain");
+    assert_eq!(patch.place, place);
+    assert_eq!(
+        patch.producer,
+        Some(witness),
+        "the payload child's establishment is the copy's root basis"
+    );
+    let [row] = patch.memberships.as_slice() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.site, site);
+    assert_eq!(row.psi_operation, psi_operation);
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, Some(witness));
+    assert_eq!(row.proven_case, observed_case);
+    assert!(row.outcome);
+
+    // The run also folds the dispatch membership ahead of this commit, so
+    // the stored declaration names the intermediate revision as its input;
+    // the same patch replayed against the original input validates the
+    // proof chain end to end.
+    let declaration = rebuild(
+        commit.declaration.rewrite().expect("rewrite declaration"),
+        input.identity,
+        |_| {},
+    )
+    .expect("the committed patch rebuilds against the original input");
+    validate_case_membership_specialization_candidate(&input, &declaration)
+        .expect("the exact case-payload membership candidate replays independently");
+}
+
+#[test]
+fn case_payload_copy_member_memberships_fold_both_verdicts() {
+    let unit = lowered_unit_entry(
+        CASE_PAYLOAD_COPY_MEMBER_SOURCE,
+        "case payload copy member memberships",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (copy, _, _) =
+        case_payload_copy(&input, machine).expect("the arm binding copies the payload");
+    let (place, bound) = copy_bound_parameter(&input, machine);
+    assert_eq!(bound, copy, "the parameter binds the case-payload copy");
+    let memberships = memberships_on(&input, machine, place);
+    assert_eq!(
+        memberships.len(),
+        2,
+        "two memberships observe below the copied payload"
+    );
+    let member_op = |member: &str| {
+        memberships
+            .iter()
+            .find(|(_, _, path)| {
+                matches!(
+                    path.as_slice(),
+                    [terminal_psi::StructuralPathSegment::Field(name)] if name == member
+                )
+            })
+            .map(|(_, membership, _)| (membership.0, membership.2))
+            .expect("membership at the named member exists")
+    };
+    let (left_op, left_observed) = member_op("left");
+    let (right_op, right_observed) = member_op("right");
+    let left_witness = payload_member_producer(&input, machine, 0);
+    let right_witness = payload_member_producer(&input, machine, 1);
+
+    let run = specialize(unit);
+    let (_, patch) = commit_for(&run, place)
+        .expect("the copy's member memberships fold through the payload chain");
+    assert_eq!(patch.place, place);
+    assert_eq!(
+        patch.producer, None,
+        "the copied record holds no root case of its own"
+    );
+    let [left_row, right_row] = patch.memberships.as_slice() else {
+        panic!("both memberships fold in one candidate")
+    };
+    assert_eq!(left_row.psi_operation, left_op);
+    assert_eq!(left_row.producer, Some(left_witness));
+    assert_eq!(left_row.proven_case, left_observed);
+    assert!(left_row.outcome);
+    assert_eq!(right_row.psi_operation, right_op);
+    assert_eq!(right_row.producer, Some(right_witness));
+    assert_ne!(
+        right_row.proven_case, right_observed,
+        "the right member holds `Lease::Free`, not the observed `Live`"
+    );
+    assert!(!right_row.outcome);
+}
+
+#[test]
+fn case_payload_copy_membership_under_other_case_declines() {
+    let unit = lowered_unit_entry(
+        CASE_PAYLOAD_COPY_OTHER_CASE_SOURCE,
+        "case payload copy membership other case",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    // The membership observes `inspect`'s block parameter, bound to the
+    // `Wrap` arm's copy — while the source establishes `Pair`, so the
+    // `Case(Wrap)` step the copy's projection names declines. The dispatch
+    // membership on `read`'s parameter still folds to `false`, so the run
+    // commits the other place's plan alone.
+    let (place, _) = copy_bound_parameter(&input, machine);
+    let (site, (psi_operation, _, _)) =
+        membership_on(&input, machine, place).expect("a membership observes the parameter");
+
+    let run = specialize(unit);
+    assert!(
+        commit_for(&run, place).is_none(),
+        "no candidate covers the copy's membership"
+    );
+    // The folded unit still carries the observation at the same site.
+    let function = run
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine retained");
+    let node = &function
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        &node.operation,
+        AbstractOperation::StructuralCaseMembership {
+            psi_operation: kept,
+            source,
+            ..
+        } if *kept == psi_operation && *source == place
+    ));
+}
+
+#[test]
+fn replay_rejects_forged_case_payload_membership_rows() {
+    let unit = lowered_unit_entry(
+        CASE_PAYLOAD_COPY_ROOT_SOURCE,
+        "case payload copy membership forged",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (place, _) = copy_bound_parameter(&input, machine);
+    let run = specialize(unit);
+    let (commit, _) = commit_for(&run, place).expect("the copy's plan committed");
+    // The dispatch membership commits ahead of this one, so the stored
+    // declaration names the intermediate revision as its input; every
+    // forgery below is rebuilt against `input` — the revision the
+    // proof chain actually resolves on — so replay, not the input
+    // guard, does the rejecting.
+    let declaration = commit.declaration.rewrite().expect("rewrite declaration");
+    let forge = |mutate: &mut dyn FnMut(&mut CaseMembershipSpecializationRewrite)| {
+        rebuild(declaration, input.identity, |patch| mutate(patch))
+    };
+
+    // A forged verdict.
+    assert_rejects_rows(
+        &input,
+        forge(&mut |patch| {
+            patch.memberships[0].outcome = !patch.memberships[0].outcome;
+        }),
+    );
+
+    // A roster-basis claim on an establishment-proven row: the resolved
+    // `Lease` roster holds two cases, not one.
+    assert_rejects_rows(
+        &input,
+        forge(&mut |patch| {
+            patch.memberships[0].producer = None;
+        }),
+    );
+
+    // A forged witness — the membership operation claimed as the
+    // establishment the copy forwards to.
+    assert_rejects_rows(
+        &input,
+        forge(&mut |patch| {
+            patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
+        }),
+    );
+
+    // A forged plan witness: the copy's root basis is the payload child's
+    // establishment, not the membership operation.
+    assert_rejects_rows(
+        &input,
+        forge(&mut |patch| {
+            patch.producer = Some(patch.memberships[0].psi_operation);
+        }),
+    );
+
+    // A forged proven case mismatches the payload child's own case.
+    assert_rejects_rows(
+        &input,
+        forge(&mut |patch| {
+            patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                patch.memberships[0].proven_case.get() + 7,
+            )
+            .expect("forged case identity");
+        }),
+    );
+
+    validate_case_membership_specialization_candidate(
+        &input,
+        &forge(&mut |_| {}).expect("the unmutated patch rebuilds"),
+    )
+    .expect("the exact candidate still validates");
+}
+
 fn budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(96, 64, 64, 64, 64).expect("budget")
 }
@@ -653,6 +1107,40 @@ fn single_commit(
     let [commit] = run.commits() else {
         panic!("exactly one commit: one candidate covers the place")
     };
+    let (commit, patch) = commit_patch(commit);
+    (commit, patch)
+}
+
+/// The run's commit whose case-membership plan observes `place`, or `None`
+/// when no candidate covers it — copy fixtures also fold the dispatch's own
+/// membership, so a run may hold commits for several places.
+fn commit_for(
+    run: &OptimizationRun,
+    place: PlaceId,
+) -> Option<(&PsiOptimizationCommit, CaseMembershipSpecializationRewrite)> {
+    run.commits().iter().find_map(|commit| {
+        assert_eq!(
+            commit.rule,
+            CaseMembershipSpecializationRule::contract().identity(),
+            "only case-membership candidates run in these fixtures"
+        );
+        let PsiRewritePatch::SpecializeCaseMembership(patch) = commit
+            .declaration
+            .rewrite()
+            .expect("rewrite declaration")
+            .patch()
+        else {
+            panic!("a case-membership patch")
+        };
+        (patch.place == place).then_some((commit, patch))
+    })
+}
+
+/// The commit's case-membership patch; the rule contract pins this
+/// candidate family.
+fn commit_patch(
+    commit: &PsiOptimizationCommit,
+) -> (&PsiOptimizationCommit, CaseMembershipSpecializationRewrite) {
     assert_eq!(
         commit.rule,
         CaseMembershipSpecializationRule::contract().identity()
@@ -800,6 +1288,60 @@ fn bound_observation(unit: &PsiOptimizationUnit, machine: MachineId) -> (PlaceId
         }
     }
     (place, bound.expect("the parameter is bound"))
+}
+
+/// The block parameter a case-payload `StructuralLeafCopy` feeds in
+/// `machine`, plus the copy place itself — the observed place and its
+/// forwarding copy in the `Case { payload } -> inspect(payload)` fixtures.
+/// Every structural binding's argument is checked so the fixture binds the
+/// copy whole and uniformly.
+fn copy_bound_parameter(unit: &PsiOptimizationUnit, machine: MachineId) -> (PlaceId, PlaceId) {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let is_case_copy = |place: PlaceId| {
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                matches!(
+                    &node.operation,
+                    AbstractOperation::StructuralLeafCopy {
+                        result,
+                        path: abstract_operations::StructuralCopyPath::Case(_),
+                        ..
+                    } if result.place == place
+                )
+            })
+    };
+    let mut found = None;
+    for edge in function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+    {
+        for binding in &edge.structural_bindings {
+            let argument = &binding.argument;
+            assert!(argument.path.is_empty(), "the fixture binds the whole copy");
+            if is_case_copy(argument.place) {
+                match found {
+                    None => found = Some((binding.parameter, argument.place)),
+                    Some(seen) => {
+                        assert_eq!(
+                            seen,
+                            (binding.parameter, argument.place),
+                            "the fixture binds the copy uniformly"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    found.expect("a case-payload copy feeds a block parameter")
 }
 
 /// The only `OperationResult` place in these fixtures, its
