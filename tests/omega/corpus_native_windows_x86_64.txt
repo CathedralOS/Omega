@@ -106,8 +106,7 @@ pass/calls/runtime_assignment_call_post_mutation_value_exit rejected 1500ms @048
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(5), first_argument: 0, second_argument: 1 }))
 pass/calls/runtime_case_record_return_exit built 1929ms exit:70 @0484de104502
 pass/calls/runtime_constructor_computed_field_exit built 1594ms exit:1 @0484de104502
-pass/calls/runtime_cross_machine_substate_name_exit rejected 1181ms @0484de104502
-	terminal-artifact production failed: Lowering(Unsupported("computed borrow disagrees with its selected callee signature"))
+pass/calls/runtime_cross_machine_substate_name_exit built 1105ms exit:70 @e3c2b7f94a0b
 pass/calls/runtime_dispatch_binary_call_argument_exit rejected 1200ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Builder::build`), which was itself omitted at local construction at `state graph: terminator: conditional successors: target state` (state 1, statement 4)
 pass/calls/runtime_dispatch_float_terminal_exit rejected 2882ms @0484de104502
@@ -124,6 +123,7 @@ pass/calls/runtime_explicit_discard_executes_exit rejected 4176ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`Main::roll`), which was itself omitted at local construction at `structural field store: parameter access`
 pass/calls/runtime_guard_call_vs_call_exit built 1770ms exit:70 @0484de104502
 pass/calls/runtime_guarded_effectful_transition_argument_exit built 3848ms exit:70 @0484de104502
+pass/calls/runtime_indexed_scalar_calls_exit built 1745ms exit:70 @e3c2b7f94a0b
 pass/calls/runtime_let_mut_reassign_exit rejected 1021ms @0484de104502
 	native artifact target lowering failed: TranslationValidation(StructuralCallArgumentMismatch { machine: MachineId(1), operation: OperationId(9) })
 pass/calls/runtime_lifetime_only_constructor_result_exit built 2249ms exit:70 @0484de104502
@@ -170,12 +170,12 @@ pass/calls/structural_mut_to_shared_argument built 517ms @0484de104502
 pass/calls/structural_self_rooted_argument built 482ms @0484de104502
 pass/calls/transition_arg_local_from_embedded_call_exit built 1471ms exit:70 @0484de104502
 pass/calls/transition_tail_call_to_machine built 1002ms @0484de104502
+pass/calls/unread_multistate_receiver_exit built 908ms exit:70 @e3c2b7f94a0b
 pass/calls/value_call_as_host_arg_exit built 1009ms exit:70 @0484de104502
 pass/calls/value_call_element_view_arg_compile checked 404ms @0484de104502
 pass/calls/value_call_embedded_in_binary_exit built 1364ms exit:70 @0484de104502
 pass/calls/value_call_subexpression built 1074ms @0484de104502
-pass/calls/value_call_transition_argument rejected 907ms @0484de104502
-	terminal-artifact production failed: Lowering(Unsupported("computed borrow disagrees with its selected callee signature"))
+pass/calls/value_call_transition_argument built 850ms @e3c2b7f94a0b
 pass/capabilities/aarch64_hfa_import_compile checked 1456ms @0484de104502
 pass/capabilities/acquires_through_helper_return built 531ms @0484de104502
 pass/capabilities/boundary_trait_multiple_effects checked 402ms @0484de104502
@@ -210,8 +210,10 @@ pass/collections/runtime_fixed_vec_round_trip_exit rejected 976ms @0484de104502
 pass/collections/runtime_frame_indexed_param_read_exit built 1299ms exit:1 @0484de104502
 pass/collections/runtime_hoisted_index_write_exit rejected 3565ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: scalar field type: indexed element destination` (state 1, statement 2)
-pass/collections/runtime_indexed_struct_field_rmw_exit rejected 958ms @0484de104502
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/collections/runtime_indexed_record_field_read_exit rejected 794ms @e3c2b7f94a0b
+	native artifact target lowering failed: TranslationValidation(StructuralCallArgumentMismatch { machine: MachineId(1), operation: OperationId(17) })
+pass/collections/runtime_indexed_struct_field_rmw_exit rejected 774ms @e3c2b7f94a0b
+	terminal-artifact production failed: Lowering(Unsupported("scalar read differs from its authored binding or mutable place"))
 pass/collections/runtime_maze_pathfind_exit rejected 2932ms @0484de104502
 	native artifact target lowering failed: TranslationValidation(StructuralCallArgumentMismatch { machine: MachineId(1), operation: OperationId(336) })
 pass/collections/runtime_nested_const_row_indexed_read_exit built 1314ms exit:1 @0484de104502
