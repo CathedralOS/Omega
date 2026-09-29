@@ -11,12 +11,14 @@ use super::{
     CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventSource, StatementNode,
     TypedTrees, call_owns_result, control, local_results, terminator_call_consumes_result,
 };
+use checked_trees::CheckedUnitStructuralParameterPlan;
 
 pub(super) fn account(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
     operations: &[CheckedUnitEffectOperationPlan],
     terminator: &CheckedComposedUnitControlTerminatorPlan,
     disposable_locals: &[symbols::SymbolHandle],
@@ -337,11 +339,91 @@ pub(super) fn account(
             }
             _ => 0,
         };
+        // A view result's custody is its loan as well: a later reference
+        // establishment reborrows through that view's lent place into the
+        // loan it records, which is the same owner a loaned call result
+        // meets at its release. The reborrow names the lent place's root —
+        // reborrowing `slots[2]` plans `self.cells[2]`, not the view local —
+        // so the admitted shape is an establishment whose source shares the
+        // view's root and extends its lent path. Only view-kind results
+        // reborrow; a concrete local borrowed by an ordinary reference
+        // establishment stays live past the loan.
+        let view_source = match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. }
+                if facts.values.structural_values.nodes.is_valid(*value) =>
+            {
+                match &facts.values.structural_values.nodes.get(*value).kind {
+                    checked_trees::CheckedStructuralValueKind::BorrowedSliceView {
+                        source,
+                    }
+                    | checked_trees::CheckedStructuralValueKind::MutableSliceView {
+                        source,
+                    } => Some(source),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let reference_reborrows = if let Some(view_source) = view_source {
+            // The view's lent root and the reborrow's source spell the same
+            // root differently: a receiver local mints `StructuralLocal` in
+            // the view classifier but `Parameter` at the reference
+            // establishment. Compare both roots through the state's dense
+            // structural parameter list.
+            // `self` loans publish the machine symbol as their root while
+            // the reference establishment names the receiver by its dense
+            // parameter index: they meet at the `is_self` authored position.
+            let parameter_symbol = |parameter_index: u32| {
+                let parameter = structural_parameters.get(parameter_index as usize)?;
+                let authored = program
+                    .state_parameters(state)
+                    .get(parameter.position as usize)?;
+                (authored.is_self)
+                    .then_some(machine.symbol)
+                    .or(Some(authored.symbol))
+            };
+            let same_root =
+                |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| {
+                    match (&argument.source, &view_source.source) {
+                        (
+                            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                parameter_index,
+                            },
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                                symbol,
+                            },
+                        ) => parameter_symbol(*parameter_index) == Some(*symbol),
+                        (
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                                symbol,
+                            },
+                            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                parameter_index,
+                            },
+                        ) => Some(*symbol) == parameter_symbol(*parameter_index),
+                        _ => argument.source == view_source.source,
+                    }
+                };
+            operations[producer_index + 1..]
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
+                            if same_root(source)
+                                && source.path.starts_with(&view_source.path)
+                    )
+                })
+                .count()
+        } else {
+            0
+        };
         let total = usize::from(consumed || stored || copied_into_construction)
             + call_transfers
             + cleanup_discards
             + construction_transfers
-            + reference_releases;
+            + reference_releases
+            + reference_reborrows;
         if total != 1 {
             return None;
         }

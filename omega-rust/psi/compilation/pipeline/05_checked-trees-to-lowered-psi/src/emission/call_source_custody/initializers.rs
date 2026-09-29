@@ -201,11 +201,21 @@ pub(crate) fn validate_structural(
     else {
         return unsupported("boundary structural result has no authored local");
     };
-    // An exclusive `&mut T` view local keeps its reference shell — the
-    // `ref-mut` carrier is the custody the result spells — so the carrier
-    // comparison peels only constraint shells.
-    let expected_type =
-        crate::unit::attached_unit::structural_carrier_type(checked, local.type_reference)?;
+    // An exclusive `&mut T` view local joins the same carrier its result
+    // identity records: `&mut` peel to the view/named referee carrier for
+    // non-primitive referees, the borrow shell for the primitive ones.
+    let expected_type = match crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+        checked,
+        local.type_reference,
+    ) {
+        Some(carrier) => {
+            crate::unit::attached_unit::structural_carrier_type(checked, carrier)?
+        }
+        None => crate::unit::attached_unit::structural_carrier_type(
+            checked,
+            local.type_reference,
+        )?,
+    };
     if machine.symbol != caller_machine
         || result.statement_index != coordinate.statement_index
         || coordinate.call_ordinal != 0

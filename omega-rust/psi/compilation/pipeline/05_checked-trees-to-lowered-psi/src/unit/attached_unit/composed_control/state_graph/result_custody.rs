@@ -236,6 +236,7 @@ fn retired_in_body(
             state.state,
             result.statement_index,
             local.symbol,
+            local.type_reference,
             result.multiplicity,
             false,
         )?;
@@ -356,7 +357,15 @@ pub(super) fn validate(
     } else {
         checked.type_multiplicity(local.type_reference)
     };
-    let expected_identity = if is_borrowed_view_local(checked, local.type_reference) {
+    // A `&mut`-referee binding joins the same carrier `add_mutable_view_type`
+    // recorded — view/named referees peel to the view or record carrier.
+    let expected_identity = if let Some(carrier) =
+        crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+            checked,
+            local.type_reference,
+        ) {
+        checked.normalized_type_identity(carrier).into_string()
+    } else if is_borrowed_view_local(checked, local.type_reference) {
         validation::unwrapped_type_reference(&checked.typed, local.type_reference)
             .map(|unwrapped| checked.normalized_type_identity(unwrapped).into_string())
             .unwrap_or_else(|| {

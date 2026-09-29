@@ -308,13 +308,21 @@ impl Evaluation {
             let mutable_borrow = validation::reference_result_custody::mutable_borrowed_parts(
                 &checked.typed,
                 local.type_reference,
-            )
-            .is_some();
-            let carrier = match shared_borrow {
+            );
+            // A `&mut` slice view's carrier is its element-view carrier
+            // exactly as a `&` view's is: `let slots: &mut [Cell] = ..` binds
+            // the `[Cell]` view — and `&mut Cell` binds the `Cell` record —
+            // the same peel `add_type` applied recording the result identity.
+            let carrier = match shared_borrow
+                .or(crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+                    checked,
+                    local.type_reference,
+                ))
+            {
                 Some(referent) => super::parameters::structural_carrier_type(checked, referent)?,
                 None => super::parameters::structural_carrier_type(checked, local.type_reference)?,
             };
-            let expected_multiplicity = if mutable_borrow {
+            let expected_multiplicity = if mutable_borrow.is_some() {
                 Multiplicity::Affine
             } else {
                 checked.type_multiplicity(local.type_reference)
@@ -352,7 +360,7 @@ impl Evaluation {
                     path: Vec::new(),
                     access: if shared_borrow.is_some() {
                         StructuralAccess::SharedBorrow
-                    } else if mutable_borrow {
+                    } else if mutable_borrow.is_some() {
                         StructuralAccess::MutableBorrow
                     } else {
                         StructuralAccess::Owned

@@ -2043,10 +2043,17 @@ fn validate_operand_producers(
             // A `&T` producer keeps the authored reference on its local but
             // joins the referent's carrier: compare the slice/record the
             // view names, not the borrow shell. A `&mut` producer's carrier
-            // is its `ref-mut` type whole — the custody the result spells.
+            // peels the same way — view/named referees join the view or
+            // record carrier, primitives keep the `ref-mut` shell.
             let view_carrier = crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
                 checked,
                 local.type_reference,
+            )
+            .or(
+                crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+                    checked,
+                    local.type_reference,
+                ),
             );
             // The producer roster includes every local, even while rejoining
             // another operand. Copy cases carry the same plain-owned custody
