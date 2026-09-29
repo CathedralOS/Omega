@@ -80,10 +80,6 @@ impl Checker<'_> {
                 element_stride,
                 source: established_source,
             } => {
-                let TargetStructuralArgumentSource::Placement(placement) = established_source
-                else {
-                    return false;
-                };
                 let Some(argument) = self
                     .optimized
                     .blocks
@@ -109,27 +105,43 @@ impl Checker<'_> {
                 else {
                     return false;
                 };
+                let backing = match established_source {
+                    // An incoming parameter lends its exact entrance placement.
+                    TargetStructuralArgumentSource::Placement(placement) => {
+                        self.optimized
+                            .structural_parameters
+                            .iter()
+                            .any(|parameter| {
+                                parameter.place == argument.place
+                                    && parameter.structural_type == *root_structural_type
+                            })
+                            && super::super::structural_parameters(self.function).is_some_and(
+                                |parameters| {
+                                    parameters.iter().any(|parameter| {
+                                        parameter.place == argument.place
+                                            && &parameter.placement == placement
+                                    })
+                                },
+                            )
+                    }
+                    // A local aggregate lends the home its one producer
+                    // established before this view.
+                    TargetStructuralArgumentSource::StructuralHome {
+                        psi_operation: producer,
+                    } => self.local_home_precedes(
+                        *producer,
+                        *psi_operation,
+                        argument.place,
+                        *root_structural_type,
+                    ),
+                    _ => false,
+                };
                 *place == source
                     && access(argument.access)
                     && argument.path.iter().all(|segment| {
                         matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
                     })
-                    && self
-                        .optimized
-                        .structural_parameters
-                        .iter()
-                        .any(|parameter| {
-                            parameter.place == argument.place
-                                && parameter.structural_type == *root_structural_type
-                        })
-                    && super::super::structural_parameters(self.function).is_some_and(
-                        |parameters| {
-                            parameters.iter().any(|parameter| {
-                                parameter.place == argument.place
-                                    && &parameter.placement == placement
-                            })
-                        },
-                    )
+                    && backing
                     && self.established_element_window(
                         *root_structural_type,
                         &argument.path,
@@ -176,6 +188,54 @@ impl Checker<'_> {
                         })
             }
         }
+    }
+
+    /// The local aggregate at `place` is the owned, unrestricted, claim-free
+    /// and unqualified result of exactly `producer`, which runs before
+    /// `consumer`: earlier in the consumer's block or in a dominating block.
+    fn local_home_precedes(
+        &self,
+        producer: semantic_vocabulary::OperationId,
+        consumer: semantic_vocabulary::OperationId,
+        place: PlaceId,
+        root_structural_type: semantic_vocabulary::StructuralTypeId,
+    ) -> bool {
+        let Ok((actual, result)) =
+            crate::legalization::scalar_graph_input::structural_case::source_result(
+                self.optimized,
+                place,
+            )
+        else {
+            return false;
+        };
+        let site = |operation: semantic_vocabulary::OperationId| {
+            crate::legalization::scalar_graph_input::aggregate_results::node_site(
+                self.optimized,
+                |node| node.psi_operation() == Some(operation),
+            )
+        };
+        let (Some(before), Some(after)) = (site(producer), site(consumer)) else {
+            return false;
+        };
+        actual == producer
+            && result.structural_type == root_structural_type
+            && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+            && self.optimized.structural_places.iter().any(|declaration| {
+                declaration.id == place
+                    && declaration.kind
+                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            producer,
+                            structural_type: result.structural_type,
+                        }
+            })
+            && if before.0 == after.0 {
+                before.1 < after.1
+            } else {
+                super::control_flow::sources::dominates(self.optimized, before.0, after.0)
+            }
     }
 
     /// Re-derive an established view's declared window: the runtime path tip

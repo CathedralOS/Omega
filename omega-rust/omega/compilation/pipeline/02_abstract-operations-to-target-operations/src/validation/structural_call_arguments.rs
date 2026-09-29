@@ -202,10 +202,42 @@ struct Replay<'a> {
 /// The semantic referent declaration bound to one argument place: the root
 /// structural type and the access that declaration grants. Operation
 /// establishments own their storage; caller and block parameters keep their
-/// declared access.
+/// declared access. `whole_loan` marks an unrestricted, unqualified,
+/// claim-free operation result: the only local home Terminal verification lets
+/// a call borrow whole as a fixed-array view.
 struct RootDeclaration {
     structural_type: StructuralTypeId,
     access: StructuralAccess,
+    whole_loan: bool,
+}
+
+impl RootDeclaration {
+    /// Present a whole local home through the argument's own borrow for
+    /// fixed-array window geometry, exactly as Terminal verification presents
+    /// its array-result loan. The home itself stays owned; parameters and
+    /// projected arguments present nothing here.
+    fn loan_presentation(
+        &self,
+        semantic: &StructuralArgument,
+        declared: &StructuralParameterDeclaration,
+    ) -> Option<StructuralParameterDeclaration> {
+        (self.whole_loan
+            && semantic.path.is_empty()
+            && matches!(
+                semantic.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ))
+        .then(|| StructuralParameterDeclaration {
+            place: semantic.place,
+            position: declared.position,
+            is_self: false,
+            structural_type: self.structural_type,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: semantic.access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        })
+    }
 }
 
 pub(super) fn validate(
@@ -3110,7 +3142,11 @@ impl Replay<'_> {
         let Some(root) = self.roots.get(&semantic.place) else {
             return Ok(());
         };
-        if let Some(window) = self.source.structural_parameters.iter().find_map(|source| {
+        // A fixed array presents its backing from an incoming parameter or,
+        // whole, from a local home lent through this argument's own borrow.
+        let local_loan = root.loan_presentation(semantic, declared);
+        let window_roots = || self.source.structural_parameters.iter().chain(&local_loan);
+        if let Some(window) = window_roots().find_map(|source| {
             terminal_semantics::fixed_byte_array_window(
                 self.declarations.iter(),
                 source,
@@ -3141,7 +3177,7 @@ impl Replay<'_> {
         // fixed array loans its backing to a `slice`-shaped parameter, so
         // the retained transport carries the array's extent and element
         // stride rather than stride 1.
-        if let Some(length) = self.source.structural_parameters.iter().find_map(|source| {
+        if let Some(length) = window_roots().find_map(|source| {
             terminal_semantics::fixed_element_array_extent(
                 self.declarations.iter(),
                 source,
@@ -3912,19 +3948,34 @@ fn scalar_home_result(operation: &AbstractOperation) -> Option<(OperationId, Abs
 fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclaration> {
     let mut roots = BTreeMap::new();
     for operation in &source.operations {
-        let (place, structural_type) = match operation {
+        // Terminal lends whole only plain array constructions, zeroed locals
+        // and call results; the window geometry still requires a fixed array.
+        let plain_loan = |result: &StructuralOperationResult| {
+            result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+        };
+        let (place, structural_type, whole_loan) = match operation {
+            AbstractOperation::EstablishScalarArray { result, .. }
+            | AbstractOperation::EstablishZeroedStructural { result, .. }
+            | AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            }
+            | AbstractOperation::BoundaryCall {
+                result: AbstractBoundaryResult::Structural(result),
+                ..
+            } => (result.place, result.structural_type, plain_loan(result)),
             AbstractOperation::EstablishPrimitiveLocal { result, .. }
             | AbstractOperation::EstablishRecord { result, .. }
-            | AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
             // Extraction transfers the field into a distinct owned root;
             // its later call operand is not the borrowed source root.
             | AbstractOperation::MoveStructuralField { result, .. }
-            | AbstractOperation::ByteSequenceSubslice { result, .. }
-            | AbstractOperation::CallStructural {
-                result: AbstractStructuralCallResult::Structural { result, .. },
-                ..
-            } => (result.place, result.structural_type),
+            | AbstractOperation::ByteSequenceSubslice { result, .. } => {
+                (result.place, result.structural_type, false)
+            }
             AbstractOperation::EstablishByteSequenceLiteral {
                 place,
                 structural_type,
@@ -3934,16 +3985,13 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 place,
                 structural_type,
                 ..
-            } => (place.id, structural_type.id),
-            AbstractOperation::BoundaryCall {
-                result: AbstractBoundaryResult::Structural(result),
-                ..
-            } => (result.place, result.structural_type),
+            } => (place.id, structural_type.id, false),
             _ => continue,
         };
         roots.entry(place).or_insert(RootDeclaration {
             structural_type,
             access: StructuralAccess::Owned,
+            whole_loan,
         });
     }
     for entry in &source.block_entries {
@@ -3954,6 +4002,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             roots.entry(parameter.place).or_insert(RootDeclaration {
                 structural_type: parameter.structural_type,
                 access: parameter.access,
+                whole_loan: false,
             });
         }
     }
@@ -3961,6 +4010,7 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
         roots.entry(parameter.place).or_insert(RootDeclaration {
             structural_type: parameter.structural_type,
             access: parameter.access,
+            whole_loan: false,
         });
     }
     roots

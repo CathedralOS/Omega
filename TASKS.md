@@ -68,18 +68,21 @@ build authority, and artifact verification remain separate obligations.
   `slice_maximum` and `value_call_in_expr` already use static entries and local
   buffers, but their Windows native runs still need the Console provider closure
   tracked under process exit. Their checked success is not full migration acceptance.
-  On macOS ARM64, `omega run --both samples/cli/algorithms/dutch_flag/main.omg`
-  with EOF clears Terminal replay and borrowed state-storage lowering, then rejects
-  the local `[u8; 256]` pause buffer passed to `Console::read_line` with
-  `UnknownStructuralArgumentPlace`. Omega stage 02's `aggregate_results::call`
-  sends the view argument to `unit::structural_call::lower_structural_argument`
-  without its live local home. Coordinate with the claimed typed-view argument
-  transport work (`SCALAR-CALL-ELEMENT-WINDOW`); share that transport across call
-  result kinds rather than adding a sample-specific route. Acceptance remains
-  the unchanged partition algorithm, PASS output, and native/interpreter exit 70.
-  `arithmetic/modular_exponentiation` (exit 87) and `probes/value_call_in_expr`
-  stop at the same pause-buffer argument; since 2e525f9f018 lowers
-  `modular_power`'s interior-header loop, that argument is its only gap.
+  On macOS ARM64 a static entry's local arrays and zeroed records now lend their
+  homes natively: a whole local `[u8; N]`/`[T; N]` presents through `&[u8]`,
+  `&mut [u8]` and `&[T]` views for Unit-, scalar- and structural-result calls,
+  `.as_slice()` establishes a view over a local home, and a zeroed local record
+  lends `&mut` whole (`pass/calls/local_fixed_byte_array_loan_exit`,
+  `pass/slices/local_array_element_view_exit`). `dutch_flag` (70),
+  `modular_exponentiation` (87), `value_call_in_expr` (70) and `slice_maximum`
+  (9) run with native/interpreter agreement. Remaining local-storage refusals
+  sit before Omega stage 02: stage 00 `InvalidPrimitiveScalarRead` for an
+  element read of a local array (`buffer[0]`); Psi stage 04 `call operation:
+  claim-free affine result` for an ordinary structural-result call taking any
+  local loan (`&mut score`, `&mut buffer`), and `structural arguments: caller
+  structural result` for a projected loan of a local (`&dash.engine`). Stage 02
+  element-view establishment resolves a local backing from its producer
+  operation because threading the live home map needs `control_flow/operations.rs`.
 
 Prioritize unchanged customer programs reaching native execution over additional
 evidence carriers without an exercising program. The

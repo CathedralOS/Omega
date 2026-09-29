@@ -7,6 +7,7 @@ use target_operations::{TargetOperationPlan, TargetStructuralArgument};
 use terminal_psi::{StructuralAccess, StructuralArgument};
 
 mod exclusive;
+mod local_array;
 
 /// Rejoin one authored argument using its declaration ordinal and the shared call plan.
 pub(in crate::legalization) fn argument_at(
@@ -134,6 +135,20 @@ pub(in crate::legalization) fn argument_at(
             plan,
             custody,
         );
+    }
+    // A whole dominating local array lends its producing home through a
+    // borrowed byte or element view: the same presentation an incoming
+    // parameter's fixed-array window takes, rejoined to the producer.
+    if let Some(argument) = local_array::argument(
+        semantic,
+        call_operation,
+        caller,
+        destination_parameter,
+        call,
+        parameter_ordinal,
+        plan,
+    )? {
+        return Ok(argument);
     }
     if super::primitive_locals::producer(caller, semantic.place).is_some()
         || matches!(

@@ -203,7 +203,7 @@ pub(super) fn reconstruct(
 }
 
 /// The block and position of the one node `matches` selects.
-fn node_site(
+pub(in crate::legalization::scalar_graph_input) fn node_site(
     caller: &PsiOptimizationFunction,
     matches: impl Fn(&AbstractOperation) -> bool,
 ) -> Option<(semantic_vocabulary::BlockId, usize)> {
@@ -220,7 +220,7 @@ fn node_site(
 /// `argument`: earlier in the call's block, or in a dominating block.
 /// Installed providers retain their boundary operation identity even though
 /// their argument placement uses the ordinary checked-provider call plan.
-fn precedes(
+pub(in crate::legalization::scalar_graph_input) fn precedes(
     caller: &PsiOptimizationFunction,
     producer_site: (semantic_vocabulary::BlockId, usize),
     call_operation: semantic_vocabulary::OperationId,

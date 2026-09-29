@@ -18,19 +18,13 @@ use semantic_vocabulary::{
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
-    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TerminalPsiProvenance,
+    TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralHomeRequirement,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument, TerminalPsiProvenance,
 };
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeShape,
 };
-
-#[derive(Debug, Clone)]
-pub(in crate::lowering) struct StructuralCallLocalSource {
-    pub(in crate::lowering) structural_type: StructuralTypeId,
-    pub(in crate::lowering) shape: ValueShape,
-    pub(in crate::lowering) placement: ValuePlacement,
-}
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_structural_unit_call(
@@ -40,7 +34,7 @@ pub(in crate::lowering) fn lower_structural_unit_call(
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    local_sources_by_place: &BTreeMap<PlaceId, StructuralCallLocalSource>,
+    local_homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     established_views: &BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     scalar_values: &BTreeMap<ValueId, super::scalar_call::KnownUnitInteger>,
     scalar_aliases: &BTreeMap<ValueId, ValueId>,
@@ -241,7 +235,7 @@ pub(in crate::lowering) fn lower_structural_unit_call(
                 function,
                 structural_types,
                 parameters_by_place,
-                local_sources_by_place,
+                local_homes,
                 established_views,
                 operations,
                 shape_cache,
@@ -278,7 +272,7 @@ pub(in crate::lowering) fn lower_structural_argument(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    local_sources_by_place: &BTreeMap<PlaceId, StructuralCallLocalSource>,
+    local_homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
     established_views: &BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     operations: &[TargetUnitOperation],
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
@@ -300,6 +294,11 @@ pub(in crate::lowering) fn lower_structural_argument(
         .or_else(|| {
             super::projected_result::source(operations, argument.place)
                 .map(|(home, _)| home.qualifications())
+        })
+        .or_else(|| {
+            local_homes
+                .get(&argument.place)
+                .map(TargetStructuralHomeRequirement::qualifications)
         })
         .or_else(|| {
             operations.iter().find_map(|operation| {
@@ -388,126 +387,53 @@ pub(in crate::lowering) fn lower_structural_argument(
     let (source_structural_type, source_shape, source_placement) =
         if let Some(source) = parameters_by_place.get(&argument.place).copied() {
             (source.structural_type, source.shape, &source.placement)
-        } else if let Some(source) = local_sources_by_place.get(&argument.place) {
-            (source.structural_type, source.shape, &source.placement)
         } else if let Some((home, placement)) = result_source {
             (home.structural_type(), home.layout.shape(), placement)
+        } else if let Some(home) = local_homes.get(&argument.place) {
+            // A dominating local home has no incoming placement: it lends its
+            // own storage as a whole fixed array presented through a view.
+            return local_array_loan(
+                argument,
+                callee_parameter,
+                shape,
+                destination,
+                callee,
+                home,
+                structural_types,
+                shape_cache,
+                active,
+            )?
+            .ok_or(LoweringError::UnknownStructuralArgumentPlace {
+                machine: function.machine,
+                place: argument.place,
+            });
         } else {
             return Err(LoweringError::UnknownStructuralArgumentPlace {
                 machine: function.machine,
                 place: argument.place,
             });
         };
-    // Fixed byte windows are call presentations of original backing, not
-    // immutable subslice producers or a new owned structural value.
-    if let Some(window) = function.structural_parameters.iter().find_map(|source| {
-        terminal_semantics::fixed_byte_array_window(
-            structural_types.values().copied(),
-            source,
+    // Fixed byte windows and element views are call presentations of original
+    // backing, not immutable subslice producers or a new owned structural value.
+    if let Some(root) = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)
+        && let Some(loan) = fixed_array_view_argument(
             argument,
             callee_parameter,
-        )
-    }) {
-        let backing_offset = if window.backing_path.is_empty() {
-            0
-        } else {
-            resolve_structural_field_path(
-                source_structural_type,
-                window.backing_path,
-                structural_types,
-                shape_cache,
-                active,
-            )?
-            .2
-        };
-        let source_byte_offset = u64::from(backing_offset)
-            .checked_add(window.offset)
-            .and_then(|offset| u32::try_from(offset).ok())
-            .ok_or(LoweringError::StructuralTypeTooLarge(
-                source_structural_type,
-            ))?;
-        if shape != ValueShape::borrowed_reference(16, 8)
-            || u64::from(backing_offset)
-                .checked_add(window.backing_length)
-                .is_none_or(|end| end > u64::from(source_shape.byte_size))
-        {
-            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                callee,
-                place: argument.place,
-            });
-        }
-        return Ok(TargetStructuralArgument {
-            place: argument.place,
-            access: argument.access,
-            path: argument.path.clone(),
-            root_structural_type: source_structural_type,
-            structural_type: callee_parameter.structural_type,
             shape,
-            source_byte_offset,
-            fixed_array_length: Some(window.length),
-            element_stride: Some(1),
-            indices: Vec::new(),
-            source: source_placement.clone().into(),
-            destination: destination.clone(),
-        });
-    }
-    // Element views lend the whole fixed array's backing through the same
-    // call presentation; the element stride replaces the byte window's
-    // stride of 1, and the backing path is the argument's field path itself.
-    if let Some(length) = function.structural_parameters.iter().find_map(|source| {
-        terminal_semantics::fixed_element_array_extent(
-            structural_types.values().copied(),
-            source,
-            argument,
-            callee_parameter,
-        )
-    }) {
-        let (array_type, _array_shape, backing_offset) = resolve_structural_field_path(
-            source_structural_type,
-            &argument.path,
+            destination,
+            callee,
+            root,
+            source_shape.byte_size,
+            source_placement.clone().into(),
             structural_types,
             shape_cache,
             active,
-        )?;
-        let Some(StructuralTypeShape::FixedArray { element, .. }) = structural_types
-            .get(&array_type)
-            .map(|declaration| &declaration.shape)
-        else {
-            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                callee,
-                place: argument.place,
-            });
-        };
-        let element_shape = structural_shape(*element, structural_types, shape_cache, active)?;
-        let stride =
-            checked_align_up_u32(element_shape.byte_size, u32::from(element_shape.alignment))
-                .ok_or(LoweringError::StructuralTypeTooLarge(
-                    source_structural_type,
-                ))?;
-        if shape != ValueShape::borrowed_reference(16, 8)
-            || u64::from(backing_offset)
-                .checked_add(u64::from(stride).saturating_mul(length))
-                .is_none_or(|end| end > u64::from(source_shape.byte_size))
-        {
-            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
-                callee,
-                place: argument.place,
-            });
-        }
-        return Ok(TargetStructuralArgument {
-            place: argument.place,
-            access: argument.access,
-            path: argument.path.clone(),
-            root_structural_type: source_structural_type,
-            structural_type: callee_parameter.structural_type,
-            shape,
-            source_byte_offset: backing_offset,
-            fixed_array_length: Some(length),
-            element_stride: Some(stride),
-            indices: Vec::new(),
-            source: source_placement.clone().into(),
-            destination: destination.clone(),
-        });
+        )?
+    {
+        return Ok(loan);
     }
     // Borrowing selects the same original storage for every permitted access
     // attenuation. The existing resolver reconstructs each field/index hop.
@@ -800,4 +726,173 @@ pub(in crate::lowering) fn lower_structural_argument(
         source: source_placement.clone().into(),
         destination: destination.clone(),
     })
+}
+
+/// A whole owned local array lent by borrow presents the same fixed backing an
+/// incoming borrowed parameter would. Terminal verification admits exactly this
+/// loan for an unrestricted, unqualified, claim-free operation result named with
+/// an empty path; the presented declaration carries the argument's own access
+/// for window geometry while the home itself stays owned by this activation.
+/// `Ok(None)` means the home is not lendable through this parameter's view.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::lowering) fn local_array_loan(
+    argument: &terminal_psi::StructuralArgument,
+    callee_parameter: &terminal_psi::StructuralParameterDeclaration,
+    shape: ValueShape,
+    destination: &ValuePlacement,
+    callee: MachineId,
+    home: &TargetStructuralHomeRequirement,
+    structural_types: &StructuralTypeLookup<'_>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<Option<TargetStructuralArgument>, LoweringError> {
+    let Some((producer, result)) = home.operation_result() else {
+        return Ok(None);
+    };
+    if result.place != argument.place
+        || !argument.path.is_empty()
+        || !matches!(
+            argument.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
+        || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+    {
+        return Ok(None);
+    }
+    let presented = terminal_psi::StructuralParameterDeclaration {
+        place: result.place,
+        position: callee_parameter.position,
+        is_self: false,
+        structural_type: result.structural_type,
+        multiplicity: result.multiplicity,
+        access: argument.access,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    fixed_array_view_argument(
+        argument,
+        callee_parameter,
+        shape,
+        destination,
+        callee,
+        &presented,
+        home.layout.shape().byte_size,
+        TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: producer,
+        },
+        structural_types,
+        shape_cache,
+        active,
+    )
+}
+
+/// Present a fixed array's original backing through a borrowed byte or element
+/// view. `root` declares that backing as the call presents it: an incoming
+/// parameter, or a local home presented through the loan. The callee receives a
+/// descriptor over the exact extent Terminal proved, while `source` still names
+/// the caller's own storage rather than a descriptor allocation. A byte window
+/// may select a constant range of a field; an element view lends the whole
+/// array at `argument.path` with the element's aligned stride. `Ok(None)` means
+/// the argument is no fixed-array view of `root`.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::lowering) fn fixed_array_view_argument(
+    argument: &terminal_psi::StructuralArgument,
+    callee_parameter: &terminal_psi::StructuralParameterDeclaration,
+    shape: ValueShape,
+    destination: &ValuePlacement,
+    callee: MachineId,
+    root: &terminal_psi::StructuralParameterDeclaration,
+    root_byte_size: u32,
+    source: TargetStructuralArgumentSource,
+    structural_types: &StructuralTypeLookup<'_>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<Option<TargetStructuralArgument>, LoweringError> {
+    let mismatch = || LoweringError::StructuralCallArgumentTypeMismatch {
+        callee,
+        place: argument.place,
+    };
+    let too_large = || LoweringError::StructuralTypeTooLarge(root.structural_type);
+    let (source_byte_offset, length, stride, backing_end) = if let Some(window) =
+        terminal_semantics::fixed_byte_array_window(
+            structural_types.values().copied(),
+            root,
+            argument,
+            callee_parameter,
+        ) {
+        let backing_offset = if window.backing_path.is_empty() {
+            0
+        } else {
+            resolve_structural_field_path(
+                root.structural_type,
+                window.backing_path,
+                structural_types,
+                shape_cache,
+                active,
+            )?
+            .2
+        };
+        let offset = u64::from(backing_offset)
+            .checked_add(window.offset)
+            .and_then(|offset| u32::try_from(offset).ok())
+            .ok_or_else(too_large)?;
+        let end = u64::from(backing_offset).checked_add(window.backing_length);
+        (offset, window.length, 1, end)
+    } else if let Some(length) = terminal_semantics::fixed_element_array_extent(
+        structural_types.values().copied(),
+        root,
+        argument,
+        callee_parameter,
+    ) {
+        let (array_type, backing_offset) = if argument.path.is_empty() {
+            (root.structural_type, 0)
+        } else {
+            let (array_type, _, backing_offset) = resolve_structural_field_path(
+                root.structural_type,
+                &argument.path,
+                structural_types,
+                shape_cache,
+                active,
+            )?;
+            (array_type, backing_offset)
+        };
+        let Some(StructuralTypeShape::FixedArray { element, .. }) = structural_types
+            .get(&array_type)
+            .map(|declaration| &declaration.shape)
+        else {
+            return Err(mismatch());
+        };
+        let element_shape = structural_shape(*element, structural_types, shape_cache, active)?;
+        let stride =
+            checked_align_up_u32(element_shape.byte_size, u32::from(element_shape.alignment))
+                .ok_or_else(too_large)?;
+        let end = u64::from(stride)
+            .checked_mul(length)
+            .and_then(|extent| u64::from(backing_offset).checked_add(extent));
+        (backing_offset, length, stride, end)
+    } else {
+        return Ok(None);
+    };
+    if shape != ValueShape::borrowed_reference(16, 8)
+        || backing_end.is_none_or(|end| end > u64::from(root_byte_size))
+    {
+        return Err(mismatch());
+    }
+    Ok(Some(TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: argument.path.clone(),
+        root_structural_type: root.structural_type,
+        structural_type: callee_parameter.structural_type,
+        shape,
+        source_byte_offset,
+        fixed_array_length: Some(length),
+        element_stride: Some(stride),
+        indices: Vec::new(),
+        source,
+        destination: destination.clone(),
+    }))
 }

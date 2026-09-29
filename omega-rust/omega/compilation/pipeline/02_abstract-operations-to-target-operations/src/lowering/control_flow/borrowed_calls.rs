@@ -161,6 +161,7 @@ pub(super) fn lower(
                     argument,
                     declaration,
                     destination,
+                    callee,
                     function,
                     prepared,
                     live,
@@ -518,79 +519,71 @@ pub(super) fn address_join_argument(
 /// or on an exclusive block parameter, which control flow establishes with the
 /// same custody; an established producer stays shared. The root's own access
 /// authorizes the argument, so a shared root never supplies an exclusive one.
+/// Fixed arrays instead present their backing: a parameter's field window or a
+/// whole dominating local array, shared or exclusive.
 #[allow(clippy::too_many_arguments)]
 fn byte_argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
+    callee: MachineId,
     function: &AbstractFunction,
     prepared: &PreparedFunctionSignature,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     let shared = argument.access == StructuralAccess::SharedBorrow;
-    // A fixed-array byte window is the same call-scoped presentation of the
-    // caller's own backing the structural-call lane emits: the argument keeps
-    // its real path, and a scalar or unit result changes no custody.
+    // A fixed array lends its original backing through the same call-scoped
+    // presentation the structural-result lane emits: an incoming parameter's
+    // field window keeps its real path, and a dominating local array lends its
+    // own home whole. A scalar or unit result changes no custody.
+    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
+    let mut shape_cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
     if !argument.path.is_empty() {
-        let Some(source) = prepared
-            .parameters
-            .iter()
-            .find(|source| source.place == argument.place)
-        else {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
+        let (Some(source), Some(root)) = (
+            prepared
+                .parameters
+                .iter()
+                .find(|source| source.place == argument.place),
+            function
+                .structural_parameters
+                .iter()
+                .find(|root| root.place == argument.place),
+        ) else {
+            return Err(unsupported());
         };
-        let Some(window) = function.structural_parameters.iter().find_map(|actual| {
-            terminal_semantics::fixed_byte_array_window(
-                types.values().copied(),
-                actual,
-                argument,
-                declaration,
-            )
-        }) else {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        };
-        let mut shape_cache = BTreeMap::new();
-        let mut active = BTreeSet::new();
-        let backing_offset = if window.backing_path.is_empty() {
-            0
-        } else {
-            crate::lowering::structural_layout::resolve_structural_field_path(
-                source.structural_type,
-                window.backing_path,
-                types,
-                &mut shape_cache,
-                &mut active,
-            )?
-            .2
-        };
-        let source_byte_offset = u64::from(backing_offset)
-            .checked_add(window.offset)
-            .and_then(|offset| u32::try_from(offset).ok())
-            .ok_or(LoweringError::StructuralTypeTooLarge(
-                source.structural_type,
-            ))?;
-        if destination.shape != ValueShape::borrowed_reference(16, 8)
-            || u64::from(backing_offset)
-                .checked_add(window.backing_length)
-                .is_none_or(|end| end > u64::from(source.shape.byte_size))
-        {
-            return Err(LoweringError::unsupported_control_flow(function.machine));
-        }
-        return Ok(TargetStructuralArgument {
-            place: argument.place,
-            access: argument.access,
-            path: argument.path.clone(),
-            root_structural_type: source.structural_type,
-            structural_type: declaration.structural_type,
-            shape: destination.shape,
-            source_byte_offset,
-            fixed_array_length: Some(window.length),
-            element_stride: Some(1),
-            indices: Vec::new(),
-            source: source.placement.clone().into(),
-            destination: destination.placement.clone(),
-        });
+        return crate::lowering::unit::structural_call::fixed_array_view_argument(
+            argument,
+            declaration,
+            destination.shape,
+            &destination.placement,
+            callee,
+            root,
+            source.shape.byte_size,
+            source.placement.clone().into(),
+            types,
+            &mut shape_cache,
+            &mut active,
+        )?
+        .ok_or_else(unsupported);
+    }
+    // A home that is no whole plain array (a mutable view's affine custody
+    // home, for one) keeps the descriptor routes below.
+    if let Some(home) = live.structural_homes.get(&argument.place)
+        && let Some(loan) = crate::lowering::unit::structural_call::local_array_loan(
+            argument,
+            declaration,
+            destination.shape,
+            &destination.placement,
+            callee,
+            home,
+            types,
+            &mut shape_cache,
+            &mut active,
+        )?
+    {
+        return Ok(loan);
     }
     if argument.access != declaration.access
         || (!crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)

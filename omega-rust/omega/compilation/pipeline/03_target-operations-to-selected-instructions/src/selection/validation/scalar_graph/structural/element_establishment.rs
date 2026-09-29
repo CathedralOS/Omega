@@ -42,7 +42,6 @@ pub(super) fn establish(
             source.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
         )
-        || source.path.is_empty()
         || replay
             .transport
             .pointers
@@ -87,16 +86,22 @@ pub(super) fn establish(
     if *view_element != *element {
         return Err(replay.invalid());
     }
-    let Some(parameter) = signature
+    // The backing is an incoming parameter's storage or a local aggregate
+    // home. A home presents its own owned storage through this view's loan
+    // and lends the address of its activation slot.
+    let parameter = signature
         .parameters
         .iter()
         .find(|parameter| parameter.semantic.place == source.place)
-    else {
+        .map(|parameter| &parameter.semantic);
+    let home = crate::selection::aggregate_result_input::home(function, source.place)
+        .map(|(_, home)| local_home_root(home));
+    let Some(root) = parameter.or(home.as_ref()) else {
         return Err(replay.invalid());
     };
     let Some((field_offset, element_count, _stride)) =
         crate::structural_inputs::structural_reference_input::fixed_element_array_view(
-            &parameter.semantic,
+            root,
             source,
             view.structural_type,
             signature.structural_types.as_slice(),
@@ -104,14 +109,27 @@ pub(super) fn establish(
     else {
         return Err(replay.invalid());
     };
-    let Some(base) = replay
-        .transport
-        .pointers
-        .iter()
-        .find(|(place, _)| *place == source.place)
-        .map(|(_, register)| *register)
-    else {
-        return Err(replay.invalid());
+    let base = if parameter.is_some() {
+        let Some(base) = replay
+            .transport
+            .pointers
+            .iter()
+            .find(|(place, _)| *place == source.place)
+            .map(|(_, register)| *register)
+        else {
+            return Err(replay.invalid());
+        };
+        base
+    } else {
+        let mut homes = replay
+            .transport
+            .local_slots
+            .iter()
+            .filter(|slot| slot.id.structural_place() == Some(source.place));
+        let (Some(home), None) = (homes.next().cloned(), homes.next()) else {
+            return Err(replay.invalid());
+        };
+        address(replay, row, home.id, 0, home.byte_size, false)?
     };
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
@@ -160,4 +178,22 @@ fn constant(
         &provenance(row),
     )?;
     Ok(register)
+}
+
+/// Present a local aggregate home as the owned root of an element loan. The
+/// declaration only supplies window geometry and access; the home's own
+/// multiplicity and qualifications still bound what it may lend.
+fn local_home_root(
+    home: &terminal_psi::StructuralOperationResult,
+) -> terminal_psi::StructuralParameterDeclaration {
+    terminal_psi::StructuralParameterDeclaration {
+        place: home.place,
+        position: 0,
+        is_self: false,
+        structural_type: home.structural_type,
+        multiplicity: home.multiplicity,
+        access: StructuralAccess::Owned,
+        qualifications: home.qualifications.clone(),
+        projected_qualifications: home.projected_qualifications.clone(),
+    }
 }

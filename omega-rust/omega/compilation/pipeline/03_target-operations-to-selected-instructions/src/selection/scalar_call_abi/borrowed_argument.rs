@@ -128,18 +128,43 @@ pub(super) fn validate_borrowed_argument(
                 shape.alignment,
             ))
         });
-    let byte_view = signature
+    // A fixed array presents its backing from an incoming parameter or, whole,
+    // from a local home lent through this argument's own borrow — Terminal's
+    // array-result loan. The home keeps its owned access; `aggregate_home`
+    // rejoins its producer below.
+    let local_loan = aggregate_home
+        .filter(|(_, result)| {
+            semantic.path.is_empty()
+                && matches!(
+                    semantic.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        })
+        .map(|(_, result)| terminal_psi::StructuralParameterDeclaration {
+            place: result.place,
+            position: 0,
+            is_self: false,
+            structural_type: result.structural_type,
+            multiplicity: result.multiplicity,
+            access: semantic.access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    let view_root = signature
         .parameters
         .iter()
         .find(|parameter| parameter.semantic.place == semantic.place)
-        .and_then(|parameter| {
-            crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
-                &parameter.semantic,
-                semantic,
-                target.structural_type,
-                &signature.structural_types,
-            )
-        });
+        .map(|parameter| &parameter.semantic)
+        .or(local_loan.as_ref());
+    let byte_view = view_root.and_then(|root| {
+        crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
+            root,
+            semantic,
+            target.structural_type,
+            &signature.structural_types,
+        )
+    });
     // A bounded inline byte field presents as a borrowed view too; unlike the
     // fixed array it has no projected carrier identity, so the field's own
     // record geometry supplies the offset and the callee's type supplies the
@@ -168,18 +193,14 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )
         });
-    let element_view = signature
-        .parameters
-        .iter()
-        .find(|parameter| parameter.semantic.place == semantic.place)
-        .and_then(|parameter| {
-            crate::structural_inputs::structural_reference_input::fixed_element_array_view(
-                &parameter.semantic,
-                semantic,
-                target.structural_type,
-                &signature.structural_types,
-            )
-        });
+    let element_view = view_root.and_then(|root| {
+        crate::structural_inputs::structural_reference_input::fixed_element_array_view(
+            root,
+            semantic,
+            target.structural_type,
+            &signature.structural_types,
+        )
+    });
     // An address join lends from its joined referent through the address
     // its block entry loaded; it is neither a home nor a descriptor view.
     let address_join = crate::selection::address_join_input::join(source, semantic.place);
@@ -355,7 +376,11 @@ pub(super) fn validate_borrowed_argument(
     match &target.source {
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             let (producer, _) = aggregate_home?;
-            if aggregate.is_none() || *psi_operation != producer || producer == operation {
+            let home_view = local_loan.is_some() && (byte_view.is_some() || element_view.is_some());
+            if (aggregate.is_none() && !home_view)
+                || *psi_operation != producer
+                || producer == operation
+            {
                 return None;
             }
         }
