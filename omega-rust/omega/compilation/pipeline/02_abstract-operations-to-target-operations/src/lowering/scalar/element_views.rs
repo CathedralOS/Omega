@@ -4,6 +4,7 @@ use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
 use crate::lowering::structural_layout::{
     direct_scalar_field_offset, resolve_structural_field_path, resolve_structural_projection_path,
+    structural_shape,
 };
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
@@ -479,8 +480,10 @@ pub(in crate::lowering) fn mutable_element_view_for_place(
 }
 
 /// Resolve an establishment's collection argument to its exact backing
-/// projection: an all-field path over a signature parameter whose tip is the
-/// fixed array carrying the view's element type.
+/// projection: an all-field path, possibly empty, over a signature parameter
+/// or a local aggregate home whose tip is the fixed array carrying the view's
+/// element type. The backing keeps its storage identity: a parameter lends its
+/// incoming placement and a local home names its one establishing producer.
 fn established_source(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
@@ -508,36 +511,65 @@ fn established_source(
     {
         return Err(invalid());
     }
-    let semantic = function
+    let (root_structural_type, backing) = if let Some(semantic) = function
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == source.place)
-        .ok_or_else(invalid)?;
-    if !matches!(
-        semantic.access,
-        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow | StructuralAccess::Owned
-    ) || semantic.multiplicity != StructuralMultiplicity::Unrestricted
-        || !semantic.qualifications.is_empty()
-        || !semantic.projected_qualifications.is_empty()
     {
-        return Err(invalid());
-    }
-    let parameter = parameters
-        .iter()
-        .find(|parameter| parameter.place == source.place)
-        .ok_or_else(invalid)?;
-    if parameter.structural_type != semantic.structural_type {
-        return Err(invalid());
-    }
+        if !matches!(
+            semantic.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::Owned
+        ) || semantic.multiplicity != StructuralMultiplicity::Unrestricted
+            || !semantic.qualifications.is_empty()
+            || !semantic.projected_qualifications.is_empty()
+        {
+            return Err(invalid());
+        }
+        let parameter = parameters
+            .iter()
+            .find(|parameter| parameter.place == source.place)
+            .ok_or_else(invalid)?;
+        if parameter.structural_type != semantic.structural_type {
+            return Err(invalid());
+        }
+        (
+            semantic.structural_type,
+            TargetStructuralArgumentSource::from(parameter.placement.clone()),
+        )
+    } else {
+        let (producer, result) =
+            local_aggregate_home(function, source.place).ok_or_else(invalid)?;
+        (
+            result.structural_type,
+            TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+        )
+    };
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let (projected_type, projected_shape, source_byte_offset) = resolve_structural_field_path(
-        semantic.structural_type,
-        &source.path,
-        structural_types,
-        &mut shape_cache,
-        &mut active,
-    )?;
+    let (projected_type, projected_shape, source_byte_offset) = if source.path.is_empty() {
+        (
+            root_structural_type,
+            structural_shape(
+                root_structural_type,
+                structural_types,
+                &mut shape_cache,
+                &mut active,
+            )?,
+            0,
+        )
+    } else {
+        resolve_structural_field_path(
+            root_structural_type,
+            &source.path,
+            structural_types,
+            &mut shape_cache,
+            &mut active,
+        )?
+    };
     let declaration = structural_types.get(&projected_type).ok_or_else(invalid)?;
     let StructuralTypeShape::FixedArray {
         element: array_element,
@@ -558,12 +590,58 @@ fn established_source(
         return Err(invalid());
     }
     Ok((
-        semantic.structural_type,
+        root_structural_type,
         source_byte_offset,
         length,
         element_stride,
-        parameter.placement.clone().into(),
+        backing,
     ))
+}
+
+/// The one operation establishing an owned, unrestricted, claim-free and
+/// unqualified local aggregate at `place`: an array construction or zeroed
+/// local, a record, a leaf copy, or a structural call result. Its home is the
+/// view's backing. Operation-level lowering reaches element views without the
+/// graph's live home map, so the exact producer is the identity it names;
+/// Terminal verification owns availability and stage 03 replays dominance.
+fn local_aggregate_home(
+    function: &AbstractFunction,
+    place: PlaceId,
+) -> Option<(OperationId, &terminal_psi::StructuralOperationResult)> {
+    let mut homes = function.operations.iter().filter_map(|operation| match operation {
+        AbstractOperation::EstablishScalarArray {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::EstablishZeroedStructural {
+            psi_operation,
+            result,
+        }
+        | AbstractOperation::EstablishRecord {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::StructuralLeafCopy {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::CallStructural {
+            psi_operation,
+            result: abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
+            ..
+        } if result.place == place => Some((*psi_operation, result)),
+        _ => None,
+    });
+    let (producer, result) = homes.next()?;
+    (homes.next().is_none()
+        && result.multiplicity == StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty())
+    .then_some((producer, result))
 }
 
 /// An element-view length observation measured exactly this descriptor.

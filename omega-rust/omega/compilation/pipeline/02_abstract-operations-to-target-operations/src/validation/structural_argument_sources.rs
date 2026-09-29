@@ -37,7 +37,7 @@ enum ExpectedSource<'a> {
     /// transport presents the same home as `StructuralHome`.
     PrimitiveLocal(OperationId),
     /// Record, fixed-array, or sum storage established by one exact
-    /// operation result home.
+    /// operation result home, including a zero-initialized local.
     Aggregate(OperationId),
     /// An empty-record affine local. It has no bytes and no home, so owned
     /// transport names its one exact establishment as the producer.
@@ -177,6 +177,10 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
                 psi_operation,
                 result,
                 ..
+            }
+            | AbstractOperation::EstablishZeroedStructural {
+                psi_operation,
+                result,
             }
             // A leaf copy establishes fresh owned storage, just like a record
             // constructor; subsequent calls must name the copy's producer,

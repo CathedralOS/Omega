@@ -263,7 +263,7 @@ pub(super) fn call(
                     function,
                     types,
                     &parameters_by_place,
-                    &BTreeMap::new(),
+                    &live.structural_homes,
                     &live.views,
                     operations,
                     &mut shape_cache,

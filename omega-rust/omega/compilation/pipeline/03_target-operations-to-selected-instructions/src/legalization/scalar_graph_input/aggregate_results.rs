@@ -11,6 +11,7 @@ use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, Structural
 
 mod borrowed_arguments;
 mod owned_arguments;
+pub(super) use owned_arguments::{node_site, precedes};
 
 pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationPlan) -> bool {
     // Forwarding an incoming owned argument observes its payload even without

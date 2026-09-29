@@ -95,6 +95,7 @@ pub(super) fn reconstruct(
                         matches!(&node.operation,
                 AbstractOperation::EstablishRecord { psi_operation, .. }
                 | AbstractOperation::EstablishScalarArray { psi_operation, .. }
+                | AbstractOperation::EstablishZeroedStructural { psi_operation, .. }
                 | AbstractOperation::EstablishCase { psi_operation, .. }
                 | AbstractOperation::CallStructural {
                     psi_operation,
