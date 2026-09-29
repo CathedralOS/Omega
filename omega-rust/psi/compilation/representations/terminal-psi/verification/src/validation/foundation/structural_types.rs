@@ -94,23 +94,15 @@ pub(super) fn register_structural_types(
                 if !types.contains_key(referent) {
                     return Err(ModuleError::UnknownStructuralType(*referent));
                 }
-                let named_referent = matches!(
-                    types[referent].shape,
-                    StructuralTypeShape::Record { .. }
-                        | StructuralTypeShape::Sum { .. }
-                        | StructuralTypeShape::Mixed { .. }
-                );
-                // An exclusive borrow names the borrowed storage directly:
-                // scalars, records, sums, views and byte sequences are all
-                // storable referents. Only a nested reference is not — a
-                // `ref-mut` over a reference would carry a second custody
-                // tier the reference operations do not plan.
-                if !(*access == StructuralAccess::MutableBorrow
-                    && !matches!(
-                        types[referent].shape,
-                        StructuralTypeShape::Reference { .. }
-                    ))
-                    && !(*access == StructuralAccess::SharedBorrow && named_referent)
+                // A borrow names the borrowed storage directly: scalars,
+                // records, sums, views and byte sequences are all storable
+                // referents. Only a nested reference is not — a `ref` over
+                // a reference would carry a second custody tier the
+                // reference operations do not plan.
+                if !(matches!(
+                    *access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+                ) && !matches!(types[referent].shape, StructuralTypeShape::Reference { .. }))
                 {
                     return Err(ModuleError::InvalidStructuralTypeIdentity(declaration.id));
                 }

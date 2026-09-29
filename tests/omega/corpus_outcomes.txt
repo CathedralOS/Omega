@@ -2041,5 +2041,9 @@ run/borrows/local_mut_borrow checked 1368ms
 run/borrows/recast_mut_borrow checked 1367ms
 run/borrows/reference_local_binding_routes checked 1036ms
 run/borrows/runtime_index_bounded_borrow checked 1355ms
+run/borrows/shared_field_borrow checked 1040ms
+run/borrows/shared_local_borrow checked 1041ms
+run/borrows/shared_recast_borrow checked 1041ms
+run/borrows/shared_runtime_index_borrow checked 1040ms
 run/contained_health_loop_command_branch checked 302ms
 run/nested_mut_alias_assignment_return checked 339ms

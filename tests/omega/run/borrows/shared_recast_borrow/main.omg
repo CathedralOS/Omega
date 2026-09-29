@@ -1,0 +1,25 @@
+// Shared `&` borrow of a recast place — the shared counterpart of
+// `recast_mut_borrow`. `&p as &T` lowers to a shared borrow of the cast
+// node; the arm peels the RecastShared cast to its operand place and
+// skips referent equality (the §5b judgment already proved the shapes
+// compatible).
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Desc {
+    tag: u32;
+}
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+}
+
+machine Main::main(&mut self) reaches Console {
+    let borrowed: &Desc = &self.buf[0] as &Desc;
+    transition { _ -> done() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}

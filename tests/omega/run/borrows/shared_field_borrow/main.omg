@@ -1,0 +1,24 @@
+// Shared `&` borrows of parameter-rooted places: `&self.size`,
+// `&self.buf` `&self.buf[0]` literal index. These were the
+// narrow routing family the shared arm already admitted on paper, but a
+// `&` local registers a structural value root and died at the
+// structural-value block's root-identity gate before reaching the loan
+// arm — the reorder that runs the loan arms first is what admits them.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    size: u32;
+    buf: [u8; 48];
+}
+
+machine Main::main(&mut self) reaches Console {
+    let len: &u32 = &self.size;
+    let first: &u8 = &self.buf[0];
+    transition { _ -> done() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}
