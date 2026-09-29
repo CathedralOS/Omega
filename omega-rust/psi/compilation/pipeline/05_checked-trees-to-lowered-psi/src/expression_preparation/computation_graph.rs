@@ -84,6 +84,7 @@ pub(crate) fn reachable_nodes(
                 pending.extend([*left, *right])
             }
             CheckedScalarComputationKind::Qualification { operand, .. }
+            | CheckedScalarComputationKind::AuthoredCast { operand, .. }
             | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                 pending.push(*operand);
             }

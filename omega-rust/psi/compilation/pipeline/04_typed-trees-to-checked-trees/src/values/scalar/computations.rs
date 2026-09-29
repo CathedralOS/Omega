@@ -27,6 +27,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::BinaryOperator;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
+use typed_trees::expression::TableCastExpression;
 use typed_trees::expression::UnaryOperator;
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
@@ -933,6 +934,37 @@ impl Builder<'_, '_> {
         }
     }
 
+    /// An authored conversion that cannot travel the pure lane still needs an
+    /// exact node at its operand coordinate: the qualification arms above
+    /// admit only representation-identical transfers, while custody positions
+    /// such as call arguments read their evidence from this graph. The
+    /// operand lowers at its own primitive; the node carries the cast's
+    /// destination carrier and authored domain for consumers and the
+    /// qualification-facts rejoin.
+    fn authored_cast(
+        &mut self,
+        expression: ExpressionHandle,
+        cast: &TableCastExpression,
+        expected_type: PrimitiveType,
+    ) -> Option<CheckedScalarComputationHandle> {
+        if !semantic_casts::requires_custody(self.program, self.state, expression) {
+            return None;
+        }
+        let source_type = semantic_casts::result_type(self.program, self.state, cast.value)?;
+        let source_primitive = self.program.primitive_type_reference(source_type)?;
+        let operand = self.expression(cast.value, source_primitive)?;
+        let result_type = semantic_casts::result_type(self.program, self.state, expression)?;
+        Some(self.insert(
+            expected_type,
+            CheckedScalarComputationKind::AuthoredCast {
+                source_expression: expression,
+                operand,
+                result_type,
+                domain: cast.domain,
+            },
+        ))
+    }
+
     fn insert(
         &mut self,
         primitive_type: PrimitiveType,
@@ -986,11 +1018,11 @@ impl Builder<'_, '_> {
                 || self.program.primitive_type_reference(source_type) != Some(expected_type)
                 || self.program.primitive_type_reference(cast.target_type) != Some(expected_type)
             {
-                return None;
+                return self.authored_cast(expression, &cast, expected_type);
             }
             let result_type = semantic_casts::result_type(self.program, self.state, expression)?;
             if semantic_casts::has_declared_domains(self.program, result_type) {
-                return None;
+                return self.authored_cast(expression, &cast, expected_type);
             }
             let operand = self.expression(cast.value, expected_type)?;
             return Some(self.insert(
@@ -1028,7 +1060,7 @@ impl Builder<'_, '_> {
                 || self.program.primitive_type_reference(cast.target_type) != Some(expected_type)
                 || self.program.primitive_type_reference(cast.result_type) != Some(expected_type)
             {
-                return None;
+                return self.authored_cast(expression, &cast, expected_type);
             }
             let operand = self.expression(cast.value, expected_type)?;
             return Some(self.insert(
@@ -1039,6 +1071,12 @@ impl Builder<'_, '_> {
                     result_type: cast.result_type,
                 },
             ));
+        }
+        if let ExpressionNode::Cast(cast) =
+            self.program.expression_table.expression(expression).clone()
+            && semantic_casts::requires_custody(self.program, self.state, expression)
+        {
+            return self.authored_cast(expression, &cast, expected_type);
         }
         if let ExpressionNode::Match(dispatch) =
             self.program.expression_table.expression(expression).clone()

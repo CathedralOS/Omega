@@ -700,6 +700,17 @@ fn computation_contains_trapping_operation(
             Kind::Qualification { operand, .. } | Kind::BooleanToInteger { operand, .. } => {
                 pending.push(*operand)
             }
+            // The authored cast itself owns a Trapping crash site when its
+            // destination domain is Trapping; other domains convert without
+            // an operation-level trap.
+            Kind::AuthoredCast {
+                operand, domain, ..
+            } => {
+                if *domain == numerics::arithmetic::ArithmeticDomain::Trapping {
+                    return true;
+                }
+                pending.push(*operand)
+            }
             Kind::Dispatch { subject, arms, .. } => {
                 pending.push(*subject);
                 for arm in plans.dispatch_arms.span_or_empty(*arms) {

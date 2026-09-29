@@ -244,6 +244,19 @@ impl Context<'_> {
                     && plans.nodes.get(*operand).primitive_type == node.primitive_type
                     && self.computation(*operand, active)
             }
+            // The authored conversion owns its cast occurrence; the operand
+            // keeps the cast's source carrier — replayed by shared source
+            // custody — while the node still lands at its typed result.
+            Computation::AuthoredCast {
+                operand,
+                result_type,
+                ..
+            } => {
+                plans.nodes.is_valid(*operand)
+                    && self.checked.primitive_type_reference(*result_type)
+                        == Some(node.primitive_type)
+                    && self.computation(*operand, active)
+            }
             // The authored occurrence is an ordinary value cast to a fixed
             // integer target; the operand's own correspondence replays the
             // Boolean computation at cast.value. The 0/1 landing is

@@ -93,6 +93,14 @@ impl PreparedScalarQualifications {
                     references.push(*result_type);
                     pending.push(*operand);
                 }
+                CheckedScalarComputationKind::AuthoredCast {
+                    operand,
+                    result_type,
+                    ..
+                } => {
+                    references.push(*result_type);
+                    pending.push(*operand);
+                }
                 CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                     pending.push(*operand);
                 }

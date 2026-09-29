@@ -596,6 +596,7 @@ impl Builder<'_, '_> {
                     pending.extend([*left, *right]);
                 }
                 CheckedScalarComputationKind::Qualification { operand, .. }
+                | CheckedScalarComputationKind::AuthoredCast { operand, .. }
                 | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                     pending.push(*operand);
                 }
