@@ -240,3 +240,80 @@ fn array_referents_retain_nested_storage_but_cannot_hide_loans_or_cycles() {
         assert!(!is_address_join(&parameter(13, access), &types));
     }
 }
+
+#[test]
+fn case_storage_joins_check_every_payload_recursively() {
+    use semantic_vocabulary::StructuralCaseId;
+    use terminal_psi::StructuralCaseDeclaration;
+
+    let mut types = catalog();
+    types.extend([
+        declaration(
+            8,
+            StructuralTypeShape::Sum {
+                cases: vec![
+                    StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(1).unwrap(),
+                        identity: "Empty".into(),
+                        fields: vec![],
+                    },
+                    StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(2).unwrap(),
+                        identity: "Payload".into(),
+                        fields: vec![field(6, StructuralFieldType::Structural(id(3)))],
+                    },
+                ],
+            },
+        ),
+        declaration(
+            9,
+            StructuralTypeShape::FixedArray {
+                element: id(8),
+                length: 3,
+            },
+        ),
+        declaration(
+            10,
+            StructuralTypeShape::Record {
+                fields: vec![field(7, StructuralFieldType::Structural(id(9)))],
+            },
+        ),
+    ]);
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        assert!(is_address_join(&parameter(10, access), &types));
+    }
+    // Common fields and case payloads both participate in the storage rule.
+    let StructuralTypeShape::Sum { cases } = types[7].shape.clone() else {
+        unreachable!()
+    };
+    types[7].shape = StructuralTypeShape::Mixed {
+        fields: vec![field(8, StructuralFieldType::Scalar(u64_type()))],
+        cases,
+    };
+    assert!(is_address_join(
+        &parameter(10, StructuralAccess::MutableBorrow),
+        &types
+    ));
+    for forbidden in [4, 5, 6, 7, 8, 99] {
+        let mut invalid = types.clone();
+        let StructuralTypeShape::Mixed { cases, .. } = &mut invalid[7].shape else {
+            unreachable!()
+        };
+        cases[1].fields[0].field_type = StructuralFieldType::Structural(id(forbidden));
+        assert!(!is_address_join(
+            &parameter(10, StructuralAccess::MutableBorrow),
+            &invalid
+        ));
+    }
+    let StructuralTypeShape::Mixed { fields, .. } = &mut types[7].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = StructuralFieldType::Structural(id(5));
+    assert!(!is_address_join(
+        &parameter(10, StructuralAccess::MutableBorrow),
+        &types
+    ));
+}
