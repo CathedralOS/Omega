@@ -11,122 +11,111 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    a: Duration;
-    b: Duration;
-    sum_result: DurationResult;
-    sum: Duration;
-    difference_result: DurationResult;
-    difference: Duration;
-    clamped: Duration;
-    a_less_than_b: bool;
-    mask: u64 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
-    self.b = Duration { seconds: 3, subsecond_nanoseconds: 500000000 };
-    self.sum_result = self.a.checked_add(self.b);
-    transition self.sum_result {
-        DurationResult::Ok { duration } -> check_sum(duration)
-        DurationResult::Overflow -> fail_add()
+machine Main::main(context: &mut Main) reaches Console {
+    let first: Duration = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
+    let second: Duration = Duration { seconds: 3, subsecond_nanoseconds: 500000000 };
+    let sum_result: DurationResult = Duration::checked_add(&first, second);
+    transition sum_result {
+        DurationResult::Ok { duration } -> check_sum(context, second, duration)
+        DurationResult::Overflow -> fail_add(context)
     }
 
-    state check_sum(&mut self, duration: Duration) {
-        self.sum = duration;
-        transition self.sum.seconds == 6 && self.sum.subsecond_nanoseconds == 100000000 {
-            true -> do_subtract()
-            false -> fail_sum_value()
+    state check_sum(context: &mut Main, second: Duration, sum: Duration) {
+        transition sum.seconds == 6 && sum.subsecond_nanoseconds == 100000000 {
+            true -> do_subtract(context, second, sum)
+            false -> fail_sum_value(context)
         }
     }
-    state do_subtract(&mut self) {
-        // Exercise the third same-type receiver directly. Per-instance
-        // receiver recovery must bind checked_subtract's `self` to `sum`,
-        // never the first Duration field (`a`).
-        self.difference_result = self.sum.checked_subtract(self.b);
-        transition self.difference_result {
-            DurationResult::Ok { duration } -> check_difference(duration)
-            DurationResult::Overflow -> fail_subtract()
+    state do_subtract(context: &mut Main, second: Duration, sum: Duration) {
+        // The explicit first argument is the computed sum, not either input.
+        let difference_result: DurationResult = Duration::checked_subtract(&sum, second);
+        transition difference_result {
+            DurationResult::Ok { duration } -> check_difference(context, second, duration)
+            DurationResult::Overflow -> fail_subtract(context)
         }
     }
-    state check_difference(&mut self, duration: Duration) {
-        self.difference = duration;
-        transition self.difference.seconds == 2 {
-            true -> check_difference_nanoseconds()
-            false -> probe_difference_seconds()
+    state check_difference(context: &mut Main, second: Duration, difference: Duration) {
+        transition difference.seconds == 2 {
+            true -> check_difference_nanoseconds(context, second, difference)
+            false -> probe_difference_seconds(context, difference)
         }
     }
-    state check_difference_nanoseconds(&mut self) {
-        transition self.difference.subsecond_nanoseconds == 600000000 {
-            true -> do_saturate()
-            false -> fail_difference_value()
+    state check_difference_nanoseconds(context: &mut Main, second: Duration, difference: Duration) {
+        transition difference.subsecond_nanoseconds == 600000000 {
+            true -> do_saturate(context, second)
+            false -> fail_difference_value(context)
         }
     }
-    state do_saturate(&mut self) {
-        self.a = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
-        self.clamped = self.a.saturating_subtract(self.b);
-        transition self.clamped.seconds == 0 && self.clamped.subsecond_nanoseconds == 0 {
-            true -> do_compare()
-            false -> fail_saturate()
+    state do_saturate(context: &mut Main, second: Duration) {
+        let first: Duration = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
+        let clamped: Duration = Duration::saturating_subtract(&first, second);
+        transition clamped.seconds == 0 && clamped.subsecond_nanoseconds == 0 {
+            true -> do_compare(context, first, second)
+            false -> fail_saturate(context)
         }
     }
-    state do_compare(&mut self) {
-        // Entry-capture: a value-call whose callee dispatches internally is
-        // fenced as a GUARD SUBJECT; bind to a field, then guard the field.
-        self.a_less_than_b = self.a.is_less_than(self.b);
-        transition self.a_less_than_b {
-            true -> check_underflow()
-            false -> fail_compare()
+    state do_compare(context: &mut Main, first: Duration, second: Duration) {
+        let first_is_less: bool = Duration::is_less_than(&first, second);
+        transition first_is_less {
+            true -> check_underflow(context, second)
+            false -> fail_compare(context)
         }
     }
-    state check_underflow(&mut self) {
-        self.a = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
-        self.difference_result = self.a.checked_subtract(self.b);
-        transition self.difference_result {
-            DurationResult::Overflow -> check_max()
-            DurationResult::Ok { duration } -> fail_underflow(duration)
+    state check_underflow(context: &mut Main, second: Duration) {
+        let first: Duration = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
+        let difference_result: DurationResult = Duration::checked_subtract(&first, second);
+        transition difference_result {
+            DurationResult::Overflow -> check_max(context, second)
+            DurationResult::Ok { duration } -> fail_underflow(context, duration)
         }
     }
-    state check_max(&mut self) {
+    state check_max(context: &mut Main, second: Duration) {
         // Duration::MAX round-trips full-width: u64::MAX + 1 wraps to exactly
-        // 0 only if every bit was set (const -> struct-literal field -> store).
-        self.a = Duration::MAX;
-        self.mask = self.a.seconds as u64 in Wrapping;
-        self.mask = self.mask + 1;
-        transition self.mask == 0 && self.a.subsecond_nanoseconds == 999999999 {
-            true -> check_saturating_add()
-            false -> fail_max()
+        // 0 only if every bit was set (const -> local record -> projection).
+        let maximum: Duration = Duration::MAX;
+        let mask: u64 in Wrapping = (maximum.seconds as u64 in Wrapping) + 1;
+        transition mask == 0 && maximum.subsecond_nanoseconds == 999999999 {
+            true -> check_saturating_add(context, maximum, second)
+            false -> fail_max(context)
         }
     }
-    state check_saturating_add(&mut self) {
+    state check_saturating_add(context: &mut Main, maximum: Duration, second: Duration) {
         // MAX + anything clamps at MAX (checked_add's Overflow arm).
-        self.clamped = self.a.saturating_add(self.b);
-        self.mask = self.clamped.seconds as u64 in Wrapping;
-        self.mask = self.mask + 1;
-        transition self.mask == 0 && self.clamped.subsecond_nanoseconds == 999999999 {
-            true -> good()
-            false -> fail_saturating_add()
+        let clamped: Duration = Duration::saturating_add(&maximum, second);
+        let mask: u64 in Wrapping = (clamped.seconds as u64 in Wrapping) + 1;
+        transition mask == 0 && clamped.subsecond_nanoseconds == 999999999 {
+            true -> good(context)
+            false -> fail_saturating_add(context)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail_add(&mut self) { self.console.exit_process(1); }
-    state fail_sum_value(&mut self) { self.console.exit_process(2); }
-    state fail_subtract(&mut self) { self.console.exit_process(3); }
-    state fail_difference_value(&mut self) { self.console.exit_process(4); }
-    state fail_difference_seconds(&mut self) { self.console.exit_process(8); }
-    state probe_difference_seconds(&mut self) {
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state fail_add(context: &mut Main) { context.console.exit_process(1); }
+    state fail_sum_value(context: &mut Main) { context.console.exit_process(2); }
+    state fail_subtract(context: &mut Main) { context.console.exit_process(3); }
+    state fail_difference_value(context: &mut Main) { context.console.exit_process(4); }
+    state fail_difference_seconds(context: &mut Main) { context.console.exit_process(8); }
+    state probe_difference_seconds(context: &mut Main, difference: Duration) {
         // PROBE: which wrong value arrived? 6 => direct-emit ran with
         // other-fields-as-zero; 5 => borrow-emit ran with other.seconds 0.
-        transition self.difference.seconds == 6 { true -> probe_six() false -> probe_not_six() }
+        transition difference.seconds == 6 {
+            true -> probe_six(context)
+            false -> probe_not_six(context, difference)
+        }
     }
-    state probe_six(&mut self) { self.console.exit_process(20); }
-    state probe_not_six(&mut self) {
-        transition self.difference.seconds == 5 { true -> probe_five() false -> fail_difference_seconds() }
+    state probe_six(context: &mut Main) { context.console.exit_process(20); }
+    state probe_not_six(context: &mut Main, difference: Duration) {
+        transition difference.seconds == 5 {
+            true -> probe_five(context)
+            false -> fail_difference_seconds(context)
+        }
     }
-    state probe_five(&mut self) { self.console.exit_process(21); }
-    state fail_saturate(&mut self) { self.console.exit_process(5); }
-    state fail_compare(&mut self) { self.console.exit_process(6); }
-    state fail_underflow(&mut self, duration: Duration) { self.console.exit_process(7); }
-    state fail_max(&mut self) { self.console.exit_process(9); }
-    state fail_saturating_add(&mut self) { self.console.exit_process(10); }
+    state probe_five(context: &mut Main) { context.console.exit_process(21); }
+    state fail_saturate(context: &mut Main) { context.console.exit_process(5); }
+    state fail_compare(context: &mut Main) { context.console.exit_process(6); }
+    state fail_underflow(context: &mut Main, duration: Duration) { context.console.exit_process(7); }
+    state fail_max(context: &mut Main) { context.console.exit_process(9); }
+    state fail_saturating_add(context: &mut Main) { context.console.exit_process(10); }
 }
