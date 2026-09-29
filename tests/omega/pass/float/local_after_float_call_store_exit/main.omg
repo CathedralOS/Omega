@@ -1,0 +1,40 @@
+// A local declared after a float call-result field store reads its own value
+// (exit 70).
+//
+// `self.sum = self.a + self.b` applies the selected float addition and binds
+// its result before storing it, so that result takes a dense binding slot
+// although no source name reads it. `doubled` is declared after it and must
+// still read itself: with a = 1 and b = 4 it is 8, while the stored sum is 5.
+// A read that resolved `doubled` to the stored call result would see 5 and
+// exit 71.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    a: f64;
+    b: f64;
+    sum: f64;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.a = 1.0;
+    self.b = 4.0;
+    self.sum = self.a + self.b;
+    let doubled: f64 = self.b * 2.0;
+    transition doubled == 8.0 {
+        true -> check_sum()
+        false -> fail(71)
+    }
+
+    state check_sum(&mut self) {
+        transition self.sum == 5.0 {
+            true -> good()
+            false -> fail(72)
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+}
