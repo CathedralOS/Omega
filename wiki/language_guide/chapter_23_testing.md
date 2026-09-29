@@ -76,11 +76,11 @@ work without std and can coexist with it; there is no built-in category list.
 ## Services and fixtures
 
 A group declares permitted behavior; the build selects compatible providers.
-For service-bearing tests, use ordinary receiver provisioning:
+For service-bearing tests, declare an ordinary context parameter for provisioning:
 
 ```omega
 trait Tests {
-    machine memory(&mut self)
+    machine memory(context: &mut Self)
         reaches Filesystem;
         crashes Trap;
 }
@@ -89,10 +89,11 @@ data ScanFixture {
     filesystem: Binding<Filesystem>;
 }
 
-machine ScanFixture::empty_input(&mut self)
+machine ScanFixture::empty_input(context: &mut ScanFixture)
 satisfies Tests::memory
 {
-    // Use self.filesystem and ordinary scanning/checking helpers.
+    // Pass context.filesystem to ordinary scanning/checking helpers.
+    // Keep scratch buffers local to this invocation.
 }
 ```
 
@@ -105,10 +106,13 @@ let memory: TestGroup = builder.tests.group<Tests::memory>();
 memory.service<Filesystem, MemoryFilesystem>();
 ```
 
-Each invocation receives a fresh receiver and mock-service state. The runner
+The requirement's `Self` type is substituted with the satisfier's concrete
+`ScanFixture` type; it does not insert a value argument. Each invocation receives
+a fresh context and mock-service state. The runner
 establishes the `Binding` field before entering the test; zeroed bytes do not
 make a service valid. Other fields must be zero-valid, and additional fixture
-construction is ordinary code. A test entry takes no other arguments; call
+construction is ordinary code. The runner supplies the explicitly declared
+context parameter. A test entry takes no other arguments; call
 parameterized helpers from its body.
 
 The root controls the actual authority. If it supplies a virtual filesystem,
