@@ -300,8 +300,15 @@ pub(super) fn validate(
                 && checked.primitive_type_reference(local.type_reference)
                     == Some(result.primitive_type) =>
             {
+                // Source rows key the local by its authored ordinal, not the
+                // dense binding ordinal its plan assigns.
                 let role = CheckedScalarExpressionRole::LocalInitializer {
-                    binding_ordinal: result.binding_ordinal,
+                    binding_ordinal:
+                        crate::expression_preparation::source_custody::source_local_ordinal(
+                            checked,
+                            state.state,
+                            result.statement_index,
+                        )?,
                 };
                 match value {
                     checked_trees::CheckedCallScalarArgument::Pure(value) => {

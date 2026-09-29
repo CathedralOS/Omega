@@ -1276,11 +1276,18 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("Unit scalar expression local binding drifted from source order");
         }
+        // The source value is keyed by the local's authored ordinal, not by
+        // the dense binding ordinal the plan assigns it.
         let role = if self.scalar_result == Some(result) {
             CheckedScalarExpressionRole::Return
         } else {
             CheckedScalarExpressionRole::LocalInitializer {
-                binding_ordinal: result.binding_ordinal,
+                binding_ordinal:
+                    crate::expression_preparation::source_custody::source_local_ordinal(
+                        self.checked,
+                        self.state,
+                        result.statement_index,
+                    )?,
             }
         };
         let lowered = self.evaluation.source_value(

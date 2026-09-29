@@ -54,6 +54,7 @@ mod guarded_scalar_returns_source;
 mod integer_entry_ranges_source;
 mod integer_policy_realization;
 mod local_record_receivers_source;
+mod local_source_ordinals;
 mod mixed_case_establishment;
 mod mixed_shift_source;
 mod mixed_unit_crash_arguments_source;

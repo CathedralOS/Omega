@@ -485,8 +485,17 @@ pub(super) fn plan(
             });
             return Some(LocalPlan::Planned);
         }
+        // The binding takes the next dense ordinal, which also counts the
+        // call results of preceding field stores. Its source value is keyed
+        // by the authored local ordinal instead (`immutable_scalar_locals_before`),
+        // so look the source up by that and keep the dense ordinal only on
+        // the result.
         let binding_ordinal = u32::try_from(*scalar_count).ok()?;
         *scalar_count = scalar_count.checked_add(1)?;
+        let source_ordinal = u32::try_from(
+            program.immutable_scalar_locals_before(state, usize::try_from(statement_index).ok()?),
+        )
+        .ok()?;
         if !matches!(
             program.expression_table.expression(local.initial_value),
             ExpressionNode::Call(_)
@@ -496,20 +505,23 @@ pub(super) fn plan(
             .root_at(
                 state.symbol,
                 statement_index,
-                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
+                CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: source_ordinal,
+                },
             )
             .is_some()
         {
-            let (result, value) = scalar_computation_local_at(
+            let (mut result, value) = scalar_computation_local_at(
                 program,
                 facts,
                 machine.symbol,
                 state,
                 statement_index,
-                binding_ordinal,
+                source_ordinal,
                 local,
                 trace,
             )?;
+            result.binding_ordinal = binding_ordinal;
             operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value });
             return Some(LocalPlan::Planned);
         }
