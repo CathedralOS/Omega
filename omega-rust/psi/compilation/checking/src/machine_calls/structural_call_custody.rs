@@ -30,10 +30,9 @@ mod tests;
 pub enum StateScalarContractRow {
     /// An authored `requires` expression; the caller owns its closed lowering.
     Expression(typed_trees::expression::ExpressionHandle),
-    /// A scalar parameter's membership in a domain that is exactly the closed
-    /// interval `minimum <= parameter <= maximum`
-    /// (`exact_declared_domain_carrier_interval`): the restating row is carried
-    /// as that interval, as a bracketed range on the parameter would be.
+    /// A scalar parameter's declared range or exactly-interval domain:
+    /// `minimum <= parameter <= maximum`. Both spellings require the same
+    /// independently checked arrival predicate.
     Interval {
         parameter: SymbolHandle,
         minimum: numerics::bignum::BigInt,
@@ -44,14 +43,21 @@ pub enum StateScalarContractRow {
 /// Split a state's authored `requires` contracts into the membership rows that
 /// restate parameter domain qualifications and the scalar rows a proof lane
 /// may carry. Membership rows must still match the exact declared
-/// qualifications; a scalar parameter's exactly-interval membership becomes an
-/// interval row; every other contract shape remains out of scope.
+/// qualifications. Declared integer ranges and exactly-interval memberships
+/// become interval rows; every other contract shape remains out of scope.
 pub fn structural_state_contract_scalar_predicates(
     program: &TypedTrees,
     state: &typed_trees::state::State,
 ) -> Option<Vec<StateScalarContractRow>> {
     let mut expected = Vec::new();
+    let mut predicates = Vec::new();
     for parameter in program.state_parameters(state) {
+        // These are mandatory arrival contracts, not inference hints. Keeping
+        // them on the shared roster lets both plan production and replay see
+        // the same rows, and Terminal proves initial and cyclic arrivals before
+        // allowing the body's arithmetic to use the bounds. Never recover the
+        // range from a particular body expression or a successful source check.
+        retain_declared_integer_ranges(program, parameter, &mut predicates)?;
         let mut reference = parameter.type_reference;
         if let TypeReferenceNode::Reference { referee, .. } =
             program.type_reference_table.type_reference(reference)
@@ -78,7 +84,6 @@ pub fn structural_state_contract_scalar_predicates(
         );
     }
     let mut actual = Vec::new();
-    let mut predicates = Vec::new();
     for contract in program.state_contracts(state) {
         // Authored rows carry their clause token span; only the synthesized
         // qualification restatements are zero-token. Both are admissible —
@@ -150,6 +155,61 @@ pub fn structural_state_contract_scalar_predicates(
     expected.sort_by_key(|(symbol, domain)| (symbol.arena_index(), symbol.generation(), *domain));
     actual.sort_by_key(|(symbol, domain)| (symbol.arena_index(), symbol.generation(), *domain));
     (actual == expected).then_some(predicates)
+}
+
+/// Read every constrained shell without narrowing endpoints to the host's i64
+/// window. References describe storage, not scalar arrival parameters; their
+/// invariants remain with the structural storage and loan checks.
+fn retain_declared_integer_ranges(
+    program: &TypedTrees,
+    parameter: &typed_trees::signature::StateParameter,
+    predicates: &mut Vec<StateScalarContractRow>,
+) -> Option<()> {
+    use typed_trees::types::PrimitiveType;
+    if !matches!(
+        program.primitive_type_reference(parameter.type_reference),
+        Some(
+            PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
+                | PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64
+        )
+    ) {
+        return Some(());
+    }
+    let mut reference = parameter.type_reference;
+    while let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(reference)
+    {
+        for constraint in program.type_reference_table.constraints(*constraints) {
+            let TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } = constraint
+            else {
+                continue;
+            };
+            if program.arithmetic_domain_for_type_reference(parameter.type_reference)
+                != numerics::arithmetic::ArithmeticDomain::Exact
+            {
+                return None;
+            }
+            predicates.push(StateScalarContractRow::Interval {
+                parameter: parameter.symbol,
+                minimum: crate::closed_integer_range_bound(program, *minimum)?,
+                maximum: crate::closed_integer_range_maximum(program, *maximum, *end_inclusive)?,
+            });
+        }
+        reference = *base_type;
+    }
+    Some(())
 }
 
 /// The closed interval of the exactly-interval domain constraint on
