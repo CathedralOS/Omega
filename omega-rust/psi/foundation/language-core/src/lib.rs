@@ -8,12 +8,14 @@
 //! `operator_spelling` hold the orderings, cast forms, inline-assembly
 //! spelling and operator spellings the stages share;
 //! `data_layout_queries` names the compiler-owned `size_of`/`align_of`
-//! call spellings. The crate
+//! call spellings, and `constant_value` separates evaluated meaning from encoded
+//! declaration values. The crate
 //! defines vocabulary that several stages must agree on; it neither parses nor
 //! judges a program, and it depends on no representation crate.
 
 pub mod atomic;
 pub mod cast_form;
+pub mod constant_value;
 pub mod data_layout_queries;
 pub mod inline_assembly;
 pub mod operator_spelling;

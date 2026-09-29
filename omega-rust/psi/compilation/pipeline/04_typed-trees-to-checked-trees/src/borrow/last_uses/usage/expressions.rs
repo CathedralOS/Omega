@@ -77,6 +77,7 @@ pub(super) fn expression_uses_symbol(
             .any(|field| expression_uses_symbol(program, field.value, symbol)),
         typed_trees::expression::ExpressionNode::Boolean(_)
         | typed_trees::expression::ExpressionNode::Float(_)
+        | typed_trees::expression::ExpressionNode::UndeterminedNaN(_)
         | typed_trees::expression::ExpressionNode::Integer(_)
         | typed_trees::expression::ExpressionNode::String(_)
         | typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
@@ -155,6 +156,7 @@ pub(super) fn expression_uses_local_name(
             .any(|field| expression_uses_local_name(program, field.value, local_name)),
         typed_trees::expression::ExpressionNode::Boolean(_)
         | typed_trees::expression::ExpressionNode::Float(_)
+        | typed_trees::expression::ExpressionNode::UndeterminedNaN(_)
         | typed_trees::expression::ExpressionNode::Integer(_)
         | typed_trees::expression::ExpressionNode::String(_)
         | typed_trees::expression::ExpressionNode::ZeroValue(_) => false,
@@ -318,7 +320,7 @@ pub(super) fn expression_uses_place_symbol(
                 )
             }),
         typed_trees::expression::ExpressionNode::Boolean(_)
-        | typed_trees::expression::ExpressionNode::Float(_)
+        | typed_trees::expression::ExpressionNode::Float(_) | typed_trees::expression::ExpressionNode::UndeterminedNaN(_)
         | typed_trees::expression::ExpressionNode::Integer(_)
         | typed_trees::expression::ExpressionNode::Name(_)
         | typed_trees::expression::ExpressionNode::String(_)

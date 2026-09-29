@@ -113,6 +113,7 @@ fn expression_is_place_like(
         | ExpressionNode::Call(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::String(_)

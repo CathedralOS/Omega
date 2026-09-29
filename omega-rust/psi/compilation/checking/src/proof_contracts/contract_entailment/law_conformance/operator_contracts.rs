@@ -133,6 +133,7 @@ pub(crate) fn checked_operator_contract_snapshot(
             }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::String(_) => {}
             ExpressionNode::ZeroValue(type_reference) => {

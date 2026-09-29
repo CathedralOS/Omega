@@ -129,7 +129,10 @@ pub(super) fn validate_graph(program: &TypedTrees, root: ExpressionHandle) -> Re
             ExpressionNode::Member(member) => {
                 pending.push((super::member_field_value(program, member)?, false));
             }
-            ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) => {}
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_) => {}
             _ => return Err("unsupported node in exact scalar constant expression".into()),
         }
     }

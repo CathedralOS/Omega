@@ -50,13 +50,13 @@ pub(crate) fn retain(
     {
         return Err(error(reference, "lost its exact authored expression"));
     }
-    let value = super::declaration_values::public_declaration_value_encoding(
+    let value = super::declaration_values::evaluated_declaration_value(
         syntax,
         definition,
         lowerer.constant_selection.as_ref(),
     )
     .map_err(|_| error(reference, "materialized value is not canonical"))?;
-    if value != receipt.canonical_result_encoding {
+    if value != receipt.result_value {
         return Err(error(
             reference,
             "materialized value drifted from its canonical result",
@@ -256,9 +256,9 @@ fn reconstruct(
                 reference: *reference,
                 declaration: source,
                 initializer: declaration.initializer_source_span,
-                canonical_value_encoding: declaration.canonical_value_encoding.clone().ok_or_else(
-                    || error(*reference, "dependency has no completed canonical value"),
-                )?,
+                evaluated_value: declaration.evaluated_value.clone().ok_or_else(|| {
+                    error(*reference, "dependency has no completed canonical value")
+                })?,
             };
             if !origins.contains(&origin) {
                 origins.push(origin);
@@ -365,15 +365,12 @@ fn append_retained_custody(
                     reference,
                     declaration: source,
                     initializer: declaration.initializer_source_span,
-                    canonical_value_encoding: declaration
-                        .canonical_value_encoding
-                        .clone()
-                        .ok_or_else(|| {
-                            error(
-                                reference,
-                                "retained dependency has no completed canonical value",
-                            )
-                        })?,
+                    evaluated_value: declaration.evaluated_value.clone().ok_or_else(|| {
+                        error(
+                            reference,
+                            "retained dependency has no completed canonical value",
+                        )
+                    })?,
                 };
                 if !origins.contains(&origin) {
                     origins.push(origin);

@@ -184,6 +184,7 @@ fn expression_children(
         ExpressionNode::Name(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
@@ -562,8 +563,8 @@ impl<'program> Collector<'program> {
             reference,
             declaration: source,
             initializer: declaration.initializer_source_span,
-            canonical_value_encoding: declaration
-                .canonical_value_encoding
+            evaluated_value: declaration
+                .evaluated_value
                 .clone()
                 .ok_or("selected constant has no ready canonical value")?,
         };
@@ -918,8 +919,8 @@ mod tests {
                 program.symbols.symbol_source_span(declaration.symbol)
             );
             assert_eq!(
-                Some(&origin.canonical_value_encoding),
-                declaration.canonical_value_encoding.as_ref()
+                Some(&origin.evaluated_value),
+                declaration.evaluated_value.as_ref()
             );
         }
         let mut changed = program.clone();

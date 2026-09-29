@@ -318,6 +318,7 @@ pub(crate) fn collect_expression_tree(
         ExpressionNode::Unary(unary) => collect_expression_tree(program, unary.operand, handles),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)

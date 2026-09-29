@@ -162,6 +162,9 @@ pub enum ExpressionSnapshot {
         acknowledges_suspend: bool,
         acknowledges_block: bool,
     },
+    UndeterminedNaN {
+        format: String,
+    },
     Float {
         value: String,
     },
@@ -482,6 +485,9 @@ pub(crate) fn table_expression_snapshot(
                 == language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
+        },
+        ExpressionNode::UndeterminedNaN(format) => ExpressionSnapshot::UndeterminedNaN {
+            format: format.name().to_owned(),
         },
         ExpressionNode::Float(value) => ExpressionSnapshot::Float {
             value: value.to_string(),

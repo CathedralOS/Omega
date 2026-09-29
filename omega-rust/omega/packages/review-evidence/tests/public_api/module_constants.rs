@@ -2,6 +2,131 @@ use crate::support::*;
 use compiler::CheckedCompileRequest;
 
 #[test]
+fn public_semantic_nan_identity_preserves_format_without_fabricating_bits() {
+    let project = |package: &TempPackage, carrier: &str, numerator: &str| {
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+        );
+        package.write("main.omg", "use settings;");
+        package.write(
+            "settings.omg",
+            &format!(
+                "module settings;
+                const SOURCE: {carrier} = {numerator}{carrier} / 0.0{carrier};
+                const ALIAS: {carrier} = SOURCE;
+                pub const VALUE: {carrier} = ALIAS;"
+            ),
+        );
+        let checked = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
+        .unwrap_or_else(|diagnostics| panic!(
+            "public {carrier} constant from {numerator}/0 and transitive aliases require no bit materialization: {diagnostics:#?}"
+        ));
+        project_checked_package_review(&checked).expect("semantic public constant identity")
+    };
+    let row = |review: &CheckedPackageReviewProjection| {
+        review
+            .canonical_rows()
+            .unwrap()
+            .into_iter()
+            .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst)
+            .expect("public constant row")
+    };
+    let package = TempPackage::new();
+    let mut format_rows = Vec::new();
+    for carrier in ["f32", "f64"] {
+        let review = project(&package, carrier, "0.0");
+        let [constant] = review.public_consts() else {
+            panic!("one public semantic NaN")
+        };
+        assert_eq!(constant.identity().path(), "settings::VALUE");
+        assert_eq!(
+            constant.identity().owner(),
+            PackageReviewNominalOwner::Package(package_identity())
+        );
+        assert_eq!(
+            constant.canonical_value_encoding(),
+            format!("semantic-nan:{carrier}")
+        );
+        let value = language_semantics::const_value::CanonicalConstValue::new(
+            "",
+            constant.canonical_value_encoding(),
+            "",
+        );
+        assert!(
+            value.identity().decode_declaration_encoding().is_none(),
+            "review meaning cannot masquerade as runtime bits"
+        );
+        assert!(
+            value.decode_encoding().is_none(),
+            "review meaning cannot become a structural index"
+        );
+
+        let semantic_row = row(&review);
+        assert_eq!(
+            semantic_row,
+            row(&project(&TempPackage::new(), carrier, "0.0")),
+            "semantic identity is relocation-independent"
+        );
+        let infinity_row = row(&project(&package, carrier, "1.0"));
+        assert_eq!(semantic_row.key_bytes(), infinity_row.key_bytes());
+        assert_ne!(
+            semantic_row.canonical_bytes(),
+            infinity_row.canonical_bytes()
+        );
+        let encoded = encode_package_review_canonical_row(&semantic_row).unwrap();
+        let recovered = decode_package_review_canonical_row(&encoded).unwrap();
+        assert_eq!(recovered.key_bytes(), semantic_row.key_bytes());
+        assert_eq!(recovered.canonical_bytes(), semantic_row.canonical_bytes());
+        format_rows.push(semantic_row);
+    }
+    assert_eq!(format_rows[0].key_bytes(), format_rows[1].key_bytes());
+    assert_ne!(
+        format_rows[0].canonical_bytes(),
+        format_rows[1].canonical_bytes(),
+        "semantic NaN retains its exact carrier"
+    );
+}
+
+#[test]
+fn public_semantic_nan_aliases_do_not_authorize_raw_bits() {
+    for (carrier, integer) in [("f32", "u32"), ("f64", "u64")] {
+        let package = TempPackage::new();
+        package.write(
+            "build.omg",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
+        );
+        package.write(
+            "main.omg",
+            &format!(
+                "machine bits(value: {carrier}) -> {integer} {{
+                let view: &{integer} = &value as &{integer};
+                let result: {integer} = view;
+                result
+            }}
+            const SOURCE: {carrier} = 0.0{carrier} / 0.0{carrier};
+            pub const VALUE: {carrier} = SOURCE;
+            pub const BITS: {integer} = bits(VALUE);"
+            ),
+        );
+        let diagnostics = compile_review_fixture(CheckedCompileRequest {
+            package_inputs: Some(package_inputs(&package.0)),
+            ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some("windows_x86_64"))
+        })
+        .expect_err("a public review identity cannot determine NaN payload bits");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("NaN")),
+            "{carrier}: {diagnostics:#?}"
+        );
+    }
+}
+
+#[test]
 fn floating_table_review_preserves_nested_bits_without_admitting_static_indices() {
     let package = TempPackage::new();
     package.write(

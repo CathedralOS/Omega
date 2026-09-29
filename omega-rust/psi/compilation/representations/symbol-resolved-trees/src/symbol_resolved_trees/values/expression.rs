@@ -601,6 +601,8 @@ pub enum ExpressionNode {
     Cast(TableCastExpression),
     Call(TableCallExpression),
     Float(FloatLiteral),
+    /// Internal semantic value; no runtime representation or source spelling is implied.
+    UndeterminedNaN(numerics::literals::FloatFormat),
     Indexed(TableIndexedExpression),
     Integer(IntegerLiteral),
     Membership(TableMembershipExpression),

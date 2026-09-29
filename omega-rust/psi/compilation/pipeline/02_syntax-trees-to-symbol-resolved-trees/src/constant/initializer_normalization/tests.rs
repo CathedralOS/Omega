@@ -14,6 +14,39 @@ use syntax_trees::{
 };
 
 #[test]
+fn semantic_nan_value_requires_a_positive_exact_carrier_match() {
+    for (carrier, accepted) in [
+        ("f32", true),
+        ("f64", false),
+        ("Other", false),
+        ("[f32; 1]", false),
+    ] {
+        let text = format!("data Other {{}} const VALUE: {carrier} = 0.0f32;");
+        let tokens = source_files_to_tokens::Lexer::new(&text)
+            .tokenize()
+            .unwrap();
+        let mut syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens)
+                .unwrap();
+        let mut definition = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Const(definition) => Some(definition.clone()),
+                _ => None,
+            })
+            .unwrap();
+        definition.value = syntax.expressions.insert(ExpressionNode::UndeterminedNaN(
+            numerics::literals::FloatFormat::F32,
+        ));
+        assert_eq!(
+            crate::constant::evaluated_declaration_value(&syntax, &definition, None).is_ok(),
+            accepted,
+            "{carrier}"
+        );
+    }
+}
+
+#[test]
 fn normalized_calls_rejoin_literal_and_computed_helper_dependencies_before_table_rebuild() {
     for base_value in ["7", "7 / 2 * 2"] {
         let text = format!(
@@ -77,7 +110,7 @@ fn normalized_calls_rejoin_literal_and_computed_helper_dependencies_before_table
             definition.value = materialized;
             definition.normalization = Some(ConstInitializerNormalization {
                 authored_expression: original,
-                canonical_result_encoding: encoding.clone(),
+                result_value: encoding.clone().into(),
                 selections: if ordinal == 0 {
                     Vec::new()
                 } else {
@@ -85,7 +118,7 @@ fn normalized_calls_rejoin_literal_and_computed_helper_dependencies_before_table
                         reference: dependencies.constants[0].0,
                         declaration: definitions[0].1.name.source_span(),
                         initializer: syntax.expressions.source_span(definitions[0].1.value),
-                        canonical_value_encoding: encoding.clone(),
+                        evaluated_value: encoding.clone().into(),
                     }]
                 },
                 builtin_operators: operators.clone(),
@@ -178,18 +211,18 @@ fn normalized_expression(unary: bool) -> (SyntaxTrees, syntax_trees::item::ItemH
     definition.value = value;
     definition.normalization = Some(ConstInitializerNormalization {
         authored_expression: original,
-        canonical_result_encoding:
-            crate::preparation::generic_data::canonicalize_declared_const_definition(
-                &syntax,
-                &definition,
-            )
-            .expect("canonical COUNT")
-            .encoding,
+        result_value: crate::preparation::generic_data::canonicalize_declared_const_definition(
+            &syntax,
+            &definition,
+        )
+        .expect("canonical COUNT")
+        .encoding
+        .into(),
         selections: vec![ConstArgumentOrigin {
             reference,
             declaration: base.name.source_span(),
             initializer: syntax.expressions.source_span(base.value),
-            canonical_value_encoding: encoding,
+            evaluated_value: encoding.into(),
         }],
         builtin_operators: vec![syntax.expressions.source_span(original)],
         call_selections: Vec::new(),
@@ -210,8 +243,23 @@ fn initializer_receipt_rejects_changed_or_missing_custody() {
             0 => receipt.authored_expression = Default::default(),
             1 => receipt.selections.clear(),
             2 => receipt.builtin_operators.clear(),
-            3 => receipt.canonical_result_encoding.push('0'),
-            4 => receipt.selections[0].canonical_value_encoding.push('0'),
+            3 => {
+                receipt.result_value = format!(
+                    "{}0",
+                    receipt.result_value.encoding().expect("encoded test value")
+                )
+                .into()
+            }
+            4 => {
+                receipt.selections[0].evaluated_value = format!(
+                    "{}0",
+                    receipt.selections[0]
+                        .evaluated_value
+                        .encoding()
+                        .expect("encoded test dependency")
+                )
+                .into()
+            }
             5 => receipt.selections[0].initializer = Default::default(),
             _ => unreachable!(),
         }
@@ -237,7 +285,16 @@ fn unary_initializer_receipt_rejoins_operand_and_operator_custody() {
         match mutation {
             0 => receipt.selections.clear(),
             1 => receipt.builtin_operators.clear(),
-            2 => receipt.selections[0].canonical_value_encoding.push('0'),
+            2 => {
+                receipt.selections[0].evaluated_value = format!(
+                    "{}0",
+                    receipt.selections[0]
+                        .evaluated_value
+                        .encoding()
+                        .expect("encoded test dependency")
+                )
+                .into()
+            }
             _ => unreachable!(),
         }
         changed.items.replace_item(item, Item::Const(definition));
@@ -369,7 +426,7 @@ fn seeded_initializer_rejoins_retained_transitive_custody() {
             reference,
             declaration: dependency.name.source_span(),
             initializer: dependency_initializer,
-            canonical_value_encoding: dependency_encoding,
+            evaluated_value: dependency_encoding.into(),
         }];
         let mut operators = vec![syntax.expressions.source_span(original)];
         if let Some(inherited) = inherited {
@@ -386,12 +443,12 @@ fn seeded_initializer_rejoins_retained_transitive_custody() {
         definition.value = materialized;
         definition.normalization = Some(ConstInitializerNormalization {
             authored_expression: original,
-            canonical_result_encoding:
-                language_semantics::const_value::CanonicalConstIdentity::integer(
-                    "u64",
-                    i128::from(value),
-                )
-                .encoding,
+            result_value: language_semantics::const_value::CanonicalConstIdentity::integer(
+                "u64",
+                i128::from(value),
+            )
+            .encoding
+            .into(),
             selections,
             builtin_operators: operators,
             call_selections: Vec::new(),
@@ -405,7 +462,9 @@ fn seeded_initializer_rejoins_retained_transitive_custody() {
         "BASE",
         2,
         &seed,
-        language_semantics::const_value::CanonicalConstIdentity::integer("u64", 1).encoding,
+        language_semantics::const_value::CanonicalConstIdentity::integer("u64", 1)
+            .encoding
+            .into(),
         seed_initializer,
         None,
     );
@@ -415,7 +474,9 @@ fn seeded_initializer_rejoins_retained_transitive_custody() {
         "NEXT",
         3,
         &base_definition,
-        language_semantics::const_value::CanonicalConstIdentity::integer("u64", 2).encoding,
+        language_semantics::const_value::CanonicalConstIdentity::integer("u64", 2)
+            .encoding
+            .into(),
         base_syntax.expressions.source_span(base_definition.value),
         base_definition.normalization.as_ref(),
     );

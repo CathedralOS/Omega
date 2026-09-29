@@ -1428,7 +1428,7 @@ impl<'a> Elaborator<'a> {
             return false;
         }
         match self.program.expression_table.expression(handle) {
-            ExpressionNode::Float(_) => true,
+            ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_) => true,
             ExpressionNode::Binary(binary) => {
                 self.expression_has_float_leaf(binary.left)
                     || self.expression_has_float_leaf(binary.right)
@@ -2151,6 +2151,14 @@ impl<'a> Elaborator<'a> {
                 for argument in arguments {
                     self.write_expression_key(*argument, out);
                 }
+            }
+            ExpressionNode::UndeterminedNaN(format) => {
+                // Semantic identity has no raw-bit payload and is not an index atom.
+                out.push(18);
+                out.push(match format {
+                    FloatFormat::F32 => 1,
+                    FloatFormat::F64 => 2,
+                });
             }
             ExpressionNode::Float(literal) => {
                 out.push(7);

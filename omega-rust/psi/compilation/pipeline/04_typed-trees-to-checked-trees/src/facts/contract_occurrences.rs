@@ -107,6 +107,7 @@ pub(crate) fn append_expression_occurrences(
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}

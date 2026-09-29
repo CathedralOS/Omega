@@ -576,6 +576,7 @@ fn expression_identity(program: &TypedTrees, expression: ExpressionHandle) -> St
         ),
         ExpressionNode::Call(node) => call_identity(program, node),
         ExpressionNode::Float(value) => atom("float", float_identity(value)),
+        ExpressionNode::UndeterminedNaN(format) => atom("undetermined-nan", format.name()),
         ExpressionNode::Indexed(node) => compound(
             "index",
             [

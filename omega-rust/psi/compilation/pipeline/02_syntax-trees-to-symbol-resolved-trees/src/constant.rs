@@ -73,8 +73,10 @@ mod normalized_expressions;
 mod selections;
 mod substitution;
 
+#[cfg(test)]
+use declaration_values::public_declaration_value_encoding;
 pub(crate) use declaration_values::{
-    public_declaration_value_encoding, retain_const_initializer, selected_expression_constant,
+    evaluated_declaration_value, retain_const_initializer, selected_expression_constant,
     validate_const_definition, validate_scalar_initializer,
 };
 pub use initializer_leaves::PendingConstInitializerLeaf;
@@ -104,8 +106,10 @@ pub fn requires_const_initializer_evaluation(
     let mut pending = vec![definition.value];
     while let Some(expression) = pending.pop() {
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_) => {
-            }
+            ExpressionNode::Integer(_)
+            | ExpressionNode::Boolean(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::UndeterminedNaN(_) => {}
             // An explicit float format needs ordinary carrier validation, not
             // an integer probe. Unsuffixed decimals may still land as integers.
             ExpressionNode::Float(text)

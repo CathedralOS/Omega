@@ -694,12 +694,13 @@ fn static_const_value(
         .iter()
         .find(|declaration| argument.symbol.is_valid() && declaration.symbol == argument.symbol)?;
     let value = declaration
-        .canonical_value_encoding
+        .evaluated_value
         .as_ref()
+        .and_then(|value| value.encoding())
         .and_then(|encoding| {
             CanonicalConstValue::new(
                 program.display_type_reference(declaration.declared_type),
-                encoding.clone(),
+                encoding.to_owned(),
                 argument.display_name(),
             )
             .decode_encoding()

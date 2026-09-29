@@ -20,11 +20,19 @@ pub(crate) fn project_public_consts(
         if !reviewed_package_owns(&identity, package)? {
             continue;
         }
-        let Some(canonical_value_encoding) = declaration.canonical_value_encoding.clone() else {
+        let Some(value) = declaration.evaluated_value.as_ref() else {
             return Err(vec![Diagnostic::error(format!(
                 "public const `{}` has no canonical declaration value",
                 identity.path
             ))]);
+        };
+        // Review identity records the semantic value, not a request for image
+        // bytes or a generic-index atom. This tag cannot decode as float bits.
+        let canonical_value_encoding = match value {
+            language_core::constant_value::EvaluatedConstant::Encoded(encoding) => encoding.clone(),
+            language_core::constant_value::EvaluatedConstant::UndeterminedNaN(format) => {
+                format!("semantic-nan:{}", format.name())
+            }
         };
         rows.push(ProjectedReviewRow {
             row: PackageReviewConstShape {

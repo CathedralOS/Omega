@@ -57,14 +57,14 @@ fn initializer_preparation_retains_forward_module_dependencies_without_values() 
             .iter()
             .find(|declaration| trees.symbols.name(declaration.symbol) == "BASE")
             .expect("retain BASE declaration");
-        assert!(base.canonical_value_encoding.is_some());
+        assert!(base.evaluated_value.is_some());
         for (name, dependency) in [("COUNT", "BASE"), ("UNUSED", "COUNT")] {
             let declaration = trees
                 .const_declarations
                 .iter()
                 .find(|declaration| trees.symbols.name(declaration.symbol) == name)
                 .expect("retain computed declaration");
-            assert!(declaration.canonical_value_encoding.is_none());
+            assert!(declaration.evaluated_value.is_none());
             let ExpressionNode::Binary(binary) = trees
                 .tables
                 .bodies

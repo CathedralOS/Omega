@@ -150,6 +150,7 @@ pub(crate) fn fact_mentions_proof_only_data(
             .find_map(|item| recurse(*item)),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => None,
         ExpressionNode::ZeroValue(type_reference) => {
@@ -229,6 +230,7 @@ pub(crate) fn fact_mentions_zero_value(
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_) => None,

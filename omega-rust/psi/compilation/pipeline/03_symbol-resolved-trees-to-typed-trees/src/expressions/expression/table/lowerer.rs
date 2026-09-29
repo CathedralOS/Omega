@@ -445,6 +445,9 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                         },
                     )))
             }
+            resolved::expression::ExpressionNode::UndeterminedNaN(format) => Ok(self
+                .target()
+                .insert(typed::expression::ExpressionNode::UndeterminedNaN(*format))),
             resolved::expression::ExpressionNode::Float(value) => {
                 // The carrier CLONES across layers (spelling + landing ride);
                 // rebuilding from the f64 value was the strip-on-lowering

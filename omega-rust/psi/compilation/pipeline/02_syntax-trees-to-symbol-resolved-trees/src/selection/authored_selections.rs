@@ -988,6 +988,7 @@ fn collect_expression_subtree(
         ExpressionNode::Name(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}

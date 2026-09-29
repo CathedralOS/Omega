@@ -508,6 +508,7 @@ fn reaches(
         ExpressionNode::Unary(unary) => reaches(program, unary.operand, target, visited),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
@@ -523,7 +524,10 @@ pub(crate) fn expression_is_intrinsic_primitive_without_origin(
     program_owners: Option<&contexts::OwnerEnvironmentIndex>,
 ) -> bool {
     let type_reference = match program.tables.expression_table.expression(expression) {
-        ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::Integer(_) => {
+        ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
+        | ExpressionNode::Integer(_) => {
             return true;
         }
         ExpressionNode::Name(path) => type_reference_for_symbol(program, path.symbol),

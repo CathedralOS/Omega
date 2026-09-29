@@ -594,6 +594,7 @@ fn assign_contract_call_symbols(
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => {}
     }

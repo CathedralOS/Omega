@@ -27,7 +27,29 @@ pub struct ConstDeclarationSnapshot {
     pub is_public: bool,
     pub declared_type: TypeReferenceSnapshot,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub canonical_value_encoding: Option<String>,
+    pub evaluated_value: Option<EvaluatedConstantSnapshot>,
+}
+
+/// Diagnostic value shape, never a canonical encoding for semantic-only values.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum EvaluatedConstantSnapshot {
+    Encoded(String),
+    UndeterminedNaN { format: String },
+}
+
+impl From<&language_core::constant_value::EvaluatedConstant> for EvaluatedConstantSnapshot {
+    fn from(value: &language_core::constant_value::EvaluatedConstant) -> Self {
+        match value {
+            language_core::constant_value::EvaluatedConstant::Encoded(encoding) => {
+                Self::Encoded(encoding.clone())
+            }
+            language_core::constant_value::EvaluatedConstant::UndeterminedNaN(format) => {
+                Self::UndeterminedNaN {
+                    format: format.name().to_owned(),
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

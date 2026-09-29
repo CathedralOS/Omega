@@ -102,6 +102,48 @@ pub(super) fn validate_nominal_destinations(
     Ok(())
 }
 
+/// Keep evaluation separate from byte demand. Only the explicit internal semantic
+/// node may carry a payloadless NaN; source float spelling still follows the ordinary
+/// encoder. The retained authored root is independently replayed after typing.
+pub(crate) fn evaluated_declaration_value(
+    syntax: &SyntaxTrees,
+    definition: &ConstDefinition,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+) -> Result<language_core::constant_value::EvaluatedConstant, String> {
+    use language_core::constant_value::EvaluatedConstant;
+    if let syntax_trees::expression::ExpressionNode::UndeterminedNaN(format) =
+        syntax.expressions.expression(definition.value)
+    {
+        let mut carrier = definition.type_reference;
+        while let syntax_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+            syntax.type_references.type_reference(carrier)
+        {
+            carrier = *base_type;
+        }
+        let syntax_trees::types::TypeReferenceNode::Named(name) =
+            syntax.type_references.type_reference(carrier)
+        else {
+            return Err(
+                "semantic NaN constant requires its exact declared floating carrier".into(),
+            );
+        };
+        let actual = match name.as_str() {
+            "f32" => numerics::literals::FloatFormat::F32,
+            "f64" => numerics::literals::FloatFormat::F64,
+            _ => {
+                return Err(
+                    "semantic NaN constant requires its exact declared floating carrier".into(),
+                );
+            }
+        };
+        if actual != *format {
+            return Err("semantic NaN constant differs from its declared floating format".into());
+        }
+        return Ok(EvaluatedConstant::UndeterminedNaN(*format));
+    }
+    public_declaration_value_encoding(syntax, definition, selection).map(EvaluatedConstant::Encoded)
+}
+
 /// Public declaration identity includes floating components with determined bits, independently
 /// of the narrower structural values eligible for generic and domain indices.
 pub(crate) fn public_declaration_value_encoding(
@@ -166,6 +208,7 @@ pub(crate) fn validate_scalar_initializer(
                 FloatFormat::F64
             };
             let compatible = match initializer {
+                ExpressionNode::UndeterminedNaN(actual) => *actual == format,
                 ExpressionNode::Float(text) => {
                     FloatLiteral::parse(text.as_str()).is_some_and(|literal| {
                         literal.landing().is_none_or(|landing| landing == format)
@@ -315,6 +358,7 @@ fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) ->
         ExpressionNode::Boolean(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::String(_)
     )
 }
@@ -374,6 +418,7 @@ fn validate_literal_initializer(
         ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::String(_) => Ok(()),
         ExpressionNode::ArrayLiteral(values) => {
             for element in syntax_trees.expressions.expression_handles(*values) {

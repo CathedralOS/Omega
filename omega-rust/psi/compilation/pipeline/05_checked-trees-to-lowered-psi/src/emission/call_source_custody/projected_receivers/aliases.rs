@@ -624,6 +624,7 @@ fn contains_owner(
             ExpressionNode::Boolean(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_) => {}
         }
@@ -767,6 +768,7 @@ fn owner_mentions_are_member_reads(
             ExpressionNode::Boolean(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_) => {}
         }

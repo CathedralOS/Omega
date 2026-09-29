@@ -124,7 +124,7 @@ pub(super) fn requires_custody(
         ExpressionNode::Range(range) => child(range.start) || child(range.end),
         ExpressionNode::ArrayLiteral(elements) => program.expression_table.expression_handles(*elements).iter().copied().any(child),
         ExpressionNode::StructLiteral(literal) => program.expression_table.struct_fields(literal.fields).iter().any(|field| child(field.value)),
-        ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_)
+        ExpressionNode::Boolean(_) | ExpressionNode::Integer(_) | ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Name(_) | ExpressionNode::String(_) | ExpressionNode::ZeroValue(_) => false,
     }
 }

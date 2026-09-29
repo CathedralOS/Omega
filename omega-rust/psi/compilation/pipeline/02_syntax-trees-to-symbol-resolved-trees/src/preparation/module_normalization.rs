@@ -251,6 +251,7 @@ fn scalar_literal_tree(
         ExpressionNode::Boolean(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::String(_) => true,
         ExpressionNode::ArrayLiteral(elements) => syntax
             .expressions

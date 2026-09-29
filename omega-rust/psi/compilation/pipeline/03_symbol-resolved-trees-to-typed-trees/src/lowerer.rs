@@ -279,7 +279,7 @@ impl Lowerer<'_> {
                 is_public: declaration.is_public,
                 declared_type,
                 initializer_source_span: declaration.initializer_source_span,
-                canonical_value_encoding: declaration.canonical_value_encoding.clone(),
+                evaluated_value: declaration.evaluated_value.clone(),
                 authored_initializer: typed_trees::expression::ExpressionHandle::invalid(),
                 materialized_initializer: typed_trees::expression::ExpressionHandle::invalid(),
             });

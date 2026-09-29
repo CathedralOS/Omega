@@ -1033,6 +1033,7 @@ fn expression_is_inert_or_calls(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => true,
         ExpressionNode::Member(member) => inert(member.receiver),

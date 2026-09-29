@@ -245,7 +245,7 @@ impl SyntaxTrees {
                     crate::item::ConstInitializerNormalization {
                         authored_expression: self
                             .copy_expression_handle(other, normalization.authored_expression),
-                        canonical_result_encoding: normalization.canonical_result_encoding.clone(),
+                        result_value: normalization.result_value.clone(),
                         selections: normalization.selections.clone(),
                         builtin_operators: normalization.builtin_operators.clone(),
                         call_selections: normalization.call_selections.clone(),

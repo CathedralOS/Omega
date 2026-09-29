@@ -36,7 +36,9 @@ impl ValueClass {
         match program.expression_table.expression(value) {
             ExpressionNode::Boolean(_) => Some(Self::Boolean),
             ExpressionNode::String(_) => Some(Self::Text),
-            ExpressionNode::Integer(_) | ExpressionNode::Float(_) => Some(Self::Numeric),
+            ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_) => Some(Self::Numeric),
             ExpressionNode::Borrow(inner) => Self::of_literal(program, inner.target),
             _ => None,
         }

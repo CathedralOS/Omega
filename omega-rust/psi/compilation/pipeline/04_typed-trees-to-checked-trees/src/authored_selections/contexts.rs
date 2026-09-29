@@ -1252,6 +1252,7 @@ fn infer_expression_type(
         | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::Unary(_)

@@ -284,6 +284,7 @@ fn validate_package_index_expression(
         | ExpressionNode::Cast(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Member(_)
         | ExpressionNode::Borrow(_)
@@ -304,6 +305,26 @@ pub(crate) fn missing_exact_toolchain_type_owner() -> Vec<Diagnostic> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn semantic_nan_has_no_package_structural_index_identity() {
+        for format in [
+            numerics::literals::FloatFormat::F32,
+            numerics::literals::FloatFormat::F64,
+        ] {
+            let mut program = typed_trees::TypedTrees::default();
+            let expression = program.expression_table.insert(
+                typed_trees::expression::ExpressionNode::UndeterminedNaN(format),
+            );
+            let diagnostics = super::validate_package_index_expression(&program, expression, &[])
+                .expect_err("semantic NaN cannot become a structural index");
+            assert!(
+                diagnostics[0]
+                    .message
+                    .contains("unsupported structural index expression")
+            );
+        }
+    }
+
     #[test]
     fn value_dispatch_cannot_be_erased_from_package_structural_index_identity() {
         let mut program = typed_trees::TypedTrees::default();

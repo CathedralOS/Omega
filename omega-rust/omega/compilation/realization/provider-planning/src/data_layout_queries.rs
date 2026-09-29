@@ -107,14 +107,15 @@ pub fn fold_data_layout_queries(
             .const_declarations
             .for_each_mut(|_, declaration| {
                 if declaration.materialized_initializer == handle
-                    && declaration.canonical_value_encoding.is_none()
+                    && declaration.evaluated_value.is_none()
                 {
-                    declaration.canonical_value_encoding = Some(
+                    declaration.evaluated_value = Some(
                         language_semantics::const_value::CanonicalConstIdentity::integer(
                             "u64",
                             i128::from(value),
                         )
-                        .encoding,
+                        .encoding
+                        .into(),
                     );
                 }
             });
@@ -299,7 +300,10 @@ mod tests {
         // The materialized `const` carries the same canonical `u64` encoding
         // the scalar evaluator produces for an authored literal.
         assert_eq!(
-            declared("ROW_BYTES").canonical_value_encoding.as_deref(),
+            declared("ROW_BYTES")
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding()),
             Some(
                 language_semantics::const_value::CanonicalConstIdentity::integer("u64", 16)
                     .encoding

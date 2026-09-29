@@ -992,6 +992,7 @@ pub(super) fn rewrite_destructure_guard_expression(
         }),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::SelfValue
         | ExpressionNode::String(_)

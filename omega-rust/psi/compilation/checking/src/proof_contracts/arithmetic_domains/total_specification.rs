@@ -305,6 +305,7 @@ fn validate_total_specification_arithmetic_with_domain_lookup(
             }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::String(_)
@@ -753,6 +754,7 @@ fn validate_abstract_exact_policy_erasure_formation(
             }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::String(_)

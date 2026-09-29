@@ -168,6 +168,7 @@ pub(crate) fn rejoin(
                 ExpressionNode::Boolean(_)
                 | ExpressionNode::Integer(_)
                 | ExpressionNode::Float(_)
+                | ExpressionNode::UndeterminedNaN(_)
                 | ExpressionNode::String(_)
                 | ExpressionNode::ZeroValue(_) => (None, BorrowAccessKind::Read),
             };

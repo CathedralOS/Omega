@@ -210,6 +210,7 @@ pub(in crate::preparation::generic_data) fn collect_expression_handles(
         ExpressionNode::Unary(unary) => collect_expression_handles(syntax, unary.operand, handles),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::SelfValue

@@ -111,6 +111,9 @@ pub(crate) fn instantiate_domain_expression_label(
             }
         }
         typed_trees::expression::ExpressionNode::Float(value) => value.to_string(),
+        typed_trees::expression::ExpressionNode::UndeterminedNaN(format) => {
+            format!("<{} NaN without payload>", format.name())
+        }
         typed_trees::expression::ExpressionNode::Indexed(indexed) => format!(
             "{}[{}]",
             instantiate_domain_expression_label(program, indexed.collection, base_label),

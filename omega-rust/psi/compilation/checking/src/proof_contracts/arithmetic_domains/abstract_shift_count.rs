@@ -170,6 +170,7 @@ pub(super) fn validate(
             }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::String(_)

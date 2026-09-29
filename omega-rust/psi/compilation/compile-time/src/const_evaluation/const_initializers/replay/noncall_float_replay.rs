@@ -40,7 +40,10 @@ fn anonymous_float_replay_retains_computed_match_selector_dependencies() {
             .find(|constant| typed.symbols.name(constant.symbol) == "VALUE")
             .expect("float result declaration");
         assert_eq!(
-            selected.canonical_value_encoding.as_deref(),
+            selected
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding()),
             Some("float:f32:3f800000")
         );
 
@@ -133,8 +136,9 @@ fn anonymous_float_replay_recomputes_both_formats_without_index_atoms() {
         super::validate(&typed, None).expect("independent anonymous float replay");
         assert_eq!(
             typed.const_declarations()[0]
-                .canonical_value_encoding
-                .as_deref(),
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding()),
             Some(encoding)
         );
         assert!(
@@ -176,7 +180,10 @@ fn float_replay_admits_ordinary_calls_selecting_anonymous_match_results() {
             .find(|constant| typed.symbols.name(constant.symbol) == "VALUE")
             .unwrap();
         assert_eq!(
-            value.canonical_value_encoding.as_deref(),
+            value
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding()),
             Some("float:f32:3eaaaaab")
         );
     }
@@ -216,7 +223,10 @@ fn float_literal_replay_rechecks_each_format_and_materialized_bits() {
             .expect("uncomputed literal retains independent authored and materialized roots");
         let declaration = typed.const_declarations()[0].clone();
         assert_eq!(
-            declaration.canonical_value_encoding.as_deref(),
+            declaration
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding()),
             Some(encoding)
         );
         *typed
@@ -255,8 +265,9 @@ fn float_literal_replay_rejects_coordinated_payloadless_nan_receipts() {
             .expression_table
             .expression_mut(declaration.materialized_initializer) = ExpressionNode::Float(literal);
         let span = typed.roots.const_declarations;
-        typed.tables.const_declarations.span_mut_or_empty(span)[0].canonical_value_encoding =
-            Some(encoding);
+        typed.tables.const_declarations.span_mut_or_empty(span)[0].evaluated_value = Some(
+            language_core::constant_value::EvaluatedConstant::Encoded(encoding),
+        );
         let diagnostics = super::validate(&typed, None)
             .expect_err("matching NaN roots and receipt do not determine materializable bits");
         assert!(
@@ -299,7 +310,10 @@ fn anonymous_float_replay_rejects_forged_results_and_erased_custody() {
                     if mutation == "result-and-encoding" {
                         let span = changed.roots.const_declarations;
                         changed.tables.const_declarations.span_mut_or_empty(span)[0]
-                            .canonical_value_encoding = Some(changed_encoding.to_owned());
+                            .evaluated_value =
+                            Some(language_core::constant_value::EvaluatedConstant::Encoded(
+                                changed_encoding.to_owned(),
+                            ));
                     }
                 }
                 "authored-value" => {
@@ -366,8 +380,10 @@ fn anonymous_float_replay_rejects_forged_results_and_erased_custody() {
                         .expression_mut(declaration.materialized_initializer) =
                         ExpressionNode::Float(FloatLiteral::parse("2.0").unwrap());
                     let span = changed.roots.const_declarations;
-                    changed.tables.const_declarations.span_mut_or_empty(span)[0]
-                        .canonical_value_encoding = Some(changed_encoding.to_owned());
+                    changed.tables.const_declarations.span_mut_or_empty(span)[0].evaluated_value =
+                        Some(language_core::constant_value::EvaluatedConstant::Encoded(
+                            changed_encoding.to_owned(),
+                        ));
                 }
                 _ => unreachable!(),
             }
@@ -421,8 +437,9 @@ fn float_literal_alias_roots_keep_witnessed_declaration_custody() {
         *typed.expression_table.expression_mut(root) =
             ExpressionNode::Float(FloatLiteral::parse("3.0").unwrap());
     }
-    typed.tables.const_declarations.span_mut_or_empty(span)[index].canonical_value_encoding =
-        Some("float:f32:40400000".to_owned());
+    typed.tables.const_declarations.span_mut_or_empty(span)[index].evaluated_value = Some(
+        language_core::constant_value::EvaluatedConstant::Encoded("float:f32:40400000".to_owned()),
+    );
     let diagnostics = super::validate(&typed, None)
         .expect_err("a stale selection does not prove custody of drifted bits");
     assert!(

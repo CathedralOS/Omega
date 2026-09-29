@@ -72,6 +72,10 @@ pub(crate) fn project_contract_expression_with_substitutions(
     };
     let node = compilation.expression_table.expression(expression);
     match node {
+        ExpressionNode::UndeterminedNaN(_) => Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` contains a semantic NaN leaf without a supported canonical package-review contract expression",
+            context.subject_kind, context.subject_name
+        ))]),
         ExpressionNode::Match(_) => Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contains value dispatch without a supported canonical package-review contract expression",
             context.subject_kind, context.subject_name

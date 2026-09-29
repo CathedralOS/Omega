@@ -38,6 +38,7 @@ impl Expression {
             Expression::Cast(cast) => cast.display_name(),
             Expression::Call(call) => call.display_name(),
             Expression::Float(value) => value.to_string(),
+            Expression::UndeterminedNaN(format) => format!("<undetermined NaN {}>", format.name()),
             Expression::Indexed(indexed) => {
                 format!(
                     "{}[{}]",
@@ -122,6 +123,9 @@ impl ExpressionNode {
             Self::Call(call) => call.write_display_name(table, out),
             Self::Float(value) => {
                 let _ = write!(out, "{value}");
+            }
+            Self::UndeterminedNaN(format) => {
+                let _ = write!(out, "<undetermined NaN {}>", format.name());
             }
             Self::Indexed(indexed) => {
                 table.write_display_name(indexed.collection, out);

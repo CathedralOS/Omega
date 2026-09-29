@@ -94,6 +94,9 @@ pub(crate) fn instantiate_operator_contract_expression_label_with_labels(
             }
         }
         ExpressionNode::Float(value) => value.to_string(),
+        ExpressionNode::UndeterminedNaN(format) => {
+            format!("<{} NaN without payload>", format.name())
+        }
         ExpressionNode::Indexed(indexed) => format!(
             "{}[{}]",
             instantiate(indexed.collection),

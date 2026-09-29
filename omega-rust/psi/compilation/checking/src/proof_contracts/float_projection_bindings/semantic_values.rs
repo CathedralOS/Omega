@@ -82,19 +82,8 @@ fn closed_meaning(
         )
     {
         let [source] = arguments else { return None };
-        let ExpressionNode::Float(literal) = program.expression_table.expression(*source) else {
-            return None;
-        };
-        let (format, meaning) = match operation {
-            FloatProjectionOperation::Meaning32 => (
-                IeeeFloatFormat::Binary32,
-                FloatMeaning::from_f32(f32::from_bits(literal.f32_bits())),
-            ),
-            FloatProjectionOperation::Meaning64 => (
-                IeeeFloatFormat::Binary64,
-                FloatMeaning::from_f64(literal.landed_f64()),
-            ),
-        };
+        let (format, meaning) =
+            closed_projection_source(operation, program.expression_table.expression(*source))?;
         let operator = program
             .operators()
             .iter()
@@ -149,6 +138,71 @@ fn closed_meaning(
     })
 }
 
+/// Interpret a closed source only after its projection declaration is validated.
+/// Semantic NaN supplies meaning directly, never an evaluator-selected payload.
+fn closed_projection_source(
+    operation: FloatProjectionOperation,
+    source: &ExpressionNode,
+) -> Option<(IeeeFloatFormat, FloatMeaning)> {
+    match (operation, source) {
+        (
+            FloatProjectionOperation::Meaning32,
+            ExpressionNode::UndeterminedNaN(numerics::literals::FloatFormat::F32),
+        ) => Some((IeeeFloatFormat::Binary32, FloatMeaning::NaN)),
+        (
+            FloatProjectionOperation::Meaning64,
+            ExpressionNode::UndeterminedNaN(numerics::literals::FloatFormat::F64),
+        ) => Some((IeeeFloatFormat::Binary64, FloatMeaning::NaN)),
+        (FloatProjectionOperation::Meaning32, ExpressionNode::Float(literal)) => Some((
+            IeeeFloatFormat::Binary32,
+            FloatMeaning::from_f32(f32::from_bits(literal.f32_bits())),
+        )),
+        (FloatProjectionOperation::Meaning64, ExpressionNode::Float(literal)) => Some((
+            IeeeFloatFormat::Binary64,
+            FloatMeaning::from_f64(literal.landed_f64()),
+        )),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod semantic_nan_projection_tests {
+    use super::{
+        ExpressionNode, FloatMeaning, FloatProjectionOperation, IeeeFloatFormat,
+        closed_projection_source,
+    };
+    use numerics::literals::FloatFormat;
+
+    #[test]
+    fn closed_semantic_nan_projection_requires_its_exact_format() {
+        for (format, own, other, expected) in [
+            (
+                FloatFormat::F32,
+                FloatProjectionOperation::Meaning32,
+                FloatProjectionOperation::Meaning64,
+                IeeeFloatFormat::Binary32,
+            ),
+            (
+                FloatFormat::F64,
+                FloatProjectionOperation::Meaning64,
+                FloatProjectionOperation::Meaning32,
+                IeeeFloatFormat::Binary64,
+            ),
+        ] {
+            let source = ExpressionNode::UndeterminedNaN(format);
+            assert_eq!(
+                closed_projection_source(own, &source),
+                Some((expected, FloatMeaning::NaN))
+            );
+            assert_eq!(closed_projection_source(other, &source), None);
+            assert_eq!(
+                closed_projection_source(own, &ExpressionNode::Boolean(false)),
+                None
+            );
+        }
+    }
+}
+
 /// The sealed IEEE format a `FloatFormat::BINARY*` const names, by exact
 /// hermetic identity and sealed-source custody.
 ///
@@ -157,7 +211,7 @@ fn closed_meaning(
 /// the const's own `StructLiteral` value inlined at the use. A literal is
 /// matched by resolving its `type_symbol` to the sealed `toolchain::FloatFormat`
 /// record, then comparing every field value against the sealed const's
-/// `canonical_value_encoding` leaf-by-leaf, so `BINARY32`/`BINARY64` stay
+/// evaluated encoding leaf-by-leaf, so `BINARY32`/`BINARY64` stay
 /// distinguishable even though they share one record type.
 pub fn exact_toolchain_float_format_const(
     program: &TypedTrees,
@@ -224,8 +278,9 @@ pub fn exact_toolchain_float_format_const(
                                 FLOAT_FORMAT_CORE_SOURCE,
                             )
                             && declaration
-                                .canonical_value_encoding
-                                .as_deref()
+                                .evaluated_value
+                                .as_ref()
+                                .and_then(|value| value.encoding())
                                 .and_then(|encoding| {
                                     language_semantics::const_value::CanonicalConstValue::new(
                                         "", encoding, "",

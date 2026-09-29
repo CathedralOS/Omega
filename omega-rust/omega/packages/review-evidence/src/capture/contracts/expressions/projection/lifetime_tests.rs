@@ -65,6 +65,46 @@ requires tag<View<'a, u64>>() == tag<View<'a, u64>>()
 }
 
 #[test]
+fn semantic_nan_contract_projection_rejects_without_a_canonical_schema() {
+    let (_source, custody) = checked_source();
+    let mut checked = custody.clone().into_program();
+    let machine_symbol = checked.machines()[0].symbol;
+    let context = ContractProjectionContext {
+        subject_kind: "callable",
+        subject_name: "generic_tag",
+        owner: checked_trees::ContractProofFactOwner::Machine { machine_symbol },
+        point: facts::ProgramPoint::Machine { machine_symbol },
+        parameters: &[],
+        domain_symbol: None,
+        data_symbol: None,
+        lifetime_binders: &[],
+        lifetime_substitutions: &[],
+        selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface,
+    };
+    for format in [
+        numerics::literals::FloatFormat::F32,
+        numerics::literals::FloatFormat::F64,
+    ] {
+        let expression = checked
+            .typed
+            .expression_table
+            .insert(ExpressionNode::UndeterminedNaN(format));
+        let diagnostics = super::project_contract_expression(
+            &PackageReviewInput::supplied(&checked, &custody),
+            &context,
+            &[],
+            expression,
+            None,
+            0,
+        )
+        .expect_err("semantic NaN must not become an invented bit-valued contract leaf");
+        assert!(diagnostics[0].message.contains(
+            "semantic NaN leaf without a supported canonical package-review contract expression"
+        ));
+    }
+}
+
+#[test]
 fn value_dispatch_contract_projection_rejects_without_a_canonical_schema() {
     let (_source, custody) = checked_source();
     let mut checked = custody.clone().into_program();

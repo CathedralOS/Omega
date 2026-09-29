@@ -80,10 +80,20 @@ pub(crate) fn validate(
         };
         let destination = float_destination(typed, declaration.declared_type);
         let encoded_float = declaration
-            .canonical_value_encoding
-            .as_deref()
+            .evaluated_value
+            .as_ref()
+            .and_then(|value| value.encoding())
             .is_some_and(|encoding| encoding.starts_with("float:"));
-        if destination.is_some() || encoded_float {
+        let semantic_float = matches!(
+            declaration.evaluated_value.as_ref(),
+            Some(language_core::constant_value::EvaluatedConstant::UndeterminedNaN(_))
+        ) || matches!(
+            typed
+                .expression_table
+                .expression(declaration.materialized_initializer),
+            ExpressionNode::UndeterminedNaN(_)
+        );
+        if destination.is_some() || encoded_float || semantic_float {
             let destination = destination.ok_or_else(|| {
                 super::failure(
                     reference,
@@ -127,8 +137,10 @@ pub(crate) fn validate(
         let identity = CanonicalConstIdentity {
             type_name: String::new(),
             encoding: declaration
-                .canonical_value_encoding
-                .clone()
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding())
+                .map(str::to_owned)
                 .ok_or_else(|| {
                     super::failure(
                         declaration.initializer_source_span,
@@ -426,7 +438,10 @@ fn validate_anonymous_float(
         };
         let bits = float_literal_bits(typed, original, format)?;
         if float_literal_bits(typed, materialized, format)? != bits
-            || declaration.canonical_value_encoding.as_deref()
+            || declaration
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding())
                 != Some(ScalarValue::Float { format, bits }.encoding()?.as_str())
         {
             return Err("floating constant literal bits or result encoding drifted".into());
@@ -493,9 +508,6 @@ fn validate_anonymous_float(
         })?;
     let (evaluated, _) =
         evaluate_scalar(probe, machine, state, original, destination, scalar_calls)?;
-    let ScalarValue::Float { format, bits } = &evaluated else {
-        return Err("floating constant replay did not produce selected format bits".into());
-    };
 
     let mut operators = Vec::new();
     let mut visited = Vec::new();
@@ -582,6 +594,20 @@ fn validate_anonymous_float(
     {
         return Err("floating constant authored and retained operator custody drifted".into());
     }
+    if let ScalarValue::UndeterminedNaN(format) = &evaluated {
+        if probe.expression_table.expression(materialized)
+            != &ExpressionNode::UndeterminedNaN(*format)
+            || declaration.evaluated_value.as_ref() != Some(&evaluated.declaration_value())
+        {
+            return Err(
+                "floating constant semantic result, format, or substituted value drifted".into(),
+            );
+        }
+        return Ok(());
+    }
+    let ScalarValue::Float { format, bits } = &evaluated else {
+        return Err("floating constant replay did not produce the declared floating value".into());
+    };
     let ExpressionNode::Float(literal) = probe.expression_table.expression(materialized) else {
         return Err("floating constant materialization is not a floating literal".into());
     };
@@ -593,7 +619,7 @@ fn validate_anonymous_float(
         FloatFormat::F64 => literal.value_f64().to_bits(),
     };
     if materialized_bits != *bits
-        || declaration.canonical_value_encoding.as_deref() != Some(evaluated.encoding()?.as_str())
+        || declaration.evaluated_value.as_ref() != Some(&evaluated.declaration_value())
     {
         return Err(
             "floating constant computation, materialized bits, or result encoding drifted".into(),
@@ -677,9 +703,9 @@ fn validate_dependency_values(
         if declarations.next().is_some() {
             return Err("constant dependency declaration is ambiguous".into());
         }
-        // Floating declarations have determined runtime bits, not canonical
-        // generic-index atoms. Replay the original and its substituted use at
-        // the declared format before comparing their materialization encoding.
+        // Floating dependencies carry meaning, not necessarily bytes. Replay
+        // both the authored computation and substituted use at the declared
+        // format; no declaration receipt alone establishes its semantic result.
         if let Some(destination @ (PrimitiveType::F32 | PrimitiveType::F64)) =
             crate::const_evaluation::const_generic_expressions::scalar_probe_destination(
                 program,
@@ -697,15 +723,16 @@ fn validate_dependency_values(
                 return Err("constant dependency lost its exact authored initializer".into());
             }
             let expected = declaration
-                .canonical_value_encoding
-                .as_deref()
-                .ok_or("floating constant dependency lost its materialized bits")?;
+                .evaluated_value
+                .as_ref()
+                .ok_or("floating constant dependency lost its evaluated value")?;
             for expression in [declaration.authored_initializer, dependency.expression] {
                 let value = evaluate(expression, destination)?;
                 if !matches!(
                     value,
                     crate::const_evaluation::const_generic_expressions::value::ScalarValue::Float { .. }
-                ) || value.encoding()? != expected
+                    | crate::const_evaluation::const_generic_expressions::value::ScalarValue::UndeterminedNaN(_)
+                ) || &value.declaration_value() != expected
                 {
                     return Err(
                         "floating constant dependency or its substituted use drifted".into(),
@@ -720,8 +747,10 @@ fn validate_dependency_values(
         let expected = CanonicalConstIdentity {
             type_name: String::new(),
             encoding: declaration
-                .canonical_value_encoding
-                .clone()
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding())
+                .map(str::to_owned)
                 .ok_or("constant dependency lost its canonical value")?,
         }
         .decode_declaration_encoding()
@@ -821,8 +850,10 @@ fn dependency_leaf_value(
             CanonicalConstIdentity {
                 type_name: String::new(),
                 encoding: declaration
-                    .canonical_value_encoding
-                    .clone()
+                    .evaluated_value
+                    .as_ref()
+                    .and_then(|value| value.encoding())
+                    .map(str::to_owned)
                     .ok_or("constant dependency lost its canonical value")?,
             }
             .decode_declaration_encoding()

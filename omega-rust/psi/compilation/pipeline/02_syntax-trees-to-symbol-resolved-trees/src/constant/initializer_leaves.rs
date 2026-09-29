@@ -196,7 +196,7 @@ pub(crate) fn pending_const_initializer_leaves(
                     ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
                     // Decimal-to-integer landing still needs evaluation; a
                     // floating declaration's literal validation owns its suffix.
-                    ExpressionNode::Float(_) => matches!(selection.builtin_type(name),
+                    ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_) => matches!(selection.builtin_type(name),
                         Some(symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64)),
                     // `size_of<T>()`/`align_of<T>()` are answered from the
                     // selected target's validated layout after settlement, not

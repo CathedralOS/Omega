@@ -112,7 +112,10 @@ pub(crate) fn hoist_scalar_value_call_comparison(
     if call_is_right
         && !matches!(
             expressions.expression(binary.left),
-            ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::Integer(_)
+            ExpressionNode::Boolean(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::UndeterminedNaN(_)
+                | ExpressionNode::Integer(_)
         )
     {
         return;
@@ -301,7 +304,7 @@ fn expression_contains_call(lowerer: &Lowerer, expression: ExpressionHandle) -> 
             .any(|field| contains(field.value)),
         ExpressionNode::Unary(unary) => contains(unary.operand),
         ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
+        | ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)

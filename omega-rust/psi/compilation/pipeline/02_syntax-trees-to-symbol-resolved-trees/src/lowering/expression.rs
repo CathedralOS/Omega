@@ -451,6 +451,9 @@ fn lower_nonbinary_expression_node_into_table(
                 })),
             )
         }
+        syntax::expression::ExpressionNode::UndeterminedNaN(format) => {
+            Ok(expression_table(lowerer).insert(ExpressionNode::UndeterminedNaN(*format)))
+        }
         syntax::expression::ExpressionNode::Float(value) => {
             let Some(value) = FloatLiteral::parse(value.as_str()) else {
                 return Err(Diagnostic::error(format!(

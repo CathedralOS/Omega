@@ -331,6 +331,7 @@ impl Collector<'_> {
             }
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Boolean(_)
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_) => {}

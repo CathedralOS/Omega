@@ -1003,6 +1003,7 @@ fn is_state_independent_borrow_source(
         | typed_trees::expression::ExpressionNode::Atomic(_)
         | typed_trees::expression::ExpressionNode::Boolean(_)
         | typed_trees::expression::ExpressionNode::Float(_)
+        | typed_trees::expression::ExpressionNode::UndeterminedNaN(_)
         | typed_trees::expression::ExpressionNode::Indexed(_)
         | typed_trees::expression::ExpressionNode::Integer(_)
         | typed_trees::expression::ExpressionNode::Member(_)

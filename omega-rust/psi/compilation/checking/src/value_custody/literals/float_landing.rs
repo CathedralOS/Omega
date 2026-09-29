@@ -418,6 +418,7 @@ fn collect_result_comparison_pairs(
         ExpressionNode::Unary(unary) => recurse(unary.operand, pairs),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)

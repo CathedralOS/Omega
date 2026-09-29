@@ -204,8 +204,8 @@ fn integer(program: &TypedTrees, symbol: SymbolHandle, spelling: &str) -> Option
         .const_declarations()
         .iter()
         .find(|declaration| declaration.symbol == symbol)?;
-    let encoding = declaration.canonical_value_encoding.as_ref()?;
-    match CanonicalConstValue::new("", encoding.clone(), "").decode_encoding()? {
+    let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+    match CanonicalConstValue::new("", encoding.to_owned(), "").decode_encoding()? {
         DecodedCanonicalConstValue::Integer { value, .. } => Some(value),
         _ => None,
     }

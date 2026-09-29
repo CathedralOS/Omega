@@ -170,7 +170,7 @@ fn constrained_bool_const_discharges_logical_and_indexed_family_facts() {
             })
             .unwrap_or_else(|| panic!("mine::{name}"));
         assert!(
-            declaration.canonical_value_encoding.is_some(),
+            declaration.evaluated_value.is_some(),
             "{name} publishes compatibility identity"
         );
     }
@@ -247,7 +247,7 @@ fn constrained_record_const_discharges_field_domain_facts() {
         .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::P")
         .expect("mine::P");
     assert!(
-        declaration.canonical_value_encoding.is_some(),
+        declaration.evaluated_value.is_some(),
         "a discharged record constrained const publishes compatibility identity"
     );
 
@@ -306,7 +306,7 @@ fn constrained_array_const_discharges_element_domain_facts() {
         .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::A")
         .expect("mine::A");
     assert!(
-        declaration.canonical_value_encoding.is_some(),
+        declaration.evaluated_value.is_some(),
         "a discharged array constrained const publishes compatibility identity"
     );
 
@@ -365,7 +365,7 @@ fn constrained_variant_const_discharges_case_payload_domain_facts() {
         .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::C")
         .expect("mine::C");
     assert!(
-        declaration.canonical_value_encoding.is_some(),
+        declaration.evaluated_value.is_some(),
         "a discharged variant constrained const publishes compatibility identity"
     );
 

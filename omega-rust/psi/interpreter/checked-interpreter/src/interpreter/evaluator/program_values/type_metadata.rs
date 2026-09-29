@@ -334,6 +334,13 @@ impl<'program> Evaluator<'program> {
             // guard tree (`16777216.0 + 1.0` against an f32 place) has no
             // declared destination, so the stamped literal is the node-width
             // witness that drives per-op f32 rounding in eval_float_binary.
+            ExpressionNode::UndeterminedNaN(format) => Some((
+                match format {
+                    numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
+                    numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+                },
+                ArithmeticDomain::Exact,
+            )),
             ExpressionNode::Float(literal) => literal.landing().map(|format| {
                 (
                     match format {

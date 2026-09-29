@@ -287,6 +287,7 @@ pub(super) fn append_move_events_for_expression(
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}

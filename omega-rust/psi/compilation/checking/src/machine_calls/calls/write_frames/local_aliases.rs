@@ -212,6 +212,7 @@ pub(super) fn expression_has_exclusive_borrow(
             ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::String(_)
@@ -382,6 +383,7 @@ pub(super) fn expression_mentions_place_roots(
             ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::String(_)
@@ -423,6 +425,7 @@ pub(super) fn expression_may_rebind_mutable_alias(
         | ExpressionNode::Binary(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Range(_)
         | ExpressionNode::StructLiteral(_)

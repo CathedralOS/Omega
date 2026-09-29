@@ -342,8 +342,8 @@ fn selected_constant(
                     .symbol_source_span(declaration.symbol)
                     .ok_or("machine index constant lost its declaration source")?,
                 initializer: declaration.initializer_source_span,
-                canonical_value_encoding: declaration
-                    .canonical_value_encoding
+                evaluated_value: declaration
+                    .evaluated_value
                     .clone()
                     .ok_or("machine index constant has no canonical value")?,
             };

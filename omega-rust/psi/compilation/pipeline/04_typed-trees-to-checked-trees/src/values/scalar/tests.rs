@@ -17,6 +17,42 @@ use typed_trees::types::PrimitiveType;
 use validation::integer_widen_is_total;
 
 #[test]
+fn semantic_nan_never_lowers_to_runtime_float_bits() {
+    use crate::values::scalar::scalar_lowering::lower_scalar_expression;
+    use numerics::literals::{FloatFormat, FloatLiteral};
+    use semantic_vocabulary::IeeeFloatValue;
+
+    for (format, expected) in [
+        (FloatFormat::F32, IeeeFloatValue::Binary32(1.5f32.to_bits())),
+        (FloatFormat::F64, IeeeFloatValue::Binary64(1.5f64.to_bits())),
+    ] {
+        let mut program = TypedTrees::default();
+        let semantic = program
+            .expression_table
+            .insert(ExpressionNode::UndeterminedNaN(format));
+        let determined = program.expression_table.insert(ExpressionNode::Float(
+            FloatLiteral::from_f64(1.5).with_landing(format),
+        ));
+        let operators = CheckedOperatorFacts::default();
+        assert!(
+            lower_scalar_expression(&program, &operators, semantic, &[], &[], &[], &[], &[],)
+                .is_none(),
+            "semantic {} NaN has no runtime payload",
+            format.name(),
+        );
+        assert_eq!(
+            lower_scalar_expression(&program, &operators, determined, &[], &[], &[], &[], &[],),
+            Some((
+                CheckedScalarExpression::IeeeFloatLiteral { value: expected },
+                ArithmeticDomain::Exact,
+            )),
+            "determined {} literals retain their exact bits",
+            format.name(),
+        );
+    }
+}
+
+#[test]
 fn landed_literal_guards_fold_both_polarities_only_with_builtin_meaning() {
     for (right_value, expected) in [(64, true), (65, false)] {
         let mut program = TypedTrees::default();

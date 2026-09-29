@@ -224,6 +224,9 @@ pub(crate) fn instantiate_call_contract_expression_label(
             }
         }
         typed_trees::expression::ExpressionNode::Float(value) => value.to_string(),
+        typed_trees::expression::ExpressionNode::UndeterminedNaN(format) => {
+            format!("<{} NaN without payload>", format.name())
+        }
         typed_trees::expression::ExpressionNode::Indexed(indexed) => format!(
             "{}[{}]",
             instantiate_call_contract_expression_label(

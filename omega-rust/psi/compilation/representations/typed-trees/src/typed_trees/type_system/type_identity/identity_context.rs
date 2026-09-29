@@ -360,6 +360,7 @@ pub(crate) fn normalize_index_expression(
         // differently shaped rejected expressions never share one identity.
         ExpressionNode::Boolean(value) => atom("boolean", &value.to_string()),
         ExpressionNode::Float(value) => atom("float", &value.to_string()),
+        ExpressionNode::UndeterminedNaN(format) => atom("undetermined-nan", format.name()),
         ExpressionNode::String(value) => byte_atom("string", value),
         ExpressionNode::ArrayLiteral(elements) => compound(
             "array-literal",

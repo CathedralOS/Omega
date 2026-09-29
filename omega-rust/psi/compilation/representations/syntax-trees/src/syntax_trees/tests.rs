@@ -209,12 +209,12 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
     source.expressions.set_source_span(value, span(20));
     let normalization = crate::item::ConstInitializerNormalization {
         authored_expression,
-        canonical_result_encoding: "boolean4:true".to_owned(),
+        result_value: "boolean4:true".to_owned().into(),
         selections: vec![crate::types::ConstArgumentOrigin {
             reference: span(24),
             declaration: span(4),
             initializer: span(12),
-            canonical_value_encoding: "boolean5:false".to_owned(),
+            evaluated_value: "boolean5:false".to_owned().into(),
         }],
         builtin_operators: vec![span(20)],
         call_selections: Vec::new(),
@@ -255,10 +255,7 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
             panic!("copied constant");
         };
         let receipt = copied.normalization.expect("retained normalization");
-        assert_eq!(
-            receipt.canonical_result_encoding,
-            normalization.canonical_result_encoding
-        );
+        assert_eq!(receipt.result_value, normalization.result_value);
         assert_eq!(receipt.selections, normalization.selections);
         assert_eq!(receipt.builtin_operators, normalization.builtin_operators);
         assert_ne!(copied.value, value);
@@ -302,6 +299,41 @@ fn constant_initializer_normalization_survives_copy_and_clone() {
         source.expressions.expression(operand),
         &ExpressionNode::Boolean(false)
     );
+}
+
+#[test]
+fn semantic_nan_declaration_survives_copy_without_encoding() {
+    use language_core::constant_value::EvaluatedConstant;
+    use numerics::literals::FloatFormat;
+    for format in [FloatFormat::F32, FloatFormat::F64] {
+        let mut source = SyntaxTrees::new(Default::default());
+        let value = source
+            .expressions
+            .insert(ExpressionNode::UndeterminedNaN(format));
+        let constant = Item::Const(crate::item::ConstDefinition {
+            value,
+            normalization: Some(crate::item::ConstInitializerNormalization {
+                authored_expression: value,
+                result_value: EvaluatedConstant::UndeterminedNaN(format),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        let mut destination = SyntaxTrees::new(Default::default());
+        let Item::Const(copied) = destination.copy_item_from(&source, &constant) else {
+            panic!("copied constant");
+        };
+        assert_eq!(
+            destination.expressions.expression(copied.value),
+            &ExpressionNode::UndeterminedNaN(format)
+        );
+        let receipt = copied.normalization.expect("retained semantic result");
+        assert_eq!(
+            receipt.result_value,
+            EvaluatedConstant::UndeterminedNaN(format)
+        );
+        assert_eq!(receipt.result_value.encoding(), None);
+    }
 }
 
 #[test]
@@ -375,7 +407,7 @@ fn constant_argument_origin_survives_deep_copy_and_root_extension() {
         reference: span(1, 40),
         declaration: span(2, 12),
         initializer: span(2, 24),
-        canonical_value_encoding: "integer3:u641:2".to_owned(),
+        evaluated_value: "integer3:u641:2".to_owned().into(),
     };
     let mut source = SyntaxTrees::new(Default::default());
     let second = crate::types::ConstArgumentOrigin {

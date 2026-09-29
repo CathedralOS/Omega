@@ -1077,6 +1077,7 @@ fn fact_call_targets(program: &TypedTrees, expression: ExpressionHandle) -> Fact
         ),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::Name(_)

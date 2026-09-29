@@ -41,7 +41,7 @@ pub struct ConstArgumentOrigin {
     pub declaration: source::SourceSpan,
     pub initializer: source::SourceSpan,
     /// The selected declaration's value, independently of the argument result.
-    pub canonical_value_encoding: String,
+    pub evaluated_value: language_core::constant_value::EvaluatedConstant,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

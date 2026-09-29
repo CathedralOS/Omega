@@ -37,7 +37,9 @@ fn computed_record_leaves_preserve_payloadless_case_siblings() {
             .normalization
             .as_ref()
             .unwrap()
-            .canonical_result_encoding,
+            .result_value
+            .encoding()
+            .expect("determined initializer"),
         literal_encoding(
             &format!(
                 "{declarations} const CONFIG: Config = Config {{ mode: Mode::On, count: 7 }};"

@@ -90,8 +90,9 @@ pub(super) fn argument_type_reference(
                 .find(|declaration| declaration.symbol == argument.symbol)
                 .ok_or_else(|| rejected("a named const without its exact declaration"))?;
             let encoding = declaration
-                .canonical_value_encoding
+                .evaluated_value
                 .as_ref()
+                .and_then(|value| value.encoding())
                 .ok_or_else(|| rejected("a named const without a checked value"))?;
             validation::validate_exact_const_value_encoding(
                 program,
@@ -107,7 +108,7 @@ pub(super) fn argument_type_reference(
                 program
                     .normalized_type_identity(declaration.declared_type)
                     .into_string(),
-                encoding.clone(),
+                encoding,
                 "",
             );
             return Ok(program

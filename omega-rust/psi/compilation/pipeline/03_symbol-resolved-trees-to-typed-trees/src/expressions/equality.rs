@@ -211,6 +211,7 @@ fn scan_expression(
         ExpressionNode::Unary(unary) => scan_expression(program, unary.operand, fact_position),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)

@@ -205,6 +205,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
         }
         symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
         | symbol_resolved_trees::expression::ExpressionNode::Float(_)
+        | symbol_resolved_trees::expression::ExpressionNode::UndeterminedNaN(_)
         | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
         | symbol_resolved_trees::expression::ExpressionNode::String(_) => {}
         symbol_resolved_trees::expression::ExpressionNode::Cast(cast) => {

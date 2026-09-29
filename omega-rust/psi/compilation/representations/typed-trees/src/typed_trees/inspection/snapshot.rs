@@ -15,12 +15,12 @@ mod type_snapshots;
 pub use declaration_snapshots::{
     ConstDeclarationSnapshot, DataDefinitionSnapshot, DataMemberSnapshot, DataPayloadFieldSnapshot,
     DomainAliasConstituentSnapshot, DomainDefinitionSnapshot, DomainEstablishmentRouteSnapshot,
-    DomainSemanticRolesSnapshot, DomainTypeParameterSnapshot, MathematicalBinderSnapshot,
-    MathematicalBodySnapshot, MathematicalDefinitionSnapshot, MathematicalParameterSnapshot,
-    MathematicalTypeSnapshot, MeasureDefinitionSnapshot, OperatorDefinitionSnapshot,
-    ProofFactSnapshot, PropositionBinderSnapshot, PropositionBodySnapshot,
-    PropositionFormulaSnapshot, PropositionSnapshot, QuotientDefinitionSnapshot,
-    QuotientEquivalenceSelectionSnapshot,
+    DomainSemanticRolesSnapshot, DomainTypeParameterSnapshot, EvaluatedConstantSnapshot,
+    MathematicalBinderSnapshot, MathematicalBodySnapshot, MathematicalDefinitionSnapshot,
+    MathematicalParameterSnapshot, MathematicalTypeSnapshot, MeasureDefinitionSnapshot,
+    OperatorDefinitionSnapshot, ProofFactSnapshot, PropositionBinderSnapshot,
+    PropositionBodySnapshot, PropositionFormulaSnapshot, PropositionSnapshot,
+    QuotientDefinitionSnapshot, QuotientEquivalenceSelectionSnapshot,
 };
 pub use machine_snapshots::{
     ConformanceRowSnapshot, ConformanceSnapshot, GenericConformanceBoundSnapshot, MachineSnapshot,
@@ -346,7 +346,7 @@ impl TypedTreesSnapshot {
                         name: program.symbols.display_path(declaration.symbol, "::"),
                         is_public: declaration.is_public,
                         declared_type: type_reference_snapshot(program, declaration.declared_type),
-                        canonical_value_encoding: declaration.canonical_value_encoding.clone(),
+                        evaluated_value: declaration.evaluated_value.as_ref().map(Into::into),
                     })
                     .collect(),
                 conformances: program

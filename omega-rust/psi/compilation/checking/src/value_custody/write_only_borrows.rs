@@ -1608,6 +1608,7 @@ fn validate_expression(
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
@@ -1778,6 +1779,7 @@ fn expression_mentions_root(
         ExpressionNode::Unary(unary) => expression_mentions_root(program, unary.operand, root),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => false,

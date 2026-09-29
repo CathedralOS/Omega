@@ -313,7 +313,10 @@ fn condition_belongs_to_state(
         ExpressionNode::Unary(unary) => {
             condition_belongs_to_state(program, machine, state, unary.operand, frames)
         }
-        ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) => true,
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_) => true,
         ExpressionNode::Call(_) => {
             ordered_values::operand_with_frames(program, machine, state, expression, frames)
                 .is_some()
@@ -890,6 +893,7 @@ impl ArrivalWalk<'_, '_> {
             ExpressionNode::Name(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Boolean(_)
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_) => {}

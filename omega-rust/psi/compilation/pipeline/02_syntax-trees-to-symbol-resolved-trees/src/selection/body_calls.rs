@@ -290,6 +290,7 @@ fn retarget_expression(
         }
         symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
         | symbol_resolved_trees::expression::ExpressionNode::Float(_)
+        | symbol_resolved_trees::expression::ExpressionNode::UndeterminedNaN(_)
         | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
         | symbol_resolved_trees::expression::ExpressionNode::Name(_)
         | symbol_resolved_trees::expression::ExpressionNode::String(_)

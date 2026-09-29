@@ -4603,8 +4603,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   operands/formats/results and missing or forged proof evidence. Preserve IEEE
   Boolean comparison separately from structural meaning equality, including
   NaNs and signed zeros. **OPERATOR-BOUNDARY-CALLS** owns executable named
-  provider installation, **X86-FMA-PROVIDER-TRANSPORT** native FMA, and
-  **FLOAT-IDENTITY-LITERAL-CARRIER** constant materialization.
+  provider installation and **X86-FMA-PROVIDER-TRANSPORT** native FMA.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Finish native borrowed
   [dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md), starting with
@@ -4907,39 +4906,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   return all inputs. Arbitrary bytes-to-code, JIT and numeric-address execution
   remain unsupported. **ADDRESS-EXPOSURE** owns inert address observation;
   **COMPONENT-SUBSTRATE** owns component closure and stable-slot replacement.
-
-- **FLOAT-IDENTITY-LITERAL-CARRIER.** Defer representation demand for named
-  semantic constants under [constant materialization](wiki/spec/language/constants.md#materialization)
-  and [invocation admission](wiki/spec/language/evaluation.md#invocation-admission).
-  A named NaN used only by further compile-time evaluation must not require
-  payload bits merely because it has a declaration. `const_initializers.rs`
-  still encodes each scalar declaration eagerly; separate semantic declaration
-  values from demanded representation and independently replay both judgments.
-
-  The direct named-call and intermediate-value route now works (candidate based
-  on `7b8934962b4`, macOS ARM64):
-  `python3 tools/corpus_gate.py --native --filter float/named_constant_materialization_exit`
-  builds and exits 70. The std-importing program evaluates f32/f64 roots and
-  classifies payloadless NaN directly and through an ordinary helper. Scalar
-  evaluation and the hermetic interpreter preserve NaN meaning; exact checked
-  named-operator occurrences compose into private crash summaries. The focused
-  tests retain false-premise, raw-bit-demand and forged-receipt rejection.
-
-  The CLI command `omega run tests/omega/pass/float/named_constant_materialization_exit/main.omg`
-  on the candidate rebased onto `14d18c2aae` stops with exit 200 awaiting fresh
-  project package-review decisions. Those permissions have not been accepted;
-  the verified native corpus execution does not establish CLI package-admission
-  closure. Complete the project review with owner approval before that run.
-
-  Next acceptance: a separate named `const NAN: f32` feeds classification or
-  proof without requesting its runtime representation; the determined Boolean
-  result runs, while requesting NAN's runtime bytes still rejects. Preserve
-  selected-body and package authority, imported identity, one-time format
-  landing, signed zero, aggregate custody and independent replay. Never publish
-  an arbitrary evaluator payload or invent NaN literal syntax. Keep the native
-  named-call witness and `noncall_float_replay.rs`/`floating_aggregates.rs`
-  rejection controls. **FLOAT-PROVIDERS** owns bodyless contract discharge;
-  **PROVIDER-SELECTION-AFTER-TERMINAL** owns cross-target selection agreement.
 
 - **X86-FMA-PROVIDER-TRANSPORT.** Connect selected x86 FMA plans to exact
   Terminal occurrences, then ordinary target lowering, instruction selection,

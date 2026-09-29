@@ -182,8 +182,7 @@ pub(crate) fn finalize_const_argument_selections(
         })?;
         if declarations.next().is_some()
             || declaration.initializer_source_span != origin.initializer
-            || declaration.canonical_value_encoding.as_ref()
-                != Some(&origin.canonical_value_encoding)
+            || declaration.evaluated_value.as_ref() != Some(&origin.evaluated_value)
         {
             return Err(Diagnostic::error(
                 "normalized constant argument declaration or value custody drifted before resolution",
@@ -191,7 +190,10 @@ pub(crate) fn finalize_const_argument_selections(
         }
         let requires_nominal_slot =
             carrier::has_nominal_carrier(program, &declaration.declared_type)
-                || carrier::encoding_has_nominal_carrier(&origin.canonical_value_encoding);
+                || origin
+                    .evaluated_value
+                    .encoding()
+                    .is_some_and(carrier::encoding_has_nominal_carrier);
         let mut matched = false;
         for slot in slots
             .iter()
@@ -244,7 +246,9 @@ pub(crate) fn finalize_const_argument_selections(
                     || !language_semantics::const_value::CanonicalConstValue::from_atom(
                         name.as_str(),
                     )
-                    .is_some_and(|value| value.encoding == origin.canonical_value_encoding)
+                    .is_some_and(|value| {
+                        Some(value.encoding.as_str()) == origin.evaluated_value.encoding()
+                    })
                 {
                     return Err(Diagnostic::error(
                         "nominal constant receiving argument differs from its selected value",
