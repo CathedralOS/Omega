@@ -192,3 +192,35 @@ fn named_state_arguments_transport_established_memberships() {
         check(&format!("{prelude}\n{body}"), true);
     }
 }
+
+/// A named boundary operator whose namespace declares nothing keeps no typed
+/// call target; borrow discovery still keys it by its declaration symbol.
+/// Flow rejoins that occurrence under the same identity, so the statement's
+/// storage facts survive: the nested `&mut` actual stays writable, the
+/// callee's `ensures` discharges the operator's `requires`, and the call
+/// appears once in the ordinary roster.
+#[test]
+fn named_boundary_operator_occurrences_keep_statement_storage_facts() {
+    let source = "boundary operator == Reference::equal(left: i32, right: &i32) -> bool
+         requires right >= 0;
+         machine prepare(value: &mut i32) -> i32 ensures value >= 0 { value = 1; 0 }
+         machine compare(mut value: i32) -> bool {
+             Reference::equal(prepare(&mut value), &value)
+         }";
+    let checked = checked_program_result(source)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}\n{source}"));
+    let operator = checked.typed.operators()[0].symbol;
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .filter(|(_, call)| call.target_symbol == operator)
+            .count(),
+        1,
+        "the named operator is one retained ordinary call"
+    );
+    check(&source.replace(" ensures value >= 0", ""), false);
+}

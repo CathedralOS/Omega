@@ -160,12 +160,20 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     }) => {
                         let (receiver, path) =
                             crate::lookup::call_receiver_parts(program, source.receiver);
+                        // Borrow discovery keys a named boundary operator by
+                        // its declaration symbol even when the typed call
+                        // retains no target. Rejoin with that same identity;
+                        // a mismatch would clear every live storage fact.
+                        let boundary_operator =
+                            typed_trees::operator::resolve_named_expression_call(program, source)
+                                .filter(|operator| operator.is_boundary);
                         let target = crate::lookup::resolve_state_call_target(
                             program,
                             machine,
                             state,
                             receiver,
-                            source.target_symbol,
+                            boundary_operator
+                                .map_or(source.target_symbol, |operator| operator.symbol),
                             path.as_deref(),
                             &source.target,
                         );
