@@ -3,8 +3,9 @@
 //! compiler-produced staged input.
 
 use semantic_vocabulary::{
-    BlockId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, ObligationId, OperationId,
-    PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, ObligationId,
+    OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 
 use terminal_psi::{
@@ -21,13 +22,17 @@ use optimization_core::Optimization;
 use proof_admission::{
     CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule, ProofSystemMarker,
 };
+use register_model::RegisterOperandAccess;
+use selected_instructions::SelectedInstructionKind;
+
+use crate::ValidatedSelectedAnalysis;
 
 use super::{
     CoverageCase, PRESSURE_PARAMS_AARCH64, PRESSURE_PARAMS_X64, assert_disabled_leg,
     assert_downstream_replay_leg, assert_empty_selection_leg, assert_exact_selection_leg,
-    assert_unsupported_composition_leg, budget, folded_sum_tail, literal_fold_commits,
+    assert_unsupported_composition_leg, folded_sum_tail, literal_fold_commits,
     optimize_selected_instructions, pressure_binary_machine, pressure_fold_operation,
-    pressure_machine, scalar_result, selections_of, staged, verified_input,
+    pressure_machine, scalar_result, selections_of, staged,
 };
 
 fn signed(width: u16) -> ScalarType {
@@ -1053,23 +1058,26 @@ fn u12_load8_indexed_offset(pressure: usize) -> (TerminalModule, ProofBundle) {
     (module, proof)
 }
 
-fn u12_byte_view_address_offset(pressure: usize) -> (TerminalModule, ProofBundle) {
-    // A literal `start` on a first-level subslice: the emit feeds `start`'s
-    // register to both the ByteViewAddress operand and the view-length
-    // ExactSubtractI64, so under spill pressure the action derivation sees
-    // two uses and rejects with FutureUseMismatch — no single-use literal
-    // operand for the u12 ByteViewAddress rule can exist through this route.
+/// A literal `start` on a first-level subslice whose view crosses an edge.
+/// The transfer makes stage 03 build the view's 16-byte descriptor, so the
+/// subslice emit feeds `start`'s register to the view-length
+/// `ExactSubtractI64` and to the descriptor's `ByteViewAddress` offset
+/// operand: the one literal-offset `ByteViewAddress` the public entrance
+/// produces, and its literal has two uses. A subslice consumed in its own
+/// block needs no descriptor and emits no `ByteViewAddress` at all.
+fn u12_byte_view_address_offset() -> (TerminalModule, ProofBundle) {
     let bytes_type = StructuralTypeId::new(9_403).unwrap();
     let source_place = PlaceId::new(9_404).unwrap();
     let subslice_place = PlaceId::new(9_405).unwrap();
+    let view_parameter = PlaceId::new(9_408).unwrap();
+    let successor = BlockId::new(9_409).unwrap();
     let u64_integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
     let u64_scalar = ScalarType::Integer(u64_integer);
     let length_value = ValueId::new(9_412).unwrap();
     let end_value = ValueId::new(10_440).unwrap();
     let start_value = ValueId::new(10_442).unwrap();
 
-    let parameter_x = u64_decl(9_600);
-    let mut operations = vec![
+    let entry_operations = vec![
         Operation {
             static_reach_binding: None,
             suspension_crossing: None,
@@ -1091,102 +1099,93 @@ fn u12_byte_view_address_offset(pressure: usize) -> (TerminalModule, ProofBundle
             },
         },
         const_op(9_440, IntegerValue::Unsigned(8)),
-    ];
-    for index in 0..pressure {
-        operations.push(Operation {
+        const_op(9_442, IntegerValue::Unsigned(5)),
+        Operation {
             static_reach_binding: None,
             suspension_crossing: None,
-            id: OperationId::new(9_450 + index as u64).unwrap(),
-            result: OperationResult::Scalar(u64_decl(9_420 + index as u64)),
-            kind: OperationKind::IntegerConstant {
-                value: IntegerValue::Unsigned(3 + index as u128),
+            id: OperationId::new(9_469).unwrap(),
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place: subslice_place,
+                structural_type: bytes_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::ByteSequenceSubslice {
+                source: source_place,
+                start: start_value,
+                end: end_value,
+                length: length_value,
+                obligation: ObligationId::new(9_480).unwrap(),
             },
-        });
-    }
-    // `start` materializes last so it is the highest-virtual-register
-    // contender ending at the subslice — the spill victim.
-    operations.push(const_op(9_442, IntegerValue::Unsigned(5)));
-    debug_assert_eq!(scalar_result(operations.last().unwrap()), start_value);
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: OperationId::new(9_469).unwrap(),
-        result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-            place: subslice_place,
+        },
+    ];
+    debug_assert_eq!(scalar_result(&entry_operations[3]), start_value);
+    let entry = terminal_psi::Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: Vec::new(),
+        id: BlockId::new(9_406).unwrap(),
+        parameters: Vec::new(),
+        operations: entry_operations,
+        // Binding the subslice to the successor's view parameter is what
+        // makes the view need a descriptor.
+        terminator: terminal_psi::Terminator::Jump {
+            edge: EdgeId::new(9_407).unwrap(),
+            target: successor,
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![terminal_psi::StructuralArgument {
+                place: subslice_place,
+                path: Vec::new(),
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            }],
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        },
+    };
+    let successor_block = terminal_psi::Block {
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: vec![terminal_psi::StructuralParameterDeclaration {
+            place: view_parameter,
+            position: 0,
+            is_self: false,
             structural_type: bytes_type,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
-            qualification_establishments: Vec::new(),
-            claims: Vec::new(),
-        }),
-        kind: OperationKind::ByteSequenceSubslice {
-            source: source_place,
-            start: start_value,
-            end: end_value,
-            length: length_value,
-            obligation: ObligationId::new(9_480).unwrap(),
-        },
-    });
-    // Consume the pressure constants + parameter after the subslice so every
-    // contender's interval spans the literal's definition.
-    let mut accumulator = ValueId::new(9_490).unwrap();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: OperationId::new(9_489).unwrap(),
-        result: OperationResult::Scalar(u64_decl(9_490)),
-        kind: OperationKind::WrappingIntegerAdd {
-            left: ValueId::new(9_420).unwrap(),
-            right: ValueId::new(9_421).unwrap(),
-        },
-    });
-    for index in 2..pressure {
-        let previous = accumulator;
-        accumulator = ValueId::new(9_490 + index as u64 - 1).unwrap();
-        operations.push(Operation {
+        }],
+        id: successor,
+        parameters: Vec::new(),
+        operations: vec![Operation {
             static_reach_binding: None,
             suspension_crossing: None,
-            id: OperationId::new(9_490 + index as u64).unwrap(),
-            result: OperationResult::Scalar(u64_decl(9_490 + index as u64 - 1)),
-            kind: OperationKind::WrappingIntegerAdd {
-                left: previous,
-                right: ValueId::new(9_420 + index as u64).unwrap(),
+            id: OperationId::new(9_515).unwrap(),
+            result: OperationResult::Scalar(u64_decl(9_516)),
+            kind: OperationKind::ByteSequenceLength {
+                source: view_parameter,
             },
-        });
-    }
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: OperationId::new(9_515).unwrap(),
-        result: OperationResult::Scalar(u64_decl(9_516)),
-        kind: OperationKind::ByteSequenceLength {
-            source: subslice_place,
+        }],
+        terminator: terminal_psi::Terminator::ReturnUnit {
+            edge: EdgeId::new(9_417).unwrap(),
+            trivial_affine_discards: Vec::new(),
         },
-    });
-    let final_value = ValueId::new(9_520).unwrap();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: OperationId::new(9_519).unwrap(),
-        result: OperationResult::Scalar(u64_decl(9_520)),
-        kind: OperationKind::WrappingIntegerAdd {
-            left: accumulator,
-            right: ValueId::new(9_516).unwrap(),
-        },
-    });
+    };
 
+    // A unit result: stage 03 rejects block structural parameters in a
+    // scalar-result graph without structural parameters, so a scalar
+    // result would stop the view from crossing the edge.
     let mut machine = super::machine(
         9_400,
-        vec![parameter_x],
-        TerminalMachineResult::Scalar(u64_decl(9_521)),
-        BlockId::new(9_406).unwrap(),
-        vec![super::returning_block(
-            9_406,
-            9_407,
-            operations,
-            final_value,
-        )],
+        Vec::new(),
+        TerminalMachineResult::Unit,
+        entry.id,
+        vec![entry, successor_block],
         9_401,
         Vec::new(),
     );
@@ -1203,6 +1202,13 @@ fn u12_byte_view_address_offset(pressure: usize) -> (TerminalModule, ProofBundle
             kind: StructuralPlaceKind::OperationResult {
                 producer: OperationId::new(9_469).unwrap(),
                 structural_type: bytes_type,
+            },
+        },
+        StructuralPlaceDeclaration {
+            id: view_parameter,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: successor,
+                position: 0,
             },
         },
     ];
@@ -1505,54 +1511,97 @@ mod unwitnessable {
         Optimization::SelectedIncomingWrappingRemainderMinusOneZeroMaterialization
     );
 
-    /// `U12ByteViewAddressOffset` is unreachable through the public stage.
-    /// The only emit path whose operand-1 register could carry a literal is a
-    /// first-level `ByteSequenceSubslice`'s `start` — but the same emission
-    /// also feeds `start` into the view-length `ExactSubtractI64`, giving the
-    /// literal two uses, so ordinary nomination's sole-use custody declines
-    /// it. Write-side emits share the bound-obligation wall:
-    /// the index's `index < len` needs a dominating compare (a second use) or
-    /// a `len == extent` equation no param-rooted place emits. Element and
-    /// runtime-address emits bind computed `scaled`/`O + s` registers, never
-    /// bare literals.
+    /// `U12ByteViewAddressOffset` has no executable workload through the
+    /// public stage. The only emit whose `ByteViewAddress` offset operand
+    /// can carry a bare literal is a first-level `ByteSequenceSubslice` whose
+    /// view needs a descriptor, and that emission also feeds `start` into the
+    /// view-length `ExactSubtractI64`, giving the literal two uses, so
+    /// ordinary nomination's sole-use custody declines it. Write-side emits
+    /// share the bound-obligation wall: the index's `index < len` needs a
+    /// dominating compare (a second use) or a `len == extent` equation no
+    /// param-rooted place emits. Element and runtime-address emits bind
+    /// computed `scaled`/`O + s` registers, never bare literals.
+    ///
+    /// The disposition first checks the staged witness has exactly that
+    /// shape — one `ByteViewAddress` whose offset operand is the
+    /// materialized `start`, read by the view-length subtract as well — and
+    /// then requires the fold's exact selection to publish the program
+    /// unchanged with no committed fold.
     #[test]
-    fn u12_byte_view_address_offset_requires_a_second_use() {
-        for (target, pressure) in [
-            (target::NativeTarget::linux_x64(), PRESSURE_PARAMS_X64),
-            (target::NativeTarget::linux_arm64(), PRESSURE_PARAMS_AARCH64),
+    fn u12_byte_view_address_offset_declines_a_shared_subslice_start() {
+        let selections = selections_of(&[Optimization::SelectedIncomingU12ByteViewAddressOffset]);
+        for target in [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
         ] {
-            let (module, proof) = u12_byte_view_address_offset(pressure);
-            let selections =
-                selections_of(&[Optimization::SelectedIncomingU12ByteViewAddressOffset]);
-            let input = verified_input(&module, &proof);
-            let plan = abstract_operations_to_abstract_operations::optimize_abstract_operations(
-                input,
-                &selections,
-                &selections.project_psi(),
-                budget(),
-            )
-            .expect("the subslice module optimizes legally");
-            let target_operations =
-                abstract_operations_to_target_operations::lower_optimized_to_target_operations(
-                    plan,
-                    abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(
-                        target,
-                    ),
-                )
-                .unwrap();
-            let environment =
-                register_environment::baseline_target_register_environment(target).unwrap();
-            let result =
-                target_operations_to_selected_instructions::stage_optimized_instruction_selection(
-                    target_operations,
-                    environment,
-                );
-            // The scalar-graph custody roster has no arm for a byte-sequence
-            // subslice producer at all — a literal-operand ByteViewAddress can
-            // never be selected through the public entrance.
+            let (module, proof) = u12_byte_view_address_offset();
+            let staged_input = staged(&module, &proof, &selections, target);
+            let staged_plan = staged_input.selected().shared_plan();
+            let instructions = staged_plan
+                .functions
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .flat_map(|block| &block.instructions)
+                .collect::<Vec<_>>();
+            let [address] = instructions
+                .iter()
+                .filter(|instruction| instruction.kind == SelectedInstructionKind::ByteViewAddress)
+                .collect::<Vec<_>>()[..]
+            else {
+                panic!("the transferred subslice stages one ByteViewAddress on {target:?}")
+            };
+            let offset = address
+                .operands
+                .iter()
+                .find(|operand| operand.operand == 1)
+                .expect("ByteViewAddress reads an offset operand");
+            assert_eq!(offset.access, RegisterOperandAccess::Use);
             assert!(
-                result.is_err(),
-                "the subslice route to ByteViewAddress must decline on {target:?}",
+                instructions.iter().any(|instruction| {
+                    instruction.kind
+                        == SelectedInstructionKind::MaterializeI64 {
+                            value: IntegerValue::Unsigned(5),
+                        }
+                        && instruction.operands.iter().any(|operand| {
+                            operand.virtual_register == offset.virtual_register
+                                && operand.access == RegisterOperandAccess::Def
+                        })
+                }),
+                "the address offset is the materialized subslice start on {target:?}",
+            );
+            let readers = instructions
+                .iter()
+                .filter(|instruction| {
+                    instruction.operands.iter().any(|operand| {
+                        operand.virtual_register == offset.virtual_register
+                            && operand.access == RegisterOperandAccess::Use
+                    })
+                })
+                .map(|instruction| instruction.kind)
+                .collect::<Vec<_>>();
+            assert!(
+                matches!(
+                    readers.as_slice(),
+                    [
+                        SelectedInstructionKind::ExactSubtractI64 { .. },
+                        SelectedInstructionKind::ByteViewAddress,
+                    ]
+                ),
+                "the start literal feeds the view length and the address on {target:?}: \
+                 {readers:?}",
+            );
+
+            let output = optimize_selected_instructions(staged_input).unwrap_or_else(|error| {
+                panic!("the fold's selection publishes on {target:?}: {error:?}")
+            });
+            assert_eq!(
+                output.program().selected_plan(),
+                &*staged_plan,
+                "the declined fold leaves the staged program untouched on {target:?}",
+            );
+            assert!(
+                !literal_fold_commits(&output.into_replayed_evidence().unwrap()),
+                "no byte-view-address fold commits on {target:?}",
             );
         }
     }
