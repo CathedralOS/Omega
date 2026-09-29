@@ -30,6 +30,47 @@ pub(super) fn primitive_leaf_projection(
     }
 }
 
+/// Resolve the scalar a primitive read observes: every leaf
+/// `primitive_leaf_projection` resolves, plus a scalar field ending a
+/// projection that selects a record element at run time (`cells[i].hp`). The
+/// field's leaf type comes from `terminal_semantics::runtime_element_field`,
+/// the carrier resolves like any projection, and the field lands at its
+/// declared offset inside the record the carrier reaches, so the load is
+/// `carrier offset + field offset + each selector times its stride`.
+#[allow(clippy::type_complexity)]
+pub(super) fn primitive_read_projection(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
+    if let Some(leaf) = primitive_leaf_projection(root, path, declarations) {
+        return Some(leaf);
+    }
+    let (scalar, record) =
+        terminal_semantics::runtime_element_field(declarations.values().copied(), root, path)?;
+    let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
+        return None;
+    };
+    let (carrier_type, _, carrier_offset, runs) = runtime_projection(
+        root,
+        carrier,
+        declarations,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )
+    .ok()?;
+    let StructuralTypeShape::Record { fields } = &record.shape else {
+        return None;
+    };
+    let field = fields.iter().find(|field| field.identity == *identity)?;
+    if carrier_type != record.id {
+        return None;
+    }
+    let field_offset =
+        direct_scalar_field_offset(carrier_type, field.id, scalar, declarations).ok()?;
+    Some((scalar, carrier_offset.checked_add(field_offset)?, runs))
+}
+
 mod scalar_fields;
 pub(super) use scalar_fields::{
     direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,

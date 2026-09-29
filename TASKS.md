@@ -63,21 +63,18 @@ the complete product bar; focused successes below do not establish that baseline
   custody/ABI matrix. **SAMPLE-CORPUS** and **CANARY-CORPUS** retain the full
   outer program oracles; a moved omission or verified helper is not closure.
 
-  - **Runtime-selected record fields and typed observations.** Complete
-    `fixed_array[index].field` for `entity_list`, `bouncing_particles` and
-    runtime case selection in `dutch_flag`. The pending reproductions are
-    `collections/runtime_indexed_record_field_store` and
-    `control_flow/runtime_indexed_case_dispatch` under `tests/omega/pending`.
-    Stage 04's `scalar_lowering::view_element_field_read` still excludes fixed
-    arrays via `through_view`; stage 05 must carry the element path after the
-    selector. The Terminal obstacle remains in
-    `terminal-psi/semantics/src/primitive_place.rs`: `primitive_projection_type`
-    follows fields only into structural children, so it cannot end on a Scalar
-    field. `IntegerStructuralField` instead takes a canonical, static path;
-    `ElementViewRead` lacks the fixed-array carrier path. Complete one portable
-    projection/observation route under the [product contract](wiki/spec/terminal-psi/product.md),
-    with exact runtime-index bounds and independent type reconstruction.
-    Removing the stage 04 guard alone cannot deliver this operation.
+  - **Runtime-selected record fields and typed observations.** Integer
+    element-field reads (`self.cells[self.i].hp`) lower as a
+    `PrimitiveScalarRead` ending at the field
+    ([structural access](wiki/spec/terminal-psi/structural_access.md#store-vocabulary));
+    `entity_list` exits 35. Remaining: `bouncing_particles` checks its reads
+    and stops at `selected ProgramEntry Binding field Main::clock requires a
+    selected Fused provider`, the Clock-bearing samples' gap; runtime case
+    selection in `dutch_flag`, pinned by
+    `pending/control_flow/runtime_indexed_case_dispatch`; Boolean element
+    fields, which Terminal and Omega admit but stage 04's
+    `view_element_field_read` does not produce; bounded and IEEE element
+    fields.
 
     Float field observation needs the same typed-read design, not another
     integer/Boolean-shaped copy. Store admission already accepts structural

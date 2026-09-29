@@ -524,7 +524,7 @@ pub(super) fn lower(
             // Each runtime element scales its selector's exact dominating
             // source by the array stride; its bound is the path segment's
             // verified obligation.
-            let (leaf, _, runs) = crate::lowering::structural_layout::primitive_leaf_projection(
+            let (leaf, _, runs) = crate::lowering::structural_layout::primitive_read_projection(
                 identity, path, types,
             )
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;

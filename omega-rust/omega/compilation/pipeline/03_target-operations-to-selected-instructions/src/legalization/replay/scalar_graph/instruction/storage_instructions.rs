@@ -95,7 +95,7 @@ pub(super) fn validate_primitive_scalar_read(
             .find(|parameter| parameter.place == *expected)
             .ok_or(invalid.clone())?;
         let (_, _, elements) =
-            crate::structural_inputs::structural_reference_input::primitive_geometry(
+            crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                 root.structural_type,
                 expected_path,
                 result.scalar_type,

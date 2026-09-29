@@ -505,3 +505,189 @@ fn runtime_elements_reject_non_integer_selectors_before_target_lowering() {
         "a Boolean cannot select an element"
     );
 }
+
+/// The same unit reading `root.ents[i].hp`: a primitive read whose path ends
+/// at a scalar field of the runtime-selected record element.
+fn element_field_source(leaf: &str) -> abstract_operations::AbstractOperationPlan {
+    let mut source = source();
+    let AbstractOperation::PrimitiveScalarRead { path, .. } =
+        &mut source.functions[0].operations[2]
+    else {
+        unreachable!("the read")
+    };
+    *path = vec![
+        Segment::Field("ents".into()),
+        runtime(10, 4),
+        Segment::Field(leaf.into()),
+    ];
+    source
+}
+
+/// Every stage rebuilds the field read from declarations: `ents` sits after
+/// 4 bytes of padding and 48 bytes of grid, each entity is 8 bytes, and `hp`
+/// is 4 bytes into it past the one-byte `tag`. A substituted field is refused
+/// before target lowering and by unit validation; a substituted stride by
+/// legalization replay; a load at another offset by selection replay.
+#[test]
+fn a_runtime_element_field_read_loads_the_declared_field_through_every_replay() {
+    let u64_type = integer(IntegerSign::Unsigned, 64);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let source = element_field_source("hp");
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap_or_else(|error| panic!("{native:?} lowers the element field read: {error:?}"));
+        let seed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(&seed)
+            .expect("the element field read keeps canonical custody");
+        let unit = accept_referenced_obligations(seed);
+        let legalized = legalize_target_operations(&target, &source, &unit)
+            .unwrap_or_else(|error| panic!("{native:?} legalizes the field read: {error:?}"));
+        validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+            .unwrap_or_else(|error| panic!("{native:?} replays the field read: {error:?}"));
+        let LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } =
+            &legalized.plan().scalar_functions[0].blocks[0].instructions[2].kind
+        else {
+            panic!("read row")
+        };
+        assert_eq!(
+            *indices,
+            [runtime_operand(
+                &unit,
+                operation(READ),
+                AbstractResult {
+                    value: value(10),
+                    scalar_type: u64_type,
+                },
+                8,
+                2,
+                obligation(4)
+            )]
+        );
+        for stride in [4, 16] {
+            let mut changed = legalized.plan().clone();
+            let LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } =
+                &mut changed.scalar_functions[0].blocks[0].instructions[2].kind
+            else {
+                panic!("read row")
+            };
+            indices[0].stride = stride;
+            assert!(
+                validate_legalized_operations(&target, &source, &unit, changed).is_err(),
+                "{native:?} stride {stride}"
+            );
+        }
+
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap_or_else(|error| panic!("{native:?} selects the field read: {error:?}"));
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap_or_else(|error| panic!("{native:?} validates the field read: {error:?}"));
+        let read = |plan: &selected_instructions::SelectedInstructionPlan| {
+            plan.functions[0]
+                .memory_accesses
+                .iter()
+                .position(|access| {
+                    access.origin
+                        == selected_instructions::SelectedMemoryAccessOrigin::Operation(operation(
+                            READ,
+                        ))
+                })
+                .expect("the read's footprint")
+        };
+        let position = read(selected.plan());
+        let access = &selected.plan().functions[0].memory_accesses[position];
+        assert_eq!((access.byte_offset, access.byte_count), (56, 4));
+        assert!(matches!(
+            access.role,
+            SelectedMemoryAccessRole::ReadIndexedPrimitive {
+                stride: 8,
+                extent: 2,
+                ..
+            }
+        ));
+        for offset in [52, 60] {
+            let mut changed = selected.plan().clone();
+            changed.functions[0].memory_accesses[position].byte_offset = offset;
+            assert!(
+                crate::validate_selected_instructions(
+                    &legalized,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed,
+                )
+                .is_err(),
+                "{native:?} load at {offset}"
+            );
+        }
+    }
+
+    // `tag` is a u8 field; the read claims an i32. A field the entity does
+    // not declare names nothing.
+    for leaf in ["tag", "missing"] {
+        let source = element_field_source(leaf);
+        assert!(
+            abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(
+                    NativeTarget::macos_arm64()
+                ),
+            )
+            .is_err(),
+            "target lowering refuses {leaf}"
+        );
+        assert!(
+            optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .map_or(true, |seed| {
+                optimization_unit_semantics::validate_psi_optimization_unit(&seed).is_err()
+            }),
+            "unit validation refuses {leaf}"
+        );
+    }
+    // A static carrier keeps the canonical field read: unit validation
+    // rebuilds the leaf with Terminal's read rule, which admits a field only
+    // after a runtime element.
+    let mut source = element_field_source("hp");
+    let AbstractOperation::PrimitiveScalarRead { path, .. } =
+        &mut source.functions[0].operations[2]
+    else {
+        unreachable!("the read")
+    };
+    path[1] = Segment::FixedIndex(1);
+    assert!(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .map_or(true, |seed| {
+            optimization_unit_semantics::validate_psi_optimization_unit(&seed).is_err()
+        })
+    );
+}

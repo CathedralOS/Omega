@@ -10,6 +10,12 @@
 //! `(index, stride)` run the way leaf copies do. Lowering reconstructs only
 //! the leaf's scalar type and that every selector is an integer carrier the
 //! 64-bit address model can extend; it never restates or re-derives a bound.
+//!
+//! A read (not a store) may end at an integer or Boolean scalar field of a
+//! record element it selects at run time (`cells[i].hp`,
+//! `terminal_semantics::primitive_read_projection_type`). Target lowering
+//! places that field at its declared offset inside the element; the leaf's
+//! type is rebuilt here from the same declarations.
 
 use semantic_vocabulary::{ScalarType, StructuralTypeId, ValueId};
 use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration};
@@ -26,6 +32,23 @@ pub(super) fn leaf_type(
         .filter_map(StructuralPathSegment::runtime_index)
         .all(|(index, _)| runtime_selector(selector_type(index)))
         .then(|| terminal_semantics::primitive_projection_type(structural_types.iter(), root, path))
+        .flatten()
+}
+
+/// The scalar a primitive read observes: `leaf_type`'s leaves, plus a scalar
+/// field of a runtime-selected record element.
+pub(super) fn read_leaf_type(
+    structural_types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    selector_type: impl Fn(ValueId) -> Option<ScalarType>,
+) -> Option<ScalarType> {
+    path.iter()
+        .filter_map(StructuralPathSegment::runtime_index)
+        .all(|(index, _)| runtime_selector(selector_type(index)))
+        .then(|| {
+            terminal_semantics::primitive_read_projection_type(structural_types.iter(), root, path)
+        })
         .flatten()
 }
 

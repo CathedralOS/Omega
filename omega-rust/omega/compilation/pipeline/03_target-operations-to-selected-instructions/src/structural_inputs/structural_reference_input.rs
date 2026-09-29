@@ -153,6 +153,37 @@ pub(crate) fn primitive_geometry(
     .then_some((offset, bytes, elements))
 }
 
+/// Reconstruct the leaf a primitive *read* observes: every leaf
+/// `primitive_geometry` admits, plus a scalar field that ends a projection
+/// selecting a record element at run time (`cells[i].hp`). The field is the
+/// one `terminal_semantics::runtime_element_field` names from declarations,
+/// and its geometry is the field store's: the carrier's static offset and
+/// runtime elements, then the field's declared offset in the record. A store
+/// never takes this route; its field write is `store`.
+pub(crate) fn primitive_read_geometry(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8, Vec<RuntimeElement>)> {
+    if let Some(geometry) = primitive_geometry(root, path, scalar, declarations) {
+        return Some(geometry);
+    }
+    let (leaf, record) =
+        terminal_semantics::runtime_element_field(declarations.iter(), root, path)?;
+    let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
+        return None;
+    };
+    let StructuralTypeShape::Record { fields } = &record.shape else {
+        return None;
+    };
+    let field = fields.iter().find(|field| field.identity == *identity)?;
+    if leaf != scalar {
+        return None;
+    }
+    scalar_field_geometry(root, carrier, field.id, scalar, declarations, false)
+}
+
 pub(crate) fn shape(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],

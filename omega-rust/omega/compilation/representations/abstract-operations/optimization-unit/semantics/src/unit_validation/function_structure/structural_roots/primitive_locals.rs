@@ -105,7 +105,10 @@ pub(super) fn validate(
                             && parameter.qualifications.is_empty()
                             && parameter.projected_qualifications.is_empty()
                             && claim_free(*source)
-                            && terminal_semantics::primitive_projection_type(
+                            // A read may end at a scalar field of a
+                            // runtime-selected record element; stores keep
+                            // the primitive-leaf rule.
+                            && terminal_semantics::primitive_read_projection_type(
                                 types.values().copied(),
                                 parameter.structural_type,
                                 path,

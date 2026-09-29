@@ -532,8 +532,11 @@ pub(super) fn retained(
         let Some((_, root)) = read_access(function, target, *source, AccessPurpose::Field) else {
             return false;
         };
+        // A read may end at a scalar field of a runtime-selected record
+        // element; the leaf is rebuilt from declarations, never from a
+        // retained offset.
         if path.is_empty()
-            || terminal_semantics::primitive_projection_type(
+            || terminal_semantics::primitive_read_projection_type(
                 target.graph.structural_types.iter(),
                 root,
                 path,
