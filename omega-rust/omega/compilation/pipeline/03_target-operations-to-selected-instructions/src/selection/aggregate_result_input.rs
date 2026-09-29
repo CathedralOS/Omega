@@ -155,9 +155,24 @@ pub(super) fn membership_layout(
         .structural_types
         .iter()
         .find(|declared| declared.id == identity)?;
-    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return None;
+    // A mixed shape keeps the sum's tag word at offset 0; its runtime common
+    // fields follow the tag, so they take part in the layout the tag guards.
+    let (common, cases) = match &declaration.shape {
+        terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
+        terminal_psi::StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+        _ => return None,
     };
+    let common = common
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .map(|field| {
+            crate::structural_inputs::structural_reference_input::field_shape(
+                &field.field_type,
+                &signature.structural_types,
+                &mut Vec::new(),
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
     // Erased payload members hold no storage, so they shape no payload slot.
     let payloads = cases
         .iter()
@@ -175,7 +190,7 @@ pub(super) fn membership_layout(
                 .collect::<Option<Vec<_>>>()
         })
         .collect::<Option<Vec<_>>>()?;
-    let layout = calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).ok()?;
+    let layout = calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).ok()?;
     if layout.tag_byte_offset != 0
         || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
     {
