@@ -45,14 +45,11 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    left: f64;
-    right: f64;
-    equal: bool;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.left = 212.0;
-    self.right = 2.0;
-    self.equal = self.left == self.right;
+    let mut left: f64 = 212.0;
+    let mut right: f64 = 2.0;
+    let mut equal: bool = left == right;
     self.console.exit_process(0);
 }

@@ -6,11 +6,10 @@ use omega::language::std::console;
 use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
-    x: i32;
 }
 machine Main::main(&mut self) {
-    self.x = 5;
-    transition self.x == 3 {
+    let mut x: i32 = 5;
+    transition x == 3 {
         true -> good()
     }
     state good(&mut self) { self.console.exit_process(70); }

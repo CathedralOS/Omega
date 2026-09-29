@@ -11,7 +11,6 @@ data Proof {
 }
 
 data Main {
-    value: i32;
 }
 
 machine Main::main(&mut self) {
@@ -19,5 +18,5 @@ machine Main::main(&mut self) {
 }
 
 machine Main::record(&mut self, w [erased]: Proof, y: i32) {
-    self.value = y;
+    let mut value: i32 = y;
 }

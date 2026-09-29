@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70). A local whose initializer CONTAINS a value call
-// (`let r1 = self.base + self.calc.double_val(6) * 3`) passed as a TRANSITION
+// (`let r1 = base + self.calc.double_val(6) * 3`) passed as a TRANSITION
 // ARGUMENT to another state must copy the local's slot, not be folded back into
 // its initializer and re-materialized in the target state.
 //
@@ -19,7 +19,6 @@ data Calc {}
 
 data Main {
     console: Binding<Console>;
-    base: i32 in Wrapping;
     calc: Calc;
 }
 
@@ -30,8 +29,8 @@ machine Calc::double_val(&mut self, n: i32 in Wrapping) -> i32 {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.base = 10;
-    let r1: i32 in Wrapping = self.base + self.calc.double_val(6) * 3;  // 46
+    let mut base: i32 in Wrapping = 10;
+    let r1: i32 in Wrapping = base + self.calc.double_val(6) * 3;  // 46
     transition r1 == 46 {
         true -> step2(r1)
         _ -> bad()

@@ -1,5 +1,5 @@
 // FAIL CANARY. Frozen decision 17, stage S2: mixed arithmetic domains are
-// rejected. `a` is `Wrapping` and `b` is `Saturating`, so `self.a + self.b` mixes
+// rejected. `a` is `Wrapping` and `b` is `Saturating`, so `a + b` mixes
 // two different explicit domains -- illegal without an explicit `as` cast.
 
 use omega::language::std::console;
@@ -7,14 +7,12 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    a: u8 in Wrapping;
-    b: u8 in Saturating;
 }
 
 machine Main::main(&mut self) {
-    self.a = 200;
-    self.b = 100;
-    let c: u8 in Wrapping = self.a + self.b;   // Wrapping + Saturating -> rejected
+    let mut a: u8 in Wrapping = 200;
+    let mut b: u8 in Saturating = 100;
+    let c: u8 in Wrapping = a + b;   // Wrapping + Saturating -> rejected
     transition c == 44 {
         true -> good()
         _ -> bad()

@@ -24,18 +24,14 @@ pub boundary trait ObjectiveC {
 data Main {
     console: Binding<Console>;
     objc: Binding<ObjectiveC>;
-    cls: u64;
-    sel_resp: u64;
-    sel_alloc: u64;
-    r: u64;
 }
 
 machine Main::main(&mut self) reaches Console + ObjectiveC {
-    self.cls = self.objc.get_class("NSObject");
-    self.sel_resp = self.objc.register_selector("respondsToSelector:");
-    self.sel_alloc = self.objc.register_selector("alloc");
-    self.r = self.objc.send_scalar(self.cls, self.sel_resp, self.sel_alloc);
-    transition self.r == 1 { true -> good() _ -> bad() }
+    let mut cls: u64 = self.objc.get_class("NSObject");
+    let mut sel_resp: u64 = self.objc.register_selector("respondsToSelector:");
+    let mut sel_alloc: u64 = self.objc.register_selector("alloc");
+    let mut r: u64 = self.objc.send_scalar(cls, sel_resp, sel_alloc);
+    transition r == 1 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(8); }
     state bad(&mut self)  { self.console.exit_process(1); }
 }

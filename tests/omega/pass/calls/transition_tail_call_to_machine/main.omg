@@ -42,11 +42,10 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    count: i32;
 }
 
 machine Main::main(&mut self) {
-    self.count = 1;
+    let mut count: i32 = 1;
     transition { _ -> self.finish() }
 }
 

@@ -15,7 +15,6 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    huge: f64;
     negative_huge: f64;
     zero: f64;
     fraction: f64;
@@ -23,14 +22,10 @@ data Main {
     above_byte: f64;
     below_byte: f64;
     below_short: f32;
-    high: i32;
-    fahrenheit: i32;
-    byte_high: u8;
-    short_low: i16;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.huge = 3000000000.0;
+    let mut huge: f64 = 3000000000.0;
     self.negative_huge = -3000000000.0;
     self.zero = 0.0;
     self.fraction = -7.9;
@@ -38,8 +33,8 @@ machine Main::main(&mut self) reaches Console {
     self.above_byte = 300.5;
     self.below_byte = -5.5;
     self.below_short = -40000.75f32;
-    self.high = (self.huge as i32 in Saturating) as i32;
-    transition self.high == 2147483647 {
+    let mut high: i32 = (huge as i32 in Saturating) as i32;
+    transition high == 2147483647 {
         true -> low()
         _ -> fail(71)
     }
@@ -70,16 +65,16 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state nested(&mut self) {
-        self.fahrenheit = ((self.celsius * 1.8 + 32.0) as i32 in Saturating) as i32;
-        transition self.fahrenheit == 68 {
+        let mut fahrenheit: i32 = ((self.celsius * 1.8 + 32.0) as i32 in Saturating) as i32;
+        transition fahrenheit == 68 {
             true -> unsigned_high()
             _ -> fail(75)
         }
     }
 
     state unsigned_high(&mut self) {
-        self.byte_high = (self.above_byte as u8 in Saturating) as u8;
-        transition self.byte_high == 255 {
+        let mut byte_high: u8 = (self.above_byte as u8 in Saturating) as u8;
+        transition byte_high == 255 {
             true -> unsigned_low()
             _ -> fail(76)
         }
@@ -94,8 +89,8 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state short_low(&mut self) {
-        self.short_low = (self.below_short as i16 in Saturating) as i16;
-        transition self.short_low == -32768 {
+        let mut short_low: i16 = (self.below_short as i16 in Saturating) as i16;
+        transition short_low == -32768 {
             true -> good()
             _ -> fail(78)
         }

@@ -3,23 +3,19 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    current_room: u64;
-    fountain_used: bool;
-    bat_defeated: bool;
-    treasure_taken: bool;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.current_room = 2;
-    self.fountain_used = false;
-    self.bat_defeated = true;
-    self.treasure_taken = false;
+    let mut current_room: u64 = 2;
+    let mut fountain_used: bool = false;
+    let mut bat_defeated: bool = true;
+    let mut treasure_taken: bool = false;
 
     transition (
-        self.current_room,
-        self.fountain_used,
-        self.bat_defeated,
-        self.treasure_taken
+        current_room,
+        fountain_used,
+        bat_defeated,
+        treasure_taken
     ) {
         (0, _, _, _) -> gate()
         (1, true, _, _) -> spent()

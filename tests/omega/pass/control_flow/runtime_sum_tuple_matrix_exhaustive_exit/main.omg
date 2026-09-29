@@ -24,14 +24,13 @@ data Main {
     console: Binding<Console>;
     direction: Direction;
     result: Outcome;
-    approved: bool;
 }
 
 machine Main::main(&mut self) reaches Console {
     self.direction = Direction::Right;
     self.result = Outcome::Hit;
-    self.approved = false;
-    transition (self.direction, self.result, self.approved) {
+    let mut approved: bool = false;
+    transition (self.direction, self.result, approved) {
         (Direction::Horizontal, _, _) -> right()
         (Direction::Up, Outcome::Hit, true) -> wrong()
         (Direction::Up, Outcome::Hit, false) -> wrong()

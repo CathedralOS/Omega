@@ -10,9 +10,8 @@ data Command {
 
 data Main {
     cmd: Command;
-    hit: bool;
 }
 
 machine Main::main(&mut self) {
-    self.hit = self.cmd == Command::Move;
+    let mut hit: bool = self.cmd == Command::Move;
 }

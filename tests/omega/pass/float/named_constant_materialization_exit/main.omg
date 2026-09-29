@@ -12,14 +12,12 @@ pub const THROUGH_CALL: bool = classify(F32::square_root(-1.0f32));
 
 data Main {
     console: Binding<Console>;
-    root: f32;
-    root64: f64;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.root = ROOT;
-    self.root64 = ROOT64;
-    transition NAN_CLASSIFIED && THROUGH_CALL && self.root == 2.0f32 && self.root64 == 3.0f64 {
+    let mut root: f32 = ROOT;
+    let mut root64: f64 = ROOT64;
+    transition NAN_CLASSIFIED && THROUGH_CALL && root == 2.0f32 && root64 == 3.0f64 {
         true -> good()
         _ -> bad()
     }

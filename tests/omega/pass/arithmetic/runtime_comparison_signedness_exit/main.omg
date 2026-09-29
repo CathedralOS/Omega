@@ -16,14 +16,6 @@ data Main {
     console: Binding<Console>;
     u: u32 in Wrapping;
     u2: u32 in Wrapping;
-    s: i32 in Wrapping;
-    s2: i32 in Wrapping;
-    b8: u8 in Wrapping;
-    b8b: u8 in Wrapping;
-    w16: u16 in Wrapping;
-    w16b: u16 in Wrapping;
-    big: i64 in Wrapping;
-    big2: i64 in Wrapping;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -40,27 +32,27 @@ machine Main::main(&mut self) reaches Console {
     }
     state check_i32_neg(&mut self) {
         // i32 -5 < 3 is TRUE signed.
-        self.s = -5;
-        self.s2 = 3;
-        transition self.s < self.s2 { true -> check_u8() _ -> bad() }
+        let mut s: i32 in Wrapping = -5;
+        let mut s2: i32 in Wrapping = 3;
+        transition s < s2 { true -> check_u8() _ -> bad() }
     }
     state check_u8(&mut self) {
         // u8 200 > 5 is TRUE unsigned (200 would be -56 signed).
-        self.b8 = 200;
-        self.b8b = 5;
-        transition self.b8 > self.b8b { true -> check_u16() _ -> bad() }
+        let mut b8: u8 in Wrapping = 200;
+        let mut b8b: u8 in Wrapping = 5;
+        transition b8 > b8b { true -> check_u16() _ -> bad() }
     }
     state check_u16(&mut self) {
         // u16 40000 > 5 is TRUE unsigned (40000 > i16::MAX).
-        self.w16 = 40000;
-        self.w16b = 5;
-        transition self.w16 > self.w16b { true -> check_i64() _ -> bad() }
+        let mut w16: u16 in Wrapping = 40000;
+        let mut w16b: u16 in Wrapping = 5;
+        transition w16 > w16b { true -> check_i64() _ -> bad() }
     }
     state check_i64(&mut self) {
         // i64 -5_000_000_000 < 3 is TRUE signed (needs full 64-bit).
-        self.big = -5000000000;
-        self.big2 = 3;
-        transition self.big < self.big2 { true -> good() _ -> bad() }
+        let mut big: i64 in Wrapping = -5000000000;
+        let mut big2: i64 in Wrapping = 3;
+        transition big < big2 { true -> good() _ -> bad() }
     }
 
     state good(&mut self) {

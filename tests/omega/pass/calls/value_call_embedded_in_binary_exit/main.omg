@@ -1,5 +1,5 @@
 // RUN CANARY (exit 70). A value-returning call EMBEDDED in a binary expression
-// bound to a local: `let r = self.base + self.calc.double_val(6) * 3`. The
+// bound to a local: `let r = base + self.calc.double_val(6) * 3`. The
 // binding's value (46) lives in its own local slot; the call's result (12) is
 // scratch for the embedded call. A read of `r` (here the guard `r == 46`) must
 // resolve to the LOCAL, not the call-result scratch.
@@ -18,7 +18,6 @@ data Calc {}
 
 data Main {
     console: Binding<Console>;
-    base: i32 in Wrapping;
     calc: Calc;
 }
 
@@ -29,8 +28,8 @@ machine Calc::double_val(&mut self, n: i32 in Wrapping) -> i32 {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.base = 10;
-    let r: i32 in Wrapping = self.base + self.calc.double_val(6) * 3;  // 10 + 12 * 3 = 46
+    let mut base: i32 in Wrapping = 10;
+    let r: i32 in Wrapping = base + self.calc.double_val(6) * 3;  // 10 + 12 * 3 = 46
     transition r == 46 {
         true -> good()
         _ -> bad()

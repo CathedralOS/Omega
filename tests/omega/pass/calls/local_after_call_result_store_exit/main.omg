@@ -1,7 +1,7 @@
 // Locals declared after a call-result field store keep their own source
 // custody and values (exit 70).
 //
-// `self.stored = echo(..)` stores a checked-body call's result straight into
+// `stored = echo(..)` stores a checked-body call's result straight into
 // a field. The `let`s after it are keyed in their source roles by the locals
 // declared before them, whatever binding slot the plan gives the stored
 // result: `second` is 4 and `third` is 7 while the stored value is 1. Counting
@@ -12,9 +12,6 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    a: i32;
-    b: i32;
-    stored: i32;
 }
 
 machine echo(value: i32) -> i32 {
@@ -26,12 +23,12 @@ machine seven() -> i32 {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.a = 1;
-    self.b = 4;
-    self.stored = echo(self.a);
-    let second: i32 = echo(self.b);
+    let mut a: i32 = 1;
+    let mut b: i32 = 4;
+    let mut stored: i32 = echo(a);
+    let second: i32 = echo(b);
     let third: i32 = seven();
-    transition second == 4 && third == 7 && self.stored == 1 {
+    transition second == 4 && third == 7 && stored == 1 {
         true -> good()
         false -> bad()
     }

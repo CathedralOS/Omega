@@ -1,7 +1,7 @@
 // A local declared after a float call-result field store reads its own value
 // (exit 70).
 //
-// `self.sum = self.a + self.b` applies the selected float addition and binds
+// `self.sum = a + b` applies the selected float addition and binds
 // its result before storing it, so that result takes a dense binding slot
 // although no source name reads it. `doubled` is declared after it and must
 // still read itself: with a = 1 and b = 4 it is 8, while the stored sum is 5.
@@ -13,16 +13,14 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    a: f64;
-    b: f64;
     sum: f64;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.a = 1.0;
-    self.b = 4.0;
-    self.sum = self.a + self.b;
-    let doubled: f64 = self.b * 2.0;
+    let mut a: f64 = 1.0;
+    let mut b: f64 = 4.0;
+    self.sum = a + b;
+    let doubled: f64 = b * 2.0;
     transition doubled == 8.0 {
         true -> check_sum()
         false -> fail(71)
