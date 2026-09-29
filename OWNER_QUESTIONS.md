@@ -236,3 +236,100 @@ Evidence: attribution bisection on Omega main `d18d1a24dd2`
 `dynamic_executable.rs:208` normalized-plan requirement;
 `elf_loader/mod.rs:78` the sealed input that no caller constructs;
 `corpus_native_linux_x86_64.txt:727` the pinned rejection row).
+
+### Q3 - How do toolchain-settled provider rows bind per-target constants?
+
+Named decision: `toolchain-settled-constant-binding`.
+
+**Context:** `source/library/std/time_host.omg` declares the canonical raw
+clock boundary as toolchain-settled (D11/D12): no package may author
+`satisfies` conformances or `select_provider` rows for the slot — provider
+settlement mints the realization plan itself, per selected target, from the
+toolchain's reviewed realization table
+(`realization/provider-planning/src/provider_settlement/canonical_time_host.rs`).
+The reviewed linux_x86_64 table covers the three requirements whose
+irreducible realization is one named syscall (`monotonic_ticks` and
+`wall_clock_raw` bind `clock_gettime` 228; `sleep` binds `nanosleep` 35) as
+`ProviderBinding::Syscall` rows, and deliberately leaves the three per-target
+constants (`monotonic_ticks_per_second` = 10^9, `wall_clock_units_per_second`
+= 10^9, `wall_clock_epoch_offset_seconds` = 0) uncovered — the file's own
+contract reads "constants carry no kernel mechanism and stay uncovered until
+a constant binding kind exists."
+
+Measured on `tests/omega/pass/time/runtime_time_elapsed_since_exit` (tip
+`ed93adc7ef0`, package lock settled via `benchmark.py prepare`): the mint
+joins the selected facts correctly — `monotonic_ticks` and `sleep` each
+resolve to exactly one selected row — and terminal-authority closure review
+stops at
+`named-callable(path(TimeHost::monotonic_ticks_per_second),parameters(),result-dispatch())`
+resolving to 0 selected provider rows
+(`terminal_authority_review/context.rs:163-167`, per-requirement row
+resolution). The minted plan is not the wall; the absent row is.
+
+**Problem:** `ProviderBinding` carries seven forms — `Import`, `Syscall`,
+`CompilerIntrinsic`, `VtableSlot`, `VtableField`, `TableFunction`,
+`CheckedAdapter` (`provider_plan.rs:52-84`) — and none expresses "the
+requirement's answer is a reviewed compile-time constant." The import,
+syscall, and vtable forms all lower to a call. `CompilerIntrinsic` names a
+target realization-machine identity that does not exist for a value.
+`CheckedAdapter` names an authored checked machine, which a toolchain-settled
+slot cannot mint: conformance provenance requires authored rows it does not
+have, and toolchain plans hold `row_realizations` all-invalid. Every consumer
+— plan codec, digest encoder, review-evidence encode/recovery, provenance
+replay, terminal-authority mechanism joins, trust manifest — matches
+exhaustively on the seven forms, so an eighth is a contract-surface change of
+the same class the marshalled-syscall question above already rules
+owner-level.
+
+**Proposed solution:** `ProviderBinding::Constant { value }` — a binding kind
+whose realization emits the constant as the call result with no call emitted
+(the constant-result shape the darwin time-host canary already asserts:
+frequency and units served with no call). The per-target reviewed tables gain
+the constant rows for targets whose values are reviewed (linux_x86_64: 10^9,
+10^9, 0); targets without reviewed constants keep the honest zero-row
+rejection. Row machinery is unchanged — requirement identity, lifetime
+partition, schema validation, uniqueness, digest — so the fork lands inside
+existing plan invariants rather than forking plan shape. Downstream:
+boundary-call lowering writes the literal into the result slot with no
+boundary op, `exact_mechanism` gains a constant-role join, and the codec,
+digest encoder, review-evidence encode/recovery, and trust manifest each
+gain the variant arm. `u64` covers every reviewed constant today; a wider
+value type only matters if a negative or >u64 constant enters a table.
+
+**Alternatives:**
+- A plan-level constant side table (`ProviderPlan` gains a constants map
+  beside `rows`). Keeps `rows` for leaf mechanisms, but forks plan schema
+  plus every row-iteration consumer anyway, and moves the constant rows out
+  of the per-requirement accounting closure review replays — the review
+  would need a second counting path for the same honest answer.
+- `CheckedAdapter` rows over toolchain-synthesized constant-return machines.
+  One mechanism covers constants AND composite marshalling, but requires the
+  synthesized-body pipeline that does not exist (the marshalled-syscall
+  question's option (b)) — heavier than the constant gap alone justifies.
+- `CompilerIntrinsic` with a reserved constant-materialization identity.
+  Reuses an existing tag but misrepresents the row: the field names a
+  realization-machine overload identity, and a constant has none; every
+  identity consumer would need a sentinel carve-out.
+- Constant-fold the requirement at the call seam with no plan row. Leaves
+  the requirement at zero selected rows, so closure review must learn a
+  foldable-requirement class — splitting demand-completeness across two
+  mechanisms where one row kind answers it.
+
+**Caveat:** This question unblocks only the constants. The three
+syscall-bound siblings may still hit the shared marshalling wall downstream:
+`clock_gettime` takes a `timespec` out-parameter, and while
+`uses_linux_timespec_result` exists in calling-conventions, the file notes
+timespec marshalling and result composition are checked-code adaptation — "a
+demanded leaf with no transport still rejects at lowering." Whether the
+syscall rows realize end-to-end is the marshalled-syscall question's
+territory, not this one's.
+
+Evidence: bisection on worktree tip `ed93adc7ef0` (published)
+(`canonical_time_host.rs:20-23,67-96` the named uncovered-constant gap plus
+per-target table; `provider_plan.rs:52-84` the seven binding forms;
+`terminal_authority_review/context.rs:127-168` per-requirement selected-row
+resolution; reproduced diagnostic `native artifact terminal-authority
+closure review failed: reachable requirement
+named-callable(path(TimeHost::monotonic_ticks_per_second),...) resolves to 0
+selected provider rows` on `runtime_time_elapsed_since_exit` after
+`benchmark.py prepare` settled the lock).
