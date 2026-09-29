@@ -209,13 +209,14 @@ pass/capabilities/windows_provides_import_exit rejected 2053ms
 pass/collections/array_local_control checked 291ms
 pass/collections/element_policy_array_literal_store checked 8467ms
 pass/collections/element_view_field_write checked 6912ms @00409967bc5+wt
+pass/collections/element_view_indexed_read checked 9032ms @39705d97d7e+wt
 pass/collections/element_view_write_transition checked 1022ms @8a1b963f65f+wt
 pass/collections/mutable_slice_view_edge_release checked 1012ms @f07778d7f128+wt
 pass/collections/mutable_slice_view_establishment checked 1075ms @f07778d7f128+wt
 pass/collections/owned_array_scalar_comparisons checked 307ms
 pass/collections/runtime_argmax_index_exit checked 1039ms
-pass/collections/runtime_case_array_element_write_exit rejected 986ms
-	native-artifact Terminal production failed: Lowering(Unsupported("scalar read differs from its authored binding or mutable place"))
+pass/collections/runtime_case_array_element_write_exit rejected 5296ms @39705d97d7e+wt
+	terminal-artifact production failed: Lowering(Unsupported("runtime field observation requires a field leaf after its index"))
 pass/collections/runtime_computed_index_direct_exit checked 1109ms
 pass/collections/runtime_declared_range_index_write_exit checked 820ms
 pass/collections/runtime_double_indexed_rmw_exit rejected 768ms
