@@ -552,6 +552,12 @@ fn authored_read_path(
     if depth >= 128 || !checked.expression_table.expression_is_valid(expression) {
         return unsupported("scalar read has a stale or cyclic projection");
     }
+    // A store resolves `entries[0].value` through a borrowed view, but a read
+    // of a view element retains only its selector, as `fixed_carrier_local`
+    // records for view locals: it mints no projected storage leaf.
+    if indexes_borrowed_view(checked, state, machine, expression) {
+        return Ok(None);
+    }
     if let Ok(source) = crate::emission::call_source_custody::projected_receivers::store_destination(
         checked,
         machine.symbol,
@@ -717,6 +723,43 @@ fn constant_index_u64(checked: &CheckedTrees, index: ExpressionHandle) -> Option
             .expression_table
             .constant_integer_value(index)
             .and_then(|value| u64::try_from(value).ok()),
+    }
+}
+
+/// Whether a member/index place selects an element of a borrowed `&[T]`
+/// view anywhere along its chain, as the projected receiver walk types each
+/// indexed collection.
+fn indexes_borrowed_view(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    machine: &checked_trees::machine::Machine,
+    mut expression: ExpressionHandle,
+) -> bool {
+    loop {
+        match checked.expression_table.expression(expression) {
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                if validation::declared_place_type_raw(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    indexed.collection,
+                )
+                .and_then(|reference| {
+                    validation::unwrapped_type_reference(&checked.typed, reference)
+                })
+                .is_some_and(|reference| {
+                    matches!(
+                        checked.type_reference_table.type_reference(reference),
+                        checked_trees::types::TypeReferenceNode::Slice { .. }
+                    )
+                }) {
+                    return true;
+                }
+                expression = indexed.collection;
+            }
+            _ => return false,
+        }
     }
 }
 
