@@ -530,10 +530,14 @@ pub(super) fn argument(
                 else {
                     return None;
                 };
-                // An exclusive subloan needs mutable owned storage. A
-                // captured shared loan observes either binding mode without
-                // moving its owner; owned moves retain the immutable fence.
+                // A whole owned move retains the immutable-binding fence. An
+                // exclusive subloan does not repeat it: borrow formation
+                // already judged the place against the state's writable
+                // roots, which admit every local binding regardless of `mut`
+                // — the marker gates reassignment of the binding itself, not
+                // loans of the storage it owns.
                 if (access != CheckedStructuralAccess::SharedBorrow
+                    && !projected_borrow
                     && local.is_mutable != exclusive_borrow)
                     || local.symbol != symbol
                     || (!unrestricted

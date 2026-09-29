@@ -181,3 +181,46 @@ fn verify_page_shape_composes() {
         "verify_page shape composes: {operations:#?}"
     );
 }
+
+#[test]
+fn mutable_borrow_of_indexed_structural_result_element_lends_the_element() {
+    let operations = operations(
+        r#"
+        data Room { exit_count: u32; }
+        data Main { }
+        machine Main::bump(&mut self, room: &mut Room) {
+            room.exit_count = 1;
+        }
+        machine Main::main(&mut self) {
+            let rooms: [Room; 1] = [Room { exit_count: 0 }];
+            let from_index: u64 = 0;
+            self.bump(&mut rooms[from_index]);
+        }
+        "#,
+    );
+    let Some(CheckedUnitEffectOperationPlan::CallUnit {
+        structural_arguments,
+        ..
+    }) = operations
+        .iter()
+        .find(|operation| matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. }))
+    else {
+        panic!("the bump call is planned: {operations:#?}")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("the call passes one structural argument: {structural_arguments:#?}")
+    };
+    assert!(
+        matches!(
+            argument.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: 0
+            }
+        ) && argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+            && argument.path.as_slice()
+                == [checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                    0
+                )],
+        "the caller's array local lends its folded element mutably: {argument:#?}"
+    );
+}

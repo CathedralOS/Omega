@@ -14,7 +14,7 @@ use crate::execution::terminal_unit::{
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
     MachineSupplyMode, Multiplicity, PermissionAccess, PermissionClaimIdentity,
     PermissionEventKind, PermissionEventSource, ProofFact, SignatureContractKind, StateParameter,
-    SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees, is_reference,
+    StatementNode, SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees, is_reference,
 };
 
 pub(crate) fn checked_call_scalar_arguments(
@@ -277,6 +277,31 @@ fn projected_argument_path_impl(
                 ));
             }
             facts::PlaceSegment::Index { expression } => {
+                // An immutable local scalar initialized to a literal is a
+                // fixed index in every way that matters to this walk: the
+                // binding can never change, so the selected element is as
+                // pinned as an authored constant. Fold it through the same
+                // literal-bound check `FixedIndex` segments take rather than
+                // reaching for runtime-selector evidence.
+                if let Some(index) = constant_local_index(program, state_symbol, *expression) {
+                    let container = crate::flow::CanonicalPlace {
+                        root: place.root,
+                        segments: place.segments[..position].to_vec(),
+                    };
+                    let container = crate::flow::canonical_place_type_reference(
+                        program,
+                        state_symbol,
+                        statement_index,
+                        &container,
+                    )?;
+                    if index >= fixed_array_literal_length(program, container)? {
+                        return None;
+                    }
+                    path.push(CheckedUnitStructuralPathSegment::FixedIndex(
+                        u64::try_from(index).ok()?,
+                    ));
+                    continue;
+                }
                 let machine = runtime_index_machine?;
                 let runtime_index =
                     runtime_index_parameter_position(program, state_symbol, *expression)
@@ -302,6 +327,38 @@ fn projected_argument_path_impl(
     let projected =
         crate::flow::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
     Some((projected, path))
+}
+
+/// The literal index an immutable local scalar names: `let i: u64 = 2`
+/// selects exactly element 2 for the whole state because nothing can write
+/// the binding. Only a bare `Name` selector spelled against a state-local
+/// immutable binding with a constant initializer folds here; every other
+/// shape stays on the runtime-selector routes.
+fn constant_local_index(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<usize> {
+    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let source_state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let local = program
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == name.symbol && !local.is_mutable => {
+                Some(local)
+            }
+            _ => None,
+        })?;
+    usize::try_from(
+        program
+            .expression_table
+            .constant_integer_value(local.initial_value)?,
+    )
+    .ok()
 }
 
 /// The dense scalar position a runtime-index selector names. The selector
@@ -641,7 +698,12 @@ pub(crate) fn ordinary_projected_call_is_supported(
                     .is_some()
                     && !target.is_self
                     && argument.path.iter().all(|segment| {
-                        matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
+                        matches!(
+                            segment,
+                            CheckedUnitStructuralPathSegment::Field(_)
+                                | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+                        )
                     })
                     && matches!(
                         argument.access,
