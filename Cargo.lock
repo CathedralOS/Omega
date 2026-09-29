@@ -760,6 +760,7 @@ dependencies = [
  "diagnostics",
  "function-identity",
  "object-file",
+ "optimization-core",
  "sha2",
  "target",
 ]

@@ -16,3 +16,6 @@ diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
 object-file = { path = "../../object/object-file" }
 target = { path = "../../target" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
