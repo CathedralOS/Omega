@@ -513,7 +513,7 @@ static FACT_BORROWED_STORAGE_RESTORATION_DEBT: TrustedSurfaceEntry = TrustedSurf
     id: "fact:borrowed-storage-restoration-debt",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "an exact canonical field hole under a borrowed machine-parameter root opened by MoveStructuralField and closed only by a same-typed StoreStructuralField at the identical path",
+    premises: "an exact canonical field hole under an eligible storage carrier opened by MoveStructuralField and closed only by a same-typed StoreStructuralField at the identical carrier and path; borrowed block carriers inherit authority from independently reconstructed origins, and interference resolves aliases on both the observation and debt",
     conclusion: "the verification-time debt: every non-crash exit, join, edge transfer, and operation touching the open subtree is replayed against the hole set; a producer assertion that the owner is restored is not evidence",
     dependencies: &["formation:operation-validation"],
     implementation: &[
