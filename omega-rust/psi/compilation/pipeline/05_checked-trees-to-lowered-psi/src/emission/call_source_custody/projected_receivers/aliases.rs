@@ -71,14 +71,9 @@ pub(super) fn parameter_source(
     let ExpressionNode::Borrow(initializer) =
         checked.expression_table.expression(local.initial_value)
     else {
-        if let Some(source) = call_result_source(
-            checked,
-            machine,
-            state,
-            *declaration_index,
-            owner,
-            local,
-        )? {
+        if let Some(source) =
+            call_result_source(checked, machine, state, *declaration_index, owner, local)?
+        {
             return Ok(Some(source));
         }
         return unsupported("receiver alias has no explicit borrow initializer");
@@ -310,15 +305,20 @@ pub(super) fn parameter_source(
                 std::slice::from_ref(&assignment.value),
             ),
             // The state's own terminator is not a use of the alias unless it
-            // names it. A transition that mentions the owner in a guard,
-            // target value or successor argument would carry the alias into a
-            // successor this pass does not model, so that still refuses; one
-            // that does not mention it simply ends the scan's statement.
+            // names it. A transition that mentions the owner in a target value
+            // or successor argument would carry the alias into a successor
+            // this pass does not model, so that still refuses; member reads of
+            // the referent inside the guard spend the loan at the state
+            // boundary instead. One that does not mention it simply ends the
+            // scan's statement.
             StatementNode::Transition(transition) => {
-                if transition_mentions_owner(checked, transition, owner) {
+                if !transition_mentions_owner(checked, transition, owner) {
+                    continue;
+                }
+                if !transition_reads_owner_fields(checked, transition, owner) {
                     return unsupported("receiver alias escapes through a transition");
                 }
-                continue;
+                (owner, &[][..])
             }
             _ => return unsupported("receiver alias suffix contains a write, local, or escape"),
         };
@@ -499,16 +499,13 @@ fn call_result_source(
         .ok_or(LoweringError::Unsupported(
             "receiver call alias has no borrow state",
         ))?;
-    let mut loans = borrow
-        .loans
-        .iter()
-        .filter(|(handle, loan)| {
-            borrow.state_owns_loan(borrow_state, *handle)
-                && loan.owner_symbol == owner
-                && loan.statement_index == declaration_index
-                && loan.kind == BorrowAccessKind::Mutable
-                && borrow.loan_owner_path(loan).is_empty()
-        });
+    let mut loans = borrow.loans.iter().filter(|(handle, loan)| {
+        borrow.state_owns_loan(borrow_state, *handle)
+            && loan.owner_symbol == owner
+            && loan.statement_index == declaration_index
+            && loan.kind == BorrowAccessKind::Mutable
+            && borrow.loan_owner_path(loan).is_empty()
+    });
     let Some((_, loan)) = loans.next() else {
         return Ok(None);
     };
@@ -642,12 +639,24 @@ fn transition_mentions_owner(
     transition: &checked_trees::statement::TableTransition,
     owner: SymbolHandle,
 ) -> bool {
-    use checked_trees::statement::{TransitionGuardNode, TransitionTargetNode};
+    use checked_trees::statement::TransitionGuardNode;
     if let TransitionGuardNode::When(guard) = transition.guard
         && contains_owner(checked, guard, owner)
     {
         return true;
     }
+    transition_targets_mention_owner(checked, transition, owner)
+}
+
+/// Whether a transition names `owner` in either target's successor arguments
+/// or a value target's own expression — the places that would carry it into
+/// a successor.
+fn transition_targets_mention_owner(
+    checked: &CheckedTrees,
+    transition: &checked_trees::statement::TableTransition,
+    owner: SymbolHandle,
+) -> bool {
+    use checked_trees::statement::TransitionTargetNode;
     [transition.target, transition.continuation]
         .into_iter()
         .filter(|handle| checked.statement_table.transition_target_is_valid(*handle))
@@ -664,4 +673,135 @@ fn transition_mentions_owner(
                 TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => false,
             },
         )
+}
+
+/// A transition spends the alias at the state boundary when its guard
+/// mentions the owner only inside member-access receivers — reads of the
+/// borrowed referent — and no target carries it into a successor.
+fn transition_reads_owner_fields(
+    checked: &CheckedTrees,
+    transition: &checked_trees::statement::TableTransition,
+    owner: SymbolHandle,
+) -> bool {
+    use checked_trees::statement::TransitionGuardNode;
+    matches!(transition.guard, TransitionGuardNode::When(guard)
+        if owner_mentions_are_member_reads(checked, guard, owner))
+        && !transition_targets_mention_owner(checked, transition, owner)
+}
+
+/// Whether every `owner` mention in the expression sits at the head of a
+/// member-access receiver chain. A bare mention — an argument, a call
+/// receiver, an index or pattern value — would carry the loan itself, so it
+/// is not a referent read.
+fn owner_mentions_are_member_reads(
+    checked: &CheckedTrees,
+    expression: ExpressionHandle,
+    owner: SymbolHandle,
+) -> bool {
+    let mut pending = vec![expression];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        match checked.expression_table.expression(expression) {
+            ExpressionNode::Member(member) if matches!(receiver_root(checked, member.receiver), Ok(root) if root == owner) => {
+                if !member_receiver_chain_roots_at_owner(checked, member.receiver, owner) {
+                    return false;
+                }
+            }
+            ExpressionNode::Name(name) => {
+                let members = checked
+                    .expression_table
+                    .name_path_member_symbols(name.member_symbols);
+                if name.head_symbol == owner && !members.is_empty() {
+                    continue;
+                }
+                if name.symbol == owner || name.head_symbol == owner || members.contains(&owner) {
+                    return false;
+                }
+            }
+            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+            ExpressionNode::Match(dispatch) => {
+                pending.push(dispatch.subject);
+                let arms = checked.expression_table.match_arms(dispatch.arms);
+                if arms.len() != dispatch.arms.len() {
+                    return false;
+                }
+                for arm in arms {
+                    if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                    pending.push(arm.value);
+                }
+            }
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
+            ExpressionNode::Cast(cast) => pending.push(cast.value),
+            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
+            ExpressionNode::Member(member) => pending.push(member.receiver),
+            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
+            ExpressionNode::Range(range) => pending.extend(
+                [range.start, range.end]
+                    .into_iter()
+                    .filter(|value| value.is_valid()),
+            ),
+            ExpressionNode::Call(call) => {
+                if call.receiver.is_valid() {
+                    pending.push(call.receiver);
+                }
+                pending
+                    .extend_from_slice(checked.expression_table.expression_handles(call.arguments));
+            }
+            ExpressionNode::ArrayLiteral(values) => {
+                pending.extend_from_slice(checked.expression_table.expression_handles(*values))
+            }
+            ExpressionNode::StructLiteral(literal) => pending.extend(
+                checked
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| field.value),
+            ),
+            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
+        }
+    }
+    true
+}
+
+/// Walk a member-access receiver chain to its root `Name`; the chain spells
+/// a read of the referent exactly when that root is `owner`. Segment indices
+/// inside the receiver are part of the read, but a mention of the owner
+/// inside an index is not.
+fn member_receiver_chain_roots_at_owner(
+    checked: &CheckedTrees,
+    expression: ExpressionHandle,
+    owner: SymbolHandle,
+) -> bool {
+    let mut cursor = expression;
+    let mut visited = Vec::new();
+    loop {
+        if visited.contains(&cursor) {
+            return false;
+        }
+        visited.push(cursor);
+        match checked.expression_table.expression(cursor) {
+            ExpressionNode::Name(name) => {
+                return name.head_symbol == owner || name.symbol == owner;
+            }
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            ExpressionNode::Indexed(indexed) => {
+                if contains_owner(checked, indexed.index, owner) {
+                    return false;
+                }
+                cursor = indexed.collection;
+            }
+            _ => return false,
+        }
+    }
 }
