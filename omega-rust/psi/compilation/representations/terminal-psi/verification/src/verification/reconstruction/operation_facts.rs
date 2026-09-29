@@ -283,7 +283,36 @@ pub(super) fn append_operation(
             }),
         }
     }
-    if matches!(
+    if let OperationKind::StructuralScalarFieldStore {
+        destination, path, ..
+    } = &operation.kind
+        && !terminal_psi::is_static_structural_path(path)
+    {
+        // A field store through a runtime-selected element (`cells[i].hp`)
+        // writes some element of the array it selects in, exactly as a
+        // primitive store through one does: the written region is the static
+        // prefix before the first runtime index, observations of disjoint
+        // siblings (`self.i`, `self.scratch`) stay current, and it names no
+        // canonical leaf, so it publishes no field equation. A prefix that
+        // cannot be scoped forgets the whole root.
+        let static_prefix = path
+            .iter()
+            .position(|segment| segment.runtime_index().is_some())
+            .unwrap_or(path.len());
+        match crate::validation::canonical_field_path(
+            module,
+            machine,
+            *destination,
+            &path[..static_prefix],
+        ) {
+            Some(written) => field_snapshots::retain(axioms, capture_snapshots, |proposition| {
+                !crate::validation::proposition_observes_write(proposition, *destination, &written)
+            }),
+            None => field_snapshots::retain(axioms, capture_snapshots, |proposition| {
+                !crate::validation::proposition_observes_places(proposition, &[*destination])
+            }),
+        }
+    } else if matches!(
         operation.kind,
         OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::ByteSequenceStore { .. }

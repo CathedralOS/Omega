@@ -693,6 +693,72 @@ pub(crate) fn lower_indexed_path(
     ))
 }
 
+/// The static prefix and element path of a scalar field inside a
+/// runtime-selected record element (`cells[i].hp`). The prefix ends at the
+/// fixed array, as for a primitive element; the element path walks the
+/// selected record through structural fields and literal indexes and ends at
+/// one relevant, non-address integer or Boolean scalar field. The reader
+/// places its `RuntimeIndex` segment between the two, and the verifier
+/// resolves the same leaf with `terminal_semantics::runtime_element_field`.
+pub(crate) fn lower_indexed_element_field_path(
+    structural_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    element_path: &[CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<
+    (
+        Vec<terminal_psi::StructuralPathSegment>,
+        Vec<terminal_psi::StructuralPathSegment>,
+        ScalarType,
+    ),
+    LoweringError,
+> {
+    let (steps, walked) = walk_path(structural_type, path, types)?;
+    let Walked::Declared(structural_type) = walked else {
+        return unsupported("indexed element field projection does not end at a fixed array");
+    };
+    let StructuralTypeShape::FixedArray { element, .. } =
+        unique_type(types, structural_type)?.shape
+    else {
+        return unsupported("indexed element field projection does not end at a fixed array");
+    };
+    let Some((CheckedUnitStructuralPathSegment::Field(identity), carrier)) =
+        element_path.split_last()
+    else {
+        return unsupported("indexed element field path does not end at a field");
+    };
+    let (carrier_steps, walked) = walk_path(element, carrier, types)?;
+    let Walked::Declared(record) = walked else {
+        return unsupported("indexed element field carrier is not a record");
+    };
+    let StructuralTypeShape::Record { fields } = &unique_type(types, record)?.shape else {
+        return unsupported("indexed element field carrier is not a record");
+    };
+    let mut matching = fields.iter().filter(|field| field.identity == *identity);
+    let field = matching.next().ok_or(LoweringError::Unsupported(
+        "indexed element field is absent",
+    ))?;
+    if matching.next().is_some() || field.relevance.is_erased() {
+        return unsupported("indexed element field is erased or ambiguous");
+    }
+    let scalar_type = match field.field_type {
+        StructuralFieldType::Scalar(ScalarType::Boolean) => ScalarType::Boolean,
+        StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {
+            ScalarType::Integer(integer)
+        }
+        _ => return unsupported("indexed element field is not an integer or Boolean scalar"),
+    };
+    let mut element_path = super::runtime_elements::static_segments(carrier_steps)?;
+    element_path.push(terminal_psi::StructuralPathSegment::Field(
+        field.identity.clone(),
+    ));
+    Ok((
+        super::runtime_elements::static_segments(steps)?,
+        element_path,
+        scalar_type,
+    ))
+}
+
 /// Walk the checked segments from the destination root, resolving each field
 /// against its declared record, and return the steps and the structural
 /// type they select. Each runtime element names a distinct selector of the

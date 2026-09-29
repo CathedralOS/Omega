@@ -1255,7 +1255,7 @@ impl TerminalExecution {
     /// discriminator must name the observed case. Verification proves that
     /// case active before the read; a mismatch here is a malformed module,
     /// never a read of another case's overlay.
-    fn observed_field_parent(
+    pub(crate) fn observed_field_parent(
         &self,
         source: semantic_vocabulary::PlaceId,
         path: &[semantic_vocabulary::CanonicalStructuralPathSegment],

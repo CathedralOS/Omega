@@ -51,7 +51,8 @@ pub use call_composition::{
 pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};
 pub use primitive_place::{
     canonical_primitive_path, canonical_static_projection, fixed_array_place_shape,
-    primitive_place_type, primitive_projection_type,
+    primitive_place_type, primitive_projection_type, primitive_read_projection_type,
+    runtime_element_field,
 };
 pub use proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafElision,

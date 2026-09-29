@@ -1,0 +1,35 @@
+// A scalar field of a RUNTIME-selected record element, read as a store value:
+// `self.cells[self.i].hp`. The read is one Terminal `PrimitiveScalarRead`
+// whose path selects the element with a `RuntimeIndex` segment and ends at
+// the element's `hp` field; the verifier bounds the selector against the
+// array's declared extent, and Omega loads `hp` at its declared offset inside
+// the element, past `tag`, plus `i` times the element stride.
+//
+// The four elements hold distinct `hp` values and element 2 also holds a
+// `tag`, so reading the wrong element, the wrong field or the wrong stride
+// gives a different exit. `i` is 2 -> exit 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell {
+    tag: u8;
+    hp: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    cells: [Cell; 4];
+    i: u64 [0..=3];
+    scratch: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.cells[0].hp = 5;
+    self.cells[1].hp = 11;
+    self.cells[2].hp = 70;
+    self.cells[2].tag = 9;
+    self.cells[3].hp = 13;
+    self.i = 2;
+    self.scratch = self.cells[self.i].hp;
+    self.console.exit_process(self.scratch);
+}

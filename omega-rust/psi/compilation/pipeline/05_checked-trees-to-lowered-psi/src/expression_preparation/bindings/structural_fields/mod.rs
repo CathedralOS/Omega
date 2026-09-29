@@ -708,6 +708,57 @@ pub(crate) fn resolve_indexed_array(
     .or(Ok(None))
 }
 
+/// Resolve a scalar field of a runtime-selected record element
+/// (`cells[i].hp`): `path` reaches the fixed array and `element_path` walks
+/// the selected element to one relevant integer or Boolean field. Returns the
+/// read's source, the array prefix, the element path that follows the
+/// `RuntimeIndex` segment, and the field's scalar type.
+pub(crate) fn resolve_indexed_element_field(
+    fields: &[StructuralScalarFieldBinding],
+    position: u32,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+) -> Result<
+    (
+        PlaceId,
+        Vec<terminal_psi::StructuralPathSegment>,
+        Vec<terminal_psi::StructuralPathSegment>,
+        ScalarType,
+    ),
+    LoweringError,
+> {
+    let mut matching = fields
+        .iter()
+        .filter(|field| field.source_position == position);
+    let binding = matching.next().ok_or(LoweringError::Unsupported(
+        "indexed element field read has no readable binding",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("indexed element field read has ambiguous bindings");
+    }
+    let static_segments = |path: &[checked_trees::CheckedStructuralPredicatePathSegment]| {
+        path.iter()
+            .map(|segment| match segment {
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                    Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
+                }
+                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                    Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
+                }
+                _ => unsupported("indexed element field read has an unsupported case path"),
+            })
+            .collect::<Result<Vec<_>, _>>()
+    };
+    let (path, element_path, scalar_type) =
+        crate::emission::primitive_store::lower_indexed_element_field_path(
+            binding.structural_type,
+            &static_segments(path)?,
+            &static_segments(element_path)?,
+            &binding.declarations,
+        )?;
+    Ok((binding.source, path, element_path, scalar_type))
+}
+
 pub(crate) fn resolve_primitive(
     fields: &[StructuralScalarFieldBinding],
     position: u32,

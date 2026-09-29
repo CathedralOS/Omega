@@ -175,7 +175,27 @@ from the original root to a primitive structural leaf. Empty paths keep the
 whole-primitive contract. Nonempty paths select relevant structural record fields
 and fixed-array indices; each index must be below its declared extent, including
 every dimension of a nested array. Cases, reference crossings and nonprimitive
-leaves reject. This is direct storage access, not a synthetic record field or an
+leaves reject.
+
+A read, and only a read, may also end at a scalar field of a record element it
+selects at run time: `self.cells[self.i].hp` is one `PrimitiveScalarRead` whose
+path is `cells`, `RuntimeIndex`, `hp`. The final field must be a relevant,
+non-address integer or Boolean `Scalar` field of the record the carrier
+resolves to; erased, bounded, IEEE, byte and structural fields reject, and so
+does a carrier with no runtime element, which keeps the canonical
+`IntegerStructuralField` or `BooleanStructuralField` read. Each runtime element
+owns the obligation every runtime segment owns, `index < extent` plus
+`0 <= index` for a signed selector, reconstructed against the array its prefix
+resolves to. The read observes "some element", so it names no canonical leaf
+and keys no field fact; a bounded field's declared range is supplied only by
+the canonical read, which is why bounded fields stay outside this route.
+This route was chosen over a runtime carrier on the field observations because
+the primitive read already carries runtime elements through verification, the
+codec, the interpreter and every Omega stage, while the field observations'
+canonical carrier is the key every field fact uses; the field store keeps its
+own operation because only it owns a bounded field's range obligation. Omega
+rebuilds the leaf from declarations: the carrier's static offset and
+`(index, stride)` runs, then the field's declared offset inside the record. This is direct storage access, not a synthetic record field or an
 introduced reference lifetime. Root access, whole-value availability, claims,
 qualifications and conflicting loans remain independently checked. An affine
 root stays affine; observing or replacing an unrestricted leaf does not consume
@@ -232,15 +252,19 @@ only the underlying scalar carrier would invalidate later range snapshots.
 Integer and Boolean field observations
 remain distinct operations and require readable access. A field or primitive
 store whose path crosses a runtime element names no canonical leaf: it
-publishes no field equation, forgets the current facts of its destination
-root, and overlaps every element of the array it selects in.
+publishes no field equation, forgets the current facts observed beneath the
+static prefix before its first runtime element (the array it selects in),
+and overlaps every element of that array. Facts of disjoint siblings, such as
+the selector's own field, stay current; a prefix that cannot be scoped
+forgets the whole destination root.
 
 `IntegerStructuralField` and `BooleanStructuralField` retain the whole source
 place, an ordered canonical carrier path, and the final declaration-local field
 ID. The carrier path excludes the final field; an empty path is a direct read.
 Each record step selects a relevant structural field of a record by its exact
 parent-local ID. One literal fixed index may end the carrier when its element
-record owns the field. One `Case` step may end the carrier when the preceding
+record owns the field. A runtime-selected element's field is read by
+`PrimitiveScalarRead` instead (see the store vocabulary above). One `Case` step may end the carrier when the preceding
 record steps reach a sum. The final field is then a relevant scalar payload
 field of that exact declared case. A case payload is overlaid at the sum's own
 place, so the carrier's shape is no evidence that the overlay is live. Each
