@@ -162,6 +162,81 @@ fn indexed_byte_replacement_preserves_a_separately_initialized_sibling() {
 }
 
 #[test]
+fn joined_field_guards_preserve_the_stored_bytes_bound() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Record { out: [u8;3] in Utf8; byte: u8; }
+        machine Record::replace(&mut self, choice: u8, byte: u8) {
+            self.out = "XXX";
+            transition choice == 0 { true -> supplied(byte) _ -> space() }
+            state supplied(&mut self, byte: u8) {
+                self.byte = byte;
+                transition self.byte < 128 { true -> write() _ -> done() }
+            }
+            state space(&mut self) {
+                self.byte = 32;
+                transition self.byte < 128 { true -> write() _ -> done() }
+            }
+            state write(&mut self) { self.out[1] = self.byte; }
+            state done(&mut self) { }
+        }
+        "#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("both arrivals prove the observed field is ASCII")
+    .into_artifact();
+    terminal_codec::verify_terminal_artifact_proof(
+        &artifact,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the receiver checks both incoming paths without source");
+    run_stores(&artifact, &[0, 65], &[b"", b"XXX", b"XAX"]);
+    run_stores(&artifact, &[1, 200], &[b"", b"XXX", b"X X"]);
+    run_stores(&artifact, &[0, 200], &[b"", b"XXX"]);
+
+    let mut changed =
+        lower_machine(&checked, TerminalMachineSelection::Name("Record::replace")).unwrap();
+    let mut changed_guards = 0;
+    for operation in changed
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+    {
+        if let OperationKind::IntegerConstant { value } = &mut operation.kind
+            && *value == IntegerValue::Unsigned(128)
+        {
+            *value = IntegerValue::Unsigned(255);
+            changed_guards += 1;
+        }
+    }
+    assert_eq!(changed_guards, 2, "both authored guards remain explicit");
+    assert!(
+        terminal_verifier::verify_module(
+            &changed.semantic_module,
+            &changed.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a wider guard cannot reuse the original arrival certificates"
+    );
+    changed.semantic_module.scalar_block_invariants.clear();
+    changed.proof_bundle = terminal_verifier::ProofBundle::default();
+    assert!(
+        crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err(),
+        "candidate discovery must reject an arrival that permits a non-ASCII byte"
+    );
+}
+
+#[test]
 fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
     let checked = crate::front_end::checked_program(
         r#"

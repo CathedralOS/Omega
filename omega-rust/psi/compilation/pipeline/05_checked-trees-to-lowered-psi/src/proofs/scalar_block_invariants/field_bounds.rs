@@ -1,7 +1,7 @@
-//! Propose storage-observation bounds at cyclic headers.
+//! Propose storage-observation bounds at control-flow joins.
 //!
 //! A relation obligation on a field-read value can need a fact no path fact
-//! carries: the field's own state across the iteration cut. Transporting the
+//! carries: the field's own state across a merge or iteration cut. Transporting the
 //! bound through the read's exact equation produces a candidate invariant on
 //! the observed leaf, scoped to places alive for the whole invocation.
 //! Retain selected field guards as premises: an exit backedge may invalidate
@@ -26,14 +26,11 @@ pub(super) fn candidates(
     declines: &mut crate::proofs::ProofSearchDeclines,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
-    let mut proposed = BTreeSet::new();
     for machine in &module.machines {
+        let mut proposed = BTreeSet::new();
         let Ok(components) = terminal_verifier::control_cycle_members(machine) else {
             continue;
         };
-        if components.is_empty() {
-            continue;
-        }
         // An invariant may observe only places alive at its header's
         // arrivals: machine parameters and block parameters. Operation
         // results, literals, and other produced places can never qualify, so
@@ -92,13 +89,6 @@ pub(super) fn candidates(
             }) else {
                 continue;
             };
-            let Some(component) = components
-                .iter()
-                .find(|component| component.contains(&block.id))
-            else {
-                // Acyclic demands are the join synthesizer's scope.
-                continue;
-            };
             let equations = FieldEquations::new(&site.semantic_axioms, &invocation_roots);
             if equations.fields.is_empty() {
                 continue;
@@ -120,27 +110,34 @@ pub(super) fn candidates(
                 .filter(|fact| literal_comparison(fact))
                 .filter_map(|fact| transport_relation(fact, &equations))
                 .collect::<BTreeSet<_>>();
-            // A cyclic header is entered from outside its component. Members
-            // reachable only through the cycle itself carry the same facts
-            // forward; the externally entered member is where the iteration
-            // hypothesis must hold on every actual arrival.
-            let externally_entered = |member: &BlockId| {
-                predecessors
-                    .get(member)
-                    .is_some_and(|sources| sources.iter().any(|source| !component.contains(source)))
-            };
-            // Nested cycles share one component but have their own iteration
-            // entries: reconstruction cuts incoming facts at each feedback
-            // target, so a bound the inner backedge invalidates can only be
-            // inductive at the inner header dominating this operation.
-            let Ok(iteration_entries) =
-                terminal_verifier::dominating_control_cycle_entries(machine, block.id)
-            else {
-                continue;
-            };
-            for header in component.iter().copied().filter(|member| {
+            // Distinct arrivals may observe the same field through different
+            // SSA values. Their bounds disappear at ordinary fact intersection
+            // even when every arrival proves the same storage predicate. Loop
+            // headers and ordinary joins need the same all-arrival transaction.
+            // Walk backwards from this demand so unrelated joins receive no
+            // proposal. A candidate is not authority: intervening writes and
+            // unsupported arrivals still make its ordinary proof fail.
+            let mut ancestors = BTreeSet::new();
+            let mut pending = vec![block.id];
+            while let Some(predecessor) = pending.pop() {
+                let Some(next) = remaining.checked_sub(1) else {
+                    declines.record(
+                        crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
+                    );
+                    return candidates;
+                };
+                *remaining = next;
+                if ancestors.insert(predecessor)
+                    && let Some(sources) = predecessors.get(&predecessor)
+                {
+                    pending.extend(sources.iter().copied());
+                }
+            }
+            for header in ancestors.into_iter().filter(|member| {
                 *member != machine.entry
-                    && (externally_entered(member) || iteration_entries.contains(member))
+                    && predecessors
+                        .get(member)
+                        .is_some_and(|sources| sources.len() > 1)
             }) {
                 let Some(header_block) = machine.blocks.iter().find(|block| block.id == header)
                 else {
