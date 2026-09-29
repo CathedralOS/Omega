@@ -21,6 +21,10 @@
 //! - NaN classification: payload in, `CMPUNORDSS`/`CMPUNORDSD` against itself,
 //!   `PSRLD #31`, `MOVD` out. The low dword of either format's unordered mask
 //!   becomes canonical zero or one, without evaluating the operand twice;
+//! - infinity classification: payload in, `PSLLD/Q #1` then `PSRLD/Q #1`
+//!   clear only its sign bit; materialize positive infinity into `xmm5`,
+//!   `CMPEQSS/SD`, `PSRLD #31`, `MOVD` out. Equality excludes NaNs and finite
+//!   values; the Boolean result remains flag-free and requires only SSE2;
 //! - integer to float: one `CVTSI2S?` reading the general register (32-bit
 //!   for `i32`, 64-bit for `i64`), move out. A `u32` operand is first copied
 //!   with a 32-bit `MOV` into the result register, which zero-extends it, and
@@ -167,8 +171,9 @@ enum Instruction {
     AllOnes { xmm: u8 },
     /// `66 0F 73|72 /6 ib`: `PSLLQ`/`PSLLD xmm, count`.
     ShiftLeft { quad: bool, xmm: u8, count: u8 },
-    /// `66 0F 72 /4|/2 ib`: `PSRAD`/`PSRLD xmm, count`.
+    /// `66 0F 72 /4|/2 ib`: `PSRAD`/`PSRLD`; `73 /2`: `PSRLQ`.
     ShiftRight {
+        quad: bool,
         arithmetic: bool,
         xmm: u8,
         count: u8,
@@ -253,13 +258,14 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
             count,
         ]),
         Instruction::ShiftRight {
+            quad,
             arithmetic,
             xmm,
             count,
         } => bytes.extend([
             0x66,
             0x0f,
-            0x72,
+            if quad { 0x73 } else { 0x72 },
             modrm(if arithmetic { 4 } else { 2 }, xmm),
             count,
         ]),
@@ -359,7 +365,8 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
                     xmm: rm,
                     count: *count,
                 },
-                (0x72, 4 | 2) => Instruction::ShiftRight {
+                (0x72, 4 | 2) | (0x73, 2) => Instruction::ShiftRight {
+                    quad: *opcode == 0x73,
                     arithmetic: reg == 4,
                     xmm: rm,
                     count: *count,
@@ -552,6 +559,49 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
         source: LEFT_SCRATCH,
     };
     match form.operation {
+        IeeeFloatArithmeticOperation::IsInfinite => vec![
+            move_in(registers[0], LEFT_SCRATCH, double),
+            Instruction::ShiftLeft {
+                quad: double,
+                xmm: LEFT_SCRATCH,
+                count: 1,
+            },
+            Instruction::ShiftRight {
+                quad: double,
+                arithmetic: false,
+                xmm: LEFT_SCRATCH,
+                count: 1,
+            },
+            // The input is retained in xmm4 before the result is used to
+            // materialize infinity, allowing an aliased input/result home.
+            Instruction::MoveImmediate64 {
+                general: result,
+                value: if double {
+                    0x7ff0_0000_0000_0000
+                } else {
+                    0x7f80_0000
+                },
+            },
+            move_in(result, RIGHT_SCRATCH, double),
+            Instruction::CompareScalar {
+                double,
+                predicate: 0,
+                destination: LEFT_SCRATCH,
+                source: RIGHT_SCRATCH,
+            },
+            Instruction::ShiftRight {
+                quad: false,
+                arithmetic: false,
+                xmm: LEFT_SCRATCH,
+                count: 31,
+            },
+            Instruction::Transfer {
+                to_float: false,
+                wide: false,
+                xmm: LEFT_SCRATCH,
+                general: result,
+            },
+        ],
         IeeeFloatArithmeticOperation::IsNan => vec![
             move_in(registers[0], LEFT_SCRATCH, double),
             Instruction::CompareScalar {
@@ -564,6 +614,7 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
             // Normalize it to a Boolean with flag-free SSE2, then MOVD
             // zero-extends the result instead of retaining a floating mask.
             Instruction::ShiftRight {
+                quad: false,
                 arithmetic: false,
                 xmm: LEFT_SCRATCH,
                 count: 31,
@@ -638,6 +689,7 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
                     count: shift,
                 },
                 Instruction::ShiftRight {
+                    quad: false,
                     arithmetic: source.is_signed(),
                     xmm: LEFT_SCRATCH,
                     count: shift,
@@ -1154,6 +1206,39 @@ mod tests {
         );
         assert_eq!(unsigned[9..14], [0x66, 0x0f, 0x72, 0xd4, 0x10]);
         assert_eq!(unsigned[18..22], [0xf2, 0x0f, 0x5a, 0xe4]);
+    }
+
+    #[test]
+    fn infinity_classification_encodings_match_the_architectural_bytes() {
+        for (format, expected) in [
+            (
+                IeeeFloatFormat::Binary32,
+                vec![
+                    0x66, 0x0f, 0x6e, 0xe7, 0x66, 0x0f, 0x72, 0xf4, 0x01, 0x66, 0x0f, 0x72, 0xd4,
+                    0x01, 0x48, 0xb8, 0x00, 0x00, 0x80, 0x7f, 0x00, 0x00, 0x00, 0x00, 0x66, 0x0f,
+                    0x6e, 0xe8, 0xf3, 0x0f, 0xc2, 0xe5, 0x00, 0x66, 0x0f, 0x72, 0xd4, 0x1f, 0x66,
+                    0x0f, 0x7e, 0xe0,
+                ],
+            ),
+            (
+                IeeeFloatFormat::Binary64,
+                vec![
+                    0x66, 0x48, 0x0f, 0x6e, 0xe7, 0x66, 0x0f, 0x73, 0xf4, 0x01, 0x66, 0x0f, 0x73,
+                    0xd4, 0x01, 0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x7f, 0x66,
+                    0x48, 0x0f, 0x6e, 0xe8, 0xf2, 0x0f, 0xc2, 0xe5, 0x00, 0x66, 0x0f, 0x72, 0xd4,
+                    0x1f, 0x66, 0x0f, 0x7e, 0xe0,
+                ],
+            ),
+        ] {
+            assert_eq!(
+                bytes_of(
+                    IeeeFloatArithmeticOperation::IsInfinite,
+                    format,
+                    &["rdi", "rax"]
+                ),
+                expected
+            );
+        }
     }
 
     #[test]

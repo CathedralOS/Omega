@@ -253,6 +253,7 @@ fn compiler_builtin_execution(
                 symbols::BuiltinFunction::Max => Arithmetic::Maximum,
                 symbols::BuiltinFunction::Sqrt => Arithmetic::SquareRoot,
                 symbols::BuiltinFunction::FloatIsNan => Arithmetic::IsNan,
+                symbols::BuiltinFunction::FloatIsInfinite => Arithmetic::IsInfinite,
                 _ => return None,
             };
             (operation, boundary_format?)

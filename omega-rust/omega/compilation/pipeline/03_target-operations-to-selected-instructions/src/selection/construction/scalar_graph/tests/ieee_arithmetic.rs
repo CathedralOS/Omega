@@ -22,7 +22,7 @@ use semantic_vocabulary::{
 /// strictly smaller or greater, as `FloatSemantics::minimum`/`maximum` do.
 pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
     use IeeeFloatArithmeticOperation::{
-        Add, ConvertFormat, Divide, FromInteger, IsNan, Maximum, Minimum, Multiply,
+        Add, ConvertFormat, Divide, FromInteger, IsInfinite, IsNan, Maximum, Minimum, Multiply,
         MultiplyThenAdd, Negate, SquareRoot, Subtract, TruncateToInteger,
     };
     use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32};
@@ -55,6 +55,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                     Multiply => a * b,
                     MultiplyThenAdd => a * b + f32::from_bits(operands[2] as u32),
                     IsNan => return u64::from(a.is_nan()),
+                    IsInfinite => return u64::from(a.is_infinite()),
                     Divide => a / b,
                     Minimum => {
                         if a < b {
@@ -93,6 +94,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                 Multiply => a * b,
                 MultiplyThenAdd => a * b + f64::from_bits(operands[2]),
                 IsNan => return u64::from(a.is_nan()),
+                IsInfinite => return u64::from(a.is_infinite()),
                 Divide => a / b,
                 Minimum => {
                     if a < b {
@@ -130,7 +132,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
 /// minimum/maximum case has a NaN first operand, which yields the second.
 fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
     use IeeeFloatArithmeticOperation::{
-        Add, ConvertFormat, Divide, FromInteger, IsNan, Maximum, Minimum, Multiply,
+        Add, ConvertFormat, Divide, FromInteger, IsInfinite, IsNan, Maximum, Minimum, Multiply,
         MultiplyThenAdd, Negate, SquareRoot, Subtract, TruncateToInteger,
     };
     use IeeeFloatFormat::{Binary32, Binary64};
@@ -173,6 +175,8 @@ fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
     match (form.format, form.operation) {
         (Binary32, IsNan) => [0x7fc0_0001, 0, 1],
         (Binary64, IsNan) => [0x7ff8_0000_0000_0001, 0, 1],
+        (Binary32, IsInfinite) => [0xff80_0000, 0, 1],
+        (Binary64, IsInfinite) => [0xfff0_0000_0000_0000, 0, 1],
         (Binary32, MultiplyThenAdd) => [0x3f80_0001, 0x3f80_0001, 0],
         (Binary64, MultiplyThenAdd) => [0x3ff0_0000_0000_0001, 0x3ff0_0000_0000_0001, 0],
         // 1 + 3*2^-54 -> 1 + 2^-52

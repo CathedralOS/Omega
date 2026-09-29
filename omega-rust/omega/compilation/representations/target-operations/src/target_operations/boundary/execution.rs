@@ -31,14 +31,15 @@ pub struct ProviderExecutionBinding {
 }
 
 /// One IEEE-754 operation on the realization's `format`. Every operation but
-/// `TruncateToInteger` and `IsNan` yields a value of that format rounded to nearest,
+/// `TruncateToInteger` and Boolean classification yields a value of that format
+/// rounded to nearest,
 /// ties to even: Omega's canonical floating controls hold that rounding mode
 /// at every native boundary, so ordinary scalar instructions realize it
 /// without a mode change or a software fallback. Minimum, maximum, negation
 /// and widening are exact, so each is its own nearest-even rounding.
 /// `TruncateToInteger` reads one `format` operand and yields its integer
 /// carrier, rounding toward zero as the conversion requirement declares.
-/// `IsNan` instead returns Boolean, with no rounding or payload result.
+/// Classification instead returns Boolean, with no rounding or payload result.
 ///
 /// Multiply-then-add reads three operands and rounds twice; binary arithmetic
 /// reads two operands, and unary operations read one. The operand of
@@ -80,6 +81,8 @@ pub enum IeeeFloatArithmeticOperation {
     MultiplyThenAdd,
     /// Classify one evaluated payload; every NaN is true, all other values false.
     IsNan,
+    /// True for either infinity; false for finite values and every NaN.
+    IsInfinite,
 }
 
 /// The arithmetic domains of a float-to-integer conversion that realize as
@@ -170,8 +173,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 32] = {
-        let mut all = [Self::Add; 32];
+    pub const ALL: [Self; 33] = {
+        let mut all = [Self::Add; 33];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -201,6 +204,7 @@ impl IeeeFloatArithmeticOperation {
         }
         all[30] = Self::MultiplyThenAdd;
         all[31] = Self::IsNan;
+        all[32] = Self::IsInfinite;
         all
     };
 
@@ -224,6 +228,7 @@ impl IeeeFloatArithmeticOperation {
             Self::ConvertFormat => 8,
             Self::MultiplyThenAdd => 30,
             Self::IsNan => 31,
+            Self::IsInfinite => 32,
             // The 32- and 64-bit carriers came first (9 through 17); the
             // narrow carriers follow (18 through 29).
             Self::FromInteger(carrier) => {
@@ -261,6 +266,7 @@ impl IeeeFloatArithmeticOperation {
             | Self::Maximum => 2,
             Self::Negate
             | Self::IsNan
+            | Self::IsInfinite
             | Self::SquareRoot
             | Self::ConvertFormat
             | Self::FromInteger(_)
@@ -291,7 +297,7 @@ impl IeeeFloatArithmeticOperation {
         format: semantic_vocabulary::IeeeFloatFormat,
     ) -> semantic_vocabulary::ScalarType {
         match self {
-            Self::IsNan => semantic_vocabulary::ScalarType::Boolean,
+            Self::IsNan | Self::IsInfinite => semantic_vocabulary::ScalarType::Boolean,
             Self::TruncateToInteger { target, .. } => {
                 semantic_vocabulary::ScalarType::Integer(target.integer_type())
             }
