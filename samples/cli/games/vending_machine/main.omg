@@ -90,7 +90,7 @@ machine Main::apply(&mut self, event: Event) {
     }
 
     state try_dispense(&mut self, slot: i32 in Saturating) {
-        let price: i32 in Saturating = self.price_of(slot);
+        let price: i32 in Saturating = Main::price_of(slot);
         transition self.register.balance >= price {
             true -> dispense(price)
             false -> idle()
@@ -102,12 +102,12 @@ machine Main::apply(&mut self, event: Event) {
         self.register.balance = 0;
     }
 
-    state idle(&mut self) {
+    state idle() {
     }
 }
 
 // Slot 1 costs 75 cents; everything else is free (price 0) for this demo.
-machine Main::price_of(&mut self, slot: i32 in Saturating) -> i32 in Saturating {
+machine Main::price_of(slot: i32 in Saturating) -> i32 in Saturating {
     transition slot == 1 {
         true -> seventy_five()
         _ -> zero()

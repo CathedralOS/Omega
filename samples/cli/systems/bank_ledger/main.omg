@@ -140,7 +140,7 @@ machine Main::deposit(&mut self, amount: i32 in Saturating) {
     }
     state write5(&mut self, amount: i32 in Saturating) { self.ledger.txns[5] = amount; }
 
-    state done(&mut self) {}
+    state done() {}
 }
 
 // Withdraw: store as negative amount.

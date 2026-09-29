@@ -99,7 +99,7 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
         self.alarm.active = 0;
     }
 
-    state done(&mut self) {}
+    state done() {}
 }
 
 machine Main::main(&mut self) reaches Console {

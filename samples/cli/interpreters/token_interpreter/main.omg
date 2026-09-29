@@ -98,7 +98,7 @@ machine Main::exec(&mut self, tok: Token) {
         self.interp.acc = max;
     }
 
-    state done(&mut self) {}
+    state done() {}
 }
 
 machine Main::main(&mut self) reaches Console {

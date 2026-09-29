@@ -38,15 +38,15 @@ machine Main::price_of(&mut self, item: i32 in Wrapping) -> i32 {
         true -> cheap()
         _ -> upper(item)
     }
-    state cheap(&mut self) -> i32 { 35 }
-    state upper(&mut self, item: i32 in Wrapping) {
+    state cheap() -> i32 { 35 }
+    state upper(item: i32 in Wrapping) {
         transition item == 1 {
             true -> mid()
             _ -> dear()
         }
     }
-    state mid(&mut self) -> i32 { 50 }
-    state dear(&mut self) -> i32 { 65 }
+    state mid() -> i32 { 50 }
+    state dear() -> i32 { 65 }
 }
 
 // A dispatch-bodied STRUCT result: quarters greedily, arms are PURE (bare
@@ -57,10 +57,10 @@ machine Main::make_change(&self, paid: i32 in Wrapping, price: i32 in Wrapping) 
         true -> coin(owed)
         _ -> rest(owed)
     }
-    state coin(&self, owed: i32 in Wrapping) -> Change {
+    state coin(owed: i32 in Wrapping) -> Change {
         Change { quarters: 1, remainder: owed - 25 }
     }
-    state rest(&self, owed: i32 in Wrapping) -> Change {
+    state rest(owed: i32 in Wrapping) -> Change {
         Change { quarters: 0, remainder: owed }
     }
 }

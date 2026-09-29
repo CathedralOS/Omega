@@ -77,7 +77,7 @@ machine Main::apply(&mut self, event: Event) {
         self.log.stats.balance = 0;
     }
 
-    state done(&mut self) {}
+    state done() {}
 }
 
 machine Main::main(&mut self) reaches Console {

@@ -86,7 +86,7 @@ machine Main::main(&mut self) reaches Console {
         false -> bad_sizes()
     }
 
-    state check_fields(&mut self, decoded: SensorPacketValue) {
+    state check_fields(decoded: SensorPacketValue) {
         let fields_ok: bool = decoded.header.room_id == 300
             && decoded.samples.length == 2
             && decoded.samples.items[0] == 150
@@ -163,7 +163,7 @@ terminates by fuel;
 {
     transition { _ -> fill(schema, fuel, 0) }
 
-    state fill(&mut self, schema: Schema, fuel: u64, index: i64 in Wrapping)
+    state fill(schema: Schema, fuel: u64, index: i64 in Wrapping)
     requires 1 <= fuel
     requires fuel <= 128 {
         transition fuel > 1 && index >= 0 && index < 32 && index < schema.field_count {

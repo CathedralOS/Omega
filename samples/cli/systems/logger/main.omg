@@ -68,7 +68,7 @@ machine Main::log(&mut self, level: LogLevel) {
         self.logger.error_code_sum = self.logger.error_code_sum + code;
     }
 
-    state done(&mut self) {}
+    state done() {}
 }
 
 machine Main::main(&mut self) reaches Console {

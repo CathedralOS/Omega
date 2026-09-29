@@ -72,7 +72,7 @@ machine Main::cmp_swap_01(&mut self) {
         self.s.arr[0] = b;
         self.s.arr[1] = a;
     }
-    state done_01(&mut self) {}
+    state done_01() {}
 }
 
 machine Main::cmp_swap_12(&mut self) {
@@ -86,7 +86,7 @@ machine Main::cmp_swap_12(&mut self) {
         self.s.arr[1] = b;
         self.s.arr[2] = a;
     }
-    state done_12(&mut self) {}
+    state done_12() {}
 }
 
 machine Main::cmp_swap_23(&mut self) {
@@ -100,7 +100,7 @@ machine Main::cmp_swap_23(&mut self) {
         self.s.arr[2] = b;
         self.s.arr[3] = a;
     }
-    state done_23(&mut self) {}
+    state done_23() {}
 }
 
 machine Main::cmp_swap_34(&mut self) {
@@ -114,7 +114,7 @@ machine Main::cmp_swap_34(&mut self) {
         self.s.arr[3] = b;
         self.s.arr[4] = a;
     }
-    state done_34(&mut self) {}
+    state done_34() {}
 }
 
 machine Main::cmp_swap_45(&mut self) {
@@ -128,7 +128,7 @@ machine Main::cmp_swap_45(&mut self) {
         self.s.arr[4] = b;
         self.s.arr[5] = a;
     }
-    state done_45(&mut self) {}
+    state done_45() {}
 }
 
 // ---- Bubble sort passes ----
