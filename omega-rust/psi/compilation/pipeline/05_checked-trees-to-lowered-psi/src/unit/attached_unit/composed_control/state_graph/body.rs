@@ -61,8 +61,9 @@ pub(super) fn validate(
     // ahead of `place = Atomic { .. }`) is the same kind of carrier: it
     // declares the prior's binding, which the carrier's one atomic event
     // defines at the next statement.
-    // An exclusive loan local (`let seen: &mut u8 = &mut self.byte;`) is the
-    // same kind of carrier. The binding is immutable and a reference cannot be
+    // An exclusive or shared loan local (`let seen: &mut u8 = &mut self.byte;`,
+    // `let b: &u32 = &self.size;`) is the same kind of carrier: it plans no
+    // operation, so its statement is a marker like the record pattern's.
     // reseated, so it names one place for its scope and holds no value of its
     // own: each write through it is planned as the ordinary store of that
     // place, and the binding itself plans nothing.
@@ -70,7 +71,7 @@ pub(super) fn validate(
         statements.get(index).is_some_and(|statement| {
             is_record_pattern_marker(statement)
                 || (!closed_sum && is_arm_pattern_marker(statement))
-                || is_exclusive_loan_marker(checked, statement)
+                || is_loan_marker(checked, statement)
         }) || crate::emission::atomic_sources::result_placeholder(checked, statements, index)
             // A runtime-indexed dispatch's shared subject plans no operation:
             // each arm observes the borrowed element itself.
@@ -869,26 +870,40 @@ fn is_record_pattern_marker(statement: &StatementNode) -> bool {
         if local.name.as_str().starts_with("__destructure#"))
 }
 
-/// A `let` binding an exclusive loan of a place declares no storage and plans
-/// no operation: the loan is compile-time information and each write through
-/// the name is rejoined to the loaned place by the store's own destination
+/// A `let` binding a loan of a place declares no storage and plans no
+/// operation: the loan is compile-time information and each access through
+/// the name is rejoined to the loaned place by the access's own place
 /// resolution. Reconstructed here from the authored statement rather than
 /// taken from the plan, which is what the surrounding count is checking.
-fn is_exclusive_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -> bool {
+fn is_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -> bool {
     let StatementNode::LocalData(local) = statement else {
         return false;
     };
-    !local.is_mutable
-        && matches!(
-            checked.expression_table.expression(local.initial_value),
-            checked_trees::expression::ExpressionNode::Borrow(borrow)
-                if borrow.access == language_core::ReferenceAccess::Mutable
-        )
-        && validation::reference_result_custody::mutable_borrowed_parts(
-            checked,
-            local.type_reference,
-        )
-        .is_some()
+    if local.is_mutable {
+        return false;
+    }
+    let checked_trees::expression::ExpressionNode::Borrow(borrow) =
+        checked.expression_table.expression(local.initial_value)
+    else {
+        return false;
+    };
+    match borrow.access {
+        language_core::ReferenceAccess::Mutable => {
+            validation::reference_result_custody::mutable_borrowed_parts(
+                checked,
+                local.type_reference,
+            )
+            .is_some()
+        }
+        language_core::ReferenceAccess::Shared => {
+            validation::reference_result_custody::shared_borrowed_parts(
+                checked,
+                local.type_reference,
+            )
+            .is_some()
+        }
+        _ => false,
+    }
 }
 
 fn is_arm_pattern_marker(statement: &StatementNode) -> bool {

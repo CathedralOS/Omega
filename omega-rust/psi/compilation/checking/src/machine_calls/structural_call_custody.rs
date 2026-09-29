@@ -592,6 +592,11 @@ pub fn reconstruct_structural_call_custody(
     let result_qualifications =
         if crate::machine_calls::reference_result_custody::parts(program, destination.return_type)
             .is_some()
+            || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
+                program,
+                destination.return_type,
+            )
+            .is_some()
         {
             // The reference carrier transports a loan, not owned referent claims.
             // Exact ingress substitution and its weakening are reconstructed below.

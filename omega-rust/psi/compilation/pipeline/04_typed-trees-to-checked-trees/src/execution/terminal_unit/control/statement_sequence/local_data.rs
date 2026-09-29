@@ -409,6 +409,15 @@ pub(super) fn plan(
     ) {
         return Some(LocalPlan::Planned);
     }
+    if is_shared_place_loan(
+        program,
+        state,
+        structural_parameters,
+        statement_index,
+        local,
+    ) {
+        return Some(LocalPlan::Planned);
+    }
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference) {
         if local.is_mutable {
             local_phase("statement sequence: local data: mutable primitive local: named type");
@@ -560,6 +569,79 @@ fn exclusive_place_loan_referent(
     )?;
     if borrow.access != language_core::ReferenceAccess::Mutable
         || access != CheckedStructuralAccess::MutableBorrow
+        || local.is_mutable
+    {
+        return None;
+    }
+    let statement = usize::try_from(statement_index).ok()?;
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement,
+        borrow.target,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let position = program
+        .state_parameters(state)
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
+    structural_parameters
+        .iter()
+        .position(|parameter| parameter.position as usize == position)?;
+    let (storage, _) = crate::execution::terminal_unit::calls::projected_argument_path(
+        program,
+        state.symbol,
+        statement,
+        &place,
+    )?;
+    (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
+        .then_some(())
+}
+
+/// A `let` binding a shared loan of a place: `let borrowed: &u32 =
+/// &self.size;`. Like the exclusive carrier above, the immutable binding
+/// denotes one place for its whole scope and plans no operation: every read
+/// through it is a read of that place, and the borrow layer owns the loan's
+/// lifetime. The conditions mirror the exclusive ones — the place roots at
+/// a structural parameter and its projection bottoms out in exactly the
+/// declared referent — minus write authority: the loan is `&`, never `&mut`,
+/// and the referent may still be a record or a primitive.
+fn is_shared_place_loan(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    statement_index: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    shared_place_loan_referent(
+        program,
+        state,
+        structural_parameters,
+        statement_index,
+        local,
+    )
+    .is_some()
+}
+
+fn shared_place_loan_referent(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    statement_index: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<()> {
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
+    else {
+        return None;
+    };
+    let (referee, access) = super::super::super::reference_results::shared_borrowed_parts(
+        program,
+        local.type_reference,
+    )?;
+    if borrow.access != language_core::ReferenceAccess::Shared
+        || access != CheckedStructuralAccess::SharedBorrow
         || local.is_mutable
     {
         return None;
