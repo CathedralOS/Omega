@@ -33,6 +33,14 @@
 // the SURROUNDING program, not only the statement: the identical borrow
 // reports a different phase once a transition follows it. Do not split this
 // into separate items by label, and do not pin a repair on any of the strings.
+//
+// Progress since: the shared `&` place loans (rows 1-2) now route through
+// the shared place-loan arm, and this fixture's own leg cleared the
+// result-position stack — leaf-loans gate, `ref` result signature, the
+// `EstablishReference` source-effect rejoin, and the verifier's
+// reference-shape admission — to its present wall:
+//   InvalidReferenceCustody: reference result changes its mapped source type
+// (the verifier's call-result source mapping in validation/references.rs).
 use omega_language_std::console;
 use omega::language::core::binding;
 

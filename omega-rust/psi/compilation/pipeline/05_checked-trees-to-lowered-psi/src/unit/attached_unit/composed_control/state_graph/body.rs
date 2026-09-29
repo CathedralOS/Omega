@@ -204,7 +204,12 @@ pub(super) fn validate(
             // A reference release names the upcoming statement instead (its
             // expiry boundary), so it takes the last consumed index directly.
             match authored_statement(operation) {
-                Some(_) if matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { .. }) && cursor > 0 => {
+                Some(_)
+                    if matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+                    ) && cursor > 0 =>
+                {
                     cursor - 1
                 }
                 Some(statement) if cursor > 0 && statement as usize == cursor - 1 => {
@@ -816,6 +821,18 @@ pub(super) fn validate(
                                 if borrow.access == language_core::ReferenceAccess::Mutable
                         )
                 ) => {}
+            // The shared sibling: a state's expression tail returning
+            // `&self.f` mints the same reference custody at the expression
+            // statement — the authored `&` borrow is the value it returns.
+            (
+                CheckedUnitEffectOperationPlan::EstablishReference { result, .. },
+                StatementNode::Expression(expression),
+            ) if result.statement_index as usize == ordinal
+                && matches!(
+                    checked.typed.expression_table.expression(*expression),
+                    typed_trees::expression::ExpressionNode::Borrow(borrow)
+                        if borrow.access == language_core::ReferenceAccess::Shared
+                ) => {}
             // A reference release rejoins either the statement at its expiry
             // boundary or, when the boundary's own operations have not yet
             // been consumed, the statement the walk last attributed.
@@ -1025,8 +1042,7 @@ fn is_exclusive_loan_marker(
                 .iter()
                 .map(|(_, candidate)| candidate)
                 .find(|candidate| {
-                    candidate.machine_symbol == machine
-                        && candidate.state_symbol == source.symbol
+                    candidate.machine_symbol == machine && candidate.state_symbol == source.symbol
                 })
             else {
                 return false;
@@ -1176,9 +1192,11 @@ fn statement_continuations(
             // boundary's statement, ahead of that statement's own
             // operations, so it rejoins the last statement consumed — marker
             // statements in between leave a gap the stamped boundary keeps.
-            if matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { .. })
-                && current.is_some_and(|consumed| continued.is_some_and(
-                    |boundary| boundary > consumed))
+            if matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::ReleaseReference { .. }
+            ) && current
+                .is_some_and(|consumed| continued.is_some_and(|boundary| boundary > consumed))
             {
                 return Ok(true);
             }
