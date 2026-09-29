@@ -35,7 +35,11 @@ pub(super) fn retain_provable(
     let original = terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     let mut remaining = ProofSearchCapacity::ScalarResultGuaranteeWork.limit() as usize;
-    let demanded = demanded_callees(lowered, &original, &mut remaining);
+    // Parameter-forwarding equations are a machine-level fact: demand
+    // discovery and result-relation building share one reconstruction per
+    // machine instead of re-deriving the same edge roster.
+    let mut forwarded: BTreeMap<MachineId, Vec<Proposition>> = BTreeMap::new();
+    let demanded = demanded_callees(lowered, &original, &mut remaining, &mut forwarded);
     let validated = terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     let mut candidates = Vec::new();
@@ -49,7 +53,8 @@ pub(super) fn retain_provable(
         let context = validated
             .value_context(machine)
             .map_err(LoweringError::InvalidTerminalModule)?;
-        if let Some(proposition) = result_relation(machine, &context, &mut remaining)
+        if let Some(proposition) =
+            result_relation(machine, &context, &mut remaining, &mut forwarded)
             && !machine
                 .contract
                 .ensures
@@ -115,6 +120,7 @@ fn demanded_callees(
     lowered: &LoweredPsi,
     original: &ReconstructedTerminalObligationSet,
     remaining: &mut usize,
+    forwarded: &mut BTreeMap<MachineId, Vec<Proposition>>,
 ) -> BTreeSet<MachineId> {
     let supplied = lowered
         .proof_bundle
@@ -149,9 +155,6 @@ fn demanded_callees(
         if calls.is_empty() {
             continue;
         }
-        let Some(forwarded) = forwarded_parameter_equations(machine, remaining) else {
-            return demanded;
-        };
         for site in original.obligations().iter().filter(|site| {
             site.owner.machine() == machine.id && !supplied.contains(&site.obligation.id)
         }) {
@@ -183,45 +186,36 @@ fn demanded_callees(
                     field_definitions.entry(field).or_default().push(equation);
                 }
             }
-            // A stored call result can be demanded by a later field read.
-            // Bridge that observation through only this site's surviving store
-            // equations. Reconstruction owns mutation invalidation; matching the
-            // complete field term preserves root, path and carrier identity.
-            // This selects a proof candidate, never establishes a field fact.
+            // Two complementary cases of the same observation shape share
+            // one axiom pass. A surviving exact store bridges a demanded
+            // field read to a call result — reconstruction owns mutation
+            // invalidation; matching the complete field term preserves root,
+            // path and carrier identity, and this selects a proof candidate,
+            // never establishes a field fact. Without that store, a join
+            // discarded the branch equation: the store table supplies
+            // possible dependencies instead — matching root and leaf field
+            // conservatively includes stores through different intermediate
+            // projections, none of which become axioms.
             for equation in &site.semantic_axioms {
                 if !charge(remaining, 1) {
                     return demanded;
                 }
-                if let Proposition::Equal(ScalarTerm::Value { id, .. }, observed) = equation
-                    && let Some(stores) = field_definitions.get(observed)
-                {
+                let Proposition::Equal(ScalarTerm::Value { id, .. }, observed) = equation
+                else {
+                    continue;
+                };
+                if let Some(stores) = field_definitions.get(observed) {
                     if !charge(remaining, stores.len()) {
                         return demanded;
                     }
                     definitions.entry(*id).or_default().extend(stores);
-                }
-            }
-            // A join deliberately discards branch-specific store equations.
-            // Demand discovery must still reach a callee whose result one of
-            // those branches stores. These are possible dependencies, NOT
-            // equalities: matching root and leaf field conservatively includes
-            // stores through different intermediate projections. No such store
-            // becomes an axiom. Callee guarantees and every joined bound still
-            // need their independently reconstructed proofs.
-            for equation in &site.semantic_axioms {
-                let Proposition::Equal(
-                    ScalarTerm::Value { id, .. },
-                    observed @ (ScalarTerm::IntegerField { root, path, .. }
-                    | ScalarTerm::BooleanField { root, path }),
-                ) = equation
-                else {
                     continue;
+                }
+                let (root, path) = match observed {
+                    ScalarTerm::IntegerField { root, path, .. }
+                    | ScalarTerm::BooleanField { root, path } => (root, path),
+                    _ => continue,
                 };
-                // A surviving exact store already answers this dependency;
-                // do not reselect calls whose results were overwritten.
-                if field_definitions.contains_key(observed) {
-                    continue;
-                }
                 let Some(semantic_vocabulary::CanonicalStructuralPathSegment::Field(field)) =
                     path.last()
                 else {
@@ -241,7 +235,12 @@ fn demanded_callees(
                     }
                 }
             }
-            for equation in &forwarded {
+            // Forwarded edges answer a demanded site, not the whole machine:
+            // build them once per machine only when a site actually needs them.
+            let Some(forwarded) = forwarded_equations(machine, remaining, forwarded) else {
+                return demanded;
+            };
+            for equation in forwarded {
                 if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation {
                     definitions.entry(*id).or_default().push(equation);
                 }
@@ -296,10 +295,26 @@ fn charge(remaining: &mut usize, count: usize) -> bool {
     }
 }
 
+/// Parameter-forwarding equations are one machine-level reconstruction.
+/// Share the computed roster through the pass's pool instead of paying its
+/// charge again at every consumer.
+fn forwarded_equations<'cache>(
+    machine: &TerminalMachine,
+    remaining: &mut usize,
+    forwarded: &'cache mut BTreeMap<MachineId, Vec<Proposition>>,
+) -> Option<&'cache Vec<Proposition>> {
+    if !forwarded.contains_key(&machine.id) {
+        let equations = forwarded_parameter_equations(machine, remaining)?;
+        forwarded.insert(machine.id, equations);
+    }
+    forwarded.get(&machine.id)
+}
+
 fn result_relation(
     machine: &TerminalMachine,
     context: &PropositionContext,
     remaining: &mut usize,
+    forwarded: &mut BTreeMap<MachineId, Vec<Proposition>>,
 ) -> Option<Proposition> {
     let result = machine.result.scalar_ref()?;
     if !charge(remaining, machine.parameters.len())
@@ -345,7 +360,7 @@ fn result_relation(
         )
         .map(|value| (value.id, value.scalar_type))
         .collect();
-    let mut equations = forwarded_parameter_equations(machine, remaining)?;
+    let mut equations = forwarded_equations(machine, remaining, forwarded)?.clone();
     for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
         *remaining = remaining.checked_sub(1)?;
         if let Some(meaning) =

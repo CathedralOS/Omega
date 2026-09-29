@@ -15,6 +15,7 @@ fn relation(lowered: &LoweredPsi) -> Option<Proposition> {
         machine,
         &validated.value_context(machine).unwrap(),
         &mut 4096,
+        &mut std::collections::BTreeMap::new(),
     )
 }
 
@@ -306,7 +307,8 @@ fn unresolved_block_parameters_and_exhaustion_decline() {
         result_relation(
             machine,
             &validated.value_context(machine).unwrap(),
-            &mut remaining
+            &mut remaining,
+            &mut std::collections::BTreeMap::new()
         ),
         None
     );
@@ -541,7 +543,12 @@ fn invalid_dynamic_result_proposal_preserves_the_complete_lowered_product() {
     );
     let mut remaining = 4096;
     assert_eq!(
-        super::demanded_callees(&lowered, &original, &mut remaining),
+        super::demanded_callees(
+            &lowered,
+            &original,
+            &mut remaining,
+            &mut std::collections::BTreeMap::new()
+        ),
         std::collections::BTreeSet::from([dispatch.realization]),
         "the transaction must reach the stored realization, not decline before proposing"
     );
@@ -552,6 +559,7 @@ fn invalid_dynamic_result_proposal_preserves_the_complete_lowered_product() {
         realization,
         &validated.value_context(realization).unwrap(),
         &mut remaining,
+        &mut std::collections::BTreeMap::new(),
     )
     .expect("the demanded constant realization produces a parameter-only relation");
     assert!(

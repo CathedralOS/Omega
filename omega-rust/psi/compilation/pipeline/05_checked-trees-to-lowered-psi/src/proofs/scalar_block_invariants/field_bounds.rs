@@ -14,7 +14,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use semantic_vocabulary::{
-    BlockId, IntegerValue, PlaceId, Proposition, ScalarTerm, StructuralPlaceKind, ValueId,
+    BlockId, IntegerValue, PlaceId, Proposition, PropositionContext, ScalarTerm,
+    StructuralPlaceKind, ValueId,
 };
 use terminal_psi::{ScalarBlockInvariant, TerminalMachine, TerminalModule, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
@@ -53,6 +54,31 @@ pub(super) fn candidates(
             continue;
         }
         let predecessors = predecessors(machine);
+        let header_blocks = machine
+            .blocks
+            .iter()
+            .map(|block| (block.id, block))
+            .collect::<BTreeMap<_, _>>();
+        // Reverse reachability from a demanded block is machine-level graph
+        // structure: obligations on the same block walk the same ancestors.
+        // One filtered roster per demand block shares that walk across sites.
+        let mut join_headers: BTreeMap<BlockId, Vec<BlockId>> = BTreeMap::new();
+        // A header's live-value scope depends only on the machine and header;
+        // the same header answers many sites and predicates.
+        let mut header_scopes: BTreeMap<BlockId, Option<PropositionContext>> =
+            BTreeMap::new();
+        // The owning block of a demanded operation never changes within the
+        // machine; index it once rather than scanning the block roster per site.
+        let operation_blocks = machine
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                block
+                    .operations
+                    .iter()
+                    .map(move |operation| (operation.id, block))
+            })
+            .collect::<BTreeMap<_, _>>();
         candidates.extend(arrival_storage_candidates(
             module,
             machine,
@@ -81,12 +107,7 @@ pub(super) fn candidates(
                 | ReconstructedTerminalObligationOwner::CallRequires { operation, .. } => operation,
                 _ => unreachable!("filtered above"),
             };
-            let Some(block) = machine.blocks.iter().find(|block| {
-                block
-                    .operations
-                    .iter()
-                    .any(|candidate| candidate.id == operation)
-            }) else {
+            let Some(block) = operation_blocks.get(&operation).copied() else {
                 continue;
             };
             let equations = FieldEquations::new(&site.semantic_axioms, &invocation_roots);
@@ -117,37 +138,60 @@ pub(super) fn candidates(
             // Walk backwards from this demand so unrelated joins receive no
             // proposal. A candidate is not authority: intervening writes and
             // unsupported arrivals still make its ordinary proof fail.
-            let mut ancestors = BTreeSet::new();
-            let mut pending = vec![block.id];
-            while let Some(predecessor) = pending.pop() {
-                let Some(next) = remaining.checked_sub(1) else {
-                    declines.record(
-                        crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
-                    );
-                    return candidates;
-                };
-                *remaining = next;
-                if ancestors.insert(predecessor)
-                    && let Some(sources) = predecessors.get(&predecessor)
-                {
-                    pending.extend(sources.iter().copied());
+            let mut exhausted = false;
+            let ancestors = join_headers.entry(block.id).or_insert_with(|| {
+                let mut ancestors = BTreeSet::new();
+                let mut pending = vec![block.id];
+                while let Some(predecessor) = pending.pop() {
+                    let Some(next) = remaining.checked_sub(1) else {
+                        exhausted = true;
+                        return Vec::new();
+                    };
+                    *remaining = next;
+                    if ancestors.insert(predecessor)
+                        && let Some(sources) = predecessors.get(&predecessor)
+                    {
+                        pending.extend(sources.iter().copied());
+                    }
                 }
+                ancestors
+                    .into_iter()
+                    .filter(|member| {
+                        *member != machine.entry
+                            && predecessors
+                                .get(member)
+                                .is_some_and(|sources| sources.len() > 1)
+                    })
+                    .collect()
+            });
+            if exhausted {
+                declines.record(
+                    crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
+                );
+                return candidates;
             }
-            for header in ancestors.into_iter().filter(|member| {
-                *member != machine.entry
-                    && predecessors
-                        .get(member)
-                        .is_some_and(|sources| sources.len() > 1)
-            }) {
-                let Some(header_block) = machine.blocks.iter().find(|block| block.id == header)
-                else {
+            for header in ancestors.iter().copied() {
+                let Some(header_block) = header_blocks.get(&header).copied() else {
                     continue;
                 };
-                let Ok(scope) =
-                    terminal_verifier::scalar_block_invariant_scope(machine, header_block)
-                else {
+                let scope = match header_scopes.entry(header) {
+                    std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                    std::collections::btree_map::Entry::Vacant(entry) => entry.insert(
+                        terminal_verifier::scalar_block_invariant_scope(machine, header_block)
+                            .ok(),
+                    ),
+                };
+                let Some(scope) = scope.as_ref() else {
                     continue;
                 };
+                // Guard validity at this header is predicate-independent:
+                // validate each transported guard once per (site, header),
+                // then drop the guard naming each predicate by comparison.
+                let scoped_guards = guards
+                    .iter()
+                    .filter(|guard| scope.validate(guard).is_ok())
+                    .cloned()
+                    .collect::<Vec<_>>();
                 for predicate in &predicates {
                     // A bound the site's own path guard already states needs
                     // no header invariant; proposing it only adds a question.
@@ -160,9 +204,9 @@ pub(super) fn candidates(
                     // defining equation as a guard. The conditional candidate
                     // is weaker than an unconditional bound, but the operation
                     // must still prove its original obligation from it.
-                    let guards = guards
+                    let guards = scoped_guards
                         .iter()
-                        .filter(|guard| *guard != predicate && scope.validate(guard).is_ok())
+                        .filter(|guard| *guard != predicate)
                         .cloned()
                         .collect::<Vec<_>>();
                     let conclusion = without_refuted_alternatives(predicate.clone(), &guards);
@@ -219,6 +263,12 @@ pub(super) fn arrival_bounds(
     questions: &ReconstructedTerminalObligationSet,
     remaining: &mut usize,
     declines: &mut crate::proofs::ProofSearchDeclines,
+    // A site's seeded bounds are a pure function of its reconstructed
+    // obligation and the roster it names; the discovery loop re-queries the
+    // module every round while only newly minted invariant questions can add
+    // candidates. The caller shares this set so each obligation is queried
+    // at most once across every round.
+    queried: &mut BTreeSet<semantic_vocabulary::ObligationId>,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
     let mut proposed = BTreeSet::new();
@@ -231,6 +281,9 @@ pub(super) fn arrival_bounds(
         else {
             continue;
         };
+        if !queried.insert(site.obligation.id) {
+            continue;
+        }
         let Some(machine) = module.machines.iter().find(|machine| machine.id == owner) else {
             continue;
         };
