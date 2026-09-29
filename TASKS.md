@@ -1728,24 +1728,32 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
   Remaining work:
 
-  - Complete ordinary call composition for nested legacy operator results
-    and the remaining float/receiver signatures. Selected dispatch no longer
-    scans applications to overwrite checked-plan omissions: `UninstalledOperator`
-    and both diagnostic-only adapter/intrinsic scanners are retired. Missing
-    plans retain the checked producer's phase and dependency. The unchanged
-    `named_provider_negate_is_nan_exit` customer passes named-call write-frame
-    and result-type planning at the revision above on macOS ARM64.
-    The four-fixture native command above still executes all three integer
-    controls with exit **70**; the float customer now stops at
-    `statement sequence: local data: scalar local: pure initializer`
-    (state 0, statement 11, the later `zero64` local).
+  - Complete ordinary call composition for the remaining float/receiver
+    signatures. Nested boundary applications compose: a nested `a * b`,
+    `F64::from_i32(x)` or guard operand is a checked `BoundaryCall`
+    computation whose one Terminal `BoundaryCall` runs between its operands
+    and its consumer, and the checker admits field stores whose value is such
+    a tree. On macOS ARM64, `pass/float/nested_float_operator_applications_exit`
+    exits **70**, `arithmetic/stats_compute` **70** and `rendering/mandelbrot`
+    **0** natively. `basics/temperature_convert` and
+    `rendering/bouncing_ball_2d` stop at the float-to-integer policy cast
+    store `(x as i32 in Saturating) as i32` (`structural field store: pure
+    source: scalar expression row`, also at base with flat arithmetic), like
+    `float/float_trapping_*`; spelling it `I32::from_f64` then `as i32`
+    stops at `scalar source custody disagrees with its authored destination
+    role`. `arithmetic/vector_distance` needs its builtin `sqrt(..)` over a
+    computed operand bound to `F64::square_root`; `rendering/mandelbrot_zoom`
+    stops at its `Main::clock` Fused provider. Pure scalar-graph machines
+    carry no boundary roster, so nested applications there reject
+    (`expressions/match_float_subjects`). `float/{named_provider_negate_is_nan_exit,
+    named_provider_fused_multiply_add_exit,x86_fma_plan_association}` stop at
+    `statement sequence: local data: scalar local: pure initializer`:
     `statement_sequence.rs::scalar_computation_local_at` uses an execution
-    result-slot ordinal to look up a source-local initializer; preceding
+    result-slot ordinal to look up a source-local initializer, and preceding
     call-result field stores advance only the former. Separate source
     occurrence custody from executable value positions through the Psi 04/05
-    consumers, then rerun the unchanged customer before extending native
-    builtin installation. Exact plan and authored-use drift controls run at
-    the live realization consumers.
+    consumers, then rerun those customers. `named_provider_multiply_then_add_exit`
+    now reaches its own `u64` to `i32` exit-code store rejection.
   - Finish native specialization custody: retain the exact closed requirement,
     provider instance, static tuple and artifact-bound application occurrence
     through selected-plan settlement and physical-child replay. Reuse stage

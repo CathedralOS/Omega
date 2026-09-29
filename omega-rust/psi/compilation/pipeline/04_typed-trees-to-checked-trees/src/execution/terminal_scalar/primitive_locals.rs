@@ -152,7 +152,11 @@ pub(in crate::execution) fn collect(
                 } => {
                     pending.extend([*condition, *when_true, *when_false]);
                 }
-                CheckedScalarComputationKind::Apply { operands, .. } => {
+                CheckedScalarComputationKind::Apply { operands, .. }
+                | CheckedScalarComputationKind::BoundaryCall {
+                    arguments: operands,
+                    ..
+                } => {
                     pending.extend_from_slice(computations.operands.span(*operands)?);
                 }
             }

@@ -18,6 +18,7 @@ mod composed_nested_control;
 mod discarded_results;
 mod free_scalar_parameters;
 mod linear_local_consumers;
+mod nested_boundary_applications;
 mod nested_boundary_results;
 mod outer_calls;
 mod primitive_locals;

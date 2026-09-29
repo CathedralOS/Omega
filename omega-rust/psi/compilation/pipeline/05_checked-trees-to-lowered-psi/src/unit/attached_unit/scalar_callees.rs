@@ -321,6 +321,7 @@ pub(super) fn emit(
             let mut context = CallEmissionContext {
                 machine_ids: catalog.machine_ids,
                 requirement_counts: catalog.requirement_counts,
+                boundaries: &[],
                 next_obligation_identity: *next_call_obligation,
                 obligation_limit: u64::MAX,
             };

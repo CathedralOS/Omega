@@ -4,7 +4,10 @@
 //! prefix; array constructors establish separate places at their authored formal
 //! positions. Selection converges with one scalar result, without hoisting the
 //! selected path's structural effects. The calls and arrays modules own that
-//! mixed schedule and its real structural results.
+//! mixed schedule and its real structural results. A boundary application
+//! nested under another operand (`a * b + c`) runs through `boundary_calls`:
+//! its operands complete first, then its one exact `BoundaryCall` binds the
+//! enclosing operand.
 use super::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, IntegerValue, LoweringError,
     PreparedScalarQualifications, QualifiedScalarType, ScalarType, StructuralArgument,
@@ -24,6 +27,7 @@ use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
 
 pub(crate) mod arrays;
+mod boundary_calls;
 mod calls;
 pub(crate) use calls::lower_inline_call;
 pub(crate) mod cases;
@@ -782,6 +786,24 @@ impl<'a> Expansion<'a> {
                 call_ordinal,
                 arguments,
                 structural_arguments,
+                result_type,
+                input_types,
+                target,
+                site,
+                active,
+            )?,
+            CheckedScalarComputationKind::BoundaryCall {
+                source_call,
+                target_machine,
+                target_state,
+                call_ordinal,
+                arguments,
+            } => self.boundary_call(
+                source_call,
+                target_state,
+                target_machine,
+                call_ordinal,
+                arguments,
                 result_type,
                 input_types,
                 target,

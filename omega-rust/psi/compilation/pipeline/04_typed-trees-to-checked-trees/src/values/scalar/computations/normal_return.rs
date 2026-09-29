@@ -28,7 +28,8 @@ pub(super) fn boolean_result(
             boolean_expression_result(value)
         }
         CheckedScalarComputationKind::Value(_) => None,
-        CheckedScalarComputationKind::Call { .. } => None,
+        CheckedScalarComputationKind::Call { .. }
+        | CheckedScalarComputationKind::BoundaryCall { .. } => None,
         CheckedScalarComputationKind::Dispatch { .. } => None,
         CheckedScalarComputationKind::Select {
             condition,

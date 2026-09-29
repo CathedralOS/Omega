@@ -204,18 +204,16 @@ pub(crate) fn validate_structural(
     // An exclusive `&mut T` view local joins the same carrier its result
     // identity records: `&mut` peel to the view/named referee carrier for
     // non-primitive referees, the borrow shell for the primitive ones.
-    let expected_type = match crate::expression_preparation::source_custody::structural::mutable_view_carrier(
-        checked,
-        local.type_reference,
-    ) {
-        Some(carrier) => {
-            crate::unit::attached_unit::structural_carrier_type(checked, carrier)?
-        }
-        None => crate::unit::attached_unit::structural_carrier_type(
+    let expected_type =
+        match crate::expression_preparation::source_custody::structural::mutable_view_carrier(
             checked,
             local.type_reference,
-        )?,
-    };
+        ) {
+            Some(carrier) => crate::unit::attached_unit::structural_carrier_type(checked, carrier)?,
+            None => {
+                crate::unit::attached_unit::structural_carrier_type(checked, local.type_reference)?
+            }
+        };
     if machine.symbol != caller_machine
         || result.statement_index != coordinate.statement_index
         || coordinate.call_ordinal != 0
@@ -282,8 +280,20 @@ pub(crate) fn validate(
         }
         _ => return unsupported("computed result operands have no authored value-producing call"),
     };
+    // A field store's scalar boundary application tree has the same ordered
+    // operand custody: its nested applications are its computed operands.
+    let stored_application =
+        matches!(
+            statements.get(coordinate.statement_index as usize),
+            Some(StatementNode::Assignment(_))
+        ) && validation::nested_boundary_applications_compose(&checked.typed, expression);
     if machine.symbol != caller_machine
-        || !validation::result_initializer_call_is_supported(&checked.typed, machine, expression)
+        || !(stored_application
+            || validation::result_initializer_call_is_supported(
+                &checked.typed,
+                machine,
+                expression,
+            ))
     {
         return unsupported(
             "computed result operands disagree with their authored initializer route",

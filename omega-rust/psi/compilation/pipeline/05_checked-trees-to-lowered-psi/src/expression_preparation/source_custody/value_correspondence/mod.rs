@@ -297,11 +297,13 @@ impl Context<'_> {
                     && node.value_source.is_valid()
                     && self.scalar(node.value_source, value, &[], 0)
             }
-            Computation::Call { arguments, .. } => plans
-                .operands
-                .span_or_empty(*arguments)
-                .iter()
-                .all(|argument| self.computation(*argument, active)),
+            Computation::Call { arguments, .. } | Computation::BoundaryCall { arguments, .. } => {
+                plans
+                    .operands
+                    .span_or_empty(*arguments)
+                    .iter()
+                    .all(|argument| self.computation(*argument, active))
+            }
             Computation::Apply {
                 source_expression,
                 expression,

@@ -137,14 +137,13 @@ pub(crate) fn reachable_nodes(
                     LoweringError::Unsupported("scalar computation closure has invalid arguments"),
                 )?);
             }
-            CheckedScalarComputationKind::Apply { operands, .. } => pending.extend(
-                plans
-                    .operands
-                    .span(*operands)
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar computation closure has invalid operands",
-                    ))?,
-            ),
+            CheckedScalarComputationKind::Apply { operands, .. }
+            | CheckedScalarComputationKind::BoundaryCall {
+                arguments: operands,
+                ..
+            } => pending.extend(plans.operands.span(*operands).ok_or(
+                LoweringError::Unsupported("scalar computation closure has invalid operands"),
+            )?),
         }
     }
     Ok(visited)

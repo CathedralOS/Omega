@@ -126,6 +126,10 @@ pub(crate) enum ScalarCallCrashScope {
 pub(crate) struct CallEmissionContext<'a> {
     pub(crate) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
     pub(crate) requirement_counts: &'a [(symbols::SymbolHandle, usize)],
+    /// Lowered boundary declarations a nested boundary application may name.
+    /// Routes without an attached Unit closure carry none, so such an
+    /// application fails closed there instead of guessing an identity.
+    pub(crate) boundaries: &'a [crate::unit::attached_unit::BoundaryParameters],
     pub(crate) next_obligation_identity: u64,
     pub(crate) obligation_limit: u64,
 }
@@ -482,6 +486,7 @@ mod tests {
         let mut context = CallEmissionContext {
             machine_ids: &[],
             requirement_counts: &[],
+            boundaries: &[],
             next_obligation_identity: 7,
             obligation_limit: 9,
         };

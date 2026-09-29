@@ -176,7 +176,12 @@ pub(super) fn validate(
                             "Unit graph scalar binding count overflow",
                         ))?;
             }
+            // A boundary scalar result binds its local in the same dense
+            // namespace as an ordinary scalar call result.
             CheckedUnitEffectOperationPlan::ScalarCall {
+                coordinate, result, ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
                 coordinate, result, ..
             } => {
                 if result.binding_ordinal != next_scalar_binding {

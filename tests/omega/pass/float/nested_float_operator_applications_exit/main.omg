@@ -1,0 +1,93 @@
+// Nested float operator applications compose in authored grouping and order
+// (exit 70).
+//
+// Every operand is a field read, so each application executes at run time.
+// With a = 3, b = 4, c = 2 and tenth = 0.1:
+//   a * b + c        = 14   (a * (b + c) would be 18)
+//   a * (b + c)      = 18   (a * b + c would be 14)
+//   c - a * b        = -10  (swapped operands would give 10)
+//   a / (b - c)      = 1.5  (swapped operands would give 0.666...)
+//   tenth * 3 - 0.3  = 2^-54 exactly: the product rounds to
+//                      0.30000000000000004 before the subtraction. A fused
+//                      multiply-add would keep the exact product and give
+//                      a different result, so this pins two roundings.
+//   F64::from_i32(count) * 0.5 + c = 3.5 with count = 3: a named conversion
+//                      operator nested under two arithmetic applications.
+// The first two are local initializers, the next two are field stores, the
+// next two are guard operands, and the last is a local initializer again.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    a: f64;
+    b: f64;
+    c: f64;
+    tenth: f64;
+    count: i32;
+    difference: f64;
+    quotient: f64;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.a = 3.0;
+    self.b = 4.0;
+    self.c = 2.0;
+    self.tenth = 0.1;
+    self.count = 3;
+    let product_sum: f64 = self.a * self.b + self.c;
+    transition product_sum == 14.0 {
+        true -> grouped()
+        _ -> fail(71)
+    }
+
+    state grouped(&mut self) {
+        let grouped_product: f64 = self.a * (self.b + self.c);
+        transition grouped_product == 18.0 {
+            true -> field_stores()
+            _ -> fail(72)
+        }
+    }
+
+    state field_stores(&mut self) {
+        self.difference = self.c - self.a * self.b;
+        self.quotient = self.a / (self.b - self.c);
+        transition self.difference == -10.0 {
+            true -> quotient_check()
+            _ -> fail(73)
+        }
+    }
+
+    state quotient_check(&mut self) {
+        transition self.quotient == 1.5 {
+            true -> guards()
+            _ -> fail(74)
+        }
+    }
+
+    state guards(&mut self) {
+        transition self.a * self.b + self.c == 14.0 {
+            true -> rounding()
+            _ -> fail(75)
+        }
+    }
+
+    state rounding(&mut self) {
+        transition self.tenth * 3.0 - 0.3 == 0.000000000000000055511151231257827021181583404541015625 {
+            true -> conversions()
+            _ -> fail(76)
+        }
+    }
+
+    state conversions(&mut self) {
+        let converted: f64 = F64::from_i32(self.count) * 0.5 + self.c;
+        transition converted == 3.5 {
+            true -> pass()
+            _ -> fail(77)
+        }
+    }
+
+    state pass(&self) { self.console.exit_process(70); }
+    state fail(&self, code: i32) { self.console.exit_process(code); }
+}

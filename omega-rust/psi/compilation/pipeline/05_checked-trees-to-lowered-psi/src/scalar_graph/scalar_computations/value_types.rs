@@ -69,6 +69,7 @@ fn value_type(
             terminal_scalar_type(node.primitive_type)?.into()
         }
         CheckedScalarComputationKind::Apply { .. }
+        | CheckedScalarComputationKind::BoundaryCall { .. }
         | CheckedScalarComputationKind::StructuralField { .. }
         | CheckedScalarComputationKind::SelectedComparison { .. } => {
             terminal_scalar_type(node.primitive_type)?.into()

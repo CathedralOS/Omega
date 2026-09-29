@@ -428,6 +428,7 @@ pub(super) fn emit(
         scalar_calls: CallEmissionContext {
             machine_ids,
             requirement_counts: scalar_requirement_counts,
+            boundaries: lowered_boundary_parameters,
             next_obligation_identity: next_call_obligation,
             obligation_limit: u64::MAX,
         },
@@ -466,6 +467,7 @@ pub(super) fn emit(
         let mut scalar_calls = CallEmissionContext {
             machine_ids,
             requirement_counts: scalar_requirement_counts,
+            boundaries: lowered_boundary_parameters,
             next_obligation_identity: next_call_obligation,
             obligation_limit: u64::MAX,
         };
@@ -1073,6 +1075,7 @@ impl MachineEmission<'_> {
         self.scalar_calls = CallEmissionContext {
             machine_ids: self.machine_ids,
             requirement_counts: self.scalar_requirement_counts,
+            boundaries: self.lowered_boundary_parameters,
             next_obligation_identity: self.next_call_obligation,
             obligation_limit: u64::MAX,
         };

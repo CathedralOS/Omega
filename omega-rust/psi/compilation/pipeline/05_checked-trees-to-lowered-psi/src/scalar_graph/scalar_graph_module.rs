@@ -304,6 +304,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     let call_emission = CallEmissionContext {
         machine_ids,
         requirement_counts,
+        boundaries: &[],
         next_obligation_identity: call_obligation_base,
         obligation_limit: identity_base
             .checked_add(TERMINAL_MACHINE_IDENTITY_STRIDE)

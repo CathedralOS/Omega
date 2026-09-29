@@ -82,7 +82,11 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
                     return true;
                 }
             }
-            CheckedScalarComputationKind::Apply { operands, .. } => {
+            CheckedScalarComputationKind::Apply { operands, .. }
+            | CheckedScalarComputationKind::BoundaryCall {
+                arguments: operands,
+                ..
+            } => {
                 pending.extend_from_slice(computations.operands.span_or_empty(*operands));
             }
             CheckedScalarComputationKind::Call {

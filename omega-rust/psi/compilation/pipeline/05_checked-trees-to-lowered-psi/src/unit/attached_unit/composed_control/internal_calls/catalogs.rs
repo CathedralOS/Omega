@@ -134,7 +134,8 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
         shared.machine_ids,
         shared.scalar_requirement_counts,
         shared.next_call_obligation,
-    );
+    )
+    .with_boundaries(&shared.boundary_parameters);
     Ok(super::super::catalogs::ComposedCatalogs {
         temporary_places: Vec::new(),
         result_places: Vec::new(),

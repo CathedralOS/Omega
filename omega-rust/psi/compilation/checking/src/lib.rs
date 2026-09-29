@@ -15,9 +15,9 @@ pub use declarations::standard_declarations::{
 use declarations::state_signatures::StateSignatureOwner;
 pub use machine_calls::boundary_calls::validate_boundary_calls;
 pub use machine_calls::calls::{
-    named_conformance_target_requirement, result_initializer_call_is_supported,
-    unit_result_initializer_call_is_supported, unit_return_call_is_supported,
-    unit_statement_call_is_supported,
+    named_conformance_target_requirement, nested_boundary_applications_compose,
+    result_initializer_call_is_supported, unit_result_initializer_call_is_supported,
+    unit_return_call_is_supported, unit_statement_call_is_supported,
 };
 pub use machine_calls::static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,

@@ -381,6 +381,80 @@ pub(crate) fn validate_computation_calls(
                         .map(|(operand, scope)| (*operand, false, scope)),
                 );
             }
+            CheckedScalarComputationKind::BoundaryCall {
+                source_call,
+                target_state,
+                call_ordinal,
+                arguments,
+                ..
+            } => {
+                // A nested boundary application owns exactly one authored
+                // call occurrence, like an ordinary computed call. Its dense
+                // scalar operands rejoin the authored arguments by position:
+                // the admitted signatures carry no self or structural formal
+                // that could shift an operand, and a named operator's
+                // qualifier (`F64::`) is not an operand.
+                if !control.calls.is_valid(*source_call) {
+                    return unsupported("nested boundary application has no live source call");
+                }
+                let source = control.calls.get(*source_call);
+                dispatch::source_scope(
+                    checked,
+                    machine,
+                    state,
+                    authored_scope,
+                    source.authored_expression,
+                    node.primitive_type,
+                )?;
+                let scoped_expressions = expression_membership(checked, authored_scope, true)?;
+                let matching = source_calls
+                    .iter()
+                    .filter(|candidate| {
+                        candidate.statement_index == statement as usize
+                            && candidate.call_ordinal == *call_ordinal as usize
+                    })
+                    .collect::<Vec<_>>();
+                if matching.len() != 1
+                    || !std::ptr::eq(matching[0], source)
+                    || source.target_symbol != *target_state
+                    || !executable.contains(&source.authored_expression)
+                    || !scoped_expressions.contains(&source.authored_expression)
+                    || calls.contains(&source.authored_expression)
+                {
+                    return unsupported(
+                        "nested boundary application disagrees with its authored occurrence",
+                    );
+                }
+                calls.push(source.authored_expression);
+                let ExpressionNode::Call(authored) = checked
+                    .expression_table
+                    .expression(source.authored_expression)
+                else {
+                    return unsupported("nested boundary application lost its authored call");
+                };
+                let authored_arguments = checked
+                    .expression_table
+                    .expression_handles(authored.arguments);
+                let operands =
+                    plans
+                        .operands
+                        .span(*arguments)
+                        .ok_or(LoweringError::Unsupported(
+                            "nested boundary application has an invalid operand span",
+                        ))?;
+                if operands.len() != authored_arguments.len() {
+                    return unsupported(
+                        "nested boundary application operands disagree with its authored arguments",
+                    );
+                }
+                pending.extend(
+                    operands
+                        .iter()
+                        .zip(authored_arguments)
+                        .rev()
+                        .map(|(operand, argument)| (*operand, false, *argument)),
+                );
+            }
             CheckedScalarComputationKind::Call {
                 source_call,
                 target_state,
