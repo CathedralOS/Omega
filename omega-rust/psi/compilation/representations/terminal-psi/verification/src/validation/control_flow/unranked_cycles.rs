@@ -694,6 +694,21 @@ fn cycle_operation_eligible(
         OperationKind::EstablishScalarArray { .. } => {
             crate::validation::scalar::array::shape(module, machine, operation).is_ok()
         }
+        // Zero initialization is another plain construction, not a loan or
+        // custody transfer. Its ordinary validator reconstructs zero-valid
+        // storage recursively and requires a fresh, claim-free result. An
+        // unrestricted result has no disposal debt on re-entry; affine
+        // storage still needs the separately checked lifetime routes.
+        OperationKind::EstablishZeroedStructural { .. } => {
+            operation
+                .result
+                .structural()
+                .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Unrestricted)
+                && crate::validation::structural::operations::validate_establish_zeroed_structural(
+                    module, machine, operation,
+                )
+                .is_ok()
+        }
         // A trivial affine local establishment is the direct spelling of
         // the empty-record arm's declaration: the destination is a
         // machine-declared whole affine place of empty-record type, so the
