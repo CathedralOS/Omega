@@ -171,7 +171,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     // header, so either marker changes its identity. Pin those inputs beside
     // the digests and reconstruct fingerprint framing independently of the
     // production helper. A header relabel is not a format conversion.
-    assert_eq!(&bytes[8..12], &[101, 0, 111, 0]);
+    assert_eq!(&bytes[8..12], &[101, 0, 112, 0]);
     use sha2::{Digest, Sha256};
     let independent_fingerprint = |payload: &[u8]| {
         let mut digest = Sha256::new();
@@ -184,7 +184,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     predecessor_payload[8..10].copy_from_slice(&95_u16.to_le_bytes());
     assert_eq!(
         independent_fingerprint(&predecessor_payload),
-        "0a5b452b2b990a5dd61a8603dc94a3e4e85e77e00cf4212ae1184fa5a5522caa"
+        "32e08934228a2fcdf54ef7c166ba22262ee39667ee346d2ded675b3e2f79c1f6"
     );
     assert_eq!(
         decode_installation_record(&predecessor_payload),
@@ -192,13 +192,13 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(
         independent_fingerprint(&bytes),
-        "cd0117b56027bf68a4ddf7a58bbdfdfbf4c90483e636aa6ca8519b5f502a27e4"
+        "0c305001753db8a0c6ef0c3287bddd692e0bb3bb0900b477d73d998aca488be5"
     );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "cd0117b56027bf68a4ddf7a58bbdfdfbf4c90483e636aa6ca8519b5f502a27e4"
+        "0c305001753db8a0c6ef0c3287bddd692e0bb3bb0900b477d73d998aca488be5"
     );
     let mut previous_format = bytes.clone();
     previous_format[8..10].copy_from_slice(&100_u16.to_le_bytes());
