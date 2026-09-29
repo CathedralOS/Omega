@@ -112,8 +112,25 @@ pub(super) fn parameter_source(
             parameter.symbol == root_symbol || (parameter.is_self && root_symbol == machine)
         })
         .collect::<Vec<_>>();
-    let [root] = roots.as_slice() else {
-        return unsupported("receiver alias has no unique parameter root");
+    // A view local is itself a loan binding, so it carries no parameter
+    // row: the alias reborrows it through the state's declaration, and the
+    // borrow-ledger checks below carry the custody evidence a parameter
+    // root supplies for direct places. A mutable root local could rebind
+    // the captured place, so it declines here.
+    let (root_is_self, root_is_const, root_reference) = match roots.as_slice() {
+        [root] => (root.is_self, root.is_const, root.type_reference),
+        [] => {
+            let Some((_, local_root)) =
+                checked.state_local_declaration(authored_state, root_symbol)
+            else {
+                return unsupported("receiver alias has no unique parameter root");
+            };
+            if local_root.is_mutable {
+                return unsupported("receiver alias root local is mutable");
+            }
+            (false, false, local_root.type_reference)
+        }
+        _ => return unsupported("receiver alias has no unique parameter root"),
     };
     let TypeReferenceNode::Reference {
         referee: local_type,
@@ -132,9 +149,7 @@ pub(super) fn parameter_source(
         referee: root_type,
         access: root_access @ (ReferenceAccess::Mutable | ReferenceAccess::WriteOnly),
         ..
-    } = checked
-        .type_reference_table
-        .type_reference(root.type_reference)
+    } = checked.type_reference_table.type_reference(root_reference)
     else {
         return unsupported("receiver alias root cannot grant write-only access");
     };
@@ -143,7 +158,7 @@ pub(super) fn parameter_source(
     }
     // Attached self carries machine/Self identity in the typed reference. Its
     // actual referent is the independently resolved attachment, as in signatures.
-    let root_type = if root.is_self {
+    let root_type = if root_is_self {
         let TypeReferenceNode::Named { symbol, .. } =
             checked.type_reference_table.type_reference(*root_type)
         else {
@@ -190,7 +205,7 @@ pub(super) fn parameter_source(
             _ => reference,
         }
     };
-    if root.is_const
+    if root_is_const
         || checked.typed.normalized_type_identity(*local_type)
             != checked.typed.normalized_type_identity(projected_type)
     {
@@ -223,7 +238,35 @@ pub(super) fn parameter_source(
                 && candidate.owner_symbol == captured.owner
         })
         .collect::<Vec<_>>();
-    let exact_lineage = if parent_declaration {
+    // A loan derived through an unretained parent (a view-local binding)
+    // carries no parent handle: the ledger binds it by `source_owner` and
+    // spells its place against the parent's ultimate root, so its captured
+    // place is the parent's place extended by the authored projection.
+    // `Reborrow` lineage is reserved for a retained parent loan.
+    let derived_parent = parent_declaration && loan.lineage == BorrowLoanLineage::UnretainedDerived;
+    let exact_lineage = if derived_parent {
+        matches!(parent_loans.as_slice(), [(_, parent)]
+        if loan.source_owner_symbol == captured.owner
+            && loan.root_symbol == parent.root_symbol
+            && parent.kind.direct_reborrow_effect(&access)
+                == Some(CheckedReborrowAccessEffect::ExclusiveSuspension)
+            && {
+                let parent_segments = borrow.loan_segments(parent);
+                let loan_segments = borrow.loan_segments(loan);
+                loan_segments.len()
+                    == parent_segments.len() + captured.captured_place.segments.len()
+                    && loan_segments
+                        .iter()
+                        .zip(parent_segments)
+                        .all(|(loan, parent)| loan == parent)
+                    && loan_segments[parent_segments.len()..]
+                        .iter()
+                        .zip(&captured.captured_place.segments)
+                        .all(|(loan, captured)| {
+                            derived_segment_replay(checked, authored_state, loan, captured)
+                        })
+            })
+    } else if parent_declaration {
         matches!(parent_loans.as_slice(), [(parent_handle, parent)]
             if loan.lineage == BorrowLoanLineage::Reborrow { parent_loan: *parent_handle }
                 && loan.source_owner_symbol == captured.owner
@@ -235,11 +278,16 @@ pub(super) fn parameter_source(
             && !loan.source_owner_symbol.is_valid()
             && loan.root_symbol == captured.captured_place.root_symbol
     };
+    // A derived loan's place agreement folded into its lineage evidence
+    // above: its root is the parent's ultimate root, not the authored
+    // alias root the direct spellings carry.
+    let exact_place = derived_parent
+        || (loan.root_symbol == captured.captured_place.root_symbol
+            && borrow.loan_segments(loan) == captured.captured_place.segments);
     if loan.statement_index != *declaration_index
         || loan.kind != access
         || !exact_lineage
-        || loan.root_symbol != captured.captured_place.root_symbol
-        || borrow.loan_segments(loan) != captured.captured_place.segments
+        || !exact_place
         || !borrow.loan_owner_path(loan).is_empty()
     {
         return unsupported("receiver alias loan disagrees with its direct initializer");
@@ -413,6 +461,13 @@ pub(super) fn parameter_source(
         return unsupported("receiver alias activation or weakening changed");
     }
     if parent_declaration {
+        // An unretained parent owes no root handoff and mints no resource
+        // row to replay: custody stays on the parent's own loan, the
+        // child's derivation evidence was audited against the ledger
+        // above, and its weakening retires the derived loan at last use.
+        if derived_parent {
+            return Ok(Some(captured));
+        }
         if !formation && reason != FlowBorrowWeakeningReason::StateExit {
             return unsupported("receiver alias chain has no state-exit root handoff");
         }
@@ -527,6 +582,40 @@ fn call_result_source(
         },
         erased_alias: false,
     }))
+}
+
+/// The ledger spells a runtime selector as `Index { expression }` even
+/// when the checker's own replay folded it to a constant — the same fold
+/// `owner_path_matches_source` applies on the checker side, plus the
+/// const-local fold an immutable scalar binding answers. Every other
+/// segment pair compares literally.
+fn derived_segment_replay(
+    checked: &CheckedTrees,
+    authored_state: &checked_trees::state::State,
+    loan_segment: &facts::PlaceSegment,
+    captured_segment: &facts::PlaceSegment,
+) -> bool {
+    match (loan_segment, captured_segment) {
+        (facts::PlaceSegment::Index { expression }, facts::PlaceSegment::FixedIndex { index }) => {
+            let folded = match checked.expression_table.expression(*expression) {
+                checked_trees::expression::ExpressionNode::Name(name) => {
+                    crate::expression_preparation::source_custody::structural_places::constant_local_index(
+                        checked,
+                        authored_state,
+                        name.symbol,
+                    )
+                    .and_then(|index| usize::try_from(index).ok())
+                }
+                _ => checked
+                    .typed
+                    .expression_table
+                    .constant_integer_value(*expression)
+                    .and_then(|value| usize::try_from(value).ok()),
+            };
+            folded.is_some_and(|folded| folded == *index)
+        }
+        _ => loan_segment == captured_segment,
+    }
 }
 
 fn receiver_root(

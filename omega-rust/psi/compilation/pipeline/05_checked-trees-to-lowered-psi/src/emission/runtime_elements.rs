@@ -20,7 +20,16 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ProjectionStep {
     Static(StructuralPathSegment),
-    AssignmentIndex { depth: u32 },
+    AssignmentIndex {
+        depth: u32,
+    },
+    /// A runtime element whose selector is already the calling state's own
+    /// operand — a dense scalar parameter position a borrow or an argument
+    /// mirror minted, not an assignment selector. The scalar source frame
+    /// reads it directly; no bound-expression row exists for it.
+    RuntimeIndexParameter {
+        position: u32,
+    },
 }
 
 /// The steps as a static Terminal path, for routes that evaluate no selector.
@@ -31,7 +40,8 @@ pub(crate) fn static_segments(
         .into_iter()
         .map(|step| match step {
             ProjectionStep::Static(segment) => Ok(segment),
-            ProjectionStep::AssignmentIndex { .. } => {
+            ProjectionStep::AssignmentIndex { .. }
+            | ProjectionStep::RuntimeIndexParameter { .. } => {
                 unsupported("this route evaluates no assignment runtime element")
             }
         })
@@ -59,26 +69,40 @@ pub(crate) fn evaluate_selectors(
 ) -> Result<Vec<ValueId>, LoweringError> {
     let mut indexes = Vec::new();
     for step in steps {
-        let ProjectionStep::AssignmentIndex { depth } = step else {
-            continue;
+        let index = match step {
+            ProjectionStep::AssignmentIndex { depth } => {
+                let role = CheckedScalarExpressionRole::AssignmentIndex { depth: *depth };
+                let source = selector_source(checked, state, statement_index, role)?;
+                evaluation.source_value(
+                    checked,
+                    machine,
+                    state,
+                    statement_index,
+                    role,
+                    &source,
+                    source_value_count,
+                    values,
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                    calls,
+                )?
+            }
+            ProjectionStep::RuntimeIndexParameter { position } => {
+                // A parameter selector is already a scalar source value of
+                // the calling state: the dense source prefix holds it, in
+                // the same order the checker numbers `RuntimeIndex`
+                // positions.
+                let Some(index) = values.get(*position as usize) else {
+                    return unsupported(
+                        "store runtime index position exceeds the scalar source frame",
+                    );
+                };
+                index.clone()
+            }
+            _ => continue,
         };
-        let role = CheckedScalarExpressionRole::AssignmentIndex { depth: *depth };
-        let source = selector_source(checked, state, statement_index, role)?;
-        let index = evaluation.source_value(
-            checked,
-            machine,
-            state,
-            statement_index,
-            role,
-            &source,
-            source_value_count,
-            values,
-            next_value,
-            next_block,
-            next_edge,
-            operations,
-            calls,
-        )?;
         indexes.push(super::emit_u64_coordinate(
             index.id,
             index.scalar_type,
@@ -103,12 +127,15 @@ pub(crate) fn complete_path(
         .into_iter()
         .map(|step| match step {
             ProjectionStep::Static(segment) => Ok(segment),
-            ProjectionStep::AssignmentIndex { .. } => Ok(StructuralPathSegment::RuntimeIndex {
-                index: indexes.next().ok_or(LoweringError::Unsupported(
-                    "store path lost an evaluated runtime element",
-                ))?,
-                obligation: calls.allocate_requirement()?,
-            }),
+            ProjectionStep::AssignmentIndex { .. }
+            | ProjectionStep::RuntimeIndexParameter { .. } => {
+                Ok(StructuralPathSegment::RuntimeIndex {
+                    index: indexes.next().ok_or(LoweringError::Unsupported(
+                        "store path lost an evaluated runtime element",
+                    ))?,
+                    obligation: calls.allocate_requirement()?,
+                })
+            }
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     if indexes.next().is_some() {

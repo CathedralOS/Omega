@@ -17,6 +17,10 @@ use typed_trees::expression::ExpressionHandle;
 pub(in crate::execution::terminal_unit) struct TargetSelectors {
     /// The target's selector expressions from the target inward.
     selectors: Vec<ExpressionHandle>,
+    /// Segments resolved for `Index` selectors an erased borrow alias
+    /// injects into the walk — expressions the authored target never
+    /// spelled, so no `AssignmentIndex` coordinate exists for them.
+    resolved: Vec<(ExpressionHandle, CheckedUnitStructuralPathSegment)>,
 }
 
 impl TargetSelectors {
@@ -99,23 +103,76 @@ impl TargetSelectors {
                 _ => return None,
             }
         }
-        (depth == selectors.len()).then_some(Self { selectors })
+        if depth != selectors.len() {
+            return None;
+        }
+        // A `let x: &mut T = &mut place[selector]` alias injects the loan's
+        // captured `Index` segment into a later use's walk. Pre-resolve
+        // each such selector in the state's borrow ledger so the walk's
+        // `runtime_segment` can mint its segment; selectors the ledger
+        // cannot resolve stay unproven there.
+        let mut resolved = Vec::new();
+        if let Some(borrow_state) = facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, borrow_state)| borrow_state)
+            .find(|borrow_state| {
+                borrow_state.machine_symbol == machine.symbol
+                    && borrow_state.state_symbol == state.symbol
+            })
+        {
+            for loan in facts.borrow.loans.span_or_empty(borrow_state.loans) {
+                for segment in facts.borrow.loan_segments(loan) {
+                    let facts::PlaceSegment::Index { expression } = segment else {
+                        continue;
+                    };
+                    if resolved
+                        .iter()
+                        .any(|(candidate, _): &(ExpressionHandle, _)| candidate == expression)
+                    {
+                        continue;
+                    }
+                    if let Some(segment) = super::super::calls::borrowed_index_segment(
+                        program,
+                        machine.symbol,
+                        state.symbol,
+                        loan.statement_index,
+                        *expression,
+                    ) {
+                        resolved.push((*expression, segment));
+                    }
+                }
+            }
+        }
+        Some(Self {
+            selectors,
+            resolved,
+        })
     }
 
-    /// The checked segment of the runtime element `expression` selects.
+    /// The checked segment of the runtime element `expression` selects. An
+    /// authored target selector always carries the `AssignmentIndex`
+    /// coordinate; an alias-injected borrow selector resolves through the
+    /// side table `resolve` built.
     pub(in crate::execution::terminal_unit) fn runtime_segment(
         &self,
         expression: ExpressionHandle,
     ) -> Option<CheckedUnitStructuralPathSegment> {
-        let depth = self
+        if let Some(depth) = self
             .selectors
             .iter()
-            .position(|selector| *selector == expression)?;
-        Some(CheckedUnitStructuralPathSegment::RuntimeIndex(
-            checked_trees::CheckedRuntimeIndex::AssignmentIndex {
-                depth: u32::try_from(depth).ok()?,
-            },
-        ))
+            .position(|selector| *selector == expression)
+        {
+            return Some(CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex {
+                    depth: u32::try_from(depth).ok()?,
+                },
+            ));
+        }
+        self.resolved
+            .iter()
+            .find_map(|(candidate, segment)| (*candidate == expression).then(|| segment.clone()))
     }
 }
 
