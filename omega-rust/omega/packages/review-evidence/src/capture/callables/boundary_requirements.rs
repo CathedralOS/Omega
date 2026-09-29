@@ -207,7 +207,10 @@ pub(super) fn validate_selected_top_level_requirement_external_supply(
         return Ok(());
     }
     let Some(expected_schema) = provider_planning::service_schema::from_typed_boundary_requirement(
-        &compilation.typed,
+        provider_planning::ProviderPlanningContext::new(
+            &compilation.typed,
+            source::DependencyScope::Product,
+        ),
         requirement,
     ) else {
         return Err(vec![Diagnostic::error(format!(

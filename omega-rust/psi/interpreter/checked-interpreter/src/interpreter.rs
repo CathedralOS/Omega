@@ -148,6 +148,16 @@ pub struct BuildMachineEvaluationRequest<'a> {
     pub product_entry_compatibility: Option<&'a dyn ProductEntryCompatibility>,
 }
 
+/// The immutable source and facts available to a Build invocation. Early
+/// constant preparation has typed source only; an admitted activation retains
+/// the checker's exact arena and operator execution facts. Neither variant
+/// imports a runtime provider's boundary dispatch or host-service authority.
+#[derive(Clone, Copy)]
+pub enum BuildMachineProgram<'program> {
+    Typed(&'program TypedTrees),
+    Checked(&'program checked_trees::CheckedTrees),
+}
+
 /// Source-signature compatibility for the narrowly designated product-entry
 /// query. The build owner supplies target meaning; Psi retains lexical lookup
 /// and exact-symbol selection without depending on target or native crates.
@@ -217,7 +227,7 @@ pub fn evaluate_build_time_machine(
 /// Evaluate one build-time machine for its observed argument values without
 /// a filesystem grant, charging the sponsor when one is given.
 pub fn evaluate_build_machine_arguments(
-    program: &TypedTrees,
+    program: BuildMachineProgram<'_>,
     request: BuildMachineEvaluationRequest<'_>,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, String> {
     evaluate_observed_arguments(
@@ -232,7 +242,7 @@ pub fn evaluate_build_machine_arguments(
 /// Evaluate one build-time machine for its observed argument values under
 /// the filesystem grant in `options`, charging the sponsor when one is given.
 pub fn evaluate_granted_build_machine_arguments(
-    program: &TypedTrees,
+    program: BuildMachineProgram<'_>,
     request: BuildMachineEvaluationRequest<'_>,
     options: InterpretOptions,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
@@ -328,7 +338,7 @@ fn evaluate_structured_return(
 }
 
 fn evaluate_observed_arguments(
-    program: &TypedTrees,
+    program: BuildMachineProgram<'_>,
     entry: BuildMachineEntry<'_>,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     sponsor: Option<BuildEvaluationSponsor>,
@@ -338,7 +348,7 @@ fn evaluate_observed_arguments(
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, || {
-                let mut evaluator = Evaluator::new(program, &[]);
+                let mut evaluator = Evaluator::new_build(program);
                 evaluator.configure_build_evaluation(CONST_EVAL_STEP_BUDGET, sponsor);
                 evaluator.product_entry_compatibility = product_entry_compatibility;
                 let result = match entry {
@@ -396,7 +406,7 @@ fn evaluate_observed_arguments(
 }
 
 fn evaluate_granted_arguments(
-    program: &TypedTrees,
+    program: BuildMachineProgram<'_>,
     entry: BuildMachineEntry<'_>,
     arguments: Vec<crate::build_time::BuildTimeValue>,
     options: InterpretOptions,
@@ -410,7 +420,7 @@ fn evaluate_granted_arguments(
         let worker = std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
             .spawn_scoped(scope, move || {
-                let mut evaluator = Evaluator::new(program, &[]);
+                let mut evaluator = Evaluator::new_build(program);
                 evaluator.configure_build_evaluation(STEP_BUDGET, sponsor);
                 evaluator.product_entry_compatibility = product_entry_compatibility;
                 evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;

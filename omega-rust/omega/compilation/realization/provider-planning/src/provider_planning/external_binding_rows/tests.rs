@@ -362,13 +362,14 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check exact top-level external satisfier");
-    let plans = crate::provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(Some("linux_x86_64")),
-    )
-    .into_iter()
-    .map(|derived| derived.plan)
-    .collect::<Vec<_>>();
+    let plans =
+        crate::provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+            Some("linux_x86_64"),
+        ))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!("one top-level external provider plan")
     };
@@ -439,13 +440,14 @@ fn selected_source_boundary_entry_plan_accepts_exact_operator_custody_without_tr
     .expect("resolve operator custody fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type operator custody fixture");
-    let mut plans = crate::provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
-    )
-    .into_iter()
-    .map(|derived| derived.plan)
-    .collect::<Vec<_>>();
+    let mut plans =
+        crate::provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+            None,
+        ))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
     let plan_index = plans
         .iter()
         .position(|plan| {

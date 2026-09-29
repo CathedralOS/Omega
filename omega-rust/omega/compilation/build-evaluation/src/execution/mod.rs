@@ -75,7 +75,7 @@ fn execute_admitted_build_occurrence(
     let root_bindings = collect_root_bindings(typed, measured.executed_root_bindings())?;
     let executed_exclusions = measured.executed_behavior_exclusions().to_vec();
     let provider_selections = provider_planning::collect_executed_provider_selections(
-        typed,
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
         measured.executed_provider_selections(),
     )?;
 

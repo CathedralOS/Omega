@@ -149,8 +149,14 @@ machine build(builder: &mut Build) {
                         == Some(owner)
             })
             .unwrap();
-        let schema =
-            provider_planning::service_schema::from_typed(&candidate.typed, declaration).unwrap();
+        let schema = provider_planning::service_schema::from_typed(
+            provider_planning::ProviderPlanningContext::new(
+                &candidate.typed,
+                source::DependencyScope::Product,
+            ),
+            declaration,
+        )
+        .unwrap();
         let requirement = schema
             .methods
             .iter()

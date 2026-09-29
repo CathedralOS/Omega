@@ -19,6 +19,7 @@ pub mod component_progress;
 pub mod data_layout_queries;
 pub mod evaluated_via_bindings;
 mod intrinsic_requirements;
+mod planning_context;
 pub mod program_entry;
 mod provider_declarations;
 mod provider_planning;
@@ -36,6 +37,7 @@ pub use provider_settlement::{
 };
 
 pub use intrinsic_requirements::{IntrinsicRequirement, IntrinsicRequirementKind};
+pub use planning_context::ProviderPlanningContext;
 pub use provider_declarations::{
     collect_executed_provider_selections, harvest_provider_selections,
     validate_executed_provider_selection_declaration,

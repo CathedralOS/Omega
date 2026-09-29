@@ -478,17 +478,20 @@ fn replay_family_selection(
     typed: &typed_trees::TypedTrees,
     selection: crate::ProviderSelection,
 ) -> Result<Vec<String>, Vec<diagnostics::Diagnostic>> {
-    let derived = derive_satisfies_plans(typed, ProviderPlanDerivation::unevaluated(None));
+    let provider_context =
+        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let derived =
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(provider_context, None));
     assert_eq!(
         derived.len(),
         3,
         "two Convert coordinates and one Other coordinate"
     );
-    let table = crate::evaluated_via_bindings::evaluate_via_bindings(typed, None, None)
+    let table = crate::evaluated_via_bindings::evaluate_via_bindings(provider_context, None, None)
         .expect("a fixture without `via` evaluates to an empty table");
     let selected =
         select_derived_provider_plans(&derived, target::NativeTarget::host(), &[], &[selection])?;
-    let (facts, _) = selected_provider_plan_facts(typed, &table, selected)?;
+    let (facts, _) = selected_provider_plan_facts(provider_context, &table, selected)?;
     Ok(facts
         .plans()
         .iter()
@@ -634,7 +637,10 @@ fn operator_family_replay_rejects_partial_padded_stale_and_substituted_rosters()
     let ProviderSelectionSubject::BoundaryOperatorFamily(stale_family) = &stale.subject else {
         panic!("stale fixture must retain a family subject")
     };
-    let reasons = stale_family.replay_against_typed(&typed);
+    let reasons = stale_family.replay_against_typed(crate::ProviderPlanningContext::new(
+        &typed,
+        source::DependencyScope::Product,
+    ));
     assert_eq!(reasons.len(), 1, "{reasons:#?}");
     assert!(reasons[0].contains("no longer resolves to a boundary operator declaration"));
     assert!(reasons[0].contains("named(name(i64))"));

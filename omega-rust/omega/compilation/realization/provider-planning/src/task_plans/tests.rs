@@ -499,17 +499,21 @@ fn concrete_task_start_fixture() -> (
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
     let provider_plans = crate::provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
+        ProviderPlanDerivation::unevaluated(provider_context, None),
     )
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
     assert_eq!(provider_plans.len(), 1);
     assert!(
-        crate::provider_planning::validate_provider_plan_candidates(&typed, &provider_plans,)
-            .is_empty()
+        crate::provider_planning::validate_provider_plan_candidates(
+            provider_context,
+            &provider_plans,
+        )
+        .is_empty()
     );
     let selected = effects::SelectedProviderPlanFacts::from_selection(
         &provider_plans,
@@ -604,17 +608,21 @@ fn nested_task_call_fixture() -> (
     .expect("resolve");
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
     let provider_plans = crate::provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
+        ProviderPlanDerivation::unevaluated(provider_context, None),
     )
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
     assert_eq!(provider_plans.len(), 1);
     assert!(
-        crate::provider_planning::validate_provider_plan_candidates(&typed, &provider_plans,)
-            .is_empty()
+        crate::provider_planning::validate_provider_plan_candidates(
+            provider_context,
+            &provider_plans,
+        )
+        .is_empty()
     );
     let selected = effects::SelectedProviderPlanFacts::from_selection(
         &provider_plans,

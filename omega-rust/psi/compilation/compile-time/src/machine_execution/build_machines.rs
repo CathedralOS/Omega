@@ -72,8 +72,13 @@ impl std::error::Error for BuildMachineEvaluationError {}
 /// typed tree unchanged so later checking can retain template and
 /// specialization-contract evidence.
 pub struct PreparedBuildMachineProgram {
-    typed: TypedTrees,
+    program: PreparedBuildMachineBody,
     identity: Arc<PreparedBuildMachineProgramIdentity>,
+}
+
+enum PreparedBuildMachineBody {
+    Typed(Box<TypedTrees>),
+    Checked(Box<checked_trees::CheckedTrees>),
 }
 
 /// Exact build-machine entry owned by one prepared program.
@@ -101,13 +106,13 @@ impl PreparedBuildMachineEntry {
 }
 
 impl PreparedBuildMachineProgram {
-    /// Transfer the checker-transformed typed program into an immutable identity.
-    /// No specialization or rebinding follows admission. This retains the Build
-    /// interpreter's typed execution surface, not general checked-fact dispatch.
+    /// Transfer the checked program and its execution facts into one immutable
+    /// identity. No specialization or rebinding follows admission, so retained
+    /// facts keep naming the exact arena the interpreter consumes.
     /// Host grants and the exact entry's operational contract remain caller duties.
     pub fn from_checked(program: checked_trees::CheckedTrees) -> Self {
         Self {
-            typed: program.typed,
+            program: PreparedBuildMachineBody::Checked(Box::new(program)),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
         }
     }
@@ -121,13 +126,27 @@ impl PreparedBuildMachineProgram {
         crate::const_evaluation::range_endpoints::defer_pending_endpoint_calls(&mut typed)?;
         typed_trees_to_checked_trees::specialize_static_machine_calls(&mut typed)?;
         Ok(Self {
-            typed,
+            program: PreparedBuildMachineBody::Typed(Box::new(typed)),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
         })
     }
 
     pub fn typed(&self) -> &TypedTrees {
-        &self.typed
+        match &self.program {
+            PreparedBuildMachineBody::Typed(typed) => typed,
+            PreparedBuildMachineBody::Checked(checked) => &checked.typed,
+        }
+    }
+
+    fn interpreter_program(&self) -> checked_interpreter::BuildMachineProgram<'_> {
+        match &self.program {
+            PreparedBuildMachineBody::Typed(typed) => {
+                checked_interpreter::BuildMachineProgram::Typed(typed)
+            }
+            PreparedBuildMachineBody::Checked(checked) => {
+                checked_interpreter::BuildMachineProgram::Checked(checked)
+            }
+        }
     }
 
     /// Bind one exact machine with closed static applications to this immutable
@@ -135,7 +154,7 @@ impl PreparedBuildMachineProgram {
     /// execution mode or host grant can admit an unfinished specialization.
     pub fn entry(&self, symbol: SymbolHandle) -> Result<PreparedBuildMachineEntry, String> {
         if !self
-            .typed
+            .typed()
             .machines()
             .iter()
             .any(|machine| machine.symbol == symbol)
@@ -144,11 +163,11 @@ impl PreparedBuildMachineProgram {
                 "prepared build program contains no machine with exact symbol {symbol:?}"
             ));
         }
-        if self.typed.machines().iter().any(|machine| {
+        if self.typed().machines().iter().any(|machine| {
             machine.structural_type_equations_pending || !machine.type_parameters.is_empty()
         }) {
-            super::admission::BuildTimeAdmissionPlan::infer(&self.typed, None)
-                .require_closed_static_applications(&self.typed, symbol)?;
+            super::admission::BuildTimeAdmissionPlan::infer(self.typed(), None)
+                .require_closed_static_applications(self.typed(), symbol)?;
         }
         Ok(PreparedBuildMachineEntry {
             program_identity: Arc::clone(&self.identity),
@@ -198,15 +217,16 @@ pub fn evaluate_build_machine_measured(
         product_entry_compatibility: invocation.product_entry_compatibility,
     };
     match invocation.mode {
-        BuildMachineExecutionMode::Pure => {
-            checked_interpreter::evaluate_build_machine_arguments(program.typed(), request)
-                .map_err(BuildMachineEvaluationError::Pure)
-        }
+        BuildMachineExecutionMode::Pure => checked_interpreter::evaluate_build_machine_arguments(
+            program.interpreter_program(),
+            request,
+        )
+        .map_err(BuildMachineEvaluationError::Pure),
         BuildMachineExecutionMode::Granted {
             filesystem,
             filesystem_metadata_layout,
         } => checked_interpreter::evaluate_granted_build_machine_arguments(
-            program.typed(),
+            program.interpreter_program(),
             request,
             checked_interpreter::InterpretOptions {
                 filesystem,

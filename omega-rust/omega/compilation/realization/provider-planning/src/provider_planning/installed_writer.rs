@@ -1284,8 +1284,15 @@ pub fn selected_external_root_entry_fact_bindings(
                     method.requirement_owner, method.name
                 )));
             };
-            let implementation = exact_checked_adapter(&checked.typed, plan, row)
-                .map_err(|diagnostic| external_roots::ExternalRootDiagnostic(diagnostic.message))?;
+            let implementation = exact_checked_adapter(
+                crate::ProviderPlanningContext::new(
+                    &checked.typed,
+                    source::DependencyScope::Product,
+                ),
+                plan,
+                row,
+            )
+            .map_err(|diagnostic| external_roots::ExternalRootDiagnostic(diagnostic.message))?;
             let state = checked
                 .typed
                 .machine_states(implementation)

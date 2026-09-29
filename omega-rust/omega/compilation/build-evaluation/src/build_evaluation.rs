@@ -20,6 +20,8 @@ use typed_trees::TypedTrees;
 pub struct BuildEvaluationRequest<'request> {
     pub root_path: &'request Path,
     pub typed: &'request TypedTrees,
+    pub target_machine_declarations:
+        &'request provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub build_source_id: Option<source::SourceId>,
     pub sources: &'request source::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
@@ -54,6 +56,7 @@ pub fn evaluate_build(
     let BuildEvaluationRequest {
         root_path,
         typed,
+        target_machine_declarations,
         build_source_id,
         sources,
         package_inputs,
@@ -111,8 +114,13 @@ pub fn evaluate_build(
     // Every activation checks its helpers before snapshot capture or effects.
     // Package authority adds to that semantic floor; standalone source cannot
     // bypass it. Admission below consumes this exact checked program.
-    let prepared =
-        crate::admission::checking::prepare_checked_build(typed, package_inputs, timings)?;
+    let prepared = crate::admission::checking::prepare_checked_build(
+        typed,
+        target_machine_declarations,
+        package_inputs,
+        execution_profile,
+        timings,
+    )?;
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
         package_inputs,

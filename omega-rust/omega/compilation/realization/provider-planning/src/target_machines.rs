@@ -29,10 +29,10 @@ use typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
 /// Typed machines intentionally lose their target marker after filtering, so
 /// the selected provider-default declarations must be retained before that
 /// mutation. This carrier owns their deterministic full-name roster and
-/// consumes it exactly once when rebinding the corresponding typed machines.
+/// rebinds each dependency purpose against its corresponding typed machines.
 /// Each retained name carries its declaring source so two checked instances
 /// of one path rebind to their own typed machine rather than colliding.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SelectedTargetMachineDeclarations {
     provider_default_machine_names: Vec<(String, source::SourceId)>,
     selected_machine_origins: Vec<(String, String, source::SourceId)>,
@@ -197,8 +197,20 @@ impl SelectedTargetMachineDeclarations {
     /// already finalized their `select_provider` calls as the build
     /// provider-selection intrinsic, so this harvest only validates what the
     /// realized target's declaration selects.
-    pub fn admit_provider_default_calls(&self, typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    pub fn admit_provider_default_calls(
+        &self,
+        context: crate::ProviderPlanningContext<'_>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let typed = context.typed;
         for (machine_name, source) in &self.provider_default_machine_names {
+            if typed
+                .symbols
+                .source_files()
+                .find(|file| file.source_id == *source)
+                .is_some_and(|file| file.dependency_scope != context.scope)
+            {
+                continue;
+            }
             let matching = typed
                 .machines()
                 .iter()
@@ -217,7 +229,7 @@ impl SelectedTargetMachineDeclarations {
                     matching.len(),
                 ))]);
             };
-            crate::harvest_provider_selections(typed, machine)?;
+            crate::harvest_provider_selections(context, machine)?;
         }
         Ok(())
     }
@@ -427,13 +439,27 @@ impl SelectedTargetMachineDeclarations {
     }
 
     pub fn settle_provider_defaults(
-        self,
-        typed: &mut TypedTrees,
+        &self,
+        context: crate::ProviderPlanningContext<'_>,
     ) -> Result<SettledTargetMachineDeclarations, Vec<Diagnostic>> {
+        let typed = context.typed;
+        // Source-instance identity survives target-body selection. A shared
+        // roster must not feed the Build's defaults to Product or vice versa.
+        // Missing source records remain a rejoin error below, not an omission.
+        let outside_context = |source: source::SourceId| {
+            typed
+                .symbols
+                .source_files()
+                .find(|file| file.source_id == source)
+                .is_some_and(|file| file.dependency_scope != context.scope)
+        };
         let mut defaults = Vec::new();
         let mut origins = Vec::new();
         let mut diagnostics = Vec::new();
         for (machine_name, source) in &self.provider_default_machine_names {
+            if outside_context(*source) {
+                continue;
+            }
             let Some(machine) = typed.machines().iter().find(|machine| {
                 machine.target.is_none()
                     && machine.name.as_str() == machine_name
@@ -447,7 +473,7 @@ impl SelectedTargetMachineDeclarations {
                 )));
                 continue;
             };
-            match crate::harvest_provider_selections(typed, machine) {
+            match crate::harvest_provider_selections(context, machine) {
                 Ok(mut machine_defaults) => {
                     defaults.append(&mut machine_defaults);
                 }
@@ -455,6 +481,9 @@ impl SelectedTargetMachineDeclarations {
             }
         }
         for (machine_name, target, source) in &self.selected_machine_origins {
+            if outside_context(*source) {
+                continue;
+            }
             let matches = typed
                 .machines()
                 .iter()
@@ -480,7 +509,6 @@ impl SelectedTargetMachineDeclarations {
             });
         }
         if diagnostics.is_empty() {
-            self.admit_provider_default_calls(typed)?;
             Ok(SettledTargetMachineDeclarations {
                 provider_defaults: defaults,
                 origins,
@@ -857,7 +885,10 @@ mod tests {
     #[test]
     fn empty_target_declarations_settle_to_canonical_empty_defaults() {
         let settled = SelectedTargetMachineDeclarations::new(Vec::new(), Vec::new(), Vec::new())
-            .settle_provider_defaults(&mut typed_trees::TypedTrees::default())
+            .settle_provider_defaults(crate::ProviderPlanningContext::new(
+                &typed_trees::TypedTrees::default(),
+                source::DependencyScope::Product,
+            ))
             .expect("empty target declaration custody has no typed dependency");
 
         assert!(settled.provider_defaults.is_empty());
@@ -931,7 +962,10 @@ mod tests {
             Vec::new(),
         );
         let Err(diagnostics) =
-            declarations.settle_provider_defaults(&mut typed_trees::TypedTrees::default())
+            declarations.settle_provider_defaults(crate::ProviderPlanningContext::new(
+                &typed_trees::TypedTrees::default(),
+                source::DependencyScope::Product,
+            ))
         else {
             panic!("retained target declarations must rebind exactly after typing")
         };
@@ -1301,7 +1335,10 @@ mod tests {
             );
         }
         let settled = declarations
-            .settle_provider_defaults(&mut typed)
+            .settle_provider_defaults(crate::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product,
+            ))
             .expect("selected origins retain both namespaces");
         assert_eq!(settled.origins.len(), 2);
         assert_ne!(settled.origins[0].machine, settled.origins[1].machine);

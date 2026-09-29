@@ -197,14 +197,16 @@ pub(crate) fn evaluate_one(
 }
 
 pub(crate) fn exact_binding_vocabulary(
-    typed: &TypedTrees,
+    context: crate::ProviderPlanningContext<'_>,
 ) -> Result<BindingVocabulary, Vec<Diagnostic>> {
+    let typed = context.typed;
     let exact = |name: &str| {
         typed
             .data_definitions()
             .iter()
             .filter(|definition| {
-                definition.name.as_str() == name
+                context.contains(definition.symbol)
+                    && definition.name.as_str() == name
                     && definition.generic_instance.is_none()
                     && definition.is_public
                     && definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape

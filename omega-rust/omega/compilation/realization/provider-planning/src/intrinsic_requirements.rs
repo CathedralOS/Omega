@@ -168,10 +168,17 @@ impl<'typed> IntrinsicRequirement<'typed> {
     }
 
     /// Whether a provider-plan schema is exactly this requirement's slot.
-    pub fn schema_binds(&self, typed: &TypedTrees, schema: &ServiceSchema) -> bool {
+    pub fn schema_binds(
+        &self,
+        context: crate::ProviderPlanningContext<'_>,
+        schema: &ServiceSchema,
+    ) -> bool {
+        let typed = context.typed;
         match self.kind {
             IntrinsicRequirementKind::Operator => self.operator.is_some_and(|operator| {
-                crate::service_schema::schema_binds_exact_boundary_operator(typed, schema, operator)
+                crate::service_schema::schema_binds_exact_boundary_operator(
+                    context, schema, operator,
+                )
             }),
             IntrinsicRequirementKind::TopLevelRequirement => typed
                 .machines()
@@ -179,7 +186,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
                 .find(|machine| machine.symbol == self.symbol)
                 .is_some_and(|requirement| {
                     crate::service_schema::schema_binds_exact_boundary_requirement(
-                        typed,
+                        context,
                         schema,
                         requirement,
                     )

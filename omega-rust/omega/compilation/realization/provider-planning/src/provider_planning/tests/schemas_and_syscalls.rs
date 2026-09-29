@@ -19,7 +19,13 @@ fn table_field_leaf_requires_an_attached_layout_owner() {
         },
     });
 
-    let diagnostics = validate_provider_plan_candidates(&TypedTrees::default(), &[plan]);
+    let diagnostics = validate_provider_plan_candidates(
+        crate::ProviderPlanningContext::new(
+            &TypedTrees::default(),
+            source::DependencyScope::Product,
+        ),
+        &[plan],
+    );
 
     assert_eq!(diagnostics.len(), 1);
     assert!(
@@ -43,7 +49,13 @@ fn checked_adapter_requires_a_nominal_provider_type() {
         },
     });
 
-    let diagnostics = validate_provider_plan_candidates(&TypedTrees::default(), &[plan]);
+    let diagnostics = validate_provider_plan_candidates(
+        crate::ProviderPlanningContext::new(
+            &TypedTrees::default(),
+            source::DependencyScope::Product,
+        ),
+        &[plan],
+    );
 
     // Candidate-shape and typed-resolution validation remain cumulative:
     // the impossible free adapter has neither a nominal owner nor a typed
@@ -93,7 +105,9 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
     .expect("resolve adapter ownership fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type adapter ownership fixture");
-    let plan = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
+    let plan = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(provider_context, None))
         .into_iter()
         .map(|derived| derived.plan)
         .collect::<Vec<_>>()
@@ -101,7 +115,7 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
         .find(|plan| plan.schema.trait_name == "Readable")
         .expect("Readable provider plan");
     assert!(
-        validate_provider_plan_candidates(&typed, std::slice::from_ref(&plan)).is_empty(),
+        validate_provider_plan_candidates(provider_context, std::slice::from_ref(&plan)).is_empty(),
         "the exact checked provider conformance remains valid"
     );
 
@@ -111,7 +125,7 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
         machine_package_identity: None,
     };
     assert!(
-        validate_provider_plan_candidates(&typed, &[absent])
+        validate_provider_plan_candidates(provider_context, &[absent])
             .iter()
             .any(|diagnostic| diagnostic.message.contains("is absent from typed machines"))
     );
@@ -122,7 +136,7 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
         machine_package_identity: None,
     };
     assert!(
-        validate_provider_plan_candidates(&typed, &[wrong_provider])
+        validate_provider_plan_candidates(provider_context, &[wrong_provider])
             .iter()
             .any(|diagnostic| diagnostic
                 .message
@@ -135,7 +149,7 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
         machine_package_identity: None,
     };
     assert!(
-        validate_provider_plan_candidates(&typed, &[external])
+        validate_provider_plan_candidates(provider_context, &[external])
             .iter()
             .any(|diagnostic| diagnostic
                 .message
@@ -148,7 +162,7 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
         machine_package_identity: None,
     };
     assert!(
-        validate_provider_plan_candidates(&typed, &[unrelated])
+        validate_provider_plan_candidates(provider_context, &[unrelated])
             .iter()
             .any(|diagnostic| diagnostic
                 .message
@@ -205,7 +219,9 @@ fn checked_operator_adapter_must_resolve_to_its_exact_operator_conformance() {
         })
         .expect("CheckedMath::offset_zero operator");
     let identity = typed_trees::operator::boundary_operator_requirement_identity(&typed, operator);
-    let plan = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
+    let plan = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(provider_context, None))
         .into_iter()
         .map(|derived| derived.plan)
         .collect::<Vec<_>>()
@@ -213,7 +229,7 @@ fn checked_operator_adapter_must_resolve_to_its_exact_operator_conformance() {
         .find(|plan| plan.schema.trait_name == identity)
         .expect("CheckedMath::offset_zero provider plan");
     assert!(
-        validate_provider_plan_candidates(&typed, std::slice::from_ref(&plan)).is_empty(),
+        validate_provider_plan_candidates(provider_context, std::slice::from_ref(&plan)).is_empty(),
         "the exact checked operator conformance remains valid"
     );
 
@@ -227,7 +243,7 @@ fn checked_operator_adapter_must_resolve_to_its_exact_operator_conformance() {
             machine_package_identity: None,
         };
         assert!(
-            validate_provider_plan_candidates(&typed, &[invalid])
+            validate_provider_plan_candidates(provider_context, &[invalid])
                 .iter()
                 .any(|diagnostic| diagnostic
                     .message
@@ -262,10 +278,13 @@ fn syscall_derivation_retains_exact_number_before_range_validation() {
         .expect("resolve syscall leaf");
         let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type syscall leaf");
-        let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
-            .into_iter()
-            .map(|derived| derived.plan)
-            .collect::<Vec<_>>();
+        let plans = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+            None,
+        ))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>();
         (typed, plans)
     }
 
@@ -275,7 +294,13 @@ fn syscall_derivation_retains_exact_number_before_range_validation() {
         panic!("source syscall leaf must retain a syscall binding");
     };
     assert_eq!(*number, maximum);
-    assert!(validate_provider_plan_candidates(&typed, &plans).is_empty());
+    assert!(
+        validate_provider_plan_candidates(
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+            &plans
+        )
+        .is_empty()
+    );
 
     let oversized = maximum + 1;
     let (typed, plans) = derive(oversized);
@@ -284,7 +309,10 @@ fn syscall_derivation_retains_exact_number_before_range_validation() {
     };
     assert_eq!(*number, oversized);
     assert_ne!(*number, 0, "oversized syscall must not normalize to zero");
-    let diagnostics = validate_provider_plan_candidates(&typed, &plans);
+    let diagnostics = validate_provider_plan_candidates(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        &plans,
+    );
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -320,12 +348,14 @@ fn checked_adapter_rejects_symbol_resolved_service_widening() {
     .expect("resolve provider");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type provider");
-    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
+    let plans = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(provider_context, None))
         .into_iter()
         .map(|derived| derived.plan)
         .collect::<Vec<_>>();
 
-    let diagnostics = validate_provider_plan_candidates(&typed, &plans);
+    let diagnostics = validate_provider_plan_candidates(provider_context, &plans);
 
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
@@ -367,7 +397,11 @@ fn provider_candidate_requires_exact_canonical_typed_schema() {
         satisfies Readable::read {}
     "#;
     let (typed, plan) = derive_provider_fixture(source);
-    assert!(validate_provider_plan_candidates(&typed, std::slice::from_ref(&plan)).is_empty());
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
+    assert!(
+        validate_provider_plan_candidates(provider_context, std::slice::from_ref(&plan)).is_empty()
+    );
 
     for drift in [
         Drift::Method,
@@ -442,7 +476,7 @@ fn provider_candidate_requires_exact_canonical_typed_schema() {
             }
         }
 
-        let diagnostics = validate_provider_plan_candidates(&typed, &[drifted]);
+        let diagnostics = validate_provider_plan_candidates(provider_context, &[drifted]);
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -477,7 +511,10 @@ fn forged_service_ceiling_cannot_launder_checked_adapter_reach() {
     plan.schema.methods[0].service_reach.sort_unstable();
     plan.schema.methods[0].service_reach.dedup();
 
-    let diagnostics = validate_provider_plan_candidates(&typed, &[plan]);
+    let diagnostics = validate_provider_plan_candidates(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        &[plan],
+    );
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -507,15 +544,17 @@ fn canonical_schema_resolution_is_exact_and_unique() {
         satisfies Readable::read {}
     "#;
     let (typed, plan) = derive_provider_fixture(source);
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
     assert_eq!(
-        exact_canonical_provider_schema(&typed, &plan).expect("exact schema"),
+        exact_canonical_provider_schema(provider_context, &plan).expect("exact schema"),
         plan.schema,
     );
 
     for identity in ["Missing", "pkg::Readable"] {
         let mut drifted = plan.clone();
         drifted.schema.trait_name = identity.to_owned();
-        let diagnostic = exact_canonical_provider_schema(&typed, &drifted)
+        let diagnostic = exact_canonical_provider_schema(provider_context, &drifted)
             .expect_err("unknown and qualified-leaf impostor schemas must reject");
         assert!(diagnostic.message.contains("resolves to 0 canonical typed"));
     }
@@ -528,8 +567,11 @@ fn canonical_schema_resolution_is_exact_and_unique() {
         .expect("Readable trait")
         .clone();
     duplicated.push_trait_definition(duplicate);
-    let diagnostic = exact_canonical_provider_schema(&duplicated, &plan)
-        .expect_err("duplicate exact schema authority must reject");
+    let diagnostic = exact_canonical_provider_schema(
+        crate::ProviderPlanningContext::new(&duplicated, source::DependencyScope::Product),
+        &plan,
+    )
+    .expect_err("duplicate exact schema authority must reject");
     assert!(
         diagnostic
             .message
@@ -561,10 +603,13 @@ fn canonical_schema_accepts_exact_inherited_requirement() {
         .iter()
         .find(|definition| definition.name.as_str() == "Child")
         .expect("Child boundary schema");
-    plan.schema = crate::service_schema::from_typed(&typed, child).expect("typed child schema");
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
+    plan.schema =
+        crate::service_schema::from_typed(provider_context, child).expect("typed child schema");
 
     assert!(
-        validate_provider_plan_candidates(&typed, &[plan]).is_empty(),
+        validate_provider_plan_candidates(provider_context, &[plan]).is_empty(),
         "an exact child schema may retain its inherited parent requirement",
     );
 }
@@ -588,8 +633,11 @@ fn canonical_schema_rejects_duplicate_exact_carrier_arguments() {
     let duplicate = typed.conformances()[0].clone();
     typed.push_conformance(duplicate);
 
-    let diagnostic = exact_canonical_provider_schema(&typed, &plan)
-        .expect_err("duplicate carrier argument custody must reject");
+    let diagnostic = exact_canonical_provider_schema(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        &plan,
+    )
+    .expect_err("duplicate carrier argument custody must reject");
     assert!(
         diagnostic
             .message
@@ -618,13 +666,19 @@ fn canonical_schema_rejects_same_spelled_declarations_from_a_foreign_package() {
     let (typed, plan) = derive_provider_fixture(trait_source);
     let mut drifted = plan.clone();
     drifted.schema.trait_package_identity = Some(foreign_package);
-    let diagnostic = exact_canonical_provider_schema(&typed, &drifted)
-        .expect_err("a same-spelled trait schema from another package must reject");
+    let diagnostic = exact_canonical_provider_schema(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        &drifted,
+    )
+    .expect_err("a same-spelled trait schema from another package must reject");
     assert!(
         diagnostic.message.contains("resolves to 0 canonical typed"),
         "expected a zero-match canonical diagnostic, got {diagnostic:?}"
     );
-    let diagnostics = validate_provider_plan_candidates(&typed, &[drifted]);
+    let diagnostics = validate_provider_plan_candidates(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        &[drifted],
+    );
     assert!(
         !diagnostics.is_empty(),
         "candidate validation must not replay a foreign-package schema"
@@ -644,13 +698,19 @@ fn canonical_schema_rejects_same_spelled_declarations_from_a_foreign_package() {
     let (typed, plan) = derive_provider_fixture(operator_source);
     let mut drifted = plan.clone();
     drifted.schema.trait_package_identity = Some(foreign_package);
-    let diagnostic = exact_canonical_provider_schema(&typed, &drifted)
-        .expect_err("a same-spelled operator schema from another package must reject");
+    let diagnostic = exact_canonical_provider_schema(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        &drifted,
+    )
+    .expect_err("a same-spelled operator schema from another package must reject");
     assert!(
         diagnostic.message.contains("resolves to 0 canonical typed"),
         "expected a zero-match canonical diagnostic, got {diagnostic:?}"
     );
-    let diagnostics = validate_provider_plan_candidates(&typed, &[drifted]);
+    let diagnostics = validate_provider_plan_candidates(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        &[drifted],
+    );
     assert!(
         !diagnostics.is_empty(),
         "candidate validation must not replay a foreign-package operator schema"

@@ -157,7 +157,10 @@ fn resolve_filesystem_host_binding<'trees>(
             {
                 return None;
             }
-            let schema = crate::service_schema::from_typed(typed, definition)?;
+            let schema = crate::service_schema::from_typed(
+                crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+                definition,
+            )?;
             (schema.trait_package_identity == Some(binding.package())
                 && package_compilation::accepted_service_schema_digest(binding.role(), &schema)
                     == binding.normalized_schema_digest())

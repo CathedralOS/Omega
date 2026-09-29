@@ -149,8 +149,14 @@ impl Fixture {
             return inputs;
         }
         let definition = self.time_host_trait();
-        let schema = provider_planning::service_schema::from_typed(&self.typed, definition)
-            .expect("the fixture boundary yields a service schema");
+        let schema = provider_planning::service_schema::from_typed(
+            provider_planning::ProviderPlanningContext::new(
+                &self.typed,
+                source::DependencyScope::Product,
+            ),
+            definition,
+        )
+        .expect("the fixture boundary yields a service schema");
         let binding = AcceptedSemanticBinding::new_service(
             AcceptedSemanticBindingRole::TimeHostService,
             identity(HOST),
@@ -179,7 +185,10 @@ impl Fixture {
             .target_machines
             .take()
             .expect("settle once")
-            .settle_provider_defaults(&mut self.typed)
+            .settle_provider_defaults(provider_planning::ProviderPlanningContext::new(
+                &self.typed,
+                source::DependencyScope::Product,
+            ))
             .expect("provider defaults settle");
         settle_checked_providers(
             &mut self.typed,

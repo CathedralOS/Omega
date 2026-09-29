@@ -192,6 +192,7 @@ dependencies = [
  "package-compilation",
  "provider-planning",
  "representation-planning",
+ "selected-dispatch",
  "semantic-vocabulary",
  "sha2",
  "source",
@@ -2314,6 +2315,7 @@ dependencies = [
  "effects",
  "optimization-core",
  "provider-planning",
+ "source",
  "target",
  "trust-model",
 ]

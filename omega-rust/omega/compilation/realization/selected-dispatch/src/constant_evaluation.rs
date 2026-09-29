@@ -91,9 +91,15 @@ impl SelectedConstantEvaluation {
                         .map_err(|reason| vec![Diagnostic::error(reason)])?,
                     );
                 }
-            } else if let Some(provider) =
-                provider_planning::selected_requirement_checked_adapter(typed, plan, requirement)
-                    .map_err(|error| vec![error])?
+            } else if let Some(provider) = provider_planning::selected_requirement_checked_adapter(
+                provider_planning::ProviderPlanningContext::new(
+                    typed,
+                    source::DependencyScope::Product,
+                ),
+                plan,
+                requirement,
+            )
+            .map_err(|error| vec![error])?
             {
                 selected.provider_bodies.push(
                     SelectedBuildTimeProviderBody::prepare(

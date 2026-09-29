@@ -45,9 +45,11 @@ fn exact_top_level_requirement_schema_retains_its_typed_operational_shape() {
         "#,
     );
     let requirement = requirement(&typed, "InterruptAcknowledgement::complete");
-    let schema =
-        provider_planning::service_schema::from_typed_boundary_requirement(&typed, requirement)
-            .expect("public non-generic requirement schema");
+    let schema = provider_planning::service_schema::from_typed_boundary_requirement(
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        requirement,
+    )
+    .expect("public non-generic requirement schema");
 
     assert_eq!(schema.trait_name, "InterruptAcknowledgement::complete");
     assert_eq!(schema.trait_package_identity, None);
@@ -108,9 +110,13 @@ fn top_level_requirement_schema_admits_static_generics_not_package_visibility() 
     // the exact carrier joining the template to its closed applications. A
     // lifetime telescope erases instead, which the next test pins.
     let generic = requirement(&typed, "StaticGeneric::complete");
-    let schema =
-        provider_planning::service_schema::from_typed_boundary_requirement(&typed, generic)
-            .expect("a static generic requirement template reifies its authored schema");
+    let provider_context =
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
+    let schema = provider_planning::service_schema::from_typed_boundary_requirement(
+        provider_context,
+        generic,
+    )
+    .expect("a static generic requirement template reifies its authored schema");
     let [method] = schema.methods.as_slice() else {
         panic!("one exact top-level requirement method")
     };
@@ -130,7 +136,7 @@ fn top_level_requirement_schema_admits_static_generics_not_package_visibility() 
     for name in ["Private::complete", "Plain::complete"] {
         assert!(
             provider_planning::service_schema::from_typed_boundary_requirement(
-                &typed,
+                provider_context,
                 requirement(&typed, name)
             )
             .is_some(),
@@ -147,9 +153,11 @@ fn lifetime_parameterized_requirement_schema_erases_the_telescope() {
         "#,
     );
     let requirement = requirement(&typed, "LifetimeGeneric::complete");
-    let schema =
-        provider_planning::service_schema::from_typed_boundary_requirement(&typed, requirement)
-            .expect("an erased lifetime telescope stays inside the planning rung");
+    let schema = provider_planning::service_schema::from_typed_boundary_requirement(
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        requirement,
+    )
+    .expect("an erased lifetime telescope stays inside the planning rung");
 
     assert_eq!(schema.trait_name, "LifetimeGeneric::complete");
     let [method] = schema.methods.as_slice() else {
@@ -187,7 +195,10 @@ fn top_level_requirement_schema_rejects_wrong_supply_and_unpublished_termination
         .supply_mode = language_semantics::MachineSupplyMode::Boundary;
     assert!(
         provider_planning::service_schema::from_typed_boundary_requirement(
-            &typed,
+            provider_planning::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product
+            ),
             requirement(&typed, "Carrier::operation")
         )
         .is_none()
@@ -203,7 +214,10 @@ fn top_level_requirement_schema_rejects_wrong_supply_and_unpublished_termination
         .body_is_present = true;
     assert!(
         provider_planning::service_schema::from_typed_boundary_requirement(
-            &typed,
+            provider_planning::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product
+            ),
             requirement(&typed, "Carrier::operation")
         )
         .is_none()
@@ -220,7 +234,10 @@ fn top_level_requirement_schema_rejects_wrong_supply_and_unpublished_termination
         .interface = language_semantics::TerminationInterface::InternalDerived;
     assert!(
         provider_planning::service_schema::from_typed_boundary_requirement(
-            &typed,
+            provider_planning::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product
+            ),
             requirement(&typed, "Carrier::operation")
         )
         .is_none()

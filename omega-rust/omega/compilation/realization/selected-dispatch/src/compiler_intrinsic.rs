@@ -718,7 +718,7 @@ fn boundary_row_shape(
         )));
     };
     if !provider_planning::service_schema::schema_binds_exact_boundary_trait(
-        typed,
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
         &plan.schema,
         definition,
     ) || method.name != requirement_name

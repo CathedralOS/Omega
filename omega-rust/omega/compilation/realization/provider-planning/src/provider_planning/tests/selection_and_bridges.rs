@@ -558,7 +558,13 @@ fn checked_synchronous_invocation_targets_reject_every_exact_drift() {
         }
         let method = &plan.schema.methods[0];
         let row = &plan.rows[0];
-        let result = exact_checked_adapter_invocations(&typed, &inferred, &plan, method, row);
+        let result = exact_checked_adapter_invocations(
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+            &inferred,
+            &plan,
+            method,
+            row,
+        );
         match expected {
             None => assert_eq!(
                 result.expect("exact checked target resolves"),
@@ -588,8 +594,12 @@ fn checked_adapter_lookup_excludes_inactive_target_siblings() {
             typed.machines_mut().swap(0, 1);
         }
 
-        let selected = crate::exact_checked_adapter(&typed, &plan, &plan.rows[0])
-            .expect("inactive target bodies do not compete with the selected adapter");
+        let selected = crate::exact_checked_adapter(
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+            &plan,
+            &plan.rows[0],
+        )
+        .expect("inactive target bodies do not compete with the selected adapter");
         assert_eq!(selected.symbol, selected_symbol);
     }
 }
@@ -599,8 +609,12 @@ fn checked_adapter_lookup_cannot_fall_back_to_an_inactive_target() {
     let (mut typed, plan, _) = checked_invocation_fixture(32, 1);
     typed.machines_mut()[0].target = Some(typed_trees::name::Identifier::generated("linux_arm64"));
 
-    let diagnostic = crate::exact_checked_adapter(&typed, &plan, &plan.rows[0])
-        .expect_err("an inactive body cannot supply a missing selected adapter");
+    let diagnostic = crate::exact_checked_adapter(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        &plan,
+        &plan.rows[0],
+    )
+    .expect_err("an inactive body cannot supply a missing selected adapter");
     assert!(diagnostic.message.contains("is absent from typed machines"));
 }
 
@@ -609,7 +623,7 @@ fn self_forwarding_erases_only_the_exact_schema_receiver() {
     let (typed, plan, inferred) = checked_invocation_fixture(31, 0);
     assert_eq!(
         exact_checked_adapter_invocations(
-            &typed,
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
             &inferred,
             &plan,
             &plan.schema.methods[0],
@@ -622,7 +636,7 @@ fn self_forwarding_erases_only_the_exact_schema_receiver() {
     let (typed, plan, inferred) = checked_invocation_fixture(33, 0);
     assert_eq!(
         exact_checked_adapter_invocations(
-            &typed,
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
             &inferred,
             &plan,
             &plan.schema.methods[0],

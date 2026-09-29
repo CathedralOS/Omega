@@ -63,10 +63,10 @@ const GENERIC_STATEMENT_CALL: &str = r#"
 
 fn family_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
     let mut typed = typed_with_core_service("selected-dispatch/generic_requirements.omg", source);
-    let plans = provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
-    )
+    let plans = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();

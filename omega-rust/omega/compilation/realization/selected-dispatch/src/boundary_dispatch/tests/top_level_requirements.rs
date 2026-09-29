@@ -4,7 +4,10 @@
 //! requirement with no selected provider rejects at settlement.
 
 use super::{Arc, CheckedTrees, ProviderPlan, settle_selected_boundary_adapter_dispatch};
-use provider_planning::ProviderPlanDerivation;
+use provider_planning::{
+    ProviderPlanDerivation, ProviderPlanningContext, ProviderSelectionProvenance,
+    SelectedProviderReviewProvenance,
+};
 
 const REQUIREMENT_SOURCE: &str = r#"
     pub data CheckedMath {}
@@ -24,7 +27,13 @@ const REQUIREMENT_SOURCE: &str = r#"
     }
 "#;
 
-fn requirement_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
+fn requirement_fixture(
+    source: &str,
+) -> (
+    CheckedTrees,
+    Vec<ProviderPlan>,
+    Vec<SelectedProviderReviewProvenance>,
+) {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .expect("tokenize requirement fixture");
@@ -36,19 +45,28 @@ fn requirement_fixture(source: &str) -> (CheckedTrees, Vec<ProviderPlan>) {
     .expect("resolve requirement fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type requirement fixture");
-    let plans = provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
-    )
+    let providers = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
     .into_iter()
-    .map(|derived| derived.plan)
+    .map(|derived| SelectedProviderReviewProvenance {
+        plan: derived.plan,
+        provider: derived.provenance,
+        selected_by: ProviderSelectionProvenance::UniqueCoveringCandidate,
+        row_compiler_intrinsic_executions: vec![],
+    })
     .collect::<Vec<_>>();
     let checked = typed_trees_to_checked_trees::lower_typed_trees(
         typed,
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check requirement fixture");
-    (checked, plans)
+    let plans = providers
+        .iter()
+        .map(|provider| provider.plan.clone())
+        .collect();
+    (checked, plans, providers)
 }
 
 fn entry_symbol(checked: &CheckedTrees, machine_name: &str) -> symbols::SymbolHandle {
@@ -98,7 +116,7 @@ fn selected_all(plans: &[ProviderPlan]) -> effects::SelectedProviderPlanFacts {
 
 #[test]
 fn called_requirement_without_a_selected_provider_rejects_at_settlement() {
-    let (checked, _) = requirement_fixture(REQUIREMENT_SOURCE);
+    let (checked, _, _) = requirement_fixture(REQUIREMENT_SOURCE);
     let original = Arc::new(checked);
     let mut settled = Arc::new(original.as_ref().clone());
     let diagnostics = settle_selected_boundary_adapter_dispatch(
@@ -138,7 +156,7 @@ const SELF_REQUIREMENT_SOURCE: &str = r#"
 /// and forwards that place as the adapter's leading argument.
 #[test]
 fn a_self_requirement_settles_a_receiver_place_keyed_forwarding_row() {
-    let (checked, plans) = requirement_fixture(SELF_REQUIREMENT_SOURCE);
+    let (checked, plans, _) = requirement_fixture(SELF_REQUIREMENT_SOURCE);
     assert_eq!(plans.len(), 1, "one derived self-requirement plan");
     let selected = selected_all(&plans);
     let requirement = entry_symbol(&checked, "Token::consume");
@@ -204,11 +222,12 @@ fn selected_dispatch_preserves_checked_plans_and_accepts_shared_custody() {
         BORROWED_SELF_REQUIREMENT_SOURCE,
         MUTABLE_SELF_REQUIREMENT_SOURCE,
     ] {
-        let (checked, plans) = requirement_fixture(source);
+        let (checked, plans, providers) = requirement_fixture(source);
         let selected = selected_all(&plans);
         let original = Arc::new(checked);
-        let settled = crate::settle_selected_execution_dispatch(Arc::clone(&original), &selected)
-            .expect("provider selection does not need exclusive checked-program custody");
+        let settled =
+            crate::settle_selected_execution_dispatch(Arc::clone(&original), &selected, &providers)
+                .expect("provider selection does not need exclusive checked-program custody");
         assert_eq!(settled.typed, original.typed);
         assert_eq!(
             settled.facts.flow.terminal_unit_effects, original.facts.flow.terminal_unit_effects,
@@ -226,8 +245,9 @@ fn selected_dispatch_preserves_checked_plans_and_accepts_shared_custody() {
 
         // An unchanged association is a read-only operation even when a
         // consumer retains the checked program. No clone or recheck is needed.
-        let repeated = crate::settle_selected_execution_dispatch(Arc::clone(&settled), &selected)
-            .expect("unchanged dispatch can retain a shared checked program");
+        let repeated =
+            crate::settle_selected_execution_dispatch(Arc::clone(&settled), &selected, &providers)
+                .expect("unchanged dispatch can retain a shared checked program");
         assert!(Arc::ptr_eq(&settled, &repeated));
     }
 }
@@ -241,7 +261,7 @@ fn selected_dispatch_preserves_checked_plans_and_accepts_shared_custody() {
 /// `&mut Token` argument.
 #[test]
 fn a_mutating_self_requirement_settles_a_forwarding_row() {
-    let (checked, plans) = requirement_fixture(MUTABLE_SELF_REQUIREMENT_SOURCE);
+    let (checked, plans, _) = requirement_fixture(MUTABLE_SELF_REQUIREMENT_SOURCE);
     assert_eq!(plans.len(), 1, "one derived `&mut self`-requirement plan");
     let selected = selected_all(&plans);
     let requirement = entry_symbol(&checked, "Token::mutate");
@@ -314,7 +334,7 @@ fn a_mutating_self_requirement_settles_a_projected_field_receiver() {
             transition { _ -> (7) }
         }
     "#;
-    let (checked, plans) = requirement_fixture(source);
+    let (checked, plans, _) = requirement_fixture(source);
     let selected = selected_all(&plans);
     let requirement = entry_symbol(&checked, "Token::mutate");
     let realization = entry_symbol(&checked, "TokenProvider::mutate_impl");
@@ -462,7 +482,7 @@ fn a_requirement_realized_by_a_compiler_intrinsic_settles_no_adapter_row_and_is_
             transition { _ -> (flipped) }
         }
     "#;
-    let (checked, plans) = requirement_fixture(source);
+    let (checked, plans, _) = requirement_fixture(source);
     assert_eq!(
         plans.len(),
         1,
@@ -518,7 +538,7 @@ const SPECIALIZED_REQUIREMENT_SOURCE: &str = r#"
 /// template's entry as an executable row.
 #[test]
 fn a_closed_requirement_instance_missing_its_roster_row_rejects() {
-    let (checked, plans) = requirement_fixture(SPECIALIZED_REQUIREMENT_SOURCE);
+    let (checked, plans, _) = requirement_fixture(SPECIALIZED_REQUIREMENT_SOURCE);
     let selected = selected_all(&plans);
     let mut settled = Arc::new(checked);
     let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)

@@ -22,6 +22,8 @@ pub(crate) fn derive_selected_requirement_specializations(
     selected: &effects::SelectedProviderPlanFacts,
 ) -> Result<Vec<effects::SelectedRequirementSpecialization>, Vec<diagnostics::Diagnostic>> {
     let typed = &checked.typed;
+    let provider_context =
+        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let mut diagnostics = Vec::new();
     let mut rows = Vec::new();
     let mut top_level_symbols = None;
@@ -33,8 +35,11 @@ pub(crate) fn derive_selected_requirement_specializations(
                 requirement.supply_mode
                     == language_semantics::MachineSupplyMode::TopLevelRequirement
                     && !typed.machine_type_parameters(requirement).is_empty()
-                    && crate::service_schema::from_typed_boundary_requirement(typed, requirement)
-                        .as_ref()
+                    && crate::service_schema::from_typed_boundary_requirement(
+                        provider_context,
+                        requirement,
+                    )
+                    .as_ref()
                         == Some(&plan.schema)
             })
             .collect::<Vec<_>>();
@@ -67,7 +72,7 @@ pub(crate) fn derive_selected_requirement_specializations(
                 )));
                 continue;
             }
-            let provider = match exact_checked_adapter(typed, plan, row) {
+            let provider = match exact_checked_adapter(provider_context, plan, row) {
                 Ok(provider) => provider,
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);

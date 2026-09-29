@@ -1,6 +1,8 @@
 //! Validation of provider-plan candidates and derived plans against
-//! replayed provenance.
+//! replayed provenance in the caller's explicit declaration context. Retained
+//! symbols establish scope before any portable schema or binding comparison.
 
+use crate::ProviderPlanningContext;
 use crate::provider_planning::provenance_replay::adapter_conformance::{
     checked_adapter_has_exact_conformance, exact_canonical_provider_schema,
     exact_checked_adapter_invocations, exact_schema_method_for_row,
@@ -13,9 +15,7 @@ use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, exact_checked_adapter,
 };
-use crate::provider_planning::{
-    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
-};
+use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 
 /// Validate every derived candidate before coverage and selection. A partial
 /// candidate may wait for more conformances, but duplicate/stray rows and
@@ -25,9 +25,10 @@ use crate::provider_planning::{
 /// Independent operational refinement is validated by the machine-conformance
 /// checker that produced the candidate.
 pub fn validate_provider_plan_candidates(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     plans: &[effects::provider_plan::ProviderPlan],
 ) -> Vec<diagnostics::Diagnostic> {
+    let typed = context.typed;
     let mut diagnostics = Vec::new();
     let effect_plan = validation::infer_operational_may(typed);
     let service_reach_plan = validation::infer_service_reaches(typed, &effect_plan);
@@ -36,7 +37,7 @@ pub fn validate_provider_plan_candidates(
     for plan in plans {
         let structural_diagnostics = plan.validate_candidate_against_schema();
         if structural_diagnostics.is_empty() {
-            let canonical_schema = match exact_canonical_provider_schema(typed, plan) {
+            let canonical_schema = match exact_canonical_provider_schema(context, plan) {
                 Ok(schema) => schema,
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);
@@ -65,7 +66,7 @@ pub fn validate_provider_plan_candidates(
                     requirement.supply_mode
                         == language_semantics::MachineSupplyMode::TopLevelRequirement
                         && crate::service_schema::from_typed_boundary_requirement(
-                            typed,
+                            context,
                             requirement,
                         )
                         .as_ref()
@@ -74,10 +75,11 @@ pub fn validate_provider_plan_candidates(
                 let is_retained_ordinary_binding =
                     matches!(row.binding, ProviderBinding::Import { .. })
                         || matches!(row.binding, ProviderBinding::Syscall { .. })
-                            && has_exact_top_level_ordinary_realization(typed, plan, row);
+                            && has_exact_top_level_ordinary_realization(context, plan, row);
                 if is_top_level_requirement_plan
                     && !is_retained_ordinary_binding
-                    && let Err(diagnostic) = exact_top_level_external_realization(typed, plan, row)
+                    && let Err(diagnostic) =
+                        exact_top_level_external_realization(context, plan, row)
                 {
                     diagnostics.push(diagnostic);
                 }
@@ -90,7 +92,7 @@ pub fn validate_provider_plan_candidates(
                     continue;
                 }
             };
-            let adapter = match exact_checked_adapter(typed, plan, row) {
+            let adapter = match exact_checked_adapter(context, plan, row) {
                 Ok(adapter) => adapter,
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);
@@ -120,7 +122,7 @@ pub fn validate_provider_plan_candidates(
                 continue;
             }
             let has_exact_conformance = checked_adapter_has_exact_conformance(
-                typed,
+                context,
                 &mut top_level_symbols,
                 adapter,
                 plan,
@@ -135,18 +137,22 @@ pub fn validate_provider_plan_candidates(
             }
             let service_ceiling = method.service_reach.as_slice();
             let invocation_ceiling = method.synchronous_invocations.as_slice();
-            let hidden_invocations =
-                match exact_checked_adapter_invocations(typed, &invocation_plan, plan, method, row)
-                {
-                    Ok(invocations) => invocations
-                        .into_iter()
-                        .filter(|target| !invocation_ceiling.contains(target))
-                        .collect::<Vec<_>>(),
-                    Err(diagnostic) => {
-                        diagnostics.push(diagnostic);
-                        Vec::new()
-                    }
-                };
+            let hidden_invocations = match exact_checked_adapter_invocations(
+                context,
+                &invocation_plan,
+                plan,
+                method,
+                row,
+            ) {
+                Ok(invocations) => invocations
+                    .into_iter()
+                    .filter(|target| !invocation_ceiling.contains(target))
+                    .collect::<Vec<_>>(),
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    Vec::new()
+                }
+            };
             if !hidden_invocations.is_empty() {
                 diagnostics.push(diagnostics::Diagnostic::error(format!(
                     "adapter `{}` does not refine `{}::{}`: its body may synchronously invoke boundary binding(s) [{}], but the requirement omits those `invokes` edges",
@@ -191,16 +197,23 @@ enum ExactProviderRequirementKind {
 }
 
 fn exact_provider_requirement_kind(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     requirement_symbol: symbols::SymbolHandle,
 ) -> Result<ExactProviderRequirementKind, diagnostics::Diagnostic> {
+    let typed = context.typed;
+    if !context.contains(requirement_symbol) {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` row `{}` retained requirement {:?} is outside the {:?} planning context",
+            plan.name, row.requirement_identity, requirement_symbol, context.scope,
+        )));
+    }
     let mut matches = Vec::new();
     for definition in typed
         .traits()
         .iter()
-        .filter(|definition| definition.is_boundary)
+        .filter(|definition| definition.is_boundary && context.contains(definition.symbol))
     {
         if typed
             .trait_machine_signatures(definition)
@@ -248,7 +261,7 @@ fn exact_provider_requirement_kind(
 }
 
 fn exact_provider_row_conformance<'typed>(
-    typed: &'typed TypedTrees,
+    context: ProviderPlanningContext<'typed>,
     top_level_symbols: &mut Option<validation::TopLevelSymbols<'typed>>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -256,9 +269,13 @@ fn exact_provider_row_conformance<'typed>(
     requirement_symbol: symbols::SymbolHandle,
     requirement_kind: ExactProviderRequirementKind,
 ) -> Result<&'typed typed_trees::machine::TraitConformance, diagnostics::Diagnostic> {
+    let typed = context.typed;
     let conformances = typed
         .machine_trait_conformances(realization)
         .iter()
+        .filter(|conformance| {
+            context.contains(conformance.symbol) && context.contains(conformance.requirement_symbol)
+        })
         .filter(|conformance| match requirement_kind {
             ExactProviderRequirementKind::Trait { owner } => {
                 conformance.requirement_symbol == requirement_symbol
@@ -298,6 +315,7 @@ fn exact_provider_row_conformance<'typed>(
                 // requirement.
                 let Some(template) = typed.machines().iter().find(|candidate| {
                     candidate.symbol == conformance.symbol
+                        && context.contains(candidate.symbol)
                         && conformance.requirement_symbol == candidate.symbol
                         && candidate.supply_mode
                             == language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -311,7 +329,9 @@ fn exact_provider_row_conformance<'typed>(
                     realization,
                     template,
                 )
-                .is_some_and(|closed| closed.symbol == requirement_symbol)
+                .is_some_and(|closed| {
+                    closed.symbol == requirement_symbol && context.contains(closed.symbol)
+                })
             }
             ExactProviderRequirementKind::Operator => {
                 conformance.requirement_symbol == requirement_symbol
@@ -338,10 +358,30 @@ fn exact_provider_row_conformance<'typed>(
 }
 
 fn exact_provenance_schema(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
     provenance: &ProviderPlanProvenance,
 ) -> Result<ServiceSchema, diagnostics::Diagnostic> {
+    let typed = context.typed;
+    // Portable schemas may be identical across separately checked contexts.
+    // Validate the retained symbols before reconstructing that projection,
+    // including provider custody for candidates that do not yet have rows.
+    if !context.contains(provenance.schema.symbol()) {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` retained schema {:?} is outside the {:?} planning context",
+            plan.name,
+            provenance.schema.symbol(),
+            context.scope,
+        )));
+    }
+    if let Some(provider_symbol) = provenance.provider_type
+        && !context.contains(provider_symbol)
+    {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` retained provider {:?} is outside the {:?} planning context",
+            plan.name, provider_symbol, context.scope,
+        )));
+    }
     match provenance.schema {
         ProviderSchemaDeclaration::BoundaryTrait(symbol) => {
             let definitions = typed
@@ -359,7 +399,7 @@ fn exact_provenance_schema(
             };
             let arguments =
                 provider_boundary_arguments(typed, definition, provenance.provider_type);
-            crate::service_schema::from_typed_instance(typed, definition, &arguments).ok_or_else(|| {
+            crate::service_schema::from_typed_instance(context, definition, &arguments).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` provenance did not reconstruct exact boundary trait `{}`",
                     plan.name, plan.schema.trait_name,
@@ -384,7 +424,7 @@ fn exact_provenance_schema(
                     requirements.len(),
                 )));
             };
-            crate::service_schema::from_typed_boundary_requirement(typed, requirement).ok_or_else(|| {
+            crate::service_schema::from_typed_boundary_requirement(context, requirement).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` provenance did not reconstruct exact top-level boundary requirement `{}`",
                     plan.name, plan.schema.trait_name,
@@ -405,7 +445,7 @@ fn exact_provenance_schema(
                     operators.len(),
                 )));
             };
-            crate::service_schema::from_typed_operator(typed, operator).ok_or_else(|| {
+            crate::service_schema::from_typed_operator(context, operator).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` provenance did not reconstruct exact boundary operator `{}`",
                     plan.name, plan.schema.trait_name,
@@ -416,11 +456,18 @@ fn exact_provenance_schema(
 }
 
 fn exact_provenance_realization<'typed>(
-    typed: &'typed TypedTrees,
+    context: ProviderPlanningContext<'typed>,
     plan: &ProviderPlan,
     provenance: &ProviderPlanProvenance,
     realization_symbol: symbols::SymbolHandle,
 ) -> Result<&'typed typed_trees::machine::Machine, diagnostics::Diagnostic> {
+    let typed = context.typed;
+    if !context.contains(realization_symbol) {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` retained realization {:?} is outside the {:?} planning context",
+            plan.name, realization_symbol, context.scope,
+        )));
+    }
     let realizations = typed
         .machines()
         .iter()
@@ -450,6 +497,7 @@ fn exact_provenance_realization<'typed>(
                 .iter()
                 .filter(|definition| {
                     definition.symbol == provider_symbol
+                        && context.contains(definition.symbol)
                         && typed.data_declaration_path(definition) == plan.provider_type
                         && typed.symbols.symbol_package_identity(definition.symbol)
                             == plan.provider_type_package_identity
@@ -480,7 +528,7 @@ fn exact_provenance_realization<'typed>(
 }
 
 fn replay_provider_row_binding(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -488,9 +536,18 @@ fn replay_provider_row_binding(
     conformance: &typed_trees::machine::TraitConformance,
     target_machine_origin: Option<&SelectedTargetMachineOrigin>,
 ) -> Result<(), diagnostics::Diagnostic> {
+    let typed = context.typed;
+    if let Some(origin) = target_machine_origin
+        && !context.contains(origin.machine)
+    {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` row `{}` retained target-machine origin {:?} is outside the {:?} planning context",
+            plan.name, row.requirement_identity, origin.machine, context.scope,
+        )));
+    }
     match &row.binding {
         ProviderBinding::CheckedAdapter { .. } => {
-            let adapter = exact_checked_adapter(typed, plan, row)?;
+            let adapter = exact_checked_adapter(context, plan, row)?;
             if target_machine_origin.is_some()
                 || adapter.symbol != realization.symbol
                 || adapter.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
@@ -633,14 +690,14 @@ fn replay_provider_row_binding(
 }
 
 pub(crate) fn validate_derived_provider_plan_provenance(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     derived: &DerivedProviderPlan,
 ) -> Vec<diagnostics::Diagnostic> {
     let plan = &derived.plan;
     let provenance = &derived.provenance;
     let mut diagnostics = Vec::new();
-    match exact_provenance_schema(typed, plan, provenance) {
+    match exact_provenance_schema(context, plan, provenance) {
         Ok(schema) if schema == plan.schema => {}
         Ok(_) => diagnostics.push(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` does not equal its exact provenance-selected typed schema",
@@ -666,7 +723,7 @@ pub(crate) fn validate_derived_provider_plan_provenance(
     for (row_index, row) in plan.rows.iter().enumerate() {
         let requirement_symbol = provenance.row_requirements[row_index];
         let realization_symbol = provenance.row_realizations[row_index];
-        let kind = match exact_provider_requirement_kind(typed, plan, row, requirement_symbol) {
+        let kind = match exact_provider_requirement_kind(context, plan, row, requirement_symbol) {
             Ok(kind) => kind,
             Err(diagnostic) => {
                 diagnostics.push(diagnostic);
@@ -694,7 +751,7 @@ pub(crate) fn validate_derived_provider_plan_provenance(
             continue;
         }
         let realization =
-            match exact_provenance_realization(typed, plan, provenance, realization_symbol) {
+            match exact_provenance_realization(context, plan, provenance, realization_symbol) {
                 Ok(realization) => realization,
                 Err(diagnostic) => {
                     diagnostics.push(diagnostic);
@@ -702,7 +759,7 @@ pub(crate) fn validate_derived_provider_plan_provenance(
                 }
             };
         let conformance = match exact_provider_row_conformance(
-            typed,
+            context,
             &mut top_level_symbols,
             plan,
             row,
@@ -717,7 +774,7 @@ pub(crate) fn validate_derived_provider_plan_provenance(
             }
         };
         if let Err(diagnostic) = replay_provider_row_binding(
-            typed,
+            context,
             evaluated_bindings,
             plan,
             row,
@@ -734,12 +791,12 @@ pub(crate) fn validate_derived_provider_plan_provenance(
 /// Strict production validation over semantic candidates and the exact
 /// derivation provenance/table custody that produced every row.
 pub fn validate_derived_provider_plan_candidates(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     plans: &[DerivedProviderPlan],
 ) -> Vec<diagnostics::Diagnostic> {
     let mut diagnostics = evaluated_bindings
-        .validate_against_typed(typed)
+        .validate_against_typed(context)
         .err()
         .unwrap_or_default();
     let retained_target = evaluated_bindings
@@ -747,7 +804,7 @@ pub fn validate_derived_provider_plan_candidates(
         .map(target::TargetProfile::target_name)
         .unwrap_or_default();
     diagnostics.extend(validate_provider_plan_candidates(
-        typed,
+        context,
         &plans
             .iter()
             .map(|derived| derived.plan.clone())
@@ -761,7 +818,7 @@ pub fn validate_derived_provider_plan_candidates(
             )));
         }
         diagnostics.extend(validate_derived_provider_plan_provenance(
-            typed,
+            context,
             evaluated_bindings,
             derived,
         ));

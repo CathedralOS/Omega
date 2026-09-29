@@ -52,7 +52,10 @@ fn exact_requirement_lifetime_partition_is_stable_across_checked_and_external_su
 
     let mut tampered = checked_plan;
     tampered.rows[0].requirement_lifetime_partition = vec![0, 0];
-    let diagnostics = validate_provider_plan_candidates(&checked_typed, &[tampered]);
+    let diagnostics = validate_provider_plan_candidates(
+        crate::ProviderPlanningContext::new(&checked_typed, source::DependencyScope::Product),
+        &[tampered],
+    );
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -109,7 +112,10 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
         .find(|definition| definition.name.as_str() == "LapicCompletion")
         .expect("nominal provider type");
 
-    let derived = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
+    let derived =
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(provider_context, None));
     let [derived] = derived.as_slice() else {
         panic!("one exact top-level provider plan, got {}", derived.len())
     };
@@ -133,7 +139,8 @@ fn derives_and_selects_checked_top_level_boundary_requirement_provider() {
         ProviderBinding::CheckedAdapter { machine_identity, .. }
             if machine_identity == &normalized_machine_identity(&typed, "LapicCompletion::complete")
     ));
-    let validation = validate_provider_plan_candidates(&typed, std::slice::from_ref(&derived.plan));
+    let validation =
+        validate_provider_plan_candidates(provider_context, std::slice::from_ref(&derived.plan));
     assert!(
         validation.is_empty(),
         "the derived exact plan must replay against typed declarations: {validation:?}"
@@ -213,7 +220,10 @@ fn derives_template_requirement_plan_for_specialized_token_provider() {
         })
         .expect("closed requirement instance");
 
-    let derived = derive_satisfies_plans(typed, ProviderPlanDerivation::unevaluated(None));
+    let provider_context =
+        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
+    let derived =
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(provider_context, None));
     let requirement_identity = typed
         .normalized_machine_overload_identity(template)
         .expect("template requirement identity")
@@ -244,7 +254,8 @@ fn derives_template_requirement_plan_for_specialized_token_provider() {
         derived.plan.rows[0].requirement_identity,
         requirement_identity
     );
-    let validation = validate_provider_plan_candidates(typed, std::slice::from_ref(&derived.plan));
+    let validation =
+        validate_provider_plan_candidates(provider_context, std::slice::from_ref(&derived.plan));
     assert!(
         validation.is_empty(),
         "the template-keyed plan must replay: {validation:?}"
@@ -270,7 +281,10 @@ fn template_keyed_selected_plan_binds_the_exact_closed_requirement_roster() {
     // Provider selection happens before specialization settles, so the
     // selected plan retains the authored template schema and identities.
     let typed = typed_fixture(source);
-    let derived = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
+    let derived = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ));
     let [template_plan] = derived.as_slice() else {
         panic!("the generic provider template derives exactly one plan")
     };
@@ -419,8 +433,10 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("the exact external satisfier should pass conformance validation");
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
     let evaluated_bindings = crate::evaluated_via_bindings::evaluate_via_bindings(
-        &typed,
+        provider_context,
         Some(target::TargetProfile::LinuxX64),
         None,
     )
@@ -441,10 +457,10 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .iter()
         .find(|definition| definition.name.as_str() == "LinuxCompletion")
         .expect("nominal external provider type");
-    let derived = derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(Some("linux_x86_64")),
-    );
+    let derived = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        provider_context,
+        Some("linux_x86_64"),
+    ));
     let [derived] = derived.as_slice() else {
         panic!(
             "one exact external top-level provider plan, got {}",
@@ -467,7 +483,8 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
             ..
         }]
     ));
-    let validation = validate_provider_plan_candidates(&typed, std::slice::from_ref(&derived.plan));
+    let validation =
+        validate_provider_plan_candidates(provider_context, std::slice::from_ref(&derived.plan));
     assert!(
         validation.is_empty(),
         "the external plan must replay against its exact typed binding: {validation:?}"
@@ -509,7 +526,7 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
     )
     .expect("the unique external candidate retains exact selection provenance");
     selected_provider_plan_facts(
-        &typed,
+        provider_context,
         &evaluated_bindings,
         selected_with_provenance.clone(),
     )
@@ -517,7 +534,7 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
 
     let mut drifted = derived.plan.clone();
     drifted.rows[0].binding = ProviderBinding::Syscall { number: 61 };
-    let diagnostics = validate_provider_plan_candidates(&typed, &[drifted]);
+    let diagnostics = validate_provider_plan_candidates(provider_context, &[drifted]);
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic
@@ -530,9 +547,12 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
     let mut drifted_binding_provenance = selected_with_provenance.clone();
     drifted_binding_provenance[0].derived.plan.rows[0].binding =
         ProviderBinding::Syscall { number: 61 };
-    let diagnostics =
-        selected_provider_plan_facts(&typed, &evaluated_bindings, drifted_binding_provenance)
-            .expect_err("selected provenance must reject substituted external binding identity");
+    let diagnostics = selected_provider_plan_facts(
+        provider_context,
+        &evaluated_bindings,
+        drifted_binding_provenance,
+    )
+    .expect_err("selected provenance must reject substituted external binding identity");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -544,9 +564,12 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .derived
         .provenance
         .row_realizations[0] = requirement.symbol;
-    let diagnostics =
-        selected_provider_plan_facts(&typed, &evaluated_bindings, drifted_realization_provenance)
-            .expect_err("selected provenance must reject a substituted realization symbol");
+    let diagnostics = selected_provider_plan_facts(
+        provider_context,
+        &evaluated_bindings,
+        drifted_realization_provenance,
+    )
+    .expect_err("selected provenance must reject a substituted realization symbol");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -558,9 +581,12 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
         .derived
         .provenance
         .row_requirements[0] = provider.symbol;
-    let diagnostics =
-        selected_provider_plan_facts(&typed, &evaluated_bindings, drifted_requirement_provenance)
-            .expect_err("selected provenance must reject a substituted requirement symbol");
+    let diagnostics = selected_provider_plan_facts(
+        provider_context,
+        &evaluated_bindings,
+        drifted_requirement_provenance,
+    )
+    .expect_err("selected provenance must reject a substituted requirement symbol");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
@@ -602,10 +628,13 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
 
     // Derivation accepts no syntax tree: the exact typed id/table is its
     // only external-binding authority.
-    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
-        .into_iter()
-        .map(|derived| derived.plan)
-        .collect::<Vec<_>>();
+    let plans = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!("one external provider plan")
     };
@@ -642,11 +671,13 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type source-inferred catalog leaf");
 
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
     assert!(
-        derive_satisfies_plans(
-            &typed,
-            ProviderPlanDerivation::unevaluated(Some("linux_x86_64"))
-        )
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            provider_context,
+            Some("linux_x86_64")
+        ))
         .is_empty(),
         "an unscoped same-shaped boundary machine is not compiler-catalog authority",
     );
@@ -662,20 +693,23 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
             "linux_arm64" => target::TargetProfile::LinuxArm64,
             _ => unreachable!(),
         };
-        let evaluated =
-            crate::evaluated_via_bindings::evaluate_via_bindings(&typed, Some(profile), None)
-                .expect("claim-free fixture has an empty evaluated-via table");
+        let evaluated = crate::evaluated_via_bindings::evaluate_via_bindings(
+            provider_context,
+            Some(profile),
+            None,
+        )
+        .expect("claim-free fixture has an empty evaluated-via table");
         let origin = SelectedTargetMachineOrigin {
             machine: realization.symbol,
             target: target.to_owned(),
         };
         let derived = ProviderPlanDerivation::evaluated(
-            &typed,
+            provider_context,
             Some(target),
             &evaluated,
             std::slice::from_ref(&origin),
         )
-        .map(|derivation| derive_satisfies_plans(&typed, derivation))
+        .map(derive_satisfies_plans)
         .expect("exact selected target-machine origin derives");
         let [derived] = derived.as_slice() else {
             panic!("one exact inferred Linux Console plan for {target}")
@@ -714,10 +748,15 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
             target: "windows_x86_64".to_owned(),
         };
         assert!(
-            ProviderPlanDerivation::evaluated(&typed, Some(target), &evaluated, &[wrong_origin])
-                .map(|derivation| derive_satisfies_plans(&typed, derivation))
-                .expect("wrong origin is a closed candidate set")
-                .is_empty(),
+            ProviderPlanDerivation::evaluated(
+                provider_context,
+                Some(target),
+                &evaluated,
+                &[wrong_origin]
+            )
+            .map(derive_satisfies_plans)
+            .expect("wrong origin is a closed candidate set")
+            .is_empty(),
             "wrong-target declaration provenance must not infer the Linux row",
         );
 
@@ -727,41 +766,42 @@ fn linux_console_exit_intrinsic_requires_selected_target_machine_origin() {
             .expect("inferred origin")
             .target = "windows_x86_64".to_owned();
         assert!(
-            !validate_derived_provider_plan_candidates(&typed, &evaluated, &[tampered]).is_empty(),
+            !validate_derived_provider_plan_candidates(provider_context, &evaluated, &[tampered])
+                .is_empty(),
             "retained target-machine origin substitution must reject during replay",
         );
     }
     let targetless_evaluated =
-        crate::evaluated_via_bindings::evaluate_via_bindings(&typed, None, None)
+        crate::evaluated_via_bindings::evaluate_via_bindings(provider_context, None, None)
             .expect("claim-free fixture has an empty targetless evaluated-via table");
     let linux_host_origin = SelectedTargetMachineOrigin {
         machine: realization.symbol,
         target: "linux_x86_64".to_owned(),
     };
     let targetless = ProviderPlanDerivation::evaluated(
-        &typed,
+        provider_context,
         None,
         &targetless_evaluated,
         &[linux_host_origin],
     )
-    .map(|derivation| derive_satisfies_plans(&typed, derivation))
+    .map(derive_satisfies_plans)
     .expect("targetless Linux-host origin derives without inventing a plan target");
     let [targetless] = targetless.as_slice() else {
         panic!("one exact inferred targetless Linux Console plan")
     };
     assert_eq!(targetless.plan.target, "");
     assert!(
-        derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(provider_context, None))
             .into_iter()
             .map(|derived| derived.plan)
             .collect::<Vec<_>>()
             .is_empty()
     );
     assert!(
-        derive_satisfies_plans(
-            &typed,
-            ProviderPlanDerivation::unevaluated(Some("macos_arm64"))
-        )
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            provider_context,
+            Some("macos_arm64")
+        ))
         .into_iter()
         .map(|derived| derived.plan)
         .collect::<Vec<_>>()
@@ -793,11 +833,13 @@ fn selected_target_compiler_leaf_requires_nonhosted_origin_custody() {
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type selected-target compiler leaf");
 
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
     assert!(
-        derive_satisfies_plans(
-            &typed,
-            ProviderPlanDerivation::unevaluated(Some("uefi_x86_64"))
-        )
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            provider_context,
+            Some("uefi_x86_64")
+        ))
         .is_empty(),
         "an unscoped target package boundary machine is not compiler authority",
     );
@@ -807,7 +849,7 @@ fn selected_target_compiler_leaf_requires_nonhosted_origin_custody() {
         .find(|machine| machine.name.as_str() == "UefiOsHandoffNativeProvider::transfer")
         .expect("typed transfer realization");
     let evaluated = crate::evaluated_via_bindings::evaluate_via_bindings(
-        &typed,
+        provider_context,
         Some(target::TargetProfile::UefiX64),
         None,
     )
@@ -817,12 +859,12 @@ fn selected_target_compiler_leaf_requires_nonhosted_origin_custody() {
         target: "uefi_x86_64".to_owned(),
     };
     let derived = ProviderPlanDerivation::evaluated(
-        &typed,
+        provider_context,
         Some("uefi_x86_64"),
         &evaluated,
         std::slice::from_ref(&origin),
     )
-    .map(|derivation| derive_satisfies_plans(&typed, derivation))
+    .map(derive_satisfies_plans)
     .expect("exact selected target-machine origin derives");
     let [derived] = derived.as_slice() else {
         panic!("one exact inferred UefiOsHandoffTermination plan")
@@ -846,10 +888,15 @@ fn selected_target_compiler_leaf_requires_nonhosted_origin_custody() {
         target: "linux_x86_64".to_owned(),
     };
     assert!(
-        ProviderPlanDerivation::evaluated(&typed, Some("uefi_x86_64"), &evaluated, &[wrong_origin])
-            .map(|derivation| derive_satisfies_plans(&typed, derivation))
-            .expect("wrong origin is a closed candidate set")
-            .is_empty(),
+        ProviderPlanDerivation::evaluated(
+            provider_context,
+            Some("uefi_x86_64"),
+            &evaluated,
+            &[wrong_origin]
+        )
+        .map(derive_satisfies_plans)
+        .expect("wrong origin is a closed candidate set")
+        .is_empty(),
         "hosted-target provenance must not infer the UEFI row",
     );
 
@@ -858,19 +905,19 @@ fn selected_target_compiler_leaf_requires_nonhosted_origin_custody() {
         target: "linux_x86_64".to_owned(),
     };
     let hosted_evaluated = crate::evaluated_via_bindings::evaluate_via_bindings(
-        &typed,
+        provider_context,
         Some(target::TargetProfile::LinuxX64),
         None,
     )
     .expect("claim-free fixture has an empty hosted evaluated-via table");
     assert!(
         ProviderPlanDerivation::evaluated(
-            &typed,
+            provider_context,
             Some("linux_x86_64"),
             &hosted_evaluated,
             &[hosted]
         )
-        .map(|derivation| derive_satisfies_plans(&typed, derivation))
+        .map(derive_satisfies_plans)
         .expect("hosted selection is a closed candidate set")
         .is_empty(),
         "non-catalog leaves never derive through hosted-target selection",
@@ -922,11 +969,14 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
         mechanism: None,
     };
     assert!(
-        derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
-            .into_iter()
-            .map(|derived| derived.plan)
-            .collect::<Vec<_>>()
-            .is_empty(),
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+            None
+        ))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>()
+        .is_empty(),
         "an installed binding without its mechanism must not derive a provider plan",
     );
 
@@ -940,11 +990,14 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
         mechanism: Some(language_semantics::ExternalBindingMechanism::CompilerIntrinsic),
     };
     assert!(
-        derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
-            .into_iter()
-            .map(|derived| derived.plan)
-            .collect::<Vec<_>>()
-            .is_empty(),
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+            None
+        ))
+        .into_iter()
+        .map(|derived| derived.plan)
+        .collect::<Vec<_>>()
+        .is_empty(),
         "a mechanism that disagrees with the interned binding must not derive a provider plan",
     );
 }

@@ -6,6 +6,7 @@
 //! grouping/provenance retain exact provider symbols, packages and normalized
 //! callable identities, which independent replay must still rejoin.
 
+use crate::ProviderPlanningContext;
 use crate::provider_planning::operator_provider_evidence::{
     provider_type_package_identity, provider_type_symbol,
 };
@@ -18,22 +19,21 @@ use crate::provider_planning::provenance_replay::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, satisfies_plan_name,
 };
-use crate::provider_planning::{
-    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
-};
+use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 
 pub(crate) fn derive_provider_plans(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
     target_machine_origins: &[SelectedTargetMachineOrigin],
 ) -> Vec<DerivedProviderPlan> {
+    let typed = context.typed;
     let mut plans: Vec<DerivedProviderPlan> = Vec::new();
     // Target filtering has already admitted only unscoped and selected-target
     // machines into typed trees. Derive from their exact retained conformance
     // and supply identities; source syntax is no longer a binding authority.
     for machine in typed.machines() {
-        if !crate::service_schema::is_product_declaration(typed, machine.symbol) {
+        if !context.contains(machine.symbol) {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
@@ -149,7 +149,7 @@ pub(crate) fn derive_provider_plans(
             );
             let requirement_symbol = clause.requirement_symbol;
             for (schema_declaration, schema_trait, schema) in provider_plan_schema_targets(
-                typed,
+                context,
                 provider_type_symbol,
                 clause.symbol,
                 &semantic_requirement_identity,
@@ -217,12 +217,12 @@ pub(crate) fn derive_provider_plans(
         }
     }
     plans.extend(derive_boundary_operator_plans(
-        typed,
+        context,
         selected_target,
         evaluated_bindings,
     ));
     plans.extend(derive_top_level_requirement_plans(
-        typed,
+        context,
         selected_target,
         evaluated_bindings,
     ));
@@ -230,13 +230,14 @@ pub(crate) fn derive_provider_plans(
 }
 
 fn derive_top_level_requirement_plans(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
 ) -> Vec<DerivedProviderPlan> {
+    let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if !crate::service_schema::is_product_declaration(typed, machine.symbol) {
+        if !context.contains(machine.symbol) {
             continue;
         }
         // A specialization instance is minted from its authored template,
@@ -286,7 +287,7 @@ fn derive_top_level_requirement_plans(
                 continue;
             };
             let Some(schema) =
-                crate::service_schema::from_typed_boundary_requirement(typed, requirement)
+                crate::service_schema::from_typed_boundary_requirement(context, requirement)
             else {
                 continue;
             };
@@ -424,11 +425,12 @@ fn derive_top_level_requirement_plans(
 /// requiring an unrelated routed entry claim. Other requirements retain their
 /// direct provider-plan behavior.
 fn provider_plan_schema_targets(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     provider_type_symbol: Option<symbols::SymbolHandle>,
     satisfied_trait_symbol: symbols::SymbolHandle,
     requirement_identity: &str,
 ) -> Vec<(ProviderSchemaDeclaration, String, ServiceSchema)> {
+    let typed = context.typed;
     let direct = typed
         .traits()
         .iter()
@@ -443,7 +445,8 @@ fn provider_plan_schema_targets(
                 definition.is_boundary && definition.symbol == conformance.trait_symbol
             })?;
             let arguments = provider_boundary_arguments(typed, definition, provider_type_symbol);
-            let schema = crate::service_schema::from_typed_instance(typed, definition, &arguments)?;
+            let schema =
+                crate::service_schema::from_typed_instance(context, definition, &arguments)?;
             schema
                 .methods
                 .iter()
@@ -479,7 +482,7 @@ fn provider_plan_schema_targets(
     direct
         .and_then(|definition| {
             let arguments = provider_boundary_arguments(typed, definition, provider_type_symbol);
-            crate::service_schema::from_typed_instance(typed, definition, &arguments).map(
+            crate::service_schema::from_typed_instance(context, definition, &arguments).map(
                 |schema| {
                     (
                         ProviderSchemaDeclaration::BoundaryTrait(definition.symbol),
@@ -494,13 +497,14 @@ fn provider_plan_schema_targets(
 }
 
 fn derive_boundary_operator_plans(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     selected_target: Option<&str>,
     evaluated_bindings: Option<&crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
 ) -> Vec<DerivedProviderPlan> {
+    let typed = context.typed;
     let mut plans = Vec::<DerivedProviderPlan>::new();
     for machine in typed.machines() {
-        if !crate::service_schema::is_product_declaration(typed, machine.symbol) {
+        if !context.contains(machine.symbol) {
             continue;
         }
         let origin_package_identity = typed.symbols.symbol_package_identity(machine.symbol);
@@ -579,7 +583,7 @@ fn derive_boundary_operator_plans(
                 }
                 _ => continue, // invalid via/body combinations are refused elsewhere
             };
-            let Some(schema) = crate::service_schema::from_typed_operator(typed, operator) else {
+            let Some(schema) = crate::service_schema::from_typed_operator(context, operator) else {
                 continue;
             };
             let target = selected_target.unwrap_or_default().to_owned();

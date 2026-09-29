@@ -23,7 +23,10 @@ pub(super) fn validate_review_compilation(
     compilation
         .custody
         .evaluated_via_bindings()
-        .validate_against_typed(&compilation.typed)?;
+        .validate_against_typed(provider_planning::ProviderPlanningContext::new(
+            &compilation.typed,
+            source::DependencyScope::Product,
+        ))?;
     if compilation.custody.evaluated_via_bindings().target() != Some(target) {
         return Err(vec![Diagnostic::error(
             "package review target disagrees with the evaluated `via` binding table",

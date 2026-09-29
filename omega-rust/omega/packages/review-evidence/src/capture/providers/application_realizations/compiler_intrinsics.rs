@@ -54,6 +54,19 @@ pub(super) fn project(
             } => expression,
             _ => continue,
         };
+        // This projection describes the selected Product realization. Build
+        // applications have their own checked instance and execution profile;
+        // the Product's provider plans cannot attest those executions. Build
+        // callable policy remains reviewed by capture/callables/policy.rs.
+        let source_span = compilation.typed.expression_table.source_span(expression);
+        if compilation
+            .typed
+            .symbols
+            .source_file(source_span)
+            .is_some_and(|source| source.dependency_scope == source::DependencyScope::Build)
+        {
+            continue;
+        }
         let uses = exact_application_uses(
             compilation,
             application.site,

@@ -137,10 +137,10 @@ const PARTIAL_COVERAGE: &str = r#"
 
 fn family_typed(source: &str) -> (typed_trees::TypedTrees, Vec<ProviderPlan>) {
     let typed = typed_with_core_service("selected-dispatch/finite_family.omg", source);
-    let plans = provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
-    )
+    let plans = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
@@ -729,10 +729,10 @@ fn value_requirement_rejects_a_const_provider_binder() {
         "selected-dispatch/kind_mismatch.omg",
         FAMILY_VALUE_REQUIREMENT_CONST_PROVIDER,
     );
-    let plans = provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
-    )
+    let plans = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();

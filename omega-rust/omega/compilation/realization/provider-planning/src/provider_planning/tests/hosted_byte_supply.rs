@@ -31,8 +31,10 @@ fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
     let evaluated = crate::evaluated_via_bindings::evaluate_via_bindings(
-        &typed,
+        provider_context,
         Some(target::TargetProfile::MacosArm64),
         None,
     )
@@ -45,10 +47,14 @@ fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
             target: "macos_arm64".to_owned(),
         })
         .collect::<Vec<_>>();
-    let candidates =
-        ProviderPlanDerivation::evaluated(&typed, Some("macos_arm64"), &evaluated, &origins)
-            .map(|derivation| derive_satisfies_plans(&typed, derivation))
-            .unwrap();
+    let candidates = ProviderPlanDerivation::evaluated(
+        provider_context,
+        Some("macos_arm64"),
+        &evaluated,
+        &origins,
+    )
+    .map(derive_satisfies_plans)
+    .unwrap();
     let [candidate] = candidates.as_slice() else {
         panic!("one Console candidate");
     };
@@ -68,7 +74,10 @@ fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
             .iter()
             .all(|row| matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }))
     );
-    assert!(validate_derived_provider_plan_candidates(&typed, &evaluated, &candidates).is_empty());
+    assert!(
+        validate_derived_provider_plan_candidates(provider_context, &evaluated, &candidates)
+            .is_empty()
+    );
     for wrong_target in ["linux_arm64", "windows_x86_64"] {
         let mut wrong_origins = origins.clone();
         for origin in &mut wrong_origins {
@@ -76,21 +85,21 @@ fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
         }
         assert!(
             ProviderPlanDerivation::evaluated(
-                &typed,
+                provider_context,
                 Some("macos_arm64"),
                 &evaluated,
                 &wrong_origins
             )
-            .map(|derivation| derive_satisfies_plans(&typed, derivation))
+            .map(derive_satisfies_plans)
             .unwrap()
             .is_empty()
         );
     }
     assert!(
-        derive_satisfies_plans(
-            &typed,
-            ProviderPlanDerivation::unevaluated(Some("macos_arm64"))
-        )
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            provider_context,
+            Some("macos_arm64")
+        ))
         .is_empty()
     );
     let mut changed = candidate.clone();
@@ -98,5 +107,8 @@ fn macos_origin_infers_output_and_exit_and_replays_exact_custody() {
         .as_mut()
         .unwrap()
         .target = "linux_arm64".into();
-    assert!(!validate_derived_provider_plan_candidates(&typed, &evaluated, &[changed]).is_empty());
+    assert!(
+        !validate_derived_provider_plan_candidates(provider_context, &evaluated, &[changed])
+            .is_empty()
+    );
 }

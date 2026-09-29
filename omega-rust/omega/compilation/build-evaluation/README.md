@@ -12,8 +12,13 @@ source commitment without checking, specializing or capturing an execution
 snapshot. Final product checking still admits all ordinary declarations.
 For actual Build entries, semantic checking is mandatory even without package
 inputs; package declaration authority adds to that floor. Execution consumes the
-checker-transformed typed program, with no separate specialization pass after
-checking. The preliminary check still covers the whole provisional program:
+checker-transformed program and its operator facts, with no separate
+specialization pass after checking. Provider derivation and replay use the
+explicit Build dependency context and admitted execution profile. Selected
+comparison facts follow their exact declaration provenance into the same
+pure/granted interpreter; runtime adapter dispatch and service grants do not.
+Missing comparison execution custody rejects before Build effects.
+The preliminary check still covers the whole provisional program:
 removing that duplicate product work requires a sound Build-helper projection
 and a separately frozen authored-selection frontier. The interpreter's general
 checked-fact dispatch is also unfinished.

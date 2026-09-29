@@ -6,7 +6,7 @@
 //! independently rejoins retained choices through
 //! `validate_executed_provider_selection_declaration`, without rerunning Build.
 
-use crate::{ProviderSelection, ProviderSelectionIdentity};
+use crate::{ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity};
 use build_time_evaluation::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
@@ -16,9 +16,16 @@ use typed_trees::TypedTrees;
 /// Static target-default declarations have their own admission path. Authored
 /// Build overrides instead enter through executed call receipts below.
 pub fn harvest_provider_selections(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     machine: &typed_trees::machine::Machine,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let typed = context.typed;
+    if !context.contains(machine.symbol) {
+        return Err(vec![Diagnostic::error(format!(
+            "provider-default declaration `{}` is outside the {:?} planning context",
+            machine.name, context.scope,
+        ))]);
+    }
     let mut requests = Vec::new();
     for state in typed.machine_states(machine) {
         for statement in typed.statement_table.statements(state.statement_nodes) {
@@ -61,7 +68,7 @@ pub fn harvest_provider_selections(
             }
         }
     }
-    collect_provider_selections(typed, requests)
+    collect_provider_selections(context, requests)
 }
 
 struct ProviderSelectionCall<'a> {
@@ -77,9 +84,17 @@ struct ProviderSelectionCall<'a> {
 /// Rejoin only calls evaluated on the original Build cell. An unreachable
 /// selection does not become configuration merely because its text exists.
 pub fn collect_executed_provider_selections(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     executed: &[checked_interpreter::ExecutedProviderSelection],
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let typed = context.typed;
+    // Executed Build operations select product descriptions. The selecting
+    // machine remains Build-owned; only its designated operands use Product.
+    if context.scope != source::DependencyScope::Product {
+        return Err(vec![Diagnostic::error(
+            "executed provider selections require the Product planning context",
+        )]);
+    }
     let requests = executed
         .iter()
         .map(|row| {
@@ -138,7 +153,7 @@ pub fn collect_executed_provider_selections(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    collect_provider_selections(typed, requests)
+    collect_provider_selections(context, requests)
 }
 
 fn provider_selection_expression_source_span(
@@ -162,9 +177,10 @@ fn provider_selection_expression_source_span(
 }
 
 fn collect_provider_selections<'a>(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     requests: impl IntoIterator<Item = ProviderSelectionCall<'a>>,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let typed = context.typed;
     let mut selections: Vec<ProviderSelection> = Vec::new();
     let mut diagnostics = Vec::new();
     let mut record = |request: ProviderSelectionCall<'_>| {
@@ -214,6 +230,13 @@ fn collect_provider_selections<'a>(
         };
         let boundary_identity = project_identity(boundary_argument, false);
         let provider_type = project_identity(provider_argument, true);
+        if !context.contains(boundary_identity.symbol) || !context.contains(provider_type.symbol) {
+            diagnostics.push(Diagnostic::error(format!(
+                "provider selection subject or provider is outside the {:?} planning context",
+                context.scope,
+            )));
+            return;
+        }
         let composition_mode = match composition_case.map_or_else(
             || provider_selection_composition_mode(typed, value_arguments),
             |case| provider_composition_case(typed, case),
@@ -250,7 +273,7 @@ fn collect_provider_selections<'a>(
             // qualified family; provider-planning derives the canonical
             // roster so harvest and later replay share one definition.
             match crate::ProviderOperatorFamilySelection::derive(
-                typed,
+                context,
                 boundary_identity.symbol,
                 boundary_identity.authored_path,
             ) {
@@ -326,6 +349,7 @@ pub fn validate_executed_provider_selection_declaration(
     typed: &TypedTrees,
     selection: &ProviderSelection,
 ) -> bool {
+    let context = ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let Some(machine) = typed
         .machines()
         .iter()
@@ -374,7 +398,8 @@ pub fn validate_executed_provider_selection_declaration(
                         .map(|part| part.as_str())
                         .collect::<Vec<_>>()
                         .join("::");
-                    if crate::ProviderOperatorFamilySelection::derive(typed, symbol, path).as_ref()
+                    if crate::ProviderOperatorFamilySelection::derive(context, symbol, path)
+                        .as_ref()
                         != Ok(family)
                     {
                         return false;

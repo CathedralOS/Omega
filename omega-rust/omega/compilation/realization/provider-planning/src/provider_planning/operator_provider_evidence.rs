@@ -25,7 +25,10 @@ pub(crate) fn validate_selected_operator_provider_evidence(
     for plan in selected.plans() {
         let operator = checked.typed.operators().iter().find(|operator| {
             crate::service_schema::schema_binds_exact_boundary_operator(
-                &checked.typed,
+                crate::ProviderPlanningContext::new(
+                    &checked.typed,
+                    source::DependencyScope::Product,
+                ),
                 &plan.schema,
                 operator,
             )
@@ -151,16 +154,18 @@ fn selected_requirement_provider_evidence(
         return Ok(());
     }
     let slot = requirement.display();
+    let provider_context =
+        crate::ProviderPlanningContext::new(&checked.typed, source::DependencyScope::Product);
     if !candidates
         .iter()
-        .any(|candidate| requirement.schema_binds(&checked.typed, &candidate.schema))
+        .any(|candidate| requirement.schema_binds(provider_context, &candidate.schema))
     {
         return Ok(());
     }
     let matching_selected = selected
         .plans()
         .iter()
-        .filter(|plan| requirement.schema_binds(&checked.typed, &plan.schema))
+        .filter(|plan| requirement.schema_binds(provider_context, &plan.schema))
         .collect::<Vec<_>>();
     let [plan] = matching_selected.as_slice() else {
         return Err(diagnostics::Diagnostic::error(format!(
@@ -312,7 +317,11 @@ fn selected_operator_provider_evidence(
                 Some(*application)
             }
         };
-        let direct_provider = exact_checked_adapter(&checked.typed, plan, row);
+        let direct_provider = exact_checked_adapter(
+            crate::ProviderPlanningContext::new(&checked.typed, source::DependencyScope::Product),
+            plan,
+            row,
+        );
         let specialized_providers = checked
             .typed
             .machine_specializations
@@ -497,7 +506,15 @@ pub fn selected_requirement_plan<'a>(
             plans
                 .iter()
                 .enumerate()
-                .filter(|(_, plan)| requirement.schema_binds(typed, &plan.schema))
+                .filter(|(_, plan)| {
+                    requirement.schema_binds(
+                        crate::ProviderPlanningContext::new(
+                            typed,
+                            source::DependencyScope::Product,
+                        ),
+                        &plan.schema,
+                    )
+                })
                 .collect()
         }
     };

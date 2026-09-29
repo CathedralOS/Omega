@@ -134,7 +134,7 @@ fn family_selection_from_typed(
     crate::ProviderSelection {
         subject: crate::ProviderSelectionSubject::BoundaryOperatorFamily(
             crate::ProviderOperatorFamilySelection::derive(
-                typed,
+                crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
                 operator_symbol_at_path(typed, family_path),
                 family_path.to_owned(),
             )
@@ -154,10 +154,13 @@ fn family_selection_from_typed(
 
 fn derive_provider_fixture(source: &str) -> (TypedTrees, ProviderPlan) {
     let typed = typed_fixture(source);
-    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
-        .into_iter()
-        .map(|derived| derived.plan)
-        .collect::<Vec<_>>();
+    let plans = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!(
             "provider fixture must derive exactly one plan, got {}",
@@ -198,10 +201,13 @@ fn selected_operator_binding_fixture() -> (checked_trees::CheckedTrees, Provider
     .expect("resolve selected-operator binding fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type selected-operator binding fixture");
-    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
-        .into_iter()
-        .map(|derived| derived.plan)
-        .collect::<Vec<_>>();
+    let plans = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!("selected-operator fixture must derive one provider plan")
     };

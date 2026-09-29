@@ -6,7 +6,6 @@ use crate::{DerivedProviderPlan, ProviderPlanProvenance};
 use component_description::VerifiedComponent;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
-use typed_trees::TypedTrees;
 
 type ProviderSelectionKey = (Option<semantic_vocabulary::PackageKeyIdentity>, String);
 
@@ -118,7 +117,7 @@ pub struct SelectedProviderReviewProvenance {
 /// component-closure fence; routes that admit verified components call
 /// [`selected_provider_plan_facts_with_independent_components`].
 pub fn selected_provider_plan_facts(
-    typed: &TypedTrees,
+    context: crate::ProviderPlanningContext<'_>,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     selected: Vec<SelectedProviderPlanWithProvenance>,
 ) -> Result<
@@ -129,7 +128,7 @@ pub fn selected_provider_plan_facts(
     Vec<diagnostics::Diagnostic>,
 > {
     selected_provider_plan_facts_with_independent_components(
-        typed,
+        context,
         evaluated_bindings,
         selected,
         &[],
@@ -144,7 +143,7 @@ pub fn selected_provider_plan_facts(
 /// and each supplied component must realize one such plan; the selected
 /// facts publish only when that join is complete.
 pub fn selected_provider_plan_facts_with_independent_components(
-    typed: &TypedTrees,
+    context: crate::ProviderPlanningContext<'_>,
     evaluated_bindings: &crate::evaluated_via_bindings::EvaluatedViaBindingTable,
     mut selected: Vec<SelectedProviderPlanWithProvenance>,
     independent_components: &[VerifiedComponent],
@@ -155,6 +154,7 @@ pub fn selected_provider_plan_facts_with_independent_components(
     ),
     Vec<diagnostics::Diagnostic>,
 > {
+    let typed = context.typed;
     selected.sort_by(|left, right| {
         let left = &left.derived.plan;
         let right = &right.derived.plan;
@@ -177,7 +177,7 @@ pub fn selected_provider_plan_facts_with_independent_components(
     });
 
     let mut diagnostics = evaluated_bindings
-        .validate_against_typed(typed)
+        .validate_against_typed(context)
         .err()
         .unwrap_or_default();
     let retained_target = evaluated_bindings
@@ -185,7 +185,7 @@ pub fn selected_provider_plan_facts_with_independent_components(
         .map(target::TargetProfile::target_name)
         .unwrap_or_default();
     let mut independent_join = IndependentComponentJoin::new(independent_components);
-    diagnostics.extend(replay_operator_family_selections(typed, &selected));
+    diagnostics.extend(replay_operator_family_selections(context, &selected));
     for selected_plan in &selected {
         let plan = &selected_plan.derived.plan;
         let provenance = &selected_plan.derived.provenance;
@@ -217,7 +217,7 @@ pub fn selected_provider_plan_facts_with_independent_components(
             )));
         }
         diagnostics.extend(validate_derived_provider_plan_provenance(
-            typed,
+            context,
             evaluated_bindings,
             &selected_plan.derived,
         ));
@@ -312,7 +312,7 @@ fn same_family_declaration(
 /// canonical roster the typed program derives now, and every coordinate must
 /// be realized by exactly one selected plan of the declared provider.
 fn replay_operator_family_selections(
-    typed: &TypedTrees,
+    context: crate::ProviderPlanningContext<'_>,
     selected: &[SelectedProviderPlanWithProvenance],
 ) -> Vec<diagnostics::Diagnostic> {
     let mut families: Vec<&crate::ProviderSelection> = Vec::new();
@@ -337,7 +337,7 @@ fn replay_operator_family_selections(
         };
         diagnostics.extend(
             family
-                .replay_against_typed(typed)
+                .replay_against_typed(context)
                 .into_iter()
                 .map(diagnostics::Diagnostic::error),
         );

@@ -44,10 +44,10 @@ fn borrowed_fixture() -> (CheckedTrees, effects::SelectedProviderPlanFacts) {
     .unwrap();
     let typed =
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let plans = provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
-    )
+    let plans = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();

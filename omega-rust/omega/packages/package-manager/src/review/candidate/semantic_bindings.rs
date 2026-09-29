@@ -448,9 +448,13 @@ pub(super) fn candidate_service_bindings(
                 },
             );
         };
-        let Some(service_schema) =
-            provider_planning::service_schema::from_typed(&checked.typed, definition)
-        else {
+        let Some(service_schema) = provider_planning::service_schema::from_typed(
+            provider_planning::ProviderPlanningContext::new(
+                &checked.typed,
+                source::DependencyScope::Product,
+            ),
+            definition,
+        ) else {
             return Err(
                 CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                     consumer: consumer.clone(),
@@ -537,13 +541,19 @@ pub(super) fn candidate_target_entry_binding(
                 role,
             },
         )?;
-    let service_schema = provider_planning::service_schema::from_typed(&checked.typed, definition)
-        .ok_or_else(
-            || CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-                consumer: owner.clone(),
-                role,
-            },
-        )?;
+    let service_schema = provider_planning::service_schema::from_typed(
+        provider_planning::ProviderPlanningContext::new(
+            &checked.typed,
+            source::DependencyScope::Product,
+        ),
+        definition,
+    )
+    .ok_or_else(
+        || CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+            consumer: owner.clone(),
+            role,
+        },
+    )?;
     Ok(Some(SemanticBindingReviewCandidate::new(
         binding,
         service_schema,

@@ -249,7 +249,8 @@ pub(crate) struct Evaluator<'program> {
     program: &'program TypedTrees,
     /// Full-program interpretation retains checked named-operator evidence so
     /// a root-preserving intrinsic rewrite can still report the source
-    /// operation. Const/build-time evaluation runs before that evidence exists.
+    /// operation. Admitted Build evaluation retains the same facts; early
+    /// constant preparation still runs before they exist.
     operator_facts: Option<&'program CheckedOperatorFacts>,
     boundary_adapter_dispatch: &'program [checked_trees::CheckedBoundaryAdapterDispatch],
     pub(super) selected_build_time_operators: &'program [crate::SelectedBuildTimeBinaryOperator],

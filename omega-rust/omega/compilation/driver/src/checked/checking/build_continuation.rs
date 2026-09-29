@@ -46,6 +46,7 @@ pub(crate) fn evaluate_build_and_continue(
         build_evaluation::BuildEvaluationRequest {
             root_path,
             typed: typing.typed(),
+            target_machine_declarations: &selected_target_machine_declarations,
             build_source_id,
             sources: &base_sources,
             package_inputs,
@@ -178,7 +179,14 @@ pub(super) fn lower_typed_frontier(
             .map_err(|diagnostic| vec![diagnostic])
         },
     )?;
-    selected_target_machine_declarations.admit_provider_default_calls(typing_base.typed())?;
+    for scope in [
+        source::DependencyScope::Build,
+        source::DependencyScope::Product,
+    ] {
+        selected_target_machine_declarations.admit_provider_default_calls(
+            provider_planning::ProviderPlanningContext::new(typing_base.typed(), scope),
+        )?;
+    }
     let pending_pre_checks = pre_check
         .evaluate_or_defer(typing_base.typed_mut())?
         .into_iter()
@@ -244,7 +252,14 @@ fn continue_generated_sources(
         artifacts::compile_timings::SYMBOL_RESOLVED_TREES_TO_TYPED_TREES,
         || base.lower_extension(seeded),
     )?;
-    selected_target_machine_declarations.admit_provider_default_calls(&typed)?;
+    for scope in [
+        source::DependencyScope::Build,
+        source::DependencyScope::Product,
+    ] {
+        selected_target_machine_declarations.admit_provider_default_calls(
+            provider_planning::ProviderPlanningContext::new(&typed, scope),
+        )?;
+    }
     let pending_pre_checks =
         build_time_evaluation::PreCheckEvaluation::evaluate_extension_or_defer(
             pre_checks,

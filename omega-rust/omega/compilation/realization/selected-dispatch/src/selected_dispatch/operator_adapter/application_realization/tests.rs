@@ -38,8 +38,13 @@ fn fixture() -> Fixture {
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type fixed-token dispatch fixture");
     let plans = provider_planning::derive_satisfies_plans(
-        &typed,
-        provider_planning::ProviderPlanDerivation::unevaluated(None),
+        provider_planning::ProviderPlanDerivation::unevaluated(
+            provider_planning::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product,
+            ),
+            None,
+        ),
     )
     .into_iter()
     .map(|derived| derived.plan)

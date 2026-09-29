@@ -17,6 +17,7 @@ mod binding_values;
 #[cfg(test)]
 mod tests;
 
+use crate::ProviderPlanningContext;
 use crate::evaluated_via_bindings::binding_digests::at;
 use crate::evaluated_via_bindings::binding_evaluation::{evaluate_one, exact_binding_vocabulary};
 use build_time_evaluation::BuildTimeAdmissionPlan;
@@ -29,6 +30,7 @@ use source::SourceSpan;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use target::TargetProfile;
+#[cfg(test)]
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
@@ -134,11 +136,15 @@ impl EvaluatedViaBindingRow {
 /// Complete evaluated ordinary-`via` population for one typed compilation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvaluatedViaBindingTable {
+    scope: source::DependencyScope,
     target: Option<TargetProfile>,
     rows: Vec<EvaluatedViaBindingRow>,
 }
 
 impl EvaluatedViaBindingTable {
+    pub const fn scope(&self) -> source::DependencyScope {
+        self.scope
+    }
     pub const fn target(&self) -> Option<TargetProfile> {
         self.target
     }
@@ -163,11 +169,20 @@ impl EvaluatedViaBindingTable {
     /// this table. Stable receipt data remains immutable; this catches a
     /// substituted conformance, expression, producer entry, or producer
     /// identity in a retained/mutated typed program.
-    pub fn validate_against_typed(&self, typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    pub fn validate_against_typed(
+        &self,
+        context: ProviderPlanningContext<'_>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self.scope != context.scope {
+            return Err(vec![Diagnostic::error(
+                "evaluated `via` binding table belongs to a different dependency purpose",
+            )]);
+        }
+        let typed = context.typed;
         let expected = typed
             .machines()
             .iter()
-            .filter(|machine| crate::service_schema::is_product_declaration(typed, machine.symbol))
+            .filter(|machine| context.contains(machine.symbol))
             .flat_map(|machine| {
                 typed
                     .machine_trait_conformances(machine)
@@ -300,14 +315,15 @@ struct BindingVocabulary {
 /// Evaluate every ordinary `via` leaf exactly once and retain the resulting
 /// atomic normalized import plus its durable evaluation receipt.
 pub fn evaluate_via_bindings(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     selected_target: Option<TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
+    let typed = context.typed;
     let pending = typed
         .machines()
         .iter()
-        .filter(|machine| crate::service_schema::is_product_declaration(typed, machine.symbol))
+        .filter(|machine| context.contains(machine.symbol))
         .flat_map(|machine| {
             typed
                 .machine_trait_conformances(machine)
@@ -318,6 +334,7 @@ pub fn evaluate_via_bindings(
         .collect::<Vec<_>>();
     if pending.is_empty() {
         return Ok(EvaluatedViaBindingTable {
+            scope: context.scope,
             target: selected_target,
             rows: Vec::new(),
         });
@@ -327,7 +344,7 @@ pub fn evaluate_via_bindings(
             "ordinary external `via` evaluation requires one selected target profile",
         )]);
     };
-    let vocabulary = exact_binding_vocabulary(typed)?;
+    let vocabulary = exact_binding_vocabulary(context)?;
     let selection_authority = package_inputs.cloned().map(|inputs| {
         Arc::new(inputs) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
     });
@@ -362,6 +379,7 @@ pub fn evaluate_via_bindings(
     }
     if diagnostics.is_empty() {
         Ok(EvaluatedViaBindingTable {
+            scope: context.scope,
             target: Some(target),
             rows,
         })

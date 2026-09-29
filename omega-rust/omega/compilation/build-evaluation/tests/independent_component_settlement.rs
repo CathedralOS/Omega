@@ -156,12 +156,13 @@ impl Build {
         // This build requests none, so the expected plan must be derived for
         // that same fallback or it compares a targetless name and empty
         // target against the host-qualified ones settlement produces.
-        let derived = derive_satisfies_plans(
-            &typed,
-            ProviderPlanDerivation::unevaluated(
-                target::TargetProfile::host_if_supported().map(target::TargetProfile::target_name),
+        let derived = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+            provider_planning::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product,
             ),
-        );
+            target::TargetProfile::host_if_supported().map(target::TargetProfile::target_name),
+        ));
         assert_eq!(derived.len(), 1, "one exact checked provider plan");
         let plan = derived[0].plan.clone();
         let selection = ProviderSelection {
@@ -249,7 +250,12 @@ impl Build {
             selection,
             ..
         } = self;
-        let declarations = target_machines.settle_provider_defaults(&mut typed)?;
+        let declarations = target_machines.settle_provider_defaults(
+            provider_planning::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product,
+            ),
+        )?;
         settle_checked_providers(
             &mut typed,
             declarations,

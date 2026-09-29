@@ -31,7 +31,8 @@ pub(crate) use requirement_identities::{
 pub use requirement_identities::{satisfied_requirement_identity, satisfies_plan_name};
 pub(crate) use specialization_rows::derive_selected_requirement_specializations;
 
-use super::{ProviderPlan, TypedTrees};
+use super::ProviderPlan;
+use crate::ProviderPlanningContext;
 use crate::provider_planning::provenance_replay::plan_derivation::derive_provider_plans;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,16 +83,21 @@ pub struct DerivedProviderPlan {
 /// the typed program and the target before any plan is derived.
 #[derive(Clone, Copy)]
 pub struct ProviderPlanDerivation<'a> {
-    pub selected_target: Option<&'a str>,
-    pub evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
-    pub target_machine_origins: &'a [SelectedTargetMachineOrigin],
+    context: ProviderPlanningContext<'a>,
+    selected_target: Option<&'a str>,
+    evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
+    target_machine_origins: &'a [SelectedTargetMachineOrigin],
 }
 
 impl<'a> ProviderPlanDerivation<'a> {
     /// Derive from retained conformance alone, before `via` bindings are
     /// evaluated.
-    pub const fn unevaluated(selected_target: Option<&'a str>) -> Self {
+    pub const fn unevaluated(
+        context: ProviderPlanningContext<'a>,
+        selected_target: Option<&'a str>,
+    ) -> Self {
         Self {
+            context,
             selected_target,
             evaluated_bindings: None,
             target_machine_origins: &[],
@@ -101,12 +107,12 @@ impl<'a> ProviderPlanDerivation<'a> {
     /// Derive with an evaluated `via` binding table, which must belong to
     /// this typed program and name the same target.
     pub fn evaluated(
-        typed: &TypedTrees,
+        context: ProviderPlanningContext<'a>,
         selected_target: Option<&'a str>,
         evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
         target_machine_origins: &'a [SelectedTargetMachineOrigin],
     ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
-        evaluated_bindings.validate_against_typed(typed)?;
+        evaluated_bindings.validate_against_typed(context)?;
         let retained_target = evaluated_bindings
             .target()
             .map(target::TargetProfile::target_name);
@@ -118,6 +124,7 @@ impl<'a> ProviderPlanDerivation<'a> {
             ))]);
         }
         Ok(Self {
+            context,
             selected_target,
             evaluated_bindings: Some(evaluated_bindings),
             target_machine_origins,
@@ -127,12 +134,9 @@ impl<'a> ProviderPlanDerivation<'a> {
 
 /// Derive every provider plan the typed program's retained conformance
 /// satisfies, each with its provenance. This is the one derivation entry.
-pub fn derive_satisfies_plans(
-    typed: &TypedTrees,
-    derivation: ProviderPlanDerivation<'_>,
-) -> Vec<DerivedProviderPlan> {
+pub fn derive_satisfies_plans(derivation: ProviderPlanDerivation<'_>) -> Vec<DerivedProviderPlan> {
     derive_provider_plans(
-        typed,
+        derivation.context,
         derivation.selected_target,
         derivation.evaluated_bindings,
         derivation.target_machine_origins,
