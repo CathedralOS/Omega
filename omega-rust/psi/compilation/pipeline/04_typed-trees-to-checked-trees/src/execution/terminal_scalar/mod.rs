@@ -49,7 +49,14 @@ pub(crate) fn build_checked_terminal_machine_selections(
                 // `satisfies` is checked requirement refinement, not a runtime
                 // receiver or an alternate body. A closed checked machine keeps
                 // its ordinary signature and its own published contract.
-                signature: if machine.attached_data.is_some() {
+                // A qualified static name does not supply a receiver. The
+                // legacy signature class follows the authored parameters.
+                signature: if program.machine_states(machine).iter().any(|state| {
+                    program
+                        .state_parameters(state)
+                        .iter()
+                        .any(|parameter| parameter.is_self)
+                }) {
                     CheckedTerminalSignatureEligibility::Attached
                 } else if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()

@@ -19,6 +19,31 @@ use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 #[test]
+fn copy_local_call_argument_survives_state_graph() {
+    let checked = checked_binding_context(
+        "data Value [copy] { count: u32; }
+         machine read(value: Value) -> u32 { value.count }
+         machine run() {
+             let value: Value = Value { count: 7 };
+             let result: u32 = read(value);
+             transition result == 7 {
+                 true -> done(result)
+                 false -> done(0)
+             }
+             state done(result: u32) {}
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("copyable local is an ordinary owned call argument");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("copied argument retains independently checked source custody");
+}
+
+#[test]
 fn qualified_static_binding_context_crosses_state_transition() {
     let checked = checked_binding_context(
         "pub boundary trait Host { machine ticks() -> u64; machine mark(value: u64); }

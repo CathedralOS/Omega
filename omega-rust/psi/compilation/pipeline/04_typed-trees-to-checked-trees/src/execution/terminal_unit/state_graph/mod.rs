@@ -177,6 +177,15 @@ pub(super) fn build_traced(
         Vec::new()
     };
     let mut attachment = None;
+    // Qualification selects a declaration's namespace, not an implicit
+    // context. Only an authored receiver retains the legacy attachment path
+    // while remaining receiver-based source is migrated.
+    let has_receiver = states.iter().any(|state| {
+        program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_self)
+    });
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
     let mut state_requires = Vec::new();
@@ -228,7 +237,7 @@ pub(super) fn build_traced(
         }
         state_requires.push(requires);
         trace.phase("state graph: state signature: parameter signature");
-        let (structural, scalar) = if machine.attached_data.is_some() {
+        let (structural, scalar) = if has_receiver {
             let (identity, structural, scalar) = structural_scalar_signature_traced(
                 program,
                 shapes,
