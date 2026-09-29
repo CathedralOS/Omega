@@ -640,6 +640,33 @@ fn calls_barriers_and_memory_bound_the_window() {
         relocate(&rostered, &environment, &[MOVING], T_HEAD).unwrap_err(),
         ScheduledRelocationError::UnsupportedInstruction
     );
+    // A member whose encoding may fault: sinking a signed divide or
+    // remainder would drop its trap from every path the move abandons.
+    let accepted_fact = optimization_core::AcceptedObligationFactIdentity::from_bytes([9; 32]);
+    for kind in [
+        SelectedInstructionKind::ExactDivideI64 {
+            obligation: ObligationId::new(44).unwrap(),
+            accepted_fact,
+        },
+        SelectedInstructionKind::ExactRemainderI64 {
+            obligation: ObligationId::new(44).unwrap(),
+            accepted_fact,
+        },
+    ] {
+        let faulting = mutated(target, false, |function, _environment| {
+            function
+                .blocks
+                .iter_mut()
+                .flat_map(|block| block.instructions.iter_mut())
+                .find(|instruction| instruction.id == MOVING)
+                .unwrap()
+                .kind = kind;
+        });
+        assert_eq!(
+            relocate(&faulting, &environment, &[MOVING], T_HEAD).unwrap_err(),
+            ScheduledRelocationError::UnsupportedInstruction
+        );
+    }
 }
 
 /// Every location the run writes must be dead on the skipped paths: a

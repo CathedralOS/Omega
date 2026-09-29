@@ -89,9 +89,9 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport,
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
+    FrameStorageSlotId, SelectedBlockId, SelectedCasePayloadTransport, SelectedFunction,
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind, SelectedMemoryAccess,
+    SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
     SelectedValueTransport, VirtualRegisterId,
 };
 use semantic_vocabulary::PlaceId;
@@ -105,7 +105,7 @@ use crate::rewrites::unexecuted::place_storage::{
     local_slot_is_place_storage, local_store_shape, packed_store_row_shape, place_store_row_shape,
     slot_is_subject_storage, staging_slot, structural_place_declarations,
 };
-use crate::rewrites::window_hazards::{coupled, is_barrier};
+use crate::rewrites::window_hazards::{coupled, is_barrier, unaccounted_kind};
 
 pub(super) struct Admission<'source> {
     pub function: &'source SelectedFunction,
@@ -707,75 +707,6 @@ fn instruction_stops(
         }
     }
     is_barrier(candidate) || coupled(store, candidate) || (!has_row && unaccounted_kind(candidate))
-}
-
-/// An interval instruction without a roster row must be unable to reach any
-/// semantic or place-backed storage: private-slot frame accesses touch
-/// compiler-owned spill/boundary slots that no referent place aliases, and
-/// pure register work has no memory side at all. Any other memory-capable
-/// kind without a row is an unaccounted access.
-fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
-    use SelectedInstructionKind::*;
-    !matches!(
-        instruction.kind,
-        Store64 {
-            slot: FrameStorageSlotId::Local(
-                LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. },
-            ),
-            ..
-        } | Load8 { .. }
-            | Load16 { .. }
-            | Load32 { .. }
-            | Load64 { .. }
-            | Load8Indexed
-            | LoadPacked { .. }
-            | FrameAddress { .. }
-            | AddressOffset { .. }
-            | ByteViewAddress
-            | CopyI64
-            | MaterializeI64 { .. }
-            | CompareI64
-            | CompareI64Zero
-            | CompareI64Immediate { .. }
-            | ExactAddI64 { .. }
-            | ExactSubtractI64 { .. }
-            | ExactMultiplyI64 { .. }
-            | ExactAddI64Immediate { .. }
-            | ExactSubtractI64Immediate { .. }
-            | WrappingAddI64
-            | WrappingSubtractI64
-            | WrappingMultiplyI64
-            | ExactDivideU64 { .. }
-            | ExactRemainderU64 { .. }
-            | WrappingRemainderI64 { .. }
-            | WrappingDivideI64 { .. }
-            | ExactDivideI64 { .. }
-            | ExactRemainderI64 { .. }
-            | SaturatingAdd { .. }
-            | SaturatingSubtract { .. }
-            | SaturatingDivide { .. }
-            | SaturatingRemainder { .. }
-            | SaturatingMultiply { .. }
-            | BitwiseAndI64
-            | BitwiseOrI64
-            | BitwiseNotI64
-            | BitwiseXorI64
-            | ZeroExtendU8
-            | ZeroExtendU16
-            | ZeroExtendU32
-            | SignExtendI8
-            | SignExtendI16
-            | SignExtendI32
-            | Float32ToBits
-            | Float64ToBits
-            | BitsToFloat32
-            | BitsToFloat64
-            | MaterializeBooleanEqual
-            | MaterializeBooleanU64LessThan
-            | MaterializeBooleanI64LessThan
-            | MaterializeBooleanU64LessOrEqual
-            | MaterializeBooleanI64LessOrEqual
-    )
 }
 
 /// A boundary settlement at a position in the crossed interval would observe

@@ -12,8 +12,8 @@ use std::sync::Arc;
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use selected_instructions::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionPlan, SelectedTerminator,
+    SelectedBlockOrigin, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedTerminator,
 };
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
 
@@ -25,7 +25,7 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    coupled, has_call_contract, register_writes, schedulable, surface,
+    coupled, has_call_contract, register_writes, schedulable, speculatable, surface,
 };
 
 /// The validator's own reconstruction of the relocation the contract
@@ -38,40 +38,6 @@ struct Reconstructed<'source> {
     member_index: usize,
     target_index: usize,
     landing_index: usize,
-}
-
-/// Whether the member's effect is pure register and condition-state work
-/// whose missing execution leaves no observable trace on the arrivals the
-/// move removes. `schedulable` already cleared barrier kinds, call
-/// contracts, and unaccounted memory-capable kinds, but a row-less load
-/// or private-slot `Store64` still performs a memory access: hoisting it
-/// would remove the access — and any fault or slot write it carried —
-/// from every traversal entering the join through the other inflows. The
-/// same holds for kinds whose target encoding may architecturally fault:
-/// their proof obligations establish definedness for the source
-/// operation, but this audit runs at the selected level where the encoded
-/// trap behavior is the honest bound — an execution that could fault must
-/// still run on every path that ran it before.
-fn removable(instruction: &SelectedInstruction) -> bool {
-    use selected_instructions::SelectedInstructionKind::*;
-    !matches!(
-        instruction.kind,
-        CopyBytes
-            | LoadPacked { .. }
-            | StorePacked { .. }
-            | Store { .. }
-            | Load8Indexed
-            | Load64 { .. }
-            | Load8 { .. }
-            | Load16 { .. }
-            | Load32 { .. }
-            | Store64 { .. }
-            | ExactDivideU64 { .. }
-            | ExactDivideI64 { .. }
-            | ExactRemainderI64 { .. }
-            | SaturatingDivide { .. }
-            | SaturatingRemainder { .. }
-    )
 }
 
 /// Reconstruct the legality of moving `member` onto `destination` inside
@@ -189,7 +155,8 @@ fn reconstruct<'source>(
     // rise — a roster-carrying or unaccounted memory access or a
     // potentially-faulting kind that ran on every arrival would silently
     // vanish from the arrivals the move removes.
-    if schedulable(function, member_instruction) != Some(false) || !removable(member_instruction) {
+    if schedulable(function, member_instruction) != Some(false) || !speculatable(member_instruction)
+    {
         return Err(InflowRelocationError::UnsupportedInstruction);
     }
     // The crossed edge's register transports sit between the member's old
