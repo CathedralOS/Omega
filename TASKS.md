@@ -1717,8 +1717,9 @@ crash and native exit behavior. Use affected check/native corpus slices under
   ordinary requirement-call route. At `3dd73f4494f7` plus codec fixture closure on macOS
   ARM64, `python3 tools/corpus_gate.py --native --filter
   providers/checked_boundary_operator_physical_custody,providers/checked_fixed_operator_dispatch_exit,providers/token_machine_family_override_exit,float/named_provider_negate_is_nan_exit`
-  executes the named customer and both controls with exit **70**; the float
-  customer remains rejected. The named customer's source is unchanged.
+  executes the named customer and both controls with exit **70**. The named
+  customer's source is unchanged. The float customer also executes with exit
+  **70** through the typed negate and NaN-classification operations.
   `05_checked-trees-to-lowered-psi/tests/provider_candidates.rs` also executes
   a consumed named-call result as **71** after dropping checked custody.
   Declaration kind distinguishes provider-field roots from independent
@@ -1765,6 +1766,14 @@ crash and native exit behavior. Use affected check/native corpus slices under
     structural field store destination parameter. Pure scalar-graph machines
     carry no boundary roster, so nested applications there reject
     (`expressions/match_float_subjects`).
+    Whole-value boundary results inside scalar helpers use the ordinary
+    operation sequence: a bodyless declaration cannot acquire a competing
+    direct-body call graph. On macOS ARM64,
+    `omega run tests/omega/pass/float/runtime_std_is_finite_exit/main.omg`
+    exits **70** unchanged; `float/scalar_helper_boundary_sequence_exit`
+    also exits **70** with intervening ordinary calls and nested operands.
+    Both build for linux_x86_64. Checked interpretation still declines the
+    selected bodyless float realization; these are native execution results.
     A `let` after a call-result field store keeps its own value and source:
     source roles key it by its authored local ordinal
     (`TypedTrees::immutable_scalar_locals_before`), while its plan keeps the

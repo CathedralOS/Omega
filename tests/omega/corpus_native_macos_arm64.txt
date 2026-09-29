@@ -531,10 +531,10 @@ pass/float/named_provider_negate_is_nan_exit built 2014ms exit:70 @bbdbb0a83995+
 pass/float/runtime_named_float_to_integer_conversion_exit rejected 1735ms
 	unimplemented: `Main::main` applies boundary operator `I8::from_f32`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/float/runtime_named_format_conversion_exit built 1813ms exit:70 @0d9777b52aee+wt
-pass/float/runtime_std_is_finite_exit rejected 1572ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at a missing boundary target (`Float::multiply`)
+pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
 pass/float/runtime_total_order_satisfiers_exit rejected 1643ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 8)
+pass/float/scalar_helper_boundary_sequence_exit built 1800ms exit:70 @de54b0ba9fed+wt
 pass/float/x86_fma_plan_association rejected 205ms
 	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`fused_multiply_add(..)` nested in `add(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
 pass/generics/closed_indexed_quantity rejected 1729ms

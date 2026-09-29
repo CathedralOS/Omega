@@ -955,6 +955,14 @@ fn checked_binding_value(
     }
     let (target_machine, target_state) =
         crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
+    // DirectCall retains a checked body, not a requirement to be installed.
+    // Whole-value boundary calls belong to the ordinary operation sequence,
+    // which owns their result binding and exact provider-call custody. Giving
+    // them a competing scalar graph sends closure discovery looking for a
+    // body that a boundary declaration deliberately does not contain.
+    if !target_machine.supply_mode.is_checked_body() || !target_machine.body_is_present {
+        return None;
+    }
     let parameters = program.state_parameters(target_state);
     let authored_arguments = program
         .expression_table
