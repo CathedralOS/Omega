@@ -167,6 +167,21 @@ fn fragment_container(
     )
 }
 
+/// The canonical Terminal structural declarations of `machine_name`'s module,
+/// for fixtures that must spell a receiver field's exact route and identity.
+pub(super) fn terminal_structural_types(
+    source: &str,
+    machine_name: &str,
+) -> Vec<terminal_psi::StructuralTypeDeclaration> {
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked_source(source),
+        TerminalMachineSelection::Name(machine_name),
+    )
+    .expect("entry machine must reach Terminal")
+    .semantic_module
+    .structural_types
+}
+
 /// Compile one attached-entry source program for `profile`, emit its object
 /// artifact through the fragment route, and replay the retained container
 /// against the emitted object once so callers start from verified custody.

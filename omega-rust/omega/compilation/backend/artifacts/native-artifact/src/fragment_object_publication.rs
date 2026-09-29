@@ -171,11 +171,17 @@ pub fn publish_fragment_object(
                         eligibility.cleanup()
                         == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent
                     });
+            let determined_evidence = entry
+                .checked_entry()
+                .receiver_eligibility()
+                .map(|eligibility| eligibility.determined_evidence_fields())
+                .unwrap_or_default();
             image_emission::bind_hosted_receiver(
                 &mut object,
                 entry.source(),
                 contract,
                 entry.fused_service_establishments(),
+                determined_evidence,
                 &demand,
                 cleanup_occupancy,
             )

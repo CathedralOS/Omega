@@ -13,9 +13,10 @@ use checked_trees::types::{
 use checked_trees::{CheckedTerminalMachineSelection, CheckedTrees};
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverCleanup,
-    CheckedProgramEntryReceiverEligibility, CheckedProgramEntryReceiverProjection,
-    StructuralAccess, StructuralFieldType, StructuralTypeShape, TerminalModule,
+    CheckedProgramEntryDeterminedEvidenceField, CheckedProgramEntryFusedServiceField,
+    CheckedProgramEntryReceiverCleanup, CheckedProgramEntryReceiverEligibility,
+    CheckedProgramEntryReceiverProjection, StructuralAccess, StructuralFieldType,
+    StructuralTypeShape, TerminalModule,
 };
 
 pub(super) fn derive(
@@ -156,6 +157,7 @@ pub(super) fn derive(
             terminal_receiver_type,
             Some(definition),
             &mut Vec::new(),
+            selection.machine,
         )
     {
         return None;
@@ -169,16 +171,111 @@ pub(super) fn derive(
         &mut Vec::new(),
         &mut fused_service_fields,
     )?;
-    Some(CheckedProgramEntryReceiverEligibility::new(
-        checked
-            .normalized_type_identity(receiver.type_reference)
-            .into_string(),
-        owned_receiver_type_identity,
-        projection,
-        terminal_receiver_type,
-        fused_service_fields,
-        cleanup,
-    ))
+    let mut determined_evidence_fields = Vec::new();
+    collect_determined_evidence_fields(
+        checked,
+        &module.structural_types,
+        fields,
+        selection.machine,
+        &mut Vec::new(),
+        &mut vec![terminal_receiver_type],
+        &mut determined_evidence_fields,
+    )?;
+    if determined_evidence_fields.iter().any(|row| {
+        fused_service_fields
+            .iter()
+            .any(|service| service.field_path() == row.field_path())
+    }) {
+        return None;
+    }
+    Some(
+        CheckedProgramEntryReceiverEligibility::new(
+            checked
+                .normalized_type_identity(receiver.type_reference)
+                .into_string(),
+            owned_receiver_type_identity,
+            projection,
+            terminal_receiver_type,
+            fused_service_fields,
+            cleanup,
+        )
+        .with_determined_evidence_fields(determined_evidence_fields),
+    )
+}
+
+/// Walk the receiver's Terminal field tree along the routes a roster row can
+/// name -- record fields and mixed-shape common fields, never array elements
+/// or case payloads -- and record one row per erased field whose evidence a
+/// unique nullary constructor determines. The walk reads Terminal
+/// declarations rather than source records so a closed generic owner such as
+/// `Mixed<i32>` contributes its rows too; `nullary_determined_evidence`
+/// rejoins each row to its exact source declaration by type identity. A
+/// determined evidence type is never a `Binding` carrier, so these rows and
+/// the fused-service rows name disjoint fields.
+fn collect_determined_evidence_fields(
+    checked: &CheckedTrees,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    entry: symbols::SymbolHandle,
+    field_path: &mut Vec<String>,
+    visiting: &mut Vec<StructuralTypeId>,
+    rows: &mut Vec<CheckedProgramEntryDeterminedEvidenceField>,
+) -> Option<()> {
+    for field in fields {
+        match &field.field_type {
+            StructuralFieldType::Erased { type_identity }
+                if field.relevance.is_erased()
+                    && nullary_determined_evidence(checked, type_identity, entry) =>
+            {
+                field_path.push(field.identity.clone());
+                if rows
+                    .iter()
+                    .any(|row| row.field_path() == field_path.as_slice())
+                {
+                    return None;
+                }
+                rows.push(CheckedProgramEntryDeterminedEvidenceField::new(
+                    type_identity.clone(),
+                    field_path.clone(),
+                ));
+                field_path.pop();
+            }
+            StructuralFieldType::Structural(child) if !visiting.contains(child) => {
+                let mut nested = declarations
+                    .iter()
+                    .filter(|declaration| declaration.id == *child);
+                let declaration = nested.next()?;
+                if nested.next().is_some() {
+                    return None;
+                }
+                let (StructuralTypeShape::Record {
+                    fields: nested_fields,
+                }
+                | StructuralTypeShape::Mixed {
+                    fields: nested_fields,
+                    ..
+                }) = &declaration.shape
+                else {
+                    continue;
+                };
+                field_path.push(field.identity.clone());
+                visiting.push(*child);
+                collect_determined_evidence_fields(
+                    checked,
+                    declarations,
+                    nested_fields,
+                    entry,
+                    field_path,
+                    visiting,
+                    rows,
+                )?;
+                visiting.pop();
+                field_path.pop();
+            }
+            _ => {}
+        }
+    }
+    Some(())
 }
 
 /// The fused-service roster keeps the receiver's authored declaration order —
@@ -346,6 +443,7 @@ fn zero_valid_record_storage(
     structural_type: StructuralTypeId,
     source: Option<&DataDefinition>,
     visiting: &mut Vec<StructuralTypeId>,
+    entry: symbols::SymbolHandle,
 ) -> bool {
     if visiting.contains(&structural_type) {
         return false;
@@ -370,6 +468,7 @@ fn zero_valid_record_storage(
         visiting,
         is_receiver,
         true,
+        entry,
     );
     visiting.pop();
     valid
@@ -390,6 +489,7 @@ fn zero_valid_node(
     source_reference: Option<TypeReferenceHandle>,
     visiting: &mut Vec<StructuralTypeId>,
     admit_erased_services: bool,
+    entry: symbols::SymbolHandle,
 ) -> bool {
     if visiting.contains(&structural_type) {
         return false;
@@ -418,6 +518,7 @@ fn zero_valid_node(
         visiting,
         false,
         admit_erased_services,
+        entry,
     );
     visiting.pop();
     valid
@@ -436,6 +537,7 @@ fn zero_valid_shape(
     visiting: &mut Vec<StructuralTypeId>,
     is_receiver: bool,
     admit_erased_services: bool,
+    entry: symbols::SymbolHandle,
 ) -> bool {
     match &declaration.shape {
         StructuralTypeShape::Record { fields } => zero_valid_fields(
@@ -446,6 +548,7 @@ fn zero_valid_shape(
             visiting,
             is_receiver,
             admit_erased_services,
+            entry,
         ),
         StructuralTypeShape::FixedArray { element, .. } => {
             // Array eligibility follows the complete element chain at any
@@ -465,10 +568,11 @@ fn zero_valid_shape(
                 element_reference,
                 visiting,
                 false,
+                entry,
             )
         }
         StructuralTypeShape::Sum { cases } => {
-            zero_valid_first_case(checked, declarations, source, cases, visiting)
+            zero_valid_first_case(checked, declarations, source, cases, visiting, entry)
         }
         StructuralTypeShape::Mixed { fields, cases } => {
             zero_valid_fields(
@@ -479,7 +583,8 @@ fn zero_valid_shape(
                 visiting,
                 is_receiver,
                 admit_erased_services,
-            ) && zero_valid_first_case(checked, declarations, source, cases, visiting)
+                entry,
+            ) && zero_valid_first_case(checked, declarations, source, cases, visiting, entry)
         }
         StructuralTypeShape::PrimitiveScalar(scalar) => matches!(
             scalar,
@@ -508,6 +613,7 @@ fn zero_valid_fields(
     visiting: &mut Vec<StructuralTypeId>,
     is_receiver: bool,
     admit_erased_services: bool,
+    entry: symbols::SymbolHandle,
 ) -> bool {
     fields.iter().all(|field| {
         let nested_erased_service = admit_erased_services
@@ -516,7 +622,14 @@ fn zero_valid_fields(
             && checked
                 .bound_service_parameter_carrier(field_reference(field))
                 .is_ok_and(|carrier| carrier.is_some());
-        (is_receiver || !field.relevance.is_erased() || nested_erased_service)
+        // Determined evidence joins its own roster row on the same record-field
+        // routes a service row can name (`collect_determined_evidence_fields`).
+        let determined_erased = admit_erased_services
+            && !is_receiver
+            && field.relevance.is_erased()
+            && matches!(&field.field_type, StructuralFieldType::Erased { type_identity }
+                if nullary_determined_evidence(checked, type_identity, entry));
+        (is_receiver || !field.relevance.is_erased() || nested_erased_service || determined_erased)
             && match field.field_type {
                 StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
                 StructuralFieldType::BoundedInteger(integer) => {
@@ -532,6 +645,7 @@ fn zero_valid_fields(
                         reference.is_valid().then_some(reference),
                         visiting,
                         admit_erased_services,
+                        entry,
                     )
                 }
                 StructuralFieldType::ByteSequence(
@@ -544,7 +658,9 @@ fn zero_valid_fields(
                     predicates.holds_for(&[])
                         && zero_valid_byte_field(checked, field_reference(field), capacity)
                 }
-                StructuralFieldType::Erased { .. } => is_receiver || nested_erased_service,
+                StructuralFieldType::Erased { .. } => {
+                    is_receiver || nested_erased_service || determined_erased
+                }
                 StructuralFieldType::ByteSequence(_)
                 | StructuralFieldType::PredicateByteSequence { .. } => false,
             }
@@ -560,6 +676,7 @@ fn zero_valid_first_case(
     source: Option<&DataDefinition>,
     cases: &[terminal_psi::StructuralCaseDeclaration],
     visiting: &mut Vec<StructuralTypeId>,
+    entry: symbols::SymbolHandle,
 ) -> bool {
     let Some(case) = cases.first() else {
         return false;
@@ -590,7 +707,55 @@ fn zero_valid_first_case(
         visiting,
         false,
         false,
+        entry,
     )
+}
+
+/// Whether the erased term of type `type_identity` is determined
+/// structurally, so zero provisioning supplies it without discharging any
+/// obligation. [Erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings)
+/// let construction omit a term exactly when a visible accessible nullary
+/// constructor determines it; there is no general inhabitance search.
+/// Provisioning the receiver is that construction, so it applies the rule
+/// stage 03's `nullary_erased_initializers` elaborates for literals: a
+/// non-generic checked-shape declaration with no common fields and exactly
+/// one payload-free case, which zero storage selects without an establishment
+/// gate. The declaration must be public or share the entry's package, so
+/// provisioning never mints evidence the entry could not construct itself.
+fn nullary_determined_evidence(
+    checked: &CheckedTrees,
+    type_identity: &str,
+    entry: symbols::SymbolHandle,
+) -> bool {
+    let mut declarations = checked.data_definitions().iter().filter(|definition| {
+        checked
+            .normalized_nominal_type_identity(definition.symbol)
+            .is_some_and(|identity| identity.into_string() == type_identity)
+    });
+    let Some(evidence) = declarations.next() else {
+        return false;
+    };
+    if declarations.next().is_some()
+        || evidence.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+        || !checked.data_type_parameters(evidence).is_empty()
+        || evidence.generic_instance.is_some()
+        || validation::data_requires_establishment(&checked.typed, evidence)
+        || !(evidence.is_public
+            || checked.symbols.symbol_package_identity(evidence.symbol)
+                == checked.symbols.symbol_package_identity(entry))
+    {
+        return false;
+    }
+    let members = checked.data_members(evidence);
+    let mut nullary = members.iter().filter(|member| match member {
+        DataMember::Variant(variant) => checked.data_payload_fields(variant).is_empty(),
+        DataMember::Field(_) => false,
+    });
+    !members
+        .iter()
+        .any(|member| matches!(member, DataMember::Field(_)))
+        && nullary.next().is_some()
+        && nullary.next().is_none()
 }
 
 fn source_payload_field_type(
@@ -718,6 +883,66 @@ mod tests {
 
     const SOURCE: &str =
         "data Main { value: i32; } machine Main::run(&mut self) { self.value = 7; }";
+
+    /// The determined-evidence rows of `source`'s `Main::run` receiver, or
+    /// `None` when the receiver is not zero-eligible.
+    fn determined_evidence_rows(source: &str) -> Option<Vec<Vec<String>>> {
+        let checked = check_source(source);
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        produced
+            .receipt()
+            .expect("entry receipt")
+            .receiver_eligibility()
+            .map(|eligibility| {
+                eligibility
+                    .determined_evidence_fields()
+                    .iter()
+                    .map(|row| row.field_path().to_vec())
+                    .collect()
+            })
+    }
+
+    /// Erased evidence a unique nullary constructor determines is supplied by
+    /// provisioning, as construction supplies an omitted erased term. Each
+    /// such field on a nameable route -- a nested record field or a mixed
+    /// shape's common field -- joins its own row. Ambiguous evidence
+    /// determines nothing, and a case payload is not a nameable route, so
+    /// both leave the receiver ineligible.
+    #[test]
+    fn determined_erased_evidence_joins_its_own_receipt_rows() {
+        let rows = determined_evidence_rows(
+            "data Evidence { case Only; }
+             data Signal { proof [erased]: Evidence; case Red; case Green; }
+             data Holder { value: i32; proof [erased]: Evidence; }
+             data Main { value: i32; signal: Signal; holder: Holder; }
+             machine Main::run(&mut self) { self.value = 7; }",
+        )
+        .expect("determined evidence leaves the receiver zero-eligible");
+        assert_eq!(rows.len(), 2, "{rows:?}");
+        assert!(rows.iter().all(|path| path.len() == 2), "{rows:?}");
+        assert_ne!(rows[0][0], rows[1][0], "one row per enclosing route");
+
+        for ineligible in [
+            "data Evidence { case First; case Second; }
+             data Holder { value: i32; proof [erased]: Evidence; }
+             data Main { value: i32; holder: Holder; }
+             machine Main::run(&mut self) { self.value = 7; }",
+            "data Evidence { case Only; }
+             data Signal { case Red(proof [erased]: Evidence); case Green; }
+             data Main { value: i32; signal: Signal; }
+             machine Main::run(&mut self) { self.value = 7; }",
+        ] {
+            assert_eq!(determined_evidence_rows(ineligible), None, "{ineligible}");
+        }
+    }
 
     #[test]
     fn byte_receiver_zero_eligibility_rejoins_direct_and_named_nested_fields() {

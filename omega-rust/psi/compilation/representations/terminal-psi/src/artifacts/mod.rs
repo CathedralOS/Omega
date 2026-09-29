@@ -7,9 +7,9 @@ mod checked_program_entry;
 mod debug_map;
 mod proof_bundle;
 pub use checked_program_entry::{
-    CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverCleanup,
-    CheckedProgramEntryReceiverEligibility, CheckedProgramEntryReceiverProjection,
-    CheckedProgramEntryTerminalReceipt,
+    CheckedProgramEntryDeterminedEvidenceField, CheckedProgramEntryFusedServiceField,
+    CheckedProgramEntryReceiverCleanup, CheckedProgramEntryReceiverEligibility,
+    CheckedProgramEntryReceiverProjection, CheckedProgramEntryTerminalReceipt,
 };
 pub use debug_map::{
     DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,

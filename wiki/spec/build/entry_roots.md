@@ -100,7 +100,13 @@ provenance contracts and composes them with the application closure.
 A free entry receives no implicit state. An attached entry gets one receiver
 derived beneath an admitted root and borrowed for that activation. Ordinary
 fields must be ZII-valid; compiler-provisioned service fields must have their
-binding established before the receiver is exposed to the entry. The receiver
+binding established before the receiver is exposed to the entry. An erased
+field on a record-field route whose term a unique accessible nullary
+constructor determines needs neither: provisioning supplies that term as
+construction supplies an omitted
+[erased binding](../proofs/contracts.md#explicit-erased-bindings), and the
+checked receipt names it so the bridge never mistakes it for an unestablished
+service. Any other erased field rejects. The receiver
 is not globally nameable. Provisioning is occurrence-local: the nominal data
 type acquires no root authority or storage class. Storage used for the receiver
 or active stack cannot also be forwarded whole; retain the partition and pass
