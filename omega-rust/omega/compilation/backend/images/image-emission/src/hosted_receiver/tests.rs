@@ -1016,6 +1016,8 @@ fn hosted_receiver_binding(
             "main".into(),
             "Main::main".into(),
             program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                source_position: 0,
+                source_symbol: symbols::SymbolHandle::from_arena_index(3),
                 normalized_type_identity: "named(name(Main))".into(),
             },
             Vec::new(),

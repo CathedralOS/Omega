@@ -29,6 +29,8 @@ fn fixture(
         "entry".into(),
         "Main::entry()".into(),
         ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            source_position: 0,
+            source_symbol: SymbolHandle::from_arena_index(3),
             normalized_type_identity: "Main".into(),
         },
         Vec::new(),

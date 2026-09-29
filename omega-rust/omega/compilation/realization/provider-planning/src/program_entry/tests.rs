@@ -42,6 +42,8 @@ fn provisioned_program_entry_settlement() -> SelectedCompilerProgramEntry {
             "entry".into(),
             "Application::start::entry(&mut self) -> Unit".into(),
             program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                source_position: 0,
+                source_symbol: symbols::SymbolHandle::from_arena_index(3),
                 normalized_type_identity: "ref-mut(named(name(Application)))".into(),
             },
             Vec::new(),

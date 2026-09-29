@@ -239,35 +239,14 @@ fn validate_program_entry_source_compatibility<'typed>(
     }
 
     let parameters = typed.state_parameters(entry);
-    let self_parameters = parameters
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .collect::<Vec<_>>();
-    if self_parameters.len() > 1 {
-        diagnostics.push(Diagnostic::error(format!(
-            "entry machine `{machine_name}` has more than one `self` receiver"
-        )));
-    }
-    if let Some(receiver) = self_parameters.first()
-        && !receiver.is_mutable
+    let context = provisioned_entry_context(typed, machine, entry, machine_name)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    if let Some(context) = &context
+        && typed_trees_to_checked_trees::data_requires_establishment(typed, context.definition)
     {
         diagnostics.push(Diagnostic::error(format!(
-            "entry machine `{machine_name}` has a receiver, but `ProgramEntry` provisions it as an exclusive `&mut self` loan"
-        )));
-    }
-    // Build and product checked instances may share a receiver spelling.
-    // Only this machine's attached declaration supplies its zero-image rule.
-    if !self_parameters.is_empty()
-        && let Some(attached_data) = machine.attached_data.as_ref()
-        && let Some(definition) = typed
-            .data_definitions()
-            .iter()
-            .find(|definition| definition.symbol == machine.attached_data_symbol)
-        && typed_trees_to_checked_trees::data_requires_establishment(typed, definition)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "entry machine `{machine_name}` requests a provisioned `{}` receiver, but its all-zero image is not a valid value; use a free entry and construct the state explicitly",
-            attached_data.as_str()
+            "entry machine `{machine_name}` requests a provisioned `{}` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly",
+            context.definition.name.as_str()
         )));
     }
 
@@ -279,7 +258,9 @@ fn validate_program_entry_source_compatibility<'typed>(
     // native input admission and fails closed there while no bridge lends it.
     let visible = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
+        .filter(|parameter| {
+            Some(parameter.symbol) != context.as_ref().map(|context| context.parameter.symbol)
+        })
         .filter(|parameter| {
             typed
                 .placed_view_plan_for_input_type_reference(parameter.type_reference)
@@ -350,6 +331,105 @@ fn validate_program_entry_source_compatibility<'typed>(
     Ok((machine, entry))
 }
 
+struct ProvisionedEntryContext<'program> {
+    source_position: u32,
+    parameter: &'program typed_trees::signature::StateParameter,
+    definition: &'program typed_trees::data::DataDefinition,
+}
+
+/// The source occurrence provisioned by the entry bridge is not a physical
+/// arrival argument and is unrelated to the machine's namespace qualifier.
+/// Placed views keep their own custody-input role. Legacy receivers remain
+/// identifiable only while their source migration is unfinished.
+fn provisioned_entry_context<'program>(
+    typed: &'program TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    entry: &typed_trees::state::State,
+    machine_name: &str,
+) -> Result<Option<ProvisionedEntryContext<'program>>, Diagnostic> {
+    use typed_trees::types::TypeReferenceNode;
+
+    let mut candidates =
+        typed
+            .state_parameters(entry)
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| {
+                parameter.is_self
+                    || (!parameter.relevance.is_erased()
+                        && typed
+                            .placed_view_plan_for_input_type_reference(parameter.type_reference)
+                            .is_none()
+                        && matches!(
+                            typed
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            TypeReferenceNode::Reference { .. }
+                        ))
+            });
+    let Some((source_position, parameter)) = candidates.next() else {
+        return Ok(None);
+    };
+    if candidates.next().is_some() {
+        return Err(Diagnostic::error(format!(
+            "entry machine `{machine_name}` declares multiple context candidates; `ProgramEntry` provisions at most one ordinary mutable context parameter"
+        )));
+    }
+    if parameter.is_const || parameter.relevance.is_erased() {
+        return Err(Diagnostic::error(format!(
+            "entry machine `{machine_name}` context must be an ordinary runtime parameter"
+        )));
+    }
+    let definition_symbol = if parameter.is_self {
+        if !parameter.is_mutable {
+            return Err(Diagnostic::error(format!(
+                "entry machine `{machine_name}` context requires an exclusive mutable borrow"
+            )));
+        }
+        machine.attached_data_symbol
+    } else {
+        let TypeReferenceNode::Reference {
+            access: language_core::ReferenceAccess::Mutable,
+            referee,
+            ..
+        } = typed
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        else {
+            return Err(Diagnostic::error(format!(
+                "entry machine `{machine_name}` context `{}` requires an exclusive mutable borrow",
+                parameter.name
+            )));
+        };
+        let TypeReferenceNode::Named { symbol, .. } =
+            typed.type_reference_table.type_reference(*referee)
+        else {
+            return Err(Diagnostic::error(format!(
+                "entry machine `{machine_name}` context `{}` must name its exact provisioned data type",
+                parameter.name
+            )));
+        };
+        *symbol
+    };
+    let definition = typed
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == definition_symbol)
+        .ok_or_else(|| {
+            Diagnostic::error(format!(
+                "entry machine `{machine_name}` context `{}` has no exact data declaration",
+                parameter.name
+            ))
+        })?;
+    let source_position = u32::try_from(source_position)
+        .map_err(|_| Diagnostic::error("program-entry context source position exceeds u32"))?;
+    Ok(Some(ProvisionedEntryContext {
+        source_position,
+        parameter,
+        definition,
+    }))
+}
+
 /// Recheck the selected source signature and retain its final layout evidence.
 /// An earlier product description neither settles providers nor authorizes
 /// omission of this check against the completed product.
@@ -360,27 +440,29 @@ pub fn validate_selected_program_entry_shape(
     let (machine, entry) = validate_program_entry_source_compatibility(typed, selected)?;
     let machine_name = selected.machine_name;
     let parameters = typed.state_parameters(entry);
-    let self_parameters = parameters
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .collect::<Vec<_>>();
+    let context = provisioned_entry_context(typed, machine, entry, machine_name)
+        .map_err(|diagnostic| vec![diagnostic])?;
     // Same exclusion as source compatibility: placed-view inputs are custody
     // rows, not arrival parameters, so they never occupy the signature's
     // visible-parameter roles.
     let visible = parameters
         .iter()
-        .filter(|parameter| !parameter.is_self)
+        .filter(|parameter| {
+            Some(parameter.symbol) != context.as_ref().map(|context| context.parameter.symbol)
+        })
         .filter(|parameter| {
             typed
                 .placed_view_plan_for_input_type_reference(parameter.type_reference)
                 .is_none()
         })
         .collect::<Vec<_>>();
-    let receiver = self_parameters.first().map_or(
+    let receiver = context.as_ref().map_or(
         program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
-        |receiver| program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        |context| program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            source_position: context.source_position,
+            source_symbol: context.parameter.symbol,
             normalized_type_identity: typed
-                .normalized_type_identity(receiver.type_reference)
+                .normalized_type_identity(context.parameter.type_reference)
                 .into_string(),
         },
     );
@@ -1007,3 +1089,6 @@ fn arrival_requirement_contract(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod static_context_tests;

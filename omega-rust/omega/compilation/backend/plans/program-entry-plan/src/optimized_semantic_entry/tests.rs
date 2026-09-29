@@ -289,6 +289,8 @@ fn receiver_role_and_semantic_policy_drift_fail_closed() {
     // residence downstream.
     let receiver = source(
         ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            source_position: 0,
+            source_symbol: symbols::SymbolHandle::from_arena_index(6),
             normalized_type_identity: "Boot".into(),
         },
         [

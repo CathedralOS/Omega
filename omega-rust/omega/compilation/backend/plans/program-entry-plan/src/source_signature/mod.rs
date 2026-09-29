@@ -13,7 +13,7 @@ pub use extent_layout::selected_program_storage_source_extent_value_layout;
 use crate::ProgramStorageEntryRootRole;
 use sha2::{Digest, Sha256};
 
-const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v1\0";
+const SOURCE_SIGNATURE_SCHEMA: &[u8] = b"omega.program-entry.source-signature.v2\0";
 
 /// Source-path-free identity of one exact checked `ProgramEntry` signature.
 /// Arena handles remain private replay coordinates; normalized callable/type
@@ -35,15 +35,38 @@ impl ProgramEntrySourceSignatureIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProgramEntrySourceReceiverSignature {
     Free,
-    ProvisionedMutable { normalized_type_identity: String },
+    ProvisionedMutable {
+        /// Formal declaration position, not a dense Terminal or ABI parameter index.
+        source_position: u32,
+        /// Arena-local replay coordinate; excluded from the durable signature identity.
+        source_symbol: symbols::SymbolHandle,
+        normalized_type_identity: String,
+    },
 }
 
 impl ProgramEntrySourceReceiverSignature {
+    pub const fn source_position(&self) -> Option<u32> {
+        match self {
+            Self::Free => None,
+            Self::ProvisionedMutable {
+                source_position, ..
+            } => Some(*source_position),
+        }
+    }
+
+    pub const fn source_symbol(&self) -> Option<symbols::SymbolHandle> {
+        match self {
+            Self::Free => None,
+            Self::ProvisionedMutable { source_symbol, .. } => Some(*source_symbol),
+        }
+    }
+
     pub fn normalized_type_identity(&self) -> Option<&str> {
         match self {
             Self::Free => None,
             Self::ProvisionedMutable {
                 normalized_type_identity,
+                ..
             } => Some(normalized_type_identity),
         }
     }
@@ -389,9 +412,12 @@ impl SelectedProgramEntrySourceSignature {
         match &self.receiver {
             ProgramEntrySourceReceiverSignature::Free => canonical.push(1),
             ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                source_position,
                 normalized_type_identity,
+                ..
             } => {
                 canonical.push(2);
+                canonical.extend_from_slice(&source_position.to_le_bytes());
                 push_string(&mut canonical, normalized_type_identity);
             }
         }
@@ -462,6 +488,7 @@ impl SelectedProgramEntrySourceSignature {
             (
                 ProgramEntrySourceReceiverSignature::ProvisionedMutable {
                     normalized_type_identity,
+                    ..
                 },
                 Some(actual),
             ) => normalized_type_identity == actual,
@@ -518,6 +545,10 @@ impl SelectedProgramEntrySourceSignature {
             .receiver
             .normalized_type_identity()
             .is_some_and(str::is_empty)
+            || self
+                .receiver
+                .source_symbol()
+                .is_some_and(|symbol| !symbol.is_valid())
             || self.visible_parameters.iter().any(|parameter| {
                 parameter.normalized_type_identity.is_empty()
                     || parameter.value_shape.byte_size == 0
