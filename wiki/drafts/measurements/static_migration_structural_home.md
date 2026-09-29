@@ -182,3 +182,61 @@ with `composed Unit control has unsupported graph custody`. The 253 carrying a
 can reach, or the hosted entry to accept the context parameter its spec
 describes. The binding-free compile-only remainder is where the receiver is
 usually the subject.
+
+## What unblocking the hosted context parameter actually takes
+
+The single highest-leverage unblock is letting a hosted entry declare
+`machine main(context: &mut Main)` instead of a receiver: it converts the 253
+routed-binding files from blocked into the mechanical rewrite already proven
+on smaller shapes. This section records what that change is, measured by
+making it and walking the failures, so the next attempt starts from the map
+rather than the first error.
+
+### Site 1 — `provider-planning/src/program_entry.rs`
+
+Two validators filter `visible` parameters as "everything that is not
+`is_self` and not a placed view", and `ProgramEntryVisibleParameters::None`
+then rejects whatever is left. A provisioned context parameter has to be
+excluded there too, and `validate_selected_program_entry_shape` has to fold it
+into the receiver signature:
+
+```rust
+let receiver = self_parameters.first().copied().or(context_parameter).map_or(
+    ProgramEntrySourceReceiverSignature::Free,
+    |provisioned| ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        normalized_type_identity: typed
+            .normalized_type_identity(provisioned.type_reference).into_string(),
+    },
+);
+```
+
+Recognizing the parameter is unambiguous **only** on a slot whose
+`visible_parameters` is `None`: with nothing arriving from the loader, a single
+mutable non-placed parameter can only be the context. Slots exposing arrival
+roots must keep their arity rules.
+
+This part was implemented and compiles, and it does remove the rejection:
+`hosted ProgramEntry exposes no arrival parameters` no longer fires.
+
+### Site 2 — `selected-dispatch/src/service_custody/root.rs`
+
+Establishment then fails with `selected provisioned ProgramEntry rejoins 0
+self receivers; expected one`. That function needs the same recognition, and
+one thing more: it derives the owning data from
+`machine.attached_data_symbol`, which a free entry does not have. The owner
+has to come from the parameter's referent instead. Receiver logic appears at
+five points in that file (lines 73, 105, 129, 237, 352), and it carries a
+separate `attachment_type_identity` beside the receiver identity, so the
+attachment concept needs settling too.
+
+### Why site 1 was reverted rather than landed
+
+Alone it enables nothing and makes the diagnostic worse. Today an author who
+writes the context parameter gets a clear refusal naming the entry shape; with
+site 1 alone they get `rejoins 0 self receivers` from inside dispatch. A
+partial landing also leaves the compiler half-migrated with no customer able
+to use it.
+
+This is the board's own compiler half -- "provision the exact ordinary mutable
+context parameter named by the entry shape ... remove attachment/`is_self` as
+authority inputs" -- and it wants both sites in one change.
