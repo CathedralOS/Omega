@@ -16,8 +16,8 @@ machine Counter::count(&mut self, step: u64) -> u64
     }
 }
 
-machine Counter::run(&mut self) -> u64 {
+machine Counter::run(counter: &mut Counter) -> u64 {
     transition {
-        _ -> self.count(5)
+        _ -> counter.count(5)
     }
 }
