@@ -14,7 +14,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    let s: u64 = self.opaque();
+    let s: u64 = opaque();
     transition s >= 1 {
         true -> run(s)
         _ -> self.bad()
@@ -26,6 +26,6 @@ machine Main::main(&mut self) reaches Console {
     state bad(&mut self) { self.console.exit_process(71); }
 }
 
-machine Main::opaque(&mut self) -> u64 {
+machine opaque() -> u64 {
     transition { _ -> (4u64) }
 }

@@ -14,12 +14,12 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::opaque(&mut self) -> u64 {
+machine opaque() -> u64 {
     transition { _ -> (7u64) }
 }
 
 machine Main::main(&mut self) reaches Console {
-    let v: u64 = self.opaque();
+    let v: u64 = opaque();
     transition v >= 100u64 {
         true -> bad()
         _ -> then(v)

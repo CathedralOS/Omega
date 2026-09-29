@@ -14,13 +14,13 @@ machine Main::main(&mut self) {
     requires
         value > 0
     {
-        self.consume(value);
+        consume(value);
     }
 
     state done(&mut self) { }
 }
 
-machine Main::consume(&mut self, value: i32)
+machine consume(value: i32)
 requires
     value > 0
 {

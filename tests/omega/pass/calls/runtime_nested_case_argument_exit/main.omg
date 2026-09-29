@@ -63,7 +63,7 @@ machine Main::main(&mut self) reaches Console {
         Message::Present { payload: Payload { value: 40 } }
     );
     let forwarded: Output = Output::forward(message);
-    let constructed: bool = self.construct();
+    let constructed: bool = construct();
     transition comparison.value == 30 && forwarded.value == 40 && constructed {
         true -> passed()
         false -> failed()
@@ -74,7 +74,7 @@ machine Main::main(&mut self) reaches Console {
 
 // Scalar-returning callers retain the same constructed argument occurrences
 // as Unit callers, including simple cases, nested payloads and scalar arrays.
-machine Main::construct(&mut self) -> bool {
+machine construct() -> bool {
     let format: Output = Output::from_format(ValueFormat::Decimal);
     let comparison: Output = Output::from_compare(
         Context { value: 30 },

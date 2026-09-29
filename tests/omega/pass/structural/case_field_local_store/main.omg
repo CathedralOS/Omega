@@ -24,12 +24,12 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::reseat(&mut self, fresh: Fmt) {
+machine reseat(fresh: Fmt) {
     let mut boxed: Box = Box { fmt: Fmt::Decimal, tag: 4 };
     boxed.fmt = fresh;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.reseat(Fmt::Octal);
+    reseat(Fmt::Octal);
     self.console.exit_process(0);
 }

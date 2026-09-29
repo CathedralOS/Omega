@@ -13,7 +13,7 @@ machine Main::main(&mut self) reaches Console {
     let rooms: [Room; 1] = [Room { exit_count: 0 }];
     let from_index: u64 = 0;
 
-    self.bump(&mut rooms[from_index]);
+    bump(&mut rooms[from_index]);
 
     transition from_index == 0 {
         true -> good()
@@ -29,6 +29,6 @@ machine Main::main(&mut self) reaches Console {
     }
 }
 
-machine Main::bump(&mut self, room: &mut Room) {
+machine bump(room: &mut Room) {
     room.exit_count = 1;
 }

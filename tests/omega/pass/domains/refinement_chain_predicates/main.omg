@@ -23,10 +23,10 @@ machine Player::spawn() -> Player in Alive::Critical {
 data Main {
 }
 
-machine Main::consume(&self, player: Player in Alive::Critical) {
+machine consume(player: Player in Alive::Critical) {
 }
 
 machine Main::main(&mut self) {
     let player: Player in Alive::Critical = Player::spawn();
-    self.consume(player);
+    consume(player);
 }
