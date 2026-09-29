@@ -494,15 +494,13 @@ pub(super) fn build(
         definition,
         signature,
     } = requirement
-    {
-        if !signature_contracts_are_exact_parameter_qualifications(
+        && (!signature_contracts_are_exact_parameter_qualifications(
             program,
             definition.symbol,
             signature,
-        ) || signature.suspends
-        {
-            return None;
-        }
+        ) || signature.suspends)
+    {
+        return None;
     }
     // Suspension parks the activation, which this synchronous call
     // shape cannot express. Blocking only occupies the worker while

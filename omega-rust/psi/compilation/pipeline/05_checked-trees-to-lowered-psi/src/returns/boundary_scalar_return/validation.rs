@@ -96,6 +96,9 @@ pub(crate) fn validate_boundary_scalar_return<'a>(
     {
         return unsupported("result-bearing boundary call disagrees with its exact checked target");
     }
+    if !boundary.scalar_requires.is_empty() {
+        return unsupported("boundary scalar return cannot discharge scalar requirements");
+    }
     let exact_identity = checked
         .facts
         .contract_plans
