@@ -21,11 +21,7 @@ mod service_custody;
 pub use boundary_dispatch::settle_selected_boundary_adapter_dispatch;
 pub use constant_evaluation::SelectedConstantEvaluation;
 
-pub use compiler_intrinsic::{
-    derive_selected_compiler_intrinsic_execution_identity_for_row,
-    derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding,
-    derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding,
-};
+pub use compiler_intrinsic::derive_selected_compiler_intrinsic_execution_identity_for_row;
 pub use execution_settlement::{
     SelectedExecution, SelectedExecutionRequest, settle_selected_execution,
 };

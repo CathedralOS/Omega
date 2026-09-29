@@ -34,58 +34,10 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
     selected_target: Option<&str>,
-) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
-    derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding(
-        checked,
-        plan,
-        schema,
-        row,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        None,
-        None,
-    )
-}
-
-pub fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    schema: ProviderSchemaDeclaration,
-    row: &ProviderPlanRow,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    selected_target: Option<&str>,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
-    derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_and_symbol(
-        checked,
-        plan,
-        schema,
-        row,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        accepted_binding,
-        None,
-        accepted_process_exit_binding,
-        None,
-    )
-}
-
-pub fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    schema: ProviderSchemaDeclaration,
-    row: &ProviderPlanRow,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    selected_target: Option<&str>,
-    accepted_binding: Option<&crate::ResolvedAcceptedSemanticBinding>,
+    accepted_console_binding: Option<&crate::ResolvedAcceptedSemanticBinding>,
     accepted_process_exit_binding: Option<&crate::ResolvedAcceptedSemanticBinding>,
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
-    derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_and_symbol(
+    row_execution_identity(
         checked,
         plan,
         schema,
@@ -93,16 +45,32 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolv
         requirement_symbol,
         realization_symbol,
         selected_target,
-        accepted_binding.map(crate::ResolvedAcceptedSemanticBinding::accepted),
-        accepted_binding.map(crate::ResolvedAcceptedSemanticBinding::declaration_symbol),
-        accepted_process_exit_binding.map(crate::ResolvedAcceptedSemanticBinding::accepted),
-        accepted_process_exit_binding
-            .map(crate::ResolvedAcceptedSemanticBinding::declaration_symbol),
+        accepted_console_binding.map(AcceptedRowBinding::resolved),
+        accepted_process_exit_binding.map(AcceptedRowBinding::resolved),
     )
 }
 
+/// A settled package-consumer binding offered to one row, with the service
+/// declaration it resolved to once review consumed it.
+#[derive(Clone, Copy)]
+pub(crate) struct AcceptedRowBinding<'binding> {
+    pub(crate) accepted: &'binding package_compilation::AcceptedSemanticBinding,
+    pub(crate) declaration_symbol: Option<SymbolHandle>,
+}
+
+impl<'binding> AcceptedRowBinding<'binding> {
+    fn resolved(binding: &'binding crate::ResolvedAcceptedSemanticBinding) -> Self {
+        Self {
+            accepted: binding.accepted(),
+            declaration_symbol: Some(binding.declaration_symbol()),
+        }
+    }
+}
+
+/// The row's execution identity. Review calls this before any binding has
+/// resolved its declaration; compilation calls it through the public entry.
 #[allow(clippy::too_many_arguments)]
-fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_and_symbol(
+pub(crate) fn row_execution_identity(
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     schema: ProviderSchemaDeclaration,
@@ -110,10 +78,8 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
     requirement_symbol: SymbolHandle,
     realization_symbol: SymbolHandle,
     selected_target: Option<&str>,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_declaration_symbol: Option<SymbolHandle>,
-    accepted_process_exit_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_process_exit_declaration_symbol: Option<SymbolHandle>,
+    accepted_console_binding: Option<AcceptedRowBinding<'_>>,
+    accepted_process_exit_binding: Option<AcceptedRowBinding<'_>>,
 ) -> Result<Option<SelectedCompilerIntrinsicExecutionIdentity>, Diagnostic> {
     if !matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
         return Ok(None);
@@ -141,218 +107,246 @@ fn derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding_an
             SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
         ));
     };
-    if hosted_console_exit_row(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        accepted_binding,
-        accepted_declaration_symbol,
-    )? {
-        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
-            CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
-        )));
-    }
-    if hosted_process_exit_row(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        accepted_process_exit_binding,
-        accepted_process_exit_declaration_symbol,
-    )? {
-        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
-            CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
-        )));
-    }
-    if hosted_console_write_byte_row(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        accepted_binding,
-        accepted_declaration_symbol,
-    )? {
-        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
-            CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
-        )));
-    }
-    if hosted_console_read_byte_row(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        accepted_binding,
-        accepted_declaration_symbol,
-    )? {
-        return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
-            CompilerIntrinsicExecutionIdentity::HostedReadByte,
-        )));
+    let Some((selected_target, bundle)) = selected_hosted_bundle(selected_target) else {
+        return Ok(Some(
+            SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
+        ));
+    };
+    if plan.target == selected_target {
+        for hosted in &HOSTED_INTRINSIC_ROWS {
+            let accepted = match hosted.service {
+                HostedService::Console => accepted_console_binding,
+                HostedService::ProcessExit => accepted_process_exit_binding,
+            };
+            if hosted.closes(
+                checked,
+                plan,
+                row,
+                trait_symbol,
+                requirement_symbol,
+                realization_symbol,
+                bundle,
+                accepted,
+            )? {
+                return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
+                    hosted.identity,
+                )));
+            }
+        }
     }
     Ok(Some(
         SelectedCompilerIntrinsicExecutionIdentity::Unsupported,
     ))
 }
 
-fn hosted_console_write_byte_row(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    selected_target: Option<&str>,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_declaration_symbol: Option<SymbolHandle>,
-) -> Result<bool, Diagnostic> {
-    console_row_on_hosted_bundle(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        accepted_binding,
-        accepted_declaration_symbol,
-        "write_byte",
-        "ConsoleNativeProvider::write_byte",
-        ConsoleIntrinsicShape::I32ToUnit,
-    )
-}
-
-fn hosted_console_read_byte_row(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    selected_target: Option<&str>,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_declaration_symbol: Option<SymbolHandle>,
-) -> Result<bool, Diagnostic> {
-    console_row_on_hosted_bundle(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        accepted_binding,
-        accepted_declaration_symbol,
-        "read_byte",
-        "ConsoleNativeProvider::read_byte",
-        ConsoleIntrinsicShape::UnitToByteRead,
-    )
-}
-
-fn hosted_console_exit_row(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    selected_target: Option<&str>,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_declaration_symbol: Option<SymbolHandle>,
-) -> Result<bool, Diagnostic> {
-    console_row_on_hosted_bundle(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        accepted_binding,
-        accepted_declaration_symbol,
-        "exit_process",
-        "ConsoleNativeProvider::exit_process",
-        ConsoleIntrinsicShape::I32ToUnit,
-    )
-}
-
+/// A standard-library service whose hosted rows the compiler realizes itself.
 #[derive(Clone, Copy)]
+pub(crate) enum HostedService {
+    Console,
+    ProcessExit,
+}
+
+impl HostedService {
+    /// This service's exit-process row in [`HOSTED_INTRINSIC_ROWS`].
+    fn exit_process_row(self) -> &'static HostedIntrinsicRow {
+        match self {
+            Self::Console => &HOSTED_INTRINSIC_ROWS[0],
+            Self::ProcessExit => &HOSTED_INTRINSIC_ROWS[1],
+        }
+    }
+
+    fn trait_name(self) -> &'static str {
+        match self {
+            Self::Console => "Console",
+            Self::ProcessExit => "ProcessExit",
+        }
+    }
+
+    /// Whether the bundled toolchain sources own the trait, requirement and
+    /// the selected bundle's realization.
+    fn bundled_binding(
+        self,
+        typed: &typed_trees::TypedTrees,
+        trait_symbol: SymbolHandle,
+        requirement_symbol: SymbolHandle,
+        realization_symbol: SymbolHandle,
+        bundle: HostedIntrinsicBundle,
+    ) -> bool {
+        let (service_file, service_source, realization_file, realization_source) = match self {
+            Self::Console => (
+                "console.omg",
+                BUNDLED_CONSOLE,
+                bundle.console_source(),
+                bundled_console_source(bundle),
+            ),
+            Self::ProcessExit => (
+                "process_exit.omg",
+                BUNDLED_PROCESS_EXIT,
+                bundle.process_exit_source(),
+                bundled_process_exit_source(bundle),
+            ),
+        };
+        exact_bundled_standalone_source(typed, trait_symbol, service_file, service_source)
+            && exact_bundled_standalone_source(
+                typed,
+                requirement_symbol,
+                service_file,
+                service_source,
+            )
+            && exact_bundled_standalone_source(
+                typed,
+                realization_symbol,
+                realization_file,
+                realization_source,
+            )
+    }
+
+    /// Whether one settled package-consumer binding owns the selected row.
+    fn accepted_binding_matches(
+        self,
+        checked: &CheckedTrees,
+        plan: &ProviderPlan,
+        trait_symbol: SymbolHandle,
+        requirement_symbol: SymbolHandle,
+        realization_symbol: SymbolHandle,
+        binding: &package_compilation::AcceptedSemanticBinding,
+    ) -> bool {
+        match self {
+            Self::Console => accepted_binding_matches_selected_row_identity(
+                checked,
+                plan,
+                trait_symbol,
+                requirement_symbol,
+                realization_symbol,
+                binding,
+            ),
+            Self::ProcessExit => accepted_binding_matches_process_exit_row_identity(
+                checked,
+                plan,
+                trait_symbol,
+                requirement_symbol,
+                realization_symbol,
+                binding,
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum ConsoleIntrinsicShape {
     I32ToUnit,
     UnitToByteRead,
 }
 
-/// Canonical std `Console` rows on a hosted target. The selected target must
-/// name an admitted [`HostedIntrinsicBundle`]; every other target, including
-/// the bundled-but-unadmitted ones, earns no hosted console row here.
-#[allow(clippy::too_many_arguments)]
-fn console_row_on_hosted_bundle(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    selected_target: Option<&str>,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_declaration_symbol: Option<SymbolHandle>,
-    requirement_name: &str,
-    realization_name: &str,
+/// One hosted row the compiler realizes itself: the service requirement and
+/// realization it binds, their exact signature shape, and the execution
+/// identity it closes as.
+struct HostedIntrinsicRow {
+    service: HostedService,
+    requirement: &'static str,
+    realization: &'static str,
     shape: ConsoleIntrinsicShape,
-) -> Result<bool, Diagnostic> {
-    let Some((selected_target, bundle)) = selected_hosted_bundle(selected_target) else {
-        return Ok(false);
-    };
-    if plan.target != selected_target {
-        return Ok(false);
-    }
-    let typed = &checked.typed;
-    let legacy_bundled_binding = exact_bundled_console_binding(
-        typed,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        bundle,
-    );
-    let accepted_package_binding = accepted_binding.is_some_and(|binding| {
-        accepted_binding_matches_selected_row_identity(
-            checked,
-            plan,
+    identity: CompilerIntrinsicExecutionIdentity,
+}
+
+/// Hosted rows in recognition order; the first row a selected row matches
+/// decides its identity. Only a selected target that names an admitted
+/// [`HostedIntrinsicBundle`] earns any of them.
+const HOSTED_INTRINSIC_ROWS: [HostedIntrinsicRow; 4] = [
+    HostedIntrinsicRow {
+        service: HostedService::Console,
+        requirement: "exit_process",
+        realization: "ConsoleNativeProvider::exit_process",
+        shape: ConsoleIntrinsicShape::I32ToUnit,
+        identity: CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
+    },
+    HostedIntrinsicRow {
+        service: HostedService::ProcessExit,
+        requirement: "exit_process",
+        realization: "ProcessExitNativeProvider::exit_process",
+        shape: ConsoleIntrinsicShape::I32ToUnit,
+        identity: CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
+    },
+    HostedIntrinsicRow {
+        service: HostedService::Console,
+        requirement: "write_byte",
+        realization: "ConsoleNativeProvider::write_byte",
+        shape: ConsoleIntrinsicShape::I32ToUnit,
+        identity: CompilerIntrinsicExecutionIdentity::HostedWriteByteI32,
+    },
+    HostedIntrinsicRow {
+        service: HostedService::Console,
+        requirement: "read_byte",
+        realization: "ConsoleNativeProvider::read_byte",
+        shape: ConsoleIntrinsicShape::UnitToByteRead,
+        identity: CompilerIntrinsicExecutionIdentity::HostedReadByte,
+    },
+];
+
+impl HostedIntrinsicRow {
+    /// The selected row closes as this hosted row when the bundled toolchain
+    /// sources or the offered consumer binding own it and its declarations
+    /// have this row's exact shape. A resultless hosted row also requires
+    /// inferred supply; byte input keeps its authored crash envelope.
+    #[allow(clippy::too_many_arguments)]
+    fn closes(
+        &self,
+        checked: &CheckedTrees,
+        plan: &ProviderPlan,
+        row: &ProviderPlanRow,
+        trait_symbol: SymbolHandle,
+        requirement_symbol: SymbolHandle,
+        realization_symbol: SymbolHandle,
+        bundle: HostedIntrinsicBundle,
+        accepted: Option<AcceptedRowBinding<'_>>,
+    ) -> Result<bool, Diagnostic> {
+        let bundled = self.service.bundled_binding(
+            &checked.typed,
             trait_symbol,
             requirement_symbol,
             realization_symbol,
-            binding,
-        ) && accepted_declaration_symbol.is_none_or(|symbol| symbol == trait_symbol)
-    });
-    if !legacy_bundled_binding && !accepted_package_binding {
-        return Ok(false);
+            bundle,
+        );
+        let consumed = accepted.is_some_and(|binding| {
+            self.service.accepted_binding_matches(
+                checked,
+                plan,
+                trait_symbol,
+                requirement_symbol,
+                realization_symbol,
+                binding.accepted,
+            ) && binding
+                .declaration_symbol
+                .is_none_or(|symbol| symbol == trait_symbol)
+        });
+        if !bundled && !consumed {
+            return Ok(false);
+        }
+        boundary_row_shape(
+            checked,
+            plan,
+            row,
+            trait_symbol,
+            requirement_symbol,
+            realization_symbol,
+            self.service.trait_name(),
+            self.shape == ConsoleIntrinsicShape::I32ToUnit,
+            self.requirement,
+            self.realization,
+            self.shape,
+        )
     }
-
-    boundary_row_shape(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        "Console",
-        matches!(shape, ConsoleIntrinsicShape::I32ToUnit),
-        requirement_name,
-        realization_name,
-        shape,
-    )
 }
+
+const BUNDLED_CONSOLE: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../source/library/std/console.omg"
+));
+
+const BUNDLED_PROCESS_EXIT: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../source/library/core/process_exit.omg"
+));
 
 /// The selected canonical target together with the hosted bundle it admits.
 fn selected_hosted_bundle(selected_target: Option<&str>) -> Option<(&str, HostedIntrinsicBundle)> {
@@ -406,27 +400,6 @@ fn bundled_process_exit_source(bundle: HostedIntrinsicBundle) -> &'static [u8] {
     }
 }
 
-fn exact_bundled_console_binding(
-    typed: &typed_trees::TypedTrees,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    bundle: HostedIntrinsicBundle,
-) -> bool {
-    const CONSOLE: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/std/console.omg"
-    ));
-    exact_bundled_standalone_source(typed, trait_symbol, "console.omg", CONSOLE)
-        && exact_bundled_standalone_source(typed, requirement_symbol, "console.omg", CONSOLE)
-        && exact_bundled_standalone_source(
-            typed,
-            realization_symbol,
-            bundle.console_source(),
-            bundled_console_source(bundle),
-        )
-}
-
 fn exact_bundled_standalone_source(
     typed: &typed_trees::TypedTrees,
     symbol: SymbolHandle,
@@ -443,111 +416,6 @@ fn exact_bundled_standalone_source(
                     == Some(std::path::Path::new(expected_relative_path))
                 && source.source.as_bytes() == expected_source
         })
-}
-
-fn hosted_process_exit_row(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    selected_target: Option<&str>,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_declaration_symbol: Option<SymbolHandle>,
-) -> Result<bool, Diagnostic> {
-    process_exit_row_on_hosted_bundle(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        selected_target,
-        accepted_binding,
-        accepted_declaration_symbol,
-    )
-}
-
-/// Canonical core `ProcessExit::exit_process` rows. The exact toolchain-owned
-/// requirement identity is checked against the bundled core source (or, for
-/// package-aware consumers, against the accepted semantic binding); only the
-/// exact `ProcessExitNativeProvider::exit_process` realization closes as the
-/// hosted process-exit builtin.
-#[allow(clippy::too_many_arguments)]
-fn process_exit_row_on_hosted_bundle(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    selected_target: Option<&str>,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-    accepted_declaration_symbol: Option<SymbolHandle>,
-) -> Result<bool, Diagnostic> {
-    let Some((selected_target, bundle)) = selected_hosted_bundle(selected_target) else {
-        return Ok(false);
-    };
-    if plan.target != selected_target {
-        return Ok(false);
-    }
-    let typed = &checked.typed;
-    let legacy_bundled_binding = exact_bundled_process_exit_binding(
-        typed,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        bundle,
-    );
-    let accepted_package_binding = accepted_binding.is_some_and(|binding| {
-        accepted_binding_matches_process_exit_row_identity(
-            checked,
-            plan,
-            trait_symbol,
-            requirement_symbol,
-            realization_symbol,
-            binding,
-        ) && accepted_declaration_symbol.is_none_or(|symbol| symbol == trait_symbol)
-    });
-    if !legacy_bundled_binding && !accepted_package_binding {
-        return Ok(false);
-    }
-
-    boundary_row_shape(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        "ProcessExit",
-        true,
-        "exit_process",
-        "ProcessExitNativeProvider::exit_process",
-        ConsoleIntrinsicShape::I32ToUnit,
-    )
-}
-
-fn exact_bundled_process_exit_binding(
-    typed: &typed_trees::TypedTrees,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    bundle: HostedIntrinsicBundle,
-) -> bool {
-    const CORE: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/process_exit.omg"
-    ));
-    exact_bundled_standalone_source(typed, trait_symbol, "process_exit.omg", CORE)
-        && exact_bundled_standalone_source(typed, requirement_symbol, "process_exit.omg", CORE)
-        && exact_bundled_standalone_source(
-            typed,
-            realization_symbol,
-            bundle.process_exit_source(),
-            bundled_process_exit_source(bundle),
-        )
 }
 
 /// Exact package-consumer identity for a canonical `ProcessExit` row. The
@@ -580,10 +448,13 @@ fn accepted_binding_matches_process_exit_row_identity(
         && binding.selected_provider_plan_digest() == Some(plan.identity_digest())
 }
 
-/// Rejoin the target-independent Console semantic role to one exact package-
-/// owned selected row. This recognizes Process authority; it does not claim
-/// that the selected target has a closed compiler lowering.
-pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
+/// Rejoin one service's exit-process semantic role to one exact package-owned
+/// selected row. For Console this recognizes Process authority; the
+/// toolchain-owned ProcessExit trait carries no package identity and the
+/// bound package owns the provider nominal. Neither claims that the selected
+/// target has a closed compiler lowering, so inferred supply is not required.
+pub(crate) fn accepted_binding_matches_exit_process_row(
+    service: HostedService,
     checked: &CheckedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -592,7 +463,7 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
     realization_symbol: SymbolHandle,
     binding: &package_compilation::AcceptedSemanticBinding,
 ) -> Result<bool, Diagnostic> {
-    if !accepted_binding_matches_selected_row_identity(
+    if !service.accepted_binding_matches(
         checked,
         plan,
         trait_symbol,
@@ -602,6 +473,7 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
     ) {
         return Ok(false);
     }
+    let hosted = service.exit_process_row();
     boundary_row_shape(
         checked,
         plan,
@@ -609,48 +481,11 @@ pub(crate) fn accepted_binding_matches_console_exit_process_i32_row(
         trait_symbol,
         requirement_symbol,
         realization_symbol,
-        "Console",
+        service.trait_name(),
         false,
-        "exit_process",
-        "ConsoleNativeProvider::exit_process",
-        ConsoleIntrinsicShape::I32ToUnit,
-    )
-}
-
-/// Rejoin the canonical core `ProcessExit` requirement to one exact
-/// package-owned selected row. The toolchain-owned trait carries no package
-/// identity; the bound package owns the provider nominal.
-pub(crate) fn accepted_binding_matches_process_exit_i32_row(
-    checked: &CheckedTrees,
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    trait_symbol: SymbolHandle,
-    requirement_symbol: SymbolHandle,
-    realization_symbol: SymbolHandle,
-    binding: &package_compilation::AcceptedSemanticBinding,
-) -> Result<bool, Diagnostic> {
-    if !accepted_binding_matches_process_exit_row_identity(
-        checked,
-        plan,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        binding,
-    ) {
-        return Ok(false);
-    }
-    boundary_row_shape(
-        checked,
-        plan,
-        row,
-        trait_symbol,
-        requirement_symbol,
-        realization_symbol,
-        "ProcessExit",
-        false,
-        "exit_process",
-        "ProcessExitNativeProvider::exit_process",
-        ConsoleIntrinsicShape::I32ToUnit,
+        hosted.requirement,
+        hosted.realization,
+        hosted.shape,
     )
 }
 
