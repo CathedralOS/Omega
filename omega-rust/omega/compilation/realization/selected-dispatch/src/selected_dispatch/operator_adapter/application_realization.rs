@@ -11,6 +11,8 @@ use language_core::operator_spelling::OperatorSpelling;
 use symbols::SymbolHandle;
 
 mod checked_expressions;
+#[cfg(test)]
+mod tests;
 
 /// The retained authored-use lane rejoined to one selected checked occurrence.
 /// The expression and origin live in `application_site`; this

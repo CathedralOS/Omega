@@ -4,10 +4,9 @@
 //! resolved to; the provider the Build selected is installed by Omega, not
 //! spliced into the checked body. This owner therefore changes no source: it
 //! settles the boundary-dispatch rows while retaining the checked execution
-//! plans, records selected float
-//! comparison executions, and names the operator applications Omega cannot
-//! install yet so their missing plans report `unimplemented:` instead of an
-//! anonymous omission.
+//! plans and records selected float comparison executions. Missing-plan
+//! diagnostics remain the checked producer's original dependency/phase
+//! report; provider selection does not reinterpret a Psi construction failure.
 
 use std::sync::Arc;
 
@@ -18,7 +17,6 @@ use effects::SelectedProviderPlanFacts;
 mod float_comparisons;
 mod float_intrinsic;
 mod operator_adapter;
-mod uninstalled;
 
 pub use float_intrinsic::{
     SelectedCompilerIntrinsicExecutionIdentity,
@@ -39,8 +37,6 @@ pub fn settle_selected_execution_dispatch(
     mut checked: Arc<CheckedTrees>,
     selected_provider_plans: &SelectedProviderPlanFacts,
 ) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
-    let uninstalled =
-        uninstalled::uninstalled_operator_applications(&checked, selected_provider_plans)?;
     // Calls retain their public requirement through Terminal Psi. Selecting
     // its provider adds associations, not new source facts or execution plans;
     // rebuilding Psi here would introduce a second stage entrance and require
@@ -61,6 +57,5 @@ pub fn settle_selected_execution_dispatch(
     {
         float_comparisons::replace_executions(Arc::make_mut(&mut checked), executions);
     }
-    uninstalled::name_unplanned_machines(&mut checked, &uninstalled);
     Ok(checked)
 }

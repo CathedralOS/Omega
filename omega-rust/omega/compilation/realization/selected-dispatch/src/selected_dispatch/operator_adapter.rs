@@ -1,14 +1,11 @@
-//! Checked boundary-operator ProviderPlan applications.
+//! Exact checked boundary-operator realization joins.
 //!
-//! Semantic checking and retained facts name the public boundary operator,
-//! and execution keeps naming it: a named or fixed-token use whose exact plan
-//! row is a checked adapter is found here only so its missing requirement-level
-//! route reports `unimplemented:`. Application realizations for review and
-//! Terminal coverage derive from the same checked facts.
+//! Application coverage and specialization rejoin the authored requirement,
+//! selected plan and checked body here. Selection never rebuilds checked Psi
+//! or guesses a missing execution route from the selected provider.
 
 mod application_realization;
 mod specialized_application_realization;
-mod spelled;
 
 pub use application_realization::{
     CheckedNongenericOperatorApplicationRealization, CheckedOperatorAuthoredUseKind,
@@ -19,19 +16,10 @@ pub use specialized_application_realization::{
     derive_checked_specialized_operator_application_realizations,
 };
 
-use checked_trees::{CheckedTrees, CheckedValueOrigin};
+use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ProviderBinding;
-use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-
-/// One authored boundary-operator use whose selected row is a checked
-/// adapter, keyed by the requirement it names.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct OperatorAdapterRewrite {
-    pub(super) expression: ExpressionHandle,
-    pub(super) origin: CheckedValueOrigin,
-    pub(super) requirement_operator: symbols::SymbolHandle,
-}
+use typed_trees::expression::ExpressionHandle;
 
 /// A selected operator's crash invocation has no Terminal replay support, so
 /// a program that retains one cannot enter Terminal production.
@@ -48,170 +36,6 @@ pub fn validate_selected_operator_terminal_custody(
         )]);
     }
     Ok(())
-}
-
-pub(super) fn plan_selected_operator_adapter_rewrites(
-    checked: &CheckedTrees,
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
-) -> Result<Vec<OperatorAdapterRewrite>, Vec<Diagnostic>> {
-    let mut rewrites = Vec::new();
-    let mut diagnostics = Vec::new();
-
-    for (_, operator_use) in checked.facts.operators.named_uses.iter() {
-        if selected_use_plan(
-            checked,
-            selected_provider_plans.plans(),
-            operator_use.selected_operator_symbol,
-            operator_use.origin,
-        )
-        .is_none()
-        {
-            continue;
-        }
-        let rewrite = match resolve_selected_operator_adapter_call(
-            checked,
-            selected_provider_plans.plans(),
-            operator_use,
-        ) {
-            Ok(Some(rewrite)) => rewrite,
-            Ok(None) => continue,
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
-                continue;
-            }
-        };
-        stage_operator_adapter_rewrite(&mut rewrites, &mut diagnostics, rewrite);
-    }
-
-    for (_, operator_use) in checked.facts.operators.uses.iter() {
-        // A Match equality is an arm decision, not an expression replacement.
-        // Retain its selected demand; execution owners must supply arm-local
-        // saved-subject custody before they can execute it.
-        if operator_use.occurrence != checked_trees::CheckedOperatorOccurrence::Expression {
-            continue;
-        }
-        if selected_use_plan(
-            checked,
-            selected_provider_plans.plans(),
-            operator_use.selected_operator_symbol,
-            operator_use.origin,
-        )
-        .is_none()
-        {
-            continue;
-        }
-        let rewrite = match spelled::resolve_selected_spelled_operator_adapter_call(
-            checked,
-            selected_provider_plans.plans(),
-            operator_use,
-        ) {
-            Ok(Some(rewrite)) => rewrite,
-            Ok(None) => continue,
-            Err(diagnostic) => {
-                diagnostics.push(diagnostic);
-                continue;
-            }
-        };
-        stage_operator_adapter_rewrite(&mut rewrites, &mut diagnostics, rewrite);
-    }
-
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
-    }
-
-    Ok(rewrites)
-}
-
-fn stage_operator_adapter_rewrite(
-    rewrites: &mut Vec<OperatorAdapterRewrite>,
-    diagnostics: &mut Vec<Diagnostic>,
-    rewrite: OperatorAdapterRewrite,
-) {
-    if let Some(selected) = rewrites
-        .iter()
-        .find(|selected| selected.expression == rewrite.expression)
-    {
-        if selected != &rewrite {
-            diagnostics.push(Diagnostic::error(format!(
-                "operator expression {:?} carries contradictory checked-adapter realizations",
-                rewrite.expression,
-            )));
-        }
-        return;
-    }
-    rewrites.push(rewrite);
-}
-
-fn resolve_selected_operator_adapter_call(
-    checked: &CheckedTrees,
-    selected_provider_plans: &[effects::provider_plan::ProviderPlan],
-    operator_use: &checked_trees::CheckedNamedOperatorUseFact,
-) -> Result<Option<OperatorAdapterRewrite>, Diagnostic> {
-    let plan = resolve_exact_selected_plan(
-        checked,
-        selected_provider_plans,
-        operator_use.selected_operator_symbol,
-        operator_use.origin,
-        "named operator use",
-    )?;
-
-    resolve_operator_adapter_call(checked, operator_use, plan)
-}
-
-fn resolve_operator_adapter_call(
-    checked: &CheckedTrees,
-    operator_use: &checked_trees::CheckedNamedOperatorUseFact,
-    plan: &effects::provider_plan::ProviderPlan,
-) -> Result<Option<OperatorAdapterRewrite>, Diagnostic> {
-    let operator = exact_operator_definition(
-        checked,
-        operator_use.expression,
-        operator_use.selected_operator_symbol,
-    )?;
-    if !operator.is_boundary {
-        return Err(Diagnostic::error(format!(
-            "selected checked operator at expression {:?} does not name a boundary operator",
-            operator_use.expression,
-        )));
-    }
-    let ExpressionNode::Call(call) = checked
-        .typed
-        .expression_table
-        .expression(operator_use.expression)
-    else {
-        return Err(Diagnostic::error(format!(
-            "selected checked operator at expression {:?} is not a named call",
-            operator_use.expression,
-        )));
-    };
-    let source_names_selected_operator =
-        typed_trees::operator::resolve_named_expression_call(&checked.typed, call)
-            .map(|resolved| resolved.symbol)
-            == Some(operator.symbol);
-    let source_maps_to_selected_builtin =
-        typed_trees_to_checked_trees::resolve_checked_builtin_float_operator_requirement(
-            &checked.typed,
-            operator_use.expression,
-            operator_use.origin,
-        ) == Some(operator.symbol);
-    if !source_names_selected_operator && !source_maps_to_selected_builtin {
-        return Err(Diagnostic::error(format!(
-            "selected checked operator at expression {:?} no longer names its checked operator symbol",
-            operator_use.expression,
-        )));
-    }
-
-    if resolve_checked_adapter_for_operator(checked, operator, plan, operator_use.expression)?
-        .is_none()
-    {
-        return Ok(None);
-    }
-
-    Ok(Some(OperatorAdapterRewrite {
-        expression: operator_use.expression,
-        origin: operator_use.origin,
-        requirement_operator: operator_use.selected_operator_symbol,
-    }))
 }
 
 pub(super) fn resolve_checked_adapter_for_operator(

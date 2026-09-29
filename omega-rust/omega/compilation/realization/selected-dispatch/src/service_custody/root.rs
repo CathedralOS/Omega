@@ -206,9 +206,6 @@ pub fn derive_fused_program_entry_establishments(
     attachment_identities.sort();
     attachment_identities.dedup();
     let [attachment_type_identity] = attachment_identities.as_slice() else {
-        if let Some(report) = checked.uninstalled_operator_report(machine.symbol) {
-            return Err(vec![Diagnostic::error(report)]);
-        }
         let mut message = format!(
             "selected ProgramEntry establishment rejoins {} Terminal attachment identities; expected one",
             attachment_identities.len(),
@@ -584,10 +581,6 @@ fn describe_omission_stage(checked: &CheckedTrees, stage: CheckedUnitPlanOmissio
         CheckedUnitPlanOmissionStage::MissingBoundaryTarget { target } => format!(
             "a missing boundary target (`{}`)",
             checked.symbols.display_path(target, "::"),
-        ),
-        CheckedUnitPlanOmissionStage::UninstalledOperator { operator } => format!(
-            "an uninstalled boundary operator (`{}`)",
-            checked.symbols.display_path(operator, "::"),
         ),
         CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target } => format!(
             "an unavailable scalar target (`{}`)",

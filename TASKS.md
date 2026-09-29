@@ -1671,10 +1671,14 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Remaining work:
 
   - Complete ordinary call composition for nested legacy operator results
-    and the remaining float/receiver signatures. Remove `UninstalledOperator`
-    and the retired selected-dispatch operator-adapter / float-intrinsic
-    omission scanners rather than extend those rewrites. They remain
-    diagnostic-only machinery, not an execution route.
+    and the remaining float/receiver signatures. Selected dispatch no longer
+    scans applications to overwrite checked-plan omissions: `UninstalledOperator`
+    and both diagnostic-only adapter/intrinsic scanners are retired. Missing
+    plans retain the checked producer's phase and dependency. The unchanged
+    `named_provider_negate_is_nan_exit` customer now exposes
+    `scalar field store sequence: write frame agreement` in state 0; trace
+    that producer before extending native builtin installation. Exact plan
+    and authored-use drift controls run at the live realization consumers.
   - Finish native specialization custody: retain the exact closed requirement,
     provider instance, static tuple and artifact-bound application occurrence
     through selected-plan settlement and physical-child replay. Reuse stage
