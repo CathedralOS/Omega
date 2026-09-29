@@ -4,6 +4,6 @@
 // cannot grant write authority the source borrow never lent.
 data Bits { x: u32; }
 
-machine Bits::escalate(&self) {
-    let v: &mut u32 = &self.x as &mut u32;
+machine Bits::escalate(bits: & Bits) {
+    let v: &mut u32 = &bits.x as &mut u32;
 }

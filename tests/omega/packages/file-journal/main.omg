@@ -7,9 +7,9 @@ pub data Journal {
     written: i64;
 }
 
-pub machine Journal::append_line(&mut self, descriptor: i32, line: &[u8])
+pub machine Journal::append_line(journal: &mut Journal, descriptor: i32, line: &[u8])
 reaches FilesystemHost
 invokes FilesystemHost;
 {
-    self.written = self.files.write(descriptor, line);
+    journal.written = journal.files.write(descriptor, line);
 }

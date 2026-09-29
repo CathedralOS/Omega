@@ -4,6 +4,6 @@ data Bits {
     x: i64;
 }
 
-machine Bits::implicit_pun(&self) {
-    let v: &f32 = &self.x;
+machine Bits::implicit_pun(bits: & Bits) {
+    let v: &f32 = &bits.x;
 }

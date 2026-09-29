@@ -17,9 +17,9 @@ pub data Switchboard {
     clock: Binding<ClockHost>;
 }
 
-pub machine Switchboard::read_ticks(&mut self) -> u64
+pub machine Switchboard::read_ticks(switchboard: &mut Switchboard) -> u64
 reaches ClockHost
 invokes ClockHost;
 {
-    self.clock.ticks()
+    switchboard.clock.ticks()
 }
