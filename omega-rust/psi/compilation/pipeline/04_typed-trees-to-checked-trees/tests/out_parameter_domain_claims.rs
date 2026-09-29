@@ -164,3 +164,39 @@ machine use_fill(filler: &Filler, buf: &mut Buf) reaches Filler {
 "#,
     );
 }
+
+#[test]
+fn a_declaration_named_result_does_not_shadow_the_requirement_result() {
+    // Only an entry parameter named `result` shadows the reserved binder. A
+    // machine named `result` elsewhere in scope leaves `ensures result in`
+    // naming the requirement's own result.
+    assert_checks(
+        r#"
+data Buf { length: u64; }
+domain Buf::Granted established by Granter::grant;
+boundary trait Granter {
+    machine grant(root: Buf) -> Buf ensures result in Buf::Granted;
+}
+machine result() -> u64 { 0 }
+"#,
+    );
+}
+
+#[test]
+fn an_entry_parameter_named_result_shadows_the_requirement_result() {
+    let diagnostics = assert_rejects(
+        r#"
+data Buf { length: u64; }
+domain Buf::Granted established by Granter::grant;
+boundary trait Granter {
+    machine grant(result: Buf) -> Buf ensures result in Buf::Granted;
+}
+"#,
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("only for its exact `result` or an exact mutable parameter")),
+        "{diagnostics:#?}"
+    );
+}
