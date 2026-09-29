@@ -160,8 +160,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     External (non-hosted) entry roots are not yet covered. Two corpus
     programs exercise runtime spill natively on macOS ARM64:
     `collections/runtime_vec_u32_growth_exit` exits 70 and
-    `calls/nested_call_tail_roots_exit` exits 0 (its macOS native golden row
-    is stale); `saturating_signed_divide_min_by_neg_one` no longer spills on
+    `calls/nested_call_tail_roots_exit` exits 0; `saturating_signed_divide_min_by_neg_one` no longer spills on
     arm64 (its `corpus_outcomes.txt` row is stale; the item now produces its
     x86-64 artifacts via the runtime split under ALLOCATION-REFINEMENT).
 
