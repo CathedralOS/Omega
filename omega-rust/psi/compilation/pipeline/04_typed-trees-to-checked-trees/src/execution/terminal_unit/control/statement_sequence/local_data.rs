@@ -166,6 +166,23 @@ pub(super) fn plan(
             .push(CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes });
         return Some(LocalPlan::Planned);
     }
+    // A bounded owner (`[u8; 8] in Utf8`) constructed from a literal copies
+    // its octets and live length through the same literal establishment.
+    if let Some(bytes) = super::bounded_byte_literal::literal_octets(program, local) {
+        local_phase("statement sequence: local data: bounded byte literal");
+        let result = CheckedUnitStructuralResultBindingPlan {
+            statement_index,
+            binding_ordinal: u32::try_from(*structural_count).ok()?,
+            type_identity: shapes.add_type(local.type_reference, binders, &[])?,
+            multiplicity: Multiplicity::Unrestricted,
+        };
+        *structural_count = structural_count.checked_add(1)?;
+        structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
+        structural_local_symbols.push(local.symbol);
+        operations
+            .push(CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes });
+        return Some(LocalPlan::Planned);
+    }
     // An atomic carrier's result placeholder plans nothing: it
     // reserves the dense binding the next statement's event binds
     // to the observed prior. A load local plans its event here.

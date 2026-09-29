@@ -60,6 +60,52 @@ fn byte_field_length_retains_exact_path_and_rejects_wrong_members() {
     assert!(super::structural_sequence_length(&wrong_spelling, parameters, length).is_none());
 }
 
+/// A borrowed whole bounded owner observes its live length, not its capacity:
+/// `text.len` of `&[u8; 8] in Utf8` is the parameter's runtime extent. A raw
+/// borrowed `[u8; 8]` keeps its declared extent, and an owned bounded carrier
+/// has no borrowed observation root.
+#[test]
+fn whole_bounded_owner_length_is_live_and_raw_array_length_is_declared() {
+    let length_of = |source: &str| {
+        let (program, length) = byte_length_fixture(source);
+        let parameters =
+            program.state_parameters(&program.machine_states(&program.machines()[0])[0]);
+        super::structural_sequence_length(&program, parameters, length)
+    };
+    for access in ["&", "&mut "] {
+        let source = format!(
+            "domain [u8; 8]::Utf8 requires valid_utf8(self);
+             machine measure(text: {access}[u8; 8] in Utf8) -> u64
+             requires text.len == 0 {{ 0 }}"
+        );
+        assert!(
+            matches!(
+                length_of(&source),
+                Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+                    root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
+                    path,
+                }) if path.is_empty()
+            ),
+            "{access} bounded owner observes its live length"
+        );
+    }
+    assert!(matches!(
+        length_of(
+            "machine measure(bytes: &[u8; 8]) -> u64
+             requires bytes.len == 8 { 0 }"
+        ),
+        Some(checked_trees::CheckedScalarExpression::IntegerLiteral { .. })
+    ));
+    assert!(
+        length_of(
+            "domain [u8; 8]::Utf8 requires valid_utf8(self);
+             machine measure(text: [u8; 8] in Utf8) -> u64
+             requires text.len == 0 { 0 }"
+        )
+        .is_none()
+    );
+}
+
 fn fixture() -> TypedTrees {
     let source = "data Input { allowed: bool; }
         data Other { allowed: bool; }

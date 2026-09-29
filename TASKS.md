@@ -84,6 +84,20 @@ build authority, and artifact verification remain separate obligations.
   structural result` for a projected loan of a local (`&dash.engine`). Stage 02
   element-view establishment resolves a local backing from its producer
   operation because threading the live home map needs `control_flow/operations.rs`.
+  `parse_int` and `roman_numeral` construct a domain-qualified byte local from a
+  shorter literal (`let text: [u8; 8] in Utf8 = "150";`). That is a bounded
+  carrier whose live length is the literal's
+  ([encoding domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains)),
+  not a zero-filled raw array. Stage 04 plans it as that carrier's
+  `EstablishByteSequenceLiteral` and plans a borrowed whole bounded owner's
+  `.len` as its live length. Still refused: stage 05 `operation_frame.rs` emits
+  only borrowed-view literals (copy the octets into owned bounded backing, for
+  example as the existing concatenation with an empty second span); lending
+  the local to a scalar-result static machine stops at `structural arguments:
+  caller structural result`; the callees' `&[u8; N] in Utf8` state parameters
+  stop at stage 04 `state_graph/mod.rs` `borrowed non-view carrier`; and
+  `roman_numeral`'s `transition parse_roman(&text) { .. }` stops at `guarded
+  pair without exact false fallback`.
 
 Prioritize unchanged customer programs reaching native execution over additional
 evidence carriers without an exercising program. The
