@@ -104,11 +104,32 @@ pub(super) fn validate_call_source(
             // order, whole-affine custody and absence of transferred claims.
             continue;
         }
-        let expression = authored
-            .structural_argument(checked, parameter.position, parameter.is_self)
-            .ok_or(LoweringError::Unsupported(
-                "scalar wrapper parameter has no exact authored argument",
-            ))?;
+        let expression =
+            match authored.structural_argument(checked, parameter.position, parameter.is_self) {
+                Some(expression) => expression,
+                // A receiver formal spelled through the receiver channel
+                // (`self.callee(..)` in statement position) spells no argument
+                // slot: the authored call's subject is its own receiver. The
+                // roster entry is authored exactly when it names the caller's
+                // own `self` parameter outright, with no field or index path.
+                None if parameter.is_self
+                    && argument.path.is_empty()
+                    && matches!(
+                        argument.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                            parameter_index
+                        } if caller
+                            .structural_parameters
+                            .get(usize::try_from(parameter_index).unwrap_or(usize::MAX))
+                            .is_some_and(|source| source.is_self)
+                    ) =>
+                {
+                    continue;
+                }
+                None => {
+                    return unsupported("scalar wrapper parameter has no exact authored argument");
+                }
+            };
         if primitive_locals::validate_argument_source(
             checked,
             caller,
