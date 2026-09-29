@@ -229,9 +229,10 @@ fn local_plan(
     if declarations.next().is_some()
         || statement_ordinal >= use_statement_ordinal
         || !local.is_mutable
-        || !program
+        || (!program
             .expression_table
             .expression_is_valid(local.initial_value)
+            && crate::values::zeroed_scalar_local_initializer(program, local).is_none())
         || !matches!(
             program
                 .type_reference_table

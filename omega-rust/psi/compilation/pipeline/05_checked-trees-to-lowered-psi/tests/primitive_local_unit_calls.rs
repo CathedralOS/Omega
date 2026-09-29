@@ -8,7 +8,8 @@ use terminal_interpreter::{
     TerminalStructuralPrimitiveValue, TerminalStructuralValue,
 };
 use terminal_production::{
-    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
+    TerminalMachineSelection, TerminalProductionCustody, TerminalProductionRequest,
+    TerminalProductionTimings,
 };
 
 #[path = "primitive_local_unit_calls/crash_routes.rs"]
@@ -58,6 +59,146 @@ fn integer(sign: IntegerSign, width: u16, value: IntegerValue) -> TerminalScalar
     TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(sign, width).unwrap(),
         value,
+    }
+}
+
+#[test]
+fn deferred_primitive_locals_keep_storage_through_calls_and_reads() {
+    for (scalar, sign, width) in [
+        ("i8", IntegerSign::Signed, 8),
+        ("i16", IntegerSign::Signed, 16),
+        ("i32", IntegerSign::Signed, 32),
+        ("i64", IntegerSign::Signed, 64),
+        ("u8", IntegerSign::Unsigned, 8),
+        ("u16", IntegerSign::Unsigned, 16),
+        ("u32", IntegerSign::Unsigned, 32),
+        ("u64", IntegerSign::Unsigned, 64),
+    ] {
+        let value = |number| {
+            if sign == IntegerSign::Signed {
+                IntegerValue::Signed(number)
+            } else {
+                IntegerValue::Unsigned(number as u128)
+            }
+        };
+        let initial = integer(sign, width, value(11));
+        let replacement = integer(sign, width, value(42));
+        let source = source(scalar).replace(" = initial", "");
+        let artifact = artifact(&source);
+        execute(&artifact, initial, replacement, &[initial, replacement]);
+    }
+}
+
+#[test]
+fn deferred_primitive_zero_is_replayed_from_its_declaration() {
+    use checked_trees::{
+        CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    };
+    let source = source("i32").replace(" = initial", "");
+    let mut checked = crate::front_end::checked_program(&source);
+    let _ = artifact(&source);
+    let initializer = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter_mut()
+        .find(|expression| expression.role == CheckedScalarExpressionRole::StorageInitializer)
+        .expect("implicit zero initializer");
+    let CheckedScalarExpression::IntegerLiteral { literal } = &initializer.expression else {
+        panic!("integer zero");
+    };
+    let one = CheckedScalarExpression::IntegerLiteral {
+        literal: numerics::literals::IntegerLiteral::from_parts(
+            false,
+            numerics::literals::IntegerRadix::Decimal,
+            "1",
+        )
+        .unwrap()
+        .with_landing(literal.landing().unwrap()),
+    };
+    initializer.expression = one.clone();
+    for plan in &mut checked.facts.flow.terminal_unit_effects.machines {
+        for operation in &mut plan.operations {
+            if let CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { value, .. } = operation
+            {
+                *value = one.clone();
+            }
+        }
+    }
+    let result =
+        TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("observe"))
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ));
+    assert!(
+        result.is_err(),
+        "coherent cached one cannot replace the declaration's zero"
+    );
+}
+
+#[test]
+fn deferred_scalar_binding_still_requires_mutable_assignment() {
+    let diagnostics = crate::front_end::checked_program_result(
+        "machine observe(output: &mut i32) { let scratch: i32; scratch = 1; output = scratch; }",
+    )
+    .expect_err("a bare non-mut local cannot be assigned");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("not mutable")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
+fn deferred_scalar_result_locals_have_distinct_zeroed_storage() {
+    let source = r#"
+        machine compute() -> i32 {
+            let mut first: i32;
+            let mut second: i32;
+            let before: i32 = second;
+            first = 42;
+            second = first;
+            first = before;
+            second
+        }
+        machine observe(output: &mut i32, initial: i32, replacement: i32) {
+            output = compute();
+        }
+    "#;
+    let initial = integer(IntegerSign::Signed, 32, IntegerValue::Signed(11));
+    let replacement = integer(IntegerSign::Signed, 32, IntegerValue::Signed(42));
+    execute(
+        &artifact(source),
+        initial,
+        replacement,
+        &[initial, replacement],
+    );
+}
+
+#[test]
+fn deferred_boolean_and_float_locals_keep_their_declared_carriers() {
+    use semantic_vocabulary::IeeeFloatValue;
+    for (scalar, initial, replacement) in [
+        (
+            "bool",
+            TerminalScalarValue::Boolean(false),
+            TerminalScalarValue::Boolean(true),
+        ),
+        (
+            "f32",
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(11.0f32.to_bits())),
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary32(42.0f32.to_bits())),
+        ),
+        (
+            "f64",
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(11.0f64.to_bits())),
+            TerminalScalarValue::IeeeFloat(IeeeFloatValue::Binary64(42.0f64.to_bits())),
+        ),
+    ] {
+        let artifact = artifact(&source(scalar).replace(" = initial", ""));
+        execute(&artifact, initial, replacement, &[initial, replacement]);
     }
 }
 

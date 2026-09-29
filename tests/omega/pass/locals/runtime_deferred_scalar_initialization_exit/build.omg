@@ -1,7 +1,4 @@
-// PENDING build root: the pending watcher compiles only `main.omg`, and the
-// program-entry root is load-bearing. The omission this fixture pins is
-// invisible to a targetless check — it appears only once an entry is
-// established and the Unit plan is demanded.
+// Demand the local's storage plan through the actual application entry.
 machine build(builder: &mut Build) {
     builder.application("deferred_local_initialization");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });

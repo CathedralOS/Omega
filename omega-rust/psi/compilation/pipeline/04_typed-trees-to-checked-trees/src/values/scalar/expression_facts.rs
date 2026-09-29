@@ -90,6 +90,62 @@ pub(crate) fn scalar_expression_type(
     expression.primitive_type()
 }
 
+/// Plain mutable primitive declarations establish zero without an authored
+/// initializer. Keep this tied to the declaration: a missing expression at
+/// another site, a reference, or a qualified type has no such meaning.
+pub(crate) fn zeroed_scalar_local_initializer(
+    program: &TypedTrees,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<CheckedScalarExpression> {
+    use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+    if !local.is_mutable
+        || local.initial_value.is_valid()
+        || !matches!(
+            program
+                .type_reference_table
+                .type_reference(local.type_reference),
+            typed_trees::types::TypeReferenceNode::Named { .. }
+        )
+    {
+        return None;
+    }
+    let primitive = program.primitive_type_reference(local.type_reference)?;
+    let landed_type = match primitive {
+        PrimitiveType::Bool => {
+            return Some(CheckedScalarExpression::Boolean(Box::new(
+                checked_trees::CheckedBooleanExpression::Constant(false),
+            )));
+        }
+        PrimitiveType::F32 => {
+            return Some(CheckedScalarExpression::IeeeFloatLiteral {
+                value: semantic_vocabulary::IeeeFloatValue::Binary32(0),
+            });
+        }
+        PrimitiveType::F64 => {
+            return Some(CheckedScalarExpression::IeeeFloatLiteral {
+                value: semantic_vocabulary::IeeeFloatValue::Binary64(0),
+            });
+        }
+        PrimitiveType::I8 => LandedIntegerType::I8,
+        PrimitiveType::I16 => LandedIntegerType::I16,
+        PrimitiveType::I32 => LandedIntegerType::I32,
+        PrimitiveType::I64 => LandedIntegerType::I64,
+        PrimitiveType::U8 => LandedIntegerType::U8,
+        PrimitiveType::U16 => LandedIntegerType::U16,
+        PrimitiveType::U32 => LandedIntegerType::U32,
+        PrimitiveType::U64 => LandedIntegerType::U64,
+        PrimitiveType::Addr => LandedIntegerType::Addr,
+    };
+    Some(CheckedScalarExpression::IntegerLiteral {
+        literal: IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "0")
+            .ok()?
+            .with_landing(IntegerLanding {
+                landed_type,
+                domain: ArithmeticDomain::Exact,
+            }),
+    })
+}
+
 pub(crate) fn is_integer(primitive: PrimitiveType) -> bool {
     !matches!(
         primitive,

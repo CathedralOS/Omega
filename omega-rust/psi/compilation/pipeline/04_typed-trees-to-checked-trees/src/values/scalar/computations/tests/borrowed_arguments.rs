@@ -1,4 +1,4 @@
-use super::super::{CheckedScalarComputationHandle, ExpressionHandle, SymbolHandle};
+use super::super::{CheckedScalarComputationHandle, SymbolHandle};
 use super::{
     CheckedScalarComputationKind, CheckedScalarExpressionRole, ExpressionNode, StatementNode,
 };
@@ -185,7 +185,9 @@ fn borrowed_computation_arguments_reject_unestablished_or_non_named_storage() {
                 if mutation == 0 {
                     local.is_mutable = false;
                 } else {
-                    local.initial_value = ExpressionHandle::invalid();
+                    // Missing initialization is now valid for a plain mutable
+                    // primitive. Losing the declared carrier is not.
+                    local.type_reference = typed_trees::types::TypeReferenceHandle::invalid();
                 }
             }
             2 => {

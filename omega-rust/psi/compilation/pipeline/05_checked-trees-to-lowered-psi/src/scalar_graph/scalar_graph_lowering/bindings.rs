@@ -300,10 +300,11 @@ pub(super) fn prepare(
             };
             if custody.next().is_some()
                 || source.destination != symbol
-                || !checked
+                || (!checked
                     .typed
                     .expression_table
                     .expression_is_valid(source.expression)
+                    && role != CheckedScalarExpressionRole::StorageInitializer)
             {
                 return unsupported(
                     "scalar storage destination disagrees with its checked source custody",

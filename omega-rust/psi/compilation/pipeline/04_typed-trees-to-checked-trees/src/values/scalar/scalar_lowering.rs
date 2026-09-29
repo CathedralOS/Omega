@@ -107,7 +107,9 @@ pub(crate) fn lower_unit_scalar_argument(
         let Some(primitive_type) = program.primitive_type_reference(local.type_reference) else {
             continue;
         };
-        if !local.initial_value.is_valid() {
+        if !local.initial_value.is_valid()
+            && crate::values::zeroed_scalar_local_initializer(program, local).is_none()
+        {
             return None;
         }
         locals.push(ScalarLocal {

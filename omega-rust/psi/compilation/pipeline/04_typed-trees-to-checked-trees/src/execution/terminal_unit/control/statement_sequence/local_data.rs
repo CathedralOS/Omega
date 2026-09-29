@@ -93,9 +93,9 @@ pub(super) fn plan(
     };
     local_phase("statement sequence: local data: initializer expression");
     // A mutable local with no initializer survives when its declared type
-    // is zero-constructible: value checking minted its whole-shape zeroed
-    // establishment root at this statement, and the structural-value arm
-    // below binds it like any initialized structural local.
+    // is zero-constructible. Structural values have a whole-shape zeroed
+    // establishment root; plain primitives have a declaration-bound scalar
+    // zero initializer. Both use their ordinary storage establishment below.
     let uninit_zeroed = local.is_mutable
         && !program
             .expression_table
@@ -113,7 +113,9 @@ pub(super) fn plan(
         // are declared unassigned — skipping it leaves the whole machine's
         // unit plan omitted even though every writer plans elsewhere.
         if !erased_locals.contains(&local.symbol)
-            && program.primitive_type_reference(local.type_reference).is_none()
+            && program
+                .primitive_type_reference(local.type_reference)
+                .is_none()
         {
             local_phase("statement sequence: local data: deferred structural binding");
             let result = CheckedUnitStructuralResultBindingPlan {

@@ -43,9 +43,6 @@ pub(crate) fn allocate(
                     .any(|prior: &PrimitiveLocal| prior.symbol == local.symbol)
                 || authored.symbol != local.symbol
                 || !authored.is_mutable
-                || !checked
-                    .expression_table
-                    .expression_is_valid(authored.initial_value)
                 || !matches!(
                     checked
                         .type_reference_table
