@@ -68,6 +68,15 @@ build authority, and artifact verification remain separate obligations.
   `slice_maximum` and `value_call_in_expr` already use static entries and local
   buffers, but their Windows native runs still need the Console provider closure
   tracked under process exit. Their checked success is not full migration acceptance.
+  On macOS ARM64, `omega run --both samples/cli/algorithms/dutch_flag/main.omg`
+  with EOF clears Terminal replay and borrowed state-storage lowering, then rejects
+  the local `[u8; 256]` pause buffer passed to `Console::read_line` with
+  `UnknownStructuralArgumentPlace`. Omega stage 02's `aggregate_results::call`
+  sends the view argument to `unit::structural_call::lower_structural_argument`
+  without its live local home. Coordinate with the claimed typed-view argument
+  transport work (`SCALAR-CALL-ELEMENT-WINDOW`); share that transport across call
+  result kinds rather than adding a sample-specific route. Acceptance remains
+  the unchanged partition algorithm, PASS output, and native/interpreter exit 70.
 
 Prioritize unchanged customer programs reaching native execution over additional
 evidence carriers without an exercising program. The
