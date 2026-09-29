@@ -107,16 +107,16 @@ pub machine Duration::from_nanoseconds(nanoseconds: u64) -> Duration {
 }
 
 // Whole seconds, truncating the subsecond part (Rust `as_secs`).
-pub machine Duration::as_seconds(&self) -> u64 {
-    self.seconds
+pub machine Duration::as_seconds(duration: &Duration) -> u64 {
+    duration.seconds
 }
 
-pub machine Duration::subsecond_milliseconds(&self) -> u32 {
-    self.subsecond_nanoseconds / 1000000
+pub machine Duration::subsecond_milliseconds(duration: &Duration) -> u32 {
+    duration.subsecond_nanoseconds / 1000000
 }
 
-pub machine Duration::subsecond_microseconds(&self) -> u32 {
-    self.subsecond_nanoseconds / 1000
+pub machine Duration::subsecond_microseconds(duration: &Duration) -> u32 {
+    duration.subsecond_nanoseconds / 1000
 }
 
 // The whole duration as a nanosecond count. u64 nanoseconds cap at
@@ -203,8 +203,8 @@ pub machine Duration::checked_as_milliseconds(&self) -> TotalResult {
     }
 }
 
-pub machine Duration::is_zero(&self) -> bool {
-    self.seconds == 0 && self.subsecond_nanoseconds == 0
+pub machine Duration::is_zero(duration: &Duration) -> bool {
+    duration.seconds == 0 && duration.subsecond_nanoseconds == 0
 }
 
 // self + other; `Overflow` when the true sum exceeds the representable range.
