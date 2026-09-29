@@ -1,5 +1,7 @@
 //! Owned aggregate actuals retain exact type, custody, and current value backing.
 //! Arrays, records, and completed sums share transport, not semantic identity.
+//! An owned receiver uses that same transport: `is_self` identifies its source
+//! role, not a different ABI or an exemption from the home custody checks.
 use super::LiveDefinitions;
 use crate::LoweringError;
 use abstract_operations::AbstractFunction;
@@ -16,7 +18,6 @@ pub(super) fn is_owned_parameter(
 ) -> bool {
     parameter.access == StructuralAccess::Owned
         && parameter.multiplicity != StructuralMultiplicity::Linear
-        && !parameter.is_self
         && parameter.projected_qualifications.is_empty()
         && value_layout(parameter.structural_type, types).is_ok()
 }

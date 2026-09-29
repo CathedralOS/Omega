@@ -586,6 +586,7 @@ fn producer(
             }
             CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
+            | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
                 if result.binding_ordinal == binding_ordinal =>
             {
                 Some(Producer {
@@ -1502,7 +1503,9 @@ pub(crate) fn validate_consumer(
         // it carries no completion receipt, so the callee's entry-claim plan
         // and the caller's consume event must jointly prove that exact
         // result custody moves into it.
-        if parameter.is_self {
+        // A receiver with no linear claim uses ordinary owned-value custody;
+        // being spelled `self` does not create a claim-bearing obligation.
+        if parameter.is_self && parameter.multiplicity == Multiplicity::Linear {
             claimed_result_consumer(
                 checked,
                 caller,

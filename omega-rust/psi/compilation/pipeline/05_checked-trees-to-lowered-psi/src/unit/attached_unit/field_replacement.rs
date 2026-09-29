@@ -1,45 +1,46 @@
 //! `place = value` over a structural field plans one roster: the producer of
 //! the replacing value (the statement's call, or the establishment of its
-//! construction), the displaced value's move-out, the store of the produced
-//! value into the opened hole, and -- for an affine field -- the displaced
-//! value's cleanup. Every member after the producer continues the producer's
+//! construction), its store, and displacement/cleanup only when the destination
+//! was occupied. An already-open hole has no old value to move or dispose.
+//! Every member after the producer continues the producer's
 //! statement; the destination and value are rejoined against the authored
 //! assignment by the store's own source custody.
 
 use super::{CheckedUnitEffectOperationPlan, Multiplicity};
 
-/// Whether the operation at `index` is the move-out or store of a
-/// replacement whose producer immediately precedes the move-out.
+/// Whether this store (or its optional displacement) continues the same
+/// statement's producer. Hole state is independently reconstructed by the
+/// borrowed-window ledger; this checks value identity and operation order.
 pub(super) fn continues(operations: &[CheckedUnitEffectOperationPlan], index: usize) -> bool {
-    let move_index = match operations.get(index) {
-        Some(CheckedUnitEffectOperationPlan::MoveStructuralField { .. }) => index,
-        Some(CheckedUnitEffectOperationPlan::StoreStructuralField { .. }) => {
-            let Some(previous) = index.checked_sub(1) else {
-                return false;
-            };
-            previous
-        }
+    let store_index = match operations.get(index) {
+        Some(CheckedUnitEffectOperationPlan::MoveStructuralField { .. }) => index + 1,
+        Some(CheckedUnitEffectOperationPlan::StoreStructuralField { .. }) => index,
         _ => return false,
     };
-    let (
-        Some(CheckedUnitEffectOperationPlan::MoveStructuralField {
-            result: moved,
-            source,
-        }),
-        Some(CheckedUnitEffectOperationPlan::StoreStructuralField {
-            statement_index,
-            destination,
-            value,
-        }),
-        Some(producer),
-    ) = (
-        operations.get(move_index),
-        operations.get(move_index + 1),
-        move_index
-            .checked_sub(1)
-            .and_then(|producer| operations.get(producer)),
-    )
+    let Some(CheckedUnitEffectOperationPlan::StoreStructuralField {
+        statement_index,
+        destination,
+        value,
+    }) = operations.get(store_index)
     else {
+        return false;
+    };
+    let Some(previous_index) = store_index.checked_sub(1) else {
+        return false;
+    };
+    let (displaced, producer_index) = match operations.get(previous_index) {
+        Some(CheckedUnitEffectOperationPlan::MoveStructuralField { result, source }) => {
+            if result.statement_index != *statement_index || source != destination {
+                return false;
+            }
+            let Some(producer_index) = previous_index.checked_sub(1) else {
+                return false;
+            };
+            (Some(result), producer_index)
+        }
+        _ => (None, previous_index),
+    };
+    let Some(producer) = operations.get(producer_index) else {
         return false;
     };
     let produced = match producer {
@@ -58,13 +59,14 @@ pub(super) fn continues(operations: &[CheckedUnitEffectOperationPlan], index: us
         } if result.statement_index == *statement_index => result,
         _ => return false,
     };
-    moved.statement_index == *statement_index
-        && source == destination
-        && value.path.is_empty()
+    value.path.is_empty()
         && value.access == checked_trees::CheckedStructuralAccess::Owned
         && value.source_structural_result_binding_ordinal() == Some(produced.binding_ordinal)
-        && moved.type_identity == produced.type_identity
-        && moved.multiplicity == produced.multiplicity
+        && value.type_identity == produced.type_identity
+        && displaced.is_none_or(|moved| {
+            moved.type_identity == produced.type_identity
+                && moved.multiplicity == produced.multiplicity
+        })
 }
 
 /// Whether the operation at `index` is the move-out or store of a

@@ -994,9 +994,9 @@ pub(in crate::execution::terminal_unit) fn build(
                     result,
                     replacement,
                 } => {
-                    call_result_stores.push(replacement.move_out);
+                    structural_store_bindings = usize::from(replacement.move_out.is_some());
+                    call_result_stores.extend(replacement.move_out);
                     call_result_stores.push(replacement.store);
-                    structural_store_bindings = 1;
                     displaced_discard = replacement.displaced_discard;
                     // The store consumes this call's whole result, so the
                     // binding stays anonymous: no local claims it, and the
@@ -1658,11 +1658,22 @@ fn consume_result(
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
+                | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
                     if result.binding_ordinal == binding_ordinal)
     });
     let producer = producers.next()?;
     if producers.next().is_some() {
         return None;
+    }
+    // A detached field owns its moved custody, not a newly minted automatic
+    // return discard. The ordinary call/store may consume that whole value;
+    // source ownership and independent replay still account for every use.
+    // Its original place's restoration debt remains in OpenWindows.
+    if matches!(
+        producer,
+        CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+    ) {
+        return (access != CheckedStructuralAccess::Owned || !projected).then_some(());
     }
     if let CheckedUnitEffectOperationPlan::StructuralCall { custody, .. } = producer
         && custody.reference_loan.is_valid()

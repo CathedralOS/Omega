@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 12, "jobs": null, "load1_end": 61.26, "load1_start": 60.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 21.24, "load1_start": 21.24, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -684,7 +684,8 @@ pass/ownership/linear_transfer_and_consume rejected 488ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
 pass/ownership/linear_transparent_record_frontier rejected 508ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
-pass/ownership/move_keyword_field_assignment checked 191ms
+pass/ownership/move_keyword_field_assignment built 606ms exit:41 @ed1fb1257faf+wt
+pass/ownership/runtime_borrowed_record_transform_exit built 625ms exit:42 @ed1fb1257faf+wt
 pass/parameters/shared_and_mut_borrow_params_compile checked 205ms
 pass/parser/deep_nesting_within_limit checked 188ms
 pass/parser/invariant_is_an_identifier checked 211ms

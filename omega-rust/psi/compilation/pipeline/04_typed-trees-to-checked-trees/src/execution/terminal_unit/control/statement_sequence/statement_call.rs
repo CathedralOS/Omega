@@ -260,40 +260,51 @@ pub(super) fn plan(
     }
     if let Some((result, _)) = &mut structural_result {
         let binding_ordinal = u32::try_from(*structural_count).ok()?;
-        // Assignment planning reserves the result and displaced field before
-        // operand establishment. Copies and nested calls take earlier slots;
-        // keep the immediate replacement continuation tied to its producer.
+        // Assignment planning reserves the result before operand establishment.
+        // Copies and nested calls take earlier slots; rebind the store to its
+        // actual producer. Only an occupied destination has a displaced value.
         if !call_result_stores.is_empty() {
-            let [
-                CheckedUnitEffectOperationPlan::MoveStructuralField {
-                    result: displaced, ..
-                },
-                CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. },
-            ] = call_result_stores.as_mut_slice()
-            else {
+            let (store, displacement) = call_result_stores.split_last_mut()?;
+            let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } = store else {
                 return None;
             };
-            let old_displaced = result.binding_ordinal.checked_add(1)?;
             let old_source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
             };
-            if displaced.binding_ordinal != old_displaced || value.source != old_source {
+            if value.source != old_source {
                 return None;
             }
-            displaced.binding_ordinal = binding_ordinal.checked_add(1)?;
             value.source =
                 CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal };
-            if let Some(discard) = &mut displaced_discard {
-                if discard.source
-                    != (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal: old_displaced,
-                    })
-                {
+            match displacement {
+                [] if structural_store_bindings == 0 && displaced_discard.is_none() => {}
+                [
+                    CheckedUnitEffectOperationPlan::MoveStructuralField {
+                        result: displaced, ..
+                    },
+                ] if structural_store_bindings == 1 => {
+                    let old_displaced = result.binding_ordinal.checked_add(1)?;
+                    if displaced.binding_ordinal != old_displaced {
+                        return None;
+                    }
+                    displaced.binding_ordinal = binding_ordinal.checked_add(1)?;
+                    if let Some(discard) = &mut displaced_discard {
+                        if discard.source
+                            != (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal: old_displaced,
+                            })
+                        {
+                            return None;
+                        }
+                        discard.source =
+                            CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal: displaced.binding_ordinal,
+                            };
+                    }
+                }
+                _ => {
                     return None;
                 }
-                discard.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: displaced.binding_ordinal,
-                };
             }
         }
         result.binding_ordinal = binding_ordinal;

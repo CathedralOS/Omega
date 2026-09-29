@@ -6,7 +6,9 @@
 
 use crate::execution::terminal_unit::cleanup::service_reach_is_empty;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::types::{base_type_identity, machine_binders, state_flow};
+use crate::execution::terminal_unit::types::{
+    ShapeCollector, base_type_identity, machine_binders, state_flow,
+};
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
@@ -102,18 +104,48 @@ pub(super) fn build(
                     })
                     .nth(argument_index)
                     .is_some_and(|parameter| {
-                        !parameter.is_self
-                            && (validation::is_closed_primitive_array_type(
+                        // Typed Self names the machine, not its data carrier.
+                        // Use the same checked signature that declares the
+                        // callee's receiver; this also covers non-generic
+                        // attachments without a retained owner application.
+                        if parameter.is_self {
+                            let Some((_, parameters, _)) = super::structural_scalar_signature(
                                 program,
-                                parameter.type_reference,
+                                &mut ShapeCollector::new(program),
+                                target_machine,
+                                target_state,
+                                &[],
+                                false,
+                            ) else {
+                                return false;
+                            };
+                            return parameters.iter().find(|formal| formal.is_self).is_some_and(
+                                |formal| {
+                                    formal.access == CheckedStructuralAccess::Owned
+                                        && matches!(
+                                            formal.multiplicity,
+                                            Multiplicity::Affine | Multiplicity::Unrestricted
+                                        )
+                                        && formal.type_identity == argument.type_identity
+                                        && formal.qualifications.is_empty()
+                                        && formal.projected_qualifications.is_empty()
+                                        && formal.fused_service_erasure.is_none()
+                                        && argument.path.is_empty()
+                                },
+                            );
+                        }
+                        let carrier = parameter.type_reference;
+                        (validation::is_closed_primitive_array_type(
+                                program,
+                                carrier,
                             ) || validation::has_plain_owned_contents_with_numeric_constraints(
                                 program,
-                                parameter.type_reference,
+                                carrier,
                             ) || validation::reference_result_custody::is_reference_record(
                                 program,
-                                parameter.type_reference,
+                                carrier,
                             ))
-                            && base_type_identity(program, parameter.type_reference, &[])
+                            && base_type_identity(program, carrier, &[])
                                 .is_some_and(|identity| identity == argument.type_identity)
                             // A projected owned operand names the exact
                             // declared-field subtree whose captured leaf the
@@ -124,7 +156,7 @@ pub(super) fn build(
                                 || (reference_loan.is_valid()
                                     && validation::reference_result_custody::is_reference_record(
                                         program,
-                                        parameter.type_reference,
+                                        carrier,
                                     )
                                     && argument.path.iter().all(|segment| {
                                         matches!(
@@ -306,8 +338,7 @@ fn view_result_loan(
     {
         return None;
     }
-    let ExpressionNode::Call(expression) =
-        program.expression_table.expression(local.initial_value)
+    let ExpressionNode::Call(expression) = program.expression_table.expression(local.initial_value)
     else {
         return None;
     };
@@ -644,8 +675,13 @@ pub(crate) fn view_self_member_symbol(
         .data_definitions()
         .iter()
         .find(|data| data.symbol == symbol)?;
-    program.data_members(data).iter().find_map(|member| match member {
-        typed_trees::data::DataMember::Field(field) if field.symbol == root => Some(field.symbol),
-        _ => None,
-    })
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.symbol == root => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
 }

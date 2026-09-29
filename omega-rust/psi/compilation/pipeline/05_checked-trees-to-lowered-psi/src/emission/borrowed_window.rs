@@ -1469,6 +1469,78 @@ mod tests {
         assert!(terminal_verifier::validate_module(&module(&emission, &receiver)).is_err());
     }
 
+    #[test]
+    fn transformed_owned_values_repair_holes_without_displacing_absent_content() {
+        for repair in [
+            "self.inventory = move taken.bump();",
+            "let updated: Inventory = taken.bump(); self.inventory = move updated;",
+        ] {
+            let source = format!(
+                "data Inventory {{ slots: i32; }}
+                 machine Inventory::bump(self) -> Inventory {{
+                     Inventory {{ slots: ((self.slots as i32 in Wrapping) + 1) as i32 }}
+                 }}
+                 data Main {{ inventory: Inventory; sibling: i32; }}
+                 machine Main::replace(&mut self) {{
+                     let taken: Inventory = self.inventory;
+                     self.sibling = 9;
+                     {repair}
+                 }}"
+            );
+            let checked = crate::front_end::checked_program(&source);
+            let lowered =
+                crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::replace"))
+                    .expect("ordinary call custody and exact-place restoration compose");
+            let profile = proof_admission::AdmissionProfile::default();
+            terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+                &profile,
+            )
+            .expect("transformed replacement independently verifies");
+            let moves = lowered
+                .semantic_module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .filter(|operation| {
+                    matches!(operation.kind, OperationKind::MoveStructuralField { .. })
+                })
+                .count();
+            assert_eq!(
+                moves, 1,
+                "repair cannot extract absent content a second time"
+            );
+            let mut unclosed = lowered.semantic_module.clone();
+            for block in unclosed
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+            {
+                block.operations.retain(|operation| {
+                    !matches!(operation.kind, OperationKind::StoreStructuralField { .. })
+                });
+            }
+            assert!(
+                terminal_verifier::verify_module(&unclosed, &lowered.proof_bundle, &profile,)
+                    .is_err(),
+                "consuming the detached value does not repair its original place"
+            );
+            let missing_repair = source.replace(repair, "");
+            assert!(crate::front_end::checked_program_result(&missing_repair).is_err());
+            let unchecked_arithmetic = source.replace(
+                "((self.slots as i32 in Wrapping) + 1) as i32",
+                "self.slots + 1",
+            );
+            let checked = crate::front_end::checked_program(&unchecked_arithmetic);
+            assert!(matches!(
+                crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::replace")),
+                Err(crate::LoweringError::OperationProofUnavailable(_))
+            ));
+        }
+    }
+
     /// The guide canary's body (`pass/ownership/move_keyword_field_assignment`)
     /// plans as a borrowed-window pair: the checked move-out/restore rows route
     /// through `BorrowedWindowLedger`, the emitted machine carries the Move and

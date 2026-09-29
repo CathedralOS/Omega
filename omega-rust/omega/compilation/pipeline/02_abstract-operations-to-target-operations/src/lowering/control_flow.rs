@@ -125,7 +125,8 @@ pub(super) fn lower(
                                                 | terminal_psi::StructuralTypeShape::Record { .. }
                                         )
                                     })))
-                        && !parameter.is_self))
+                        && (!parameter.is_self
+                            || owned_arguments::is_owned_parameter(parameter, structural_types))))
         }))
         || !function.entry_claims.is_empty()
     {

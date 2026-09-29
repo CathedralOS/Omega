@@ -684,6 +684,7 @@ pass/ownership/linear_transfer_and_consume rejected 786ms
 pass/ownership/linear_transparent_record_frontier rejected 773ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
 pass/ownership/move_keyword_field_assignment checked 306ms
+pass/ownership/runtime_borrowed_record_transform_exit checked 738ms @ed1fb1257faf+wt
 pass/parameters/shared_and_mut_borrow_params_compile checked 275ms
 pass/parser/deep_nesting_within_limit checked 306ms
 pass/parser/invariant_is_an_identifier checked 284ms

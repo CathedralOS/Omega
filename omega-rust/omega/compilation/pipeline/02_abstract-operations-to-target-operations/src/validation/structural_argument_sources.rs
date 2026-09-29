@@ -185,6 +185,11 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
                 psi_operation,
                 result,
                 ..
+            }
+            | AbstractOperation::MoveStructuralField {
+                psi_operation,
+                result,
+                ..
             } => (result.place, ExpectedSource::Aggregate(*psi_operation)),
             AbstractOperation::EstablishTrivialAffineLocal {
                 psi_operation,

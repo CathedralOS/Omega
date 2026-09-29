@@ -53,6 +53,61 @@ fn borrowed_scalar_call_preserves_verified_requirement_obligations() {
 }
 
 #[test]
+fn moved_field_receiver_rejoins_its_exact_establishing_operation() {
+    let source = source_plan(
+        r#"
+            data Item { value: i32; }
+            machine Item::bump(self) -> Item {
+                Item { value: ((self.value as i32 in Wrapping) + 1) as i32 }
+            }
+            data Main { item: Item; }
+            machine Main::run(&mut self) {
+                let taken: Item = self.item;
+                self.item = move taken.bump();
+            }
+        "#,
+    );
+    let extraction = source
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .find_map(|operation| match operation {
+            AbstractOperation::MoveStructuralField { psi_operation, .. } => Some(*psi_operation),
+            _ => None,
+        })
+        .expect("field extraction produces the consuming receiver");
+    for native in [
+        NativeTarget::macos_arm64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let mut target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("owned receiver uses its moved field home");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let argument = target.functions.iter_mut()
+            .flat_map(|function| &mut function.graph.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call { arguments, .. } => arguments.iter_mut().find(|argument| {
+                    matches!(argument.source,
+                        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation }
+                        if psi_operation == extraction)
+                }),
+                _ => None,
+            }).expect("call retains the extraction's exact home");
+        argument.source = target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: OperationId::new(999_999).unwrap(),
+        };
+        assert!(
+            crate::validate_abstract_to_target_translation(&source, native, &target).is_err(),
+            "an equal-shaped but unrelated producer cannot supply receiver custody"
+        );
+    }
+}
+
+#[test]
 fn copied_call_argument_rejoins_its_exact_establishing_operation() {
     let source = source_plan(
         r#"

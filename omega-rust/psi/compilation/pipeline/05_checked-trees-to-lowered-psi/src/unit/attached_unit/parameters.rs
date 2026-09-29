@@ -910,7 +910,11 @@ pub(crate) fn validate_transfer_shape(
                     } else {
                         Multiplicity::Affine
                     }
-                || (target.is_self && !record_borrow && !case_receiver_borrow)
+                || (target.is_self
+                    && !record_borrow
+                    && !case_receiver_borrow
+                    && !(argument.access == checked_trees::CheckedStructuralAccess::Owned
+                        && argument.path.is_empty()))
                 || !target.qualifications.is_empty()
                 || target.fused_service_erasure.is_some()
                 || transfers.iter().any(|transfer| {

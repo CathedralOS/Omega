@@ -1,4 +1,6 @@
 //! Owned aggregate actuals rejoin their exact incoming storage or dominating producer.
+//! The receiver role changes neither owned transport nor the required source
+//! identity, multiplicity, qualification, and dominance checks.
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target;
 use abstract_operations::AbstractStructuralCallResult;
@@ -30,7 +32,6 @@ pub(super) fn reconstruct(
     // parameter. Projected (path-beneath-root) qualifications still decline.
     if destination.access != terminal_psi::StructuralAccess::Owned
         || destination.multiplicity == StructuralMultiplicity::Linear
-        || destination.is_self
         || !destination.projected_qualifications.is_empty()
     {
         return Err(LegalizationError::custody());
@@ -57,7 +58,6 @@ pub(super) fn reconstruct(
             || parameter.structural_type != destination.structural_type
             || parameter.access != destination.access
             || parameter.multiplicity != destination.multiplicity
-            || parameter.is_self
             || parameter.qualifications != destination.qualifications
             || !parameter.projected_qualifications.is_empty()
         {
@@ -150,6 +150,7 @@ pub(super) fn reconstruct(
                 | AbstractOperation::EstablishRecord { psi_operation, result: actual, .. }
                 | AbstractOperation::EstablishCase { psi_operation, result: actual, .. }
                 | AbstractOperation::StructuralLeafCopy { psi_operation, result: actual, .. }
+                | AbstractOperation::MoveStructuralField { psi_operation, result: actual, .. }
                 | AbstractOperation::CallStructural {
                     psi_operation,
                     result: AbstractStructuralCallResult::Structural { result: actual, .. },
