@@ -149,6 +149,19 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
             }
         }
         symbol_resolved_trees::expression::ExpressionNode::Atomic(atomic) => {
+            // The instruction-observed prior has its own destination expression,
+            // distinct from references inside the arithmetic-shaped carrier.
+            // Resolve it in the same state scope so downstream consumers bind
+            // the declared local by identity, never by retained spelling.
+            assign_expression_table_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                atomic.result,
+            );
             assign_expression_table_symbols(
                 symbols,
                 machine,
