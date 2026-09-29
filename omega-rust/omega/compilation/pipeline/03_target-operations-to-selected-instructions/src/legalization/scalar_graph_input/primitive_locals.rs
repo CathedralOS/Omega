@@ -104,6 +104,16 @@ pub(super) fn validate(
                         return Err(LegalizationError::custody());
                     }
                     local.structural_type
+                } else if let Ok((operation, local)) =
+                    super::structural_case::source_result(function, *source)
+                {
+                    // An aggregate establishment owns the original referent.
+                    // Its declaration, restrictions and complete projection
+                    // remain independently checked just like a parameter's.
+                    if path.is_empty() || !valid_result(function, operation, local) {
+                        return Err(LegalizationError::custody());
+                    }
+                    local.structural_type
                 } else {
                     let parameter = function
                         .structural_parameters

@@ -75,9 +75,10 @@ build authority, and artifact verification remain separate obligations.
   lends `&mut` whole (`pass/calls/local_fixed_byte_array_loan_exit`,
   `pass/slices/local_array_element_view_exit`). `dutch_flag` (70),
   `modular_exponentiation` (87), `value_call_in_expr` (70) and `slice_maximum`
-  (9) run with native/interpreter agreement. Remaining local-storage refusals
-  sit before Omega stage 02: stage 00 `InvalidPrimitiveScalarRead` for an
-  element read of a local array (`buffer[0]`); Psi stage 04 `call operation:
+  (9) run with native/interpreter agreement. Direct scalar element reads from
+  local arrays retain the original home after a borrowed writer
+  (`pass/calls/local_array_direct_read_exit`, native exit 70 on macOS ARM64).
+  Remaining local-storage refusals sit in Psi stage 04: `call operation:
   claim-free affine result` for an ordinary structural-result call taking any
   local loan (`&mut score`, `&mut buffer`), and `structural arguments: caller
   structural result` for a projected loan of a local (`&dash.engine`). Stage 02

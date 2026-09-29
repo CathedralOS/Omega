@@ -77,7 +77,11 @@ pub(super) fn validate_primitive_scalar_read(
     let expected_indices = if terminal_psi::is_static_structural_path(expected_path) {
         Vec::new()
     } else {
-        let root = optimized
+        let root_type = scalar_graph_input::structural_case::source_result(optimized, *expected)
+            .ok()
+            .map(|(_, result)| result.structural_type)
+            .or_else(|| {
+                optimized
             .structural_parameters
             .iter()
             .chain(
@@ -93,10 +97,12 @@ pub(super) fn validate_primitive_scalar_read(
                     }),
             )
             .find(|parameter| parameter.place == *expected)
+            .map(|parameter| parameter.structural_type)
+            })
             .ok_or(invalid.clone())?;
         let (_, _, elements) =
             crate::structural_inputs::structural_reference_input::primitive_read_geometry(
-                root.structural_type,
+                root_type,
                 expected_path,
                 result.scalar_type,
                 &unit.structural_types,

@@ -678,3 +678,144 @@ fn owned_record_field_store_rejoins_its_producer_and_home() {
         }
     }
 }
+
+#[test]
+fn local_array_primitive_read_rejoins_original_home_and_projected_offset() {
+    use terminal_psi::StructuralPathSegment;
+
+    let scalar = integer(IntegerSign::Unsigned, 8);
+    let mut source = fixture(scalar);
+    let array = StructuralTypeId::new(2).unwrap();
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: array,
+            identity: "LocalBytes".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: StructuralTypeId::new(1).unwrap(),
+                length: 4,
+            },
+        });
+    let function = &mut source.functions[0];
+    let returned = function.operations.pop().unwrap();
+    function.operations = vec![
+        AbstractOperation::EstablishZeroedStructural {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: PlaceId::new(1).unwrap(),
+                structural_type: array,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+        },
+        AbstractOperation::PrimitiveScalarRead {
+            psi_operation: OperationId::new(2).unwrap(),
+            result: AbstractResult {
+                value: ValueId::new(1).unwrap(),
+                scalar_type: scalar,
+            },
+            source: PlaceId::new(1).unwrap(),
+            path: vec![StructuralPathSegment::FixedIndex(2)],
+        },
+        returned,
+    ];
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legalized = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legalized.plan().clone()).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+
+        for mutation in 0..3 {
+            let mut changed = legalized.plan().clone();
+            let row = changed.scalar_functions[0].blocks[0]
+                .instructions
+                .iter_mut()
+                .find(|row| {
+                    matches!(
+                        row.kind,
+                        LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
+                    )
+                })
+                .unwrap();
+            let LegalizedScalarInstructionKind::PrimitiveScalarRead {
+                source: read_source,
+                path,
+                ..
+            } = &mut row.kind
+            else {
+                panic!("projected local read");
+            };
+            match mutation {
+                0 => path[0] = StructuralPathSegment::FixedIndex(3),
+                1 => *read_source = PlaceId::new(99).unwrap(),
+                _ => row.result.as_mut().unwrap().scalar_type = integer(IntegerSign::Unsigned, 16),
+            }
+            assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
+        }
+
+        let mut changed = selected.plan().clone();
+        let load = changed.functions[0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find(|row| {
+                row.provenance.operations == [OperationId::new(2).unwrap()]
+                    && matches!(
+                        row.kind,
+                        selected_instructions::SelectedInstructionKind::Load8 { .. }
+                    )
+            })
+            .expect("projected byte load");
+        let selected_instructions::SelectedInstructionKind::Load8 { byte_offset } = &mut load.kind
+        else {
+            panic!("byte load");
+        };
+        *byte_offset += 1;
+        assert!(
+            crate::validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                changed,
+            )
+            .is_err(),
+            "a neighboring byte cannot substitute for the retained element"
+        );
+    }
+}

@@ -160,8 +160,8 @@ pub(super) fn project_borrowed_window(
 }
 
 /// One primitive observation. A projection through runtime elements joins
-/// each to its selector and certificate; its root is then a structural
-/// parameter, since a primitive local has no projection.
+/// each to its selector and certificate over the original declared root,
+/// whether supplied by a parameter or an established aggregate home.
 pub(super) fn project_primitive_scalar_read(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
@@ -179,7 +179,11 @@ pub(super) fn project_primitive_scalar_read(
     let indices = if terminal_psi::is_static_structural_path(path) {
         Vec::new()
     } else {
-        let root = optimized
+        let root_type = scalar_graph_input::structural_case::source_result(optimized, *source)
+            .ok()
+            .map(|(_, result)| result.structural_type)
+            .or_else(|| {
+                optimized
             .structural_parameters
             .iter()
             .chain(
@@ -195,10 +199,12 @@ pub(super) fn project_primitive_scalar_read(
                     }),
             )
             .find(|parameter| parameter.place == *source)
+            .map(|parameter| parameter.structural_type)
+            })
             .ok_or(Error::custody())?;
         let (_, _, elements) =
             crate::structural_inputs::structural_reference_input::primitive_read_geometry(
-                root.structural_type,
+                root_type,
                 path,
                 result.scalar_type,
                 &unit.structural_types,
