@@ -206,3 +206,138 @@ fn case_literal_binds_an_interval_domain_payload_with_its_range_obligation() {
     )
     .expect("the range obligation independently verifies");
 }
+
+/// A common field sits at one offset in every case, so `self.event.bonus = 70`
+/// stores it directly -- a `Field` path to the mixed carrier and the common
+/// field's id, no `Case` step -- and verification admits exactly that field.
+#[test]
+fn mixed_common_field_store_writes_without_a_case_step() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Event {
+            consumed: bool;
+            bonus: i32;
+            case Nothing;
+            case Treasure(gold: i32);
+        }
+        data Main { event: Event; }
+        machine Main::run(&mut self) {
+            self.event.bonus = 70;
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("a mixed common-field store lowers");
+    let module = &lowered.semantic_module;
+    let StructuralTypeShape::Mixed { fields: common, .. } = &module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.identity.contains("Event"))
+        .expect("the mixed declaration")
+        .shape
+    else {
+        panic!("Event lowers as a mixed shape");
+    };
+    let bonus = common
+        .iter()
+        .find(|field| field.identity.contains("bonus"))
+        .expect("the common `bonus` field")
+        .id;
+    let stores = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::StructuralScalarFieldStore { path, field, .. } => Some((path, *field)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [(path, field)] = stores.as_slice() else {
+        panic!("one common-field store, found {stores:?}");
+    };
+    assert_eq!(*field, bonus);
+    assert!(
+        matches!(path.as_slice(), [terminal_psi::StructuralPathSegment::Field(event)] if event.contains("event")),
+        "the store reaches the carrier by field alone: {path:?}"
+    );
+    terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the common-field store verifies");
+
+    // A store naming no common field of the carrier is not a direct field
+    // write, whatever the payloads declare.
+    let mut forged = module.clone();
+    for operation in forged
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+    {
+        if let OperationKind::StructuralScalarFieldStore { field, .. } = &mut operation.kind {
+            *field = semantic_vocabulary::StructuralFieldId::new(99).unwrap();
+        }
+    }
+    assert!(
+        terminal_verifier::verify_module(
+            &forged,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a store of an undeclared common field rejects"
+    );
+}
+
+/// Coverage ranges over a mixed value's cases only: its common fields select
+/// nothing, so a dispatch naming every case needs no fallback arm, with two
+/// arms as with three.
+#[test]
+fn exhaustive_mixed_dispatch_needs_no_fallback() {
+    for (source, machine) in [
+        (
+            r#"
+            data Event { bonus: i32; case Nothing; case Treasure(gold: i32); }
+            data Main { event: Event; }
+            machine Main::run(&mut self) -> i32 {
+                transition self.event {
+                    Event::Nothing -> none()
+                    Event::Treasure { gold } -> found(gold)
+                }
+                state none(&mut self) -> i32 { 1 }
+                state found(&mut self, gold: i32) -> i32 { gold }
+            }
+        "#,
+            "Main::run",
+        ),
+        (
+            r#"
+            data Event { bonus: i32; case Nothing; case Treasure(gold: i32); case Enemy(strength: i32); }
+            data Main { event: Event; }
+            machine Main::run(&mut self) -> i32 {
+                transition self.event {
+                    Event::Nothing -> none()
+                    Event::Treasure { gold } -> found(gold)
+                    Event::Enemy { strength } -> found(strength)
+                }
+                state none(&mut self) -> i32 { 1 }
+                state found(&mut self, value: i32) -> i32 { value }
+            }
+        "#,
+            "Main::run",
+        ),
+    ] {
+        let checked = crate::front_end::checked_program(source);
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
+            .expect("an exhaustive mixed dispatch lowers");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("an exhaustive mixed dispatch verifies");
+    }
+}

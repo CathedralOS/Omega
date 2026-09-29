@@ -799,26 +799,34 @@ pub(super) fn validate_structural_scalar_field_store(
         .iter()
         .find(|declaration| declaration.id == parent_type)
         .and_then(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.iter().find_map(|candidate| {
-                (candidate.id == *field && !candidate.relevance.is_erased())
-                    .then_some(&candidate.field_type)
-                    .and_then(|field_type| match field_type {
-                        StructuralFieldType::Scalar(scalar_type) if range_obligation.is_none() => {
-                            Some(*scalar_type)
-                        }
-                        StructuralFieldType::BoundedInteger(bounds)
-                            if range_obligation.is_some() =>
-                        {
-                            Some(semantic_vocabulary::ScalarType::Integer(
-                                bounds.integer_type(),
-                            ))
-                        }
-                        StructuralFieldType::IeeeFloat(format) if range_obligation.is_none() => {
-                            Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
-                        }
-                        _ => None,
-                    })
-            }),
+            // A mixed shape's common fields are direct fields at one offset
+            // in every case; payload fields stay out of reach of this store.
+            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+                fields.iter().find_map(|candidate| {
+                    (candidate.id == *field && !candidate.relevance.is_erased())
+                        .then_some(&candidate.field_type)
+                        .and_then(|field_type| match field_type {
+                            StructuralFieldType::Scalar(scalar_type)
+                                if range_obligation.is_none() =>
+                            {
+                                Some(*scalar_type)
+                            }
+                            StructuralFieldType::BoundedInteger(bounds)
+                                if range_obligation.is_some() =>
+                            {
+                                Some(semantic_vocabulary::ScalarType::Integer(
+                                    bounds.integer_type(),
+                                ))
+                            }
+                            StructuralFieldType::IeeeFloat(format)
+                                if range_obligation.is_none() =>
+                            {
+                                Some(semantic_vocabulary::ScalarType::IeeeFloat(*format))
+                            }
+                            _ => None,
+                        })
+                })
+            }
             _ => None,
         })
     else {

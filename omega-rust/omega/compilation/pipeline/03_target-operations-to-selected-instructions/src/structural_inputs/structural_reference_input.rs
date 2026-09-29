@@ -1090,6 +1090,14 @@ pub(crate) fn store(
     if !terminal_psi::is_structural_scalar_store_path(path) {
         return None;
     }
+    // A mixed shape's common field is written in place, beside the tag, with
+    // no case knowledge: the same geometry its read observes.
+    if let Some((carrier, carrier_offset, elements)) = runtime_projection(root, path, declarations)
+        && let Some((offset, bytes)) =
+            mixed_common_field_geometry(carrier, field, scalar, declarations)
+    {
+        return Some((carrier_offset.checked_add(offset)?, bytes, elements));
+    }
     // Current-IR validation binds every bounded write to its accepted range
     // proposition. This helper checks physical geometry, not proof authority.
     scalar_field_geometry(root, path, field, scalar, declarations, false)
@@ -1230,6 +1238,19 @@ fn mixed_common_field_read(
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8)> {
     let (carrier, carrier_offset) = project(structural_type, path, declarations)?;
+    let (offset, bytes) = mixed_common_field_geometry(carrier, field, scalar, declarations)?;
+    Some((carrier_offset.checked_add(offset)?, bytes))
+}
+
+/// The offset within `carrier` and the width of its relevant scalar common
+/// `field`. `None` when `carrier` is not a mixed shape declaring that field
+/// with exactly this scalar type.
+fn mixed_common_field_geometry(
+    carrier: StructuralTypeId,
+    field: StructuralFieldId,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8)> {
     let StructuralTypeShape::Mixed { fields, .. } = &declarations
         .iter()
         .find(|declaration| declaration.id == carrier)?
@@ -1250,8 +1271,7 @@ fn mixed_common_field_read(
         .get(position)
         .copied()?;
     let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
-    (placed.shape.byte_size == u32::from(bytes))
-        .then_some((carrier_offset.checked_add(placed.byte_offset)?, bytes))
+    (placed.shape.byte_size == u32::from(bytes)).then_some((placed.byte_offset, bytes))
 }
 
 /// Case payload geometry for one scalar observation. `path` is the runtime

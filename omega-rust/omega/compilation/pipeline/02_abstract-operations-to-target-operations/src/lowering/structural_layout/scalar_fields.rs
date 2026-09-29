@@ -39,11 +39,29 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
         .get(&structural_type)
         .copied()
         .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+    let mut cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    // A mixed shape's common field sits after the tag at the offset the
+    // conventional sum layout assigns it, the same in every case.
+    if let StructuralTypeShape::Mixed { fields, .. } = &declaration.shape {
+        let (position, candidate) = fields
+            .iter()
+            .filter(|candidate| !candidate.relevance.is_erased())
+            .enumerate()
+            .find(|(_, candidate)| candidate.id == field)
+            .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
+        if candidate.field_type.scalar_type() != Some(expected_type) {
+            return Err(LoweringError::UnknownStructuralType(structural_type));
+        }
+        return super::structural_sum_layout(structural_type, declarations, &mut cache, &mut active)?
+            .common_fields
+            .get(position)
+            .map(|common| common.byte_offset)
+            .ok_or(LoweringError::UnknownStructuralType(structural_type));
+    }
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return Err(LoweringError::UnknownStructuralType(structural_type));
     };
-    let mut cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     let mut offset = 0_u32;
     for candidate in fields
         .iter()

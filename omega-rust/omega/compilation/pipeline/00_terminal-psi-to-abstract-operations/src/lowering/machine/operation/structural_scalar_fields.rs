@@ -134,7 +134,11 @@ fn lower_store(
         .iter()
         .find(|candidate| candidate.id == parent_type)
         .ok_or_else(invalid)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    // A mixed shape's common field is a direct field at one offset in every
+    // case, stored without case knowledge exactly as a record field.
+    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+        &declaration.shape
+    else {
         return Err(invalid());
     };
     let declaration = fields
@@ -438,8 +442,8 @@ fn observed_scalar_field(
         return unique_relevant_scalar_field(carrier.fields, field, true);
     }
     // A read also reaches a mixed shape's common field, which sits on the
-    // carrier beside the tag whatever case is active. Stores keep the
-    // record-only `direct_relevant_scalar_field`.
+    // carrier beside the tag whatever case is active; a store reaches the same
+    // common fields through `direct_relevant_scalar_field`.
     let carrier = terminal_semantics::record_field_carrier(structural_types.iter(), root, path)?;
     let declaration = exact_structural_type(structural_types, carrier.structural_type)?;
     let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
@@ -457,7 +461,9 @@ fn direct_relevant_scalar_field(
     allow_bounded_integer: bool,
 ) -> Option<ScalarType> {
     let declaration = exact_structural_type(structural_types, structural_type)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+        &declaration.shape
+    else {
         return None;
     };
     unique_relevant_scalar_field(fields, field, allow_bounded_integer)

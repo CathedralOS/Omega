@@ -1364,7 +1364,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/scalar_fields.rs",
-        sha256: Some("8a265aeee3638b09136322dc825ca695f36a7f698b1fc19663b9898a0ea44009"),
+        sha256: Some("26933d473dbd9d20c0740da2b2f9a76defe12dfae6b161791e3ff178d7ab71b7"),
         inventory_machinery: false,
     },
     ImplementationSite {

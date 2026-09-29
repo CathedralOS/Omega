@@ -760,8 +760,8 @@ fn observed_scalar_field(
         return relevant_scalar_field(carrier.fields, field, true);
     }
     // A read also reaches a mixed shape's common field, which sits on the
-    // carrier beside the tag whatever case is active. Stores keep the
-    // record-only `direct_relevant_scalar_field`.
+    // carrier beside the tag whatever case is active; a store reaches the same
+    // common fields through `direct_relevant_scalar_field`.
     let carrier =
         terminal_semantics::record_field_carrier(structural_types.values().copied(), root, path)?;
     let (terminal_psi::StructuralTypeShape::Record { fields }
@@ -780,7 +780,9 @@ fn direct_relevant_scalar_field(
     allow_bounded_integer: bool,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let (terminal_psi::StructuralTypeShape::Record { fields }
+    | terminal_psi::StructuralTypeShape::Mixed { fields, .. }) = &declaration.shape
+    else {
         return None;
     };
     relevant_scalar_field(fields, field, allow_bounded_integer)
