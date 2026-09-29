@@ -1,0 +1,19 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { value: i32; }
+data Main {
+    console: Binding<Console>;
+    cell: Cell;
+}
+
+machine Cell::get(&self) -> i32 {
+    transition { _ -> done() }
+    state done(&self) -> i32 { 70 }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.cell.value = 41;
+    let result: i32 = self.cell.get();
+    self.console.exit_process(result);
+}
