@@ -968,5 +968,8 @@ fn array_element_type(
     }
 }
 
+mod float_conversion_casts;
+pub use float_conversion_casts::bind_float_conversion_casts;
+
 #[cfg(test)]
 mod tests;

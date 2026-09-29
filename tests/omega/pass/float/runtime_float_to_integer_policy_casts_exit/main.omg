@@ -1,0 +1,106 @@
+// Float-to-integer policy casts execute through their selected conversion
+// (exit 70). `value as i32 in Saturating` selects the destination-owned
+// `I32::from_f64` overload whose result is `i32 in Saturating`: toward-zero
+// truncation that clamps to the carrier and maps NaN to zero. The casts sit
+// in a field store, a qualified local, an erased local, a guard operand and
+// over a nested float application, for f64 and f32 sources and signed and
+// unsigned destinations:
+//   3e9 -> i32 2147483647, -3e9 -> i32 -2147483648, NaN -> i32 0,
+//   -7.9 -> i32 -7 (guard), 20 * 1.8 + 32 -> i32 68,
+//   300.5 -> u8 255, -5.5 -> u8 0, -40000.75f32 -> i16 -32768.
+// Each wrong value exits with its own code between 71 and 78.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    huge: f64;
+    negative_huge: f64;
+    zero: f64;
+    fraction: f64;
+    celsius: f64;
+    above_byte: f64;
+    below_byte: f64;
+    below_short: f32;
+    high: i32;
+    fahrenheit: i32;
+    byte_high: u8;
+    short_low: i16;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.huge = 3000000000.0;
+    self.negative_huge = -3000000000.0;
+    self.zero = 0.0;
+    self.fraction = -7.9;
+    self.celsius = 20.0;
+    self.above_byte = 300.5;
+    self.below_byte = -5.5;
+    self.below_short = -40000.75f32;
+    self.high = (self.huge as i32 in Saturating) as i32;
+    transition self.high == 2147483647 {
+        true -> low()
+        _ -> fail(71)
+    }
+
+    state low(&mut self) {
+        let low: i32 in Saturating = self.negative_huge as i32 in Saturating;
+        let low_value: i32 = low as i32;
+        transition low_value == -2147483648 {
+            true -> nan()
+            _ -> fail(72)
+        }
+    }
+
+    state nan(&mut self) {
+        let nan: f64 = self.zero / self.zero;
+        let nan_value: i32 = (nan as i32 in Saturating) as i32;
+        transition nan_value == 0 {
+            true -> guard()
+            _ -> fail(73)
+        }
+    }
+
+    state guard(&mut self) {
+        transition (self.fraction as i32 in Saturating) as i32 == -7 {
+            true -> nested()
+            _ -> fail(74)
+        }
+    }
+
+    state nested(&mut self) {
+        self.fahrenheit = ((self.celsius * 1.8 + 32.0) as i32 in Saturating) as i32;
+        transition self.fahrenheit == 68 {
+            true -> unsigned_high()
+            _ -> fail(75)
+        }
+    }
+
+    state unsigned_high(&mut self) {
+        self.byte_high = (self.above_byte as u8 in Saturating) as u8;
+        transition self.byte_high == 255 {
+            true -> unsigned_low()
+            _ -> fail(76)
+        }
+    }
+
+    state unsigned_low(&mut self) {
+        let byte_low: u8 = (self.below_byte as u8 in Saturating) as u8;
+        transition byte_low == 0 {
+            true -> short_low()
+            _ -> fail(77)
+        }
+    }
+
+    state short_low(&mut self) {
+        self.short_low = (self.below_short as i16 in Saturating) as i16;
+        transition self.short_low == -32768 {
+            true -> good()
+            _ -> fail(78)
+        }
+    }
+
+    state good(&self) { self.console.exit_process(70); }
+    state fail(&self, code: i32) { self.console.exit_process(code); }
+}

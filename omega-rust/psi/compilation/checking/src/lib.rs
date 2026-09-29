@@ -151,7 +151,9 @@ pub use machine_calls::machine_specialization_identity::{
     recompute_checked_machine_specialization_commitment,
     validate_checked_machine_specialization_commitments,
 };
-pub use machine_calls::result_overloads::resolve_named_result_overloads;
+pub use machine_calls::result_overloads::{
+    bind_float_conversion_casts, resolve_named_result_overloads,
+};
 pub use proof_contracts::default_domains::{
     OpenInvariantCrashSite, build_open_invariant_crash_sites,
 };
