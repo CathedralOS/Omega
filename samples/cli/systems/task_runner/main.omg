@@ -78,7 +78,7 @@ machine Main::run_task(&mut self, task: Task) {
         self.runner.score = max;
     }
 
-    state done(&mut self) {}
+    state done() {}
 }
 
 machine Main::main(&mut self) reaches Console {

@@ -35,7 +35,7 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
     state do_cancel() {}
     state do_set(hour: i32 in Saturating, minute: i32 in Saturating) {}
     state do_snooze(minutes: i32 in Saturating) {}
-    state done(&mut self) {}
+    state done() {}
 }
 
 machine Main::main(&mut self) reaches Console {

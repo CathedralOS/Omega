@@ -62,13 +62,13 @@ machine Main::compute_cell_0(&mut self) {
         _ -> check_cur_0(cur, n)
     }
     state live_0(&mut self) { self.g.next[0] = 1; }
-    state check_cur_0(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_0(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_0(n)
             _ -> die_0()
         }
     }
-    state check_two_0(&mut self, n: i32 in Wrapping) {
+    state check_two_0(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_0()
             _ -> die_0()
@@ -87,13 +87,13 @@ machine Main::compute_cell_1(&mut self) {
         _ -> check_cur_1(cur, n)
     }
     state live_1(&mut self) { self.g.next[1] = 1; }
-    state check_cur_1(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_1(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_1(n)
             _ -> die_1()
         }
     }
-    state check_two_1(&mut self, n: i32 in Wrapping) {
+    state check_two_1(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_1()
             _ -> die_1()
@@ -112,13 +112,13 @@ machine Main::compute_cell_2(&mut self) {
         _ -> check_cur_2(cur, n)
     }
     state live_2(&mut self) { self.g.next[2] = 1; }
-    state check_cur_2(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_2(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_2(n)
             _ -> die_2()
         }
     }
-    state check_two_2(&mut self, n: i32 in Wrapping) {
+    state check_two_2(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_2()
             _ -> die_2()
@@ -137,13 +137,13 @@ machine Main::compute_cell_3(&mut self) {
         _ -> check_cur_3(cur, n)
     }
     state live_3(&mut self) { self.g.next[3] = 1; }
-    state check_cur_3(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_3(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_3(n)
             _ -> die_3()
         }
     }
-    state check_two_3(&mut self, n: i32 in Wrapping) {
+    state check_two_3(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_3()
             _ -> die_3()
@@ -162,13 +162,13 @@ machine Main::compute_cell_4(&mut self) {
         _ -> check_cur_4(cur, n)
     }
     state live_4(&mut self) { self.g.next[4] = 1; }
-    state check_cur_4(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_4(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_4(n)
             _ -> die_4()
         }
     }
-    state check_two_4(&mut self, n: i32 in Wrapping) {
+    state check_two_4(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_4()
             _ -> die_4()
@@ -189,13 +189,13 @@ machine Main::compute_cell_5(&mut self) {
         _ -> check_cur_5(cur, n)
     }
     state live_5(&mut self) { self.g.next[5] = 1; }
-    state check_cur_5(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_5(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_5(n)
             _ -> die_5()
         }
     }
-    state check_two_5(&mut self, n: i32 in Wrapping) {
+    state check_two_5(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_5()
             _ -> die_5()
@@ -216,13 +216,13 @@ machine Main::compute_cell_6(&mut self) {
         _ -> check_cur_6(cur, n)
     }
     state live_6(&mut self) { self.g.next[6] = 1; }
-    state check_cur_6(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_6(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_6(n)
             _ -> die_6()
         }
     }
-    state check_two_6(&mut self, n: i32 in Wrapping) {
+    state check_two_6(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_6()
             _ -> die_6()
@@ -241,13 +241,13 @@ machine Main::compute_cell_7(&mut self) {
         _ -> check_cur_7(cur, n)
     }
     state live_7(&mut self) { self.g.next[7] = 1; }
-    state check_cur_7(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_7(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_7(n)
             _ -> die_7()
         }
     }
-    state check_two_7(&mut self, n: i32 in Wrapping) {
+    state check_two_7(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_7()
             _ -> die_7()
@@ -266,13 +266,13 @@ machine Main::compute_cell_8(&mut self) {
         _ -> check_cur_8(cur, n)
     }
     state live_8(&mut self) { self.g.next[8] = 1; }
-    state check_cur_8(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_8(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_8(n)
             _ -> die_8()
         }
     }
-    state check_two_8(&mut self, n: i32 in Wrapping) {
+    state check_two_8(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_8()
             _ -> die_8()
@@ -293,13 +293,13 @@ machine Main::compute_cell_9(&mut self) {
         _ -> check_cur_9(cur, n)
     }
     state live_9(&mut self) { self.g.next[9] = 1; }
-    state check_cur_9(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_9(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_9(n)
             _ -> die_9()
         }
     }
-    state check_two_9(&mut self, n: i32 in Wrapping) {
+    state check_two_9(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_9()
             _ -> die_9()
@@ -320,13 +320,13 @@ machine Main::compute_cell_10(&mut self) {
         _ -> check_cur_10(cur, n)
     }
     state live_10(&mut self) { self.g.next[10] = 1; }
-    state check_cur_10(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_10(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_10(n)
             _ -> die_10()
         }
     }
-    state check_two_10(&mut self, n: i32 in Wrapping) {
+    state check_two_10(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_10()
             _ -> die_10()
@@ -345,13 +345,13 @@ machine Main::compute_cell_11(&mut self) {
         _ -> check_cur_11(cur, n)
     }
     state live_11(&mut self) { self.g.next[11] = 1; }
-    state check_cur_11(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_11(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_11(n)
             _ -> die_11()
         }
     }
-    state check_two_11(&mut self, n: i32 in Wrapping) {
+    state check_two_11(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_11()
             _ -> die_11()
@@ -370,13 +370,13 @@ machine Main::compute_cell_12(&mut self) {
         _ -> check_cur_12(cur, n)
     }
     state live_12(&mut self) { self.g.next[12] = 1; }
-    state check_cur_12(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_12(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_12(n)
             _ -> die_12()
         }
     }
-    state check_two_12(&mut self, n: i32 in Wrapping) {
+    state check_two_12(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_12()
             _ -> die_12()
@@ -395,13 +395,13 @@ machine Main::compute_cell_13(&mut self) {
         _ -> check_cur_13(cur, n)
     }
     state live_13(&mut self) { self.g.next[13] = 1; }
-    state check_cur_13(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_13(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_13(n)
             _ -> die_13()
         }
     }
-    state check_two_13(&mut self, n: i32 in Wrapping) {
+    state check_two_13(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_13()
             _ -> die_13()
@@ -420,13 +420,13 @@ machine Main::compute_cell_14(&mut self) {
         _ -> check_cur_14(cur, n)
     }
     state live_14(&mut self) { self.g.next[14] = 1; }
-    state check_cur_14(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_14(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_14(n)
             _ -> die_14()
         }
     }
-    state check_two_14(&mut self, n: i32 in Wrapping) {
+    state check_two_14(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_14()
             _ -> die_14()
@@ -445,13 +445,13 @@ machine Main::compute_cell_15(&mut self) {
         _ -> check_cur_15(cur, n)
     }
     state live_15(&mut self) { self.g.next[15] = 1; }
-    state check_cur_15(&mut self, cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state check_cur_15(cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
             true -> check_two_15(n)
             _ -> die_15()
         }
     }
-    state check_two_15(&mut self, n: i32 in Wrapping) {
+    state check_two_15(n: i32 in Wrapping) {
         transition n == 2 {
             true -> live2_15()
             _ -> die_15()

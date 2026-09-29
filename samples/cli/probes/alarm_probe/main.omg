@@ -38,7 +38,7 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
     state do_cancel() {}
     state do_trigger(&mut self) { self.fire_count = self.fire_count + 1; }
     state do_dismiss() {}
-    state done(&mut self) {}
+    state done() {}
 }
 
 machine Main::main(&mut self) reaches Console {

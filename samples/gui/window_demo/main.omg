@@ -185,7 +185,7 @@ reaches CoreGraphics + ObjectiveC
 macos_arm64 machine DemoGuiProvider::get_dc(&mut self, window: u64) -> u64  satisfies Gui::get_dc
 {
     transition { _ -> ret(window) }
-    state ret(&mut self, window: u64) -> u64 { window }
+    state ret(window: u64) -> u64 { window }
 }
 macos_arm64 machine DemoGuiProvider::msg_peek(&mut self, message: [u64; 6]) -> u32 satisfies Gui::msg_peek
 reaches ObjectiveC
@@ -201,8 +201,8 @@ reaches ObjectiveC
     // Arm states must stay side-effect-free (the value-call effect fence):
     // both arms complete with a pure terminal value instead of mutating r32.
     transition self.evt != 0 { true -> got() _ -> ret() }
-    state got(&mut self) -> u32 { 1 }
-    state ret(&mut self) -> u32 { 0 }
+    state got() -> u32 { 1 }
+    state ret() -> u32 { 0 }
 }
 macos_arm64 machine DemoGuiProvider::msg_translate(&mut self, message: [u64; 6]) -> u32  satisfies Gui::msg_translate
 {
