@@ -133,24 +133,23 @@ pub(super) fn index_structural_types(
                 *target,
             ));
         }
-        // The supported carrier is one borrow permission over one primitive
-        // scalar referent; shared and write-only carriers share the loan shape.
-        // A mutable join additionally admits a whole plain record referent —
-        // its address transports the aggregate like the scalar leaf.
+        // A borrow carrier is one borrow permission over one referent: a
+        // primitive scalar leaf or a whole plain record, whose address
+        // transports the aggregate like the scalar leaf.
         if let terminal_psi::StructuralTypeShape::Reference {
             referent, access, ..
         } = &declaration.shape
         {
             let admissible = match access {
-                terminal_psi::StructuralAccess::MutableBorrow => matches!(
+                terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::SharedBorrow => matches!(
                     types.get(referent).map(|referent| &referent.shape),
                     Some(
                         terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
                             | terminal_psi::StructuralTypeShape::Record { .. }
                     )
                 ),
-                terminal_psi::StructuralAccess::WriteOnlyBorrow
-                | terminal_psi::StructuralAccess::SharedBorrow => matches!(
+                terminal_psi::StructuralAccess::WriteOnlyBorrow => matches!(
                     types.get(referent).map(|referent| &referent.shape),
                     Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))
                 ),
