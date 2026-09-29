@@ -32,6 +32,7 @@ use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
 use crate::execution::terminal_unit::control::call_results::bind_scalar_call_result;
 use crate::execution::terminal_unit::control::call_results::bind_structural_call_result;
+use crate::execution::terminal_unit::control::call_results::checked_constructed_result_type;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
 use crate::execution::terminal_unit::control::structural_operands;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;

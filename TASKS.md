@@ -536,7 +536,7 @@ the complete product bar; focused successes below do not establish that baseline
 
   | Customer group | Capability owner and remaining acceptance |
   | --- | --- |
-  | `arithmetic/dual_float`, `basics/unit_converter`, `simulation/particle_sim`; `arithmetic/{sensor_min_max,vector_distance,fibonacci_golden}`; `basics/temperature_convert`, `rendering/{bouncing_ball_2d,mandelbrot,mandelbrot_zoom}` | **OPERATOR-BOUNDARY-CALLS**: executable float comparisons/arithmetic, nested value calls, and selected `F64::{minimum,maximum,from_i32}` respectively. Conversion is a separate operation from binary arithmetic. Retain `pending/arithmetic/float_computation_no_route`; adding `core::float_operations` only changes where the missing route is exposed. |
+  | `arithmetic/dual_float`, `basics/unit_converter`, `simulation/particle_sim`; `arithmetic/{sensor_min_max,vector_distance}`; `basics/temperature_convert`, `rendering/{bouncing_ball_2d,mandelbrot,mandelbrot_zoom}` | **OPERATOR-BOUNDARY-CALLS**: executable float comparisons/arithmetic, nested value calls, and `F64::{minimum,maximum}` call results respectively. Native float arithmetic, comparisons, min/max, square root and conversions are installed; `arithmetic/fibonacci_golden` meets its exit 161 oracle. Retain `pending/arithmetic/float_computation_no_route`; adding `core::float_operations` only changes where the missing route is exposed. |
   | `collections/entity_list`, `rendering/bouncing_particles` | **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**: runtime-indexed record-field reads and case selection, pinned by `pass/collections/runtime_indexed_record_field_read_exit` and `pass/control_flow/runtime_indexed_case_dispatch_exit`. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
   | `collections/matrix_multiply`, `rendering/dungeon_render`, `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**, **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. Retain `dungeon_render`'s field/glyph evidence under **NOMINAL-FIELD-FLOW** while verifying its complete program; transition transport is already implemented. |
@@ -1456,9 +1456,12 @@ crash and native exit behavior. Use affected check/native corpus slices under
   of the program without that store exits 70 with the coverage change. The
   interpreter's `EstablishStructuralCase` still requires a sum and keys payload
   scalars by field id on the root, where mixed common and payload ids collide.
-  Predicate domains stay outside the constructor's contents classifier. Repair
-  retained establishment through lowering; merely removing an admission guard
-  cannot supply the missing evidence.
+  A plain domain that means exactly an interval constructs as a bounded payload
+  whose range obligation verification proves, so
+  `ranges/sum_payload_range_arith_narrowed_exit` exits 70; any other predicate
+  domain stays outside the constructor's contents classifier. Repair retained
+  establishment through lowering; merely removing an admission guard cannot
+  supply the missing evidence.
 
   The pending `structs/case_field_type_store_shapes` actually contains only the
   common-field case; materialize its comment-only domain/erased controls and

@@ -164,6 +164,10 @@ pub(crate) fn validate(
         || expected_multiplicity != result.multiplicity
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
             || validation::has_cleanup_owned_contents(&checked.typed, carrier)
+            // A construction, like stage 04's constructed-value binding, may
+            // carry scalar members under an exact-interval domain; each member's
+            // range obligation proves it.
+            || validation::has_case_construction_contents(&checked.typed, carrier)
             || validation::reference_result_custody::is_reference_record(&checked.typed, reference)
             || validation::has_owned_or_shared_view_fields(&checked.typed, carrier)
             || view_carrier.is_some()
@@ -1618,7 +1622,10 @@ pub(crate) fn validate_local_ownership(
     let (_, source) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     if !symbol.is_valid()
-        || checked.state_parameters(source).iter().any(|parameter| parameter.symbol == symbol)
+        || checked
+            .state_parameters(source)
+            .iter()
+            .any(|parameter| parameter.symbol == symbol)
         || checked.state_local_declaration(source, symbol).is_none()
     {
         return unsupported("structural local has ambiguous source identity");

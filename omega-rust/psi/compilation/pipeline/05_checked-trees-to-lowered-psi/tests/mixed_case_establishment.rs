@@ -31,7 +31,12 @@ fn mixed_case_literal_zero_initializes_unnamed_common_fields() {
         .collect::<Vec<_>>();
     let [establishment] = operations
         .iter()
-        .filter(|operation| matches!(operation.kind, OperationKind::EstablishStructuralCase { .. }))
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishStructuralCase { .. }
+            )
+        })
         .collect::<Vec<_>>()[..]
     else {
         panic!("one mixed case establishment");
@@ -39,8 +44,14 @@ fn mixed_case_literal_zero_initializes_unnamed_common_fields() {
     let OperationKind::EstablishStructuralCase { fields, .. } = &establishment.kind else {
         unreachable!()
     };
-    let result = establishment.result.structural().expect("structural result");
-    let StructuralTypeShape::Mixed { fields: common, cases } = &module
+    let result = establishment
+        .result
+        .structural()
+        .expect("structural result");
+    let StructuralTypeShape::Mixed {
+        fields: common,
+        cases,
+    } = &module
         .structural_types
         .iter()
         .find(|declaration| declaration.id == result.structural_type)
@@ -69,7 +80,12 @@ fn mixed_case_literal_zero_initializes_unnamed_common_fields() {
         };
         operations
             .iter()
-            .find(|operation| operation.result.scalar().is_some_and(|result| result.id == value))
+            .find(|operation| {
+                operation
+                    .result
+                    .scalar()
+                    .is_some_and(|result| result.id == value)
+            })
             .map(|operation| operation.kind.clone())
             .expect("defined roster value")
     };
@@ -140,4 +156,53 @@ fn case_literal_leaves_erased_payload_members_out_of_the_roster() {
         &terminal_codec::decode_module(&bytes).expect("decode the roster"),
         module
     );
+}
+
+/// A payload member under a plain domain that means exactly an interval is a
+/// bounded carrier: construction binds it with a range obligation that
+/// independent verification proves from the literal.
+#[test]
+fn case_literal_binds_an_interval_domain_payload_with_its_range_obligation() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain i32::Ten requires 0 <= self && self <= 10;
+        data Cmd { case Dim(amount: i32 in Ten); case Off; }
+        data Main { command: Cmd; }
+        machine Main::run(&mut self) {
+            self.command = Cmd::Dim { amount: 7 };
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("an interval-domain payload lowers");
+    let module = &lowered.semantic_module;
+    let [fields] = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::EstablishStructuralCase { fields, .. } => Some(fields),
+            _ => None,
+        })
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("one case establishment");
+    };
+    let [amount] = fields.as_slice() else {
+        panic!("one payload member");
+    };
+    assert!(matches!(
+        amount.value,
+        RecordFieldValue::Scalar {
+            range_obligation: Some(_),
+            ..
+        }
+    ));
+    terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the range obligation independently verifies");
 }

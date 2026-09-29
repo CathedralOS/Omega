@@ -155,7 +155,7 @@ fn case_constructor_parts(
     // `[erased]` -- cleanup-owned contents admit them because they never
     // produce runtime storage (storage_contents.rs).
     let contents = if erased_member_owner {
-        crate::has_cleanup_owned_contents(program, reference)
+        crate::has_case_construction_contents(program, reference)
     } else {
         crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
     };
@@ -248,11 +248,9 @@ fn case_constructor_parts(
         }
         let erased = match common {
             Some(common) => common.relevance.is_erased(),
-            None => declarations
-                .iter()
-                .any(|declaration| {
-                    declaration.symbol == field.field_symbol && declaration.relevance.is_erased()
-                }),
+            None => declarations.iter().any(|declaration| {
+                declaration.symbol == field.field_symbol && declaration.relevance.is_erased()
+            }),
         };
         operands.push((field.field_symbol, field.value, declared, erased));
     }
@@ -279,8 +277,7 @@ pub fn scalar_case_constructor(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<ScalarCaseConstructor> {
-    let (reference, selected, operands) =
-        case_constructor_parts(program, expression, false)?;
+    let (reference, selected, operands) = case_constructor_parts(program, expression, false)?;
     let mut fields = Vec::with_capacity(operands.len());
     for (symbol, value, declared, ..) in operands {
         fields.push((symbol, value, program.primitive_type_reference(declared)?));

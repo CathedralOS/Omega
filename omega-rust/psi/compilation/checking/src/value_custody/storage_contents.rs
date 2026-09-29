@@ -60,6 +60,12 @@ enum ContentsRequirement {
     /// produce runtime contents. An erased member is still resolved so its
     /// declared type exists; its contents never materialize.
     CleanupOwned,
+    /// `CleanupOwned` contents a case literal establishes. A scalar member
+    /// may additionally carry a plain domain that means exactly an interval:
+    /// the bounded carrier represents membership completely and the
+    /// construction proves it through the member's own range obligation.
+    /// Every other `CleanupOwned` caller keeps refusing declared domains.
+    CaseConstruction,
     StableObservation,
     /// Contents an opaque `Binding<R>`/boundary-trait call seam may marshal as
     /// a caller-owned ABI copy while the observed place keeps custody of the
@@ -114,6 +120,21 @@ pub fn has_plain_owned_contents_with_numeric_constraints(
 /// it does not prove the caller's transfer or the hook's invocation.
 pub fn has_cleanup_owned_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     check_contents_requirement(program, reference, &[], ContentsRequirement::CleanupOwned)
+}
+
+/// Classify the contents a structural case literal establishes: exactly
+/// [`has_cleanup_owned_contents`], plus scalar members under a plain domain
+/// that means exactly an interval.
+pub fn has_case_construction_contents(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    check_contents_requirement(
+        program,
+        reference,
+        &[],
+        ContentsRequirement::CaseConstruction,
+    )
 }
 
 /// Classify value contents that an immutable binding can retain as an entry
@@ -361,10 +382,19 @@ fn resolve(
                     matches!(contents, ContentType::Scalar(_))
                 }
                 typed_trees::types::TypeConstraintNode::Domain(domain) => {
-                    matches!(
+                    (matches!(
                         requirement,
                         ContentsRequirement::StableObservation | ContentsRequirement::SeamMarshal
-                    ) && is_plain_value_domain(program, domain)
+                    ) && is_plain_value_domain(program, domain))
+                        // A plain domain that means exactly an interval adds no
+                        // storage, custody or cleanup to its scalar: the
+                        // bounded carrier represents membership completely,
+                        // and construction proves it through the member's own
+                        // range obligation.
+                        || (requirement == ContentsRequirement::CaseConstruction
+                            && matches!(contents, ContentType::Scalar(_))
+                            && is_plain_value_domain(program, domain)
+                            && crate::exact_declared_domain_interval(program, domain).is_some())
                 }
                 typed_trees::types::TypeConstraintNode::Named(_) => false,
             });
@@ -468,7 +498,10 @@ fn check_contents(
             matches!(ancestor, ContentType::Data(owner, _)
             if owner == symbol && resolved.size() >= ancestor.size())
         })
-        || (requirement != ContentsRequirement::CleanupOwned && owns_drop_hook(program, *symbol))
+        || (!matches!(
+            requirement,
+            ContentsRequirement::CleanupOwned | ContentsRequirement::CaseConstruction
+        ) && owns_drop_hook(program, *symbol))
     {
         return false;
     }
@@ -491,7 +524,9 @@ fn check_contents(
             // stable or cleanup-owned — only resolvable.
             return matches!(
                 requirement,
-                ContentsRequirement::CleanupOwned | ContentsRequirement::SeamMarshal
+                ContentsRequirement::CleanupOwned
+                    | ContentsRequirement::CaseConstruction
+                    | ContentsRequirement::SeamMarshal
             ) && resolve(program, field.type_reference, &substitutions, requirement)
                 .is_some();
         }
