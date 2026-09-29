@@ -68,18 +68,20 @@ pub(crate) fn scalar_fixture(
         AbstractOperation::DynamicDescriptorParameter {
             parameter: parameter.clone(),
         },
-        AbstractOperation::CallDynamicParameterScalar {
+        AbstractOperation::CallDynamic {
             psi_operation: operation,
-            result,
-            dynamic_dispatch: AbstractParameterDynamicDispatch {
-                parameter,
-                dispatch: TerminalParameterDynamicDispatch {
-                    owner: machine,
-                    operation,
-                    parameter_ordinal: 0,
-                    requirement_slot: 0,
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(
+                AbstractParameterDynamicDispatch {
+                    parameter,
+                    dispatch: TerminalParameterDynamicDispatch {
+                        owner: machine,
+                        operation,
+                        parameter_ordinal: 0,
+                        requirement_slot: 0,
+                    },
                 },
-            },
+            ),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
@@ -130,17 +132,20 @@ pub(crate) fn unit_fixture(
         AbstractOperation::DynamicDescriptorParameter {
             parameter: parameter.clone(),
         },
-        AbstractOperation::CallDynamicParameterUnit {
+        AbstractOperation::CallDynamic {
             psi_operation: operation,
-            dynamic_dispatch: AbstractParameterDynamicDispatch {
-                parameter,
-                dispatch: TerminalParameterDynamicDispatch {
-                    owner: machine,
-                    operation,
-                    parameter_ordinal: 0,
-                    requirement_slot: 0,
+            result: abstract_operations::AbstractDynamicCallResult::Unit,
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(
+                AbstractParameterDynamicDispatch {
+                    parameter,
+                    dispatch: TerminalParameterDynamicDispatch {
+                        owner: machine,
+                        operation,
+                        parameter_ordinal: 0,
+                        requirement_slot: 0,
+                    },
                 },
-            },
+            ),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },

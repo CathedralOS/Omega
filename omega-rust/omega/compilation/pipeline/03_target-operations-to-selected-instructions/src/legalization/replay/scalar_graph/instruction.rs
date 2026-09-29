@@ -780,8 +780,10 @@ pub(super) fn validate(
         ) => normalized_foreign::validate(actual, node, optimized, native, plan, unit, operation)?,
         (
             LegalizedScalarInstructionKind::DynamicParameterCall(_),
-            AbstractOperation::CallDynamicParameterScalar { .. }
-            | AbstractOperation::CallDynamicParameterUnit { .. },
+            AbstractOperation::CallDynamic {
+                dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
+                ..
+            },
         ) => call_instructions::validate_dynamic_parameter_call(
             actual, node, optimized, native, operation,
         )?,

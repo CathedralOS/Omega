@@ -172,11 +172,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::EstablishTrivialAffineLocal { .. }
         | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
-        | O::CallDynamicScalar { .. }
-        | O::CallStoredDynamicScalar { .. }
-        | O::CallDynamicParameterScalar { .. }
-        | O::CallDynamicUnit { .. }
-        | O::CallDynamicParameterUnit { .. }
+        | O::CallDynamic { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }

@@ -9,6 +9,35 @@ use terminal_psi::{
     TerminalStoredDynamicDispatch,
 };
 
+/// Descriptor custody of one dynamic call.
+///
+/// The three routes are different ownership facts, not spellings of one
+/// "descriptor" case. A rebound descriptor is caller-local and carries its
+/// initializer and latest selections; a stored descriptor is reloaded from an
+/// aggregate field established by a separate operation; a parameter descriptor
+/// is a runtime input whose table the caller cannot see. Consumers that
+/// differ by custody match on the payload; only byte-identical treatment may
+/// share an arm.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AbstractDynamicDispatch {
+    Rebound(AbstractReboundDynamicDispatch),
+    Stored(AbstractStoredDynamicDispatch),
+    Parameter(AbstractParameterDynamicDispatch),
+}
+
+impl AbstractDynamicDispatch {
+    /// The realization machine this call site names. Rebound and stored
+    /// custody retain the selected table row; a parameter descriptor's
+    /// realization is chosen by its incoming table at run time.
+    pub fn realization(&self) -> Option<MachineId> {
+        match self {
+            Self::Rebound(dispatch) => Some(dispatch.dispatch.realization),
+            Self::Stored(dispatch) => Some(dispatch.dispatch.realization),
+            Self::Parameter(_) => None,
+        }
+    }
+}
+
 /// Exact target-neutral custody for one rebound dynamic invocation.
 ///
 /// The two selections retain the initializer and latest runtime source. The

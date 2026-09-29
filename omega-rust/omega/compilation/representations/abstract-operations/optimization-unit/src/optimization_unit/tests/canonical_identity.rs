@@ -9,7 +9,10 @@ use crate::{
     encode_value_definition_site_identity, recompute_psi_optimization_unit_identity,
     reconstruct_psi_optimization_unit_seed, structural_domain_catalog_identity,
 };
-use abstract_operations::{AbstractFunctionResult, AbstractOperation, ValueBinding};
+use abstract_operations::{
+    AbstractDynamicCallResult, AbstractDynamicDispatch, AbstractFunctionResult, AbstractOperation,
+    ValueBinding,
+};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, ContentPlaceVersion, DomainSemanticId, EdgeId,
     FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
@@ -566,16 +569,22 @@ fn descriptor_call_identity_bytes_are_stable() {
     };
     let scalar = terminal_psi::ClosedConformanceCallableResult::I32;
     let unit = terminal_psi::ClosedConformanceCallableResult::Unit;
+    let call = |dispatch, result| AbstractOperation::CallDynamic {
+        psi_operation: id(1, OperationId::new),
+        dispatch,
+        result,
+        requirement_obligations: obligations(),
+        crash_continuations: crashes(),
+    };
+    let scalar_result = AbstractDynamicCallResult::Scalar(result);
+    let unit_result = AbstractDynamicCallResult::Unit;
     let fixtures = [
         (
             "rebound scalar (tag 52)",
-            AbstractOperation::CallDynamicScalar {
-                psi_operation: id(1, OperationId::new),
-                result,
-                dynamic_dispatch: rebound_descriptor_dispatch(scalar),
-                requirement_obligations: obligations(),
-                crash_continuations: crashes(),
-            },
+            call(
+                AbstractDynamicDispatch::Rebound(rebound_descriptor_dispatch(scalar)),
+                scalar_result,
+            ),
             [
                 14, 117, 76, 204, 124, 203, 192, 23, 74, 101, 115, 206, 37, 82, 185, 170, 87, 107,
                 52, 210, 172, 139, 161, 0, 175, 123, 144, 79, 214, 160, 87, 227,
@@ -583,13 +592,10 @@ fn descriptor_call_identity_bytes_are_stable() {
         ),
         (
             "parameter scalar (tag 53)",
-            AbstractOperation::CallDynamicParameterScalar {
-                psi_operation: id(1, OperationId::new),
-                result,
-                dynamic_dispatch: parameter_descriptor_dispatch(scalar),
-                requirement_obligations: obligations(),
-                crash_continuations: crashes(),
-            },
+            call(
+                AbstractDynamicDispatch::Parameter(parameter_descriptor_dispatch(scalar)),
+                scalar_result,
+            ),
             [
                 89, 89, 132, 117, 29, 123, 162, 194, 12, 183, 251, 18, 226, 99, 14, 225, 86, 63,
                 130, 1, 228, 71, 39, 54, 98, 165, 193, 149, 82, 187, 232, 42,
@@ -597,12 +603,10 @@ fn descriptor_call_identity_bytes_are_stable() {
         ),
         (
             "rebound unit (tag 57)",
-            AbstractOperation::CallDynamicUnit {
-                psi_operation: id(1, OperationId::new),
-                dynamic_dispatch: rebound_descriptor_dispatch(unit),
-                requirement_obligations: obligations(),
-                crash_continuations: crashes(),
-            },
+            call(
+                AbstractDynamicDispatch::Rebound(rebound_descriptor_dispatch(unit)),
+                unit_result,
+            ),
             [
                 91, 152, 75, 108, 39, 67, 252, 10, 43, 61, 50, 39, 239, 187, 104, 200, 132, 3, 187,
                 116, 77, 26, 187, 204, 2, 157, 69, 240, 115, 79, 189, 241,
@@ -610,12 +614,10 @@ fn descriptor_call_identity_bytes_are_stable() {
         ),
         (
             "parameter unit (tag 58)",
-            AbstractOperation::CallDynamicParameterUnit {
-                psi_operation: id(1, OperationId::new),
-                dynamic_dispatch: parameter_descriptor_dispatch(unit),
-                requirement_obligations: obligations(),
-                crash_continuations: crashes(),
-            },
+            call(
+                AbstractDynamicDispatch::Parameter(parameter_descriptor_dispatch(unit)),
+                unit_result,
+            ),
             [
                 185, 76, 125, 73, 73, 53, 148, 93, 121, 18, 50, 120, 126, 14, 161, 63, 59, 176, 83,
                 244, 141, 159, 224, 119, 1, 37, 175, 77, 66, 82, 51, 126,
@@ -623,16 +625,26 @@ fn descriptor_call_identity_bytes_are_stable() {
         ),
         (
             "stored scalar (tag 61)",
-            AbstractOperation::CallStoredDynamicScalar {
-                psi_operation: id(1, OperationId::new),
-                result,
-                dynamic_dispatch: stored_descriptor_dispatch(),
-                requirement_obligations: obligations(),
-                crash_continuations: crashes(),
-            },
+            call(
+                AbstractDynamicDispatch::Stored(stored_descriptor_dispatch()),
+                scalar_result,
+            ),
             [
                 216, 60, 23, 130, 89, 231, 1, 172, 196, 218, 207, 217, 111, 0, 133, 57, 186, 28,
                 141, 90, 156, 131, 113, 115, 19, 233, 92, 211, 217, 59, 248, 69,
+            ],
+        ),
+        // Stage 00 never produces stored custody with a Unit result; the
+        // encoder still gives it a distinct tag instead of panicking.
+        (
+            "stored unit (tag 93)",
+            call(
+                AbstractDynamicDispatch::Stored(stored_descriptor_dispatch()),
+                unit_result,
+            ),
+            [
+                117, 52, 133, 195, 34, 152, 211, 78, 42, 31, 244, 20, 71, 193, 6, 213, 156, 191,
+                11, 166, 222, 31, 108, 55, 30, 116, 17, 38, 250, 215, 170, 43,
             ],
         ),
     ];

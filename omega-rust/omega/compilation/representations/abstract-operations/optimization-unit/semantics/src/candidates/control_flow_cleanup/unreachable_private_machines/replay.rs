@@ -176,19 +176,7 @@ pub(crate) fn validator_machine_references(
                     }
                 }
             }
-            O::CallDynamicScalar {
-                dynamic_dispatch, ..
-            }
-            | O::CallDynamicUnit {
-                dynamic_dispatch, ..
-            } => {
-                references.insert(dynamic_dispatch.dispatch.realization);
-            }
-            O::CallStoredDynamicScalar {
-                dynamic_dispatch, ..
-            } => {
-                references.insert(dynamic_dispatch.dispatch.realization);
-            }
+            O::CallDynamic { dispatch, .. } => references.extend(dispatch.realization()),
             O::Return {
                 cleanup_actions, ..
             }
@@ -331,13 +319,15 @@ mod tests {
         let target = MachineId::new(99).unwrap();
         let operation = semantic_vocabulary::OperationId::new(9_101).unwrap();
         let mut call = unit.functions[0].blocks[0].nodes[0].clone();
-        call.operation = O::CallStoredDynamicScalar {
+        call.operation = O::CallDynamic {
             psi_operation: operation,
-            result: AbstractResult {
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(AbstractResult {
                 value: semantic_vocabulary::ValueId::new(9_102).unwrap(),
                 scalar_type: semantic_vocabulary::ScalarType::Boolean,
-            },
-            dynamic_dispatch: stored_dynamic_dispatch(caller, operation, target),
+            }),
+            dispatch: abstract_operations::AbstractDynamicDispatch::Stored(
+                stored_dynamic_dispatch(caller, operation, target),
+            ),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         };

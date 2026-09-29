@@ -56,15 +56,7 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
                         }
                     }
                 }
-                O::CallDynamicScalar {
-                    dynamic_dispatch, ..
-                }
-                | O::CallDynamicUnit {
-                    dynamic_dispatch, ..
-                } => callees.push(dynamic_dispatch.dispatch.realization),
-                O::CallStoredDynamicScalar {
-                    dynamic_dispatch, ..
-                } => callees.push(dynamic_dispatch.dispatch.realization),
+                O::CallDynamic { dispatch, .. } => callees.extend(dispatch.realization()),
                 O::Return {
                     cleanup_actions, ..
                 }

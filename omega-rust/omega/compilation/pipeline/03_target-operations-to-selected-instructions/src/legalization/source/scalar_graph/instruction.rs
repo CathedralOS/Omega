@@ -280,10 +280,10 @@ pub(super) fn project(
                 node, optimized, native, plan, unit, operation, custody,
             )?
         }
-        AbstractOperation::CallDynamicParameterScalar { .. }
-        | AbstractOperation::CallDynamicParameterUnit { .. } => {
-            call_instructions::project_dynamic_parameter_call(node, optimized, native)?
-        }
+        AbstractOperation::CallDynamic {
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
+            ..
+        } => call_instructions::project_dynamic_parameter_call(node, optimized, native)?,
         AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_byte_store(
                 node, optimized, unit,

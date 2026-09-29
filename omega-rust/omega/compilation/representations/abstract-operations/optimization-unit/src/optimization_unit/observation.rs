@@ -464,11 +464,7 @@ fn operation_observations(
         | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
-        | O::CallDynamicScalar { .. }
-        | O::CallStoredDynamicScalar { .. }
-        | O::CallDynamicParameterScalar { .. }
-        | O::CallDynamicUnit { .. }
-        | O::CallDynamicParameterUnit { .. }
+        | O::CallDynamic { .. }
         | O::CallStructural { .. }
         | O::Call { .. } => (vec![event(C::InternalCall)], May, May),
         O::BoundaryCall { .. } => (vec![event(C::BoundaryCall)], May, May),

@@ -118,13 +118,13 @@ fn call_graph_tracks_cleanup_and_stored_dynamic_transitions() {
     let mut caller = function(100, 1, vec![(1, Terminator::Return)]);
     caller.blocks[0].nodes.insert(
         0,
-        node(O::CallStoredDynamicScalar {
+        node(O::CallDynamic {
             psi_operation: call_operation,
-            result: AbstractResult {
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(AbstractResult {
                 value: id(503, ValueId::new),
                 scalar_type: ScalarType::Boolean,
-            },
-            dynamic_dispatch: stored_dispatch,
+            }),
+            dispatch: abstract_operations::AbstractDynamicDispatch::Stored(stored_dispatch),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         }),

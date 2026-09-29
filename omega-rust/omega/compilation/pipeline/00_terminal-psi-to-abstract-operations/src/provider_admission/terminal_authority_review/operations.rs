@@ -1,7 +1,8 @@
 //! Exhaustive abstract-operation to terminal-authority edge classification.
 
 use abstract_operations::{
-    AbstractDynamicDescriptorArgument, AbstractOperation, AbstractParameterDynamicDispatch,
+    AbstractDynamicDescriptorArgument, AbstractDynamicDispatch, AbstractOperation,
+    AbstractParameterDynamicDispatch,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
@@ -28,21 +29,17 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::CallStructuralScalar { callee, .. }
         | AbstractOperation::CallStructural { callee, .. }
         | AbstractOperation::Call { callee, .. } => AuthorityEdge::Internal(*callee),
-        AbstractOperation::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | AbstractOperation::CallDynamicUnit {
-            dynamic_dispatch, ..
-        } => AuthorityEdge::Internal(dynamic_dispatch.dispatch.realization),
-        AbstractOperation::CallStoredDynamicScalar {
-            dynamic_dispatch, ..
-        } => AuthorityEdge::Internal(dynamic_dispatch.dispatch.realization),
-        AbstractOperation::CallDynamicParameterScalar {
-            dynamic_dispatch, ..
-        }
-        | AbstractOperation::CallDynamicParameterUnit {
-            dynamic_dispatch, ..
-        } => AuthorityEdge::DynamicParameterDispatch(dynamic_dispatch),
+        AbstractOperation::CallDynamic { dispatch, .. } => match dispatch {
+            AbstractDynamicDispatch::Rebound(dispatch) => {
+                AuthorityEdge::Internal(dispatch.dispatch.realization)
+            }
+            AbstractDynamicDispatch::Stored(dispatch) => {
+                AuthorityEdge::Internal(dispatch.dispatch.realization)
+            }
+            AbstractDynamicDispatch::Parameter(dispatch) => {
+                AuthorityEdge::DynamicParameterDispatch(dispatch)
+            }
+        },
         AbstractOperation::CallStructuralScalarWithDynamicArguments {
             callee,
             dynamic_arguments,

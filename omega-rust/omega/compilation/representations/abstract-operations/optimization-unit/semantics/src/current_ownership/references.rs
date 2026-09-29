@@ -108,8 +108,10 @@ fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
         // A window repair consumes its value like one owned whole call
         // argument; any reference leaves it carries settle with the store.
         O::StoreStructuralField { value, .. } => std::slice::from_ref(value),
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
+        O::CallDynamic {
+            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+            ..
         } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
         _ => &[],
     }

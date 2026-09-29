@@ -81,8 +81,10 @@ fn dynamic_dispatch(
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .find_map(|node| match &mut node.operation {
-            AbstractOperation::CallDynamicScalar {
-                dynamic_dispatch, ..
+            AbstractOperation::CallDynamic {
+                dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+                ..
             } => Some(dynamic_dispatch),
             _ => None,
         })

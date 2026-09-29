@@ -110,9 +110,9 @@ fn stored_dynamic_contract_matches(
                     .count()
                     == 1
         }
-        O::CallStoredDynamicScalar {
+        O::CallDynamic {
             psi_operation,
-            dynamic_dispatch,
+            dispatch: abstract_operations::AbstractDynamicDispatch::Stored(dynamic_dispatch),
             ..
         } => {
             dynamic_dispatch.has_complete_custody(function.machine, *psi_operation)

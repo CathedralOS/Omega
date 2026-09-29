@@ -703,29 +703,42 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             crash_continuations: Vec::new(),
             selected_evidence: Vec::new(),
         },
-        AbstractOperation::CallDynamicScalar {
+        AbstractOperation::CallDynamic {
             psi_operation: id(740, OperationId::new),
-            result: AbstractResult {
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(AbstractResult {
                 value: id(741, ValueId::new),
                 scalar_type: ScalarType::Boolean,
-            },
-            dynamic_dispatch: rebound_dispatch(caller, id(742, OperationId::new), callee),
+            }),
+            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(rebound_dispatch(
+                caller,
+                id(742, OperationId::new),
+                callee,
+            )),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
-        AbstractOperation::CallDynamicUnit {
+        AbstractOperation::CallDynamic {
             psi_operation: id(743, OperationId::new),
-            dynamic_dispatch: rebound_dispatch(caller, id(744, OperationId::new), callee),
+            result: abstract_operations::AbstractDynamicCallResult::Unit,
+            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(rebound_dispatch(
+                caller,
+                id(744, OperationId::new),
+                callee,
+            )),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
-        AbstractOperation::CallStoredDynamicScalar {
+        AbstractOperation::CallDynamic {
             psi_operation: id(745, OperationId::new),
-            result: AbstractResult {
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(AbstractResult {
                 value: id(746, ValueId::new),
                 scalar_type: ScalarType::Boolean,
-            },
-            dynamic_dispatch: stored_dispatch(caller, id(747, OperationId::new), callee),
+            }),
+            dispatch: abstract_operations::AbstractDynamicDispatch::Stored(stored_dispatch(
+                caller,
+                id(747, OperationId::new),
+                callee,
+            )),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },

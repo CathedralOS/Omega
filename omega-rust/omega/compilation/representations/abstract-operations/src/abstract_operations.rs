@@ -35,7 +35,8 @@ pub use atomic::{
 };
 pub mod calls;
 pub use calls::{
-    AbstractBoundaryResult, AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
+    AbstractBoundaryResult, AbstractDynamicCallResult, AbstractDynamicDescriptorArgument,
+    AbstractDynamicDescriptorSource, AbstractDynamicDispatch,
     AbstractOperationPlanWithPlacedViewInputs, AbstractParameterDynamicDispatch,
     AbstractReboundDynamicDispatch, AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
 };

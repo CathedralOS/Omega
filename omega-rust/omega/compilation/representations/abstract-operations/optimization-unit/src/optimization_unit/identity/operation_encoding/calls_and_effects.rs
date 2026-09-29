@@ -113,69 +113,35 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
-        O::CallDynamicScalar {
+        O::CallDynamic {
             psi_operation,
+            dispatch,
             result,
-            dynamic_dispatch,
             requirement_obligations,
             crash_continuations,
         } => {
-            bytes.u8(52);
+            use abstract_operations::AbstractDynamicCallResult as R;
+            use abstract_operations::AbstractDynamicDispatch as D;
+            // Each (custody, result) pair keeps the tag of the variant it
+            // replaced, so merging the variants moved no identity. Stored
+            // custody with a Unit result had no variant; it takes a fresh tag.
+            bytes.u8(match (dispatch, result) {
+                (D::Rebound(_), R::Scalar(_)) => 52,
+                (D::Parameter(_), R::Scalar(_)) => 53,
+                (D::Rebound(_), R::Unit) => 57,
+                (D::Parameter(_), R::Unit) => 58,
+                (D::Stored(_), R::Scalar(_)) => 61,
+                (D::Stored(_), R::Unit) => 93,
+            });
             bytes.id(*psi_operation);
-            encode_abstract_result(bytes, *result);
-            encode_rebound_dynamic_dispatch(bytes, dynamic_dispatch);
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
-        }
-        O::CallStoredDynamicScalar {
-            psi_operation,
-            result,
-            dynamic_dispatch,
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            bytes.u8(61);
-            bytes.id(*psi_operation);
-            encode_abstract_result(bytes, *result);
-            encode_stored_dynamic_dispatch(bytes, dynamic_dispatch);
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
-        }
-        O::CallDynamicParameterScalar {
-            psi_operation,
-            result,
-            dynamic_dispatch,
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            bytes.u8(53);
-            bytes.id(*psi_operation);
-            encode_abstract_result(bytes, *result);
-            encode_parameter_dynamic_dispatch(bytes, dynamic_dispatch);
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
-        }
-        O::CallDynamicUnit {
-            psi_operation,
-            dynamic_dispatch,
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            bytes.u8(57);
-            bytes.id(*psi_operation);
-            encode_rebound_dynamic_dispatch(bytes, dynamic_dispatch);
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
-        }
-        O::CallDynamicParameterUnit {
-            psi_operation,
-            dynamic_dispatch,
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            bytes.u8(58);
-            bytes.id(*psi_operation);
-            encode_parameter_dynamic_dispatch(bytes, dynamic_dispatch);
+            if let R::Scalar(result) = result {
+                encode_abstract_result(bytes, *result);
+            }
+            match dispatch {
+                D::Rebound(dispatch) => encode_rebound_dynamic_dispatch(bytes, dispatch),
+                D::Stored(dispatch) => encode_stored_dynamic_dispatch(bytes, dispatch),
+                D::Parameter(dispatch) => encode_parameter_dynamic_dispatch(bytes, dispatch),
+            }
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
         }
@@ -577,32 +543,35 @@ mod tests {
 
     fn rebound_operation(tuple: &str) -> super::AbstractOperation {
         let application = application(vec![row(tuple)]);
-        super::AbstractOperation::CallDynamicUnit {
+        super::AbstractOperation::CallDynamic {
             psi_operation: OperationId::new(42).unwrap(),
-            dynamic_dispatch: abstract_operations::AbstractReboundDynamicDispatch {
-                initial: selection(0),
-                rebound: selection(1),
-                descriptor: TerminalReboundDynamicDescriptor {
-                    owner: owner(),
-                    ordinal: 3,
-                    initial_selection_ordinal: 0,
-                    rebound_selection_ordinal: 1,
+            result: abstract_operations::AbstractDynamicCallResult::Unit,
+            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(
+                abstract_operations::AbstractReboundDynamicDispatch {
+                    initial: selection(0),
+                    rebound: selection(1),
+                    descriptor: TerminalReboundDynamicDescriptor {
+                        owner: owner(),
+                        ordinal: 3,
+                        initial_selection_ordinal: 0,
+                        rebound_selection_ordinal: 1,
+                    },
+                    initial_application: application.clone(),
+                    application,
+                    dispatch: TerminalIndirectDynamicDispatch {
+                        owner: owner(),
+                        operation: OperationId::new(42).unwrap(),
+                        descriptor_ordinal: 3,
+                        declaring_trait_identity: "test::Scanner".to_owned(),
+                        public_requirement_identity: "test::Scanner::scan()".to_owned(),
+                        family_tuple: vec![tuple.to_owned()],
+                        requirement_identity: "test::Scanner::scan".to_owned(),
+                        realization_identity: "test::Carrier::scan".to_owned(),
+                        realization_callable_identity: "test::Carrier::scan::callable".to_owned(),
+                        realization: MachineId::new(92).unwrap(),
+                    },
                 },
-                initial_application: application.clone(),
-                application,
-                dispatch: TerminalIndirectDynamicDispatch {
-                    owner: owner(),
-                    operation: OperationId::new(42).unwrap(),
-                    descriptor_ordinal: 3,
-                    declaring_trait_identity: "test::Scanner".to_owned(),
-                    public_requirement_identity: "test::Scanner::scan()".to_owned(),
-                    family_tuple: vec![tuple.to_owned()],
-                    requirement_identity: "test::Scanner::scan".to_owned(),
-                    realization_identity: "test::Carrier::scan".to_owned(),
-                    realization_callable_identity: "test::Carrier::scan::callable".to_owned(),
-                    realization: MachineId::new(92).unwrap(),
-                },
-            },
+            ),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         }

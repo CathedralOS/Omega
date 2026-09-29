@@ -493,8 +493,10 @@ fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
             structural_arguments,
             ..
         } => exclusive(structural_arguments),
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
+        O::CallDynamic {
+            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+            ..
         } => exclusive(std::slice::from_ref(&dynamic_dispatch.rebound.source)),
         O::PrimitiveLocalStore { destination, .. }
         | O::ByteSequenceWrite { destination, .. }

@@ -65,7 +65,12 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
     | AbstractOperation::CallUnit { psi_operation, .. }
-    | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. }
+    | AbstractOperation::CallDynamic {
+        psi_operation,
+        dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
+        result: abstract_operations::AbstractDynamicCallResult::Unit,
+        ..
+    }
     | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
     | AbstractOperation::ByteSequenceStore { psi_operation, .. }
@@ -141,9 +146,10 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             // verbatim. They need no carrier, unlike claim transfers.
             Ok((*psi_operation, result.value))
         }
-        AbstractOperation::CallDynamicParameterScalar {
+        AbstractOperation::CallDynamic {
             psi_operation,
-            result,
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
             ..
         } if scalar_shape(result.scalar_type).is_some() => Ok((*psi_operation, result.value)),
         AbstractOperation::ByteSequenceRead {
@@ -762,7 +768,12 @@ pub(super) fn validate(
             }
             continue;
         }
-        if let AbstractOperation::CallDynamicParameterUnit { .. } = &node.operation {
+        if let AbstractOperation::CallDynamic {
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
+            result: abstract_operations::AbstractDynamicCallResult::Unit,
+            ..
+        } = &node.operation
+        {
             if result.is_some() || !node.definitions.is_empty() {
                 return Err(LegalizationError::custody());
             }
@@ -835,7 +846,11 @@ pub(super) fn validate(
             AbstractOperation::BooleanConstant { .. }
             | AbstractOperation::BooleanStructuralField { .. } => ScalarType::Boolean,
             AbstractOperation::CallStructuralScalar { result, .. }
-            | AbstractOperation::CallDynamicParameterScalar { result, .. }
+            | AbstractOperation::CallDynamic {
+                dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
+                ..
+            }
             | AbstractOperation::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Scalar(result),
                 ..

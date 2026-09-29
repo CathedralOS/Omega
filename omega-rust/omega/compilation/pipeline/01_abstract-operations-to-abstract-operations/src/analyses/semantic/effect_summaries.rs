@@ -196,43 +196,29 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         summary.suspension = EffectKnowledge::May;
                     }
                 }
-                O::CallDynamicScalar {
-                    dynamic_dispatch, ..
-                }
-                | O::CallDynamicUnit {
-                    dynamic_dispatch, ..
-                } => {
-                    let callee = dynamic_dispatch.dispatch.realization;
-                    summary.callees.insert(callee);
-                    if !machines.contains(&callee) {
+                O::CallDynamic { dispatch, .. } => match dispatch.realization() {
+                    // Rebound and stored custody name their selected row.
+                    Some(callee) => {
+                        summary.callees.insert(callee);
+                        if !machines.contains(&callee) {
+                            summary.observable = EffectKnowledge::May;
+                            summary.structural_state = EffectKnowledge::May;
+                            summary.crash = EffectKnowledge::May;
+                            summary.suspension = EffectKnowledge::May;
+                        }
+                    }
+                    // A parameter descriptor's table row is an incoming
+                    // runtime value. Until target realization rejoins every
+                    // caller-supplied descriptor, retain the conservative
+                    // internal-call summary without inventing one static
+                    // callee.
+                    None => {
                         summary.observable = EffectKnowledge::May;
                         summary.structural_state = EffectKnowledge::May;
                         summary.crash = EffectKnowledge::May;
                         summary.suspension = EffectKnowledge::May;
                     }
-                }
-                O::CallStoredDynamicScalar {
-                    dynamic_dispatch, ..
-                } => {
-                    let callee = dynamic_dispatch.dispatch.realization;
-                    summary.callees.insert(callee);
-                    if !machines.contains(&callee) {
-                        summary.observable = EffectKnowledge::May;
-                        summary.structural_state = EffectKnowledge::May;
-                        summary.crash = EffectKnowledge::May;
-                        summary.suspension = EffectKnowledge::May;
-                    }
-                }
-                O::CallDynamicParameterScalar { .. } | O::CallDynamicParameterUnit { .. } => {
-                    // The concrete table row is an incoming runtime value.
-                    // Until target realization rejoins every caller-supplied
-                    // descriptor, retain the conservative internal-call
-                    // summary without inventing one static callee.
-                    summary.observable = EffectKnowledge::May;
-                    summary.structural_state = EffectKnowledge::May;
-                    summary.crash = EffectKnowledge::May;
-                    summary.suspension = EffectKnowledge::May;
-                }
+                },
                 O::PortWrite { service, .. } => {
                     summary.services.insert(*service);
                     join_operation_effect(&mut summary, &node.operation, join);
@@ -404,11 +390,7 @@ fn operation_effect(
         | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
-        | O::CallDynamicScalar { .. }
-        | O::CallStoredDynamicScalar { .. }
-        | O::CallDynamicParameterScalar { .. }
-        | O::CallDynamicUnit { .. }
-        | O::CallDynamicParameterUnit { .. }
+        | O::CallDynamic { .. }
         | O::CallStructural { .. }
         | O::Call { .. } => (EffectClass::InternalCall, May, May, May, May),
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),

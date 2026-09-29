@@ -132,10 +132,11 @@ pub(crate) fn exact_payloadless_case_return_exits(
                         | O::CallUnitWithDynamicArguments { .. }
                         | O::CallStructuralScalar { .. }
                         | O::CallStructuralScalarWithDynamicArguments { .. }
-                        | O::CallDynamicScalar { .. }
-                        | O::CallDynamicParameterScalar { .. }
-                        | O::CallDynamicUnit { .. }
-                        | O::CallDynamicParameterUnit { .. }
+                        | O::CallDynamic {
+                            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(_)
+                                | abstract_operations::AbstractDynamicDispatch::Parameter(_),
+                            ..
+                        }
                         | O::CallStructural { .. }
                         | O::BoundaryCall { .. }
                 )

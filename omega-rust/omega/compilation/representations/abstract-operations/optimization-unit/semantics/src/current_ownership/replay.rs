@@ -177,8 +177,11 @@ pub(super) fn validate_current_ownership_cfg(
                 // A window repair consumes its value exactly like one owned
                 // whole call argument: live-owned custody in, once.
                 O::StoreStructuralField { value, .. } => std::slice::from_ref(value),
-                O::CallDynamicScalar {
-                    dynamic_dispatch, ..
+                O::CallDynamic {
+                    dispatch:
+                        abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+                    result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+                    ..
                 } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
                 _ => &[],
             };
@@ -228,8 +231,11 @@ pub(super) fn validate_current_ownership_cfg(
                     .iter()
                     .map(|parameter| parameter.multiplicity)
                     .collect::<Vec<_>>(),
-                O::CallDynamicScalar {
-                    dynamic_dispatch, ..
+                O::CallDynamic {
+                    dispatch:
+                        abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+                    result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+                    ..
                 } => functions[&dynamic_dispatch.dispatch.realization]
                     .structural_parameters
                     .iter()

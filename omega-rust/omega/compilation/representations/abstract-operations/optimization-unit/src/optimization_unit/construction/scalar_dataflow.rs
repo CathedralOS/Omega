@@ -21,9 +21,10 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         }
         O::CallStructuralScalar { result, .. }
         | O::CallStructuralScalarWithDynamicArguments { result, .. }
-        | O::CallDynamicScalar { result, .. }
-        | O::CallStoredDynamicScalar { result, .. }
-        | O::CallDynamicParameterScalar { result, .. }
+        | O::CallDynamic {
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
+            ..
+        }
         | O::PrimitiveScalarRead { result, .. }
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }

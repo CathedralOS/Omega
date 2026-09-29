@@ -1,4 +1,4 @@
-//! Exact target lowering for one rebound dynamic call.
+//! Exact target lowering for rebound and stored descriptor calls.
 
 use super::super::scalar::scalar_shape;
 use super::super::structural_signature::StructuralCallSignature;
@@ -6,7 +6,10 @@ use super::projected_argument;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use abstract_operations::{
+    AbstractDynamicCallResult, AbstractDynamicDispatch, AbstractFunction, AbstractFunctionResult,
+    AbstractOperation, AbstractResult,
+};
 use abstract_operations::{AbstractReboundDynamicDispatch, AbstractStoredDynamicDispatch};
 use calling_conventions::{CallPlan, ValueShape};
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId};
@@ -48,10 +51,10 @@ pub(in crate::lowering) fn lower_stored_descriptor(
         .operations
         .iter()
         .filter_map(|candidate| match candidate {
-            AbstractOperation::CallStoredDynamicScalar {
+            AbstractOperation::CallDynamic {
                 psi_operation,
-                dynamic_dispatch,
-                result,
+                dispatch: AbstractDynamicDispatch::Stored(dynamic_dispatch),
+                result: AbstractDynamicCallResult::Scalar(result),
                 ..
             } if &dynamic_dispatch.stored == stored => {
                 Some((*psi_operation, dynamic_dispatch, result))
@@ -100,15 +103,23 @@ pub(in crate::lowering) fn lower_stored_dynamic_scalar_call(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
-    let AbstractOperation::CallStoredDynamicScalar {
+    let AbstractOperation::CallDynamic {
         psi_operation,
+        dispatch: AbstractDynamicDispatch::Stored(dynamic_dispatch),
         result,
-        dynamic_dispatch,
         requirement_obligations,
         crash_continuations,
     } = operation
     else {
         unreachable!("stored dynamic scalar lowering receives only stored calls")
+    };
+    // Stored custody is admitted only with a scalar result; stage 00 never
+    // produces a stored Unit call.
+    let AbstractDynamicCallResult::Scalar(result) = result else {
+        return Err(LoweringError::InvalidDynamicDispatch {
+            machine: function.machine,
+            operation: *psi_operation,
+        });
     };
     if !matches!(
         result.scalar_type,
@@ -253,8 +264,57 @@ fn lower_stored_call(
     })
 }
 
+/// The scalar result and home one descriptor call defines, after admitting
+/// only Boolean and integer results. A Unit result defines neither.
+pub(in crate::lowering) fn dynamic_result_home(
+    psi_operation: OperationId,
+    result: AbstractDynamicCallResult,
+) -> Result<Option<(AbstractResult, TargetUnitScalarHomeRequirement)>, LoweringError> {
+    let AbstractDynamicCallResult::Scalar(result) = result else {
+        return Ok(None);
+    };
+    if !matches!(
+        result.scalar_type,
+        ScalarType::Boolean | ScalarType::Integer(_)
+    ) {
+        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
+            result.value,
+        ));
+    }
+    let shape = scalar_shape(result.value, result.scalar_type, false)?;
+    Ok(Some((
+        result,
+        TargetUnitScalarHomeRequirement {
+            defining_operation: psi_operation,
+            source_value: result.value,
+            scalar_type: result.scalar_type,
+            shape,
+        },
+    )))
+}
+
+/// Publish an integer result home to the producer's known-integer map.
+pub(in crate::lowering) fn record_integer_result_home(
+    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
+    result_home: Option<TargetUnitScalarHomeRequirement>,
+) -> Result<(), LoweringError> {
+    if let Some(result_home) = result_home
+        && matches!(result_home.scalar_type, ScalarType::Integer(_))
+    {
+        insert_known_unit_integer(
+            scalar_values,
+            result_home.source_value,
+            KnownUnitInteger::Home(result_home),
+        )?;
+    }
+    Ok(())
+}
+
+/// Lower one call through a rebound descriptor. Both result roles share the
+/// callee join and the two projected selection arguments; the role selects
+/// only the target row and whether a scalar home is defined.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::lowering) fn lower_dynamic_scalar_call(
+pub(in crate::lowering) fn lower_rebound_dynamic_call(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,
@@ -266,26 +326,19 @@ pub(in crate::lowering) fn lower_dynamic_scalar_call(
     scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
-) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
-    let AbstractOperation::CallDynamicScalar {
+) -> Result<Option<TargetUnitScalarHomeRequirement>, LoweringError> {
+    let AbstractOperation::CallDynamic {
         psi_operation,
+        dispatch: AbstractDynamicDispatch::Rebound(dynamic_dispatch),
         result,
-        dynamic_dispatch,
         requirement_obligations,
         crash_continuations,
     } = operation
     else {
-        unreachable!("dynamic scalar lowering receives only dynamic calls")
+        unreachable!("rebound dynamic lowering receives only rebound descriptor calls")
     };
-    if !matches!(
-        result.scalar_type,
-        ScalarType::Boolean | ScalarType::Integer(_)
-    ) {
-        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
-            result.value,
-        ));
-    }
-    let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
+    let scalar = dynamic_result_home(*psi_operation, *result)?;
+    let result_home = scalar.map(|(_, home)| home);
     let lowered = lower_dynamic_call(
         function,
         target,
@@ -296,83 +349,34 @@ pub(in crate::lowering) fn lower_dynamic_scalar_call(
         active,
         *psi_operation,
         dynamic_dispatch,
-        Some(result.scalar_type),
-        Some(result_shape),
+        result_home.map(|home| home.scalar_type),
+        result_home.map(|home| home.shape),
     )?;
-    let result_home = TargetUnitScalarHomeRequirement {
-        defining_operation: *psi_operation,
-        source_value: result.value,
-        scalar_type: result.scalar_type,
-        shape: result_shape,
-    };
-    if matches!(result.scalar_type, ScalarType::Integer(_)) {
-        insert_known_unit_integer(
-            scalar_values,
-            result.value,
-            KnownUnitInteger::Home(result_home),
-        )?;
-    }
-    operations.push(TargetUnitOperation::DynamicScalarCall {
-        psi_operation: *psi_operation,
-        result: *result,
-        dynamic_dispatch: dynamic_dispatch.clone(),
-        call_plan: lowered.call_plan,
-        result_home,
-        initial_argument: lowered.initial_argument,
-        rebound_argument: lowered.rebound_argument,
-        requirement_obligations: requirement_obligations.clone(),
-        crash_continuations: crash_continuations.clone(),
+    record_integer_result_home(scalar_values, result_home)?;
+    operations.push(match scalar {
+        Some((result, result_home)) => TargetUnitOperation::DynamicScalarCall {
+            psi_operation: *psi_operation,
+            result,
+            dynamic_dispatch: dynamic_dispatch.clone(),
+            call_plan: lowered.call_plan,
+            result_home,
+            initial_argument: lowered.initial_argument,
+            rebound_argument: lowered.rebound_argument,
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
+        },
+        None => TargetUnitOperation::DynamicUnitCall {
+            psi_operation: *psi_operation,
+            dynamic_dispatch: dynamic_dispatch.clone(),
+            call_plan: lowered.call_plan,
+            initial_argument: lowered.initial_argument,
+            rebound_argument: lowered.rebound_argument,
+            requirement_obligations: requirement_obligations.clone(),
+            crash_continuations: crash_continuations.clone(),
+        },
     });
     provenance.operations.push(*psi_operation);
     Ok(result_home)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(in crate::lowering) fn lower_dynamic_unit_call(
-    operation: &AbstractOperation,
-    function: &AbstractFunction,
-    target: NativeTarget,
-    functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &StructuralTypeLookup<'_>,
-    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<(), LoweringError> {
-    let AbstractOperation::CallDynamicUnit {
-        psi_operation,
-        dynamic_dispatch,
-        requirement_obligations,
-        crash_continuations,
-    } = operation
-    else {
-        unreachable!("dynamic Unit lowering receives only dynamic calls")
-    };
-    let lowered = lower_dynamic_call(
-        function,
-        target,
-        functions,
-        structural_types,
-        parameters_by_place,
-        shape_cache,
-        active,
-        *psi_operation,
-        dynamic_dispatch,
-        None,
-        None,
-    )?;
-    operations.push(TargetUnitOperation::DynamicUnitCall {
-        psi_operation: *psi_operation,
-        dynamic_dispatch: dynamic_dispatch.clone(),
-        call_plan: lowered.call_plan,
-        initial_argument: lowered.initial_argument,
-        rebound_argument: lowered.rebound_argument,
-        requirement_obligations: requirement_obligations.clone(),
-        crash_continuations: crash_continuations.clone(),
-    });
-    provenance.operations.push(*psi_operation);
-    Ok(())
 }
 
 struct LoweredDynamicCall {

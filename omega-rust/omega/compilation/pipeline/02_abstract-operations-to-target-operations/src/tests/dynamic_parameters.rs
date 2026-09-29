@@ -597,8 +597,11 @@ fn malformed_source_descriptor_declarations_fail_lowering() {
         let mut slot = source.clone();
         for function in &mut slot.functions {
             for operation in &mut function.operations {
-                if let AbstractOperation::CallDynamicParameterScalar {
-                    dynamic_dispatch, ..
+                if let AbstractOperation::CallDynamic {
+                    dispatch:
+                        abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch),
+                    result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+                    ..
                 } = operation
                 {
                     dynamic_dispatch.dispatch.requirement_slot = 9;

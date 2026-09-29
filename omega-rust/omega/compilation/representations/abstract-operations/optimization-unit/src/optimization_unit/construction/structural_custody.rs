@@ -146,20 +146,17 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::StoreDynamicDescriptor { stored, .. } => {
             places.insert(stored.selection.source.place);
         }
-        O::CallStoredDynamicScalar {
-            dynamic_dispatch, ..
-        } => {
-            places.insert(dynamic_dispatch.stored.selection.source.place);
-        }
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | O::CallDynamicUnit {
-            dynamic_dispatch, ..
-        } => {
-            places.insert(dynamic_dispatch.initial.source.place);
-            places.insert(dynamic_dispatch.rebound.source.place);
-        }
+        O::CallDynamic { dispatch, .. } => match dispatch {
+            abstract_operations::AbstractDynamicDispatch::Stored(dispatch) => {
+                places.insert(dispatch.stored.selection.source.place);
+            }
+            abstract_operations::AbstractDynamicDispatch::Rebound(dispatch) => {
+                places.insert(dispatch.initial.source.place);
+                places.insert(dispatch.rebound.source.place);
+            }
+            // A received descriptor names no caller-local source place.
+            abstract_operations::AbstractDynamicDispatch::Parameter(_) => {}
+        },
         O::CallStructuralScalarWithDynamicArguments {
             structural_arguments,
             dynamic_arguments,

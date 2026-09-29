@@ -191,27 +191,16 @@ pub(super) fn validate_dynamic_parameter_call(
         unreachable!("dispatched validate_dynamic_parameter_call")
     };
     let invalid = || Error::NonCanonicalLegalizedPlan;
-    let (dynamic_dispatch, expected_result, obligations, crashes) = match &node.operation {
-        AbstractOperation::CallDynamicParameterScalar {
+    let (dynamic_dispatch, result, obligations, crashes) = match &node.operation {
+        AbstractOperation::CallDynamic {
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch),
             result,
-            dynamic_dispatch,
             requirement_obligations,
             crash_continuations,
             ..
         } => (
             dynamic_dispatch,
-            Some(result.scalar_type),
-            requirement_obligations,
-            crash_continuations,
-        ),
-        AbstractOperation::CallDynamicParameterUnit {
-            dynamic_dispatch,
-            requirement_obligations,
-            crash_continuations,
-            ..
-        } => (
-            dynamic_dispatch,
-            None,
+            result.scalar(),
             requirement_obligations,
             crash_continuations,
         ),
@@ -234,7 +223,7 @@ pub(super) fn validate_dynamic_parameter_call(
         optimized.machine,
         operation,
         dynamic_dispatch,
-        expected_result,
+        result.map(|result| result.scalar_type),
         native.target,
     )?;
     if call.parameter_abi != contract.parameter_abi
@@ -244,21 +233,19 @@ pub(super) fn validate_dynamic_parameter_call(
     {
         return Err(invalid());
     }
-    let expected_home = match &node.operation {
-        AbstractOperation::CallDynamicParameterScalar { result, .. } => {
-            Some(target_operations::TargetUnitScalarHomeRequirement {
-                defining_operation: operation,
-                source_value: result.value,
-                scalar_type: result.scalar_type,
-                shape: contract
-                    .dispatch_call_plan
-                    .result
-                    .as_ref()
-                    .ok_or_else(invalid)?
-                    .shape,
-            })
-        }
-        _ => None,
+    let expected_home = match result {
+        Some(result) => Some(target_operations::TargetUnitScalarHomeRequirement {
+            defining_operation: operation,
+            source_value: result.value,
+            scalar_type: result.scalar_type,
+            shape: contract
+                .dispatch_call_plan
+                .result
+                .as_ref()
+                .ok_or_else(invalid)?
+                .shape,
+        }),
+        None => None,
     };
     if call.result_home != expected_home {
         return Err(invalid());

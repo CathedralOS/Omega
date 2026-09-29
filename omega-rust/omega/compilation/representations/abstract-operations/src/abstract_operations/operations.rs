@@ -1,11 +1,10 @@
 //! Executable abstract vocabulary, including moves, drops, calls and control.
 
 use crate::{
-    AbstractAtomicEvent, AbstractBoundaryResult, AbstractDynamicDescriptorArgument,
-    AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
-    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
-    AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicModificationAfter, AtomicReadsFrom,
-    CompletionClaimSource, ValueBinding,
+    AbstractAtomicEvent, AbstractBoundaryResult, AbstractDynamicCallResult,
+    AbstractDynamicDescriptorArgument, AbstractDynamicDispatch, AbstractResult,
+    AbstractStoredDynamicDescriptor, AbstractStructuralCaseSuccessor, AbstractSuccessor,
+    AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -388,48 +387,16 @@ pub enum AbstractOperation {
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
-    /// Invoke one scalar-result requirement through an exact rebound dynamic
-    /// descriptor. Target realization must materialize the two-word
-    /// `{instance, table}` carrier and call through the selected private table;
-    /// it may not replace this operation with a direct call to `realization`.
-    CallDynamicScalar {
+    /// Invoke one requirement through an exact descriptor. Target realization
+    /// must materialize the two-word `{instance, table}` carrier and call
+    /// through the selected table; it may not replace this operation with a
+    /// direct call to a realization. `dispatch` keeps rebound, stored and
+    /// parameter custody distinct. `result` is a property of the selected
+    /// callable row, not of descriptor custody.
+    CallDynamic {
         psi_operation: OperationId,
-        result: AbstractResult,
-        dynamic_dispatch: AbstractReboundDynamicDispatch,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one scalar requirement by reloading a descriptor previously
-    /// established in an aggregate field.
-    CallStoredDynamicScalar {
-        psi_operation: OperationId,
-        result: AbstractResult,
-        dynamic_dispatch: AbstractStoredDynamicDispatch,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    CallDynamicParameterScalar {
-        psi_operation: OperationId,
-        result: AbstractResult,
-        dynamic_dispatch: AbstractParameterDynamicDispatch,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one Unit-result requirement through the same exact rebound
-    /// descriptor carrier as a scalar dynamic call. Result shape is a property
-    /// of the selected callable row, not of descriptor custody.
-    CallDynamicUnit {
-        psi_operation: OperationId,
-        dynamic_dispatch: AbstractReboundDynamicDispatch,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one Unit-result requirement through a descriptor received by the
-    /// current function. The closed parameter interface supplies the result
-    /// shape and the concrete instance/table pair remains a runtime input.
-    CallDynamicParameterUnit {
-        psi_operation: OperationId,
-        dynamic_dispatch: AbstractParameterDynamicDispatch,
+        dispatch: AbstractDynamicDispatch,
+        result: AbstractDynamicCallResult,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
@@ -960,11 +927,7 @@ impl AbstractOperation {
             | Self::CallUnitWithDynamicArguments { psi_operation, .. }
             | Self::CallStructuralScalar { psi_operation, .. }
             | Self::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
-            | Self::CallDynamicScalar { psi_operation, .. }
-            | Self::CallStoredDynamicScalar { psi_operation, .. }
-            | Self::CallDynamicParameterScalar { psi_operation, .. }
-            | Self::CallDynamicUnit { psi_operation, .. }
-            | Self::CallDynamicParameterUnit { psi_operation, .. }
+            | Self::CallDynamic { psi_operation, .. }
             | Self::CallStructural { psi_operation, .. }
             | Self::BoundaryCall { psi_operation, .. }
             | Self::PortWrite { psi_operation, .. }

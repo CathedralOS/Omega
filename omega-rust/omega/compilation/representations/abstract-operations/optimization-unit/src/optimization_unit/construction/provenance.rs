@@ -53,11 +53,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::CallUnitWithDynamicArguments { psi_operation, .. }
         | O::CallStructuralScalar { psi_operation, .. }
         | O::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
-        | O::CallDynamicScalar { psi_operation, .. }
-        | O::CallStoredDynamicScalar { psi_operation, .. }
-        | O::CallDynamicParameterScalar { psi_operation, .. }
-        | O::CallDynamicUnit { psi_operation, .. }
-        | O::CallDynamicParameterUnit { psi_operation, .. }
+        | O::CallDynamic { psi_operation, .. }
         | O::CallStructural { psi_operation, .. }
         | O::BoundaryCall { psi_operation, .. }
         | O::PortWrite { psi_operation, .. }
