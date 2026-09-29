@@ -4,7 +4,7 @@ use crate::tests::fixtures::scalar_units::structural_call_unit;
 use crate::tests::fixtures::structural_catalog::{content_entry_claim, install_content_owner};
 use crate::tests::support::{id, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use semantic_vocabulary::{BoundaryMachineId, ClaimId};
 
 #[test]
@@ -39,9 +39,10 @@ fn accepts_content_only_boundary_completion_and_rejects_correspondence_corruptio
         });
     let (psi_operation, structural_arguments) =
         match &baseline.functions[0].blocks[0].nodes[0].operation {
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 structural_arguments,
+                result: AbstractStructuralCallResult::Unit,
                 ..
             } => (*psi_operation, structural_arguments.clone()),
             _ => panic!("fixture begins with a structural Unit call"),

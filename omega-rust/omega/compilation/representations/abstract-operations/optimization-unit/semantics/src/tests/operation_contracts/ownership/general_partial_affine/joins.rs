@@ -2,7 +2,7 @@
 
 use crate::tests::fixtures::dominance::refresh_function_derivatives;
 use crate::tests::support::id;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use semantic_vocabulary::ClaimId;
 
 use super::fixtures::{field, mixed_unit};
@@ -12,9 +12,10 @@ use crate::validate_psi_optimization_unit;
 #[test]
 fn general_partial_affine_retains_claim_transfer_joins() {
     let baseline = mixed_unit();
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         structural_arguments,
         claim_transfers,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &baseline.functions[0].blocks[0].nodes[0].operation
     else {

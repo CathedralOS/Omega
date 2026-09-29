@@ -3,7 +3,7 @@
 use crate::tests::fixtures::scalar_units::structural_call_unit;
 use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use semantic_vocabulary::BoundaryMachineId;
 
 #[test]
@@ -13,8 +13,9 @@ fn rejects_structural_call_argument_arity_and_access_corruption() {
         .expect("matching structural argument access should validate");
 
     let mut access = baseline.clone();
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &mut access.functions[0].blocks[0].nodes[0].operation
     else {
@@ -28,8 +29,9 @@ fn rejects_structural_call_argument_arity_and_access_corruption() {
     ));
 
     let mut arity = baseline;
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &mut arity.functions[0].blocks[0].nodes[0].operation
     else {
@@ -65,9 +67,10 @@ fn rejects_structural_call_argument_arity_and_access_corruption() {
         });
     let (psi_operation, structural_arguments) =
         match &boundary.functions[0].blocks[0].nodes[0].operation {
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 structural_arguments,
+                result: AbstractStructuralCallResult::Unit,
                 ..
             } => (*psi_operation, structural_arguments.clone()),
             _ => panic!("fixture begins with a structural Unit call"),

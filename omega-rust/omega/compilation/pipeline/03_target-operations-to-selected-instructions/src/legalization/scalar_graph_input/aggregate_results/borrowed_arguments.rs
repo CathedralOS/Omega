@@ -96,9 +96,10 @@ pub(super) fn reconstruct(
                 AbstractOperation::EstablishRecord { psi_operation, .. }
                 | AbstractOperation::EstablishScalarArray { psi_operation, .. }
                 | AbstractOperation::EstablishCase { psi_operation, .. }
-                | AbstractOperation::CallStructural { psi_operation, .. }
-                | AbstractOperation::CallStructuralScalar { psi_operation, .. }
-                | AbstractOperation::CallUnit { psi_operation, .. } if *psi_operation == operation)
+                | AbstractOperation::CallStructural {
+                    psi_operation,
+                    ..
+                } if *psi_operation == operation)
                     })
                     .map(|position| (block.id, position))
             })

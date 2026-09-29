@@ -5,6 +5,7 @@ use super::{
     ValueDefinitionSite, evaluate_call_plan, scalar_shape,
 };
 use crate::LegalizationError;
+use abstract_operations::AbstractStructuralCallResult;
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     TerminalAffineCleanupAction,
@@ -103,18 +104,15 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                 } => super::primitive_locals::producer(function, *destination).is_some(),
                 // Mirrors target lowering: a call that forwards descriptors
                 // needs its own realization.
-                AbstractOperation::CallUnit {
-                    dynamic_arguments, ..
-                }
-                | AbstractOperation::CallStructuralScalar {
-                    dynamic_arguments, ..
-                } if !dynamic_arguments.is_empty() => false,
-                AbstractOperation::CallUnit {
-                    structural_arguments,
+                AbstractOperation::CallStructural {
+                    dynamic_arguments,
                     ..
-                }
-                | AbstractOperation::CallStructuralScalar {
+                } if !dynamic_arguments.is_empty() => false,
+                AbstractOperation::CallStructural {
                     structural_arguments,
+                    result:
+                        AbstractStructuralCallResult::Unit
+                        | AbstractStructuralCallResult::Scalar(_),
                     ..
                 } => structural_arguments.iter().all(|argument| {
                     argument.access != StructuralAccess::Owned

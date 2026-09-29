@@ -9,7 +9,7 @@ mod cycles;
 mod scalar_arrays;
 mod structural_cases;
 mod transfers;
-use abstract_operations::AbstractSuccessor;
+use abstract_operations::{AbstractStructuralCallResult, AbstractSuccessor};
 
 fn block(value: u64) -> BlockId {
     BlockId::new(value).unwrap()
@@ -33,7 +33,7 @@ fn successor(identity: u64, target: u64) -> AbstractSuccessor {
     }
 }
 fn call(identity: u64, argument: ValueId) -> AbstractOperation {
-    AbstractOperation::CallUnit {
+    AbstractOperation::CallStructural {
         psi_operation: operation(identity),
         callee: MachineId::new(901).unwrap(),
         arguments: vec![argument],
@@ -42,6 +42,7 @@ fn call(identity: u64, argument: ValueId) -> AbstractOperation {
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     }
 }
 fn jump(identity: u64) -> AbstractOperation {

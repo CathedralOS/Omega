@@ -3,7 +3,9 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
+};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::MachineId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -30,9 +32,9 @@ pub(super) fn lower(
     let (psi_operation, result, callee, values, arguments, claims, requirements, crashes) =
         match operation {
             // A call that forwards descriptors has its own lowering.
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 callee,
                 arguments,
                 structural_arguments,
@@ -50,7 +52,7 @@ pub(super) fn lower(
                 requirement_obligations,
                 crash_continuations,
             ),
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 callee,
                 arguments,
@@ -59,6 +61,7 @@ pub(super) fn lower(
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
+                result: AbstractStructuralCallResult::Unit,
             } if dynamic_arguments.is_empty() => (
                 *psi_operation,
                 None,

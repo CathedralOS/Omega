@@ -5,6 +5,7 @@ use super::{
     AbstractOperation, AbstractOperationPlan, IntegerValue, MachineId, NativeTarget, block, edge,
     operation, value,
 };
+use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape,
@@ -63,7 +64,11 @@ fn fixture() -> AbstractOperationPlan {
     };
     let call = |identity, source| AbstractOperation::CallStructural {
         psi_operation: operation(identity),
-        result: result(identity),
+        result: AbstractStructuralCallResult::Structural {
+            result: result(identity),
+            returned_claim_transfers: Vec::new(),
+            selected_evidence: Vec::new(),
+        },
         callee: MachineId::new(902).unwrap(),
         arguments: Vec::new(),
         structural_arguments: vec![terminal_psi::StructuralArgument {
@@ -71,11 +76,10 @@ fn fixture() -> AbstractOperationPlan {
             path: Vec::new(),
             access: StructuralAccess::Owned,
         }],
+        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
-        returned_claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
-        selected_evidence: Vec::new(),
     };
     caller.operations = vec![
         AbstractOperation::IntegerConstant {
@@ -117,6 +121,7 @@ fn owned_array_calls_reject_unavailable_places_and_borrowed_actuals() {
         let mut plan = fixture();
         let AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Structural { .. },
             ..
         } = &mut plan.functions[0].operations[2]
         else {

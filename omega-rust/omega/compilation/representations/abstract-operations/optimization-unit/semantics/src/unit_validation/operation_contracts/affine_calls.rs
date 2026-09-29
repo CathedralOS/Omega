@@ -1,5 +1,6 @@
 //! Exact ordinary affine identity calls transfer real ownership without claims.
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::StructuralTypeId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -13,14 +14,17 @@ pub(crate) fn exact_plain_affine_structural_call(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     let O::CallStructural {
-        result,
+        result:
+            AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers,
+                selected_evidence,
+            },
         arguments,
         structural_arguments,
         claim_transfers,
-        returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
-        selected_evidence,
         ..
     } = operation
     else {

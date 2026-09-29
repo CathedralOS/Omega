@@ -3,7 +3,9 @@ use super::LiveDefinitions;
 use super::observations;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractDynamicDispatch, AbstractFunction, AbstractOperation};
+use abstract_operations::{
+    AbstractDynamicDispatch, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
+};
 use calling_conventions::ValueShape;
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
@@ -84,12 +86,7 @@ pub(super) fn lower_operation(
     // Call paths that do not lower reference-aware arguments reject any
     // structural argument that touches live custody outright.
     let blind_arguments: &[terminal_psi::StructuralArgument] = match operation {
-        AbstractOperation::CallStructuralScalar {
-            structural_arguments,
-            dynamic_arguments,
-            ..
-        }
-        | AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             structural_arguments,
             dynamic_arguments,
             ..
@@ -204,10 +201,12 @@ pub(super) fn lower_operation(
             Ok(())
         }
         // A call that forwards descriptors lowers through the descriptor-pair
-        // ABI. These two arms must stay ahead of the plain CallStructuralScalar
-        // and CallUnit arms below, which do not test `dynamic_arguments`.
-        AbstractOperation::CallStructuralScalar {
-            dynamic_arguments, ..
+        // ABI. These two arms must stay ahead of the plain scalar-result and
+        // Unit-result arms below, which do not test `dynamic_arguments`.
+        AbstractOperation::CallStructural {
+            dynamic_arguments,
+            result: AbstractStructuralCallResult::Scalar(_),
+            ..
         } if !dynamic_arguments.is_empty() => {
             let home = crate::lowering::unit::lower_dynamic_argument_scalar_call(
                 operation,
@@ -228,8 +227,10 @@ pub(super) fn lower_operation(
             }
             Ok(())
         }
-        AbstractOperation::CallUnit {
-            dynamic_arguments, ..
+        AbstractOperation::CallStructural {
+            dynamic_arguments,
+            result: AbstractStructuralCallResult::Unit,
+            ..
         } if !dynamic_arguments.is_empty() => {
             crate::lowering::unit::lower_dynamic_argument_unit_call(
                 operation,
@@ -322,7 +323,10 @@ pub(super) fn lower_operation(
         AbstractOperation::ReleaseReference { .. } => {
             super::references::release(operation, function, live, operations, provenance)
         }
-        AbstractOperation::CallStructural { .. } => super::aggregate_results::call(
+        AbstractOperation::CallStructural {
+            result: AbstractStructuralCallResult::Structural { .. },
+            ..
+        } => super::aggregate_results::call(
             operation,
             function,
             target,
@@ -404,7 +408,10 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::CallStructuralScalar { .. } => super::borrowed_calls::lower(
+        AbstractOperation::CallStructural {
+            result: AbstractStructuralCallResult::Scalar(_),
+            ..
+        } => super::borrowed_calls::lower(
             operation,
             function,
             target,
@@ -420,8 +427,9 @@ pub(super) fn lower_operation(
         // only the borrowed-call family can reconstruct its source. The same
         // holds for a local home and for an empty-record local, whose
         // establishment only this graph's live state records.
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } if structural_arguments.iter().any(|argument| {
             live.structural_homes.contains_key(&argument.place)
@@ -810,8 +818,10 @@ pub(super) fn lower_operation(
         // so they lower beside the obligations and the retained row replays
         // them exactly. Claim transfers still carry runtime custody meaning
         // and keep refusing here.
-        AbstractOperation::CallUnit {
-            claim_transfers, ..
+        AbstractOperation::CallStructural {
+            claim_transfers,
+            result: AbstractStructuralCallResult::Unit,
+            ..
         } if claim_transfers.is_empty() => {
             crate::lowering::unit::structural_call::lower_structural_unit_call(
                 operation,

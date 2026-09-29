@@ -6,6 +6,7 @@ use super::{
     ScalarType, StructuralMultiplicity, TargetLoweringRequest, ValueId, fixture,
     lower_to_target_operations,
 };
+use abstract_operations::AbstractStructuralCallResult;
 fn subslice_calls() -> AbstractOperationPlan {
     let mut plan = fixture();
     let caller = &mut plan.functions[0];
@@ -14,8 +15,9 @@ fn subslice_calls() -> AbstractOperationPlan {
     let length = ValueId::new(20).unwrap();
     let place = PlaceId::new(21).unwrap();
     for operation in &mut caller.operations {
-        if let AbstractOperation::CallStructuralScalar {
+        if let AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Scalar(_),
             ..
         } = operation
         {
@@ -62,7 +64,7 @@ fn unit_subslice_calls() -> AbstractOperationPlan {
         function.result = AbstractFunctionResult::Unit;
         for operation in &mut function.operations {
             *operation = match operation.clone() {
-                AbstractOperation::CallStructuralScalar {
+                AbstractOperation::CallStructural {
                     psi_operation,
                     callee,
                     arguments,
@@ -70,8 +72,9 @@ fn unit_subslice_calls() -> AbstractOperationPlan {
                     claim_transfers,
                     requirement_obligations,
                     crash_continuations,
+                    result: AbstractStructuralCallResult::Scalar(_),
                     ..
-                } => AbstractOperation::CallUnit {
+                } => AbstractOperation::CallStructural {
                     psi_operation,
                     callee,
                     arguments,
@@ -80,6 +83,7 @@ fn unit_subslice_calls() -> AbstractOperationPlan {
                     claim_transfers,
                     requirement_obligations,
                     crash_continuations,
+                    result: AbstractStructuralCallResult::Unit,
                 },
                 AbstractOperation::Return {
                     psi_edge,

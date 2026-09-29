@@ -5,7 +5,9 @@ use crate::tests::fixtures::ownership::{affine_claim_join_unit, affine_claim_tra
 use crate::tests::fixtures::structural_catalog::structural_result_call_unit;
 use crate::tests::support::{id, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::{AbstractFunctionResult, AbstractOperation};
+use abstract_operations::{
+    AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
+};
 use semantic_vocabulary::{ClaimId, OperationId};
 
 #[test]
@@ -23,7 +25,12 @@ fn current_claim_replay_rejects_double_transfer_stale_crash_and_invalid_returns(
 
     let mut double_transfer = baseline.clone();
     let mut repeated = double_transfer.functions[0].blocks[0].nodes[0].clone();
-    let AbstractOperation::CallUnit { psi_operation, .. } = &mut repeated.operation else {
+    let AbstractOperation::CallStructural {
+        psi_operation,
+        result: AbstractStructuralCallResult::Unit,
+        ..
+    } = &mut repeated.operation
+    else {
         unreachable!("fixture starts with a Unit call")
     };
     *psi_operation = id(341, OperationId::new);

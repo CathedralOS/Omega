@@ -7,7 +7,7 @@ use super::{
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, TargetUnitOperation,
     TargetUnitScalarArgumentSource, ValueId, ValueShape, identity,
 };
-use abstract_operations::AbstractParameter;
+use abstract_operations::{AbstractParameter, AbstractStructuralCallResult};
 use semantic_vocabulary::IeeeFloatFormat;
 use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
 
@@ -187,7 +187,7 @@ fn forwarded_ieee_store_call_keeps_the_parameter_and_borrowed_pointer() {
         let mut caller = source.functions[0].clone();
         caller.machine = MachineId::new(2).unwrap();
         let destination = caller.structural_parameters[0].clone();
-        caller.operations[0] = AbstractOperation::CallUnit {
+        caller.operations[0] = AbstractOperation::CallStructural {
             psi_operation: OperationId::new(2).unwrap(),
             callee: source.entry,
             arguments: vec![caller.parameters[0].value],
@@ -200,6 +200,7 @@ fn forwarded_ieee_store_call_keeps_the_parameter_and_borrowed_pointer() {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         };
         source.entry = caller.machine;
         source.functions.push(caller);

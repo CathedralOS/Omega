@@ -2,7 +2,7 @@ use crate::tests::fixtures::scalar_units::{
     projected_shared_structural_scalar_call_unit, structural_call_unit,
 };
 use crate::validate_psi_optimization_unit;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::{
     PsiOptimizationUnit, ValueDefinition, ValueDefinitionSite, ValueUse,
     recompute_psi_optimization_unit_identity,
@@ -14,7 +14,12 @@ fn mixed_structural_scalar_call_rewrites_all_scalar_occurrences_only() {
     let unit = mixed_call();
     let original = unit.functions[0].blocks[0].nodes[0].operation.clone();
     let mut expected = original.clone();
-    let AbstractOperation::CallStructuralScalar { arguments, .. } = &mut expected else {
+    let AbstractOperation::CallStructural {
+        arguments,
+        result: AbstractStructuralCallResult::Scalar(_),
+        ..
+    } = &mut expected
+    else {
         panic!("mixed call")
     };
     *arguments = vec![value(590), value(502), value(590)];
@@ -47,7 +52,12 @@ fn mixed_structural_scalar_call_unit_counterpart_keeps_scalar_uses() {
     unit.functions[1].parameters = vec![parameter(503, ScalarType::Boolean, 0)];
     let block = &mut unit.functions[0].blocks[0];
     let call = &mut block.nodes[0];
-    let AbstractOperation::CallUnit { arguments, .. } = &mut call.operation else {
+    let AbstractOperation::CallStructural {
+        arguments,
+        result: AbstractStructuralCallResult::Unit,
+        ..
+    } = &mut call.operation
+    else {
         panic!("Unit call")
     };
     *arguments = vec![value(501)];
@@ -60,7 +70,12 @@ fn mixed_structural_scalar_call_unit_counterpart_keeps_scalar_uses() {
     validate_psi_optimization_unit(&unit).unwrap();
     let mut rewritten = unit.functions[0].blocks[0].nodes[0].operation.clone();
     let mut expected = rewritten.clone();
-    let AbstractOperation::CallUnit { arguments, .. } = &mut expected else {
+    let AbstractOperation::CallStructural {
+        arguments,
+        result: AbstractStructuralCallResult::Unit,
+        ..
+    } = &mut expected
+    else {
         panic!("Unit call")
     };
     *arguments = vec![value(590)];
@@ -85,7 +100,12 @@ fn mixed_call() -> PsiOptimizationUnit {
     ];
     let block = &mut unit.functions[0].blocks[0];
     let call = &mut block.nodes[0];
-    let AbstractOperation::CallStructuralScalar { arguments, .. } = &mut call.operation else {
+    let AbstractOperation::CallStructural {
+        arguments,
+        result: AbstractStructuralCallResult::Scalar(_),
+        ..
+    } = &mut call.operation
+    else {
         panic!("mixed call")
     };
     *arguments = vec![value(501), value(502), value(501)];

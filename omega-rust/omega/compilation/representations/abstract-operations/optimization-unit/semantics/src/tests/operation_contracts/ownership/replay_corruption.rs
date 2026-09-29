@@ -7,7 +7,7 @@ use crate::tests::fixtures::ownership::{
 use crate::tests::fixtures::structural_catalog::boolean_structural_field_unit;
 use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{OperationId, PlaceId};
 
@@ -19,7 +19,12 @@ fn current_owned_place_replay_rejects_double_moves_unequal_joins_and_bad_residua
 
     let mut double_move = baseline;
     let mut repeated = double_move.functions[0].blocks[0].nodes[0].clone();
-    let AbstractOperation::CallUnit { psi_operation, .. } = &mut repeated.operation else {
+    let AbstractOperation::CallStructural {
+        psi_operation,
+        result: AbstractStructuralCallResult::Unit,
+        ..
+    } = &mut repeated.operation
+    else {
         unreachable!("fixture begins with a Unit call")
     };
     *psi_operation = id(4_862, OperationId::new);
@@ -43,7 +48,12 @@ fn current_owned_place_replay_rejects_double_moves_unequal_joins_and_bad_residua
 
     let mut overlap = baseline.clone();
     let mut repeated = overlap.functions[0].blocks[0].nodes[0].clone();
-    let AbstractOperation::CallUnit { psi_operation, .. } = &mut repeated.operation else {
+    let AbstractOperation::CallStructural {
+        psi_operation,
+        result: AbstractStructuralCallResult::Unit,
+        ..
+    } = &mut repeated.operation
+    else {
         unreachable!("fixture begins with a projected Unit call")
     };
     *psi_operation = id(4_863, OperationId::new);

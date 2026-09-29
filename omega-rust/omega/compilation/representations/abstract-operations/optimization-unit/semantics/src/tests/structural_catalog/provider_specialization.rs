@@ -4,7 +4,7 @@ use crate::tests::fixtures::structural_catalog::{
 };
 use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{BoundaryMachineId, PlaceId, StructuralPlaceKind};
 
@@ -212,7 +212,7 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
         AbstractOperation::BoundaryCall { psi_operation, .. } => psi_operation,
         _ => panic!("provider fixture call"),
     };
-    unit_use.functions[0].blocks[0].nodes[0].operation = AbstractOperation::CallUnit {
+    unit_use.functions[0].blocks[0].nodes[0].operation = AbstractOperation::CallStructural {
         psi_operation,
         callee: machine,
         arguments: Vec::new(),
@@ -221,6 +221,7 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     };
     refresh_node_derivatives(&mut unit_use, 0, 0, 0);
     assert_invalid(unit_use);

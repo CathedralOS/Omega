@@ -1,5 +1,6 @@
 use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BoundaryMachineId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -120,9 +121,10 @@ pub(crate) fn validate_provider_attachment_specialization(
                 }
             }
             // Only a Unit call that forwards no descriptors is checked here.
-            O::CallUnit {
+            O::CallStructural {
                 structural_arguments,
                 dynamic_arguments,
+                result: AbstractStructuralCallResult::Unit,
                 ..
             } if dynamic_arguments.is_empty()
                 && structural_arguments

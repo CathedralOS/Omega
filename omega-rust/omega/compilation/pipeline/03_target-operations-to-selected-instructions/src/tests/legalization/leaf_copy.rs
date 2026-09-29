@@ -3,7 +3,7 @@ use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_selected_instructions,
 };
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use abstract_operations_to_target_operations::TargetLoweringRequest;
 use legalized_operations::LegalizedScalarInstructionKind;
 use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
@@ -710,7 +710,7 @@ fn copied_leaf_feeds_an_owned_call_through_selection_and_replay() {
         });
     source.functions[0].operations.insert(
         1,
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: OperationId::new(2).unwrap(),
             callee: callee.machine,
             arguments: Vec::new(),
@@ -723,6 +723,7 @@ fn copied_leaf_feeds_an_owned_call_through_selection_and_replay() {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
     );
     source.functions.push(callee);

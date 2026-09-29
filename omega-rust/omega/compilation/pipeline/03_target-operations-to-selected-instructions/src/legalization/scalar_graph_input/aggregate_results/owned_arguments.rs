@@ -1,6 +1,7 @@
 //! Owned aggregate actuals rejoin their exact incoming storage or dominating producer.
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target;
+use abstract_operations::AbstractStructuralCallResult;
 
 use super::{
     AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction,
@@ -149,7 +150,11 @@ pub(super) fn reconstruct(
                 | AbstractOperation::EstablishRecord { psi_operation, result: actual, .. }
                 | AbstractOperation::EstablishCase { psi_operation, result: actual, .. }
                 | AbstractOperation::StructuralLeafCopy { psi_operation, result: actual, .. }
-                | AbstractOperation::CallStructural { psi_operation, result: actual, .. }
+                | AbstractOperation::CallStructural {
+                    psi_operation,
+                    result: AbstractStructuralCallResult::Structural { result: actual, .. },
+                    ..
+                }
                 if *psi_operation == producer && actual == result)
         })
         .ok_or(LegalizationError::custody())?;
@@ -222,16 +227,6 @@ fn precedes(
 ) -> Result<bool, LegalizationError> {
     let call_site = node_site(caller, |operation| match operation {
         AbstractOperation::CallStructural {
-            psi_operation,
-            structural_arguments,
-            ..
-        }
-        | AbstractOperation::CallUnit {
-            psi_operation,
-            structural_arguments,
-            ..
-        }
-        | AbstractOperation::CallStructuralScalar {
             psi_operation,
             structural_arguments,
             ..

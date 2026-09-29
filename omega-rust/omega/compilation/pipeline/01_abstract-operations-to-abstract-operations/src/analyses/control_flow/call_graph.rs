@@ -22,13 +22,8 @@ pub(in crate::analyses) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAn
             .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
         {
             match operation {
-                O::CallStructural { callee, .. } | O::Call { callee, .. } => callees.push(*callee),
-                O::CallStructuralScalar {
-                    callee,
-                    dynamic_arguments,
-                    ..
-                }
-                | O::CallUnit {
+                O::Call { callee, .. } => callees.push(*callee),
+                O::CallStructural {
                     callee,
                     dynamic_arguments,
                     ..

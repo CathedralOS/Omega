@@ -4,7 +4,7 @@ use crate::tests::fixtures::scalar_units::structural_call_unit;
 use crate::tests::fixtures::structural_catalog::{content_entry_claim, install_content_owner};
 use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use semantic_vocabulary::{ClaimId, StructuralDomainId};
 
 #[test]
@@ -18,8 +18,10 @@ fn accepts_content_only_internal_claim_transfer_and_rejects_interface_corruption
             .content_entry_claims
             .push(content_entry_claim(claim, root));
     }
-    let AbstractOperation::CallUnit {
-        claim_transfers, ..
+    let AbstractOperation::CallStructural {
+        claim_transfers,
+        result: AbstractStructuralCallResult::Unit,
+        ..
     } = &mut baseline.functions[0].blocks[0].nodes[0].operation
     else {
         panic!("fixture begins with a structural Unit call")
@@ -33,8 +35,10 @@ fn accepts_content_only_internal_claim_transfer_and_rejects_interface_corruption
         .expect("content-only claims participate in the live transfer namespace");
 
     let mut missing_transfer = baseline.clone();
-    let AbstractOperation::CallUnit {
-        claim_transfers, ..
+    let AbstractOperation::CallStructural {
+        claim_transfers,
+        result: AbstractStructuralCallResult::Unit,
+        ..
     } = &mut missing_transfer.functions[0].blocks[0].nodes[0].operation
     else {
         panic!("fixture begins with a structural Unit call")

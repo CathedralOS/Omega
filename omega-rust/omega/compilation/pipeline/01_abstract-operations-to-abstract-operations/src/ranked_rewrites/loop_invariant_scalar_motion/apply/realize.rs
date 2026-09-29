@@ -6,6 +6,7 @@ use super::super::{
     recompute_psi_optimization_unit_identity,
 };
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::PlaceId;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -97,36 +98,20 @@ pub(crate) fn realize(
             // the moved node re-derives the roster from the callee's
             // verifier-owned contract against its just-substituted
             // `arguments`. An admitted pure call carries an empty roster —
-            // nothing to re-derive. The structural-signature variants route
+            // nothing to re-derive. A structural-signature call routes
             // through the scalar-only-gated helper: admission already proved
             // the published routes carry no rooted term the verifier's
             // structural-path substitution could touch, so the scalar
             // derivation is the exact reconstruction and a forged roster —
             // or a plan that moved a call the gate would refuse — fails
             // here instead of spelling unverifiable evidence.
-            let structural_call = matches!(
-                node.operation,
-                O::CallUnit { .. } | O::CallStructuralScalar { .. } | O::CallStructural { .. }
-            );
+            let structural_call = matches!(node.operation, O::CallStructural { .. });
             let crash_custody = match &node.operation {
                 // No admission lane moves a call that forwards descriptors.
-                O::CallUnit {
-                    dynamic_arguments, ..
-                }
-                | O::CallStructuralScalar {
+                O::CallStructural {
                     dynamic_arguments, ..
                 } if !dynamic_arguments.is_empty() => None,
                 O::Call {
-                    callee,
-                    crash_continuations,
-                    ..
-                }
-                | O::CallUnit {
-                    callee,
-                    crash_continuations,
-                    ..
-                }
-                | O::CallStructuralScalar {
                     callee,
                     crash_continuations,
                     ..
@@ -146,16 +131,6 @@ pub(crate) fn realize(
                     .ok_or(LoopInvariantScalarMotionError::CandidateMismatch)?;
                 let (arguments, crash_continuations) = match &mut node.operation {
                     O::Call {
-                        arguments,
-                        crash_continuations,
-                        ..
-                    }
-                    | O::CallUnit {
-                        arguments,
-                        crash_continuations,
-                        ..
-                    }
-                    | O::CallStructuralScalar {
                         arguments,
                         crash_continuations,
                         ..
@@ -234,9 +209,10 @@ pub(crate) fn realize(
         .filter_map(|node| match &node.operation {
             O::EstablishCase { result, .. }
             | O::EstablishRecord { result, .. }
-            | O::CallStructural { result, .. }
-                if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine =>
-            {
+            | O::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine => {
                 Some(result.place)
             }
             O::EstablishTrivialAffineLocal { place, .. } => Some(place.id),

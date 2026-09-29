@@ -3,7 +3,7 @@
 #[path = "partial_affine_call_results/continuations.rs"]
 mod continuations;
 
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit_semantics::validate_psi_optimization_unit;
 use proof_admission::AdmissionProfile;
@@ -172,7 +172,10 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous:
             .expect("entry function");
         let nodes = &caller.blocks[0].nodes;
         let result = match &nodes[0].operation {
-            AbstractOperation::CallStructural { result, .. } if !boundary => {
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } if !boundary => {
                 assert_ne!(result.place, caller.structural_parameters[0].place);
                 result
             }

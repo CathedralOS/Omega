@@ -1097,13 +1097,7 @@ fn scan_operation(
                 pending.attribute(context, *place, Vec::new(), AccessKind::Write);
             }
         }
-        O::CallUnit {
-            callee,
-            structural_arguments,
-            dynamic_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
+        O::CallStructural {
             callee,
             structural_arguments,
             dynamic_arguments,
@@ -1116,17 +1110,7 @@ fn scan_operation(
             // The forwarded descriptor lane itself is not summarized.
             pending.unsummarized = true;
         }
-        O::CallUnit {
-            callee,
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
-            callee,
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             callee,
             structural_arguments,
             ..

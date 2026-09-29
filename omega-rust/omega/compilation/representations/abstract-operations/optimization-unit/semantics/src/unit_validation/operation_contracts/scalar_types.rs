@@ -1,4 +1,5 @@
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::{AbstractDynamicCallResult, AbstractDynamicDispatch};
 use optimization_unit::{PsiOptimizationFunction, ValueDefinition};
 use semantic_vocabulary::{
@@ -411,10 +412,11 @@ pub(crate) fn operation_scalar_types_match(
                     .zip(&callee.parameters)
                     .all(|(argument, parameter)| scalar(*argument) == Some(parameter.scalar_type))
         }),
-        O::CallUnit {
+        O::CallStructural {
             callee,
             arguments,
             dynamic_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } if dynamic_arguments.is_empty() => functions.get(callee).is_some_and(|callee| {
             matches!(
@@ -428,11 +430,12 @@ pub(crate) fn operation_scalar_types_match(
         }),
         // A call that forwards descriptors carries no scalar arguments, and
         // its callee declares none.
-        O::CallUnit {
+        O::CallStructural {
             psi_operation,
             callee,
             arguments,
             dynamic_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } => functions.get(callee).is_some_and(|callee| {
             arguments.is_empty()
@@ -443,8 +446,8 @@ pub(crate) fn operation_scalar_types_match(
                 )
                 && dynamic_arguments_match(function, *psi_operation, callee, dynamic_arguments)
         }),
-        O::CallStructuralScalar {
-            result,
+        O::CallStructural {
+            result: AbstractStructuralCallResult::Scalar(result),
             callee,
             arguments,
             dynamic_arguments,
@@ -461,9 +464,9 @@ pub(crate) fn operation_scalar_types_match(
                         if signature.scalar_type == result.scalar_type
                 )
         }),
-        O::CallStructuralScalar {
+        O::CallStructural {
             psi_operation,
-            result,
+            result: AbstractStructuralCallResult::Scalar(result),
             callee,
             arguments,
             dynamic_arguments,
@@ -485,7 +488,10 @@ pub(crate) fn operation_scalar_types_match(
             ..
         } => dynamic_call_types_match(function, *psi_operation, dispatch, *result, functions),
         O::CallStructural {
-            callee, arguments, ..
+            callee,
+            arguments,
+            result: AbstractStructuralCallResult::Structural { .. },
+            ..
         } => functions.get(callee).is_some_and(|callee| {
             callee.parameters.len() == arguments.len()
                 && callee

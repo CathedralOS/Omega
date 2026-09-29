@@ -1,4 +1,6 @@
-use abstract_operations::{AbstractDynamicDescriptorSource, AbstractOperation};
+use abstract_operations::{
+    AbstractDynamicDescriptorSource, AbstractOperation, AbstractStructuralCallResult,
+};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
@@ -266,7 +268,11 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
         !caller.operations.iter().any(|operation| {
             matches!(
                 operation,
-                AbstractOperation::CallStructuralScalar { callee, .. }
+                AbstractOperation::CallStructural {
+                    callee,
+                    result: AbstractStructuralCallResult::Scalar(_),
+                    ..
+                }
                     if *callee == dynamic.dispatch.realization
             )
         }),
@@ -453,9 +459,9 @@ fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 callee,
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 dynamic_arguments,
                 ..
             } if !dynamic_arguments.is_empty() => Some((*callee, *result, dynamic_arguments)),

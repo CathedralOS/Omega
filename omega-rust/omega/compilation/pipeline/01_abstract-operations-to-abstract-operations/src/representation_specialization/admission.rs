@@ -734,15 +734,7 @@ fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &Structur
             operands.push(source);
         }
         O::StoreStructuralField { value, .. } => operands.push(value),
-        O::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             structural_arguments,
             ..
         }

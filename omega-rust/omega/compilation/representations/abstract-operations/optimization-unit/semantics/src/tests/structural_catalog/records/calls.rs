@@ -4,7 +4,7 @@ use crate::tests::fixtures::dominance::refresh_function_derivatives;
 use crate::tests::fixtures::scalar_units::unit;
 use crate::tests::structural_catalog::records::record_unit;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::{AbstractFunctionResult, AbstractResult};
+use abstract_operations::{AbstractFunctionResult, AbstractResult, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
     EdgeId, MachineId, OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId,
@@ -137,14 +137,18 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
     let mut call = caller.blocks[0].nodes[0].clone();
     call.operation = AbstractOperation::CallStructural {
         psi_operation: operation,
-        result: terminal_psi::StructuralOperationResult {
-            qualification_establishments: Vec::new(),
-            place,
-            structural_type: parent,
-            multiplicity: StructuralMultiplicity::Affine,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            claims: Vec::new(),
+        result: AbstractStructuralCallResult::Structural {
+            result: terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place,
+                structural_type: parent,
+                multiplicity: StructuralMultiplicity::Affine,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            returned_claim_transfers: Vec::new(),
+            selected_evidence: Vec::new(),
         },
         callee: maker.machine,
         arguments: Vec::new(),
@@ -153,11 +157,10 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
             access: input.access,
             path: Vec::new(),
         }],
+        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
-        returned_claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
-        selected_evidence: Vec::new(),
     };
     caller.blocks[0].nodes.insert(1, call);
     let mut receiver = unit().functions.remove(0);
@@ -191,7 +194,7 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
         cleanup_actions: Vec::new(),
     };
     let mut loan = caller.blocks[0].nodes[0].clone();
-    loan.operation = AbstractOperation::CallUnit {
+    loan.operation = AbstractOperation::CallStructural {
         psi_operation: id(973, OperationId::new),
         callee: receiver.machine,
         arguments: Vec::new(),
@@ -208,6 +211,7 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     };
     caller.blocks[0].nodes.insert(2, loan);
     let AbstractOperation::Return {
@@ -233,7 +237,7 @@ fn nested_record_call_contract_and_loan_substitutions_reject() {
     for mutation in 0..6 {
         let mut changed = original.clone();
         let AbstractOperation::CallStructural {
-            result,
+            result: AbstractStructuralCallResult::Structural { result, .. },
             structural_arguments,
             ..
         } = &mut changed.functions[0].blocks[0].nodes[1].operation
@@ -254,8 +258,9 @@ fn nested_record_call_contract_and_loan_substitutions_reject() {
                 }),
             4 => structural_arguments[0].place = id(962, PlaceId::new),
             5 => {
-                let AbstractOperation::CallUnit {
+                let AbstractOperation::CallStructural {
                     structural_arguments,
+                    result: AbstractStructuralCallResult::Unit,
                     ..
                 } = &mut changed.functions[0].blocks[0].nodes[2].operation
                 else {
@@ -291,10 +296,11 @@ fn consume_result(candidate: &mut PsiOptimizationUnit, projected: bool, before_l
         consumer.structural_parameters[0].place,
     ));
     let mut transfer = candidate.functions[0].blocks[0].nodes[2].clone();
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         psi_operation,
         callee,
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &mut transfer.operation
     else {
@@ -381,8 +387,9 @@ fn completed_record_loans_observe_the_current_owned_frontier() {
             matches!(validate_psi_optimization_unit(&partial_then_projected_loan), Err(OptimizationUnitValidationError::CurrentProjectedMoveOverlap { place, .. }) if place == id(962, PlaceId::new)),
             "overlapping loan after partial move {access:?}"
         );
-        let AbstractOperation::CallUnit {
+        let AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } = &mut partial_then_projected_loan.functions[0].blocks[0].nodes[3].operation
         else {

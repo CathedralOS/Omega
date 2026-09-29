@@ -1,6 +1,6 @@
 //! Verified scalar-array construction retains exact payloads through current IR.
 
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
@@ -137,6 +137,7 @@ fn assert_array_retention(source: &str, entry: &str) {
             for (node_position, node) in block.nodes.iter().enumerate() {
                 let AbstractOperation::CallStructural {
                     structural_arguments,
+                    result: AbstractStructuralCallResult::Structural { .. },
                     ..
                 } = &node.operation
                 else {
@@ -148,6 +149,7 @@ fn assert_array_retention(source: &str, entry: &str) {
                 let mut changed = unit.unit().clone();
                 let AbstractOperation::CallStructural {
                     structural_arguments,
+                    result: AbstractStructuralCallResult::Structural { .. },
                     ..
                 } = &mut changed.functions[function_position].blocks[block_position].nodes
                     [node_position]

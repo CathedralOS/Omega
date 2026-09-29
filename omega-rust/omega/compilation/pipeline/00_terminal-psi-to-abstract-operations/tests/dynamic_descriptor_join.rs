@@ -1,4 +1,6 @@
-use abstract_operations::{AbstractDynamicDescriptorSource, AbstractOperation};
+use abstract_operations::{
+    AbstractDynamicDescriptorSource, AbstractOperation, AbstractStructuralCallResult,
+};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
@@ -100,10 +102,11 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 callee,
                 dynamic_arguments,
+                result: AbstractStructuralCallResult::Scalar(_),
                 ..
             } if !dynamic_arguments.is_empty() => {
                 Some((*psi_operation, *callee, dynamic_arguments))
@@ -176,8 +179,10 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
         .iter()
         .flat_map(|block| &block.nodes)
         .find_map(|node| match &node.operation {
-            AbstractOperation::CallStructuralScalar {
-                dynamic_arguments, ..
+            AbstractOperation::CallStructural {
+                dynamic_arguments,
+                result: AbstractStructuralCallResult::Scalar(_),
+                ..
             } if !dynamic_arguments.is_empty() => Some(dynamic_arguments[0].source.clone()),
             _ => None,
         })
@@ -191,8 +196,10 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .filter_map(|node| match &mut node.operation {
-            AbstractOperation::CallStructuralScalar {
-                dynamic_arguments, ..
+            AbstractOperation::CallStructural {
+                dynamic_arguments,
+                result: AbstractStructuralCallResult::Scalar(_),
+                ..
             } if !dynamic_arguments.is_empty() => Some(dynamic_arguments),
             _ => None,
         })
@@ -223,9 +230,10 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
         .operations
         .iter_mut()
         .find_map(|operation| match operation {
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 arguments,
                 dynamic_arguments,
+                result: AbstractStructuralCallResult::Scalar(_),
                 ..
             } if !dynamic_arguments.is_empty() => Some(arguments),
             _ => None,
@@ -251,9 +259,10 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
                 .nodes
                 .iter()
                 .position(|node| {
-                    matches!(&node.operation, AbstractOperation::CallStructuralScalar {
+                    matches!(&node.operation, AbstractOperation::CallStructural {
                         arguments,
                         dynamic_arguments,
+                        result: AbstractStructuralCallResult::Scalar(_),
                         ..
                     } if !arguments.is_empty() && !dynamic_arguments.is_empty())
                 })

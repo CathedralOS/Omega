@@ -1,7 +1,9 @@
 use super::super::{PsiOptimizationUnit, TargetOperationPlan, ValueId};
 use super::{AbstractOperation, AbstractOperationPlan, validate};
 use crate::legalization::scalar_graph_input::i32_type;
-use abstract_operations::{AbstractBoundaryResult, AbstractSuccessor};
+use abstract_operations::{
+    AbstractBoundaryResult, AbstractStructuralCallResult, AbstractSuccessor,
+};
 use abstract_operations_to_target_operations::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement,
 };
@@ -453,12 +455,12 @@ fn borrowed_parameters_compose_with_float_results_and_reject_changed_abi() {
             caller.block_entries[0].block = caller.entry;
             let call_result = ValueId::new(3).unwrap();
             caller.operations = vec![
-                AbstractOperation::CallStructuralScalar {
+                AbstractOperation::CallStructural {
                     psi_operation: OperationId::new(1).unwrap(),
-                    result: AbstractResult {
+                    result: AbstractStructuralCallResult::Scalar(AbstractResult {
                         value: call_result,
                         scalar_type,
-                    },
+                    }),
                     callee: function.machine,
                     arguments: vec![input],
                     structural_arguments: vec![terminal_psi::StructuralArgument {

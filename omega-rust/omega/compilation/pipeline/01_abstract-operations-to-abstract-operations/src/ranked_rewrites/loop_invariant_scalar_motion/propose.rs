@@ -6,7 +6,7 @@ use super::{
     NodeLocation, OperationId, OptimizationNode, PlaceId, PsiProvenance, ValueDefinitionSite,
     ValueId, VerifiedPsiOptimizationSession, apply, contract,
 };
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 pub(super) fn all(
     session: &VerifiedPsiOptimizationSession,
     candidate_limit: u64,
@@ -86,7 +86,7 @@ fn component_candidate(
 /// consumers keep spelling the same place identity), a primitive-local
 /// establishment (declared place, type, and claim-free custody preserved
 /// byte-exact while its scalar initializer substitutes like a computation —
-/// the run orders it ahead of any `CallStructuralScalar` borrowing its
+/// the run orders it ahead of any scalar-result `CallStructural` borrowing its
 /// root), a record establishment (declared place, structural type, result
 /// custody, declaration order, and range obligations preserved byte-exact
 /// while each scalar field value substitutes like a computation and each
@@ -105,9 +105,8 @@ fn component_candidate(
 /// is unobservable throughout — including the crash-custody lane, where the
 /// moved call's `crash_continuations` are re-derived from the callee's
 /// verifier-owned published routes under the substituted arguments and the
-/// caller's own crash ceiling must cover them — an invariant unit-result call —
-/// `CallUnit` — scalar-result structural call — `CallStructuralScalar` — or
-/// affine structural-result call — `CallStructural` —
+/// caller's own crash ceiling must cover them — an invariant unit-result,
+/// scalar-result or affine structural-result `CallStructural` —
 /// whose callee passes the same effect bar, whose member roster
 /// is unobservable, whose component performs no member-visible place
 /// mutation or custody movement, and whose every shared-borrow structural
@@ -321,18 +320,17 @@ fn admit_member_node(
     } else if crate::validation::invariant_operations::admissible_invariant_primitive_local(node).is_some() {
         // A primitive-local establishment is the byte literal's
         // operand-carrying sibling — and the storage prerequisite a
-        // `CallStructuralScalar` borrows: the cyclic eligibility fence only
-        // lets a structural-scalar borrow argument name a `let mut` local's
-        // place, so the call relocates only when the establishment that
+        // scalar-result `CallStructural` borrows: the cyclic eligibility fence
+        // only lets a structural-scalar borrow argument name a `let mut`
+        // local's place, so the call relocates only when the establishment that
         // produced that root leaves in the same run and the place lands in
-        // `relocating_roots`. Establishing the cell performs work a
-        // bypassed traversal would not, so both halves of the
-        // non-speculative gate apply; the whole-component custody bound then
-        // proves no member observes the declared place — the one condition
-        // under which a cell initialized once still reads `value` on every
-        // traversal — and `value` itself obeys the scalar substitution. The
-        // declared place, structural type, and result custody move
-        // byte-exact inside the moved operation.
+        // `relocating_roots`. Establishing the cell performs work a bypassed
+        // traversal would not, so both halves of the non-speculative gate
+        // apply; the whole-component custody bound then proves no member
+        // observes the declared place — the one condition under which a cell
+        // initialized once still reads `value` on every traversal — and `value`
+        // itself obeys the scalar substitution. The declared place, structural
+        // type, and result custody move byte-exact inside the moved operation.
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
             return None;
         }
@@ -646,9 +644,9 @@ fn admit_member_node(
         // place simply reads the same value every traversal. Each scalar
         // argument obeys the shared member-parameter substitution and each
         // borrowed or copyable-owned root rebinds like a
-        // `CallStructuralScalar`'s, while discharged requirement obligations
-        // move byte-exact inside the moved operation exactly like every
-        // other call variant's. The declared place joins
+        // scalar-result `CallStructural`'s, while discharged requirement
+        // obligations move byte-exact inside the moved operation exactly like
+        // every other call variant's. The declared place joins
         // `relocating_roots`, so a member node anchored on the persistent
         // result relocates behind it in the same run.
         if !(evidence.guaranteed_entry && evidence.guaranteed.contains(&member)) {
@@ -953,7 +951,10 @@ pub(super) fn component_plan(
                         {
                             LoopInvariantNodeResult::TrivialAffineLocal(*place)
                         }
-                        AbstractOperation::CallUnit { .. }
+                        AbstractOperation::CallStructural {
+                            result: AbstractStructuralCallResult::Unit,
+                            ..
+                        }
                             if crate::validation::invariant_calls::admissible_invariant_unit_call(node)
                                 .is_some()
                                 || crate::validation::invariant_calls::admissible_invariant_crash_continuation_unit_call(
@@ -963,7 +964,10 @@ pub(super) fn component_plan(
                         {
                             LoopInvariantNodeResult::Unit
                         }
-                        AbstractOperation::CallStructural { result, .. }
+                        AbstractOperation::CallStructural {
+                            result: AbstractStructuralCallResult::Structural { result, .. },
+                            ..
+                        }
                             if crate::validation::invariant_calls::admissible_invariant_structural_call(node)
                                 .is_some()
                                 || crate::validation::invariant_calls::admissible_invariant_crash_continuation_structural_call(

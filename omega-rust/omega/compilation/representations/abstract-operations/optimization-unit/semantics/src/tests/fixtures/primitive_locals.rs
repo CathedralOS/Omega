@@ -1,6 +1,8 @@
 //! Primitive locals retain their own operation-result place and scalar observations.
 use crate::tests::support::id;
-use abstract_operations::{AbstractOperation, AbstractOperationPlan, AbstractResult};
+use abstract_operations::{
+    AbstractOperation, AbstractOperationPlan, AbstractResult, AbstractStructuralCallResult,
+};
 use semantic_vocabulary::{
     BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, PlaceId,
     ScalarType, ValueId,
@@ -86,7 +88,7 @@ pub(crate) fn primitive_local_call_plan() -> AbstractOperationPlan {
     ];
     plan.functions[0].operations.insert(
         4,
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: id(77, OperationId::new),
             callee: callee.machine,
             arguments: Vec::new(),
@@ -99,6 +101,7 @@ pub(crate) fn primitive_local_call_plan() -> AbstractOperationPlan {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
     );
     plan.functions.push(callee);

@@ -12,6 +12,7 @@ use crate::current_ownership::{
     validate_partial_continuation_roster,
 };
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, MachineId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -156,18 +157,12 @@ pub(super) fn validate_current_ownership_cfg(
                 O::EstablishCase { .. } | O::EstablishRecord { .. } => record_arguments.as_slice(),
                 // A Unit call that forwards descriptors is not replayed here;
                 // the scalar-result call is replayed in both forms.
-                O::CallUnit {
-                    dynamic_arguments, ..
+                O::CallStructural {
+                    dynamic_arguments,
+                    result: AbstractStructuralCallResult::Unit,
+                    ..
                 } if !dynamic_arguments.is_empty() => &[],
-                O::CallUnit {
-                    structural_arguments,
-                    ..
-                }
-                | O::CallStructuralScalar {
-                    structural_arguments,
-                    ..
-                }
-                | O::CallStructural {
+                O::CallStructural {
                     structural_arguments,
                     ..
                 }
@@ -224,12 +219,12 @@ pub(super) fn validate_current_ownership_cfg(
                         )?,
                     ]
                 }
-                O::CallUnit {
-                    dynamic_arguments, ..
+                O::CallStructural {
+                    dynamic_arguments,
+                    result: AbstractStructuralCallResult::Unit,
+                    ..
                 } if !dynamic_arguments.is_empty() => Vec::new(),
-                O::CallUnit { callee, .. }
-                | O::CallStructuralScalar { callee, .. }
-                | O::CallStructural { callee, .. } => functions[callee]
+                O::CallStructural { callee, .. } => functions[callee]
                     .structural_parameters
                     .iter()
                     .map(|parameter| parameter.multiplicity)
@@ -294,16 +289,12 @@ pub(super) fn validate_current_ownership_cfg(
             }
 
             let transferred = match &node.operation {
-                O::CallUnit {
-                    dynamic_arguments, ..
+                O::CallStructural {
+                    dynamic_arguments,
+                    result: AbstractStructuralCallResult::Unit,
+                    ..
                 } if !dynamic_arguments.is_empty() => Vec::new(),
-                O::CallUnit {
-                    claim_transfers, ..
-                }
-                | O::CallStructuralScalar {
-                    claim_transfers, ..
-                }
-                | O::CallStructural {
+                O::CallStructural {
                     claim_transfers, ..
                 } => claim_transfers
                     .iter()
@@ -451,7 +442,10 @@ pub(super) fn validate_current_ownership_cfg(
                 // An owned case-payload copy mints a fresh affine place the
                 // successor takes custody of — the same live-result slot.
                 | O::StructuralLeafCopy { result, .. }
-                | O::CallStructural { result, .. }
+                | O::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
                     ..

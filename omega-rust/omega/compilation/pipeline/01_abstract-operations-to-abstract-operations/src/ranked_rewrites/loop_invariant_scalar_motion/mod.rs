@@ -83,8 +83,9 @@ pub(crate) mod tests;
 /// never reorder member work anyone could see. Its scalar arguments obey the
 /// same member-parameter substitution a computation obeys; discharged
 /// requirement obligations move byte-exact inside the operation. A
-/// `CallUnit` — a structural-signature call producing no result — adds the
-/// family's second call relocation on top of that evidence: the component
+/// Unit-result `CallStructural` — a structural-signature call producing no
+/// result — adds the family's second call relocation on top of that
+/// evidence: the component
 /// must additionally preserve member-visible place custody (the callee can
 /// observe caller places through its borrows), every structural argument
 /// must be a borrow or a copyable owned whole-root spelling — `Owned` over
@@ -103,13 +104,14 @@ pub(crate) mod tests;
 /// narrower still: it may name only a member-produced place whose unique
 /// producer relocates in the same run and no other member observes — the
 /// callee's writes then land in a cell nothing else reads.
-/// `CallStructuralScalar` — the same borrow call returning one
+/// A scalar-result `CallStructural` — the same borrow call returning one
 /// scalar — adds the family's third call relocation on unchanged evidence:
 /// its preserved result joins the run's relocated values, so a member node
 /// consuming the call's return relocates behind it in the same run, and the
 /// place-custody bound is also what makes the hoisted invocation return
 /// what every in-loop traversal's invocation returned.
-/// `CallStructural` — the call returning a fresh structural place — adds the
+/// A structural-result `CallStructural` — the call returning a fresh
+/// structural place — adds the
 /// family's fourth call relocation and its second custody-rewriting shape,
 /// in the two forms the cyclic eligibility fence confines: an affine
 /// claim-free result the producing member block

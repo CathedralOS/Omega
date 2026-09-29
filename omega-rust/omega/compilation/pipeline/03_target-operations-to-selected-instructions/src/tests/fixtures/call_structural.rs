@@ -3,7 +3,7 @@
 
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
+    AbstractOperationPlan, AbstractStructuralCallResult,
 };
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
@@ -58,7 +58,11 @@ pub(in crate::tests) fn fixture(
     };
     let call = |identity, source| AbstractOperation::CallStructural {
         psi_operation: OperationId::new(identity).unwrap(),
-        result: result(identity),
+        result: AbstractStructuralCallResult::Structural {
+            result: result(identity),
+            returned_claim_transfers: Vec::new(),
+            selected_evidence: Vec::new(),
+        },
         callee: callee_machine,
         arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
@@ -66,11 +70,10 @@ pub(in crate::tests) fn fixture(
             path: Vec::new(),
             access: StructuralAccess::Owned,
         }],
+        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
-        returned_claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: crash_routes.clone(),
-        selected_evidence: Vec::new(),
     };
     let block = |raw| AbstractBlockEntry {
         structural_parameters: Vec::new(),
@@ -312,7 +315,11 @@ pub(in crate::tests) fn reference_fixture(
                 operations: vec![
                     AbstractOperation::CallStructural {
                         psi_operation: OperationId::new(12).unwrap(),
-                        result: result(result_place),
+                        result: AbstractStructuralCallResult::Structural {
+                            result: result(result_place),
+                            returned_claim_transfers: Vec::new(),
+                            selected_evidence: Vec::new(),
+                        },
                         callee: callee_machine,
                         arguments: Vec::new(),
                         structural_arguments: vec![StructuralArgument {
@@ -320,11 +327,10 @@ pub(in crate::tests) fn reference_fixture(
                             path: Vec::new(),
                             access: StructuralAccess::Owned,
                         }],
+                        dynamic_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
-                        returned_claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
                         crash_continuations: crash_routes.clone(),
-                        selected_evidence: Vec::new(),
                     },
                     return_structural(1, result_place),
                 ],
@@ -509,7 +515,11 @@ pub(in crate::tests) fn sum_reference_fixture(
                 operations: vec![
                     AbstractOperation::CallStructural {
                         psi_operation: OperationId::new(12).unwrap(),
-                        result: result(result_place),
+                        result: AbstractStructuralCallResult::Structural {
+                            result: result(result_place),
+                            returned_claim_transfers: Vec::new(),
+                            selected_evidence: Vec::new(),
+                        },
                         callee: callee_machine,
                         arguments: Vec::new(),
                         structural_arguments: vec![StructuralArgument {
@@ -517,11 +527,10 @@ pub(in crate::tests) fn sum_reference_fixture(
                             path: Vec::new(),
                             access: StructuralAccess::Owned,
                         }],
+                        dynamic_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
-                        returned_claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
                         crash_continuations: crash_routes.clone(),
-                        selected_evidence: Vec::new(),
                     },
                     return_structural(1, result_place),
                 ],
@@ -823,7 +832,11 @@ pub(in crate::tests) fn mixed_result_fixture(
                 operations: vec![
                     AbstractOperation::CallStructural {
                         psi_operation: OperationId::new(12).unwrap(),
-                        result: result(PlaceId::new(12).unwrap()),
+                        result: AbstractStructuralCallResult::Structural {
+                            result: result(PlaceId::new(12).unwrap()),
+                            returned_claim_transfers: Vec::new(),
+                            selected_evidence: Vec::new(),
+                        },
                         callee: callee_machine,
                         arguments: Vec::new(),
                         structural_arguments: vec![StructuralArgument {
@@ -831,11 +844,10 @@ pub(in crate::tests) fn mixed_result_fixture(
                             path: Vec::new(),
                             access: StructuralAccess::Owned,
                         }],
+                        dynamic_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
-                        returned_claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
-                        selected_evidence: Vec::new(),
                     },
                     return_structural(1, PlaceId::new(12).unwrap()),
                 ],

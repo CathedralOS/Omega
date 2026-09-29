@@ -4,7 +4,7 @@ use crate::tests::fixtures::scalar_units::structural_call_unit;
 use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
+    AbstractOperationPlan, AbstractStructuralCallResult,
 };
 use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
@@ -28,8 +28,10 @@ pub(crate) fn affine_claim_transfer_unit() -> PsiOptimizationUnit {
             });
         function.entry_claims.insert(claim);
     }
-    let AbstractOperation::CallUnit {
-        claim_transfers, ..
+    let AbstractOperation::CallStructural {
+        claim_transfers,
+        result: AbstractStructuralCallResult::Unit,
+        ..
     } = &mut unit.functions[0].blocks[0].nodes[0].operation
     else {
         panic!("fixture begins with a structural Unit call")
@@ -139,7 +141,7 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
                     operation_offset: 0,
                 }],
                 operations: vec![
-                    AbstractOperation::CallUnit {
+                    AbstractOperation::CallStructural {
                         psi_operation: id(4_859, OperationId::new),
                         callee,
                         arguments: Vec::new(),
@@ -152,6 +154,7 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
+                        result: AbstractStructuralCallResult::Unit,
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: id(4_860, EdgeId::new),

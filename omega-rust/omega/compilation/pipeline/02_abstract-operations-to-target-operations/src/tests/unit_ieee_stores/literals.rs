@@ -4,6 +4,7 @@ use super::{
     StructuralAccess, StructuralArgument, TargetLoweringRequest, ValueId,
     lower_to_target_operations, plan,
 };
+use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::IeeeFloatValue;
 
 fn literal_plan(value: IeeeFloatValue, call: bool) -> AbstractOperationPlan {
@@ -11,7 +12,7 @@ fn literal_plan(value: IeeeFloatValue, call: bool) -> AbstractOperationPlan {
     if call {
         let mut caller = source.functions[0].clone();
         caller.machine = MachineId::new(2).unwrap();
-        caller.operations[0] = AbstractOperation::CallUnit {
+        caller.operations[0] = AbstractOperation::CallStructural {
             psi_operation: OperationId::new(2).unwrap(),
             callee: source.entry,
             arguments: vec![ValueId::new(1).unwrap()],
@@ -24,6 +25,7 @@ fn literal_plan(value: IeeeFloatValue, call: bool) -> AbstractOperationPlan {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         };
         source.entry = caller.machine;
         source.functions.push(caller);

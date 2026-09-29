@@ -13,6 +13,7 @@ use crate::unit_validation::references::{
     leaf_referent, leaf_type, reference_access, reference_source_type,
 };
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -87,16 +88,12 @@ fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
     match operation {
         // A Unit call that forwards descriptors contributes no arguments
         // here; the scalar-result call contributes them in both forms.
-        O::CallUnit {
-            structural_arguments,
+        O::CallStructural {
             dynamic_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
-        } if dynamic_arguments.is_empty() => structural_arguments.as_slice(),
-        O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        } if !dynamic_arguments.is_empty() => &[],
+        O::CallStructural {
             structural_arguments,
             ..
         }
@@ -716,7 +713,7 @@ pub(super) fn apply_operation(
         O::CallStructural {
             callee,
             structural_arguments,
-            result,
+            result: AbstractStructuralCallResult::Structural { result, .. },
             ..
         } if contains_reference(structural_types, result.structural_type) => {
             let callee = functions.get(callee).ok_or_else(|| {
@@ -780,7 +777,11 @@ pub(super) fn apply_operation(
     };
     if !sources.is_empty() {
         let result = match operation {
-            O::EstablishReference { result, .. } | O::CallStructural { result, .. } => result,
+            O::EstablishReference { result, .. }
+            | O::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } => result,
             _ => {
                 return Err(invalid(
                     function,

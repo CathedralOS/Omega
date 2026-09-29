@@ -1,4 +1,5 @@
 //! Independently reconstructed scalar definitions and uses.
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{ValueDefinition, ValueDefinitionSite, ValueUse};
 use semantic_vocabulary::{BlockId, ScalarType};
 
@@ -25,7 +26,10 @@ pub(crate) fn expected_definitions(
         O::NearestIeeeFloatFusedMultiplyAdd { result, format, .. } => {
             Some((*result, ScalarType::IeeeFloat(*format)))
         }
-        O::CallStructuralScalar { result, .. }
+        O::CallStructural {
+            result: AbstractStructuralCallResult::Scalar(result),
+            ..
+        }
         | O::CallDynamic {
             result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
             ..
@@ -245,8 +249,6 @@ pub(crate) fn expected_uses(
         } => vec![*start, *end, *length],
         O::Call { arguments, .. }
         | O::CallStructural { arguments, .. }
-        | O::CallStructuralScalar { arguments, .. }
-        | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => arguments.clone(),
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }

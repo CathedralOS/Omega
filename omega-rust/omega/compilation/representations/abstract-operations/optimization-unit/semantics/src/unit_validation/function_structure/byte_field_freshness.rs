@@ -140,21 +140,10 @@ pub(super) fn changes_length(
                 && terminal_semantics::structural_paths_may_overlap(path, written)
         }
         // A call that forwards descriptors keeps the conservative answer.
-        O::CallUnit {
-            dynamic_arguments, ..
-        }
-        | O::CallStructuralScalar {
+        O::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => true,
-        O::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             structural_arguments,
             ..
         }

@@ -146,12 +146,7 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
             match &node.operation {
                 // A call that forwards descriptors also reaches every
                 // realization its descriptors select.
-                O::CallStructuralScalar {
-                    callee,
-                    dynamic_arguments,
-                    ..
-                }
-                | O::CallUnit {
+                O::CallStructural {
                     callee,
                     dynamic_arguments,
                     ..
@@ -186,10 +181,7 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         summary.suspension = EffectKnowledge::May;
                     }
                 }
-                O::CallUnit { callee, .. }
-                | O::CallStructuralScalar { callee, .. }
-                | O::CallStructural { callee, .. }
-                | O::Call { callee, .. } => {
+                O::CallStructural { callee, .. } | O::Call { callee, .. } => {
                     summary.callees.insert(*callee);
                     if !machines.contains(callee) {
                         summary.observable = EffectKnowledge::May;
@@ -389,10 +381,8 @@ fn operation_effect(
                 No,
             )
         }
-        O::CallUnit { .. }
-        | O::CallStructuralScalar { .. }
+        O::CallStructural { .. }
         | O::CallDynamic { .. }
-        | O::CallStructural { .. }
         | O::Call { .. } => (EffectClass::InternalCall, May, May, May, May),
         O::BoundaryCall { .. } => (EffectClass::BoundaryCall, Yes, May, May, May),
         O::PortWrite { .. } => (EffectClass::Service, Yes, No, No, No),

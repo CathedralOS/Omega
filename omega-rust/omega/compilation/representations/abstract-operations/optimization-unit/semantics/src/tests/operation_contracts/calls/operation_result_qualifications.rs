@@ -5,7 +5,7 @@ use crate::tests::fixtures::dominance::{
 };
 use crate::tests::support::id;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
     BoundaryMachineId, OperationId, PlaceId, StructuralDomainId, StructuralFieldId,
@@ -65,7 +65,10 @@ fn structural_call_and_return_retain_the_exact_projected_result_roster() {
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .find_map(|node| match &mut node.operation {
-            AbstractOperation::CallStructural { result, .. } => Some(result),
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } => Some(result),
             _ => None,
         })
         .expect("fixture has one structural call");
@@ -81,7 +84,10 @@ fn structural_call_and_return_retain_the_exact_projected_result_roster() {
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .find_map(|node| match &mut node.operation {
-            AbstractOperation::CallStructural { result, .. } => Some(result),
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } => Some(result),
             _ => None,
         })
         .expect("fixture has one structural call");
@@ -150,7 +156,10 @@ fn qualified_boundary_consumer() -> (PsiOptimizationUnit, StructuralDomainId, St
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .find_map(|node| match &mut node.operation {
-            AbstractOperation::CallStructural { result, .. } => {
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } => {
                 result.qualifications = vec![domain];
                 Some(result.place)
             }
@@ -236,7 +245,10 @@ fn rewrite_call_result_roster(unit: &mut PsiOptimizationUnit, roster: Vec<Struct
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .find_map(|node| match &mut node.operation {
-            AbstractOperation::CallStructural { result, .. } => {
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } => {
                 result.qualifications = roster.clone();
                 Some(())
             }

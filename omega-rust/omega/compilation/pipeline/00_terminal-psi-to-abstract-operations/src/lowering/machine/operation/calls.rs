@@ -1,6 +1,6 @@
 use abstract_operations::{
     AbstractDynamicCallResult, AbstractDynamicDispatch, AbstractOperation, AbstractResult,
-    CompletionClaimSource,
+    AbstractStructuralCallResult, CompletionClaimSource,
 };
 use terminal_psi::{
     ClosedConformanceApplication, Operation, OperationKind, TerminalDynamicDispatchCatalog,
@@ -46,7 +46,7 @@ pub(super) fn lower(
                     operation.id,
                 ));
             }
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation: operation.id,
                 callee,
                 arguments,
@@ -55,6 +55,7 @@ pub(super) fn lower(
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
+                result: AbstractStructuralCallResult::Unit,
             }
         }
         OperationKind::CallStructuralScalar {
@@ -82,12 +83,12 @@ pub(super) fn lower(
             } else {
                 Vec::new()
             };
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation: operation.id,
-                result: AbstractResult {
+                result: AbstractStructuralCallResult::Scalar(AbstractResult {
                     value: result.id,
                     scalar_type: result.scalar_type,
-                },
+                }),
                 callee,
                 arguments,
                 structural_arguments,
@@ -217,15 +218,18 @@ pub(super) fn lower(
             };
             AbstractOperation::CallStructural {
                 psi_operation: operation.id,
-                result,
+                result: AbstractStructuralCallResult::Structural {
+                    result,
+                    returned_claim_transfers,
+                    selected_evidence,
+                },
                 callee,
                 arguments: Vec::new(),
                 structural_arguments,
+                dynamic_arguments: Vec::new(),
                 claim_transfers,
-                returned_claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-                selected_evidence,
             }
         }
         OperationKind::CallStructuralWithScalarArguments {
@@ -244,15 +248,18 @@ pub(super) fn lower(
             };
             AbstractOperation::CallStructural {
                 psi_operation: operation.id,
-                result,
+                result: AbstractStructuralCallResult::Structural {
+                    result,
+                    returned_claim_transfers,
+                    selected_evidence: Vec::new(),
+                },
                 callee,
                 arguments,
                 structural_arguments,
+                dynamic_arguments: Vec::new(),
                 claim_transfers,
-                returned_claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-                selected_evidence: Vec::new(),
             }
         }
         OperationKind::BoundaryCall {

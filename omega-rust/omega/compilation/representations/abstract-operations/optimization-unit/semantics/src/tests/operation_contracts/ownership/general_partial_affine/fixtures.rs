@@ -2,7 +2,7 @@
 
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
+    AbstractOperationPlan, AbstractStructuralCallResult,
 };
 use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
@@ -160,7 +160,7 @@ fn build_unit(
                 cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
             }],
         ));
-        operations.push(AbstractOperation::CallUnit {
+        operations.push(AbstractOperation::CallStructural {
             psi_operation: id(6_000 + ordinal, OperationId::new),
             callee,
             arguments: Vec::new(),
@@ -173,6 +173,7 @@ fn build_unit(
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         });
     }
     operations.push(AbstractOperation::ReturnUnit {
@@ -208,14 +209,18 @@ fn build_unit(
             0,
             AbstractOperation::CallStructural {
                 psi_operation: id(8_005, OperationId::new),
-                result: terminal_psi::StructuralOperationResult {
-                    qualification_establishments: Vec::new(),
-                    place: caller_place,
-                    structural_type,
-                    multiplicity: StructuralMultiplicity::Affine,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
+                result: AbstractStructuralCallResult::Structural {
+                    result: terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
+                        place: caller_place,
+                        structural_type,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                    returned_claim_transfers: Vec::new(),
+                    selected_evidence: Vec::new(),
                 },
                 callee: producer,
                 arguments: Vec::new(),
@@ -224,11 +229,10 @@ fn build_unit(
                     path: Vec::new(),
                     access: StructuralAccess::Owned,
                 }],
+                dynamic_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
-                returned_claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
-                selected_evidence: Vec::new(),
             },
         );
         let mut identity = function(

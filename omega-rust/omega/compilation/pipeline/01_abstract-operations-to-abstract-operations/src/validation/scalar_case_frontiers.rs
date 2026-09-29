@@ -1,8 +1,8 @@
 //! Reconstructed ownership-frontier membership for relocated affine
 //! scalar-case, empty-record, and structural-call results.
 //!
-//! An affine `EstablishCase`, `EstablishRecord`, or `CallStructural`
-//! relocated out of a
+//! An affine `EstablishCase`, `EstablishRecord`, or structural-result
+//! `CallStructural` relocated out of a
 //! cyclic member re-times
 //! where its result is owned: the seed established a fresh place inside the
 //! member block and discarded it on every dispatch edge, while the
@@ -22,6 +22,7 @@
 //! validating the verified seed itself never rewrites a single fact.
 
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
     OwnershipFrontierFact, OwnershipFrontierOwnedPlace, OwnershipFrontierSite,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
@@ -29,8 +30,8 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// The affine `EstablishCase`, `EstablishRecord`, and `CallStructural`
-/// results whose
+/// The affine `EstablishCase`, `EstablishRecord`, and structural-result
+/// `CallStructural` results whose
 /// position in `unit` moved
 /// away from the block the seed established them in — the only places whose
 /// frontier membership a relocation may re-time. A node's seed home is the
@@ -67,7 +68,7 @@ pub(crate) fn relocated_scalar_case_result_places(
                     }
                     | O::CallStructural {
                         psi_operation,
-                        result,
+                        result: AbstractStructuralCallResult::Structural { result, .. },
                         ..
                     } => {
                         if result.multiplicity != terminal_psi::StructuralMultiplicity::Affine {

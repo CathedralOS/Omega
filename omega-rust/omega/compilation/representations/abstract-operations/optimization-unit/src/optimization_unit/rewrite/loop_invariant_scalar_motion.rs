@@ -35,15 +35,14 @@ use optimization_core::{
 /// relocation preserves the declared primitive-local result its operation
 /// spells — the fresh storage cell's place, type, multiplicity, and
 /// claim-free custody stay byte-exact inside the moved operation, so a
-/// `CallStructuralScalar` borrowing that root relocates in the same run
-/// without re-spelling the argument. An `EstablishByteSequenceLiteral`
-/// defines no scalar
-/// either: the relocation preserves the literal place declaration its
-/// operation carries — the fresh immutable view root's identity and
-/// declaration kind stay byte-exact inside the moved operation. A `CallUnit`
-/// defines no scalar and establishes no place: the relocation preserves the
-/// invocation itself — callee, scalar and structural arguments, claims, and
-/// crash routes move byte-exact apart from the planned operand and
+/// scalar-result `CallStructural` borrowing that root relocates in the same run
+/// without re-spelling the argument. An `EstablishByteSequenceLiteral` defines
+/// no scalar either: the relocation preserves the literal place declaration its
+/// operation carries — the fresh immutable view root's identity and declaration
+/// kind stay byte-exact inside the moved operation. A Unit-result
+/// `CallStructural` defines no scalar and establishes no place: the relocation
+/// preserves the invocation itself — callee, scalar and structural arguments,
+/// claims, and crash routes move byte-exact apart from the planned operand and
 /// argument-root rebinds — so the transformed unit's call custody still sees
 /// the same invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -58,7 +57,7 @@ pub enum LoopInvariantNodeResult {
     /// `EstablishPrimitiveLocal` declares, the fresh payload an
     /// `EstablishScalarArray` or `EstablishRecord` binds, the fresh sum
     /// place an `EstablishCase` declares, or the fresh place a
-    /// `CallStructural` returns. The moved operation keeps it
+    /// structural-result `CallStructural` returns. The moved operation keeps it
     /// byte-exact, so the transformed unit's structural custody still sees
     /// the same producer declaring the same place — for an affine case or
     /// call
@@ -79,7 +78,7 @@ pub enum LoopInvariantNodeResult {
     /// result, the realization re-spells where member edges and returns
     /// dispose that persistent place.
     TrivialAffineLocal(terminal_psi::StructuralPlaceDeclaration),
-    /// A preserved unit-result invocation — an admitted `CallUnit`. The
+    /// A preserved unit-result invocation — an admitted `CallStructural`. The
     /// moved operation defines nothing and establishes nothing: the
     /// relocation rebinds its member-parameter scalar operands and
     /// structural-argument roots and keeps every other field byte-exact, so
@@ -119,23 +118,22 @@ impl LoopInvariantNodeResult {
 /// byte-exact inside the moved operation. An `EstablishPrimitiveLocal`
 /// carries that same `Structural` result — the declared cell stays
 /// byte-exact — while its scalar initializer records an ordinary
-/// `operand_rewrites` entry. An admitted `CallUnit` records its
-/// result as [`LoopInvariantNodeResult::Unit`], rebinds member-parameter
+/// `operand_rewrites` entry. An admitted Unit-result `CallStructural` records
+/// its result as [`LoopInvariantNodeResult::Unit`], rebinds member-parameter
 /// scalar operands through `operand_rewrites` like every computation, and
-/// rebinds each structural argument whose root is an invariant member
-/// parameter through `argument_rewrites` — a borrow or copyable-owned
-/// argument naming a root a node earlier in the same run produced needs no
-/// rewrite, because the run keeps the producer's declared place identity
-/// byte-exact. An
-/// admitted `CallStructuralScalar` carries the same operand and
+/// rebinds each structural argument whose root is an invariant member parameter
+/// through `argument_rewrites` — a borrow or copyable-owned argument naming a
+/// root a node earlier in the same run produced needs no rewrite, because the
+/// run keeps the producer's declared place identity byte-exact. An
+/// admitted scalar-result `CallStructural` carries the same operand and
 /// argument-root rewrites while recording its result as
 /// [`LoopInvariantNodeResult::Scalar`]: the relocated call's return value
 /// stays bound for the member consumers the same run relocates. An
-/// admitted `CallStructural` records its affine result as
+/// admitted structural-result `CallStructural` records its affine result as
 /// [`LoopInvariantNodeResult::Structural`] — the declared place stays
 /// byte-exact while the realization re-spells its dispatch custody — and
 /// carries the same operand and argument-root rewrites a
-/// `CallStructuralScalar` does: scalar `arguments` through
+/// scalar-result `CallStructural` does: scalar `arguments` through
 /// `operand_rewrites` and each structural argument whose root is an
 /// invariant member structural parameter through `argument_rewrites`.
 #[derive(Debug, Clone, PartialEq, Eq)]

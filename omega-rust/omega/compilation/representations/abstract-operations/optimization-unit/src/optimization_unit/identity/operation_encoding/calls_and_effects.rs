@@ -25,71 +25,85 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*psi_operation);
             encode_stored_dynamic_descriptor(bytes, stored);
         }
-        O::CallUnit {
+        O::CallStructural {
             psi_operation,
             callee,
             arguments,
             structural_arguments,
             dynamic_arguments,
             claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            let layout = OrdinaryCallLayout::of(arguments, dynamic_arguments);
-            bytes.u8(match layout {
-                OrdinaryCallLayout::Plain => 3,
-                OrdinaryCallLayout::Descriptors => 59,
-                OrdinaryCallLayout::ScalarsAndDescriptors => 94,
-            });
-            bytes.id(*psi_operation);
-            bytes.id(*callee);
-            encode_ordinary_call_arguments(
-                bytes,
-                layout,
-                arguments,
-                structural_arguments,
-                dynamic_arguments,
-            );
-            encode_ordinary_call_tail(
-                bytes,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            );
-        }
-        O::CallStructuralScalar {
-            psi_operation,
             result,
-            callee,
-            arguments,
-            structural_arguments,
-            dynamic_arguments,
-            claim_transfers,
             requirement_obligations,
             crash_continuations,
         } => {
+            use abstract_operations::AbstractStructuralCallResult as R;
             let layout = OrdinaryCallLayout::of(arguments, dynamic_arguments);
-            bytes.u8(match layout {
-                OrdinaryCallLayout::Plain => 4,
-                OrdinaryCallLayout::Descriptors => 54,
-                OrdinaryCallLayout::ScalarsAndDescriptors => 95,
-            });
-            bytes.id(*psi_operation);
-            encode_abstract_result(bytes, *result);
-            bytes.id(*callee);
-            encode_ordinary_call_arguments(
-                bytes,
-                layout,
-                arguments,
-                structural_arguments,
-                dynamic_arguments,
-            );
-            encode_ordinary_call_tail(
-                bytes,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            );
+            match result {
+                R::Unit | R::Scalar(_) => {
+                    // Each (result, layout) pair keeps the tag and field order
+                    // of the variant it replaced, so folding the Unit and
+                    // scalar-result calls into one variant moved no identity.
+                    bytes.u8(match (result, layout) {
+                        (R::Unit, OrdinaryCallLayout::Plain) => 3,
+                        (R::Unit, OrdinaryCallLayout::Descriptors) => 59,
+                        (R::Unit, OrdinaryCallLayout::ScalarsAndDescriptors) => 94,
+                        (_, OrdinaryCallLayout::Plain) => 4,
+                        (_, OrdinaryCallLayout::Descriptors) => 54,
+                        (_, OrdinaryCallLayout::ScalarsAndDescriptors) => 95,
+                    });
+                    bytes.id(*psi_operation);
+                    if let Some(result) = result.scalar() {
+                        encode_abstract_result(bytes, result);
+                    }
+                    bytes.id(*callee);
+                    encode_ordinary_call_arguments(
+                        bytes,
+                        layout,
+                        arguments,
+                        structural_arguments,
+                        dynamic_arguments,
+                    );
+                    encode_ordinary_call_tail(
+                        bytes,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                    );
+                }
+                R::Structural {
+                    result,
+                    returned_claim_transfers,
+                    selected_evidence,
+                } => {
+                    // A structural result keeps tag 5 and its legacy field
+                    // order. It never forwarded descriptors: stage 00 never
+                    // produces that shape and the optimization-unit contract
+                    // rejects it, but it takes the fresh tag 96 with its
+                    // descriptor roster so that no two distinct rows share one
+                    // encoding.
+                    let forwards_descriptors = !dynamic_arguments.is_empty();
+                    bytes.u8(if forwards_descriptors { 96 } else { 5 });
+                    bytes.id(*psi_operation);
+                    encode_structural_operation_result(bytes, result);
+                    bytes.id(*callee);
+                    encode_ids(bytes, arguments);
+                    bytes.slice(structural_arguments, encode_structural_argument);
+                    if forwards_descriptors {
+                        bytes.slice(dynamic_arguments, encode_dynamic_descriptor_argument);
+                    }
+                    bytes.slice(claim_transfers, |bytes, transfer| {
+                        bytes.id(transfer.claim);
+                        bytes.u32(transfer.argument_index);
+                    });
+                    bytes.slice(returned_claim_transfers, |bytes, transfer| {
+                        bytes.id(transfer.callee_claim);
+                        bytes.id(transfer.caller_claim);
+                    });
+                    encode_ids(bytes, requirement_obligations);
+                    bytes.slice(crash_continuations, encode_crash_route_bucket);
+                    bytes.slice(selected_evidence, encode_outcome_specific_call_evidence);
+                }
+            }
         }
         O::CallDynamic {
             psi_operation,
@@ -122,36 +136,6 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             }
             encode_ids(bytes, requirement_obligations);
             bytes.slice(crash_continuations, encode_crash_route_bucket);
-        }
-        O::CallStructural {
-            psi_operation,
-            result,
-            callee,
-            arguments,
-            structural_arguments,
-            claim_transfers,
-            returned_claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-            selected_evidence,
-        } => {
-            bytes.u8(5);
-            bytes.id(*psi_operation);
-            encode_structural_operation_result(bytes, result);
-            bytes.id(*callee);
-            encode_ids(bytes, arguments);
-            bytes.slice(structural_arguments, encode_structural_argument);
-            bytes.slice(claim_transfers, |bytes, transfer| {
-                bytes.id(transfer.claim);
-                bytes.u32(transfer.argument_index);
-            });
-            bytes.slice(returned_claim_transfers, |bytes, transfer| {
-                bytes.id(transfer.callee_claim);
-                bytes.id(transfer.caller_claim);
-            });
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
-            bytes.slice(selected_evidence, encode_outcome_specific_call_evidence);
         }
         O::BoundaryCall {
             psi_operation,
@@ -218,13 +202,13 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
     }
 }
 
-/// The argument layout of one ordinary Unit or scalar-result call. Each
-/// layout keeps the tag and field order of the variant it replaced, so folding
-/// descriptor arguments into the call moved no identity. A call forwarding
-/// descriptors had no scalar argument roster. Scalar arguments beside
-/// descriptor arguments had no variant: stage 00 never produces that shape and
-/// the optimization-unit contract rejects it, but it takes fresh tags with both
-/// rosters so that no two distinct rows share one encoding.
+/// The argument layout of one Unit or scalar-result structural-lane call.
+/// Each layout keeps the tag and field order of the variant it replaced, so
+/// folding descriptor arguments into the call moved no identity. A call
+/// forwarding descriptors had no scalar argument roster. Scalar arguments
+/// beside descriptor arguments had no variant: stage 00 never produces that
+/// shape and the optimization-unit contract rejects it, but it takes fresh tags
+/// with both rosters so that no two distinct rows share one encoding.
 #[derive(Clone, Copy)]
 enum OrdinaryCallLayout {
     Plain,

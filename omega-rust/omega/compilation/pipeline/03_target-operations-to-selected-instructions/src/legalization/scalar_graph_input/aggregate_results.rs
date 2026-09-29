@@ -5,6 +5,7 @@ use super::{
     TargetOperationPlan, ValueDefinitionSite, ValueShape, evaluate_call_plan, scalar_shape,
 };
 use crate::LegalizationError;
+use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
 
@@ -57,11 +58,20 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::StoreStructuralField { .. }
                         | AbstractOperation::EstablishTrivialAffineLocal { .. }
                         | AbstractOperation::EstablishZeroedStructural { .. }
-                        | AbstractOperation::CallStructural { .. }
+                        | AbstractOperation::CallStructural {
+                            result: AbstractStructuralCallResult::Structural { .. },
+                            ..
+                        }
                         | AbstractOperation::BoundaryCall { result: abstract_operations::AbstractBoundaryResult::Structural(_), .. }
                 ) || matches!(&node.operation,
-                    AbstractOperation::CallStructuralScalar { structural_arguments, dynamic_arguments, .. }
-                        | AbstractOperation::CallUnit { structural_arguments, dynamic_arguments, .. }
+                    AbstractOperation::CallStructural {
+                        structural_arguments,
+                        dynamic_arguments,
+                        result:
+                            AbstractStructuralCallResult::Unit
+                            | AbstractStructuralCallResult::Scalar(_),
+                        ..
+                    }
                         if dynamic_arguments.is_empty()
                             && structural_arguments.iter().any(|argument|
                                 argument.access == terminal_psi::StructuralAccess::Owned))

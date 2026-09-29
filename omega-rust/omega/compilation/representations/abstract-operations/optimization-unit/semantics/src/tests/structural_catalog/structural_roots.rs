@@ -11,6 +11,7 @@ use crate::tests::fixtures::structural_catalog::{
 use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
     ClaimId, IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
@@ -125,7 +126,7 @@ fn logical_structural_roots_are_unique_beyond_place_identity() {
     let (psi_operation, result_type) = match &first_call.operation {
         O::CallStructural {
             psi_operation,
-            result,
+            result: AbstractStructuralCallResult::Structural { result, .. },
             ..
         } => (*psi_operation, result.structural_type),
         _ => panic!("fixture begins with one structural call"),
@@ -133,7 +134,11 @@ fn logical_structural_roots_are_unique_beyond_place_identity() {
     let duplicate_place = id(4_712, PlaceId::new);
     let mut duplicate_call = first_call;
     let O::CallStructural {
-        result: duplicate_result,
+        result:
+            AbstractStructuralCallResult::Structural {
+                result: duplicate_result,
+                ..
+            },
         ..
     } = &mut duplicate_call.operation
     else {
@@ -806,8 +811,10 @@ fn structural_returns_reject_non_source_roots_and_signature_drift() {
 
     let mut wrong_signature =
         operation_result_cfg_unit(OperationResultCfgShape::DominatingNonTopological);
-    let O::CallStructural { result, .. } =
-        &mut wrong_signature.functions[0].blocks[3].nodes[0].operation
+    let O::CallStructural {
+        result: AbstractStructuralCallResult::Structural { result, .. },
+        ..
+    } = &mut wrong_signature.functions[0].blocks[3].nodes[0].operation
     else {
         panic!("non-topological fixture stores its call in the entry block")
     };

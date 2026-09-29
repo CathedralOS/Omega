@@ -11,7 +11,7 @@ use crate::{
 };
 use abstract_operations::{
     AbstractDynamicCallResult, AbstractDynamicDispatch, AbstractFunctionResult, AbstractOperation,
-    ValueBinding,
+    AbstractStructuralCallResult, ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, ContentPlaceVersion, DomainSemanticId, EdgeId,
@@ -29,7 +29,7 @@ fn fixed_byte_range_call_identity_binds_both_endpoints() {
     let mut baseline =
         reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
             .unwrap();
-    baseline.functions[0].blocks[0].nodes[0].operation = AbstractOperation::CallUnit {
+    baseline.functions[0].blocks[0].nodes[0].operation = AbstractOperation::CallStructural {
         psi_operation: id(1, OperationId::new),
         callee: id(2, MachineId::new),
         arguments: Vec::new(),
@@ -42,12 +42,14 @@ fn fixed_byte_range_call_identity_binds_both_endpoints() {
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     };
     let original = recompute_psi_optimization_unit_identity(&baseline);
     for (start, end) in [(1, 2), (0, 3), (1, 3)] {
         let mut changed = baseline.clone();
-        let AbstractOperation::CallUnit {
+        let AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } = &mut changed.functions[0].blocks[0].nodes[0].operation
         else {
@@ -354,7 +356,7 @@ fn unit_call_identity_binds_scalar_arguments() {
     let mut baseline =
         reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
             .unwrap();
-    baseline.functions[0].blocks[0].nodes[0].operation = AbstractOperation::CallUnit {
+    baseline.functions[0].blocks[0].nodes[0].operation = AbstractOperation::CallStructural {
         psi_operation: id(1, OperationId::new),
         callee: id(2, MachineId::new),
         arguments: vec![id(3, ValueId::new)],
@@ -363,12 +365,16 @@ fn unit_call_identity_binds_scalar_arguments() {
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     };
     baseline.identity = recompute_psi_optimization_unit_identity(&baseline);
 
     let mut changed = baseline.clone();
-    let AbstractOperation::CallUnit { arguments, .. } =
-        &mut changed.functions[0].blocks[0].nodes[0].operation
+    let AbstractOperation::CallStructural {
+        arguments,
+        result: AbstractStructuralCallResult::Unit,
+        ..
+    } = &mut changed.functions[0].blocks[0].nodes[0].operation
     else {
         unreachable!()
     };
@@ -770,7 +776,7 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
     let fixtures = [
         (
             "unit (tag 3)",
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation: id(1, OperationId::new),
                 callee: id(2, MachineId::new),
                 arguments: vec![id(3, ValueId::new)],
@@ -779,6 +785,7 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 claim_transfers: claim_transfers(),
                 requirement_obligations: obligations(),
                 crash_continuations: crashes(),
+                result: AbstractStructuralCallResult::Unit,
             },
             [
                 41, 124, 164, 42, 44, 226, 192, 16, 35, 2, 243, 30, 36, 90, 105, 45, 49, 222, 229,
@@ -787,7 +794,7 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
         ),
         (
             "unit with descriptor arguments (tag 59)",
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation: id(1, OperationId::new),
                 callee: id(2, MachineId::new),
                 arguments: Vec::new(),
@@ -796,6 +803,7 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 claim_transfers: claim_transfers(),
                 requirement_obligations: obligations(),
                 crash_continuations: crashes(),
+                result: AbstractStructuralCallResult::Unit,
             },
             [
                 129, 170, 49, 216, 47, 101, 194, 5, 48, 197, 75, 64, 132, 231, 112, 10, 28, 26,
@@ -804,9 +812,9 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
         ),
         (
             "scalar (tag 4)",
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation: id(1, OperationId::new),
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 callee: id(2, MachineId::new),
                 arguments: vec![id(3, ValueId::new)],
                 structural_arguments: structural_arguments(),
@@ -822,9 +830,9 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
         ),
         (
             "scalar with descriptor arguments (tag 54)",
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation: id(1, OperationId::new),
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 callee: id(2, MachineId::new),
                 arguments: Vec::new(),
                 structural_arguments: structural_arguments(),
@@ -842,7 +850,7 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
         // arguments; the encoder still gives that shape distinct tags.
         (
             "unit with scalar and descriptor arguments (tag 94)",
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation: id(1, OperationId::new),
                 callee: id(2, MachineId::new),
                 arguments: vec![id(3, ValueId::new)],
@@ -851,6 +859,7 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 claim_transfers: claim_transfers(),
                 requirement_obligations: obligations(),
                 crash_continuations: crashes(),
+                result: AbstractStructuralCallResult::Unit,
             },
             [
                 58, 122, 84, 227, 100, 252, 197, 199, 198, 214, 115, 120, 140, 12, 106, 130, 169,
@@ -859,9 +868,9 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
         ),
         (
             "scalar with scalar and descriptor arguments (tag 95)",
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation: id(1, OperationId::new),
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 callee: id(2, MachineId::new),
                 arguments: vec![id(3, ValueId::new)],
                 structural_arguments: structural_arguments(),
@@ -890,10 +899,11 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
     }
 }
 
-/// Pins the complete unit identity of one structural-result call. Every
-/// roster the row encodes is nonempty, and the result carries qualifications,
-/// a projected qualification and a claim, so the digest binds the tag, the
-/// result position, the argument rows, both claim rosters and the tail order.
+/// Pins the complete unit identity of one structural-result call, with and
+/// without forwarded descriptor arguments. Every roster the row encodes is
+/// nonempty, and the result carries qualifications, a projected qualification
+/// and a claim, so the digest binds the tag, the result position, the argument
+/// rows, both claim rosters and the tail order.
 #[test]
 fn structural_result_call_identity_bytes_are_stable() {
     let baseline =
@@ -901,23 +911,59 @@ fn structural_result_call_identity_bytes_are_stable() {
             .unwrap();
     let result_place = id(12, PlaceId::new);
     let result_type = id(13, StructuralTypeId::new);
-    let operation = AbstractOperation::CallStructural {
+    let call = |dynamic_arguments| AbstractOperation::CallStructural {
         psi_operation: id(1, OperationId::new),
-        result: terminal_psi::StructuralOperationResult {
-            place: result_place,
-            structural_type: result_type,
-            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
-            qualifications: vec![id(14, StructuralDomainId::new)],
-            projected_qualifications: vec![terminal_psi::StructuralPathQualification {
-                path: vec![terminal_psi::StructuralPathSegment::Field(
-                    "left".to_owned(),
-                )],
-                domain: id(15, StructuralDomainId::new),
+        result: AbstractStructuralCallResult::Structural {
+            result: terminal_psi::StructuralOperationResult {
+                place: result_place,
+                structural_type: result_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                qualifications: vec![id(14, StructuralDomainId::new)],
+                projected_qualifications: vec![terminal_psi::StructuralPathQualification {
+                    path: vec![terminal_psi::StructuralPathSegment::Field(
+                        "left".to_owned(),
+                    )],
+                    domain: id(15, StructuralDomainId::new),
+                }],
+                qualification_establishments: Vec::new(),
+                claims: vec![terminal_psi::StructuralResultClaimBinding {
+                    claim: id(6, ClaimId::new),
+                    path: Vec::new(),
+                }],
+            },
+            returned_claim_transfers: vec![terminal_psi::StructuralResultClaimTransfer {
+                callee_claim: id(7, ClaimId::new),
+                caller_claim: id(6, ClaimId::new),
             }],
-            qualification_establishments: Vec::new(),
-            claims: vec![terminal_psi::StructuralResultClaimBinding {
-                claim: id(6, ClaimId::new),
-                path: Vec::new(),
+            selected_evidence: vec![terminal_psi::OutcomeSpecificCallEvidence {
+                guard: terminal_psi::OutcomeSpecificGuard {
+                    result_type,
+                    result_case: id(1, semantic_vocabulary::StructuralCaseId::new),
+                },
+                position: 0,
+                callee_obligation: id(9, ObligationId::new),
+                callee_term: id(1, semantic_vocabulary::EvidenceTermId::new),
+                output_field: "ready".to_owned(),
+                callee_proposition: id(1, semantic_vocabulary::PropositionId::new),
+                instantiated_proposition: id(2, semantic_vocabulary::PropositionId::new),
+                output: id(2, semantic_vocabulary::EvidenceTermId::new),
+                result_substitution: Some(terminal_psi::OutcomeSpecificCallResultSubstitution {
+                    argument_position: 0,
+                    callee_result: id(16, PlaceId::new),
+                    caller_result: result_place,
+                }),
+                validity: terminal_psi::OutcomeSpecificCallEvidenceValidity {
+                    result: result_place,
+                    proposition_dependencies: vec![result_place],
+                    evidence_interface: terminal_psi::EvidenceInterfaceIdentity {
+                        trait_identity: "test::Ready".to_owned(),
+                        arguments: Vec::new(),
+                        requirements: Vec::new(),
+                    },
+                    interface_dependencies: vec![result_place],
+                },
+                expected_use_count: 0,
+                uses: Vec::new(),
             }],
         },
         callee: id(2, MachineId::new),
@@ -927,66 +973,49 @@ fn structural_result_call_identity_bytes_are_stable() {
             access: terminal_psi::StructuralAccess::SharedBorrow,
             path: Vec::new(),
         }],
+        dynamic_arguments,
         claim_transfers: vec![terminal_psi::ClaimTransfer {
             claim: id(5, ClaimId::new),
             argument_index: 0,
-        }],
-        returned_claim_transfers: vec![terminal_psi::StructuralResultClaimTransfer {
-            callee_claim: id(7, ClaimId::new),
-            caller_claim: id(6, ClaimId::new),
         }],
         requirement_obligations: vec![id(8, ObligationId::new)],
         crash_continuations: vec![CrashRouteBucket {
             cause: CrashCause::Trap,
             alternatives: vec![CrashRouteGuard::Truth],
         }],
-        selected_evidence: vec![terminal_psi::OutcomeSpecificCallEvidence {
-            guard: terminal_psi::OutcomeSpecificGuard {
-                result_type,
-                result_case: id(1, semantic_vocabulary::StructuralCaseId::new),
-            },
-            position: 0,
-            callee_obligation: id(9, ObligationId::new),
-            callee_term: id(1, semantic_vocabulary::EvidenceTermId::new),
-            output_field: "ready".to_owned(),
-            callee_proposition: id(1, semantic_vocabulary::PropositionId::new),
-            instantiated_proposition: id(2, semantic_vocabulary::PropositionId::new),
-            output: id(2, semantic_vocabulary::EvidenceTermId::new),
-            result_substitution: Some(terminal_psi::OutcomeSpecificCallResultSubstitution {
-                argument_position: 0,
-                callee_result: id(16, PlaceId::new),
-                caller_result: result_place,
-            }),
-            validity: terminal_psi::OutcomeSpecificCallEvidenceValidity {
-                result: result_place,
-                proposition_dependencies: vec![result_place],
-                evidence_interface: terminal_psi::EvidenceInterfaceIdentity {
-                    trait_identity: "test::Ready".to_owned(),
-                    arguments: Vec::new(),
-                    requirements: Vec::new(),
-                },
-                interface_dependencies: vec![result_place],
-            },
-            expected_use_count: 0,
-            uses: Vec::new(),
-        }],
     };
-    let mut changed = baseline.clone();
-    changed.functions[0].blocks[0].nodes[0].operation = operation;
-    let identity = recompute_psi_optimization_unit_identity(&changed);
-    let canonical = crate::optimization_unit::identity::collect_unit_canonical_bytes(&changed);
-    assert_eq!(
-        OptimizationUnitIdentity::from_canonical_bytes(&canonical),
-        identity
-    );
-    assert_eq!(
-        identity.bytes(),
-        [
-            151, 227, 147, 43, 12, 62, 158, 200, 93, 56, 140, 29, 165, 138, 79, 202, 206, 238, 66,
-            183, 162, 193, 160, 44, 44, 176, 252, 108, 159, 72, 174, 166,
-        ],
-        "structural (tag 5)"
-    );
+    let fixtures = [
+        (
+            "structural (tag 5)",
+            call(Vec::new()),
+            [
+                151, 227, 147, 43, 12, 62, 158, 200, 93, 56, 140, 29, 165, 138, 79, 202, 206, 238,
+                66, 183, 162, 193, 160, 44, 44, 176, 252, 108, 159, 72, 174, 166,
+            ],
+        ),
+        // Stage 00 never produces a structural result beside descriptor
+        // arguments; the encoder still gives that shape a distinct tag.
+        (
+            "structural with descriptor arguments (tag 96)",
+            call(forwarded_descriptor_arguments()),
+            [
+                251, 197, 196, 58, 50, 140, 5, 133, 180, 130, 124, 235, 96, 227, 121, 71, 208, 203,
+                231, 136, 215, 51, 153, 182, 28, 24, 122, 171, 196, 62, 132, 27,
+            ],
+        ),
+    ];
+    for (shape, operation, expected) in fixtures {
+        let mut changed = baseline.clone();
+        changed.functions[0].blocks[0].nodes[0].operation = operation;
+        let identity = recompute_psi_optimization_unit_identity(&changed);
+        let canonical = crate::optimization_unit::identity::collect_unit_canonical_bytes(&changed);
+        assert_eq!(
+            OptimizationUnitIdentity::from_canonical_bytes(&canonical),
+            identity,
+            "{shape}"
+        );
+        assert_eq!(identity.bytes(), expected, "{shape}");
+    }
 }
 
 #[test]

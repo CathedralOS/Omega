@@ -4,7 +4,7 @@
 //! `scalar_instructions`.
 
 use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use legalized_operations::{
     LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedValueDefinition,
 };
@@ -107,7 +107,10 @@ pub(super) fn project(
             left: *left,
             right: *right,
         },
-        AbstractOperation::CallStructural { .. } => call_instructions::project_call_structural(
+        AbstractOperation::CallStructural {
+            result: AbstractStructuralCallResult::Structural { .. },
+            ..
+        } => call_instructions::project_call_structural(
             node, optimized, native, plan, unit, operation, custody,
         )?,
         AbstractOperation::EstablishReference { result, source, .. } => {
@@ -279,11 +282,12 @@ pub(super) fn project(
         AbstractOperation::ByteSequenceSubslice { .. } => {
             storage_instructions::project_byte_sequence_subslice(node, optimized, unit)?
         }
-        AbstractOperation::CallUnit { .. } | AbstractOperation::CallStructuralScalar { .. } => {
-            call_instructions::project_call_unit(
-                node, optimized, native, plan, unit, operation, custody,
-            )?
-        }
+        AbstractOperation::CallStructural {
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
+            ..
+        } => call_instructions::project_call_unit(
+            node, optimized, native, plan, unit, operation, custody,
+        )?,
         AbstractOperation::CallDynamic {
             dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
             ..

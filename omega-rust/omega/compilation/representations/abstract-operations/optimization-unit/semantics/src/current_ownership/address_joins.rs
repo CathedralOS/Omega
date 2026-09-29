@@ -469,15 +469,7 @@ fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
             .collect::<Vec<_>>()
     };
     match operation {
-        O::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             structural_arguments,
             ..
         }

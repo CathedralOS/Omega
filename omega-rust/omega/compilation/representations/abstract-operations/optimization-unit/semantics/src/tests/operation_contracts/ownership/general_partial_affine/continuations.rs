@@ -3,7 +3,7 @@
 use super::fixtures::{array, boundary_result_unit, call_result_unit, field, index, record, unit};
 use crate::tests::fixtures::dominance::refresh_function_derivatives;
 use crate::tests::support::id;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::{OptimizationBlock, PsiOptimizationUnit};
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId};
 use terminal_psi::TerminalAffineCleanupAction;
@@ -184,9 +184,10 @@ fn empty_partial_continuation_rejects_two_dying_roots() {
     parameter.position = 1;
     append_caller_parameter(&mut unit, parameter);
     let mut second = unit.functions[0].blocks[0].nodes[0].clone();
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         psi_operation,
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &mut second.operation
     else {

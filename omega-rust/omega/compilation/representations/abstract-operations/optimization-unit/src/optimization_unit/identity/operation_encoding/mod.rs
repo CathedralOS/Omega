@@ -42,10 +42,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
 
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }
-        | O::CallUnit { .. }
-        | O::CallStructuralScalar { .. }
-        | O::CallDynamic { .. }
         | O::CallStructural { .. }
+        | O::CallDynamic { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }
         | O::Call { .. } => calls_and_effects::encode(bytes, operation),

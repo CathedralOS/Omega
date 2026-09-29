@@ -140,15 +140,10 @@ pub(crate) fn validator_machine_references(
         .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
     {
         match operation {
-            O::CallStructural { callee, .. } | O::Call { callee, .. } => {
+            O::Call { callee, .. } => {
                 references.insert(*callee);
             }
-            O::CallStructuralScalar {
-                callee,
-                dynamic_arguments,
-                ..
-            }
-            | O::CallUnit {
+            O::CallStructural {
                 callee,
                 dynamic_arguments,
                 ..

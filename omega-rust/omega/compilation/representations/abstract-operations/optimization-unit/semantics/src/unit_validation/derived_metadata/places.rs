@@ -1,6 +1,7 @@
 //! Declared-place reconstruction and claim/place reference validation.
 use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{ClaimId, MachineId, PlaceId};
 use std::collections::BTreeSet;
@@ -61,7 +62,10 @@ pub(crate) fn reconstruct_declared_places(
                 // The copy's fresh owned storage is a declared operation
                 // result place like any establishment's.
                 | O::StructuralLeafCopy { result, .. }
-                | O::CallStructural { result, .. }
+                | O::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
                     ..
@@ -172,11 +176,7 @@ pub(crate) fn validate_operation_places(
             require(destination.place(), known)?;
             require(value.place, known)?;
         }
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
+        O::BoundaryCall {
             structural_arguments,
             ..
         } => {
@@ -184,12 +184,7 @@ pub(crate) fn validate_operation_places(
                 require(argument.place, known)?;
             }
         }
-        O::CallStructuralScalar {
-            structural_arguments,
-            dynamic_arguments,
-            ..
-        }
-        | O::CallUnit {
+        O::CallStructural {
             structural_arguments,
             dynamic_arguments,
             ..

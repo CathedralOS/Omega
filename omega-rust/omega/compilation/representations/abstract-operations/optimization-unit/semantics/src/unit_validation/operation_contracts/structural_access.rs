@@ -1,6 +1,7 @@
 use crate::unit_validation::operation_contracts::records::record_loan;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -399,7 +400,11 @@ pub(crate) fn structural_arguments_match(
                     .flat_map(|block| &block.nodes)
                     .any(|node| {
                         matches!(&node.operation,
-                    O::CallStructural { result, .. } | O::EstablishRecord { result, .. }
+                    O::CallStructural {
+                        result: AbstractStructuralCallResult::Structural { result, .. },
+                        ..
+                    }
+                        | O::EstablishRecord { result, .. }
                         | O::EstablishZeroedStructural { result, .. }
                         | O::EstablishCase { result, .. }
                         if result.place == argument.place)
@@ -648,7 +653,10 @@ fn structural_operation_result_contract(
                 // the readable root's custody.
                 | O::EstablishByteSequenceConcatenation { result, .. }
                 | O::StructuralLeafCopy { result, .. }
-                | O::CallStructural { result, .. }
+                | O::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
                     ..

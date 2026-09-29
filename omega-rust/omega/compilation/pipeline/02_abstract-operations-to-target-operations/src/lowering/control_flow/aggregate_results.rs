@@ -2,7 +2,7 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
 use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
@@ -149,15 +149,19 @@ pub(super) fn call(
     let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::CallStructural {
         psi_operation,
-        result,
+        result:
+            AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers,
+                selected_evidence,
+            },
         callee,
         arguments,
         structural_arguments,
+        dynamic_arguments,
         claim_transfers,
-        returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
-        selected_evidence,
     } = operation
     else {
         return Err(invalid());
@@ -173,6 +177,7 @@ pub(super) fn call(
         || !claim_transfers.is_empty()
         || !returned_claim_transfers.is_empty()
         || !selected_evidence.is_empty()
+        || !dynamic_arguments.is_empty()
         || arguments.len() != callee_function.parameters.len()
         || structural_arguments.len() != callee_function.structural_parameters.len()
     {

@@ -4,7 +4,7 @@
 //! longer consults it — each action admits by its root's own home or arrival
 //! declaration where the edge commits the discard.
 
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
@@ -80,18 +80,12 @@ pub(super) fn accepts(
                     .any(|parameter| parameter.place == *destination)
         }
         // A call that forwards descriptors needs its own realization.
-        AbstractOperation::CallStructuralScalar {
-            dynamic_arguments, ..
-        }
-        | AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => false,
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallStructural {
             structural_arguments,
-            ..
-        }
-        | AbstractOperation::CallUnit {
-            structural_arguments,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } => structural_arguments.iter().all(|argument| {
             argument.access != StructuralAccess::Owned

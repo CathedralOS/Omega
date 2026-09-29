@@ -2,7 +2,7 @@
 use crate::tests::support::id;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractStructuralCallResult,
 };
 use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
@@ -464,7 +464,7 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
                     operation_offset: 0,
                 }],
                 operations: vec![
-                    AbstractOperation::CallUnit {
+                    AbstractOperation::CallStructural {
                         psi_operation: id(338, OperationId::new),
                         callee,
                         arguments: Vec::new(),
@@ -477,6 +477,7 @@ pub(crate) fn structural_call_unit() -> PsiOptimizationUnit {
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
+                        result: AbstractStructuralCallResult::Unit,
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: id(339, EdgeId::new),
@@ -579,12 +580,12 @@ pub(crate) fn projected_shared_structural_scalar_call_unit() -> PsiOptimizationU
                     operation_offset: 0,
                 }],
                 operations: vec![
-                    AbstractOperation::CallStructuralScalar {
+                    AbstractOperation::CallStructural {
                         psi_operation: id(362, OperationId::new),
-                        result: AbstractResult {
+                        result: AbstractStructuralCallResult::Scalar(AbstractResult {
                             value: caller_result,
                             scalar_type: ScalarType::Boolean,
-                        },
+                        }),
                         callee,
                         arguments: Vec::new(),
                         structural_arguments: vec![terminal_psi::StructuralArgument {

@@ -8,7 +8,9 @@
 //! distinction available to independent legalization and physical replay.
 
 use crate::LoweringError;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
+};
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::MachineId;
 use std::collections::BTreeMap;
@@ -51,7 +53,7 @@ pub(super) fn resolve(
         .collect();
     let resolved = match (result, &candidate.result) {
         (abstract_operations::AbstractBoundaryResult::Unit, AbstractFunctionResult::Unit) => {
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,
                 callee,
                 arguments: arguments.clone(),
@@ -60,6 +62,7 @@ pub(super) fn resolve(
                 claim_transfers,
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
+                result: AbstractStructuralCallResult::Unit,
             }
         }
         (
@@ -82,15 +85,18 @@ pub(super) fn resolve(
             // carrier shape and multiplicity for ABI compatibility.
             AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,
-                result: result.clone(),
+                result: AbstractStructuralCallResult::Structural {
+                    result: result.clone(),
+                    returned_claim_transfers: Vec::new(),
+                    selected_evidence: Vec::new(),
+                },
                 callee,
                 arguments: arguments.clone(),
                 structural_arguments: structural_arguments.clone(),
+                dynamic_arguments: Vec::new(),
                 claim_transfers,
-                returned_claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
-                selected_evidence: Vec::new(),
             }
         }
         // A scalar provider is an ordinary scalar-result call. Without
@@ -117,9 +123,9 @@ pub(super) fn resolve(
                     crash_continuations: Vec::new(),
                 }
             } else {
-                AbstractOperation::CallStructuralScalar {
+                AbstractOperation::CallStructural {
                     psi_operation: *psi_operation,
-                    result: *result,
+                    result: AbstractStructuralCallResult::Scalar(*result),
                     callee,
                     arguments: arguments.clone(),
                     structural_arguments: structural_arguments.clone(),

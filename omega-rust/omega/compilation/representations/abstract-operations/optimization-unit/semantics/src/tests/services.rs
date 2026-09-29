@@ -15,7 +15,7 @@ use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::unit_validation::operation_contracts::operation_service_contract_matches;
 use crate::unit_validation::services::refresh_root_service_reach;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::{AbstractOperation, AbstractResult};
+use abstract_operations::{AbstractOperation, AbstractResult, AbstractStructuralCallResult};
 use semantic_vocabulary::{
     MachineId, OperationId, PlaceId, ScalarType, ServiceId, StructuralTypeId, ValueId,
 };
@@ -252,7 +252,7 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: id(710, OperationId::new),
             callee,
             arguments: Vec::new(),
@@ -261,10 +261,11 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallStructural {
             psi_operation: id(711, OperationId::new),
-            result: dummy_result,
+            result: AbstractStructuralCallResult::Scalar(dummy_result),
             callee,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -275,15 +276,18 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
         },
         AbstractOperation::CallStructural {
             psi_operation: id(712, OperationId::new),
-            result: dummy_structural_result,
+            result: AbstractStructuralCallResult::Structural {
+                result: dummy_structural_result,
+                returned_claim_transfers: Vec::new(),
+                selected_evidence: Vec::new(),
+            },
             callee,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
-            returned_claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
-            selected_evidence: Vec::new(),
         },
     ];
     for call in &calls {
@@ -663,7 +667,7 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: id(723, OperationId::new),
             callee,
             arguments: Vec::new(),
@@ -672,13 +676,14 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallStructural {
             psi_operation: id(724, OperationId::new),
-            result: AbstractResult {
+            result: AbstractStructuralCallResult::Scalar(AbstractResult {
                 value: id(725, ValueId::new),
                 scalar_type: ScalarType::Boolean,
-            },
+            }),
             callee,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
@@ -689,23 +694,26 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
         },
         AbstractOperation::CallStructural {
             psi_operation: id(726, OperationId::new),
-            result: terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: id(727, PlaceId::new),
-                structural_type: id(728, StructuralTypeId::new),
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
+            result: AbstractStructuralCallResult::Structural {
+                result: terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place: id(727, PlaceId::new),
+                    structural_type: id(728, StructuralTypeId::new),
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                },
+                returned_claim_transfers: Vec::new(),
+                selected_evidence: Vec::new(),
             },
             callee,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
-            returned_claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
-            selected_evidence: Vec::new(),
         },
         AbstractOperation::CallDynamic {
             psi_operation: id(740, OperationId::new),
@@ -748,7 +756,7 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
         },
         // The descriptor lane carries the realization: the static callee is the
         // caller itself and contributes no new service effects.
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: id(748, OperationId::new),
             callee: caller,
             arguments: Vec::new(),
@@ -762,13 +770,14 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallStructural {
             psi_operation: id(750, OperationId::new),
-            result: AbstractResult {
+            result: AbstractStructuralCallResult::Scalar(AbstractResult {
                 value: id(751, ValueId::new),
                 scalar_type: ScalarType::Boolean,
-            },
+            }),
             callee: caller,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),

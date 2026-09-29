@@ -2,7 +2,9 @@
 //! argument placement. Reference leaves resolve against the state before the
 //! call, so a producer cannot substitute a new home for the caller's referent.
 
-use abstract_operations::{AbstractOperation, AbstractOperationPlan, AbstractResult};
+use abstract_operations::{
+    AbstractOperation, AbstractOperationPlan, AbstractResult, AbstractStructuralCallResult,
+};
 use calling_conventions::CallPlan;
 use optimization_unit::PsiOptimizationFunction;
 use target_operations::{TargetCallResult, TargetUnitScalarHomeRequirement};
@@ -20,7 +22,13 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
     match (retained, source) {
-        (TargetCallResult::Unit, AbstractOperation::CallUnit { .. }) => {
+        (
+            TargetCallResult::Unit,
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Unit,
+                ..
+            },
+        ) => {
             if call_plan.result.is_some() {
                 return Err(LegalizationError::custody());
             }
@@ -44,9 +52,9 @@ pub(super) fn validate(
         )?,
         (
             TargetCallResult::Scalar(home),
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 ..
             },
         ) => scalar(*home, *psi_operation, *result, call_plan)?,
@@ -59,12 +67,15 @@ pub(super) fn validate(
                 returned_claim_transfers,
             },
             AbstractOperation::CallStructural {
-                result: expected_result,
+                result:
+                    AbstractStructuralCallResult::Structural {
+                        result: expected_result,
+                        returned_claim_transfers: expected_returns,
+                        selected_evidence,
+                    },
                 structural_arguments,
                 claim_transfers,
-                returned_claim_transfers: expected_returns,
                 requirement_obligations: _,
-                selected_evidence,
                 ..
             },
         ) => {

@@ -50,10 +50,8 @@ pub(crate) fn expected_provenance(
         | O::StoreStructuralField { psi_operation, .. }
         | O::StructuralLeafCopy { psi_operation, .. }
         | O::EstablishRecord { psi_operation, .. }
-        | O::CallUnit { psi_operation, .. }
-        | O::CallStructuralScalar { psi_operation, .. }
-        | O::CallDynamic { psi_operation, .. }
         | O::CallStructural { psi_operation, .. }
+        | O::CallDynamic { psi_operation, .. }
         | O::BoundaryCall { psi_operation, .. }
         | O::PortWrite { psi_operation, .. }
         | O::Call { psi_operation, .. }

@@ -2,7 +2,7 @@
 //! parameters, including scalar results of aggregate-bearing calls. Mandatory source/selection
 //! replay checks the layout, every fragment, and every load/store; these checks
 //! account for the exact declarations and operations at the object boundary.
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
 use selected_instructions::{SelectedFunction, SelectedTerminator};
 use target_operations::{TargetControlTerminator, TargetFunction, TargetUnitOperation};
 
@@ -174,7 +174,13 @@ pub(super) fn operation(
                 if retained == psi_operation && retained_source == source
             )).count() == 1
         }
-        AbstractOperation::CallStructural { psi_operation, callee, result, crash_continuations, .. } => {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            callee,
+            result: AbstractStructuralCallResult::Structural { result, .. },
+            crash_continuations,
+            ..
+        } => {
             selected.calls.iter().filter(|row| row.operation == *psi_operation && row.call.callee == *callee
                 && row.call.structural_result.as_ref() == Some(result)
                 && row.call.result_placement == row.call.call_plan.result && row.call.result_placement.is_some()

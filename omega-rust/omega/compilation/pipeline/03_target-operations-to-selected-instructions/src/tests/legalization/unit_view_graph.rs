@@ -4,7 +4,8 @@ use crate::{
     validate_selected_instructions,
 };
 use abstract_operations::{
-    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractResult, AbstractSuccessor,
+    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractResult,
+    AbstractStructuralCallResult, AbstractSuccessor,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
@@ -102,7 +103,7 @@ fn fixture(
             when_true: successor(10, 2),
             when_false: successor(11, 3),
         },
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: OperationId::new(12).unwrap(),
             callee: callee.machine,
             arguments: vec![ValueId::new(100).unwrap()],
@@ -115,6 +116,7 @@ fn fixture(
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
         AbstractOperation::ReturnUnit {
             psi_edge: EdgeId::new(12).unwrap(),
@@ -254,7 +256,7 @@ fn block_parameter_source(
             when_true: successor(10, 2, true),
             when_false: successor(11, 3, false),
         },
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: OperationId::new(12).unwrap(),
             callee: callee.machine,
             arguments: vec![ValueId::new(100).unwrap()],
@@ -267,6 +269,7 @@ fn block_parameter_source(
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
         AbstractOperation::ReturnUnit {
             psi_edge: EdgeId::new(12).unwrap(),
@@ -380,8 +383,9 @@ fn projected_address_join_calls_replay_exact_geometry_and_access() {
         scalar_type,
         value: semantic_vocabulary::IntegerValue::Unsigned(4),
     };
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &mut source.functions[0].operations[3]
     else {

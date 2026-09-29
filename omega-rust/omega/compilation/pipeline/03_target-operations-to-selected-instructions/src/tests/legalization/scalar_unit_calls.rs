@@ -1,5 +1,5 @@
 //! True Unit calls preserve scalar arguments, continuation and independent replay.
-use abstract_operations::{AbstractOperation, AbstractParameter};
+use abstract_operations::{AbstractOperation, AbstractParameter, AbstractStructuralCallResult};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     ScalarType, ValueId,
@@ -55,16 +55,19 @@ fn fixture(
         [[100, 101], [101, 100], [100, 100]]
             .into_iter()
             .enumerate()
-            .map(|(call_index, arguments)| AbstractOperation::CallUnit {
-                psi_operation: OperationId::new(10 + call_index as u64).unwrap(),
-                callee: callee.machine,
-                arguments: arguments.map(|value| ValueId::new(value).unwrap()).to_vec(),
-                structural_arguments: Vec::new(),
-                dynamic_arguments: Vec::new(),
-                claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            }),
+            .map(
+                |(call_index, arguments)| AbstractOperation::CallStructural {
+                    psi_operation: OperationId::new(10 + call_index as u64).unwrap(),
+                    callee: callee.machine,
+                    arguments: arguments.map(|value| ValueId::new(value).unwrap()).to_vec(),
+                    structural_arguments: Vec::new(),
+                    dynamic_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                    result: AbstractStructuralCallResult::Unit,
+                },
+            ),
     );
     source.functions.push(callee);
     let targeted = abstract_operations_to_target_operations::lower_to_target_operations(

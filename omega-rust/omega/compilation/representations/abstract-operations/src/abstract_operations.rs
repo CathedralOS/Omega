@@ -39,6 +39,7 @@ pub use calls::{
     AbstractDynamicDescriptorSource, AbstractDynamicDispatch,
     AbstractOperationPlanWithPlacedViewInputs, AbstractParameterDynamicDispatch,
     AbstractReboundDynamicDispatch, AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch,
+    AbstractStructuralCallResult,
 };
 pub mod control_flow;
 pub use control_flow::{

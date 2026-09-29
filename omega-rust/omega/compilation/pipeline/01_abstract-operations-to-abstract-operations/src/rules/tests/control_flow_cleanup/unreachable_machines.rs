@@ -6,6 +6,7 @@ use crate::rules::control_flow_cleanup::rule_unreachable_private_machine_complem
 use crate::rules::tests::fixtures::control_flow_cleanup::linear_empty_block_unit;
 use crate::{AnalysisProduct, RuleAnalysisView, compute_analysis};
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_core::AnalysisKind;
 use optimization_unit::{
     ProvenanceDisposition, PrunedMachineCustody, PsiRewriteCandidate, PsiRewritePatch,
@@ -96,7 +97,7 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
         function.machine = MachineId::new(machine).unwrap();
         unit.functions.push(function);
     }
-    unit.functions[0].blocks[0].nodes[0].operation = O::CallUnit {
+    unit.functions[0].blocks[0].nodes[0].operation = O::CallStructural {
         psi_operation: OperationId::new(9_001).unwrap(),
         callee: MachineId::new(99).unwrap(),
         arguments: Vec::new(),
@@ -105,6 +106,7 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     };
     unit.functions[2].attachment = Some(StructuralTypeId::new(9_002).unwrap());
     unit.provider_candidates
@@ -135,7 +137,7 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
             },
         )],
     };
-    unit.functions[5].blocks[0].nodes[0].operation = O::CallUnit {
+    unit.functions[5].blocks[0].nodes[0].operation = O::CallStructural {
         psi_operation: OperationId::new(9_007).unwrap(),
         callee: MachineId::new(104).unwrap(),
         arguments: Vec::new(),
@@ -144,8 +146,9 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     };
-    unit.functions[6].blocks[0].nodes[0].operation = O::CallUnit {
+    unit.functions[6].blocks[0].nodes[0].operation = O::CallStructural {
         psi_operation: OperationId::new(9_008).unwrap(),
         callee: MachineId::new(103).unwrap(),
         arguments: Vec::new(),
@@ -154,6 +157,7 @@ fn private_machine_roots_include_calls_attachments_cleanup_and_prune_recursive_i
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     };
 
     let analysis = compute_analysis(&unit, AnalysisKind::CallGraph).unwrap();

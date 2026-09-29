@@ -2,6 +2,7 @@ use super::super::{
     AbstractOperation, BTreeSet, OwnershipEvent, PlaceId, StructuralPlaceDeclaration,
     StructuralPlaceKind,
 };
+use abstract_operations::AbstractStructuralCallResult;
 
 pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
     use AbstractOperation as O;
@@ -78,7 +79,10 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         O::EstablishPrimitiveLocal { result, .. }
         | O::EstablishZeroedStructural { result, .. }
         | O::EstablishScalarArray { result, .. }
-        | O::CallStructural { result, .. }
+        | O::CallStructural {
+            result: AbstractStructuralCallResult::Structural { result, .. },
+            ..
+        }
         | O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
@@ -159,14 +163,10 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         },
         // Only a descriptor-forwarding call declares its argument places
         // here; a plain call adds none.
-        O::CallStructuralScalar {
+        O::CallStructural {
             structural_arguments,
             dynamic_arguments,
-            ..
-        }
-        | O::CallUnit {
-            structural_arguments,
-            dynamic_arguments,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } if !dynamic_arguments.is_empty() => {
             places.extend(structural_arguments.iter().map(|argument| argument.place));
@@ -265,7 +265,7 @@ pub(super) fn collect_operation_structural_places(
         }
         | AbstractOperation::CallStructural {
             psi_operation,
-            result,
+            result: AbstractStructuralCallResult::Structural { result, .. },
             ..
         }
         | AbstractOperation::StructuralLeafCopy {
@@ -306,19 +306,6 @@ pub(super) fn collect_operation_structural_places(
 pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent> {
     use AbstractOperation as O;
     match operation {
-        O::CallUnit {
-            claim_transfers, ..
-        }
-        | O::CallStructuralScalar {
-            claim_transfers, ..
-        } => {
-            vec![OwnershipEvent::ClaimTransfer(
-                claim_transfers
-                    .iter()
-                    .map(|transfer| transfer.claim)
-                    .collect(),
-            )]
-        }
         O::CallStructural {
             claim_transfers, ..
         } => vec![OwnershipEvent::ClaimTransfer(

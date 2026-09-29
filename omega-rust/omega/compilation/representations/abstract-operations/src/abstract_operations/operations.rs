@@ -3,8 +3,9 @@
 use crate::{
     AbstractAtomicEvent, AbstractBoundaryResult, AbstractDynamicCallResult,
     AbstractDynamicDescriptorArgument, AbstractDynamicDispatch, AbstractResult,
-    AbstractStoredDynamicDescriptor, AbstractStructuralCaseSuccessor, AbstractSuccessor,
-    AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource, ValueBinding,
+    AbstractStoredDynamicDescriptor, AbstractStructuralCallResult, AbstractStructuralCaseSuccessor,
+    AbstractSuccessor, AtomicModificationAfter, AtomicReadsFrom, CompletionClaimSource,
+    ValueBinding,
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType,
@@ -12,10 +13,10 @@ use semantic_vocabulary::{
     ValueId,
 };
 use terminal_psi::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashRouteBucket, OutcomeSpecificCallEvidence,
-    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultClaimTransfer,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalDynamicDescriptorParameter,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashRouteBucket, StructuralArgument,
+    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    TerminalDynamicDescriptorParameter,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -357,38 +358,33 @@ pub enum AbstractOperation {
         result: StructuralOperationResult,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
-    /// Invoke one Unit-result machine with exact caller-local scalar and
-    /// structural arguments. Physical ABI placement remains downstream.
+    /// Invoke one machine through the structural calling lane: exact
+    /// caller-local scalar and structural arguments, claim transfers, and
+    /// forwarded descriptors, with a Unit, scalar or structural result.
+    /// Physical ABI placement remains downstream.
+    ///
+    /// `result` fixes how the arguments are admitted; consumers take the
+    /// projection policy and routing from it, never from empty rosters.
     ///
     /// `dynamic_arguments` forwards exact existential descriptors into the
     /// callee's declared dynamic parameter interface. A call that forwards
-    /// descriptors carries no scalar `arguments`: stage 00 rejects that mix,
-    /// and the optimization-unit contract and stage 02 refuse it. Every
-    /// consumer routes a nonempty `dynamic_arguments` row apart from the
-    /// plain call.
-    CallUnit {
+    /// descriptors carries no scalar `arguments`: for a Unit result stage 00
+    /// rejects that mix, and for a scalar result it drops the scalar
+    /// arguments; the optimization-unit contract and stage 02 refuse it.
+    /// Only Unit and scalar results forward descriptors: stage 00 never
+    /// produces a structural result with descriptors, and the contract and
+    /// every lowering refuse one. Every consumer routes a nonempty
+    /// `dynamic_arguments` row apart from the plain call.
+    CallStructural {
         psi_operation: OperationId,
         callee: MachineId,
+        /// Runtime scalar arguments in exact Terminal call order. The
+        /// established structural-only lane carries an empty row.
         arguments: Vec<ValueId>,
         structural_arguments: Vec<StructuralArgument>,
         dynamic_arguments: Vec<AbstractDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one scalar-result machine with exact caller-local scalar and
-    /// structural arguments. `dynamic_arguments` has the same meaning and the
-    /// same empty-`arguments` rule as on `CallUnit`, except that stage 00
-    /// drops the scalar arguments of a forwarding call instead of rejecting
-    /// them.
-    CallStructuralScalar {
-        psi_operation: OperationId,
-        result: AbstractResult,
-        callee: MachineId,
-        arguments: Vec<ValueId>,
-        structural_arguments: Vec<StructuralArgument>,
-        dynamic_arguments: Vec<AbstractDynamicDescriptorArgument>,
-        claim_transfers: Vec<ClaimTransfer>,
+        result: AbstractStructuralCallResult,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
@@ -404,23 +400,6 @@ pub enum AbstractOperation {
         result: AbstractDynamicCallResult,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One verifier-approved structural-result call. The result place and
-    /// returned-claim correspondence remain semantic custody; target lowering
-    /// may realize only a deliberately bounded ABI subset.
-    CallStructural {
-        psi_operation: OperationId,
-        result: StructuralOperationResult,
-        callee: MachineId,
-        /// Runtime scalar arguments in exact Terminal call order. The
-        /// established structural-only lane carries an empty row.
-        arguments: Vec<ValueId>,
-        structural_arguments: Vec<StructuralArgument>,
-        claim_transfers: Vec<ClaimTransfer>,
-        returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-        selected_evidence: Vec<OutcomeSpecificCallEvidence>,
     },
     BoundaryCall {
         psi_operation: OperationId,
@@ -866,15 +845,7 @@ impl AbstractOperation {
             Self::EstablishReference { source, .. } | Self::EstablishElementView { source, .. } => {
                 vec![source.path.as_slice()]
             }
-            Self::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructuralScalar {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructural {
+            Self::CallStructural {
                 structural_arguments,
                 ..
             }
@@ -920,10 +891,8 @@ impl AbstractOperation {
             | Self::EstablishReference { psi_operation, .. }
             | Self::ReleaseReference { psi_operation, .. }
             | Self::AtomicEvent { psi_operation, .. }
-            | Self::CallUnit { psi_operation, .. }
-            | Self::CallStructuralScalar { psi_operation, .. }
-            | Self::CallDynamic { psi_operation, .. }
             | Self::CallStructural { psi_operation, .. }
+            | Self::CallDynamic { psi_operation, .. }
             | Self::BoundaryCall { psi_operation, .. }
             | Self::PortWrite { psi_operation, .. }
             | Self::Call { psi_operation, .. }
