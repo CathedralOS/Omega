@@ -164,13 +164,13 @@ fn root_type(
         return Some(parameter.structural_type);
     }
     let signature = source.structural.as_ref()?;
+    // `self` is a valid lending root: its referent record is the attached
+    // data, and the projection resolves through that record's field types
+    // like any other root's.
     signature
         .parameters
         .iter()
         .find(|parameter| parameter.semantic.place == place)
-        .filter(|parameter| {
-            !parameter.semantic.is_self
-                && parameter.semantic.access != StructuralAccess::WriteOnlyBorrow
-        })
+        .filter(|parameter| parameter.semantic.access != StructuralAccess::WriteOnlyBorrow)
         .map(|parameter| parameter.semantic.structural_type)
 }

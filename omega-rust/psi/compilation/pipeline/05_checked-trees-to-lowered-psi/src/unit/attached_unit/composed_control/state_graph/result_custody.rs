@@ -556,9 +556,28 @@ pub(super) fn local_discards(
             // residual parameter is disposed by the caller's splice roster.
             continue;
         }
-        let transferred = edge.into_iter().flat_map(|edge| &edge.transfers).filter(|transfer| matches!(transfer.source,
-            checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal }
-                if binding_ordinal == result.binding_ordinal)).count();
+        let transferred = edge
+            .into_iter()
+            .flat_map(|edge| &edge.transfers)
+            .filter(|transfer| match &transfer.source {
+                checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                    binding_ordinal,
+                } => *binding_ordinal == result.binding_ordinal,
+                // A projected loan transfers its root's custody for the
+                // loan's duration: the backing local stays live through the
+                // edge and dies with the loan, never on this edge itself.
+                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                    subject,
+                    ..
+                } => matches!(
+                    subject.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } if binding_ordinal == result.binding_ordinal
+                ),
+                _ => false,
+            })
+            .count();
         if transferred > 1 {
             return unsupported("Unit graph edge duplicates local ownership");
         }

@@ -74,6 +74,13 @@ pass/borrows/borrow_domain_window_write_and_call checked 340ms
 pass/borrows/borrow_guarded_window_write_and_call checked 334ms
 pass/borrows/borrow_returned_window_write_and_call checked 352ms
 pass/borrows/borrow_stated_index_disequality_mut checked 350ms
+pass/borrows/projected_indexed_member_loan checked 6758ms
+pass/borrows/projected_local_member_loan checked 6737ms
+pass/borrows/projected_mut_member_loan rejected 6825ms
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "reference-bearing continuation bindings are not yet supported" }))
+pass/borrows/projected_param_member_loan rejected 6297ms
+	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(InvalidStructuralTypeIdentity(StructuralTypeId(3))))
+pass/borrows/projected_scalar_member_loan checked 6696ms
 pass/borrows/shared_recast_loan_member_read rejected 8810ms
 	native artifact native artifact lowering failed: Lowering(InvalidStructuralLeafCopy(OperationId(6)))
 pass/build/conditional_root_binding checked 446ms

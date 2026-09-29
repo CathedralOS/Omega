@@ -1,0 +1,24 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    tag: u32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.tag = 9;
+    transition true { _ -> next(&self.tag) }
+
+    state next(&mut self, leaf: &u32) {
+        transition leaf == 9 { true -> done() _ -> bad() }
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

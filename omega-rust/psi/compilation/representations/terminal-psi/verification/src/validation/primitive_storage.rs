@@ -157,6 +157,15 @@ pub(super) fn read_type(
         return projected_type(module, machine, place, path, false).ok_or_else(invalid);
     }
     let structural_type = parameter_type(machine, place, false)
+        .or_else(|| {
+            super::block_views::parameter(machine, place).and_then(|parameter| {
+                matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+                .then_some(parameter.structural_type)
+            })
+        })
         .or_else(|| local_result(machine, place).map(|result| result.structural_type))
         .ok_or_else(invalid)?;
     scalar_type(module, structural_type).ok_or_else(invalid)

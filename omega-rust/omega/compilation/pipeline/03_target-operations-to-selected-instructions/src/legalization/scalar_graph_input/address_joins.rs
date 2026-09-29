@@ -192,17 +192,18 @@ fn root_type(
         .iter()
         .find(|source| source.place == place)
     {
-        return (!source.is_self
-            && (if access == StructuralAccess::MutableBorrow {
-                source.access == StructuralAccess::MutableBorrow
-            } else {
-                source.access != StructuralAccess::WriteOnlyBorrow
-            })
-            && plain(
-                source.multiplicity,
-                &source.qualifications,
-                &source.projected_qualifications,
-            ))
+        // `self` is a valid join root: its referent record is the attached
+        // data, and the projection below resolves through that record's
+        // declared field types like any other root.
+        return ((if access == StructuralAccess::MutableBorrow {
+            source.access == StructuralAccess::MutableBorrow
+        } else {
+            source.access != StructuralAccess::WriteOnlyBorrow
+        }) && plain(
+            source.multiplicity,
+            &source.qualifications,
+            &source.projected_qualifications,
+        ))
         .then_some(source.structural_type);
     }
     if let Some((owner, joined)) = parameter(function, place, plan) {

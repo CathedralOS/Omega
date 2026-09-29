@@ -103,6 +103,17 @@ impl StateGraphEmission<'_, '_> {
             operation_start: 0,
             blocks: Vec::new(),
         };
+        // A `&`-primitive state parameter arrives by edge argument: its
+        // referent storage joins the state's primitive-storage table exactly
+        // as a machine-level `&` parameter's does, so a bare referent read
+        // resolves the loaned scalar.
+        evaluation.primitive_storage =
+            crate::expression_preparation::source_custody::primitive_references::bindings(
+                checked,
+                state.state,
+                &evaluation.structural_parameters,
+                &self.catalogs.structural_types,
+            )?;
         let mut values = self.state_values[position].clone();
         let mut next_value = self.catalogs.next_value;
         let mut next_block = self.catalogs.next_block;
