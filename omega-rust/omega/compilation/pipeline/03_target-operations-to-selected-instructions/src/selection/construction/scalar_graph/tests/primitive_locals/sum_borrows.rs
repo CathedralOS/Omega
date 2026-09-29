@@ -497,3 +497,190 @@ fn nested_case_payload_copy_replays_exact_child_storage_and_layout() {
         assert!(validate(&source, &missing_store).is_err());
     }
 }
+
+/// The local sum becomes a mixed shape with one runtime common field whose id
+/// reuses the payload's: the establishment binds the common field, then the
+/// payload, and a membership observation reads the result. The tag stays the
+/// carrier's first word while the common field takes offset 8 and the
+/// payload overlay moves to 16.
+fn mixed_membership_fixture(native: target::NativeTarget) -> LegalizedScalarFunction {
+    let mut source = sum_borrow_fixture(native);
+    let place = PlaceId::new(1).unwrap();
+    let declaration = &mut source
+        .structural
+        .as_mut()
+        .unwrap()
+        .structural_types
+        .make_mut()[0];
+    let StructuralTypeShape::Sum { cases } = declaration.shape.clone() else {
+        panic!("sum");
+    };
+    let common = terminal_psi::StructuralFieldDeclaration {
+        identity: "count".into(),
+        ..cases[0].fields[0].clone()
+    };
+    let case = cases[0].id;
+    declaration.shape = StructuralTypeShape::Mixed {
+        fields: vec![common.clone()],
+        cases,
+    };
+    let layout = calling_conventions::evaluate_conventional_sum_layout(
+        &[ValueShape::integer(8, 8)],
+        &[vec![ValueShape::integer(8, 8)], Vec::new()],
+    )
+    .unwrap();
+    assert_eq!(
+        (
+            layout.common_fields[0].byte_offset,
+            layout.payload_byte_offset
+        ),
+        (8, 16)
+    );
+    let LegalizedScalarInstructionKind::EstablishCase {
+        fields,
+        layout: established,
+        ..
+    } = &mut source.blocks[0].instructions[1].kind
+    else {
+        panic!("case");
+    };
+    let payload = fields[0].clone();
+    fields.insert(
+        0,
+        terminal_psi::RecordFieldInitializer {
+            field: common.id,
+            value: payload.value,
+        },
+    );
+    *established = layout.clone();
+    // Borrowing a mixed local into a call is a separate route that selection
+    // still refuses, so the getter becomes a constant the scalar call reads.
+    let getter = &mut source.blocks[0].instructions[2];
+    getter.kind = LegalizedScalarInstructionKind::Constant(super::super::IntegerValue::Unsigned(3));
+    getter.ownership.clear();
+    let observation = OperationId::new(21).unwrap();
+    let block = &mut source.blocks[0];
+    block
+        .instructions
+        .push(legalized_operations::LegalizedScalarInstruction {
+            operation: observation,
+            result: Some(legalized_operations::LegalizedValueDefinition {
+                value: super::ValueId::new(21).unwrap(),
+                scalar_type: super::ScalarType::Boolean,
+                definition_site: optimization_unit::ValueDefinitionSite::Node {
+                    block: block.id,
+                    node: block.instructions.len() as u32,
+                },
+            }),
+            kind: LegalizedScalarInstructionKind::StructuralCaseMembership {
+                source: place,
+                path: Vec::new(),
+                case,
+                case_tag: 0,
+                tag_byte_offset: 0,
+                indices: Vec::new(),
+            },
+            fuel: vec![optimization_unit::FuelSettlement {
+                site: optimization_unit::PsiProvenance::Operation(observation),
+                units: 1,
+            }],
+            effect: optimization_unit::EffectLink {
+                input: 20,
+                output: 21,
+            },
+            ownership: Vec::new(),
+        });
+    source.provenance.operations.push(observation);
+    source
+}
+
+#[test]
+fn mixed_case_membership_reads_tag_ahead_of_common_fields() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let source = mixed_membership_fixture(native);
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            fixed_inputs: Vec::new(),
+        };
+        let construct = |source: &LegalizedScalarFunction| {
+            build(
+                0,
+                source,
+                native,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        let validate = |source: &LegalizedScalarFunction, selected: &SelectedFunction| {
+            crate::selection::validation::scalar_graph::validate(
+                0,
+                source,
+                selected,
+                native,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+        };
+        let selected = construct(&source).unwrap();
+        validate(&source, &selected).unwrap();
+        let observes = |instruction: &selected_instructions::SelectedInstruction| {
+            instruction
+                .provenance
+                .operations
+                .contains(&OperationId::new(21).unwrap())
+        };
+        assert!(selected.blocks[0].instructions.iter().any(|instruction| {
+            matches!(
+                instruction.kind,
+                SelectedInstructionKind::Load32 { byte_offset: 0 }
+            ) && observes(instruction)
+        }));
+        // A substituted case, a tag that names the other case, or a tag read
+        // at the common field's offset each refuse in both directions.
+        for mutation in 0..3 {
+            let mut changed = source.clone();
+            let LegalizedScalarInstructionKind::StructuralCaseMembership {
+                case,
+                case_tag,
+                tag_byte_offset,
+                ..
+            } = &mut changed.blocks[0].instructions.last_mut().unwrap().kind
+            else {
+                panic!("membership");
+            };
+            match mutation {
+                0 => *case = semantic_vocabulary::StructuralCaseId::new(99).unwrap(),
+                1 => *case_tag = 1,
+                _ => *tag_byte_offset = 8,
+            }
+            assert!(
+                construct(&changed).is_err(),
+                "mixed membership source mutation {mutation}"
+            );
+            assert!(
+                validate(&changed, &selected).is_err(),
+                "mixed membership replay mutation {mutation}"
+            );
+        }
+        let mut changed_tag_read = selected.clone();
+        changed_tag_read.blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|instruction| {
+                matches!(instruction.kind, SelectedInstructionKind::Load32 { .. })
+                    && observes(instruction)
+            })
+            .unwrap()
+            .kind = SelectedInstructionKind::Load32 { byte_offset: 8 };
+        assert!(validate(&source, &changed_tag_read).is_err());
+    }
+}
