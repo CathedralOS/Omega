@@ -10,9 +10,9 @@
 //! kind) pair — the rewritten form is always the target's `MaterializeI64`
 //! row — and the axes the relationship must satisfy; the producer consults
 //! its own descriptor when admitting a candidate, while the independent
-//! replay re-derives the whole grammar — consumer kind, flag-unit flow,
-//! operand resolution, and decided value — from the instruction records
-//! alone and never reads a rule.
+//! `validation` re-derives the whole grammar — consumer kind, flag-unit
+//! flow, operand resolution, decided value, and catalog effect surface —
+//! from the instruction records alone and never reads a rule.
 //!
 //! The landed family is the decided condition materialization: a
 //! `MaterializeBoolean*` consumer whose flag reads all reach one
@@ -24,6 +24,15 @@
 //! observation) while its `Def` operand carries verbatim onto the rewritten
 //! record. The producer stays: its flag definitions remain published for
 //! every other reader the function still holds.
+//!
+//! The table was staged as
+//! `rewrites/unexecuted/peepholes/condition_materialization` beside this
+//! executed family and duplicated its admission. It now lives at the
+//! semantic owner the stage already executes under
+//! `SelectedConstantBooleanFoldV1`, so the declared unit-flow and
+//! effect-surface relationships reach compiler-produced plans on every
+//! target through the one existing enablement path instead of a second
+//! rule identity over the same fold.
 
 use std::collections::BTreeSet;
 
@@ -37,7 +46,7 @@ use selected_instructions::{
 use semantic_vocabulary::IntegerValue;
 
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::unexecuted::peepholes::condition_flow::ConditionOperandResolution;
+use crate::rewrites::condition_state::{ConditionOperandResolution, resolved_unit_surface};
 
 /// The implicit physical-unit relationship the rewrite asserts between the
 /// producer's definitions and the consumer's uses — the flag-consuming
@@ -88,8 +97,8 @@ pub(super) enum ConditionMaterializationEffects {
 /// The descriptor declares admissibility; it never certifies it. The
 /// producer consults its own rule through
 /// [`condition_materialization_for`] and the axes' `admits_*` predicates;
-/// the replay in `replay` re-derives the grammar from the instruction
-/// records without reading this table.
+/// `validation` re-derives the grammar from the instruction records
+/// without reading this table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ConditionMaterializationRule {
     producer: MachineSemanticKind,
@@ -249,9 +258,7 @@ impl ConditionMaterializationRule {
     ) -> bool {
         match self.unit_flow {
             ConditionMaterializationUnitFlow::ConditionStateResolved => {
-                crate::rewrites::unexecuted::peepholes::condition_flow::resolved_unit_surface(
-                    flag_uses, plain_uses, consumer, rewritten,
-                )
+                resolved_unit_surface(flag_uses, plain_uses, consumer, rewritten)
             }
         }
     }

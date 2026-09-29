@@ -4,8 +4,9 @@
 //! The [`literal_fold`](crate::rewrites::selected_lowering) pair grammar
 //! describes a materialized literal folded into a consumer operand, and the
 //! decided-branch descriptors in `rewrites::constant_branch::pair` and the
-//! [`condition_materialization`](super::condition_materialization) grammar
-//! describe condition-state readers. Neither vocabulary can name the pair
+//! condition-materialization descriptors in
+//! `rewrites::constant_boolean::pair` describe condition-state readers.
+//! Neither vocabulary can name the pair
 //! an address projection forms with the access that consumes it: the
 //! `AddressOffset` producer's `Def` is an ordinary register — no literal to
 //! substitute — and the consumer absorbs the projection's displacement into

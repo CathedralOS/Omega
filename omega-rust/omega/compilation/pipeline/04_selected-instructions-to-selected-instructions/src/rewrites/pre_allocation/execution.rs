@@ -38,12 +38,13 @@ use crate::resolve_pre_allocation_rules;
 use crate::rewrites::block_edges::terminator_instruction;
 use crate::rewrites::condition_state::adjacency;
 use crate::rewrites::{
-    address_fold_measured_steps, constant_boolean_measured_steps, constant_branch_measured_steps,
-    constant_branch_surface_sizes, copy_removal_measured_steps, dead_compare_measured_steps,
-    equivalent_compare_measured_steps, fold_selected_address, fold_selected_constant_boolean,
-    fold_selected_constant_branch, redundant_compare_measured_steps,
-    redundant_extension_measured_steps, remove_dead_compare, remove_equivalent_compare,
-    remove_redundant_compare, remove_selected_copy, remove_selected_redundant_extension,
+    address_fold_measured_steps, constant_boolean_measured_steps, constant_boolean_surface_sizes,
+    constant_branch_measured_steps, constant_branch_surface_sizes, copy_removal_measured_steps,
+    dead_compare_measured_steps, equivalent_compare_measured_steps, fold_selected_address,
+    fold_selected_constant_boolean, fold_selected_constant_branch,
+    redundant_compare_measured_steps, redundant_extension_measured_steps, remove_dead_compare,
+    remove_equivalent_compare, remove_redundant_compare, remove_selected_copy,
+    remove_selected_redundant_extension,
 };
 use crate::validate_optimized_allocation_legality_custody;
 use optimization_core::{
@@ -442,9 +443,10 @@ fn address_fold_pass(
 /// flag-reading `MaterializeBoolean*` in the current validated plan, in
 /// function/block/instruction order, evaluated until the first admissible
 /// one commits. Declines and hard failures follow the copy pass's contract
-/// exactly, and the measured-step contract is the fold family's own — its
-/// per-candidate cost includes the flag-use count, so the audit charge is
-/// computed per evaluated instruction rather than once per function.
+/// exactly, and the measured-step contract is the fold family's own — the
+/// flag-universe and materialize-surface sizes are charged once per pass
+/// from the target's rows, and the reached compare's published definitions
+/// stay bounded by the flag universe, so the pre-admission charge uses it.
 fn constant_boolean_pass(
     current: SelectedProgramRef<'_>,
     environment: &ValidatedTargetRegisterEnvironment,
@@ -453,6 +455,15 @@ fn constant_boolean_pass(
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
+    let (flag_universe, materialize_surface) = constant_boolean_surface_sizes(environment)
+        .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
+    // The condition-materialization pair descriptors admit the fold
+    // through the environment's own validated catalog — a pure function of
+    // the target and the constraint catalog, so the custody replay
+    // re-running this pass binds the same declarations.
+    let effect_catalog =
+        validated_machine_effect_catalog(environment.target(), environment.constraints())
+            .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
     for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
         let (successors, _) = adjacency(function);
         for block in &function.blocks {
@@ -466,6 +477,9 @@ fn constant_boolean_pass(
                     function,
                     &successors,
                     instruction.implicit_uses.len(),
+                    flag_universe,
+                    materialize_surface,
+                    flag_universe,
                 )
                 .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
                 validation_steps = validation_steps
@@ -476,6 +490,7 @@ fn constant_boolean_pass(
                     function_index,
                     instruction.id,
                     environment,
+                    &effect_catalog,
                     budget,
                 ) {
                     Ok(fold) => {

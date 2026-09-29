@@ -4,7 +4,7 @@ use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 use crate::rewrites::unexecuted::peepholes::{
-    ValidatedConditionMaterialization, ValidatedCopiedCallOperand, ValidatedProjectedAccess,
+    ValidatedCopiedCallOperand, ValidatedProjectedAccess,
 };
 use crate::rewrites::unexecuted::{
     ValidatedArmRelocation, ValidatedBoundaryBoolean, ValidatedBoundaryBranch,
@@ -677,26 +677,6 @@ impl ValidatedSelectedAnalysis for ValidatedProjectedAccess {
 impl sealed::Sealed for ValidatedCopiedCallOperand {}
 
 impl ValidatedSelectedAnalysis for ValidatedCopiedCallOperand {
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        self.transformed()
-    }
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        self.shared_transformed()
-    }
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
-impl sealed::Sealed for ValidatedConditionMaterialization {}
-
-impl ValidatedSelectedAnalysis for ValidatedConditionMaterialization {
     fn selected_plan(&self) -> &SelectedInstructionPlan {
         self.transformed()
     }

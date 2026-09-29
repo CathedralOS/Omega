@@ -504,6 +504,55 @@ mod constant_branch_fold_aarch64 {
     }
 }
 
+/// `SelectedConstantBooleanFoldV1` on AArch64. The fold's
+/// condition-materialization descriptors bind each target's machine-effect
+/// catalog — the compare row must publish the flag definitions the boolean
+/// reads and the materialize row must carry the rewritten surface — so the
+/// matrix's x86-64 leg alone does not show the declared relationship admits
+/// the other architecture's rows. The same compiler-produced workload
+/// commits and replays on `linux_arm64`.
+mod constant_boolean_fold_aarch64 {
+    use super::*;
+    use crate::ValidatedPreAllocationTransformation;
+    use crate::selected_optimization::SelectedInstructionOptimizationEvidence;
+
+    const CASE: CoverageCase = CoverageCase {
+        selection: Optimization::SelectedConstantBooleanFoldV1,
+        sibling: Optimization::SelectedSameBlockCopyI64RemovalV1,
+        positive: constant_boolean_branch,
+        target: target::NativeTarget::linux_arm64,
+        pressure: 0,
+        commits,
+    };
+
+    fn commits(evidence: &SelectedInstructionOptimizationEvidence) -> bool {
+        match evidence {
+            SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
+                run.steps().iter().any(|step| {
+                    matches!(
+                        step.transformation(),
+                        ValidatedPreAllocationTransformation::ConstantBoolean(_)
+                    )
+                })
+            }
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn exact_selection() {
+        assert_exact_selection_leg(&CASE);
+    }
+    #[test]
+    fn disabled() {
+        assert_disabled_leg(&CASE);
+    }
+    #[test]
+    fn downstream_replay() {
+        assert_downstream_replay_leg(&CASE);
+    }
+}
+
 /// `SelectedAddressOffsetFoldV1` cannot commit through the public stage
 /// entrance. Every `AddressOffset` producer pairs its result with a consumer
 /// the rule's admission table does not cover: byte-field reads and stores feed
