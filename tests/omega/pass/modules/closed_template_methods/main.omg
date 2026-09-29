@@ -1,7 +1,7 @@
 use first;
 use second;
 
-machine read_first(value: &first::Envelope<u64>) -> u64 { value.read() }
-machine read_second(value: &second::Envelope<u64>) -> u64 { value.read() }
-machine read_again(value: &first::Envelope<u64>) -> u64 { value.read() }
-machine read_boolean(value: &first::Envelope<bool>) -> bool { value.read() }
+machine read_first(value: &first::Envelope<u64>) -> u64 { first::Envelope::read<u64>(value) }
+machine read_second(value: &second::Envelope<u64>) -> u64 { second::Envelope::read<u64>(value) }
+machine read_again(value: &first::Envelope<u64>) -> u64 { first::Envelope::read<u64>(value) }
+machine read_boolean(value: &first::Envelope<bool>) -> bool { first::Envelope::read<bool>(value) }

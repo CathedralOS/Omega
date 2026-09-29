@@ -1173,6 +1173,10 @@ impl SymbolTable {
     /// Whether two declarations occupy separate source-resolution contexts
     /// through the activation stratum or an explicit same-name binding.
     pub fn source_scopes_separate(&self, left: SymbolHandle, right: SymbolHandle) -> bool {
+        // Specialization names are diagnostic payload, not a new source
+        // namespace. Apply the authored declarations' existing scope rules.
+        let left = self.authored_origin(left);
+        let right = self.authored_origin(right);
         let (Some(left_span), Some(right_span)) = (
             self.symbol_source_span(left),
             self.symbol_source_span(right),

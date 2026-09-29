@@ -16,6 +16,35 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
+/// A resolved declaration namespace selects a callee; it is not an evaluated
+/// receiver. This applies only to the namespace slot of a checked call, never
+/// to a module spelling supplied as a runtime argument or standalone value.
+fn is_declaration_namespace(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    [path.head_symbol, path.symbol]
+        .into_iter()
+        .chain(
+            program
+                .expression_table
+                .name_path_member_symbols(path.member_symbols)
+                .iter()
+                .copied(),
+        )
+        .all(|symbol| {
+            symbol.is_valid()
+                && matches!(
+                    program.symbols.get(symbol).kind,
+                    symbols::SymbolKind::Module
+                        | symbols::SymbolKind::Data
+                        | symbols::SymbolKind::Trait
+                        | symbols::SymbolKind::Domain
+                        | symbols::SymbolKind::BuiltinType
+                )
+        })
+}
+
 /// FROZEN DECISION 13 residue (value-position complement of `validate_call_node`).
 ///
 /// Walk every expression in every statement of `state` and enforce
@@ -826,6 +855,7 @@ fn scan_expression_calls_at_position(
             );
             // Recurse into the receiver and arguments (nested calls).
             if call.receiver.is_valid()
+                && !is_declaration_namespace(program, call.receiver)
                 && !crate::declarations::operators::namespaces::expression_call_has_operator_namespace(program, &call)
                 && !crate::machine_calls::calls::generic_requirement::expression_conformance_receiver(
                     program,

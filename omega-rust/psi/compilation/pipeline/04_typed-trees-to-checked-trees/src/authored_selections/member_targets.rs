@@ -68,6 +68,50 @@ pub(crate) fn checked_member_target(
     .or_else(|| authored_member_target(program, member))
     .or_else(|| contextual_domain_member_target(program, expression, member))
     .or_else(|| contextual_statement_member_target(program, expression, member))
+    .map(|target| match target {
+        CheckedResolutionTarget::Declaration(symbol) => {
+            CheckedResolutionTarget::Declaration(authored_data_member(program, symbol))
+        }
+        target => target,
+    })
+}
+
+/// The source-selection ledger names the template declaration, while typed
+/// expressions keep the instantiated field and its substituted type. Rejoin
+/// only through the exact instance's retained generic origin and member slot;
+/// same-spelled fields belonging to other declarations remain distinct.
+pub(super) fn authored_data_member(program: &TypedTrees, symbol: SymbolHandle) -> SymbolHandle {
+    let owner = program.symbols.get(symbol).parent;
+    let Some(instance) = program.data_definition_by_symbol(owner) else {
+        return symbol;
+    };
+    let Some(origin) = instance.generic_instance else {
+        return symbol;
+    };
+    let typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. } =
+        program.type_reference_table.type_reference(origin)
+    else {
+        return symbol;
+    };
+    let Some(template) = program.data_definition_by_symbol(*base_symbol) else {
+        return symbol;
+    };
+    for (instance_member, template_member) in program
+        .data_members(instance)
+        .iter()
+        .zip(program.data_members(template))
+    {
+        if let (
+            typed_trees::data::DataMember::Field(instance_field),
+            typed_trees::data::DataMember::Field(template_field),
+        ) = (instance_member, template_member)
+            && instance_field.symbol == symbol
+            && instance_field.name == template_field.name
+        {
+            return template_field.symbol;
+        }
+    }
+    symbol
 }
 
 fn checked_value_member_target(

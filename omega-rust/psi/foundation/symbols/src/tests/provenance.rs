@@ -156,6 +156,36 @@ fn generated_symbols_inherit_authored_package_identity() {
 }
 
 #[test]
+fn generated_symbols_keep_module_scope_without_hiding_same_owner_duplicates() {
+    let (mut symbols, authored) =
+        sourced_symbol_table([(SourceOrigin::User, None), (SourceOrigin::User, None)]);
+    for (declaration, module) in authored.iter().zip(["first", "second"]) {
+        let span = symbols
+            .symbol_source_span(*declaration)
+            .expect("authored span");
+        symbols
+            .register_source_module(span.source_id, [(module, span)])
+            .expect("module");
+    }
+    assert!(symbols.source_scopes_separate(authored[0], authored[1]));
+    let generated = authored
+        .iter()
+        .map(|declaration| {
+            symbols.insert_generated_root_from(
+                *declaration,
+                SymbolKind::Machine,
+                "read$specialized",
+            )
+        })
+        .collect::<Vec<_>>();
+    assert!(symbols.source_scopes_separate(generated[0], generated[1]));
+    assert!(symbols.source_scopes_separate(authored[0], generated[1]));
+    let duplicate =
+        symbols.insert_generated_root_from(authored[0], SymbolKind::Machine, "read$specialized");
+    assert!(!symbols.source_scopes_separate(generated[0], duplicate));
+}
+
+#[test]
 fn generated_toolchain_symbols_retain_toolchain_origin_without_package_identity() {
     let (mut symbols, authored) = sourced_symbol_table([(SourceOrigin::Toolchain, None)]);
     let generated = symbols.insert_generated_root_from(
