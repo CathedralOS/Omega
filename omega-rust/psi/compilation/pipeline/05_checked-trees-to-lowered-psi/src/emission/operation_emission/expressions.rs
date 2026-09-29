@@ -6,12 +6,19 @@ use super::integer::LoweredIntegerBinaryKind;
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 use crate::terminal_identities::obligation_id;
+use crate::terminal_identities::place_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{
     IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, PlaceId, QualifiedScalarType,
-    ScalarType, StructuralFieldId, ValueId,
+    ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
+
+/// Reserved place-identity namespace for element hoists minted inside
+/// operation emission: the dense place counter the machine frames own
+/// cannot reach it, so a copy's fresh place never collides with declared
+/// places regardless of emission order.
+const TERMINAL_HOISTED_ELEMENT_PLACE_BASE: u64 = 1 << 62;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredDirectExpression {
@@ -60,6 +67,23 @@ pub(crate) enum LoweredDirectExpression {
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
         element_path: Vec<terminal_psi::StructuralPathSegment>,
+        scalar_type: ScalarType,
+    },
+    /// A bounded-leaf field of a runtime-selected record element
+    /// (`cells[i].v` where `v` declares a range). The runtime read cannot
+    /// carry the bound, so emission hoists: a `StructuralLeafCopy` at the
+    /// `RuntimeIndex` materializes the element on a fresh place, and the
+    /// canonical field read on that place supplies the declared range.
+    /// `path` is the static prefix ending at the fixed array, `carrier` the
+    /// element path's structural prefix, `field` its leaf, and `element`
+    /// the materialized element's structural type.
+    IndexedElementFieldRead {
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        index: Box<LoweredDirectExpression>,
+        element: StructuralTypeId,
+        carrier: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        field: StructuralFieldId,
         scalar_type: ScalarType,
     },
     ElementViewLength {
@@ -175,6 +199,7 @@ impl LoweredDirectExpression {
             | Self::ByteSequenceRead { scalar_type, .. }
             | Self::ByteSequenceFieldRead { scalar_type, .. }
             | Self::IndexedPrimitiveRead { scalar_type, .. }
+            | Self::IndexedElementFieldRead { scalar_type, .. }
             | Self::ElementViewLength { scalar_type, .. }
             | Self::ElementViewRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }
@@ -461,6 +486,68 @@ pub(crate) fn emit_direct_expression(
                 next_value_identity,
                 operations,
             )
+        }
+        LoweredDirectExpression::IndexedElementFieldRead {
+            source,
+            path,
+            index,
+            element,
+            carrier,
+            field,
+            scalar_type,
+        } => {
+            let index = emit_direct_expression(index, parameters, next_value_identity, operations);
+            // Same obligation convention as the flat indexed read: the
+            // certificate proves `index < declared extent` against the
+            // array's statically declared length.
+            let obligation = obligation_id(
+                operations
+                    .next_identity
+                    .checked_add(1)
+                    .expect("copy obligation follows its operation identity"),
+            );
+            let mut path = path.clone();
+            path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
+            let operation = operations.allocate();
+            // The copy's place borrows the reserved high namespace so it
+            // cannot collide with the dense place counter the machine
+            // frames own.
+            let place = place_id(
+                TERMINAL_HOISTED_ELEMENT_PLACE_BASE
+                    .checked_add(operation.get())
+                    .expect("hoisted element places admit a reserved namespace"),
+            );
+            operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation,
+                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place,
+                    structural_type: *element,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::StructuralLeafCopy {
+                    source: *source,
+                    path,
+                },
+            });
+            let kind = match scalar_type {
+                ScalarType::Boolean => OperationKind::BooleanStructuralField {
+                    source: place,
+                    path: carrier.clone(),
+                    field: *field,
+                },
+                _ => OperationKind::IntegerStructuralField {
+                    source: place,
+                    path: carrier.clone(),
+                    field: *field,
+                },
+            };
+            emit_scalar_leaf(kind, *scalar_type, next_value_identity, operations)
         }
         LoweredDirectExpression::ElementViewLength { source, .. } => {
             emit_element_length(*source, next_value_identity, operations)

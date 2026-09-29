@@ -441,6 +441,23 @@ pub(crate) fn substitute_direct(
             element_path,
             scalar_type,
         },
+        Direct::IndexedElementFieldRead {
+            source,
+            path,
+            index,
+            element,
+            carrier,
+            field,
+            scalar_type,
+        } => Direct::IndexedElementFieldRead {
+            source,
+            path,
+            index: Box::new(substitute_direct(*index, bound)),
+            element,
+            carrier,
+            field,
+            scalar_type,
+        },
         Direct::ByteSequenceFieldRead {
             source,
             path,
@@ -635,6 +652,7 @@ fn collect_direct_case_reads<'e>(
         Direct::ByteSequenceRead { index, .. }
         | Direct::ElementViewRead { index, .. }
         | Direct::IndexedPrimitiveRead { index, .. }
+        | Direct::IndexedElementFieldRead { index, .. }
         | Direct::ByteSequenceFieldRead { index, .. } => collect_direct_case_reads(index, reads),
         Direct::IntegerBinary { left, right, .. }
         | Direct::SaturatingShiftLeft { left, right, .. } => {
