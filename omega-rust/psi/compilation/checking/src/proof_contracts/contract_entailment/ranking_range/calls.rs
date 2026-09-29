@@ -9,7 +9,7 @@ use super::{
     MeasureBodyShape, Polynomial, PrimitiveType, RankingRangeMeasure, RankingRangeState, State,
     TypedTrees, collect_guard, entry_comparisons, exact_integer_parameter, field_coordinates,
     fields, find_declared_measure, integer_bindings, lengths, meanings, measure_body_shape,
-    parameter_comparisons, projections, validate_mapping,
+    parameter_comparisons, projections, saved_arguments, validate_mapping,
 };
 use symbols::SymbolHandle;
 mod endpoint_pins;
@@ -389,6 +389,18 @@ pub(crate) fn prove_ranking_range_call(
             &expressions,
         )?;
     }
+    // Saved caller observations ride the same site scope: a state-local
+    // `let` the saved-observation bar admits denotes the exact value its
+    // initializer produced, so an actual or guard spelling the local
+    // normalizes to the bound polynomial rather than an unknown atom. A
+    // written or exclusively exposed binding never joins the roster.
+    saved_arguments::install(
+        program,
+        caller.machine,
+        source,
+        &length_bindings,
+        &mut engine,
+    );
     // A field-view member's rank is its record's exact projection coordinate:
     // a fresh atom per carrier formal, shared with every authored
     // `record.field` chain the site can read. Resolve the measure's chain on

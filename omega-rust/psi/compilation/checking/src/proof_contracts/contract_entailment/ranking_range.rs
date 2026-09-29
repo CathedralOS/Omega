@@ -684,6 +684,12 @@ fn prove_edge(
             )?;
         }
     }
+    // Saved caller observations ride this site's scope: a state-local `let`
+    // the saved-observation bar admits denotes the exact value its
+    // initializer produced, so a guard or actual spelling the local
+    // normalizes to the bound polynomial rather than an unknown atom. A
+    // written or exclusively exposed binding never joins the roster.
+    saved_arguments::install(program, machine, state, &length_bindings, &mut engine);
     let auxiliary =
         if arguments.is_none() || !matches!(premises, RankingRangePremises::RankInvariant) {
             entry_comparisons(program, machine, root, &mut engine, &bindings)?

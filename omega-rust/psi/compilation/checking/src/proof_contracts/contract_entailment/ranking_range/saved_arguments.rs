@@ -102,6 +102,24 @@ pub(super) fn install(
     }
 }
 
+/// A name admitted under exactly the bar `install` binds by: the symbol's
+/// one `let` in `state` is never written, never the root of an exclusive
+/// borrow, and reads only carriers that stay stable for the whole state.
+/// `meanings::builtin` asks this before it lets a local name carry builtin
+/// meaning -- the name then denotes the initializer's binding-time value,
+/// which `install` proves reachable by binding it. An initializer outside
+/// the strict arithmetic language still admits the name here and leaves it
+/// unbound there; downstream normalization fails closed on the unknown atom
+/// rather than substituting a different value.
+pub(super) fn saved<'a>(
+    program: &'a TypedTrees,
+    state: &State,
+    symbol: SymbolHandle,
+) -> Option<&'a typed_trees::statement::TableLocalData> {
+    let local = saved_local(program, state, symbol)?;
+    stable_references(program, state, local.initial_value).then_some(local)
+}
+
 /// A plain name occurrence and the symbol it resolves to; member chains and
 /// path heads are deliberately not plain names.
 fn plain_name(program: &TypedTrees, expression: ExpressionHandle) -> Option<SymbolHandle> {

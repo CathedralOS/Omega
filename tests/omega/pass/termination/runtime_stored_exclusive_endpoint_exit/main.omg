@@ -8,13 +8,13 @@
 // (c60792d7bdd); the check-only `stored_reference_endpoint_arrivals` twin
 // carries a shared `&Wrap` and never executes.
 //
-// The `&mut`-field record is constructed in the free machine `run` rather
-// than in `Main::main` itself: selected-ProgramEntry establishment still
-// omits the unit plan for a local construction minting an exclusive borrow
-// (`statement sequence: local data: structural call binding`), which
-// STATE-LOCAL-VALUE-FRONTIER owns. The ranked evidence this fixture pins --
-// the endpoint bound read through the stored loan across the whole
-// recursion -- is identical either way.
+// The `&mut`-field record reaches `run` as a call result: `lend` packs the
+// caller's exclusive borrow into `Indirect`, so no local construction mints
+// the borrow inside a record literal (`statement sequence: local data:
+// structural call binding` still omits that unit plan; STATE-LOCAL-VALUE-
+// FRONTIER owns the general realization gap). The ranked evidence this
+// fixture pins -- the endpoint bound read through the stored loan across
+// the whole recursion -- is identical either way.
 //
 // exit 0 = the countdown reached `n == 0` and returned it;
 // exit 1 = any other outcome.
@@ -38,7 +38,8 @@ terminates by n -> Nat::Descending in 0..=indirect.target.remaining;
 
 machine run() -> u64 {
     let mut owner: Wrap = Wrap { remaining: 6 };
-    let indirect: Indirect = Indirect { target: &mut owner };
+    let target: &mut Wrap = &mut owner;
+    let indirect: Indirect = Indirect { target: target };
     let tick: u64 = 40 + 2;
     let outcome: u64 = walk(4, indirect);
     transition outcome == 0 && tick == 42 {
