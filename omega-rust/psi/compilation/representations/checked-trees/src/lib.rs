@@ -49,7 +49,7 @@ pub use checked_trees::{
     CheckedDynamicScalarCallOrigin, CheckedDynamicScalarCallPlan, CheckedDynamicScalarHelperPlan,
     CheckedDynamicSelectionPlan, CheckedDynamicStoredDescriptorPlan, CheckedDynamicUnitCallOrigin,
     CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan, CheckedDynamicUnitHelperPlan,
-    CheckedEntryResourceEnvelope, CheckedErasedProofParameterPlan,
+    CheckedElementViewWritePlan, CheckedEntryResourceEnvelope, CheckedErasedProofParameterPlan,
     CheckedEvidenceInterfaceIdentity, CheckedEvidenceProjection,
     CheckedEvidenceRequirementIdentity, CheckedEvidenceTerm, CheckedFactCallProjection,
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,

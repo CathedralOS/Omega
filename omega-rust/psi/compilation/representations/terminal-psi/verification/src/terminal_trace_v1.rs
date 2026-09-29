@@ -337,6 +337,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::EstablishElementView { .. }
         | OperationKind::ElementViewLength { .. }
         | OperationKind::ElementViewRead { .. }
+        | OperationKind::ElementViewWrite { .. }
         | OperationKind::ElementViewSubslice { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishRecord { .. }

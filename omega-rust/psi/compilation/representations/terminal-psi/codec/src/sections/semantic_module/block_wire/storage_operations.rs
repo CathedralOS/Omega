@@ -216,6 +216,35 @@ pub(super) fn decode_byte_sequence_write(
     })
 }
 
+pub(super) fn encode_element_view_write(
+    writer: &mut Writer,
+    destination: PlaceId,
+    index: ValueId,
+    value: ValueId,
+    length: ValueId,
+    obligation: ObligationId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ELEMENT_VIEW_WRITE);
+    writer.id(destination);
+    writer.id(index);
+    writer.id(value);
+    writer.id(length);
+    writer.id(obligation);
+    Ok(())
+}
+
+pub(super) fn decode_element_view_write(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::ElementViewWrite {
+        destination: reader.id("PlaceId")?,
+        index: reader.id("ValueId")?,
+        value: reader.id("ValueId")?,
+        length: reader.id("ValueId")?,
+        obligation: reader.id("ObligationId")?,
+    })
+}
+
 pub(super) fn encode_byte_sequence_read(
     writer: &mut Writer,
     source: PlaceId,

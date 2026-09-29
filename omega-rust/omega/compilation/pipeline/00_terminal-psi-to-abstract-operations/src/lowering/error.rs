@@ -66,6 +66,10 @@ pub enum LoweringError {
     InvalidElementViewEstablishment(semantic_vocabulary::OperationId),
     InvalidElementViewLength(semantic_vocabulary::OperationId),
     InvalidElementViewRead(semantic_vocabulary::OperationId),
+    /// Terminal verifies indexed element stores through mutable element
+    /// views, but Omega has no target-neutral abstract operation for
+    /// realizing the write yet.
+    UnsupportedElementViewWrite(semantic_vocabulary::OperationId),
     InvalidElementViewSubslice(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin one exact
     /// descriptor, its initializer/latest selections, and its indirect row.

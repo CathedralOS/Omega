@@ -52,6 +52,7 @@ pub enum StructuralEffectCustody {
     ExactByteViewMetadata,
     ExactElementViewSource,
     ExactImmutableElementView,
+    ExactMutableElementView,
     ExactElementViewMetadata,
     ExactLiveBooleanField,
     ExactLiveIntegerField,
@@ -85,6 +86,7 @@ pub enum StructuralEffectAction {
     EstablishElementView,
     ReadElementViewLength,
     ReadElementView,
+    WriteElementView,
     EstablishElementViewSubslice,
     ReadBooleanField,
     ReadIntegerField,
@@ -210,7 +212,7 @@ const fn structural_effect_leaf(
             StructuralEffectAction::EstablishByteSequenceSubslice => {
                 StructuralEffectGoalShape::ByteRangeInBounds
             }
-            StructuralEffectAction::ReadElementView => {
+            StructuralEffectAction::ReadElementView | StructuralEffectAction::WriteElementView => {
                 StructuralEffectGoalShape::ElementIndexInBounds
             }
             StructuralEffectAction::EstablishElementViewSubslice => {
@@ -229,7 +231,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 30] = [
         Self {
             tag: OperationSemanticTag::EstablishReference,
             schema: structural_effect_leaf(
@@ -376,6 +378,16 @@ impl StructuralEffectSemanticRow {
                 StructuralEffectResultShape::Scalar,
                 StructuralEffectCustody::ExactImmutableElementView,
                 StructuralEffectAction::ReadElementView,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::ElementViewWrite,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Unit,
+                StructuralEffectCustody::ExactMutableElementView,
+                StructuralEffectAction::WriteElementView,
                 StructuralEffectExternalEffect::None,
                 StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
             ),
@@ -558,6 +570,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::ElementViewLength
             | OperationSemanticTag::ElementViewRead
             | OperationSemanticTag::ElementViewSubslice
+            | OperationSemanticTag::ElementViewWrite
             | OperationSemanticTag::BooleanStructuralField
             | OperationSemanticTag::IntegerStructuralField
             | OperationSemanticTag::PortWrite
@@ -628,6 +641,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::ElementViewLength,
         OperationSemanticTag::ElementViewRead,
         OperationSemanticTag::ElementViewSubslice,
+        OperationSemanticTag::ElementViewWrite,
         OperationSemanticTag::BooleanStructuralField,
         OperationSemanticTag::IntegerStructuralField,
         OperationSemanticTag::PortWrite,
@@ -782,6 +796,15 @@ pub enum StructuralEffectObservation {
         result: ValueId,
         obligation: ObligationId,
     },
+    /// Store one scalar element into the exact mutable element view after
+    /// discharging index < length counted in elements.
+    ElementViewWrite {
+        destination: PlaceId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     ElementViewSubslice {
         source: PlaceId,
         start: ValueId,
@@ -889,6 +912,15 @@ impl StructuralEffectObservation {
                     Proposition::LessOrEqual(value(*end), value(*length)),
                 ]),
             )),
+            Self::ElementViewWrite {
+                index,
+                length,
+                obligation,
+                ..
+            } => Some((
+                *obligation,
+                Proposition::LessThan(value(*index), value(*length)),
+            )),
             _ => None,
         }
     }
@@ -927,6 +959,7 @@ impl StructuralEffectObservation {
             | Self::ElementViewEstablished { .. }
             | Self::ElementViewLengthRead { .. }
             | Self::ElementViewRead { .. }
+            | Self::ElementViewWrite { .. }
             | Self::ElementViewSubslice { .. }
             | Self::PortWrite { .. }
             | Self::AffinePlaceEstablished { .. } => None,
@@ -967,6 +1000,7 @@ fn validate_structural_effect_schema(
         StructuralEffectAction::EstablishElementView => OperationSemanticTag::EstablishElementView,
         StructuralEffectAction::ReadElementViewLength => OperationSemanticTag::ElementViewLength,
         StructuralEffectAction::ReadElementView => OperationSemanticTag::ElementViewRead,
+        StructuralEffectAction::WriteElementView => OperationSemanticTag::ElementViewWrite,
         StructuralEffectAction::EstablishElementViewSubslice => {
             OperationSemanticTag::ElementViewSubslice
         }
@@ -1009,7 +1043,9 @@ fn validate_structural_effect_schema(
         | StructuralEffectAction::ReadByteSequenceFieldByte => {
             StructuralEffectGoalShape::ByteIndexInBounds
         }
-        StructuralEffectAction::ReadElementView => StructuralEffectGoalShape::ElementIndexInBounds,
+        StructuralEffectAction::ReadElementView | StructuralEffectAction::WriteElementView => {
+            StructuralEffectGoalShape::ElementIndexInBounds
+        }
         StructuralEffectAction::EstablishElementViewSubslice => {
             StructuralEffectGoalShape::ElementRangeInBounds
         }
@@ -1130,6 +1166,13 @@ fn validate_structural_effect_schema(
                 StructuralEffectAction::ReadElementView => {
                     schema.result == StructuralEffectResultShape::Scalar
                         && schema.custody == StructuralEffectCustody::ExactImmutableElementView
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::WriteElementView => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactMutableElementView
                         && schema.external_effect == StructuralEffectExternalEffect::None
                         && schema.frontier
                             == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
@@ -1499,6 +1542,22 @@ pub fn structural_effect_leaf_observation_in(
         ) => StructuralEffectObservation::ByteSequenceLengthRead {
             source: *source,
             result: operation.result.expect_scalar().id,
+        },
+        (
+            StructuralEffectAction::WriteElementView,
+            OperationKind::ElementViewWrite {
+                destination,
+                index,
+                value,
+                length,
+                obligation,
+            },
+        ) => StructuralEffectObservation::ElementViewWrite {
+            destination: *destination,
+            index: *index,
+            value: *value,
+            length: *length,
+            obligation: *obligation,
         },
         (
             StructuralEffectAction::StorePrimitive,
@@ -2150,7 +2209,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 29);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 30);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
@@ -2174,6 +2233,7 @@ mod tests {
                 OperationSemanticTag::EstablishElementView,
                 OperationSemanticTag::ElementViewLength,
                 OperationSemanticTag::ElementViewRead,
+                OperationSemanticTag::ElementViewWrite,
                 OperationSemanticTag::ElementViewSubslice,
                 OperationSemanticTag::WriteOnlyPrimitiveStore,
                 OperationSemanticTag::StructuralScalarFieldStore,

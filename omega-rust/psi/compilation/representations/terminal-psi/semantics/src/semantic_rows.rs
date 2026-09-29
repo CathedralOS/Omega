@@ -190,6 +190,7 @@ operation_semantic_rows! {
     EstablishElementView => ("schema:operation:establish-element-view", LeafDenotation, None),
     ElementViewLength => ("schema:operation:element-view-length", LeafDenotation, None),
     ElementViewRead => ("schema:operation:element-view-read", LeafDenotation, None),
+    ElementViewWrite => ("schema:operation:element-view-write", LeafDenotation, None),
     ElementViewSubslice => ("schema:operation:element-view-subslice", LeafDenotation, None),
     EstablishTrivialAffineLocal => ("schema:operation:establish-trivial-affine-local", LeafDenotation, None),
     EstablishRecord => ("schema:operation:establish-record", LeafDenotation, None),

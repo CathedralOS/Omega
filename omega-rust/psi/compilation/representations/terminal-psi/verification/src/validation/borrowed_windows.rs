@@ -283,7 +283,8 @@ fn touched_regions(
         OperationKind::ByteSequenceSubslice { source, .. }
         | OperationKind::ByteSequenceLength { source }
         | OperationKind::ByteSequenceRead { source, .. } => vec![(*source, Vec::new())],
-        OperationKind::ByteSequenceWrite { destination, .. } => {
+        OperationKind::ByteSequenceWrite { destination, .. }
+        | OperationKind::ElementViewWrite { destination, .. } => {
             vec![(*destination, Vec::new())]
         }
         OperationKind::EstablishRecord { fields }

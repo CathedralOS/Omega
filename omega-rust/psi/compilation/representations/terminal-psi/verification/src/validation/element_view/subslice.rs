@@ -129,6 +129,10 @@ pub(in crate::validation) fn validate_uses(
     match &operation.kind {
         OperationKind::ElementViewLength { source }
         | OperationKind::ElementViewRead { source, .. }
+        | OperationKind::ElementViewWrite {
+            destination: source,
+            ..
+        }
         | OperationKind::ElementViewSubslice { source, .. } => require(*source),
         OperationKind::CallUnit {
             structural_arguments,

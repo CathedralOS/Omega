@@ -50,6 +50,7 @@ impl TerminalFuelSchedule {
             | OperationKind::EstablishElementView { .. }
             | OperationKind::ElementViewLength { .. }
             | OperationKind::ElementViewRead { .. }
+            | OperationKind::ElementViewWrite { .. }
             | OperationKind::ElementViewSubslice { .. }
             | OperationKind::EstablishTrivialAffineLocal { .. }
             | OperationKind::EstablishRecord { .. }

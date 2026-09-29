@@ -448,17 +448,15 @@ impl<'a> Destination<'a> {
                     // An arithmetic-policy shell (`[Entity; 3] in Wrapping`)
                     // qualifies element operations, not the array's layout.
                     let array = validation::unwrapped_type_reference(program, carrier_type)?;
-                    let (element_type, length) = match program
-                        .type_reference_table
-                        .type_reference(array)
-                    {
-                        TypeReferenceNode::FixedArray {
-                            element_type,
-                            length: typed_trees::types::FixedArrayLength::Literal(length),
-                        } => (*element_type, Some(*length)),
-                        TypeReferenceNode::Slice { element_type } => (*element_type, None),
-                        _ => return None,
-                    };
+                    let (element_type, length) =
+                        match program.type_reference_table.type_reference(array) {
+                            TypeReferenceNode::FixedArray {
+                                element_type,
+                                length: typed_trees::types::FixedArrayLength::Literal(length),
+                            } => (*element_type, Some(*length)),
+                            TypeReferenceNode::Slice { element_type } => (*element_type, None),
+                            _ => return None,
+                        };
                     if crosses_reference(program, element_type) {
                         return None;
                     }
@@ -653,9 +651,7 @@ fn rejoin_loan_local(
     if declarations.next().is_some() {
         return None;
     }
-    let ExpressionNode::Borrow(borrow) = program
-        .expression_table
-        .expression(local.initial_value)
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
     else {
         return Some(place);
     };
@@ -712,10 +708,8 @@ fn borrowed_view_local_root<'a>(
     {
         return None;
     }
-    let (referee, access) = super::super::reference_results::mutable_borrowed_parts(
-        program,
-        local.type_reference,
-    )?;
+    let (referee, access) =
+        super::super::reference_results::mutable_borrowed_parts(program, local.type_reference)?;
     if access != CheckedStructuralAccess::MutableBorrow {
         return None;
     }
@@ -733,9 +727,7 @@ fn borrowed_view_local_root<'a>(
         .loans
         .span_or_empty(borrow_state.loans)
         .iter()
-        .filter(|loan| {
-            loan.owner_symbol == root_symbol && loan.statement_index == local_ordinal
-        });
+        .filter(|loan| loan.owner_symbol == root_symbol && loan.statement_index == local_ordinal);
     let loan = loans.next()?;
     if loans.next().is_some() || loan.kind != checked_trees::BorrowAccessKind::Mutable {
         return None;

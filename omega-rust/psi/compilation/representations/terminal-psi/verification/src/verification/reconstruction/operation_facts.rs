@@ -654,6 +654,7 @@ pub(super) fn append_operation(
         | OperationKind::EstablishElementView { .. }
         | OperationKind::ElementViewLength { .. }
         | OperationKind::ElementViewRead { .. }
+        | OperationKind::ElementViewWrite { .. }
         | OperationKind::ElementViewSubslice { .. }
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishStructuralCase { .. }

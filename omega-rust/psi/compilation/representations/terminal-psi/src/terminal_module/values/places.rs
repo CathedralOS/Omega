@@ -254,6 +254,7 @@ impl OperationKind {
             | Self::ByteSequenceSubslice { .. }
             | Self::ElementViewLength { .. }
             | Self::ElementViewRead { .. }
+            | Self::ElementViewWrite { .. }
             | Self::ElementViewSubslice { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::StoreDynamicDescriptor { .. }

@@ -1,0 +1,23 @@
+// Runtime-indexed element stores through a mutable element view. `slots` is a
+// `&mut [i32]` slice carrier and `slots[index] = value` lowers to the
+// element-view write op: the view's length witness feeds the bounds proof,
+// the index selects one element, and the stored scalar matches the view's
+// element leaf. `as_mut_slice` establishment of locals is pinned separately
+// (pending/collections/view_write_probe).
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine FixedVec::store(slots: &mut [i32], index: u64 in Wrapping, value: i32 in Wrapping)
+requires
+    index < slots.len
+{
+    slots[index] = value as i32;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let items: [i32; 4] = [1, 2, 3, 4];
+}

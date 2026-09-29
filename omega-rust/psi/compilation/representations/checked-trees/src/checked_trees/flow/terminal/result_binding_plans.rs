@@ -125,6 +125,22 @@ pub struct CheckedByteSequenceWritePlan {
     pub value: CheckedByteSequenceStoreValue,
 }
 
+/// Exact authored operands of a runtime-indexed element write through a
+/// mutable `&mut [T]` view. The destination names the view's root — a
+/// borrowed slice parameter or a locally bound `&mut` view — the index its
+/// runtime selector, and the value the element-typed scalar stored. The
+/// element's primitive type is retained so lowering validates the stored
+/// scalar against the view's declared element, never the destination type
+/// of another leaf family.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedElementViewWritePlan {
+    pub statement_index: u32,
+    pub destination: crate::CheckedStructuralScalarFieldStoreDestination,
+    pub index: CheckedScalarExpression,
+    pub element: PrimitiveType,
+    pub value: crate::CheckedStructuralScalarFieldStoreValue,
+}
+
 /// Primitive store custody stays separate from immutable scalar bindings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedPrimitiveStoreDestination {

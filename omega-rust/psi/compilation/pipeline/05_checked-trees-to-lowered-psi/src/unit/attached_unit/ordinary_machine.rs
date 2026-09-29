@@ -1203,6 +1203,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+            | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }

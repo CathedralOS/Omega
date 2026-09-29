@@ -564,6 +564,41 @@ pub(super) fn validate_unit_operation_sequence(
                     call_ordinal: 0,
                 }
             }
+            // An element-view write consuming its own statement's scalar call
+            // result shares that call's coordinate, like the byte write above.
+            CheckedUnitEffectOperationPlan::ElementViewWrite(write)
+                if matches!(
+                    write.value,
+                    checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+                ) =>
+            {
+                if !matches!(
+                    operation_index
+                        .checked_sub(1)
+                        .and_then(|previous| machine.operations.get(previous)),
+                    Some(
+                        CheckedUnitEffectOperationPlan::ScalarCall {
+                            coordinate, result, ..
+                        }
+                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                            coordinate, result, ..
+                        }
+                    ) if coordinate.statement_index == write.statement_index
+                        && coordinate.call_ordinal == 0
+                        && result.statement_index == write.statement_index
+                ) {
+                    return unsupported(
+                        "element-view write call result has no immediately preceding scalar call",
+                    );
+                }
+                continue;
+            }
+            CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: write.statement_index,
+                    call_ordinal: 0,
+                }
+            }
             CheckedUnitEffectOperationPlan::Complete { .. } => {
                 return unsupported("Unit machine contains a nonfinal Unit return");
             }

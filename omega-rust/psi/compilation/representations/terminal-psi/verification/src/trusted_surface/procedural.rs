@@ -270,6 +270,14 @@ rows! {
         &["fact:byte-extent-length"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/byte_sequence/write.rs")]
     );
+    INV_ELEMENT_WRITE => (
+        "invalidation:element-view-write",
+        WriteInvalidation,
+        "an element-view write over a destination extent",
+        "propositions observing the destination extent end their validity at the write",
+        &["fact:element-extent-length"],
+        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/element_view/write.rs")]
+    );
     INV_REFERENCE_RELEASE => (
         "invalidation:reference-release",
         WriteInvalidation,

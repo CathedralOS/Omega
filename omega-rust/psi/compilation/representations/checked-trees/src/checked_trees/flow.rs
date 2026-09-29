@@ -48,7 +48,7 @@ pub use self::terminal::{
     CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedConditionalReturnArm,
-    CheckedControlResultPlan, CheckedFusedServiceErasureReceipt,
+    CheckedControlResultPlan, CheckedElementViewWritePlan, CheckedFusedServiceErasureReceipt,
     CheckedFusedServiceParameterReceipt, CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan,
     CheckedGuardedJumpPlan, CheckedGuardedJumpReturnPlan, CheckedNaturalRankMeasure,
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,

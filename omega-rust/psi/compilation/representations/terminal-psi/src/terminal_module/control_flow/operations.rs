@@ -477,6 +477,20 @@ pub enum OperationKind {
         length: ValueId,
         obligation: ObligationId,
     },
+    /// Store one scalar element into one mutable element view at the runtime
+    /// index, under the exact source's dominating element-length observation
+    /// (`view[index] = element`). The independent verifier reconstructs and
+    /// checks index < length exactly as `ElementViewRead` does; the value is
+    /// the element's own scalar leaf type. The destination must hold mutable
+    /// custody of the view: a parameter declared `&mut [T]`, or an
+    /// operation-result place no shared-view establishment produced.
+    ElementViewWrite {
+        destination: PlaceId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     /// Establish one whole, claim-free affine empty-record local. This is a
     /// semantic ownership event, not an ABI input or a target storage choice.
     EstablishTrivialAffineLocal {
@@ -934,6 +948,16 @@ impl OperationKind {
             }
             Self::ElementViewRead { index, length, .. } => {
                 *index = map(*index);
+                *length = map(*length);
+            }
+            Self::ElementViewWrite {
+                index,
+                value,
+                length,
+                ..
+            } => {
+                *index = map(*index);
+                *value = map(*value);
                 *length = map(*length);
             }
             Self::BooleanEqual { left, right }

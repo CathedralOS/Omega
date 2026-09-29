@@ -161,6 +161,41 @@ pub(super) fn validate_element_view_read(
     Ok(())
 }
 
+/// An element write's index and observed length are exact `u64` element
+/// counts defined before the write, like the byte-view write's; the stored
+/// value's scalar type is the view's declared leaf, checked against the
+/// destination's `ElementView` element where the structural validator runs.
+pub(super) fn validate_element_view_write(
+    operation: &terminal_psi::Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    let OperationKind::ElementViewWrite {
+        index,
+        value,
+        length,
+        ..
+    } = operation.kind
+    else {
+        unreachable!("dispatched validate_element_view_write")
+    };
+    let expected =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    for operand in [index, length] {
+        require_defined(operand, value_types, defined)?;
+        let actual = value_types[&operand];
+        if actual != expected {
+            return Err(ModuleError::ElementViewWriteOperandTypeMismatch {
+                operation: operation.id,
+                operand,
+                actual,
+            });
+        }
+    }
+    require_defined(value, value_types, defined)?;
+    Ok(())
+}
+
 /// An element subslice's endpoints and observed length are exact `u64`
 /// element counts defined before the subslice, like the byte-view
 /// subslice's; the extent equation `end - start` is stated over that domain.
