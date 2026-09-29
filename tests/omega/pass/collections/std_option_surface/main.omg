@@ -1,8 +1,8 @@
 use omega::language::core::option;
 
-data Main {
+data OptionSurface {
     value: Optional<u64>;
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }

@@ -12,9 +12,5 @@ boundary operator Text::from_utf8(bytes: &[u8]) -> &[u8] in Utf8
 ensures
     result in Utf8;
 
-data Main {
-    console: Binding<Console>;
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

@@ -6,9 +6,9 @@ data Optional<T> {
     value: T;
 }
 
-data Main {
+data Holder {
     maybe: Optional<i32>;
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }

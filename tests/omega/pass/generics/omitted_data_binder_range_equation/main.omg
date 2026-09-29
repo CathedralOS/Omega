@@ -13,7 +13,7 @@ where
     length: Length;
 }
 
-data Main {
+data Shapes {
     inclusive: TinyBytes<u64[0..=256]>;
     exclusive: TinyBytes<u64[0..257]>;
     explicit: TinyBytes<u64[0..=256], 256>;
@@ -66,5 +66,5 @@ machine constructed_capacity(value: u64[0..=256]) -> u64 {
     upper_bound(established as u64[0..=256])
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }
