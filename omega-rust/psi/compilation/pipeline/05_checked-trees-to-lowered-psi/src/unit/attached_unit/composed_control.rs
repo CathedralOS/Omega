@@ -56,7 +56,8 @@ pub(crate) fn lower_composed_unit_control_machine(
     if !state_graph::has_shared_graph_custody(checked, plan) {
         return super::unsupported("composed Unit control has unsupported graph custody");
     }
-    let mut lowered = super::lower_unit_effect_closure(checked, plan.machine)?;
-    super::finalize_operation_proofs(&mut lowered.terminal)?;
-    Ok(lowered)
+    // The entrance finalizes proofs after closing provider adapters and source
+    // contracts. Validating this provisional closure would reject an ordinary
+    // provider receiver before its installation entry can provision it.
+    super::lower_unit_effect_closure(checked, plan.machine)
 }

@@ -29,6 +29,106 @@ const SOURCE: &str = r#"
     }
 "#;
 
+const ARRAY_READER_SOURCE: &str = r#"
+        boundary trait ArrayReader {
+            machine inspect(&mut self, prefix: i32, values: [u8; 4], suffix: i32) -> i32;
+        }
+        data ArrayReaderProvider {}
+        machine ArrayReaderProvider::inspect(&mut self, prefix: i32, values: [u8; 4], suffix: i32) -> i32
+        satisfies ArrayReader::inspect {
+            transition prefix == 30 && suffix == 40 && values[0] == 11 {
+                true -> (70)
+                _ -> (71)
+            }
+        }
+        data Root<'a> { reader: &'a mut ArrayReader; values: [u8; 4]; result: i32; }
+        machine Root::run(&mut self) reaches ArrayReader {
+            self.result = self.reader.inspect(30, self.values, 40);
+        }
+        "#;
+
+#[test]
+fn checked_array_provider_preserves_receiver_and_mixed_arguments() {
+    let checked = crate::front_end::checked_program(ARRAY_READER_SOURCE);
+    let provider = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "ArrayReaderProvider::inspect")
+        .expect("authored provider");
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(provider.symbol)
+        .expect("ordinary provider body retains receiver custody");
+    assert!(
+        graph.states[0]
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::run"),
+    )
+    .expect("checked provider receiver and scalar-array-scalar inputs lower together");
+    let bytes = encode_module(&lowered.semantic_module).expect("provider conformance encodes");
+    assert_eq!(decode_module(&bytes).unwrap(), lowered.semantic_module);
+    let module = &lowered.semantic_module;
+    let conformance = &module.provider_candidates[0];
+    let adapter = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == conformance.candidate)
+        .unwrap();
+    assert!(
+        adapter
+            .structural_parameters
+            .iter()
+            .all(|parameter| !parameter.is_self)
+    );
+    let callee = adapter
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            OperationKind::CallStructuralScalar { callee, .. } => Some(callee),
+            _ => None,
+        })
+        .expect("installation entry calls the unchanged ordinary method");
+    let ordinary = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == callee)
+        .unwrap();
+    assert!(
+        ordinary
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+    );
+    let mut redirected = module.clone();
+    redirected.provider_candidates[0].candidate = callee;
+    assert!(
+        terminal_verifier::validate_module(&redirected).is_err(),
+        "the ordinary receiver cannot be omitted by redirecting installation"
+    );
+}
+
+#[test]
+fn checked_provider_adapter_does_not_invent_stateful_receiver_storage() {
+    let checked = crate::front_end::checked_program(&ARRAY_READER_SOURCE.replace(
+        "data ArrayReaderProvider {}",
+        "data ArrayReaderProvider { counter: i32; }",
+    ));
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::run"),
+    )
+    .expect_err("a nonempty provider needs installation-owned storage even when unread");
+    assert!(format!("{error:?}").contains("receiver requires installation storage"));
+}
+
 fn checked_closed_operator_candidates() -> checked_trees::CheckedTrees {
     let typed = crate::front_end::typed_program(
         r#"

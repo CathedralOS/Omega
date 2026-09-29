@@ -21,6 +21,390 @@ use validation::{
     TopLevelSymbols, resolve_closed_requirement_application,
     validate_checked_machine_specialization_commitments,
 };
+
+/// Close provider receiver provisioning after assembling the source closure,
+/// before retention or proof production validates it. The ordinary method keeps
+/// its receiver, including when direct calls coexist with installed calls.
+/// Only the installation entry is adapted:
+/// it constructs a plain empty provider and lends it through an ordinary call.
+/// This is executable custody, not permission inferred from zero-sized layout.
+/// Nonempty providers need persistent installation storage, not per-call zeros.
+pub(crate) fn realize_receiver_adapters(
+    checked: &CheckedTrees,
+    source_owners: &[(symbols::SymbolHandle, MachineId)],
+    module: &mut terminal_psi::TerminalModule,
+) -> Result<(), LoweringError> {
+    use crate::terminal_identities::{
+        allocate_dense, block_id, contract_id, edge_id, machine_id, operation_id, place_id,
+        value_id,
+    };
+    use semantic_vocabulary::StructuralPlaceKind;
+    use terminal_psi::{
+        Block, Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
+        StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+        StructuralTypeShape, TerminalMachineResult, Terminator,
+    };
+
+    if module.provider_candidates.is_empty() {
+        return Ok(());
+    }
+
+    // All executable namespaces allocate above their existing coordinates.
+    // The source catalog stays one-to-one; these derived entries are emitted
+    // after source-owned emission and are checked as ordinary Terminal machines.
+    let mut next = module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            [machine.id.get(), machine.contract.id.get()]
+                .into_iter()
+                .chain(machine.parameters.iter().map(|value| value.id.get()))
+                .chain(
+                    machine
+                        .contract
+                        .erased_scalar_formals
+                        .iter()
+                        .map(|value| value.id.get()),
+                )
+                .chain(machine.result.scalar().map(|value| value.id.get()))
+                .chain(machine.structural_places.iter().map(|place| place.id.get()))
+                .chain(machine.blocks.iter().flat_map(|block| {
+                    [block.id.get()]
+                        .into_iter()
+                        .chain(block.parameters.iter().map(|value| value.id.get()))
+                        .chain(
+                            block
+                                .erased_scalar_formals
+                                .iter()
+                                .map(|value| value.id.get()),
+                        )
+                        .chain(block.terminator.edges().map(|edge| edge.get()))
+                        .chain(block.operations.iter().flat_map(|operation| {
+                            [operation.id.get()]
+                                .into_iter()
+                                .chain(operation.result.scalar().map(|value| value.id.get()))
+                        }))
+                }))
+        })
+        .max()
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(LoweringError::Unsupported(
+            "provider adapter identity namespace is exhausted",
+        ))?;
+    for row in &mut module.provider_candidates {
+        let candidate = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == row.candidate)
+            .ok_or(LoweringError::Unsupported(
+                "provider adapter has no ordinary body",
+            ))?;
+        if candidate
+            .structural_parameters
+            .iter()
+            .map(|parameter| ProviderSignatureParameter {
+                position: parameter.position,
+                is_self: parameter.is_self,
+                structural_type: parameter.structural_type,
+                multiplicity: parameter.multiplicity,
+                access: parameter.access,
+                qualifications: parameter.qualifications.clone(),
+                projected_qualifications: parameter.projected_qualifications.clone(),
+            })
+            .eq(row.signature.parameters.iter().cloned())
+        {
+            continue;
+        }
+        let Some(receiver) = candidate
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.is_self)
+        else {
+            continue;
+        };
+        let source = source_owners
+            .iter()
+            .find(|(_, target)| *target == candidate.id)
+            .map(|(source, _)| *source)
+            .ok_or(LoweringError::Unsupported(
+                "provider adapter has no exact source owner",
+            ))?;
+        let envelope = checked
+            .facts
+            .contract_plans
+            .realized_envelope(source)
+            .ok_or(LoweringError::Unsupported(
+                "provider adapter has no checked operational envelope",
+            ))?;
+        if envelope.checked_may_suspend {
+            return unsupported("unimplemented: provider receiver adapter suspension frontier");
+        }
+        let receiver_type = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == receiver.structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "provider receiver has no structural type",
+            ))?;
+        if candidate.attachment != Some(receiver.structural_type)
+            || !matches!(&receiver_type.shape, StructuralTypeShape::Record { fields } if fields.is_empty())
+            || !matches!(
+                receiver.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            )
+            || receiver.multiplicity != StructuralMultiplicity::Unrestricted
+            || !receiver.qualifications.is_empty()
+            || !receiver.projected_qualifications.is_empty()
+        {
+            return unsupported(
+                "unimplemented: checked provider receiver requires installation storage or qualification provisioning",
+            );
+        }
+        if !candidate.entry_claims.is_empty()
+            || !candidate.content_entry_claims.is_empty()
+            || !candidate.content_identity_reshuffles.is_empty()
+            || !candidate.content_partition_compositions.is_empty()
+            || candidate.closed_reach_application.is_some()
+            || !candidate.contract.requires.is_empty()
+            || !candidate.contract.ensures.is_empty()
+            || !candidate.contract.outcome_specific_ensures.is_empty()
+            || !candidate.contract.erased_scalar_formals.is_empty()
+            || !candidate.contract.erased_proof_formals.is_empty()
+            || !candidate.contract.crash_routes.is_empty()
+            || !matches!(
+                candidate.result,
+                TerminalMachineResult::Unit | TerminalMachineResult::Scalar(_)
+            )
+        {
+            return unsupported(
+                "unimplemented: checked provider receiver adapter contract and result transport",
+            );
+        }
+        let mut adapter = TerminalMachine {
+            id: machine_id(allocate_dense(&mut next)?),
+            attachment: candidate.attachment,
+            parameters: candidate.parameters.clone(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: candidate.result.clone(),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            declared_service_reach: candidate.declared_service_reach.clone(),
+            closed_reach_application: None,
+            published_service_ceiling: candidate.published_service_ceiling.clone(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block_id(allocate_dense(&mut next)?),
+            blocks: Vec::new(),
+            contract: candidate.contract.clone(),
+        };
+        adapter.contract.id = contract_id(allocate_dense(&mut next)?);
+        for parameter in &mut adapter.parameters {
+            parameter.id = value_id(allocate_dense(&mut next)?);
+        }
+        let establish = operation_id(allocate_dense(&mut next)?);
+        let receiver_place = place_id(allocate_dense(&mut next)?);
+        adapter.structural_places.push(StructuralPlaceDeclaration {
+            id: receiver_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: establish,
+                structural_type: receiver.structural_type,
+            },
+        });
+        let mut structural_arguments = Vec::new();
+        for parameter in &candidate.structural_parameters {
+            let place = if parameter.is_self {
+                receiver_place
+            } else {
+                let mut declaration = parameter.clone();
+                declaration.place = place_id(allocate_dense(&mut next)?);
+                declaration.position =
+                    u32::try_from(adapter.structural_parameters.len()).map_err(|_| {
+                        LoweringError::Unsupported("provider adapter parameter count exceeds u32")
+                    })?;
+                adapter.structural_places.push(StructuralPlaceDeclaration {
+                    id: declaration.place,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: declaration.position,
+                        is_self: false,
+                    },
+                });
+                let place = declaration.place;
+                adapter.structural_parameters.push(declaration);
+                place
+            };
+            structural_arguments.push(StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: parameter.access,
+            });
+        }
+        let arguments = adapter
+            .parameters
+            .iter()
+            .map(|parameter| parameter.id)
+            .collect();
+        let call = operation_id(allocate_dense(&mut next)?);
+        let edge = edge_id(allocate_dense(&mut next)?);
+        let (result, kind, terminator) = match &mut adapter.result {
+            TerminalMachineResult::Unit => (
+                OperationResult::Unit,
+                OperationKind::CallUnit {
+                    callee: candidate.id,
+                    arguments,
+                    structural_arguments,
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+                Terminator::ReturnUnit {
+                    edge,
+                    trivial_affine_discards: Vec::new(),
+                },
+            ),
+            TerminalMachineResult::Scalar(result) => {
+                result.id = value_id(allocate_dense(&mut next)?);
+                let mut returned = *result;
+                returned.id = value_id(allocate_dense(&mut next)?);
+                (
+                    OperationResult::Scalar(returned),
+                    OperationKind::CallStructuralScalar {
+                        callee: candidate.id,
+                        arguments,
+                        structural_arguments,
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        claim_transfers: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
+                    Terminator::Return {
+                        edge,
+                        value: returned.id,
+                        cleanup_actions: Vec::new(),
+                    },
+                )
+            }
+            TerminalMachineResult::Structural(_) => {
+                return unsupported("unimplemented: provider receiver adapter structural result");
+            }
+        };
+        adapter.blocks = vec![Block {
+            id: adapter.entry,
+            parameters: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: vec![
+                Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: establish,
+                    result: OperationResult::Structural(StructuralOperationResult {
+                        place: receiver_place,
+                        structural_type: receiver.structural_type,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::EstablishRecord { fields: Vec::new() },
+                },
+                Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: call,
+                    result,
+                    kind,
+                },
+            ],
+            terminator,
+        }];
+        row.candidate = adapter.id;
+        module.machines.push(adapter);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod receiver_adapter_tests {
+    use super::realize_receiver_adapters;
+    use crate::TerminalMachineSelection;
+    use crate::machine_lowering::machine_dispatch::{
+        lower_selected_machine, select_terminal_machine,
+    };
+    use semantic_vocabulary::ValueId;
+
+    #[test]
+    fn receiver_adapter_reserves_erased_ids_and_rejects_suspension() {
+        let mut checked = crate::front_end::checked_program(
+            r#"
+            boundary trait Reader { machine read(&mut self, value: i32) -> i32; }
+            data Provider {}
+            machine Provider::read(&mut self, value: i32) -> i32 satisfies Reader::read { value }
+            data Root<'a> { reader: &'a mut Reader; result: i32; }
+            machine Root::run(&mut self) reaches Reader { self.result = self.reader.read(42); }
+        "#,
+        );
+        let selection =
+            select_terminal_machine(&checked, TerminalMachineSelection::Name("Root::run")).unwrap();
+        let lowered = lower_selected_machine(&checked, selection).unwrap();
+        let sources = lowered.source_mapping.exact_owners().unwrap();
+        let mut module = lowered.terminal.semantic_module;
+        let candidate = module.provider_candidates[0].candidate;
+        let source = sources
+            .iter()
+            .find(|(_, target)| *target == candidate)
+            .unwrap()
+            .0;
+        let scalar = module
+            .machines
+            .iter()
+            .find(|machine| machine.id == candidate)
+            .unwrap()
+            .parameters[0];
+        // Both erased namespaces remain globally reserved even though neither
+        // contributes an ABI argument to the generated installation entry.
+        let mut erased = scalar;
+        erased.id = ValueId::new(1 << 50).unwrap();
+        module.machines[0]
+            .contract
+            .erased_scalar_formals
+            .push(erased);
+        erased.id = ValueId::new((1 << 50) + 100).unwrap();
+        module.machines[0].blocks[0]
+            .erased_scalar_formals
+            .push(erased);
+        let mut adapted = module.clone();
+        realize_receiver_adapters(&checked, sources, &mut adapted).unwrap();
+        let adapter = adapted.machines.last().unwrap();
+        assert!(
+            adapter
+                .parameters
+                .iter()
+                .all(|parameter| parameter.id.get() > erased.id.get())
+        );
+        checked
+            .facts
+            .contract_plans
+            .realized_envelopes
+            .iter_mut()
+            .find(|envelope| envelope.machine == source)
+            .unwrap()
+            .checked_may_suspend = true;
+        assert!(matches!(
+            realize_receiver_adapters(&checked, sources, &mut module),
+            Err(crate::LoweringError::Unsupported(
+                "unimplemented: provider receiver adapter suspension frontier"
+            ))
+        ));
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ProviderBody {
     Callable,

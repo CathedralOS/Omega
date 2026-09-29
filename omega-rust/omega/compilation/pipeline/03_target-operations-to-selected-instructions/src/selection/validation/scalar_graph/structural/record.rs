@@ -24,24 +24,21 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
-    if shape.byte_size == 0 {
-        replay.pending_provenance.operations.push(row.operation);
-        replay
-            .pending_provenance
-            .fuel
-            .extend(row.fuel.iter().cloned());
-        return Ok(());
-    }
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: result.place,
     };
     replay.transport.local_slots.push(SelectedLocalStorageSlot {
         id: slot,
-        byte_size: shape.byte_size,
+        // Replay the addressable home independently of semantic payload size.
+        byte_size: shape.byte_size.max(1),
         alignment: shape.alignment,
     });
-    let pointer = local_storage::address(replay, row, slot, 0, shape.byte_size, true)?;
+    let pointer = local_storage::address(replay, row, slot, 0, shape.byte_size.max(1), true)?;
+    if shape.byte_size == 0 {
+        replay.transport.pointers.push((result.place, pointer));
+        return Ok(());
+    }
     // Initialize padding too: a later whole-value copy may transport every byte.
     let zero = super::result(replay, result.place, 0)?;
     replay.check_instruction(

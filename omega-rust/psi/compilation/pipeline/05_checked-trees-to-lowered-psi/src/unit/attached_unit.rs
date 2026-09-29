@@ -30,8 +30,8 @@ use super::{
     TERMINAL_UNIT_CALL_OBLIGATION_BASE, TerminalMachine, TerminalMachineResult, TerminalModule,
     Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, boundary_machine_id,
     content_conservation, contract_id, dense_identity, direct_expression_contains_short_circuit,
-    edge_id, emit_direct_expression, finalize_operation_proofs, lookup_claim_id, lookup_domain_id,
-    lookup_machine_id, lookup_service_id, lookup_type_id, lower_boundary_content_guarantees,
+    edge_id, emit_direct_expression, lookup_claim_id, lookup_domain_id, lookup_machine_id,
+    lookup_service_id, lookup_type_id, lower_boundary_content_guarantees,
     lower_boundary_crash_routes, lower_checked_crash_route_buckets, lower_placed_view_input,
     lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
@@ -121,6 +121,7 @@ pub(crate) use parameters::{
     structural_carrier_type, validate_transfer_shape,
 };
 pub(crate) use provider_attachments::lower_provider_attachment_places;
+pub(crate) use providers::realize_receiver_adapters;
 use providers::{ProviderBody, checked_unit_provider_candidates};
 
 /// Which runtime-requirement roster a closure's machines answer to.
@@ -179,20 +180,19 @@ pub(crate) fn lower_unit_effect_closure(
 }
 
 /// The dispatch-facing product of a scalar entry that needs the shared
-/// callee catalog; operation proofs are finalized here because no Unit
-/// caller completes them later.
+/// callee catalog. The entrance finalizes proofs after the complete module's
+/// contracts and installation entries have been retained.
 pub(crate) fn lower_scalar_effect_closure(
     checked: &CheckedTrees,
     entry: symbols::SymbolHandle,
 ) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    let mut closure = lower_unit_closure(
+    let closure = lower_unit_closure(
         checked,
         &UnitClosureRequest {
             scalar_entry: true,
             ..UnitClosureRequest::unit(checked, entry, &[])
         },
     )?;
-    finalize_operation_proofs(&mut closure.lowered)?;
     crate::producer_result::SourceMappedLowered::new(closure.lowered, closure.machine_ids)
 }
 

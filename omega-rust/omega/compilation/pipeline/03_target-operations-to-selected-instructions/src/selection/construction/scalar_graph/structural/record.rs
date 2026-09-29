@@ -25,14 +25,6 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
-    if shape.byte_size == 0 {
-        builder.pending_provenance.operations.push(row.operation);
-        builder
-            .pending_provenance
-            .fuel
-            .extend(row.fuel.iter().cloned());
-        return Ok(());
-    }
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: result.place,
@@ -42,10 +34,16 @@ pub(super) fn establish(
         .local_slots
         .push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: shape.byte_size,
+            // Even an empty record can be borrowed. Reserve an addressable
+            // home without adding a byte to its semantic value or ABI shape.
+            byte_size: shape.byte_size.max(1),
             alignment: shape.alignment,
         });
-    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
+    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size.max(1), true)?;
+    if shape.byte_size == 0 {
+        builder.transport.pointers.push((result.place, pointer));
+        return Ok(());
+    }
     // Initialize padding too: a later whole-value copy may transport every byte.
     let zero = transport_register(builder, result.place, 0)?;
     builder.emit(

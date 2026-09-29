@@ -119,6 +119,11 @@ fn lower_terminal_selection(
         source_machines,
         source_mapping,
     } = lower_selected_machine(checked, selection)?;
+    attached_unit::realize_receiver_adapters(
+        checked,
+        source_mapping.exact_owners().unwrap_or(&[]),
+        &mut lowered.semantic_module,
+    )?;
     reject_conditional_claim_joins(checked, &source_machines)?;
     let has_exact_source_owners = source_mapping.exact_owners().is_some();
     let entry_source = [(selection.machine, lowered.semantic_module.entry)];
