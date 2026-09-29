@@ -823,6 +823,7 @@ fn checked_statement_bindings(
                         if !program
                             .expression_table
                             .expression_is_valid(local.initial_value)
+                            && crate::values::zeroed_scalar_local_initializer(program, local).is_none()
                         {
                             return None;
                         }

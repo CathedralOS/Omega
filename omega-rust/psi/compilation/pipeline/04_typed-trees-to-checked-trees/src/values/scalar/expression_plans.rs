@@ -154,9 +154,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 };
                 array_elements::plan(planner.reborrow(), statement);
                 match statement {
-                    StatementNode::LocalData(local) if local.initial_value.is_valid() => {
-                        local_data::plan(planner, local)
-                    }
+                    StatementNode::LocalData(local) => local_data::plan(planner, local),
                     StatementNode::Expression(expression) => {
                         expression_statement::plan(planner, *expression)
                     }

@@ -1,0 +1,14 @@
+// A primitive local declared without an initializer keeps its own storage
+// through assignment and observation. Native and interpreter must exit 1.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut total: i32;
+    total = 1;
+    self.console.exit_process(total);
+}

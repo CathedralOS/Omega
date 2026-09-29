@@ -227,6 +227,9 @@ pub(crate) fn build_checked_value_computation_plans(
                 // the local plan arm matches by equality.
                 if let StatementNode::LocalData(local) = statement
                     && local.is_mutable
+                    && program
+                        .primitive_type_reference(local.type_reference)
+                        .is_none()
                     && !program
                         .expression_table
                         .expression_is_valid(local.initial_value)
@@ -369,9 +372,8 @@ pub(crate) fn build_checked_value_computation_plans(
                             program.expression_table.expression_handles(call.arguments),
                         );
                     }
-                    if local.initial_value.is_valid()
-                        && let Some(primitive_type) =
-                            program.primitive_type_reference(local.type_reference)
+                    if let Some(primitive_type) =
+                        program.primitive_type_reference(local.type_reference)
                     {
                         let binding_ordinal = u32::try_from(
                             locals

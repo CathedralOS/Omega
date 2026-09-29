@@ -572,7 +572,12 @@ pub(crate) fn locate(
     let (expression, destination, primitive_type) = selected.ok_or(LoweringError::Unsupported(
         "scalar source custody disagrees with its authored destination role",
     ))?;
-    if !program.expression_table.expression_is_valid(expression) {
+    let implicit_primitive_zero = matches!((authored, role),
+        (StatementNode::LocalData(local), CheckedScalarExpressionRole::StorageInitializer)
+            if local.is_mutable && !local.initial_value.is_valid()
+                && matches!(program.type_reference_table.type_reference(local.type_reference),
+                    checked_trees::types::TypeReferenceNode::Named { .. }));
+    if !program.expression_table.expression_is_valid(expression) && !implicit_primitive_zero {
         return unsupported("scalar source custody has no live authored expression");
     }
     Ok(SourceRoot {
@@ -603,6 +608,41 @@ pub(crate) fn validate_pure(
         );
     }
     validate_namespace(checked, binding)?;
+    if !source.expression.is_valid() {
+        // `locate` admits absence only for a plain mutable primitive's own
+        // declaration. Reconstruct its default value independently, rather
+        // than treating a missing expression as an unconstrained value.
+        let (_, value) = checked
+            .facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(binding.state, binding.statement_ordinal, binding.role)
+            .ok_or(LoweringError::Unsupported(
+                "implicit primitive initializer lost its value",
+            ))?;
+        let is_zero = match value {
+            checked_trees::CheckedScalarExpression::IntegerLiteral { literal } => {
+                literal.value_bignum().is_some_and(|value| value.is_zero())
+                    && literal.landing().is_some_and(|landing| {
+                        landing.domain == numerics::arithmetic::ArithmeticDomain::Exact
+                    })
+            }
+            checked_trees::CheckedScalarExpression::Boolean(value) => matches!(
+                value.as_ref(),
+                checked_trees::CheckedBooleanExpression::Constant(false)
+            ),
+            checked_trees::CheckedScalarExpression::IeeeFloatLiteral { value } => matches!(
+                value,
+                semantic_vocabulary::IeeeFloatValue::Binary32(0)
+                    | semantic_vocabulary::IeeeFloatValue::Binary64(0)
+            ),
+            _ => false,
+        };
+        if value.primitive_type() != Some(source.primitive_type) || !is_zero {
+            return unsupported("implicit primitive initializer substituted its declared zero");
+        }
+        return Ok(());
+    }
     storage_reads::validate(checked, binding, &source)
 }
 

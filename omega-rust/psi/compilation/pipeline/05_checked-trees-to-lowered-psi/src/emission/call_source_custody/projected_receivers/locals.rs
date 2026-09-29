@@ -86,8 +86,37 @@ pub(super) fn declaration<'a>(
                     checked_trees::CheckedStructuralValueKind::ZeroedStructural {}
                 )
             });
+    // Primitive defaults use a scalar initializer, not a structural-value
+    // root. Rejoin that declaration and independently verify its exact zero
+    // before treating the name as owned storage rather than an alias loan.
+    let primitive_zero = !local.initial_value.is_valid()
+        && checked
+            .primitive_type_reference(local.type_reference)
+            .and_then(|primitive| {
+                crate::emission::scalar_types::terminal_scalar_type(primitive).ok()
+            })
+            .is_some_and(|scalar_type| {
+                checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .bound_expression_at(
+                        state.symbol,
+                        ordinal as u32,
+                        checked_trees::CheckedScalarExpressionRole::StorageInitializer,
+                    )
+                    .is_some_and(|(binding, _)| {
+                        binding.destination == local.symbol
+                            && crate::expression_preparation::source_custody::validate_pure(
+                                checked,
+                                binding,
+                                scalar_type,
+                            )
+                            .is_ok()
+                    })
+            });
     (declarations.next().is_none()
-        && (local.initial_value.is_valid() || zeroed_establishment)
+        && (local.initial_value.is_valid() || zeroed_establishment || primitive_zero)
         && validation::has_plain_owned_contents_with_numeric_constraints(
             &checked.typed,
             local.type_reference,

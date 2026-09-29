@@ -25,7 +25,8 @@ use super::super::{
     SymbolHandle, TypeConstraintNode, TypeReferenceNode, TypedTrees,
 };
 
-/// Find only initialized primitive storage established before this occurrence.
+/// Find primitive storage established by an initializer or its declaration's
+/// plain zero value before this occurrence.
 pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     program: &'program TypedTrees,
     state: &typed_trees::state::State,
@@ -44,9 +45,10 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     let local = locals.next()?;
     if locals.next().is_some()
         || !local.is_mutable
-        || !program
+        || (!program
             .expression_table
             .expression_is_valid(local.initial_value)
+            && crate::values::zeroed_scalar_local_initializer(program, local).is_none())
         || !matches!(
             program
                 .type_reference_table
@@ -657,6 +659,13 @@ pub(in crate::execution::terminal_unit) fn scalar_custody_is_exact(
     let Ok(statement_index) = usize::try_from(binding.statement_ordinal) else {
         return false;
     };
+    if binding.role == CheckedScalarExpressionRole::StorageInitializer
+        && !binding.expression.is_valid()
+    {
+        return matches!(program.statement_table.statements(state.statement_nodes).get(statement_index),
+            Some(StatementNode::LocalData(local)) if local.symbol == binding.destination
+                && crate::values::zeroed_scalar_local_initializer(program, local).as_ref() == Some(value));
+    }
     crate::values::lower_unit_scalar_argument(
         program,
         &facts.operators,
