@@ -422,13 +422,77 @@ impl Roster {
             .cited
             .get(goal)
             .cloned()
-            .or_else(|| self.equality_chain(goal));
+            .or_else(|| self.equality_chain(goal))
+            .or_else(|| self.compound_citation(goal));
         if self.results.borrow().len() < MAXIMUM_ROSTER_RESULTS {
             self.results
                 .borrow_mut()
                 .insert(goal.clone(), result.clone());
         }
         result
+    }
+
+    /// Preserve a cited connective as a whole. From `a < 0 || a > 0` and
+    /// equal observations of `a` and `b`, neither sign is individually known.
+    /// Splitting the goal first needlessly searches guard combinations. The
+    /// existing transport rule instead replays the original compound fact
+    /// and only the unconditional definitions its endpoints actually use.
+    /// Atomic arithmetic keeps its existing ordered-custody producers.
+    fn compound_citation(&self, goal: &Proposition) -> Option<ProofNode> {
+        if self.definitions.is_empty()
+            || !matches!(
+                goal,
+                Proposition::Conjunction(_)
+                    | Proposition::Disjunction(_)
+                    | Proposition::Implication { .. }
+            )
+        {
+            return None;
+        }
+        let mut goal_budget = MAXIMUM_DEFINITION_WORK;
+        let mut goal_values = Vec::new();
+        goal.visit_value_ids_bounded(&mut goal_budget, |value| goal_values.push(value))?;
+        for (premise, proof) in &self.cited {
+            if std::mem::discriminant(premise) != std::mem::discriminant(goal) {
+                continue;
+            }
+            let mut remaining = goal_budget;
+            let mut pending = goal_values.clone();
+            if premise
+                .visit_value_ids_bounded(&mut remaining, |value| pending.push(value))
+                .is_none()
+            {
+                continue;
+            }
+            let Some(closure) = self.closure_from_values(pending, remaining) else {
+                continue;
+            };
+            let equalities = closure
+                .iter()
+                .map(|&index| self.equal_facts[index].clone())
+                .collect::<Vec<_>>();
+            let denotation = |proposition| {
+                check_value_equality_denotation(
+                    &self.context,
+                    proposition,
+                    equalities.iter().map(|equality| &equality.conclusion),
+                )
+                .ok()
+            };
+            let Some(original) = denotation(premise) else {
+                continue;
+            };
+            if denotation(goal).as_ref() == Some(&original) {
+                return Some(ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::ValueEqualityTransport {
+                        premise: Box::new(proof.clone()),
+                        equalities,
+                    },
+                });
+            }
+        }
+        None
     }
 
     /// Follow explicitly cited equalities, proving every reversed edge. A
@@ -682,6 +746,14 @@ impl Roster {
         }) {
             return None;
         }
+        self.closure_from_values(pending, remaining)
+    }
+
+    fn closure_from_values(
+        &self,
+        mut pending: Vec<ValueId>,
+        mut remaining: usize,
+    ) -> Option<Vec<usize>> {
         let mut collected = BTreeSet::new();
         while let Some(id) = pending.pop() {
             remaining = remaining.checked_sub(1)?;
@@ -870,6 +942,30 @@ mod tests {
 
     fn integer_type() -> IntegerType {
         IntegerType::new(IntegerSign::Unsigned, 16).unwrap()
+    }
+
+    #[test]
+    fn compound_citation_preserves_an_unknown_alternative() {
+        let alternatives = |subject: ScalarTerm| {
+            Proposition::Disjunction(vec![
+                Proposition::LessThan(subject.clone(), one()),
+                Proposition::LessThan(one(), subject),
+            ])
+        };
+        let facts = vec![Proposition::Equal(term(1), term(2)), alternatives(term(1))];
+        let goal = alternatives(term(2));
+        let proof = prove(&context(), &goal, &[], &facts)
+            .expect("transport the cited alternative without choosing a branch");
+        proof_admission::accept_certificate(&context(), &goal, &[], &facts, &proof).unwrap();
+        for missing in 0..facts.len() {
+            let mut absent = facts.clone();
+            absent[missing] = Proposition::Truth;
+            assert!(prove(&context(), &goal, &[], &absent).is_none());
+            assert!(
+                proof_admission::accept_certificate(&context(), &goal, &[], &absent, &proof)
+                    .is_err()
+            );
+        }
     }
 
     fn add(left: ScalarTerm, right: ScalarTerm) -> ScalarTerm {

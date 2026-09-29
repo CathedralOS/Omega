@@ -23,6 +23,109 @@ fn math_value(id: u64, integer_type: IntegerType) -> IntegerMathTerm {
 }
 
 #[test]
+fn a_nonzero_guard_survives_a_second_read_of_the_same_field() {
+    use crate::proofs::nonzero_divisor_certificate::produce_relaxed_integer_proof;
+    use std::collections::BTreeSet;
+
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let scalar_type = ScalarType::Integer(integer_type);
+    let root = PlaceId::new(1).unwrap();
+    let context = PropositionContext::from_value_types_and_places(
+        (1..=3)
+            .map(|identity| (ValueId::new(identity).unwrap(), scalar_type))
+            .chain([(ValueId::new(6).unwrap(), scalar_type)])
+            .chain((4..=5).map(|identity| (ValueId::new(identity).unwrap(), ScalarType::Boolean))),
+        [(
+            root,
+            StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        )],
+    )
+    .unwrap();
+    let observed = |identity| value(identity, integer_type);
+    let field = ScalarTerm::integer_field_path(
+        root,
+        vec![CanonicalStructuralPathSegment::Field(
+            StructuralFieldId::new(1).unwrap(),
+        )],
+        integer_type,
+    );
+    let nonzero = |term: ScalarTerm| {
+        Proposition::Disjunction(vec![
+            Proposition::LessOrEqual(term.clone(), integer(integer_type, -1)),
+            Proposition::LessOrEqual(integer(integer_type, 1), term),
+        ])
+    };
+    let polarity = |identity, truth| {
+        Proposition::Equal(
+            ScalarTerm::value(ValueId::new(identity).unwrap(), ScalarType::Boolean),
+            ScalarTerm::Boolean(truth),
+        )
+    };
+    let implication = |premise, conclusion| Proposition::Implication {
+        premise: Box::new(premise),
+        conclusion: Box::new(conclusion),
+    };
+    let mut axioms = vec![
+        Proposition::Equal(observed(1), field.clone()),
+        Proposition::Equal(observed(3), integer(integer_type, 0)),
+        implication(
+            Proposition::Equal(observed(1), observed(3)),
+            polarity(4, true),
+        ),
+        implication(
+            Proposition::Disjunction(vec![
+                Proposition::LessThan(observed(1), observed(3)),
+                Proposition::LessThan(observed(3), observed(1)),
+            ]),
+            polarity(4, false),
+        ),
+        implication(polarity(4, false), polarity(5, true)),
+        implication(polarity(4, true), polarity(5, false)),
+        nonzero(observed(1)),
+        Proposition::Equal(observed(2), field),
+        Proposition::Equal(
+            ScalarTerm::value(ValueId::new(4).unwrap(), ScalarType::Boolean),
+            ScalarTerm::IntegerEqual {
+                scalar_type: integer_type,
+                left: Box::new(observed(1)),
+                right: Box::new(observed(3)),
+            },
+        ),
+        Proposition::Equal(
+            ScalarTerm::value(ValueId::new(5).unwrap(), ScalarType::Boolean),
+            ScalarTerm::BooleanNot {
+                operand: Box::new(ScalarTerm::value(
+                    ValueId::new(4).unwrap(),
+                    ScalarType::Boolean,
+                )),
+            },
+        ),
+    ];
+    axioms.push(Proposition::Equal(
+        ScalarTerm::integer_field_path(
+            root,
+            vec![CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(1).unwrap(),
+            )],
+            integer_type,
+        ),
+        observed(6),
+    ));
+    let goal = nonzero(observed(2));
+    let proof = produce_relaxed_integer_proof(&context, &goal, &[], &axioms, &BTreeSet::new())
+        .expect("a guarded field read and later unchanged read share the nonzero proof");
+    proof_admission::accept_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+    axioms[6] = Proposition::Truth;
+    assert!(
+        produce_relaxed_integer_proof(&context, &goal, &[], &axioms, &BTreeSet::new()).is_none()
+    );
+    assert!(proof_admission::accept_certificate(&context, &goal, &[], &axioms, &proof).is_err());
+}
+
+#[test]
 fn strict_bounds_reuse_the_derived_store_and_read_chain() {
     use crate::proofs::nonzero_divisor_certificate::produce_relaxed_integer_proof;
     use std::collections::BTreeSet;

@@ -186,10 +186,7 @@ the complete product bar; focused successes below do not establish that baseline
     a successful forwarding path does not prove edge cleanup. Non-scalar-leaf
     zero-length arrays still reject in native structural layout; preserve
     empty-index and literal-arity rejection while admitting empty construction.
-    `filesystem/windows_canonicalize_exit` needs its stored UnitResult;
-    `errors/runtime_result_match_exit`
-    stops at `ControlCycleIneligible` for the affine case store inside its
-    loop. Coordinate
+    `filesystem/windows_canonicalize_exit` needs its stored UnitResult. Coordinate
     **FILESYSTEM-RELEASE-CONTRACT**, **WRITE-ONLY-BORROW** and
     **NOMINAL-FIELD-FLOW**.
 
