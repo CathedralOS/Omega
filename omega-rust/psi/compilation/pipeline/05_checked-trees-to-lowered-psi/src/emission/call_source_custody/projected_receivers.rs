@@ -402,7 +402,12 @@ fn resolve_source(
                     // A view-typed receiver carries no literal length: its
                     // extent is the bound witness, and Terminal re-proves the
                     // element against it exactly as the runtime selectors do.
-                    TypeReferenceNode::Slice { .. } => {}
+                    // Only a structural element projects through a view: a
+                    // primitive element (`bytes[0]` over `&[u8]`) is a scalar
+                    // element read, which keeps the storage-read route whose
+                    // source custody replays it.
+                    TypeReferenceNode::Slice { element_type }
+                        if checked.primitive_type_reference(*element_type).is_none() => {}
                     _ => {
                         return unsupported("projected receiver index has no literal array length");
                     }
