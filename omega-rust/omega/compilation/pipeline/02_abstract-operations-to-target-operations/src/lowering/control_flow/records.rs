@@ -43,22 +43,26 @@ pub(super) fn establish(
     // Erased common members hold no storage and take no roster position.
     let declarations: Vec<&StructuralFieldDeclaration> = match (shape, result_case) {
         (StructuralTypeShape::Record { fields }, None) => fields.iter().collect(),
+        // Erased payload members hold no storage and take no roster position.
         (StructuralTypeShape::Sum { cases }, Some(result_case)) => cases
             .iter()
             .find(|case| case.id == result_case)
             .ok_or_else(invalid)?
             .fields
             .iter()
+            .filter(|field| !field.relevance.is_erased())
             .collect(),
         (StructuralTypeShape::Mixed { fields: common, cases }, Some(result_case)) => common
             .iter()
             .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
             .chain(
-                &cases
+                cases
                     .iter()
                     .find(|case| case.id == result_case)
                     .ok_or_else(invalid)?
-                    .fields,
+                    .fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased()),
             )
             .collect(),
         _ => return Err(invalid()),

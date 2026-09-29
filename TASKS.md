@@ -1434,27 +1434,29 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
   Common fields construct and read natively: the structural constructor admits
   named scalar common fields, stage 05 binds runtime common fields then the
-  payload with explicit zeros for unnamed ones, Terminal verification, the
-  codec and Omega check and lay out that roster, and a mixed carrier's common
-  field reads without a `Case` step. `data/runtime_mixed_case_common_fields_exit`
+  payload with explicit zeros for unnamed ones, Terminal verification, the codec
+  and Omega check and lay out that roster, and a mixed carrier's common field
+  reads without a `Case` step. `data/runtime_mixed_case_common_fields_exit`
   exits 70 on macOS ARM64 and builds for linux_x86_64. Next stops, each on the
   unchanged customer: `traits/equatable_mixed_shape_equality_exit` checks but
   stage 02 target lowering reports `UnknownStructuralType` for the mixed type,
   and a payload dispatch on a mixed field (`transition self.event {
-  Event::Treasure { gold } -> .. }`) reports the same error; the raising site
-  is unconfirmed, and `structural_layout.rs::resolve_structural_field_path`
-  is record-only. `data/runtime_mixed_shape_exit` also needs the
-  common-field store `self.event.bonus = 70`: stage 04
+  Event::Treasure { gold } -> .. }`) reports the same error; the raising site is
+  unconfirmed, and `structural_layout.rs::resolve_structural_field_path` is
+  record-only. `data/runtime_mixed_shape_exit` also needs the common-field store
+  `self.event.bonus = 70`: stage 04
   `structural_scalar_store/destination.rs::carrier` admits only a plain record
   as the last owner. The interpreter's `EstablishStructuralCase` still requires
-  a sum and keys payload scalars by field id on the root, where mixed common
-  and payload ids collide. Erased payloads remain: the structural constructor
-  rejects authored erased operands and requires the full payload roster, stage
-  05 rejects erased initializers, verifier `constructible_case` requires
-  relevant payloads, and Omega stage 02 rejects erased declarations. Predicate
-  domains stay outside the constructor's contents classifier. Repair retained
-  establishment through lowering; merely removing an admission guard cannot
-  supply the missing evidence.
+  a sum and keys payload scalars by field id on the root, where mixed common and
+  payload ids collide. Erased payload members construct natively: they take no
+  roster position anywhere and an omitted one is determined by its nullary
+  constructor, so `relevance/erased_case_payload_field_exit` exits 70.
+  `generics/runtime_mixed_generic_erased_sum_exit` stops earlier at `state
+  graph: terminator: unsupported tail: guarded pair without exact false
+  fallback` for its two-arm dispatch on the mixed field. Predicate domains stay
+  outside the constructor's contents classifier. Repair retained establishment
+  through lowering; merely removing an admission guard cannot supply the missing
+  evidence.
 
   The pending `structs/case_field_type_store_shapes` actually contains only the
   common-field case; materialize its comment-only domain/erased controls and

@@ -312,7 +312,13 @@ fn record_type(
         };
         pending.push((current, true));
         for field in fields {
+            // An erased proof member carries its declaration only: no runtime
+            // storage, content or cleanup, as Terminal's record validation
+            // treats it. Any other erased relevance stays refused.
             if field.relevance.is_erased() {
+                if matches!(field.field_type, StructuralFieldType::Erased { .. }) {
+                    continue;
+                }
                 return false;
             }
             match field.field_type {
