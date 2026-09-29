@@ -30,77 +30,46 @@ requires
 data Main {
     console: Binding<Console>;
     time: Time;
-    start_keep: Instant;
-    elapsed: Duration;
-    pause: Duration;
-    total_result: TotalResult;
-    milliseconds: u64;
-    slept: u32;
-    line: [u8; 27] in Utf8;   // "elapsed milliseconds: 00000"
-    digits: [u8; 10] in Utf8;
-    glyph: u8;
-    digit: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("elapsed_timer: times a 50ms workload with std::time");
-    self.digits = "0123456789";
-    self.line = "elapsed milliseconds: 00000";
-    self.start_keep = self.time.now();
-    self.pause = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
-    self.slept = self.time.sleep_for(self.pause);
-    transition self.slept == 50 {
-        true -> read_elapsed()
-        false -> fail_request()
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("elapsed_timer: times a 50ms workload with std::time");
+    let start: Instant = Time::now(&mut context.time);
+    let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
+    let slept: u32 = Time::sleep_for(&mut context.time, pause);
+    transition slept == 50 {
+        true -> read_elapsed(context, start)
+        false -> fail_request(context)
     }
-    state read_elapsed(&mut self) {
-        self.elapsed = Time::elapsed_since(&mut self.time, self.start_keep);
-        self.total_result = self.elapsed.checked_as_milliseconds();
-        transition self.total_result {
-            TotalResult::Ok { total } -> render_ten_thousands(total)
-            TotalResult::Overflow -> fail_overflow()
+    state read_elapsed(context: &mut Main, start: Instant) {
+        let elapsed: Duration = Time::elapsed_since(&mut context.time, start);
+        let total_result: TotalResult = Duration::checked_as_milliseconds(&elapsed);
+        transition total_result {
+            TotalResult::Ok { total } -> render(context, total)
+            TotalResult::Overflow -> fail_overflow(context)
         }
     }
-    state render_ten_thousands(&mut self, total: u64) {
-        self.milliseconds = total;
-        self.digit = (self.milliseconds / 10000) % 10;
-        transition self.digit < 10 { true -> put_ten_thousands() false -> fail_overflow() }
-    }
-    state put_ten_thousands(&mut self) {
-        self.glyph = self.digits[self.digit];
-        self.line[22] = self.glyph;
-        self.digit = (self.milliseconds / 1000) % 10;
-        transition self.digit < 10 { true -> put_thousands() false -> fail_overflow() }
-    }
-    state put_thousands(&mut self) {
-        self.glyph = self.digits[self.digit];
-        self.line[23] = self.glyph;
-        self.digit = (self.milliseconds / 100) % 10;
-        transition self.digit < 10 { true -> put_hundreds() false -> fail_overflow() }
-    }
-    state put_hundreds(&mut self) {
-        self.glyph = self.digits[self.digit];
-        self.line[24] = self.glyph;
-        self.digit = (self.milliseconds / 10) % 10;
-        transition self.digit < 10 { true -> put_tens() false -> fail_overflow() }
-    }
-    state put_tens(&mut self) {
-        self.glyph = self.digits[self.digit];
-        self.line[25] = self.glyph;
-        self.digit = self.milliseconds % 10;
-        transition self.digit < 10 { true -> put_ones() false -> fail_overflow() }
-    }
-    state put_ones(&mut self) {
-        self.glyph = self.digits[self.digit];
-        self.line[26] = self.glyph;
-        self.console.write_line(self.line);
-        transition self.milliseconds >= 50 {
-            true -> good()
-            false -> fail_elapsed()
+    state render(context: &mut Main, milliseconds: u64) {
+        let digits: [u8; 10] in Utf8 = "0123456789";
+        let mut line: [u8; 27] in Utf8 = "elapsed milliseconds: 00000";
+        let ten_thousands: u64 = (milliseconds / 10000) % 10;
+        let thousands: u64 = (milliseconds / 1000) % 10;
+        let hundreds: u64 = (milliseconds / 100) % 10;
+        let tens: u64 = (milliseconds / 10) % 10;
+        let ones: u64 = milliseconds % 10;
+        line[22] = digits[ten_thousands];
+        line[23] = digits[thousands];
+        line[24] = digits[hundreds];
+        line[25] = digits[tens];
+        line[26] = digits[ones];
+        context.console.write_line(line);
+        transition milliseconds >= 50 {
+            true -> good(context)
+            false -> fail_elapsed(context)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail_request(&mut self) { self.console.exit_process(1); }
-    state fail_elapsed(&mut self) { self.console.exit_process(2); }
-    state fail_overflow(&mut self) { self.console.exit_process(3); }
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state fail_request(context: &mut Main) { context.console.exit_process(1); }
+    state fail_elapsed(context: &mut Main) { context.console.exit_process(2); }
+    state fail_overflow(context: &mut Main) { context.console.exit_process(3); }
 }
