@@ -86,4 +86,10 @@ fn mixed_case_literal_zero_initializes_unnamed_common_fields() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("the mixed establishment independently verifies");
+    // Decoding replays the codec's own foundation validation of the roster.
+    let bytes = terminal_codec::encode_module(module).expect("encode");
+    assert_eq!(
+        &terminal_codec::decode_module(&bytes).expect("decode the mixed roster"),
+        module
+    );
 }

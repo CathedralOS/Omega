@@ -11,10 +11,13 @@ pub struct RecordFieldCarrier {
     pub path: Vec<StructuralPathSegment>,
 }
 
-/// Resolve record-only scalar observation carriers; the final scalar field is
+/// Resolve record-field scalar observation carriers; the final scalar field is
 /// deliberately separate. One literal fixed-array index may end the carrier
 /// when the element is itself a record (`maps[1]` for a `maps[1].value`
 /// observation), matching the checked-unit bounded projection grammar.
+/// The carrier may also be a mixed shape, whose common fields sit directly on
+/// it beside the tag like a record's and whatever case is active: its
+/// payload fields instead need `case_payload_carrier`'s final `Case` step.
 /// Access, ownership and scalar leaf validation remain the consuming
 /// operation's independent obligations.
 pub fn record_field_carrier<'types>(
@@ -28,7 +31,7 @@ pub fn record_field_carrier<'types>(
             .clone()
             .find(|declaration| declaration.id == structural_type)?
             .shape,
-        StructuralTypeShape::Record { .. }
+        StructuralTypeShape::Record { .. } | StructuralTypeShape::Mixed { .. }
     )
     .then_some(RecordFieldCarrier {
         structural_type,
@@ -82,8 +85,9 @@ pub fn case_payload_carrier<'types>(
 }
 
 /// The relevant declaration one scalar field observation names below `root`:
-/// a field of the record `path` reaches, or a payload field of the case its
-/// final `Case` step selects. Erased declarations are never observed.
+/// a field of the record `path` reaches, a common field of the mixed shape it
+/// reaches, or a payload field of the case its final `Case` step selects.
+/// Erased declarations are never observed.
 pub fn observed_field_declaration<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
@@ -94,10 +98,11 @@ pub fn observed_field_declaration<'types>(
         carrier.fields
     } else {
         let carrier = record_field_carrier(types.clone(), root, path)?;
-        let StructuralTypeShape::Record { fields } = &types
-            .clone()
-            .find(|declaration| declaration.id == carrier.structural_type)?
-            .shape
+        let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+            &types
+                .clone()
+                .find(|declaration| declaration.id == carrier.structural_type)?
+                .shape
         else {
             return None;
         };

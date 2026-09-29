@@ -631,7 +631,7 @@ rows! {
     FORM_STRUCTURAL_SCALAR => (
         "formation:structural-scalar-fields",
         SharedFormation,
-        "structural scalar field reads and bounded-integer field stores with their declared intervals; a store's carrier composes fields and literal or runtime elements, and a read's carrier may end in one Case step naming a payload field of that exact declared case",
+        "structural scalar field reads and bounded-integer field stores with their declared intervals; a store's carrier composes fields and literal or runtime elements, and a read's carrier may end in one Case step naming a payload field of that exact declared case, or at a mixed shape whose common field it reads directly because that field sits beside the tag whatever case is active",
         "field reads and stores validate and resolve their referents — a store's carrier resolves through its runtime elements as some element of each array, and its declared range obligation resolves against the declaration, independently of the stored value; a case-qualified read's carrier is type-only here, its active case proved separately from reconstructed membership facts — before equations and bounds are reconstructed",
         &["formation:operation-validation"],
         &[tv!( "validation/structural/scalar_fields.rs"), ts!( "record_field.rs")]
