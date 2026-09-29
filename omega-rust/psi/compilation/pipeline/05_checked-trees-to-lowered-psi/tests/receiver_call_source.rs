@@ -29,6 +29,9 @@ mod aliases;
 #[path = "receiver_call_source/cyclic.rs"]
 mod cyclic;
 
+#[path = "receiver_call_source/retained_receivers.rs"]
+mod retained_receivers;
+
 fn unit_plan<'a>(
     checked: &'a checked_trees::CheckedTrees,
     name: &str,
