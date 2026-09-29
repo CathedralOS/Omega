@@ -22,26 +22,22 @@ pub boundary trait Clock2 {
 // Declared-host Clock2 wiring over the darwin leaves. `tick_count` must answer
 // in MILLISECONDS: the loop asserts `elapsed >= 100` against its own header
 // contract ("GetTickCount64 measures real Sleep time"), so the raw nanosecond
-// read is scaled exactly as `MacosClock::get_tick_count` scales it.
-data MarqueeClockProvider {
-    rc: i32;
-    timeout: i32;
-    ns: u64;
-    scaled: u64;
-}
+// read is scaled exactly as `MacosClock::get_tick_count` scales it. The
+// provider holds no state: both calls keep their scratch in locals, where the
+// static-machine contract places invocation scratch.
+data MarqueeClockProvider { }
 macos_arm64 machine MarqueeClockProvider::provider_defaults(defaults: &mut MarqueeClockProvider) {
     defaults.select_provider<Clock2, MarqueeClockProvider>();
 }
 macos_arm64 machine MarqueeClockProvider::sleep(&mut self, milliseconds: u32) satisfies Clock2::sleep
 {
-    self.timeout = narrow_u32_to_i32_wrapping(milliseconds);
-    self.rc = darwin_poll(0, 0, self.timeout);
+    let timeout: i32 = narrow_u32_to_i32_wrapping(milliseconds);
+    let rc: i32 = darwin_poll(0, 0, timeout);
 }
 macos_arm64 machine MarqueeClockProvider::tick_count(&mut self) -> u64 satisfies Clock2::tick_count
 {
-    self.ns = darwin_clock_ns(6);
-    self.scaled = self.ns / 1000000;
-    self.scaled
+    let ns: u64 = darwin_clock_ns(6);
+    ns / 1000000
 }
 data Main {
     console: Binding<Console>;
