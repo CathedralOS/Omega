@@ -148,9 +148,9 @@ pub(super) fn validate_establish_structural_case(
         // without a runtime field list: a case establishment writes the tag
         // and the case's payload alone, the same as a closed sum.
         StructuralTypeShape::Mixed { fields, cases }
-            if fields.iter().all(|field| {
-                matches!(field.field_type, StructuralFieldType::Erased { .. })
-            }) =>
+            if fields
+                .iter()
+                .all(|field| matches!(field.field_type, StructuralFieldType::Erased { .. })) =>
         {
             cases
         }

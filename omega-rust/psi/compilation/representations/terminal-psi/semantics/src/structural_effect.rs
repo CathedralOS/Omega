@@ -84,6 +84,7 @@ pub enum StructuralEffectAction {
     WriteByteSequence,
     EstablishByteSequenceSubslice,
     EstablishElementView,
+    EstablishMutableElementView,
     ReadElementViewLength,
     ReadElementView,
     WriteElementView,
@@ -231,7 +232,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 30] = [
+    pub const ALL: [Self; 31] = [
         Self {
             tag: OperationSemanticTag::EstablishReference,
             schema: structural_effect_leaf(
@@ -358,6 +359,16 @@ impl StructuralEffectSemanticRow {
                 StructuralEffectResultShape::Structural,
                 StructuralEffectCustody::ExactElementViewSource,
                 StructuralEffectAction::EstablishElementView,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::EstablishMutableElementView,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Structural,
+                StructuralEffectCustody::ExactElementViewSource,
+                StructuralEffectAction::EstablishMutableElementView,
                 StructuralEffectExternalEffect::None,
                 StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
             ),
@@ -567,6 +578,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::ByteSequenceRead
             | OperationSemanticTag::ByteSequenceSubslice
             | OperationSemanticTag::EstablishElementView
+            | OperationSemanticTag::EstablishMutableElementView
             | OperationSemanticTag::ElementViewLength
             | OperationSemanticTag::ElementViewRead
             | OperationSemanticTag::ElementViewSubslice
@@ -638,6 +650,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::ByteSequenceWrite,
         OperationSemanticTag::ByteSequenceSubslice,
         OperationSemanticTag::EstablishElementView,
+        OperationSemanticTag::EstablishMutableElementView,
         OperationSemanticTag::ElementViewLength,
         OperationSemanticTag::ElementViewRead,
         OperationSemanticTag::ElementViewSubslice,
@@ -998,6 +1011,9 @@ fn validate_structural_effect_schema(
             OperationSemanticTag::ByteSequenceSubslice
         }
         StructuralEffectAction::EstablishElementView => OperationSemanticTag::EstablishElementView,
+        StructuralEffectAction::EstablishMutableElementView => {
+            OperationSemanticTag::EstablishMutableElementView
+        }
         StructuralEffectAction::ReadElementViewLength => OperationSemanticTag::ElementViewLength,
         StructuralEffectAction::ReadElementView => OperationSemanticTag::ElementViewRead,
         StructuralEffectAction::WriteElementView => OperationSemanticTag::ElementViewWrite,
@@ -1150,7 +1166,8 @@ fn validate_structural_effect_schema(
                         && schema.frontier
                             == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
                 }
-                StructuralEffectAction::EstablishElementView => schema.result
+                StructuralEffectAction::EstablishElementView
+                | StructuralEffectAction::EstablishMutableElementView => schema.result
                     == StructuralEffectResultShape::Structural
                     && schema.custody == StructuralEffectCustody::ExactElementViewSource
                     && schema.external_effect == StructuralEffectExternalEffect::None
@@ -1448,6 +1465,14 @@ pub fn structural_effect_leaf_observation_in(
         (
             StructuralEffectAction::EstablishElementView,
             OperationKind::EstablishElementView {
+                destination,
+                source,
+                ..
+            },
+        )
+        | (
+            StructuralEffectAction::EstablishMutableElementView,
+            OperationKind::EstablishMutableElementView {
                 destination,
                 source,
                 ..
@@ -2209,7 +2234,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 30);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 31);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
@@ -2246,6 +2271,7 @@ mod tests {
                 OperationSemanticTag::PortWrite,
                 OperationSemanticTag::EstablishTrivialAffineLocal,
                 OperationSemanticTag::EstablishRecord,
+                OperationSemanticTag::EstablishMutableElementView,
             ]),
         );
         let boolean = structural_effect_semantic_row(&OperationKind::BooleanStructuralField {

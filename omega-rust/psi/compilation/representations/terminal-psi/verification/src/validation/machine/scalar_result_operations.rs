@@ -102,6 +102,7 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }
         | OperationKind::EstablishElementView { .. }
+        | OperationKind::EstablishMutableElementView { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::ByteSequenceStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }

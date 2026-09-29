@@ -48,6 +48,7 @@ impl TerminalFuelSchedule {
             | OperationKind::ByteSequenceWrite { .. }
             | OperationKind::ByteSequenceSubslice { .. }
             | OperationKind::EstablishElementView { .. }
+            | OperationKind::EstablishMutableElementView { .. }
             | OperationKind::ElementViewLength { .. }
             | OperationKind::ElementViewRead { .. }
             | OperationKind::ElementViewWrite { .. }

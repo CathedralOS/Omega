@@ -244,6 +244,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::StructuralCaseLeafCopy { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishElementView { .. }
+        | O::EstablishMutableElementView { .. }
         | O::ElementViewLength { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }

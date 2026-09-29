@@ -3,6 +3,7 @@
 
 pub(crate) mod establishment;
 pub(crate) mod length;
+pub(crate) mod mutable_establishment;
 pub(crate) mod read;
 pub(crate) mod subslice;
 pub(crate) mod write;

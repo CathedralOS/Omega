@@ -22,6 +22,7 @@ use symbols::SymbolHandle;
 
 mod borrowed_slice_view;
 mod dispatch;
+mod mutable_slice_view;
 mod record;
 mod structural_case;
 pub(crate) use borrowed_slice_view::authored_collection_path;
@@ -235,6 +236,21 @@ pub(crate) fn validate(
             // `EstablishElementView` carries the runtime extent descriptor.
             CheckedStructuralValueKind::BorrowedSliceView { source: argument } => {
                 borrowed_slice_view::validate(
+                    checked,
+                    owner,
+                    source,
+                    result.statement_index,
+                    expression,
+                    &argument,
+                )?;
+            }
+            // A mutably borrowed `&mut [T]` view rejoins its mutable loan
+            // exactly, mirroring the shared sibling: the retained argument
+            // names the lent collection root and path under `MutableBorrow`,
+            // and `EstablishMutableElementView` carries the runtime extent
+            // descriptor.
+            CheckedStructuralValueKind::MutableSliceView { source: argument } => {
+                mutable_slice_view::validate(
                     checked,
                     owner,
                     source,

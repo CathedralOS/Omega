@@ -250,6 +250,160 @@ impl TerminalExecution {
         Ok(OperationFlow::Advance)
     }
 
+    /// Establish one mutable element view over the source collection's stored
+    /// elements. The binding keeps the snapshot shape of its shared sibling:
+    /// `ElementViewWrite` still fails closed until mutable element bindings
+    /// land, so no store can observe a divergent backing.
+    pub(crate) fn execute_establish_mutable_element_view(
+        &mut self,
+        operation: &Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let OperationKind::EstablishMutableElementView {
+            destination,
+            source,
+            element,
+        } = &operation.kind
+        else {
+            return Err(invalid());
+        };
+        let OperationResult::Structural(result) = &operation.result else {
+            return Err(invalid());
+        };
+        if *destination != result.place {
+            return Err(invalid());
+        }
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
+            TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
+        )?;
+        if !machine.structural_places.iter().any(|place| {
+            place.id == result.place
+                && place.kind
+                    == StructuralPlaceKind::OperationResult {
+                        producer: operation.id,
+                        structural_type: result.structural_type,
+                    }
+        }) {
+            return Err(invalid());
+        }
+        let Some(&StructuralTypeShape::ElementView {
+            element: view_element,
+        }) = self
+            .program
+            .structural_types
+            .get(&result.structural_type)
+            .map(|declaration| &declaration.shape)
+        else {
+            return Err(invalid());
+        };
+        if view_element != *element
+            || result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+        {
+            return Err(invalid());
+        }
+        let Some(&StructuralTypeShape::PrimitiveScalar(element_scalar)) = self
+            .program
+            .structural_types
+            .get(element)
+            .map(|declaration| &declaration.shape)
+        else {
+            return Err(invalid());
+        };
+        let resolved = crate::custody::resolve_structural_arguments(
+            &self.program.structural_types,
+            &self.structural_values,
+            std::slice::from_ref(source),
+        )?
+        .pop()
+        .ok_or_else(invalid)?;
+        if source.access != StructuralAccess::MutableBorrow
+            || !resolved.qualifications.is_empty()
+            || self.structural_values.contains_key(&result.place)
+            || self.scalar_case_values.contains_key(&result.place)
+            || self.scalar_array_values.contains_key(&result.place)
+            || self.byte_sequence_values.contains_key(&result.place)
+            || self.element_view_values.contains_key(&result.place)
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(result.place))
+            || self
+                .live_affine_frontier
+                .iter()
+                .any(|entry| entry.place == result.place)
+        {
+            return Err(invalid());
+        }
+        let StructuralTypeShape::FixedArray {
+            element: collection_element,
+            length: collection_length,
+        } = self
+            .program
+            .structural_types
+            .get(&resolved.structural_type)
+            .ok_or_else(invalid)?
+            .shape
+        else {
+            return Err(invalid());
+        };
+        if collection_element != *element {
+            return Err(invalid());
+        }
+        let elements = if resolved.path.is_empty() {
+            let array = self
+                .scalar_array_values
+                .get(&source.place)
+                .ok_or_else(invalid)?;
+            if array.structural_type != resolved.structural_type
+                || usize::try_from(collection_length).ok() != Some(array.elements.len())
+            {
+                return Err(invalid());
+            }
+            if array
+                .elements
+                .iter()
+                .any(|value| value.scalar_type() != element_scalar)
+            {
+                return Err(invalid());
+            }
+            array.elements.clone()
+        } else {
+            let extent = usize::try_from(collection_length).map_err(|_| invalid())?;
+            let mut elements = Vec::with_capacity(extent);
+            for index in 0..extent {
+                let mut place = StructuralRuntimePlace::from(&resolved);
+                place
+                    .path
+                    .push(StructuralPathSegment::FixedIndex(index as u64));
+                let leaf = self
+                    .structural_primitive_storage
+                    .get(&place)
+                    .copied()
+                    .ok_or_else(invalid)?;
+                if leaf.scalar_type() != element_scalar {
+                    return Err(invalid());
+                }
+                elements.push(leaf);
+            }
+            elements
+        };
+        self.element_view_values
+            .insert(result.place, ElementView::new(elements));
+        self.structural_values.insert(
+            result.place,
+            TerminalStructuralValue {
+                opaque_identity: result.place.get(),
+                structural_type: result.structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            },
+        );
+        Ok(OperationFlow::Advance)
+    }
+
     /// One u64 count of the view's live window.
     pub(crate) fn execute_element_view_length(
         &mut self,

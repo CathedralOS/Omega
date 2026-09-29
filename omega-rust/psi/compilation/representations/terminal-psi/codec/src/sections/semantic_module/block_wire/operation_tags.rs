@@ -194,3 +194,6 @@ pub(super) const BYTE_SEQUENCE_STORE: u8 = 96;
 
 /// `OperationKind::ElementViewWrite`.
 pub(super) const ELEMENT_VIEW_WRITE: u8 = 97;
+
+/// `OperationKind::EstablishMutableElementView`.
+pub(super) const ESTABLISH_MUTABLE_ELEMENT_VIEW: u8 = 98;

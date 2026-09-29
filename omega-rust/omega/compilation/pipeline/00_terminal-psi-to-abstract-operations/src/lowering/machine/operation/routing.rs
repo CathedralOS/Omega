@@ -337,6 +337,9 @@ pub(super) fn lower(
                 path: path.clone(),
             })
         }
+        OperationKind::EstablishMutableElementView { .. } => Err(
+            LoweringError::UnsupportedMutableElementViewEstablishment(operation.id),
+        ),
         OperationKind::ElementViewWrite { .. } => {
             Err(LoweringError::UnsupportedElementViewWrite(operation.id))
         }

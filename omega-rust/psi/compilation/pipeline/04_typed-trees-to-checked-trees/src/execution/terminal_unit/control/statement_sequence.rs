@@ -809,6 +809,7 @@ fn store_statement_index(store: &CheckedUnitEffectOperationPlan) -> Option<u32> 
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
             Some(store.statement_index)
         }
+        CheckedUnitEffectOperationPlan::ElementViewWrite(store) => Some(store.statement_index),
         _ => None,
     }
 }
@@ -1766,6 +1767,7 @@ fn consume_value_places(
             }
             checked_trees::CheckedStructuralValueKind::Reference { .. }
             | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
+            | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. }
             | checked_trees::CheckedStructuralValueKind::Call { .. }
             | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { .. }
             | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }

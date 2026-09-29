@@ -68,6 +68,15 @@ pub enum CheckedStructuralValueKind {
     BorrowedSliceView {
         source: crate::CheckedUnitStructuralArgumentPlan,
     },
+    /// A mutably borrowed `&mut [T]` view of the contiguous elements an owned
+    /// collection place holds. `source` is that lent place under its mutable
+    /// loan, taken from checked borrow admission rather than from the authored
+    /// view spelling; the view carries its own stored length and copies no
+    /// elements, and its mutable custody lets element writes and element
+    /// borrows reach the lent storage.
+    MutableSliceView {
+        source: crate::CheckedUnitStructuralArgumentPlan,
+    },
     /// A copyable payloadless case leaf read through shared-borrowed storage
     /// (`self.bitness` on a `&self` receiver): the borrowed place's active
     /// case is observed and the same constructor is established fresh, so no

@@ -165,7 +165,9 @@ impl OperationKind {
                     }
                 }
             }
-            Self::EstablishReference { source } | Self::EstablishElementView { source, .. } => {
+            Self::EstablishReference { source }
+            | Self::EstablishElementView { source, .. }
+            | Self::EstablishMutableElementView { source, .. } => {
                 projections.push(argument_projection(source));
             }
             Self::PrimitiveScalarRead { source, path }

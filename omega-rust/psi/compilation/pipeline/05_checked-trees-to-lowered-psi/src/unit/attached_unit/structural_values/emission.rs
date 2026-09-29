@@ -673,6 +673,86 @@ impl Emission<'_, '_, '_> {
                 )?;
                 Ok(continuation.place)
             }
+            // A mutably borrowed `&mut [T]` view lowers to
+            // `EstablishMutableElementView`, mirroring the shared sibling: the
+            // mutable-borrow collection argument resolves against the current
+            // locals and signature parameters, and the fresh view result joins
+            // the selection's block parameter under `MutableBorrow` custody.
+            CheckedStructuralValueKind::MutableSliceView { source } => {
+                let continuation = continuation.ok_or(LoweringError::Unsupported(
+                    "mutable element view requires a structural continuation",
+                ))?;
+                let element = self
+                    .structural_types
+                    .iter()
+                    .find_map(|declaration| match declaration.shape {
+                        StructuralTypeShape::ElementView { element }
+                            if declaration.id == self.structural_type =>
+                        {
+                            Some(element)
+                        }
+                        _ => None,
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "mutable element view lost its element carrier",
+                    ))?;
+                let argument =
+                    crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
+                        .with_structural_parameters(&self.evaluation.structural_parameters)
+                        .with_structural_locals(&self.evaluation.structural_locals)
+                        .borrowed_structural_argument(
+                            &source,
+                            crate::expression_preparation::source_custody::authored_state(
+                                self.checked,
+                                self.state,
+                            )?
+                            .0,
+                            self.checked.state_parameters(
+                                crate::expression_preparation::source_custody::authored_state(
+                                    self.checked,
+                                    self.state,
+                                )?
+                                .1,
+                            ),
+                        )?;
+                let id = self.operations.allocate();
+                let place = place_id(allocate_dense(self.next_place)?);
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
+                        place,
+                        structural_type: self.structural_type,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::EstablishMutableElementView {
+                        destination: place,
+                        source: argument,
+                        element,
+                    },
+                });
+                self.temporary_places.push(StructuralPlaceDeclaration {
+                    id: place,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: id,
+                        structural_type: self.structural_type,
+                    },
+                });
+                self.complete_mutable(
+                    StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access: StructuralAccess::MutableBorrow,
+                    },
+                    continuation,
+                )?;
+                Ok(continuation.place)
+            }
             CheckedStructuralValueKind::Reference { source } => {
                 if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                     // A `&T` branch borrows its exact referent place: resolve
@@ -1926,6 +2006,48 @@ impl Emission<'_, '_, '_> {
             || !parameter.projected_qualifications.is_empty()
         {
             return unsupported("borrowed selection parameter changed its custody");
+        }
+        let edge = self.edge(
+            continuation.block,
+            self.values.iter().map(|value| value.id).collect(),
+            vec![argument],
+        )?;
+        self.finish(Terminator::Jump {
+            edge: edge.edge,
+            target: edge.target,
+            arguments: edge.arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: edge.structural_arguments,
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        });
+        Ok(())
+    }
+
+    /// A mutably borrowed branch joins one mutable referent place at the
+    /// result parameter, mirroring `complete_borrowed`: the referent's owner
+    /// stays live under its loan, and the single structural parameter must be
+    /// the `MutableBorrow` result slot this edge's argument fills.
+    fn complete_mutable(
+        &mut self,
+        argument: StructuralArgument,
+        continuation: &ValueContinuation,
+    ) -> Result<(), LoweringError> {
+        if continuation.structural_parameters.len() != 1
+            || !continuation.pass_through.is_empty()
+            || !continuation.residuals.is_empty()
+        {
+            return unsupported("mutable borrowed selection joined residual ownership");
+        }
+        let parameter = &continuation.structural_parameters[0];
+        if parameter.place != continuation.place
+            || parameter.access != StructuralAccess::MutableBorrow
+            || parameter.structural_type != self.structural_type
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return unsupported("mutable borrowed selection parameter changed its custody");
         }
         let edge = self.edge(
             continuation.block,

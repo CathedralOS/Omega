@@ -1,0 +1,45 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+// Mutable element-view establishment: `let cells: &mut [i32] =
+// bag.cells.as_mut_slice()` lends the array's contiguous storage under an
+// exclusive loan. The machine writes an element through the view and
+// observes the write through the owning collection on the transition guard.
+// `sow` exercises the same establishment rooted at `self`.
+
+data Bag {
+    cells: [i32; 4];
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.fill(&mut self.bag);
+    self.sow();
+
+    transition self.bag.cells[2] == 7 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(182);
+    }
+}
+
+machine Main::fill(&mut self, bag: &mut Bag) {
+    let cells: &mut [i32] = bag.cells.as_mut_slice();
+    cells[2] = 7;
+}
+
+machine Main::sow(&mut self) {
+    let cells: &mut [i32] = self.bag.cells.as_mut_slice();
+    cells[0] = 3;
+}

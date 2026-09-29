@@ -9,7 +9,7 @@ use crate::validation::{
 /// The structural type reached by a structural argument's path: each `Field`
 /// step resolves inside a `Record`, each `Referent` step crosses a `Reference`
 /// carrier. Returns the collection type the path names.
-fn path_end_type(
+pub(in crate::validation) fn path_end_type(
     module: &TerminalModule,
     mut current: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -40,7 +40,7 @@ fn path_end_type(
 }
 
 /// The element type of the contiguous collection the source path names.
-fn collection_element(
+pub(in crate::validation) fn collection_element(
     module: &TerminalModule,
     collection: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
@@ -56,7 +56,10 @@ fn collection_element(
 }
 
 /// The root structural type a place carries when an element view may borrow it.
-fn source_root_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
+pub(in crate::validation) fn source_root_type(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
     if let Some(parameter) = machine
         .structural_parameters
         .iter()
