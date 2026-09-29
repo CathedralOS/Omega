@@ -262,7 +262,6 @@ where machine Handler satisfies HookProcedure::call;
 satisfies HookRegistrar::install
 via install_binding();
 
-data Main { }
-machine Main::main(&mut self) reaches HookRegistrar {
+machine main() reaches HookRegistrar {
     HookRegistrar::install<HookProvider::call>(1u64, 2u64);
 }

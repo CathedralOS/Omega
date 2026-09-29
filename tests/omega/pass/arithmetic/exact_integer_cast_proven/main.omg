@@ -30,9 +30,7 @@ machine erase_wrapping_policy() -> u32 {
     ((0 as u32 in Wrapping) - (1 as u32 in Wrapping)) as u32
 }
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine main() {
     let small: u8 = narrow(200);
     let wide: i32 = widen(-5);
     let guarded: u8 = guard_narrow(42);

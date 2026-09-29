@@ -9,10 +9,7 @@ machine forward(destination: &write i32, value: i32) {
     replace(&write destination, value);
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
     let mut destination: i32 = 0;
     forward(&write destination, 42);
 }
