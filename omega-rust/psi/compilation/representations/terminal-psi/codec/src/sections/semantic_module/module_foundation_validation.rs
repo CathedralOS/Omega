@@ -218,7 +218,12 @@ pub(crate) fn validate_structural_path(
             (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
                 *referent
             }
-            (StructuralPathSegment::Referent, _) | (_, StructuralTypeShape::Reference { .. }) => {
+            (StructuralPathSegment::Referent, _) => {
+                // A borrow formed at a non-reference leaf carries that leaf's
+                // own storage: the projection's type is the leaf itself.
+                structural_type
+            }
+            (_, StructuralTypeShape::Reference { .. }) => {
                 return malformed("referent projection requires a reference carrier");
             }
             (

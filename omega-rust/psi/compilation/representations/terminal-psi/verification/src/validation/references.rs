@@ -206,7 +206,8 @@ fn projected_carrier_type(
     };
     let current = super::structural::result_contracts::source_signature(machine, source.place)?
         .structural_type;
-    leaf_referent(module, current, fields)
+    let leaf = leaf_reference_type(module, current, fields)?;
+    Some(referent(module, leaf).unwrap_or(leaf))
 }
 
 fn leaf_referent(
@@ -232,17 +233,35 @@ fn leaf_reference_type(
             .structural_types
             .iter()
             .find(|item| item.id == current)?;
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return None;
+        // Common fields project identically through a record or a mixed sum;
+        // case-only fields are not individually borrowable storage.
+        let fields = match &declaration.shape {
+            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+                fields
+            }
+            _ => return None,
         };
         let field = fields.iter().find(|field| &field.identity == identity)?;
         if field.relevance != terminal_psi::BindingRelevance::Relevant {
             return None;
         }
-        let StructuralFieldType::Structural(child) = field.field_type else {
-            return None;
+        current = match &field.field_type {
+            StructuralFieldType::Structural(child) => *child,
+            // A scalar member names the module's matching primitive storage
+            // declaration; borrowing it carries that leaf type, not a
+            // reference formed at the member.
+            StructuralFieldType::Scalar(scalar) => module
+                .structural_types
+                .iter()
+                .find(|item| {
+                    matches!(
+                        item.shape,
+                        StructuralTypeShape::PrimitiveScalar(shape) if shape == *scalar
+                    )
+                })
+                .map(|item| item.id)?,
+            _ => return None,
         };
-        current = child;
     }
     Some(current)
 }
@@ -299,10 +318,11 @@ fn source_authority(
         return source.path.is_empty().then_some(carrier);
     };
     let signature = super::structural::result_contracts::source_signature(machine, source.place)?;
-    let leaf = reference_access(
-        module,
-        leaf_reference_type(module, signature.structural_type, fields)?,
-    )?;
+    // A reference leaf grants its own referent access; the storage a
+    // non-reference leaf names lends exactly the carrier's authority, the
+    // same as borrowing that member's whole place.
+    let leaf = leaf_reference_type(module, signature.structural_type, fields)?;
+    let leaf = reference_access(module, leaf).unwrap_or(carrier);
     Some(if access_covers(carrier, leaf) {
         leaf
     } else {
@@ -892,30 +912,48 @@ pub(super) fn validate_call(
 }
 
 fn normalized_source(
+    module: &TerminalModule,
     machine: &TerminalMachine,
     live: &[LiveReference],
     source: &StructuralArgument,
 ) -> Result<(ReferenceOrigin, ReferenceParent), ModuleError> {
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
-        let parent = live
+        if let Some(parent) = live
             .iter()
             .find(|reference| {
                 reference.carrier == source.place && reference.carrier_path == carrier_path
             })
-            .ok_or_else(|| invalid(machine, "reference carrier is no longer live"))?;
-        if live
-            .iter()
-            .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))
         {
-            return Err(invalid(
-                machine,
-                "reference parent remains suspended by a live child",
+            if live
+                .iter()
+                .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))
+            {
+                return Err(invalid(
+                    machine,
+                    "reference parent remains suspended by a live child",
+                ));
+            }
+            return Ok((
+                parent.root.clone(),
+                ReferenceParent::Reference(parent.identity.clone()),
             ));
         }
-        Ok((
-            parent.root.clone(),
-            ReferenceParent::Reference(parent.identity.clone()),
-        ))
+        // A `[fields.., Referent]` leaf that is not itself a reference borrows
+        // a member's own storage: the loan roots at that member under the
+        // source place rather than continuing a live parent loan.
+        let leaf = super::structural::result_contracts::source_signature(machine, source.place)
+            .and_then(|signature| {
+                leaf_reference_type(module, signature.structural_type, carrier_path)
+            })
+            .ok_or_else(|| invalid(machine, "projected reference custody is not yet supported"))?;
+        if reference_access(module, leaf).is_some() {
+            return Err(invalid(machine, "reference carrier is no longer live"));
+        }
+        let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: source.place,
+            path: carrier_path.to_vec(),
+        });
+        Ok((root.clone(), ReferenceParent::Root(root)))
     } else if source.path.is_empty() {
         if live
             .iter()
@@ -1407,7 +1445,7 @@ pub(super) fn apply_operation(
                     "call cannot access a suspended root or move its referent",
                 ));
             }
-            let (root, _) = normalized_source(machine, live, argument)?;
+            let (root, _) = normalized_source(module, machine, live, argument)?;
             normalized_arguments.push((root, argument.access, true));
         } else {
             normalized_arguments.push((
@@ -1471,7 +1509,21 @@ pub(super) fn apply_operation(
                                 source,
                                 matches!(
                                     formal_origin(callee, &mapping.source),
-                                    Some(ReferenceOrigin::IngressLeaf(_))
+                                    Some(ReferenceOrigin::IngressLeaf(identity))
+                                        if super::structural::result_contracts::source_signature(
+                                            callee,
+                                            identity.place,
+                                        )
+                                        .and_then(|signature| {
+                                            leaf_reference_type(
+                                                module,
+                                                signature.structural_type,
+                                                &identity.path,
+                                            )
+                                        })
+                                        .is_some_and(|leaf| {
+                                            reference_access(module, leaf).is_some()
+                                        })
                                 ),
                             )
                         })
@@ -1537,7 +1589,7 @@ pub(super) fn apply_operation(
                 reference.carrier_path = path;
                 reference
             } else {
-                let (root, parent) = normalized_source(machine, live, &source)?;
+                let (root, parent) = normalized_source(module, machine, live, &source)?;
                 LiveReference {
                     identity: ReferenceIdentity {
                         place: result.place,
