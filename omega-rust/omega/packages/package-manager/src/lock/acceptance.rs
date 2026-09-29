@@ -156,6 +156,7 @@ mod tests {
         TargetProfile,
     };
     use crate::lock::text::acceptance;
+    use package_evidence::record::PACKAGE_POLICY_ROW_VERSION;
 
     fn sample() -> PackagePolicyAcceptance {
         PackagePolicyAcceptance {
@@ -179,7 +180,13 @@ mod tests {
         assert!(acceptance::read(&text, policy.package, policy.target, 0, 4096).is_err());
         assert!(acceptance::read(&text, policy.package, policy.target, 1, owned - 1).is_err());
         for bad in [
-            text.replace("acceptance_schema 2", "acceptance_schema 99"),
+            // The current schema line, spelled from the version the writer
+            // emits: a literal here silently stops testing the refusal the
+            // next time the row version moves.
+            text.replace(
+                &format!("acceptance_schema {PACKAGE_POLICY_ROW_VERSION}"),
+                "acceptance_schema 99",
+            ),
             text.replace("dangerous_capability", "semantic_dependency"),
             text.replace("rows 1", "rows 999999999"),
             text.replace("meaning ", "meaning 0"),

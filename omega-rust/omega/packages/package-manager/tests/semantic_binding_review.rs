@@ -816,11 +816,18 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
         },
     )
     .expect_err("reused project acceptance cannot override receiving-policy denial");
-    assert!(denied.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("receiving terminal-authority policy omits the accepted permission")
-    }));
+    // Receiver policy is checked against the demanded closure (the accepted
+    // package rows are package evidence only), so the denial names the exact
+    // Console requirement the receiving policy lacks a row for.
+    assert!(
+        denied.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("receiving terminal-authority permission policy has no exact row")
+                && diagnostic.message.contains("Console::exit_process")
+        }),
+        "{denied:#?}"
+    );
 
     let root_path = closure
         .custody(&root_key)
