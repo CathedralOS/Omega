@@ -24,6 +24,10 @@ pub(crate) struct LoweredBoundaryCallBinding {
     /// The authored call expression this application executes.
     pub(crate) source_expression: typed_trees::expression::ExpressionHandle,
     pub(crate) target_machine: symbols::SymbolHandle,
+    /// The checked call's target signature; a machine boundary keeps several
+    /// signatures under one machine, so the pair — not the machine alone —
+    /// names the lowered declaration.
+    pub(crate) target_state: symbols::SymbolHandle,
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
 }
@@ -35,12 +39,13 @@ pub(super) fn emit_boundary_call_binding(
     operations: &mut OperationBuffer,
     call_emission: &mut CallEmissionContext<'_>,
 ) -> Result<ValueId, LoweringError> {
-    let mut targets = call_emission
-        .boundaries
-        .iter()
-        .filter(|boundary| boundary.source == call.target_machine);
+    let mut targets = call_emission.boundaries.iter().filter(|boundary| {
+        boundary.source == call.target_machine && boundary.signature == call.target_state
+    });
     let (Some(target), None) = (targets.next(), targets.next()) else {
-        return unsupported("nested boundary application has no unique lowered declaration");
+        return unsupported(
+            "nested boundary application has no lowered declaration for its exact boundary target and signature",
+        );
     };
     // Admission only builds scalar-only, receiver-free nodes. A declaration
     // that owes structural operands or scalar `requires` obligations needs the

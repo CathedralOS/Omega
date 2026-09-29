@@ -101,6 +101,7 @@ impl EmbeddedScalarCalls {
                 identity_base,
                 &self.machine_ids,
                 &self.requirement_counts,
+                &self.boundaries,
                 &machine.literal_places,
                 machine.loop_plan.as_ref(),
             )?;

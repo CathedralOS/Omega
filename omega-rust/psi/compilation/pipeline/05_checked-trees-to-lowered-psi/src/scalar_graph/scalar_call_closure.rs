@@ -445,6 +445,10 @@ pub(crate) fn lower_scalar_call_closure(
             identity_base,
             &machine_ids,
             &requirement_counts,
+            // A standalone scalar closure lowers no boundary declarations, so
+            // its nested boundary applications keep failing closed here; the
+            // attached and embedded routes carry the shared roster.
+            &[],
             &machine.literal_places,
             machine.loop_plan.as_ref(),
         )?;

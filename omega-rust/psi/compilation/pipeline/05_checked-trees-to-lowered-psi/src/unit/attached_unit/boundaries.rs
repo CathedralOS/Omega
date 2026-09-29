@@ -93,6 +93,7 @@ pub(super) fn lower_declarations(
         });
         parameter_rosters.push(BoundaryParameters {
             source: plan.machine,
+            signature: plan.state,
             id,
             structural: parameters,
             scalar: scalar_parameters,

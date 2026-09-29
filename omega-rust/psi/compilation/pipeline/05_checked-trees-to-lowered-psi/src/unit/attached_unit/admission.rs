@@ -47,8 +47,13 @@ pub(super) fn admit<'a>(
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
     let mut bodies = Vec::with_capacity(closure.len());
-    for source in closure {
+    // A scalar callee's nested boundary application rides the same shared
+    // declaration roster even though the callee itself lowers through the
+    // scalar closure, not this Unit body loop.
+    for source in closure.iter().chain(scalar_closure) {
         retain_nested_boundary_applications(checked, plans, *source, boundaries)?;
+    }
+    for source in closure {
         let admitted = match UnitBody::find(plans, *source)? {
             UnitBody::Composed(plan) => {
                 let body = composed_control::admit_callable(checked, plan)?;
