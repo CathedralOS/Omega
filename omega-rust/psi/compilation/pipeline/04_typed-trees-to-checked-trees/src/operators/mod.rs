@@ -13,10 +13,9 @@
 //!
 //! The other children run at separate points:
 //!
-//! - `token_bound_machine_calls`: before checking,
-//!   `checking::lower_typed_trees` calls `bind_token_bound_machine_calls`,
-//!   which rewrites each resolved binary use of a token-bearing machine into
-//!   an ordinary call on that machine's entry state.
+//! - `call_binding`: before checking, `checking::lower_typed_trees` calls
+//!   `bind_selected_operator_calls`, which binds resolved token machines and
+//!   float shorthand to ordinary calls on their exact selected declarations.
 //! - `selection`: after the proof and semantic facts, `build_check_facts`
 //!   calls `select_pending_domain_operator_meanings`, which settles each
 //!   domain-pending use from its binding-site selections.
@@ -49,14 +48,13 @@ use typed_trees::operator::{
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 mod applications;
+mod call_binding;
+mod float_shorthand_calls;
 mod receiver;
 mod requirement_uses;
 mod selection;
-mod token_bound_machine_calls;
 
-pub(crate) use token_bound_machine_calls::{
-    bind_token_bound_machine_calls, token_bound_machine_call_target,
-};
+pub(crate) use call_binding::{bind_selected_operator_calls, token_bound_machine_call_target};
 
 pub(crate) use applications::bind_boundary_operator_application_demands;
 pub(crate) use receiver::expression_type_reference_for_origin;

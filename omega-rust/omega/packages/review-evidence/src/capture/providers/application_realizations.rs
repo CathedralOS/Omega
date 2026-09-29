@@ -465,7 +465,7 @@ fn authored_application_selection_kind(
 }
 
 /// A token-authored application of a token-bound machine is rewritten into an
-/// ordinary `Call` node (`bind_token_bound_machine_calls`); the rewritten node
+/// ordinary `Call` node (`bind_selected_operator_calls`); the rewritten node
 /// keeps its authored `Operator` selection occurrence while the operator use
 /// facts record the settled resolution as a named use. The named row names the
 /// declaration the token selected, not the authored surface, so when the site

@@ -42,7 +42,7 @@ The board row's count (208 at its measurement base) drifts to 212 at
   duplicate token/owner/shape space across both introducers
   (alpha-normalized by first-occurrence position); the dual-introducer
   arm retires with the introducer.
-- **Checked stage.** `operators/token_bound_machine_calls.rs`
+- **Checked stage.** `operators/call_binding.rs`
   rewrites each resolved binary/indexed use into an ordinary call on
   the declaration's entry state.
 - **Supply mode.** `MachineSupplyMode::Boundary` — the

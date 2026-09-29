@@ -223,7 +223,7 @@ fn lower_typed_trees_uncached(
     // Token syntax must expose its ordinary call before specialization sees
     // the program. Otherwise a concrete caller keeps a generic requirement
     // merely because it wrote `items[index]` rather than the named call.
-    crate::operators::bind_token_bound_machine_calls(&mut program)?;
+    crate::operators::bind_selected_operator_calls(&mut program)?;
     let provider_candidates =
         crate::monomorphization::OperatorCandidateTemplates::candidate_requests(&program);
     let provider_templates = crate::monomorphization::OperatorCandidateTemplates::prepare(
@@ -246,7 +246,7 @@ fn lower_typed_trees_uncached(
             crate::monomorphization::generate_dynamic_family_specializations(&mut program)?;
         // Generated bodies can introduce new token uses. Feed them back into
         // the same specialization loop, with unchanged call/contract checks.
-        materialized += crate::operators::bind_token_bound_machine_calls(&mut program)?;
+        materialized += crate::operators::bind_selected_operator_calls(&mut program)?;
         if materialized == 0 {
             break;
         }
@@ -276,7 +276,7 @@ fn lower_typed_trees_uncached(
     // declaration's own body: bind it to an ordinary call now, after every
     // specialization and call-identity rebinding above, so validation and
     // every executing consumer see the same call edge a named call would make.
-    crate::operators::bind_token_bound_machine_calls(&mut program)?;
+    crate::operators::bind_selected_operator_calls(&mut program)?;
     // The program is now frozen for checking: specialization and every
     // call-identity rebinding above mutate it, so the plan memo scope can only
     // open here — the first of the consumers below computes the program-pure

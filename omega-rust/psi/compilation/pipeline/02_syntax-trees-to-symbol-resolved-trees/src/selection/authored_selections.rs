@@ -1073,7 +1073,24 @@ fn expression_candidates(
                     expression,
                     source_span: call.target.source_span(),
                     kind: Kind::Call,
-                    target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
+                    // These builtin symbols are provisional: checked operand
+                    // types may select a visible float requirement. Finalizing
+                    // now would retain the builtin in package review even after
+                    // execution binds the exact selected declaration.
+                    target: if matches!(
+                        program
+                            .symbols
+                            .builtin_function_for_symbol(call.target_symbol),
+                        Some(
+                            symbols::BuiltinFunction::Min
+                                | symbols::BuiltinFunction::Max
+                                | symbols::BuiltinFunction::Sqrt
+                        )
+                    ) {
+                        CandidateTarget::LateBound(LateBinding::CheckedCall)
+                    } else {
+                        resolved_or_late(call.target_symbol, LateBinding::CheckedCall)
+                    },
                 });
             }
             collect_static_argument_candidates(
