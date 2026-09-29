@@ -1,0 +1,106 @@
+// The authored program a `ProgramEntry` placed-view input demands: `main`
+// receives `view: &mut Placed<RegPlacement, Registers>` as a custody input,
+// lends it to `inspect`, and observes the read through the process exit
+// code. Admission is closed until call-bound custody can supply the call's
+// `view` argument from the caller's own input -- the checked unit plan for
+// `main` has no source plan for that argument, so establishment finds no
+// Terminal attachment and refuses before native input admission runs.
+use omega::language::core::layout;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub data Registers {
+    status: u32;
+    transmit: u8;
+}
+
+pub data RegPlacement {
+    services: [u64; 32];
+}
+
+machine RegPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    entries[1] = FieldEntry {
+        key: schema.fields[1].key,
+        placement: FieldPlan::At { offset: 4 },
+    };
+    let access: AccessPlan = AccessPlan::inaccessible(&schema);
+    transition { _ -> place_status(schema, access, entries) }
+
+    state place_status(
+        &mut self,
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> place_transmit(
+            schema,
+            access.with(
+                schema.fields[0].key,
+                FieldAccess::External {
+                    read: ExternalRead::Read,
+                    write: false,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state place_transmit(
+        &mut self,
+        schema: Schema,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        transition { _ -> finish(
+            access.with(
+                schema.fields[1].key,
+                FieldAccess::External {
+                    read: ExternalRead::None,
+                    write: true,
+                    exposure: Exposure::Exported,
+                },
+            ),
+            entries
+        ) }
+    }
+
+    state finish(
+        &mut self,
+        access: AccessPlan,
+        entries: [FieldEntry; 64]
+    ) -> PlacementPlan {
+        self.services[0] = 7;
+        PlacementPlan {
+            layout: Plan {
+                entries: entries,
+                entry_count: 2,
+                size_fixed: 8,
+                size_is_dynamic: false,
+                align: 4,
+            },
+            access: access,
+            reach: BoundaryReach {
+                services: self.services,
+                service_count: 0,
+            },
+        }
+    }
+}
+
+machine inspect(view: &mut Placed<RegPlacement, Registers>) -> u32 {
+    view.transmit.write(9);
+    view.status.read()
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self, view: &mut Placed<RegPlacement, Registers>) reaches Console {
+    let status: u32 = inspect(view);
+    let code: i32 = (((status & 127) as u8 in Wrapping) as i32) + 9;
+    self.console.exit_process(code);
+}

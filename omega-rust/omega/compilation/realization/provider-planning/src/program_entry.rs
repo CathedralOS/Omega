@@ -271,9 +271,20 @@ fn validate_program_entry_source_compatibility<'typed>(
         )));
     }
 
+    // A `&Placed<P, T>` / `&mut Placed<P, T>` entry parameter is a custody
+    // input — the roster row demands an establishment the hosted entry
+    // boundary lends for the invocation — not an arrival parameter the loader
+    // hands in. Keeping it out of `visible` lets the slot's arrival-shape
+    // checks count only real arrival parameters; the row itself still answers
+    // native input admission and fails closed there while no bridge lends it.
     let visible = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
+        .filter(|parameter| {
+            typed
+                .placed_view_plan_for_input_type_reference(parameter.type_reference)
+                .is_none()
+        })
         .collect::<Vec<_>>();
     match selected.slot.visible_parameters {
         target::ProgramEntryVisibleParameters::None if !visible.is_empty() => {
@@ -353,9 +364,17 @@ pub fn validate_selected_program_entry_shape(
         .iter()
         .filter(|parameter| parameter.is_self)
         .collect::<Vec<_>>();
+    // Same exclusion as source compatibility: placed-view inputs are custody
+    // rows, not arrival parameters, so they never occupy the signature's
+    // visible-parameter roles.
     let visible = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
+        .filter(|parameter| {
+            typed
+                .placed_view_plan_for_input_type_reference(parameter.type_reference)
+                .is_none()
+        })
         .collect::<Vec<_>>();
     let receiver = self_parameters.first().map_or(
         program_entry_plan::ProgramEntrySourceReceiverSignature::Free,

@@ -64,6 +64,23 @@ impl TypedTrees {
             .find(|view| view.data_symbol == view_symbol)
     }
 
+    /// The placed view plan when `type_reference` is a reference to
+    /// `Placed<P, T>` — the shape a machine parameter takes when it declares
+    /// a placed-view custody input rather than a carried data argument. This
+    /// mirrors the criterion checked placed-view input collection applies:
+    /// the outer node must be a reference whose referee resolves the view.
+    pub fn placed_view_plan_for_input_type_reference(
+        &self,
+        type_reference: types::TypeReferenceHandle,
+    ) -> Option<&PlacedViewPlan> {
+        let types::TypeReferenceNode::Reference { referee, .. } =
+            self.type_reference_table.type_reference(type_reference)
+        else {
+            return None;
+        };
+        self.placed_view_plan_for_type_reference(*referee)
+    }
+
     pub fn placed_view_field_plan_for_type_reference(
         &self,
         type_reference: types::TypeReferenceHandle,
