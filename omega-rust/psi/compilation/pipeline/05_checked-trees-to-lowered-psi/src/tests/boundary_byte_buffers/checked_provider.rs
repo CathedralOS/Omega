@@ -1,45 +1,22 @@
-//! Authored checked providers preserve borrowed destination custody across calls.
+//! Authored checked providers preserve borrowed field custody across calls.
+//!
+//! A provider body forwards its byte-view formal to another boundary, directly
+//! or through an ordinary helper. A shared view of a restricted field keeps
+//! its original root and complete path through that forwarding. A bare
+//! mutable view cannot receive the restricted field at all: the outer
+//! boundary call's field loan is refused before any provider is installed.
 use super::{
-    INPUT_SOURCE, OperationKind, TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler,
-    TerminalEffectRejection, TerminalEffectResult, TerminalExecution, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalStructuralValue, assert_stored_fields,
+    INPUT_SOURCE, LoweringError, ModuleError, OperationKind, TerminalEffect, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalMachineSelection,
+    TerminalStructuralValue, lower_machine, shared_twin,
 };
-use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
-    ProviderInstallationSelection, admit_provider_installation_from_artifact,
+    ProviderInstallationSelection, TerminalEffectHandler, TerminalEffectRejection,
+    TerminalStructuralInputs, admit_provider_installation_from_artifact,
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
-#[test]
-fn checked_provider_byte_buffers_forward_original_array_path_across_fuel_suspension() {
-    let source = INPUT_SOURCE
-        .replace("data Record {", "data Cell {")
-        .replace(
-            "machine Record::run",
-            "data Record { cells: [Cell; 2]; } machine Record::run",
-        )
-        .replace("self.out", "self.cells[1].out")
-        .replace("self.other", "self.cells[1].other")
-        // The boundary loans retired every `self.cells` element's `Utf8`
-        // coverage, so all four leaf fields are re-established before the
-        // `&mut self` return re-proves them.
-        .replace(
-            "self.cells[1].out = \"fin\";",
-            "self.cells[1].out = \"fin\";\n            self.cells[1].other = \"QQ\";\n            self.cells[0].out = \"aa\";\n            self.cells[0].other = \"bb\";",
-        );
-    assert_forwarded_input(
-        &source,
-        false,
-        &[b"fin", b"QQ", b"fin", b"QQ", b"aa", b"bb"],
-    );
-}
-
-#[test]
-fn checked_provider_byte_buffers_forward_through_ordinary_helper() {
-    assert_forwarded_input(INPUT_SOURCE, true, &[b"fin", b"QQ", b"fin"]);
-}
-
-fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: &[&[u8]]) {
+fn forwarding_source(source: &str, ordinary_helper: bool) -> String {
     let mut source = source.replace(
         "boundary trait Input { machine read(out: &mut [u8]) reaches Input; }",
         "boundary trait Input { machine read(out: &mut [u8]) reaches Input invokes Input; machine refill(out: &mut [u8]) reaches Input; }",
@@ -66,7 +43,58 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: 
         "#,
         );
     }
-    let checked = crate::front_end::checked_program(&source);
+    source
+}
+
+/// The shared twin of a forwarding program: every loan, including the
+/// provider's forwarded formal, is a shared byte view.
+fn shared_forwarding_source(source: &str, ordinary_helper: bool) -> String {
+    shared_twin(&forwarding_source(source, ordinary_helper)).replace("(&mut out)", "(out)")
+}
+
+fn array_element_source() -> String {
+    INPUT_SOURCE
+        .replace("data Record {", "data Cell {")
+        .replace(
+            "machine Record::run",
+            "data Record { cells: [Cell; 2]; } machine Record::run",
+        )
+        .replace("self.out", "self.cells[1].out")
+        .replace("self.other", "self.cells[1].other")
+}
+
+#[test]
+fn checked_provider_forwarding_cannot_receive_a_restricted_field() {
+    for ordinary_helper in [false, true] {
+        let checked =
+            crate::front_end::checked_program(&forwarding_source(INPUT_SOURCE, ordinary_helper));
+        let error = lower_machine(&checked, TerminalMachineSelection::Name("Record::run"))
+            .expect_err("the restricted field cannot enter a bare mutable view");
+        assert!(
+            matches!(
+                error,
+                LoweringError::InvalidTerminalModule(ModuleError::InvalidStructuralArgumentPath {
+                    argument_index: 0,
+                    ..
+                })
+            ),
+            "ordinary helper {ordinary_helper}: {error:?}"
+        );
+    }
+}
+
+#[test]
+fn checked_provider_shared_views_forward_original_array_path_across_fuel_suspension() {
+    assert_forwarded_input(&shared_forwarding_source(&array_element_source(), false));
+}
+
+#[test]
+fn checked_provider_shared_views_forward_through_ordinary_helper() {
+    assert_forwarded_input(&shared_forwarding_source(INPUT_SOURCE, true));
+}
+
+fn assert_forwarded_input(source: &str) {
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("Record::run"),
@@ -114,21 +142,17 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: 
             } => Some(structural_arguments[0].path.clone()),
             _ => None,
         })
-        .expect("authored outer destination path");
+        .expect("authored outer field path");
     struct Input {
         calls: usize,
         outer: semantic_vocabulary::BoundaryMachineId,
         path: Vec<terminal_psi::StructuralPathSegment>,
     }
     impl TerminalEffectHandler for Input {
-        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
-            panic!("forwarded buffers require writeback callback")
-        }
-        fn handle_effect_with_byte_buffers(
+        fn handle_effect(
             &mut self,
             effect: &TerminalEffect,
-            buffers: &mut [TerminalBoundaryByteBuffer],
-        ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        ) -> Result<(), TerminalEffectRejection> {
             let TerminalEffect::BoundaryCall {
                 boundary,
                 structural_arguments,
@@ -142,42 +166,19 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: 
                 *boundary, self.outer,
                 "installed outer call must execute its body"
             );
-            let [buffer] = buffers else {
-                panic!("one forwarded byte destination")
-            };
-            assert_eq!(buffer.capacity(), 3);
-            assert_eq!(buffer.argument_index(), 0);
-            assert_eq!(
-                buffer.bytes(),
-                if self.calls == 0 {
-                    b"old".as_slice()
-                } else {
-                    &[0, 128, 255]
-                }
-            );
             assert_eq!(structural_arguments[0].opaque_identity, 73);
-            assert_eq!(structural_arguments[0].path, self.path);
-            assert_eq!(byte_sequence_arguments[0].as_deref(), Some(buffer.bytes()));
-            buffer.replace(if self.calls == 0 {
-                &[0, 128, 255]
-            } else {
-                b"X"
-            })?;
+            assert_eq!(
+                structural_arguments[0].path, self.path,
+                "forwarding keeps the original field path"
+            );
+            assert_eq!(
+                byte_sequence_arguments[0].as_deref(),
+                Some(b"old".as_slice())
+            );
             self.calls += 1;
-            Ok(TerminalEffectResult::Unit)
+            Ok(())
         }
     }
-    let (out_path, out_field) = entry
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find_map(|operation| match &operation.kind {
-            OperationKind::StructuralByteSequenceFieldStore { path, field, .. } => {
-                Some((path.clone(), *field))
-            }
-            _ => None,
-        })
-        .expect("the borrowed field's authored store");
     let mut usages = Vec::new();
     for incremental in [false, true] {
         let mut execution = TerminalExecution::start_installed_artifact(
@@ -200,75 +201,27 @@ fn assert_forwarded_input(source: &str, ordinary_helper: bool, expected_stored: 
         let mut fuel =
             terminal_fuel::TerminalFuelMeter::with_allowance(if incremental { 0 } else { 100 });
         let mut complete = false;
-        let mut committed = Vec::new();
+        let mut pauses = 0;
         for _ in 0..100 {
             match execution
                 .resume(&mut fuel, &mut input)
-                .expect("checked provider forwards mutable byte destination")
+                .expect("checked provider forwards the shared field view")
             {
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
                     complete = true;
                     break;
                 }
                 TerminalExecutionStatus::SponsorExhausted(_) => {
-                    committed.push(
-                        execution
-                            .structural_byte_sequence_field(73, &out_path, out_field)
-                            .map(<[u8]>::to_vec),
-                    );
+                    pauses += 1;
                     fuel.replenish(1).unwrap();
                 }
                 status => panic!("unexpected {status:?}"),
             }
         }
         assert!(complete);
+        assert_eq!(pauses > 0, incremental);
         assert_eq!(input.calls, 2);
         assert_eq!(execution.effects().len(), 2);
-        if incremental {
-            // The forwarded writebacks committed to the borrowed field before
-            // the return's domain repair overwrote them.
-            assert!(
-                committed
-                    .iter()
-                    .any(|bytes| bytes.as_deref() == Some(&[0, 128, 255][..])),
-                "the first forwarded writeback committed: {committed:?}"
-            );
-            assert!(
-                committed
-                    .iter()
-                    .any(|bytes| bytes.as_deref() == Some(b"X".as_slice())),
-                "the second forwarded writeback committed: {committed:?}"
-            );
-        }
-        assert_stored_fields(&module, &execution, expected_stored);
-        for operation in entry.blocks.iter().flat_map(|block| &block.operations) {
-            if let OperationKind::StructuralByteSequenceFieldStore { path, field, .. } =
-                &operation.kind
-            {
-                let mut sibling = path.clone();
-                if let Some(segment) = sibling.iter_mut().find(|segment| {
-                    matches!(segment, terminal_psi::StructuralPathSegment::FixedIndex(_))
-                }) {
-                    // The forwarded writebacks committed only to the borrowed
-                    // element; its sibling element keeps its own literals.
-                    let terminal_psi::StructuralPathSegment::FixedIndex(index) = *segment else {
-                        unreachable!()
-                    };
-                    *segment = terminal_psi::StructuralPathSegment::FixedIndex(1 - index);
-                    let bytes = execution.structural_byte_sequence_field(73, &sibling, *field);
-                    assert_ne!(
-                        bytes,
-                        Some(&[0, 128, 255][..]),
-                        "forwarding cannot write a different array element"
-                    );
-                    assert_ne!(
-                        bytes,
-                        Some(b"X".as_slice()),
-                        "forwarding cannot write a different array element"
-                    );
-                }
-            }
-        }
         usages.push(fuel.into_usage());
     }
     assert_eq!(
