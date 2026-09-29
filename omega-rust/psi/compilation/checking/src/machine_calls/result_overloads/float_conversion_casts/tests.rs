@@ -174,3 +174,122 @@ fn exact_casts_and_unselectable_policies_stay_casts() {
         );
     }
 }
+
+#[test]
+fn exact_float_widenings_select_the_exact_source_and_destination() {
+    for (destination, owner, other_float) in [("f32", "F32", "f64"), ("f64", "F64", "f32")] {
+        for source in [
+            "i8",
+            "i16",
+            "i32",
+            "i64",
+            "u8",
+            "u16",
+            "u32",
+            "u64",
+            other_float,
+        ] {
+            let (mut program, count) = bound(&format!(
+                "pub data {owner} {{}}
+                pub boundary operator {owner}::from_{source}(input: {source}) -> {destination};
+                machine value(input: {source}) -> {destination} {{
+                    let converted: {destination} = input as {destination};
+                    converted
+                }}"
+            ));
+            let exact = matches!(
+                (source, destination),
+                ("i8" | "i16" | "u8" | "u16", "f32" | "f64") | ("i32" | "u32" | "f32", "f64")
+            );
+            assert_eq!(count, usize::from(exact), "{source} -> {destination}");
+            let expression = initializer(&program, "converted");
+            if !exact {
+                assert!(matches!(
+                    program.expression_table.expression(expression),
+                    ExpressionNode::Cast(_)
+                ));
+                continue;
+            }
+            assert_eq!(
+                call_target(&program, expression),
+                overload(&program, &format!("from_{source}"), "")
+            );
+            assert_eq!(bind_float_conversion_casts(&mut program).unwrap(), 0);
+        }
+    }
+}
+
+#[test]
+fn widening_does_not_erase_a_destination_range_obligation() {
+    let (program, count) = bound(
+        "pub data F64 {}
+         pub boundary operator F64::from_i32(input: i32) -> f64;
+         machine value() -> f64 {
+             let converted: f64 = 42i32 as f64 [0.0..=10.0];
+             converted
+         }",
+    );
+    assert_eq!(count, 0);
+    assert!(matches!(
+        program
+            .expression_table
+            .expression(initializer(&program, "converted")),
+        ExpressionNode::Cast(_)
+    ));
+}
+
+#[test]
+fn loaded_but_unimported_conversion_is_not_a_candidate() {
+    let declarations = "pub data F64 {} pub boundary operator F64::from_i32(input: i32) -> f64;";
+    let caller =
+        "machine value(input: i32) -> f64 { let converted: f64 = input as f64; converted }";
+    let mut sources = source::SourceMap::default();
+    let owner = sources
+        .add_with_metadata(
+            "owner/main.omg".into(),
+            declarations.to_owned(),
+            "owner".into(),
+            Some(semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap()),
+            source::SourceOrigin::User,
+        )
+        .source_id;
+    let requester = sources
+        .add_with_metadata(
+            "caller/main.omg".into(),
+            caller.to_owned(),
+            "caller".into(),
+            Some(semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap()),
+            source::SourceOrigin::User,
+        )
+        .source_id;
+    let mut program = crate::front_end::typed_program_from_source_map(
+        sources,
+        &[(owner, declarations), (requester, caller)],
+    );
+    assert_eq!(bind_float_conversion_casts(&mut program).unwrap(), 0);
+    assert!(matches!(
+        program
+            .expression_table
+            .expression(initializer(&program, "converted")),
+        ExpressionNode::Cast(_)
+    ));
+}
+
+#[test]
+fn float_cast_does_not_select_a_missing_family_or_same_format_operator() {
+    for source in [
+        "machine value(input: i32) -> f64 { let converted: f64 = input as f64; converted }",
+        "pub data F64 {}
+         pub boundary operator F64::from_f64(input: f64) -> f64;
+         machine value(input: f64) -> f64 { let converted: f64 = input as f64; converted }",
+    ] {
+        let (program, count) = bound(source);
+        assert_eq!(count, 0);
+        assert!(matches!(
+            program
+                .expression_table
+                .expression(initializer(&program, "converted")),
+            ExpressionNode::Cast(_)
+        ));
+    }
+}

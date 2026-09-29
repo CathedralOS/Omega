@@ -1,4 +1,10 @@
-//! Bind a float-to-integer policy cast to its selected conversion requirement.
+//! Bind numeric casts involving floats to their selected conversion requirements.
+//!
+//! Exact widening casts use a destination conversion only when every source
+//! value is exactly representable. Named conversions may round, but `as`
+//! cannot silently do so. Same-format qualification remains a cast; it is
+//! not an invitation to call a similarly named operator. All three conversion
+//! directions share selection and source custody with explicit named calls.
 //!
 //! `value as i32 in Saturating` with a float `value` has exactly the meaning
 //! of the destination-owned conversion `I32::from_f64` overload whose result
@@ -62,7 +68,7 @@ struct ConversionCastBinding {
     requirement_member: Identifier,
 }
 
-/// Rewrite every float-to-integer Saturating or Trapping cast whose
+/// Rewrite exact float widenings and float-to-integer policy casts whose
 /// destination-owned conversion overload is visible into a call of that
 /// overload. Returns the number of casts bound.
 pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Vec<Diagnostic>> {
@@ -80,7 +86,7 @@ pub fn bind_float_conversion_casts(program: &mut TypedTrees) -> Result<usize, Ve
             Err(error) => {
                 diagnostics.push(
                     Diagnostic::error(format!(
-                        "float-to-integer cast cannot record its selected conversion: {error:?}"
+                        "numeric cast cannot record its selected float conversion: {error:?}"
                     ))
                     .with_source_span(source_span),
                 );
@@ -182,7 +188,7 @@ fn collect_expression_bindings(
     });
 }
 
-/// The one visible conversion overload a float-to-integer policy cast
+/// The one visible conversion overload a supported numeric cast
 /// selects, with the requirement's final path member for the call spelling.
 fn selected_conversion(
     program: &TypedTrees,
@@ -191,24 +197,40 @@ fn selected_conversion(
     expression: ExpressionHandle,
     cast: &typed_trees::expression::TableCastExpression,
 ) -> Option<(SymbolHandle, Identifier)> {
-    if cast.form.is_recast()
-        || !cast.semantic_domain.is_empty()
-        || !matches!(
-            cast.domain,
-            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
-        )
-        || !cast.result_type.is_valid()
-    {
+    if cast.form.is_recast() || !cast.semantic_domain.is_empty() || !cast.result_type.is_valid() {
         return None;
     }
     let destination = program.primitive_type_reference(cast.target_type)?;
+    // Replacing a constrained cast with a bare call would delete its target
+    // predicate obligations: result-domain dispatch does not include them.
+    if !matches!(
+        program
+            .type_reference_table
+            .type_reference(cast.target_type),
+        typed_trees::types::TypeReferenceNode::Named { .. }
+    ) {
+        return None;
+    }
     let destination_owner = destination_conversion_owner(destination)?;
     let source = crate::value_custody::expression_types::expression_result_type_reference(
         program, machine, state, cast.value,
     )
     .and_then(|reference| crate::unwrapped_type_reference(program, reference))
-    .and_then(|reference| program.primitive_type_reference(reference))
-    .filter(|source| matches!(source, PrimitiveType::F32 | PrimitiveType::F64))?;
+    .and_then(|reference| program.primitive_type_reference(reference))?;
+    let source_is_float = matches!(source, PrimitiveType::F32 | PrimitiveType::F64);
+    let destination_is_float = matches!(destination, PrimitiveType::F32 | PrimitiveType::F64);
+    let supported = if destination_is_float {
+        cast.domain == ArithmeticDomain::Exact && exact_float_widening(source, destination)
+    } else {
+        source_is_float
+            && matches!(
+                cast.domain,
+                ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
+            )
+    };
+    if !supported {
+        return None;
+    }
     let source_span = program.expression_table.source_span(expression);
     if source_span.span.start >= source_span.span.end {
         return None;
@@ -241,7 +263,7 @@ fn selected_conversion(
                 == &requested
             && program
                 .symbols
-                .source_reference_can_see_symbol(source_span, operator.symbol)
+                .source_reference_may_select_symbol(source_span, operator.symbol)
     });
     let operator = selected.next()?;
     // Declaration validation owns duplicate overload diagnostics; an
@@ -252,9 +274,24 @@ fn selected_conversion(
     Some((operator.symbol, Identifier::generated(requirement_member)))
 }
 
-/// The destination namespace that owns conversions into an integer carrier
-/// (`I32::from_f64`). Floats and non-numeric carriers own no float-to-integer
-/// conversion.
+/// Whole-carrier representability is enough for these coercions. Other
+/// conversions need a value-specific proof or an explicitly named rounding
+/// operation; a total library conversion alone does not authorize an `as`.
+fn exact_float_widening(source: PrimitiveType, destination: PrimitiveType) -> bool {
+    matches!(
+        (source, destination),
+        (
+            PrimitiveType::I8 | PrimitiveType::I16 | PrimitiveType::U8 | PrimitiveType::U16,
+            PrimitiveType::F32 | PrimitiveType::F64
+        ) | (
+            PrimitiveType::I32 | PrimitiveType::U32 | PrimitiveType::F32,
+            PrimitiveType::F64
+        )
+    )
+}
+
+/// Destination namespaces for fixed integers and IEEE floats. Address,
+/// Boolean and other carriers cannot borrow a numeric conversion by layout.
 fn destination_conversion_owner(destination: PrimitiveType) -> Option<&'static str> {
     Some(match destination {
         PrimitiveType::I8 => "I8",
@@ -265,6 +302,8 @@ fn destination_conversion_owner(destination: PrimitiveType) -> Option<&'static s
         PrimitiveType::U16 => "U16",
         PrimitiveType::U32 => "U32",
         PrimitiveType::U64 => "U64",
+        PrimitiveType::F32 => "F32",
+        PrimitiveType::F64 => "F64",
         _ => return None,
     })
 }
