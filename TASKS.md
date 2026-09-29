@@ -332,29 +332,24 @@ the complete product bar; focused successes below do not establish that baseline
     carries a collection-bound cursor through stage 04, stage 05 replay and
     rank emission. `unit_state_graph/ranking.rs` verifies and interprets normal,
     empty and already-crossed bounds, and rejects substituted collections and
-    nonadvancing cursors. Re-run `calls/runtime_value_call_statement_recursive_walk_exit`:
-    its recorded omission is still natural ranks, but creating another measure
-    is no longer the assignment. Preserve both separator-count effects and
-    result 2, native exit 70. Connect `termination/rank_range_state_call`'s
+    nonadvancing cursors. `calls/runtime_value_call_statement_recursive_walk_exit`
+    builds and exits 70 on macOS ARM64; preserve both separator-count effects
+    and result 2. Connect `termination/rank_range_state_call`'s
     count/step cycle through its subordinate state with **GENERAL-CYCLIC-EXECUTION**
     and **TRANSITION-TAIL-CALL-TO-MACHINE**. It has no Build entry; its native
     golden says `checked`, which does not prove execution. Bind an executable
     customer preserving the weak/strict cycle and result 0.
-  - **Results and control.** `calls/runtime_dispatch_float_terminal_exit`
-    currently records a guard-expression omission before the remaining
-    Boolean/integer-only result gate in native `scalar_graph_input/byte_views.rs`.
-    Close both stages for its f64 result. Finish case-payload field observation
-    in `expression_preparation/bindings/structural_fields/` for
-    `calls/runtime_dispatch_result_enum_case_exit` (score 15, exit 70), and
-    receiver transfer through `control_flow/runtime_tuple_transition_exit`
-    (exit 22). Keep short-circuit evaluation and later-binding order from
+  - **Results and control.** `calls/runtime_dispatch_float_terminal_exit` and
+    `calls/runtime_dispatch_result_enum_case_exit` (score 15) exit 70 on macOS
+    ARM64. Finish receiver transfer through
+    `control_flow/runtime_tuple_transition_exit` (exit 22). Keep short-circuit evaluation and later-binding order from
     `unit_state_graph/scalars.rs`; the old prefix-initializer refusal has been
     replaced by ordinary conditional sequencing.
-  - **Borrowed arguments.** Reconcile source admission and independent loan
-    replay for `calls/runtime_param_receiver_second_instance_exit` and
-    `calls/runtime_dispatch_{slice_element_terminal,machine_array_slice_arg}_exit`.
-    They currently record overlapping-exclusive-argument refusals. Preserve
-    second-instance value 9 versus 7 and slice element 7, with exit 70;
+  - **Borrowed arguments.** `calls/runtime_param_receiver_second_instance_exit`
+    exits 70 on macOS ARM64 (value 9 versus 7). Reconcile source admission and
+    independent loan replay for
+    `calls/runtime_dispatch_{slice_element_terminal,machine_array_slice_arg}_exit`,
+    which still reject natively. Preserve slice element 7, with exit 70;
     **BORROW-PROOF-CONVERGENCE** owns compatibility evidence. Genuine conflicting
     parent/child loans must still reject; widening the verifier's pair check
     does not supply missing authority.
@@ -4663,9 +4658,8 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 
   Close external satisfiers with structural arguments and interpreter
   provider execution. `providers/external_boundary_requirement_via_exit`
-  currently records native rejection at foreign-mechanism policy
-  classification; the checked interpreter rejects bodyless external calls
-  without a provider. Restore the mixed borrowed-record customer with its
+  builds and exits 21 natively on macOS ARM64; the checked interpreter rejects
+  bodyless external calls without a provider. Restore the mixed borrowed-record customer with its
   initialized fields and reused returned value, then execute it on supported
   hosts. The scalar fixture cannot establish that broader route; retain
   missing-import rejection and distinguish ordinary foreign exit from
