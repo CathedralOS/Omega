@@ -180,12 +180,11 @@ fn publish_terminal_artifact(
     checked: &CheckedTrees,
 ) -> Result<(terminal_codec::CanonicalTerminalArtifact, LoweredPsi), TerminalArtifactProductionError>
 {
-    let artifact =
-        lowered_psi_to_terminal_psi::finalize_terminal_artifact_with_mathematical_signature(
-            &optimized,
-            checked.facts.proof.mathematical_signature.as_ref(),
-        )
-        .map_err(TerminalArtifactProductionError::Artifact)?;
+    let artifact = lowered_psi_to_terminal_psi::finalize_terminal_artifact(
+        &optimized,
+        checked.facts.proof.mathematical_signature.as_ref(),
+    )
+    .map_err(TerminalArtifactProductionError::Artifact)?;
     Ok((artifact, optimized.into_lowered()))
 }
 

@@ -37,7 +37,8 @@ fn empty_selection_executes_validated_identity_before_publication() {
         optimized.execution().input_proof(),
         optimized.execution().output_proof()
     );
-    let artifact = finalize_terminal_artifact(&optimized).expect("optimized result publishes");
+    let artifact =
+        finalize_terminal_artifact(&optimized, None).expect("optimized result publishes");
     let direct = terminal_codec::CanonicalTerminalArtifact::from_parts(
         &expected.semantic_module,
         &expected.proof_bundle,
@@ -141,7 +142,7 @@ fn selected_sccp_folds_literal_leaves_before_portable_publication() {
     let lowered = dead_scalar_fixture();
     let input =
         run_psi_optimization(lowered.clone(), PsiOptimizationSelections::default()).unwrap();
-    let original = finalize_terminal_artifact(&input).unwrap();
+    let original = finalize_terminal_artifact(&input, None).unwrap();
     let optimized = run_psi_optimization(
         lowered.clone(),
         PsiOptimizationSelections::new([PsiOptimization::SparseConditionalConstantPropagation])
@@ -176,7 +177,7 @@ fn selected_sccp_folds_literal_leaves_before_portable_publication() {
         &optimized.lowered().semantic_module,
     )
     .expect("the independent check accepts the executed rewrite");
-    let published = finalize_terminal_artifact(&optimized).unwrap();
+    let published = finalize_terminal_artifact(&optimized, None).unwrap();
     assert_eq!(
         published.manifest().semantic(),
         optimized.execution().output_semantic()
