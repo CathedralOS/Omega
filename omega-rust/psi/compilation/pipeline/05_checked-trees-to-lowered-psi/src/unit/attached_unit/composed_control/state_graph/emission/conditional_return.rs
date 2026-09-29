@@ -1,6 +1,6 @@
-//! The authored `(expression)` arm of a conditional return: its value
-//! producer lowers into a private block closed by the return, and the edge
-//! into that block joins the state's conditional arms.
+//! A conditional return lowers into a private completion block. Unit uses
+//! ordinary return disposal; value producers execute only on their return
+//! edge. The same branch machinery preserves either arm's position.
 
 use super::super::super::super::super::{StructuralParameterDeclaration, SuccessorEdge, block_id};
 use super::super::super::super::{
@@ -36,6 +36,17 @@ impl StateGraphEmission<'_, '_> {
         operations.byte_lengths.clear();
         operations.field_byte_lengths.clear();
         let terminator = match return_arm {
+            checked_trees::CheckedConditionalReturnArm::Unit { .. } => Terminator::ReturnUnit {
+                edge: edge_id(allocate_dense(next_edge)?),
+                trivial_affine_discards: super::state::return_root_discards(
+                    checked,
+                    plan,
+                    state,
+                    operations,
+                    &arm_evaluation,
+                    state_parameters,
+                )?,
+            },
             checked_trees::CheckedConditionalReturnArm::Structural(operation) => {
                 super::super::guarded::emit_return(
                     checked,

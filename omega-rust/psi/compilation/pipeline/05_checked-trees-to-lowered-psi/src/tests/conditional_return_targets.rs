@@ -117,3 +117,110 @@ fn assert_branch_reaches_return(module: &terminal_psi::TerminalModule) {
 fn conditional_case_arm_returns_while_borrow_transfers() {
     assert_branch_reaches_return(&verified_module("Kernel::select"));
 }
+
+const UNIT_SOURCE: &str = r#"
+    data Output { value: i32; }
+    machine maybe_write(flag: bool, output: &mut Output) {
+        output.value = 5;
+        transition flag {
+            true -> write(output)
+            false -> {}
+        }
+        state write(output: &mut Output) { output.value = 7; }
+    }
+    machine maybe_write_reversed(flag: bool, output: &mut Output) {
+        output.value = 5;
+        transition flag {
+            true -> {}
+            false -> write(output)
+        }
+        state write(output: &mut Output) { output.value = 7; }
+    }
+    data Payload { value: i32; }
+    machine drop_or_forward(flag: bool, output: &mut Output) {
+        output.value = 5;
+        let payload: Payload = Payload { value: 7 };
+        transition flag {
+            true -> {}
+            false -> write(output, payload)
+        }
+        state write(output: &mut Output, payload: Payload) {
+            output.value = payload.value;
+        }
+    }
+"#;
+
+#[test]
+fn conditional_unit_returns_keep_both_arm_positions_and_borrow_custody() {
+    let checked = crate::front_end::checked_program(UNIT_SOURCE);
+    for name in ["maybe_write", "maybe_write_reversed", "drop_or_forward"] {
+        let artifact = terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name(name),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("conditional Unit return must publish")
+        .into_artifact();
+        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        terminal_verifier::verify_module(
+            &module,
+            &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap(),
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("Unit completion preserves loan custody");
+        assert!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .any(|block| matches!(block.terminator, Terminator::Conditional { .. }))
+        );
+    }
+}
+
+#[test]
+fn conditional_unit_return_rejects_changed_coordinate_or_arm_position() {
+    for change_position in [false, true] {
+        let mut checked = crate::front_end::checked_program(UNIT_SOURCE);
+        let machine = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter()
+            .find(|graph| checked.symbols.display_path(graph.machine, "::") == "maybe_write")
+            .expect("conditional graph")
+            .machine;
+        let graph = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|graph| graph.machine == machine)
+            .expect("conditional graph");
+        let checked_trees::CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+            return_arm: checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal },
+            return_when_true,
+            ..
+        } = &mut graph.states[0].terminator
+        else {
+            panic!("Unit return arm");
+        };
+        if change_position {
+            *return_when_true = !*return_when_true;
+        } else {
+            *statement_ordinal += 1;
+        }
+        assert!(
+            super::lower_machine(
+                &checked,
+                crate::TerminalMachineSelection::Name("maybe_write"),
+            )
+            .is_err(),
+            "forged Unit return reached publication"
+        );
+    }
+}

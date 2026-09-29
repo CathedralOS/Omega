@@ -184,11 +184,11 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         when_false: CheckedStructuralControlSuccessorPlan,
     },
     /// The two-way conditional whose other arm names an authored
-    /// `(expression)` target: that arm returns its value instead of
+    /// value or Unit completion: that arm returns instead of
     /// transferring to a named state. `jump` carries the named arm's ordinary
-    /// custody plan; `return_arm` is the value arm, structural or scalar as the
+    /// custody plan; `return_arm` is Unit, structural or scalar as the
     /// state's result is. `return_when_true` records which arm position the
-    /// authored `(expression)` target occupied. (A conditional whose two arms
+    /// authored return target occupied. (A conditional whose two arms
     /// are both `(expression)` targets checks as `Guarded` or scalar `Exits`,
     /// never this variant.)
     ConditionalReturn {
@@ -352,11 +352,13 @@ impl CheckedComposedUnitControlStatePlan {
     }
 }
 
-/// One guarded arm of an ordered transition chain: the exact checked scalar
-/// expression the authored guard selected and the selected edge's custody plan.
-/// The value arm of a `ConditionalReturn`.
+/// The completion arm of a `ConditionalReturn`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedConditionalReturnArm {
+    /// Normal Unit completion at this authored transition, with the same
+    /// ownership disposal as a Unit-returning state. It is not a jump to a
+    /// synthesized source state or a value producer with a dummy scalar.
+    Unit { statement_ordinal: u32 },
     /// The arm's `EstablishStructuralValue` producer, in the same local child
     /// storage `Guarded::return_values` uses.
     Structural(CheckedUnitEffectOperationPlan),
@@ -368,6 +370,8 @@ pub enum CheckedConditionalReturnArm {
     },
 }
 
+/// One guarded arm of an ordered transition chain: the exact checked scalar
+/// expression the authored guard selected and the selected edge's custody plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedGuardedJumpPlan {
     /// Exact checked Boolean value at `successor.statement_ordinal` under the
@@ -453,6 +457,9 @@ impl CheckedGuardedJumpFallbackPlan {
             CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Scalar {
                 statement_ordinal,
                 ..
+            })
+            | CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Unit {
+                statement_ordinal,
             }) => *statement_ordinal,
             CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Structural(
                 operation,
@@ -496,6 +503,9 @@ impl CheckedClosedSumCasePlan {
             CheckedClosedSumCaseOutcomePlan::Return(CheckedConditionalReturnArm::Scalar {
                 statement_ordinal,
                 ..
+            })
+            | CheckedClosedSumCaseOutcomePlan::Return(CheckedConditionalReturnArm::Unit {
+                statement_ordinal,
             }) => *statement_ordinal,
             CheckedClosedSumCaseOutcomePlan::Return(CheckedConditionalReturnArm::Structural(
                 operation,

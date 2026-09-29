@@ -225,9 +225,8 @@ pub(super) fn build(
                     trace.phase("state graph: terminator: conditional successors: guard type");
                     return None;
                 }
-                // An authored `(expression)` arm returns the established
-                // value instead of transferring to a named state; a named
-                // arm keeps the ordinary successor custody plan.
+                // A return arm completes with Unit or an established value;
+                // a named arm keeps the ordinary successor custody plan.
                 let mut return_count = returns::next_result_ordinal(operations)?;
                 let mut branch = |transition: &typed_trees::statement::TableTransition,
                                   edge_ordinal: u32|
@@ -240,6 +239,26 @@ pub(super) fn build(
                         ),
                     >,
                 > {
+                    // Typing already classifies normal `{}` completion as
+                    // Terminal. It returns Unit on this edge; it must not be
+                    // looked up as a named successor or assigned a dummy value.
+                    if matches!(
+                        program.statement_table.transition_target(transition.target),
+                        TransitionTargetNode::Terminal
+                    ) && result == checked_trees::CheckedControlResultPlan::Unit
+                        && transition.exit == TransitionExit::Ordinary
+                        && !transition.continuation.is_valid()
+                    {
+                        return_cleanup_is_whole(
+                            program, facts, machine, state, structural, operations, shapes,
+                        )?;
+                        return Some(Err((
+                            checked_trees::CheckedConditionalReturnArm::Unit {
+                                statement_ordinal: edge_ordinal,
+                            },
+                            Vec::new(),
+                        )));
+                    }
                     if let TransitionTargetNode::Value(expression) =
                         program.statement_table.transition_target(transition.target)
                     {
