@@ -557,9 +557,28 @@ pub(super) fn fields(
     if declarations.next().is_some() {
         return None;
     }
-    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return None;
+    // A mixed case stores its runtime common fields, then the selected
+    // payload; the conventional layout places the common fields beside the
+    // tag and every case payload after them.
+    let (common, cases) = match &declaration.shape {
+        terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
+        terminal_psi::StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+        _ => return None,
     };
+    let common = common
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .collect::<Vec<_>>();
+    let common_shapes = common
+        .iter()
+        .map(|field| {
+            crate::structural_inputs::structural_reference_input::field_shape(
+                &field.field_type,
+                &signature.structural_types,
+                &mut Vec::new(),
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
     let ordinal = cases.iter().position(|case| case.id == *result_case)?;
     if cases.iter().filter(|case| case.id == *result_case).count() != 1 {
         return None;
@@ -582,15 +601,21 @@ pub(super) fn fields(
                 .collect::<Option<Vec<_>>>()
         })
         .collect::<Option<Vec<_>>>()?;
-    if calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).ok()? != *layout
-        || fields.len() != cases[ordinal].fields.len()
+    if calling_conventions::evaluate_conventional_sum_layout(&common_shapes, &payloads).ok()?
+        != *layout
+        || fields.len() != common.len() + cases[ordinal].fields.len()
     {
         return None;
     }
     fields
         .iter()
-        .zip(&cases[ordinal].fields)
-        .zip(&layout.cases[ordinal].fields)
+        .zip(common.iter().copied().chain(&cases[ordinal].fields))
+        .zip(
+            layout
+                .common_fields
+                .iter()
+                .chain(&layout.cases[ordinal].fields),
+        )
         .map(|((field, declaration), placed)| {
             let shape = super::record_input::field_shape(source, result, field, declaration)?;
             (shape == placed.shape).then_some((

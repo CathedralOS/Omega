@@ -1,0 +1,35 @@
+// RUN CANARY (exit 70). A mixed-shape case literal establishes its common
+// fields beside the selected payload: a named common field keeps its value and
+// an unnamed one reads zero, whatever case is active.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Event {
+    consumed: bool;
+    bonus: i32;
+    case Nothing;
+    case Treasure(gold: i32);
+}
+
+data Main {
+    console: Binding<Console>;
+    event: Event;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.event = Event::Treasure { gold: 50, consumed: true };
+    transition self.event.consumed {
+        true -> check_bonus()
+        _ -> bad()
+    }
+
+    state check_bonus(&mut self) {
+        transition self.event.bonus == 0 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

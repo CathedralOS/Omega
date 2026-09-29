@@ -1432,19 +1432,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
   without runtime slots; establish domains before observation. Arithmetic-policy
   payloads and direct scalar-domain stores remain controls, not this omission.
 
-  Common-field construction establishes: the structural constructor admits
+  Common fields construct and read natively: the structural constructor admits
   named scalar common fields, stage 05 binds runtime common fields then the
-  payload with explicit zeros for unnamed ones, and Terminal verification checks
-  that roster. Omega stage 02 `lowering/control_flow/records.rs::establish` and
-  stage 03's `EstablishCase` legalization and `selection/aggregate_result_input.rs::fields`
-  still take only sum rosters; `layout.common_fields` already places the common
-  fields. `traits/equatable_mixed_shape_equality_exit` checks; natively it first
-  stops at `InvalidBooleanStructuralField` because
-  `terminal-semantics::record_field::observed_field_declaration` resolves only
-  record and case-payload carriers, not a mixed carrier's common field. Its
-  consumers (verifier `validation/structural/scalar_fields.rs`, Omega stage 00
-  `structural_scalar_fields.rs`, stage 01 field-value specialization, the
-  optimization unit) follow. `data/runtime_mixed_shape_exit` also needs the
+  payload with explicit zeros for unnamed ones, Terminal verification, the
+  codec and Omega check and lay out that roster, and a mixed carrier's common
+  field reads without a `Case` step. `data/runtime_mixed_case_common_fields_exit`
+  exits 70 on macOS ARM64 and builds for linux_x86_64. Next stops, each on the
+  unchanged customer: `traits/equatable_mixed_shape_equality_exit` checks but
+  stage 02 target lowering reports `UnknownStructuralType` for the mixed type,
+  and a payload dispatch on a mixed field (`transition self.event {
+  Event::Treasure { gold } -> .. }`) reports the same error; the raising site
+  is unconfirmed, and `structural_layout.rs::resolve_structural_field_path`
+  is record-only. `data/runtime_mixed_shape_exit` also needs the
   common-field store `self.event.bonus = 70`: stage 04
   `structural_scalar_store/destination.rs::carrier` admits only a plain record
   as the last owner. The interpreter's `EstablishStructuralCase` still requires

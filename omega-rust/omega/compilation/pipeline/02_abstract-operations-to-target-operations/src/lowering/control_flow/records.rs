@@ -6,7 +6,8 @@ use abstract_operations::{AbstractFunction, AbstractOperation};
 use std::collections::BTreeSet;
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 use terminal_psi::{
-    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
+    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralTypeShape,
 };
 
 pub(super) fn establish(
@@ -37,15 +38,29 @@ pub(super) fn establish(
         .get(&result.structural_type)
         .ok_or_else(invalid)?
         .shape;
-    let declarations = match (shape, result_case) {
-        (StructuralTypeShape::Record { fields }, None) => fields,
-        (StructuralTypeShape::Sum { cases }, Some(result_case)) => {
-            &cases
-                .iter()
-                .find(|case| case.id == result_case)
-                .ok_or_else(invalid)?
-                .fields
-        }
+    // A mixed case binds its runtime common fields in declaration order, then
+    // the selected payload: the same roster Terminal verification checked.
+    // Erased common members hold no storage and take no roster position.
+    let declarations: Vec<&StructuralFieldDeclaration> = match (shape, result_case) {
+        (StructuralTypeShape::Record { fields }, None) => fields.iter().collect(),
+        (StructuralTypeShape::Sum { cases }, Some(result_case)) => cases
+            .iter()
+            .find(|case| case.id == result_case)
+            .ok_or_else(invalid)?
+            .fields
+            .iter()
+            .collect(),
+        (StructuralTypeShape::Mixed { fields: common, cases }, Some(result_case)) => common
+            .iter()
+            .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
+            .chain(
+                &cases
+                    .iter()
+                    .find(|case| case.id == result_case)
+                    .ok_or_else(invalid)?
+                    .fields,
+            )
+            .collect(),
         _ => return Err(invalid()),
     };
     if declarations.len() != fields.len() || live.structural_homes.contains_key(&result.place) {
@@ -54,7 +69,7 @@ pub(super) fn establish(
     let mut consumed = BTreeSet::new();
     let mut relocations = Vec::new();
     let mut moved_leaves = BTreeSet::new();
-    for (field, declaration) in fields.iter().zip(declarations) {
+    for (field, declaration) in fields.iter().zip(declarations.iter().copied()) {
         if field.field != declaration.id || declaration.relevance.is_erased() {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }

@@ -166,7 +166,7 @@ fn owned_byte_roots_have_bounded_geometry_without_plain_aggregate_admission() {
 }
 
 #[test]
-fn mixed_declarations_have_tag_prefixed_geometry_without_field_access() {
+fn mixed_declarations_have_tag_prefixed_geometry_and_common_field_reads() {
     use terminal_psi::{BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration};
 
     let root = StructuralTypeId::new(1).unwrap();
@@ -230,8 +230,9 @@ fn mixed_declarations_have_tag_prefixed_geometry_without_field_access() {
     );
     assert_eq!(shape(root, &declarations), Some(ValueShape::integer(16, 4)));
     // Structural payloads and erased-relevance common fields shape the same
-    // way the target evaluator sees them; field paths into the mixed node
-    // remain closed to scalar reads and stores.
+    // way the target evaluator sees them. A common field reads at its offset
+    // beside the tag whatever case is active; stores into the mixed node stay
+    // closed.
     let mut with_structural = declarations.clone();
     let StructuralTypeShape::Mixed { cases, fields } = &mut with_structural[1].shape else {
         panic!("mixed");
@@ -246,8 +247,14 @@ fn mixed_declarations_have_tag_prefixed_geometry_without_field_access() {
         Some(ValueShape::integer(12, 4))
     );
     let flag = StructuralFieldId::new(1).unwrap();
-    for path in [vec![], vec![StructuralPathSegment::Field("mixed".into())]] {
-        assert_eq!(field_read(root, &path, flag, scalar, &declarations), None);
+    let into_mixed = vec![StructuralPathSegment::Field("mixed".into())];
+    assert_eq!(
+        field_read(root, &into_mixed, flag, scalar, &declarations),
+        Some((4, 4)),
+        "the common `flag` sits after the four-byte tag"
+    );
+    assert_eq!(field_read(root, &[], flag, scalar, &declarations), None);
+    for path in [vec![], into_mixed] {
         assert_eq!(store(root, &path, flag, scalar, &declarations), None);
     }
     // An empty case set has no inhabitant to provision.
