@@ -1,0 +1,31 @@
+// An inline composite construction supplied directly as a state argument
+// takes fresh custody at the edge: the successor establishes the literal
+// into the target parameter's storage exactly as a `let`-bound local would
+// hand its established value over. Scalars route from anywhere, as before;
+// field reads and call results are separate provenance families.
+//
+//   handle(Pair { a: 1 })   checks — the literal establishes at the edge
+//   handle(self.pair)       a field read, not a construction — not this law
+//   handle(self.give())     a call product, not a construction — not this law
+//
+// The admitted kinds are record literals, case constructions, and fixed
+// array literals. A reference to a composite and non-literal composite
+// expressions keep their own routes.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair [copy] {
+    a: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    transition { _ -> handle(Pair { a: 1 }) }
+
+    state handle(&mut self, pair: Pair) {
+        self.console.exit_process(pair.a);
+    }
+}
