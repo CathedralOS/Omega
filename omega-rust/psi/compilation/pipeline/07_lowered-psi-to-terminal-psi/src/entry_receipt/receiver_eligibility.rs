@@ -1,7 +1,7 @@
 //! Source eligibility cannot be recovered from native layout: identical record
 //! shapes may have different zero gates and nominal cleanup. Derive this private
 //! correspondence before source erasure and bind it to the exact Terminal
-//! attachment and retained or erased receiver projection.
+//! context parameter and retained or erased projection.
 //! It is not a standalone proof from source-free Terminal bytes or root authority.
 //! Byte carriers erase their domain predicates, so empty-buffer eligibility must
 //! rejoin the actual source field and evaluate every understood value constraint.
@@ -11,6 +11,7 @@ use checked_trees::types::{
     FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
 };
 use checked_trees::{CheckedTerminalMachineSelection, CheckedTrees};
+use language_semantics::ReferenceAccess;
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
     CheckedProgramEntryDeterminedEvidenceField, CheckedProgramEntryFusedServiceField,
@@ -29,21 +30,31 @@ pub(super) fn derive(
         .iter()
         .find(|machine| machine.symbol == selection.machine)?;
     let state = checked.machine_states(machine).first()?;
-    let mut receivers = checked
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| parameter.is_self);
-    let receiver = receivers.next()?;
-    if receivers.next().is_some() || !receiver.is_mutable {
+    let source_parameters = checked.state_parameters(state);
+    let has_legacy_receiver = source_parameters.iter().any(|parameter| parameter.is_self);
+    let mut receivers = source_parameters.iter().enumerate().filter(|(_, parameter)| {
+        if has_legacy_receiver {
+            return parameter.is_self;
+        }
+        // An ordinary mutable record parameter can be provisioned by the
+        // selected entry schema. This is eligibility, not root authority;
+        // selection must still name and replay this exact source occurrence.
+        // Do not strip refinements to manufacture zero-valid context storage.
+        !parameter.relevance.is_erased()
+            && matches!(
+                checked.type_reference_table.type_reference(parameter.type_reference),
+                TypeReferenceNode::Reference {
+                    access: ReferenceAccess::Mutable,
+                    referee,
+                    ..
+                } if matches!(checked.type_reference_table.type_reference(*referee), TypeReferenceNode::Named { .. })
+            )
+    });
+    let (source_position, receiver) = receivers.next()?;
+    if receivers.next().is_some() || (receiver.is_self && !receiver.is_mutable) {
         return None;
     }
-    let source_position = u32::try_from(
-        checked
-            .state_parameters(state)
-            .iter()
-            .position(|parameter| parameter.is_self)?,
-    )
-    .ok()?;
+    let source_position = u32::try_from(source_position).ok()?;
     let mut owned = receiver.type_reference;
     loop {
         match checked.type_reference_table.type_reference(owned) {
@@ -57,15 +68,20 @@ pub(super) fn derive(
     else {
         return None;
     };
-    let definition = checked
-        .data_definitions()
-        .iter()
-        .find(|definition| definition.symbol == machine.attached_data_symbol)?;
+    let definition = checked.data_definitions().iter().find(|definition| {
+        definition.symbol
+            == if receiver.is_self {
+                machine.attached_data_symbol
+            } else {
+                *symbol
+            }
+    })?;
     // Resolved Self names its enclosing machine, not the data declaration.
     // Explicit nominal receivers name the data directly. Both must rejoin the
     // exact attachment; a matching source display name is insufficient.
-    if (*symbol != machine.symbol && *symbol != definition.symbol)
-        || machine.attached_data.as_ref() != Some(&definition.name)
+    if (receiver.is_self
+        && ((*symbol != machine.symbol && *symbol != definition.symbol)
+            || machine.attached_data.as_ref() != Some(&definition.name)))
         || !checked.data_type_parameters(definition).is_empty()
         || validation::data_requires_establishment(&checked.typed, definition)
     {
@@ -75,30 +91,55 @@ pub(super) fn derive(
     // extent can carry the obligation as ledger occupancy. Whether it must
     // is classified against the actual Terminal projection below.
     let requires_cleanup = validation::data_requires_nominal_drop(&checked.typed, definition);
+    let terminal_position = if receiver.is_self {
+        source_position
+    } else {
+        ordinary_context_terminal_position(
+            checked,
+            selection,
+            state.symbol,
+            source_position,
+            owned,
+        )?
+    };
     let entry = module
         .machines
         .iter()
         .find(|machine| machine.id == module.entry)?;
-    let terminal_receiver_type = entry.attachment?;
-    let mut parameters = entry
-        .structural_parameters
-        .iter()
-        .filter(|parameter| parameter.is_self);
-    let projection = match parameters.next() {
+    if !receiver.is_self && entry.attachment.is_some() {
+        return None;
+    }
+    let mut parameters = entry.structural_parameters.iter().filter(|parameter| {
+        if receiver.is_self {
+            parameter.is_self
+        } else {
+            parameter.position == terminal_position
+        }
+    });
+    let (terminal_receiver_type, projection) = match parameters.next() {
         Some(parameter) => {
             if parameters.next().is_some()
                 || parameter.access != StructuralAccess::MutableBorrow
-                || parameter.position != source_position
-                || parameter.structural_type != terminal_receiver_type
+                || parameter.position != terminal_position
+                || parameter.is_self != receiver.is_self
+                || (receiver.is_self && entry.attachment != Some(parameter.structural_type))
             {
                 return None;
             }
-            CheckedProgramEntryReceiverProjection::Retained {
-                terminal_self: parameter.place,
-                source_position,
-            }
+            (
+                parameter.structural_type,
+                CheckedProgramEntryReceiverProjection::Retained {
+                    terminal_self: parameter.place,
+                    source_position,
+                },
+            )
         }
         None => {
+            // Ordinary parameter erasure needs its own exact projection
+            // evidence; absence alone cannot authorize implicit storage.
+            if !receiver.is_self {
+                return None;
+            }
             // Clearing the marker on a surviving parameter is not erasure.
             // Structural positions retain their authored source positions,
             // independently of the compact scalar parameter partition.
@@ -109,7 +150,10 @@ pub(super) fn derive(
             {
                 return None;
             }
-            CheckedProgramEntryReceiverProjection::Erased { source_position }
+            (
+                entry.attachment?,
+                CheckedProgramEntryReceiverProjection::Erased { source_position },
+            )
         }
     };
     let cleanup = if requires_cleanup {
@@ -201,6 +245,50 @@ pub(super) fn derive(
         )
         .with_determined_evidence_fields(determined_evidence_fields),
     )
+}
+
+/// Source ordinals include scalar arguments; Terminal structural parameters
+/// have their own dense order. Rejoin the checked signature instead of assuming
+/// that a context is the first source argument or reusing a scalar ordinal.
+fn ordinary_context_terminal_position(
+    checked: &CheckedTrees,
+    selection: &CheckedTerminalMachineSelection,
+    state: symbols::SymbolHandle,
+    source_position: u32,
+    referent: TypeReferenceHandle,
+) -> Option<u32> {
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let mut signatures = plans
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == selection.machine && plan.state == state)
+        .map(|plan| plan.structural_parameters.as_slice())
+        .chain(
+            plans
+                .composed_machines
+                .iter()
+                .filter(|plan| plan.machine == selection.machine)
+                .flat_map(|plan| plan.states.iter())
+                .filter(|plan| plan.state == state)
+                .map(|plan| plan.structural_parameters.as_slice()),
+        );
+    let parameters = signatures.next()?;
+    if signatures.next().is_some() {
+        return None;
+    }
+    let mut matching = parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| parameter.position == source_position);
+    let (position, parameter) = matching.next()?;
+    if matching.next().is_some()
+        || parameter.is_self
+        || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
+        || parameter.type_identity != checked.normalized_type_identity(referent).as_str()
+    {
+        return None;
+    }
+    u32::try_from(position).ok()
 }
 
 /// Walk the receiver's Terminal field tree along the routes a roster row can
@@ -1517,6 +1605,121 @@ mod tests {
             derive(&checked, selection, &changed).as_ref(),
             Some(eligible)
         );
+    }
+
+    #[test]
+    fn explicit_context_eligibility_rejoins_the_parameter_not_the_qualifier() {
+        for (declaration, selected, preceding, expected_position) in [
+            ("machine run", "run", "", 0),
+            ("machine Namespace::run", "Namespace::run", "", 0),
+            ("machine run", "run", "unused: u32, ", 1),
+        ] {
+            let source = format!(
+                "data Context {{ value: i32; }} data Namespace {{ unrelated: u64; }}
+                 {declaration}({preceding}context: &mut Context) {{ context.value = 7; }}"
+            );
+            let checked = check_source(&source);
+            let produced =
+                TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name(selected))
+                    .produce(TerminalProductionCustody {
+                        retain_unoptimized: false,
+                        entry_identity: Some([7; 32]),
+                        callback_custody: (),
+                        timings: &mut TerminalProductionTimings::default(),
+                    })
+                    .unwrap();
+            let eligibility = produced
+                .receipt()
+                .expect("entry receipt")
+                .receiver_eligibility()
+                .expect("ordinary mutable context retains zero-eligibility evidence");
+            assert!(matches!(
+                eligibility.projection(),
+                CheckedProgramEntryReceiverProjection::Retained {
+                    source_position,
+                    ..
+                } if source_position == expected_position
+            ));
+            let module =
+                terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+            let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+                &checked,
+                TerminalMachineSelection::Name(selected),
+            )
+            .unwrap();
+            let entry = module
+                .machines
+                .iter()
+                .find(|entry| entry.id == module.entry)
+                .unwrap();
+            assert!(entry.attachment.is_none());
+            assert!(!entry.structural_parameters[0].is_self);
+            assert_eq!(
+                derive(&checked, selection, &module).as_ref(),
+                Some(eligibility)
+            );
+            for corruption in 0..6 {
+                let mut changed = module.clone();
+                let entry = changed
+                    .machines
+                    .iter_mut()
+                    .find(|entry| entry.id == changed.entry)
+                    .unwrap();
+                match corruption {
+                    0 => entry.structural_parameters[0].position += 1,
+                    1 => entry.structural_parameters[0].is_self = true,
+                    2 => {
+                        entry.structural_parameters[0].access =
+                            super::StructuralAccess::SharedBorrow
+                    }
+                    3 => entry.attachment = Some(eligibility.terminal_receiver_type()),
+                    4 => entry.structural_parameters.clear(),
+                    _ => entry
+                        .structural_parameters
+                        .push(entry.structural_parameters[0].clone()),
+                }
+                assert!(
+                    derive(&checked, selection, &changed).is_none(),
+                    "corruption {corruption}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn explicit_context_eligibility_rejects_ambiguous_or_nonzero_storage() {
+        let baseline = check_source(
+            "data Context { value: i32; }
+            machine run(context: &mut Context) { context.value = 7; }",
+        );
+        let produced =
+            TerminalProductionRequest::new(&baseline, TerminalMachineSelection::Name("run"))
+                .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        // Identical stored bytes cannot establish a stronger source gate or
+        // select one of several caller-owned contexts.
+        for source in [
+            "data Context { value: i32; }
+             machine run(left: &mut Context, right: &mut Context) { left.value = 7; right.value = 8; }",
+            "data Context where value > 0 { value: i32; }
+             machine run(context: &mut Context) { context.value = 7; }",
+            "data Context { value: i32; }
+             machine run(context: &Context) { let value: i32 = context.value; }",
+        ] {
+            let checked = check_source(source);
+            let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+                &checked,
+                TerminalMachineSelection::Name("run"),
+            )
+            .unwrap();
+            assert!(derive(&checked, selection, &module).is_none(), "{source}");
+        }
     }
 
     #[test]
