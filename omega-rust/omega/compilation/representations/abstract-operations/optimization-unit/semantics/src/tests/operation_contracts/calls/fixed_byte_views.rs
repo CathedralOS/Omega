@@ -80,6 +80,61 @@ fn source_unit(source: &str) -> PsiOptimizationUnit {
 }
 
 #[test]
+fn local_fixed_array_loans_preserve_access_and_producer_availability() {
+    for source in [
+        "boundary trait Sink { machine take(bytes: &mut [u8]) reaches Sink; }
+         machine enter() reaches Sink {
+             let mut bytes: [u8; 8];
+             Sink::take(&mut bytes);
+         }",
+        "boundary trait Sink { machine take(bytes: &[u8]) reaches Sink; }
+         machine enter() reaches Sink {
+             let bytes: [u8; 3] = [3, 7, 2];
+             Sink::take(&bytes);
+         }",
+    ] {
+        let baseline = source_unit(source);
+        validate_psi_optimization_unit(&baseline)
+            .expect("completed local arrays lend their real backing to boundary calls");
+        let caller = baseline
+            .functions
+            .iter()
+            .position(|function| function.machine == baseline.entry)
+            .unwrap();
+        let call = baseline.functions[caller].blocks[0]
+            .nodes
+            .iter()
+            .position(|node| matches!(node.operation, AbstractOperation::BoundaryCall { .. }))
+            .unwrap();
+        for corruption in ["access", "path", "unavailable"] {
+            let mut changed = baseline.clone();
+            let AbstractOperation::BoundaryCall {
+                structural_arguments,
+                ..
+            } = &mut changed.functions[caller].blocks[0].nodes[call].operation
+            else {
+                panic!("boundary call")
+            };
+            match corruption {
+                "access" => structural_arguments[0].access = StructuralAccess::Owned,
+                "path" => structural_arguments[0]
+                    .path
+                    .push(terminal_psi::StructuralPathSegment::FixedIndex(0)),
+                "unavailable" => changed.functions[caller].blocks[0].nodes.swap(0, call),
+                _ => unreachable!(),
+            }
+            refresh_node_derivatives(&mut changed, caller, 0, 0);
+            refresh_node_derivatives(&mut changed, caller, 0, call);
+            refresh_identity(&mut changed);
+            assert!(
+                validate_psi_optimization_unit(&changed).is_err(),
+                "{corruption}"
+            );
+        }
+    }
+}
+
+#[test]
 fn boundary_fixed_byte_views_preserve_source_projection_and_reject_corruption() {
     for (nested, window) in [(false, false), (true, false), (false, true), (true, true)] {
         let baseline = boundary_array_unit(nested, window);
