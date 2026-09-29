@@ -3,106 +3,73 @@
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, parameter_qualifications, type_graph_requires_nominal_drop,
 };
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
+
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedUnitEffectOperationPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralResultBindingPlan, ExpressionNode, Multiplicity, StatementNode,
     SymbolHandle, TypeReferenceHandle, TypedTrees, is_reference,
 };
 
+/// Rebind a Unit call's result to the scalar local its statement declares.
+/// A boundary call keeps its completion receipts; an ordinary call gains its
+/// target's contract commitment. Boundary targets need `allow_boundary`.
 pub(crate) fn bind_scalar_call_result(
     facts: &CheckFacts,
     operation: CheckedUnitEffectOperationPlan,
     result: CheckedUnitScalarResultBindingPlan,
     allow_boundary: bool,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    match operation {
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            source_site,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            scalar_arguments,
-            structural_arguments,
-            completion_receipts,
-        } if allow_boundary => Some(CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            coordinate,
-            source_site,
-            result,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            scalar_arguments,
-            structural_arguments,
-            completion_receipts,
-        }),
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            scalar_arguments,
-            erased_scalar_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-        } => Some(CheckedUnitEffectOperationPlan::ScalarCall {
-            coordinate,
-            result,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            target_contract_commitment: facts
-                .contract_plans
-                .for_machine(target_machine)?
-                .commitment,
-            service_reach,
-            scalar_arguments,
-            erased_scalar_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-        }),
-        _ => None,
+    let CheckedUnitEffectOperationPlan::Call(call) = operation else {
+        return None;
+    };
+    let mut parts = call.into_parts();
+    if parts.result != CheckedUnitCallResult::Unit {
+        return None;
     }
+    match &mut parts.route {
+        CheckedUnitCallRoute::Boundary if !allow_boundary => return None,
+        CheckedUnitCallRoute::Boundary => {}
+        CheckedUnitCallRoute::Module {
+            contract_commitment,
+            ..
+        } => {
+            *contract_commitment = Some(
+                facts
+                    .contract_plans
+                    .for_machine(parts.target.machine)?
+                    .commitment,
+            );
+        }
+    }
+    parts.result = CheckedUnitCallResult::Scalar(result);
+    CheckedUnitCallPlan::new(parts).map(CheckedUnitEffectOperationPlan::Call)
 }
 
 /// Keep the checked call's exact target, source coordinate, operands and
 /// completion receipts while attaching its independently checked result local.
+/// An ordinary structural call already carries its result and custody.
 pub(crate) fn bind_structural_call_result(
     operation: CheckedUnitEffectOperationPlan,
     result: CheckedUnitStructuralResultBindingPlan,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    Some(match operation {
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            source_site,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            scalar_arguments,
-            structural_arguments,
-            completion_receipts,
-        } => CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            source_site,
-            discard_result_on_return: result.multiplicity == Multiplicity::Affine,
-            result,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            scalar_arguments,
-            structural_arguments,
-            completion_receipts,
-        },
-        operation @ CheckedUnitEffectOperationPlan::StructuralCall { .. } => operation,
-        _ => return None,
-    })
+    let CheckedUnitEffectOperationPlan::Call(call) = operation else {
+        return None;
+    };
+    match (call.route(), call.result()) {
+        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Structural { .. }) => {
+            Some(CheckedUnitEffectOperationPlan::Call(call))
+        }
+        (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
+            let mut parts = call.into_parts();
+            parts.result = CheckedUnitCallResult::Structural {
+                discard_result_on_return: result.multiplicity == Multiplicity::Affine,
+                binding: result,
+            };
+            CheckedUnitCallPlan::new(parts).map(CheckedUnitEffectOperationPlan::Call)
+        }
+        _ => None,
+    }
 }
 
 pub(crate) fn checked_unit_structural_result_local(

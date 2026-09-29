@@ -174,22 +174,7 @@ pub(super) fn validate_bindings(
                 .operations
                 .iter()
                 .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::StructuralCall {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                    CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
                         result, ..
                     }
                     | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
@@ -202,6 +187,11 @@ pub(super) fn validate_bindings(
                                 CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
                             ),
                         ))
+                    }
+                    _ if let Some(result) = result_custody::result(operation)
+                        && result.binding_ordinal == binding_ordinal =>
+                    {
+                        Some((result, false))
                     }
                     _ => None,
                 });

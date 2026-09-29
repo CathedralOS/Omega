@@ -6,7 +6,10 @@ use super::{
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::scalar_targets;
-use checked_trees::{CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage};
+use checked_trees::{
+    CheckedUnitCallResult, CheckedUnitCallRoute, CheckedUnitPlanOmission,
+    CheckedUnitPlanOmissionStage,
+};
 
 #[cfg(test)]
 mod tests;
@@ -167,71 +170,72 @@ pub(super) fn retain_available(
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
         {
             match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    target_machine,
-                    target_state,
-                    ..
-                } => closure.require_entry(caller_index, *target_machine, *target_state),
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    target_machine,
-                    target_state,
-                    ..
-                } => {
-                    if facts
-                        .flow
-                        .terminal_structural_returns
-                        .claim_free_affine_for_machine(*target_machine)
-                        .is_none()
-                    {
-                        closure.require_entry(caller_index, *target_machine, *target_state);
-                    }
-                }
-                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    target_machine, ..
-                } => {
-                    if boundaries
-                        .binary_search(&symbol_key(*target_machine))
-                        .is_err()
-                    {
-                        closure.drop_candidate(
-                            caller_index,
-                            CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
-                                target: *target_machine,
-                            },
-                        );
-                    }
-                }
-                CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } => {
-                    match scalar_targets::available_target(
-                        program,
-                        facts,
-                        scalar_callees,
-                        candidates,
-                        composed_machines,
-                        &scalar_targets::ScalarCallSite::of_plan(plan),
-                        operation,
-                    ) {
-                        Some(scalar_targets::AvailableScalarTarget::Registered) => {}
-                        Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(target_index)) => {
-                            closure.dependents.push((target_index, caller_index));
+                CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
+                    (CheckedUnitCallRoute::Boundary, _) => {
+                        if boundaries
+                            .binary_search(&symbol_key(call.target.machine))
+                            .is_err()
+                        {
+                            closure.drop_candidate(
+                                caller_index,
+                                CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
+                                    target: call.target.machine,
+                                },
+                            );
                         }
-                        Some(scalar_targets::AvailableScalarTarget::ComposedBody(
-                            composed_index,
-                        )) => {
-                            closure
-                                .dependents
-                                .push((candidates.len() + composed_index, caller_index));
-                        }
-                        None => closure.drop_candidate(
-                            caller_index,
-                            CheckedUnitPlanOmissionStage::UnavailableScalarTarget {
-                                target: *target_machine,
-                            },
-                        ),
                     }
-                }
+                    (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Unit) => {
+                        closure.require_entry(caller_index, call.target.machine, call.target.state)
+                    }
+                    (
+                        CheckedUnitCallRoute::Module { .. },
+                        CheckedUnitCallResult::Structural { .. },
+                    ) => {
+                        if facts
+                            .flow
+                            .terminal_structural_returns
+                            .claim_free_affine_for_machine(call.target.machine)
+                            .is_none()
+                        {
+                            closure.require_entry(
+                                caller_index,
+                                call.target.machine,
+                                call.target.state,
+                            );
+                        }
+                    }
+                    (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
+                        match scalar_targets::available_target(
+                            program,
+                            facts,
+                            scalar_callees,
+                            candidates,
+                            composed_machines,
+                            &scalar_targets::ScalarCallSite::of_plan(plan),
+                            operation,
+                        ) {
+                            Some(scalar_targets::AvailableScalarTarget::Registered) => {}
+                            Some(scalar_targets::AvailableScalarTarget::OrdinaryBody(
+                                target_index,
+                            )) => {
+                                closure.dependents.push((target_index, caller_index));
+                            }
+                            Some(scalar_targets::AvailableScalarTarget::ComposedBody(
+                                composed_index,
+                            )) => {
+                                closure
+                                    .dependents
+                                    .push((candidates.len() + composed_index, caller_index));
+                            }
+                            None => closure.drop_candidate(
+                                caller_index,
+                                CheckedUnitPlanOmissionStage::UnavailableScalarTarget {
+                                    target: call.target.machine,
+                                },
+                            ),
+                        }
+                    }
+                },
                 // Selected execution already joined exact realization custody.
                 CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
@@ -295,34 +299,29 @@ pub(super) fn retain_available(
                 // Composed bodies have a narrower operation vocabulary and no
                 // ordinary structural-return fallback. Keep that admission explicit.
                 match operation {
-                    CheckedUnitEffectOperationPlan::CallUnit {
-                        target_machine,
-                        target_state,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::StructuralCall {
-                        target_machine,
-                        target_state,
-                        ..
-                    } => closure.require_entry(caller_index, *target_machine, *target_state),
-                    CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        target_machine, ..
-                    } => {
-                        if boundaries
-                            .binary_search(&symbol_key(*target_machine))
-                            .is_err()
-                        {
-                            closure.drop_candidate(
-                                caller_index,
-                                CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
-                                    target: *target_machine,
-                                },
-                            );
+                    CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
+                        (CheckedUnitCallRoute::Boundary, _) => {
+                            if boundaries
+                                .binary_search(&symbol_key(call.target.machine))
+                                .is_err()
+                            {
+                                closure.drop_candidate(
+                                    caller_index,
+                                    CheckedUnitPlanOmissionStage::MissingBoundaryTarget {
+                                        target: call.target.machine,
+                                    },
+                                );
+                            }
                         }
-                    }
-                    CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } => {
+                        (
+                            CheckedUnitCallRoute::Module { .. },
+                            CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
+                        ) => closure.require_entry(
+                            caller_index,
+                            call.target.machine,
+                            call.target.state,
+                        ),
+                        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
                         match scalar_targets::available_target(
                             program,
                             facts,
@@ -348,11 +347,12 @@ pub(super) fn retain_available(
                             None => closure.drop_candidate(
                                 caller_index,
                                 CheckedUnitPlanOmissionStage::UnavailableScalarTarget {
-                                    target: *target_machine,
+                                    target: call.target.machine,
                                 },
                             ),
                         }
-                    }
+                        }
+                    },
                     CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)

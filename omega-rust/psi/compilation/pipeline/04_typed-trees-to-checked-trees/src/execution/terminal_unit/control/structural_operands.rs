@@ -154,13 +154,11 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     )?;
                     let mut operation =
                         bind_structural_call_result(operation, nested_result.clone())?;
-                    let CheckedUnitEffectOperationPlan::StructuralCall {
-                        discard_result_on_return,
-                        ..
-                    } = &mut operation
-                    else {
-                        return None;
-                    };
+                    // Only an ordinary structural call produces a value operand.
+                    let (_, discard_result_on_return) = operation
+                        .call_mut()
+                        .filter(|call| !call.is_boundary())?
+                        .structural_result_mut()?;
                     *discard_result_on_return = false;
                     preamble.push(operation);
                     scoped_results.push((
@@ -194,13 +192,11 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     trace,
                 )?;
                 let mut operation = bind_structural_call_result(operation, result.clone())?;
-                let CheckedUnitEffectOperationPlan::StructuralCall {
-                    discard_result_on_return,
-                    ..
-                } = &mut operation
-                else {
-                    return None;
-                };
+                // Only an ordinary structural call produces a value operand.
+                let (_, discard_result_on_return) = operation
+                    .call_mut()
+                    .filter(|call| !call.is_boundary())?
+                    .structural_result_mut()?;
                 *discard_result_on_return = false;
                 output.push(checked_trees::CheckedStructuralValueCall::new(
                     value, operation,

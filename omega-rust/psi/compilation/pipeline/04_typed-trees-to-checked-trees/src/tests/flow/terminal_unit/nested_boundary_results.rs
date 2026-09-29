@@ -2,6 +2,7 @@
 use super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Multiplicity};
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
+use checked_trees::CheckedUnitCallResult;
 
 #[test]
 fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() {
@@ -75,34 +76,10 @@ fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() 
             .unwrap_or_else(|| panic!("anonymous boundary results use the shared statement sequencer: {create}, {factory}"));
         let [
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. },
-            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate: create_coordinate,
-                result: created,
-                discard_result_on_return: false,
-                completion_receipts: create_receipts,
-                ..
-            },
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate: forward_coordinate,
-                result: forwarded,
-                structural_arguments: forward_arguments,
-                discard_result_on_return: false,
-                ..
-            },
-            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate: replace_coordinate,
-                result: replaced,
-                structural_arguments: replace_arguments,
-                discard_result_on_return: false,
-                completion_receipts: replace_receipts,
-                ..
-            },
-            CheckedUnitEffectOperationPlan::BoundaryCall {
-                coordinate: take_coordinate,
-                structural_arguments: take_arguments,
-                completion_receipts,
-                ..
-            },
+            CheckedUnitEffectOperationPlan::Call(create_call),
+            CheckedUnitEffectOperationPlan::Call(forward_call),
+            CheckedUnitEffectOperationPlan::Call(replace_call),
+            CheckedUnitEffectOperationPlan::Call(take_call),
             CheckedUnitEffectOperationPlan::Complete { .. },
         ] = plan.operations.as_slice()
         else {
@@ -111,6 +88,34 @@ fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() 
                 plan.operations
             );
         };
+        let (Some(created), Some(forwarded), Some(replaced)) = (
+            create_call.structural_result(),
+            forward_call.structural_result(),
+            replace_call.structural_result(),
+        ) else {
+            panic!(
+                "boundary, ordinary and boundary results execute before the root consumer: {:?}",
+                plan.operations
+            );
+        };
+        assert!(
+            create_call.is_boundary()
+                && create_call.discard_result_on_return() == Some(false)
+                && !forward_call.is_boundary()
+                && forward_call.discard_result_on_return() == Some(false)
+                && replace_call.is_boundary()
+                && replace_call.discard_result_on_return() == Some(false)
+                && take_call.is_boundary()
+                && *take_call.result() == CheckedUnitCallResult::Unit,
+            "boundary, ordinary and boundary results execute before the root consumer: {:?}",
+            plan.operations
+        );
+        let (create_coordinate, forward_coordinate, replace_coordinate, take_coordinate) = (
+            create_call.coordinate,
+            forward_call.coordinate,
+            replace_call.coordinate,
+            take_call.coordinate,
+        );
         assert_eq!(
             (
                 created.binding_ordinal,
@@ -132,21 +137,21 @@ fn nested_boundary_results_keep_dense_postorder_and_exact_temporary_transfers() 
             assert_eq!(coordinate.statement_index, 1);
         }
         assert_eq!(
-            forward_arguments[0].source_structural_result_binding_ordinal(),
+            forward_call.structural_arguments[0].source_structural_result_binding_ordinal(),
             Some(0)
         );
         assert_eq!(
-            replace_arguments[0].source_structural_result_binding_ordinal(),
+            replace_call.structural_arguments[0].source_structural_result_binding_ordinal(),
             Some(1)
         );
         assert_eq!(
-            take_arguments[0].source_structural_result_binding_ordinal(),
+            take_call.structural_arguments[0].source_structural_result_binding_ordinal(),
             Some(2)
         );
         assert!(
-            create_receipts.is_empty()
-                && replace_receipts.is_empty()
-                && completion_receipts.is_empty()
+            create_call.claim_transfers().is_empty()
+                && replace_call.claim_transfers().is_empty()
+                && take_call.claim_transfers().is_empty()
         );
         let flow = checked
             .facts

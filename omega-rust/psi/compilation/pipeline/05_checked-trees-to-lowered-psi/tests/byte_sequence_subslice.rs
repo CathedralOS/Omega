@@ -196,7 +196,13 @@ fn byte_subslice_is_evaluated_between_surrounding_scalar_calls() {
 
 #[test]
 fn changed_subslice_source_range_or_custody_rejects() {
-    use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};
+    use checked_trees::{
+        CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitEffectOperationPlan,
+        CheckedUnitStructuralArgumentSourcePlan,
+    };
+    fn is_ordinary_unit_call(call: &CheckedUnitCallPlan) -> bool {
+        !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit
+    }
     let checked = crate::front_end::checked_program(SOURCE);
     let plan_index = checked
         .facts
@@ -205,26 +211,31 @@ fn changed_subslice_source_range_or_custody_rejects() {
         .machines
         .iter()
         .position(|plan| {
-            plan.operations.iter().any(|operation| {
-                matches!(operation,
-            CheckedUnitEffectOperationPlan::CallUnit { structural_arguments, .. }
-                if structural_arguments.iter().any(|argument| matches!(argument.source,
-                    CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })))
-            })
+            plan.operations
+                .iter()
+                .filter_map(CheckedUnitEffectOperationPlan::call)
+                .any(|call| {
+                    is_ordinary_unit_call(call)
+                        && call.structural_arguments.iter().any(|argument| {
+                            matches!(
+                                argument.source,
+                                CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
+                            )
+                        })
+                })
         })
         .unwrap();
     for mutation in 0..7 {
         let mut changed = checked.clone();
         let plan = &mut changed.facts.flow.terminal_unit_effects.machines[plan_index];
-        let CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            coordinate,
-            ..
-        } = &mut plan.operations[0]
+        let Some(call) = plan.operations[0]
+            .call_mut()
+            .filter(|call| is_ordinary_unit_call(call))
         else {
             panic!("ordinary subslice call");
         };
-        let argument = &mut structural_arguments[0];
+        let coordinate = &mut call.coordinate;
+        let argument = &mut call.structural_arguments[0];
         let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
             root:
                 checked_trees::CheckedStorageRoot::Parameter {

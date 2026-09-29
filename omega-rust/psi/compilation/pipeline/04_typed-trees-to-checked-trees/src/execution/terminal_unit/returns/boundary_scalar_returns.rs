@@ -11,9 +11,8 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     CheckFacts, CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, ExpressionNode, PrimitiveType, ProofFact,
-    SignatureContractKind, StatementNode, TypedTrees,
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitStructuralParameterPlan,
+    ExpressionNode, PrimitiveType, ProofFact, SignatureContractKind, StatementNode, TypedTrees,
 };
 
 fn boundary_scalar_contracts_supported(
@@ -173,20 +172,18 @@ pub(crate) fn build_boundary_scalar_return_machine(
         &[],
         &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
     )?;
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        target_machine,
-        structural_arguments,
-        completion_receipts,
-        ..
-    } = &boundary_call
-    else {
-        return None;
-    };
-    if structural_arguments
+    // The machine's return reads the boundary's result, so the call itself
+    // is a boundary call that binds nothing.
+    let call = boundary_call.call().filter(|call| {
+        call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+    })?;
+    let completion_receipts = call.claim_transfers();
+    if call
+        .structural_arguments
         .iter()
         .any(|argument| !argument.path.is_empty())
         || !boundaries.iter().any(|boundary| {
-            boundary.machine == *target_machine && boundary.result.scalar() == Some(result_type)
+            boundary.machine == call.target.machine && boundary.result.scalar() == Some(result_type)
         })
     {
         return None;

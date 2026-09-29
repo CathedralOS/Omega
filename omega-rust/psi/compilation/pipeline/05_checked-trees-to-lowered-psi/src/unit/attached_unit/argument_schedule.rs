@@ -25,9 +25,13 @@ pub(super) fn build(
     let mut steps = Vec::new();
     let mut index = 0;
     while index < operations.len() {
+        // A nested boundary structural result joins its argument group below.
         if byte_subslices::contains(&operations[index])
-            && !matches!(&operations[index], CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
-                if coordinate.call_ordinal != 0)
+            && !operations[index].call().is_some_and(|call| {
+                call.is_boundary()
+                    && call.structural_result().is_some()
+                    && call.coordinate.call_ordinal != 0
+            })
         {
             steps.push(Step::Begin);
             append(
@@ -44,11 +48,11 @@ pub(super) fn build(
             continue;
         }
         let statement = match &operations[index] {
-            CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
-                if coordinate.call_ordinal != 0 =>
+            // A nested call with a structural result, ordinary or boundary.
+            CheckedUnitEffectOperationPlan::Call(call)
+                if call.structural_result().is_some() && call.coordinate.call_ordinal != 0 =>
             {
-                coordinate.statement_index
+                call.coordinate.statement_index
             }
             CheckedUnitEffectOperationPlan::EstablishScalarArray {
                 result,
@@ -65,7 +69,7 @@ pub(super) fn build(
         let root = (start..operations.len())
             .find(|index| {
                 operations[*index].call().is_some_and(|call| {
-                    let coordinate = call.coordinate();
+                    let coordinate = call.coordinate;
                     coordinate.statement_index == statement && coordinate.call_ordinal == 0
                 })
             })
@@ -119,9 +123,9 @@ fn append(
         return unsupported("nested argument schedule requires an ordinary or boundary call");
     };
     let (coordinate, scalar_arguments, structural_arguments) = (
-        call.coordinate(),
-        call.scalar_arguments(),
-        call.structural_arguments(),
+        call.coordinate,
+        call.scalar_arguments.as_slice(),
+        call.structural_arguments.as_slice(),
     );
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked, plan.state, coordinate,
@@ -237,12 +241,16 @@ fn append(
         let Some(expression) = parameters::expression_producer(checked, expression) else {
             continue;
         };
-        let mut producers = group.clone().filter(|producer| matches!(
-            &plan.operations[*producer],
-            CheckedUnitEffectOperationPlan::StructuralCall { source_site, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { source_site, .. }
-                if *source_site == Some(checked_trees::NominalMachineUseSite::Expression(expression))
-        ));
+        // A call with a structural result, ordinary or boundary, retains its site.
+        let mut producers = group.clone().filter(|producer| {
+            plan.operations[*producer].call().is_some_and(|call| {
+                call.structural_result().is_some()
+                    && call.source_site()
+                        == Some(Some(checked_trees::NominalMachineUseSite::Expression(
+                            expression,
+                        )))
+            })
+        });
         let producer = producers.next().ok_or(LoweringError::Unsupported(
             "nested structural argument has no retained producer",
         ))?;

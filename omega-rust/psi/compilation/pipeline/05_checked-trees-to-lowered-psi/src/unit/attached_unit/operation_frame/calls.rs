@@ -27,6 +27,7 @@ use crate::unit::{
     lookup_machine_id, lower_checked_crash_route_buckets, terminal_scalar_type, unsupported,
     value_id,
 };
+use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
 
 /// The completed operands one call hands the frame. Each route evaluates
 /// them on its own schedule before the call.
@@ -51,37 +52,41 @@ impl OperationFrame<'_, '_> {
         operation: &CheckedUnitEffectOperationPlan,
         inputs: CallInputs<'_>,
     ) -> Result<Option<ValueDeclaration>, LoweringError> {
-        match operation {
+        let Some(call) = operation.call() else {
+            return unsupported("operation frame call entry received a non-call operation");
+        };
+        match (call.route(), call.result()) {
             // A structural call whose target is not a Unit body is a legacy
             // claim-free affine leaf with its own checked return plan.
-            CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                if !UnitBody::contains(self.callees.plans, *target_machine) =>
+            (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Structural { .. })
+                if !UnitBody::contains(self.callees.plans, call.target.machine) =>
             {
                 self.claim_free_structural_call(operation, &inputs)?;
                 Ok(None)
             }
-            CheckedUnitEffectOperationPlan::CallUnit { .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { .. } => {
+            (
+                CheckedUnitCallRoute::Module { .. },
+                CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
+            ) => {
                 self.unit_call(operation, &inputs)?;
                 Ok(None)
             }
-            CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. } => {
+            (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
                 let value = self.scalar_call(operation, &inputs)?;
-                self.bind_scalar_result(*coordinate, value, inputs.staged)
+                self.bind_scalar_result(call.coordinate, value, inputs.staged)
             }
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
+            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
                 self.boundary_call(operation, &inputs)?;
                 Ok(None)
             }
-            CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. } => {
+            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(_)) => {
                 let value = self.boundary_scalar_call(operation, &inputs)?;
-                self.bind_scalar_result(*coordinate, value, inputs.staged)
+                self.bind_scalar_result(call.coordinate, value, inputs.staged)
             }
-            CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
+            (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Structural { .. }) => {
                 self.boundary_structural_call(operation, &inputs)?;
                 Ok(None)
             }
-            _ => unsupported("operation frame call entry received a non-call operation"),
         }
     }
 
@@ -164,12 +169,13 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "structural call did not establish its result",
             ))?;
-        let coordinate = match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. } => {
-                *coordinate
-            }
-            _ => return unsupported("structural result has no call coordinate"),
+        // Any call with a structural result, ordinary or boundary.
+        let Some(coordinate) = operation
+            .call()
+            .filter(|call| call.structural_result().is_some())
+            .map(|call| call.coordinate)
+        else {
+            return unsupported("structural result has no call coordinate");
         };
         let authored = crate::emission::call_source_custody::authored::locate_source(
             self.checked,
@@ -234,23 +240,17 @@ impl OperationFrame<'_, '_> {
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
         let checked = self.checked;
-        let (CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            target_machine,
-            target_state,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            target_machine,
-            target_state,
-            structural_arguments,
-            ..
-        }) = operation
+        // An ordinary call with a Unit or structural result.
+        let Some(call) = operation
+            .call()
+            .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
         else {
             return unsupported("internal Unit call custody drifted before emission");
         };
+        let coordinate = &call.coordinate;
+        let target_machine = &call.target.machine;
+        let target_state = &call.target.state;
+        let structural_arguments = &call.structural_arguments;
         let earlier = self
             .results
             .earlier(structural_arguments, self.operations)?;
@@ -279,11 +279,10 @@ impl OperationFrame<'_, '_> {
         )?;
         drop(earlier);
         let callee = lookup_machine_id(self.calls.machine_ids, *target_machine)?;
-        if let CheckedUnitEffectOperationPlan::StructuralCall {
-            result,
+        if let CheckedUnitCallResult::Structural {
+            binding: result,
             discard_result_on_return,
-            ..
-        } = operation
+        } = call.result()
         {
             // The dense route registers the value as the call emits it; a
             // composed state registers it, with its local, when publishing.
@@ -341,17 +340,16 @@ impl OperationFrame<'_, '_> {
         operation: &CheckedUnitEffectOperationPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
-        let CheckedUnitEffectOperationPlan::StructuralCall {
-            result,
-            structural_arguments,
-            ..
-        } = operation
+        let Some((call, result)) = operation
+            .call()
+            .filter(|call| !call.is_boundary())
+            .and_then(|call| Some((call, call.structural_result()?)))
         else {
             return unsupported("claim-free structural call custody drifted before emission");
         };
         let earlier = self
             .results
-            .earlier(structural_arguments, self.operations)?;
+            .earlier(&call.structural_arguments, self.operations)?;
         let (declaration, discard_on_return) = structural_calls::emit(
             self.checked,
             self.state,
@@ -423,15 +421,16 @@ impl OperationFrame<'_, '_> {
                                     call_context: &mut CallEmissionContext<'_>,
                                     output: &mut OperationBuffer,
                                     place_counter: &mut u64| {
-            let CheckedUnitEffectOperationPlan::StructuralCall {
-                target_machine,
-                result,
-                structural_arguments,
-                ..
-            } = operand
+            // A value operand is an ordinary structural call.
+            let Some((call, result)) = operand
+                .call()
+                .filter(|call| !call.is_boundary())
+                .and_then(|call| Some((call, call.structural_result()?)))
             else {
                 return unsupported("record operand is not a structural call");
             };
+            let target_machine = &call.target.machine;
+            let structural_arguments = &call.structural_arguments;
             results.require_next(result, "structural operand result binding is not dense")?;
             let earlier = results.earlier(structural_arguments, output)?;
             let prepared = ordinary_calls::prepare(
@@ -502,30 +501,26 @@ impl OperationFrame<'_, '_> {
         Ok(())
     }
 
-    /// One scalar call: a checked `ScalarCall` into a prepared scalar callee
-    /// or a scalar-completing Unit body, or a selected operator's
-    /// realization. Structural operands or claims select the structural
-    /// scalar call shape.
+    /// One ordinary scalar call into a prepared scalar callee or a
+    /// scalar-completing Unit body. Structural operands or claims select the
+    /// structural scalar call shape.
     fn scalar_call(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
         let checked = self.checked;
-        let CheckedUnitEffectOperationPlan::ScalarCall {
-            coordinate,
-            result,
-            target_machine: realization_machine,
-            target_state: realization_state,
-            ..
-        } = operation
+        let Some((call, result)) = operation
+            .call()
+            .filter(|call| !call.is_boundary())
+            .and_then(|call| Some((call, call.scalar_result()?)))
         else {
             return unsupported("Unit scalar call custody drifted before emission");
         };
-        let source_target = match operation {
-            CheckedUnitEffectOperationPlan::ScalarCall { target_state, .. } => *target_state,
-            _ => *realization_machine,
-        };
+        let coordinate = &call.coordinate;
+        let realization_machine = &call.target.machine;
+        let realization_state = &call.target.state;
+        let source_target = call.target.state;
         if usize::try_from(result.binding_ordinal)
             .ok()
             .and_then(|ordinal| ordinal.checked_add(self.scalar_parameter_count))
@@ -533,12 +528,7 @@ impl OperationFrame<'_, '_> {
         {
             return unsupported("Unit scalar result binding ordinal drifted from source order");
         }
-        let target = match operation {
-            CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
-                CheckedScalarCallee::find_for_unit_call(checked, *realization_machine)?
-            }
-            _ => CheckedScalarCallee::find(checked, *realization_machine)?,
-        };
+        let target = CheckedScalarCallee::find_for_unit_call(checked, *realization_machine)?;
         // Both catalogs have been source-validated before emission.
         // An operation-body callee uses its real ordered emitter,
         // not a fabricated PreparedScalarCallee graph.
@@ -568,12 +558,11 @@ impl OperationFrame<'_, '_> {
             .iter()
             .map(|primitive| terminal_scalar_type(*primitive))
             .collect::<Result<Vec<_>, _>>()?;
-        let (arguments, erased_arguments, erased_proof_arguments) = match operation {
-            CheckedUnitEffectOperationPlan::ScalarCall {
-                erased_scalar_arguments,
-                erased_proof_arguments,
-                ..
-            } => {
+        let (arguments, erased_arguments, erased_proof_arguments) = match (
+            call.erased_scalar_arguments(),
+            call.erased_proof_arguments(),
+        ) {
+            (Some(erased_scalar_arguments), Some(erased_proof_arguments)) => {
                 // The checked plan keeps the proof-only lanes apart from the
                 // retained operands, in the target's erased-formal order, as
                 // for a Unit call: erased actuals are pure terms over the
@@ -661,14 +650,11 @@ impl OperationFrame<'_, '_> {
         self.record_source_call(*coordinate, None, operation_id, source_target)?;
         let callee = lookup_machine_id(self.calls.machine_ids, *realization_machine)?;
         let arguments = arguments.iter().map(|argument| argument.id).collect();
-        let kind = if let CheckedUnitEffectOperationPlan::ScalarCall {
-            structural_arguments,
-            claim_transfers,
-            ..
-        } = operation
-            && (!structural_arguments.is_empty()
-                || !claim_transfers.is_empty()
-                || target.requires_structural_frame())
+        let structural_arguments = &call.structural_arguments;
+        let claim_transfers = call.claim_transfers();
+        let kind = if !structural_arguments.is_empty()
+            || !claim_transfers.is_empty()
+            || target.requires_structural_frame()
         {
             if target.structural_parameters().is_empty() && !structural_arguments.is_empty() {
                 return unsupported("structural scalar call has no structural checked body");

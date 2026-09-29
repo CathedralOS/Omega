@@ -104,14 +104,13 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
                 *symbol = second;
             }
             2 => {
-                let checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
-                    structural_arguments,
-                    ..
-                } = &mut operations[2]
+                let Some(call) = operations[2]
+                    .call_mut()
+                    .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
                 else {
                     panic!("borrowed scalar call");
                 };
-                structural_arguments[0].source =
+                call.structural_arguments[0].source =
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal {
                         symbol: second,
                     };

@@ -171,22 +171,22 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
                 std::mem::swap(&mut when_true.target_state, &mut when_false.target_state);
             }
             3 => {
-                let checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
-                    target_contract_report_fingerprint,
-                    ..
-                } = &mut callee.states[1].operations[0]
-                else {
+                let Some(call) = callee.states[1].operations[0].call_mut().filter(|call| {
+                    call.is_boundary()
+                        && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                }) else {
                     panic!("boundary");
                 };
-                *target_contract_report_fingerprint ^= 1;
+                call.target.contract_report_fingerprint ^= 1;
             }
             4 => {
-                let checked_trees::CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } =
-                    &mut callee.states[2].operations[0]
-                else {
+                let Some(call) = callee.states[2].operations[0].call_mut().filter(|call| {
+                    !call.is_boundary()
+                        && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                }) else {
                     panic!("call");
                 };
-                coordinate.statement_index += 1;
+                call.coordinate.statement_index += 1;
             }
             5 => callee.attachment_type_identity = Some("named(name(Root))".to_owned()),
             6 => callee.attachment_type_identity = None,

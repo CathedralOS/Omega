@@ -332,9 +332,10 @@ fn validate_receipt(
             // Boundary calls with a Unit or scalar result; boundary structural
             // calls and ordinary calls are not collected here.
             let call = operation.call().filter(|call| {
-                call.is_boundary() && !matches!(call.result(), CheckedUnitCallResult::Structural(_))
+                call.is_boundary()
+                    && !matches!(call.result(), CheckedUnitCallResult::Structural { .. })
             })?;
-            let target_state = call.target_state();
+            let target_state = call.target.state;
             if !checked
                 .trait_machine_signatures(requirement_definition)
                 .iter()
@@ -342,7 +343,7 @@ fn validate_receipt(
             {
                 return None;
             }
-            let coordinate = call.coordinate();
+            let coordinate = call.coordinate;
             Some((
                 usize::try_from(coordinate.statement_index).ok()?,
                 usize::try_from(coordinate.call_ordinal).ok()?,

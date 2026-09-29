@@ -1,4 +1,4 @@
-use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};
+use checked_trees::{CheckedUnitCallResult, CheckedUnitStructuralArgumentSourcePlan};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::{LoweringError, lower_machine};
 use proof_admission::AdmissionProfile;
@@ -57,38 +57,37 @@ fn reordered_sibling_producers_with_repaired_bindings_reject_authored_execution_
     assert_eq!(caller.operations.len(), 4);
     caller.operations.swap(0, 1);
     for (binding_ordinal, operation) in caller.operations[..2].iter_mut().enumerate() {
-        let CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            result,
-            structural_arguments,
-            discard_result_on_return,
-            ..
-        } = operation
+        let Some(call) = operation
+            .call_mut()
+            .filter(|call| !call.is_boundary() && call.structural_result().is_some())
         else {
             panic!("two ordinary sibling producers");
         };
         let original_binding = 1 - binding_ordinal as u32;
-        assert_eq!(result.binding_ordinal, original_binding);
-        assert_eq!(coordinate.statement_index, 0);
-        assert_eq!(coordinate.call_ordinal, original_binding + 1);
-        assert_eq!(structural_arguments.len(), 1);
+        assert_eq!(call.coordinate.statement_index, 0);
+        assert_eq!(call.coordinate.call_ordinal, original_binding + 1);
+        assert_eq!(call.structural_arguments.len(), 1);
         assert_eq!(
-            structural_arguments[0].source,
+            call.structural_arguments[0].source,
             CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: original_binding,
             }
         );
+        let (result, discard_result_on_return) = call
+            .structural_result_mut()
+            .expect("structural call result");
+        assert_eq!(result.binding_ordinal, original_binding);
         assert!(!*discard_result_on_return);
         result.binding_ordinal = binding_ordinal as u32;
     }
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        coordinate,
-        structural_arguments,
-        ..
-    } = &mut caller.operations[2]
+    let Some(call) = caller.operations[2]
+        .call_mut()
+        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
     else {
         panic!("enclosing Unit consumer follows both siblings");
     };
+    let coordinate = &call.coordinate;
+    let structural_arguments = &mut call.structural_arguments;
     assert_eq!(coordinate.statement_index, 0);
     assert_eq!(coordinate.call_ordinal, 0);
     assert_eq!(structural_arguments.len(), 2);

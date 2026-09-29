@@ -18,7 +18,7 @@ use super::{
     returned_named_view, returned_parameter, returned_reference_leaf, returned_subslice,
     structural_operands,
 };
-use checked_trees::CheckedUnitStructuralReturnPlan;
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
 /// A planned body's final state, with the inputs completion reads.
 pub(super) struct Completion<'a, 'program, 'shapes> {
@@ -79,11 +79,11 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         return None;
     }
     trace.phase("statement sequence: structural return types");
+    // Only an ordinary structural call imports the callee's return types.
     if operations.iter().any(|operation| {
-        matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::StructuralCall { .. }
-        )
+        operation
+            .call()
+            .is_some_and(|call| !call.is_boundary() && call.structural_result().is_some())
     }) {
         for plan in &facts.flow.terminal_structural_returns.structural_types {
             if shapes
@@ -141,38 +141,25 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         }
         let qualifications = parameter_qualifications(program, shapes, state.return_type, binders)?;
         for operation in &mut operations {
-            if let CheckedUnitEffectOperationPlan::StructuralCall {
-                result, custody, ..
-            } = operation
+            // An ordinary structural call's custody carries its qualifications.
+            if let Some(call) = operation.call()
+                && let Some(result) = call.structural_result()
+                && let Some(custody) = call.structural_custody()
                 && result.binding_ordinal == binding.binding_ordinal
                 && custody.result_qualifications != qualifications
             {
                 return None;
             }
-            match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result,
-                    discard_result_on_return,
-                    ..
+            if let Some((result, discard_result_on_return)) =
+                operation.discardable_structural_result_mut()
+                && result.binding_ordinal == binding.binding_ordinal
+            {
+                // Only affine results have automatic disposal debt.
+                // Linear results retain the call's checked claim frontier.
+                if binding.multiplicity == Multiplicity::Affine && !*discard_result_on_return {
+                    return None;
                 }
-                | CheckedUnitEffectOperationPlan::StructuralCall {
-                    result,
-                    discard_result_on_return,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    result,
-                    discard_result_on_return,
-                    ..
-                } if result.binding_ordinal == binding.binding_ordinal => {
-                    // Only affine results have automatic disposal debt.
-                    // Linear results retain the call's checked claim frontier.
-                    if binding.multiplicity == Multiplicity::Affine && !*discard_result_on_return {
-                        return None;
-                    }
-                    *discard_result_on_return = false;
-                }
-                _ => {}
+                *discard_result_on_return = false;
             }
         }
         Some(binding.into())
@@ -276,23 +263,16 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         // A call result forwarded straight to the machine's structural return
         // is consumed by that return; it must not also carry disposal debt.
         for operation in &mut operations {
-            match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    result,
-                    discard_result_on_return,
-                    ..
+            // Any call with a structural result, ordinary or boundary.
+            if let Some((result, discard_result_on_return)) = operation
+                .call_mut()
+                .and_then(CheckedUnitCallPlan::structural_result_mut)
+                && result.binding_ordinal == binding.binding_ordinal
+            {
+                if binding.multiplicity == Multiplicity::Affine && !*discard_result_on_return {
+                    return None;
                 }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    result,
-                    discard_result_on_return,
-                    ..
-                } if result.binding_ordinal == binding.binding_ordinal => {
-                    if binding.multiplicity == Multiplicity::Affine && !*discard_result_on_return {
-                        return None;
-                    }
-                    *discard_result_on_return = false;
-                }
-                _ => {}
+                *discard_result_on_return = false;
             }
         }
         Some(binding.into())
@@ -468,11 +448,14 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     trace.phase("statement sequence: scalar control ownership");
     if scalar_control.is_some()
         && operations.iter().any(|operation| {
-            matches!(operation,
-            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                if result.multiplicity != Multiplicity::Unrestricted)
+            let result = match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+                    Some(result)
+                }
+                CheckedUnitEffectOperationPlan::Call(call) => call.structural_result(),
+                _ => None,
+            };
+            result.is_some_and(|result| result.multiplicity != Multiplicity::Unrestricted)
         })
     {
         return None;

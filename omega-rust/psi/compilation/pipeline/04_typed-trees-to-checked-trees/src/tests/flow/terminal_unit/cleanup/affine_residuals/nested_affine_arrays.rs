@@ -4,6 +4,7 @@ use crate::tests::flow::terminal_unit::cleanup::{
 use crate::tests::flow::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, checked, machine_named,
 };
+use checked_trees::CheckedUnitCallResult;
 
 #[test]
 fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order() {
@@ -190,10 +191,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -218,10 +220,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested quartet cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -246,10 +249,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested quintet cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -283,10 +287,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested sextet cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -322,10 +327,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested septet cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -363,10 +369,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested octet cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -406,10 +413,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested nonet cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -451,10 +459,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested decet cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -498,10 +507,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested length-eleven cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -549,10 +559,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested length-twelve cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -600,10 +611,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested length-thirteen cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -655,10 +667,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested length-fourteen cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -712,10 +725,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested length-fifteen cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),
@@ -769,10 +783,11 @@ fn nested_affine_arrays_discard_each_live_complement_in_decreasing_index_order()
         plan.machine.operations[..2]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => path(&structural_arguments[0].path),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    path(&call.structural_arguments[0].path)
+                }
                 _ => panic!("nested length-sixteen cleanup contains calls before return"),
             })
             .collect::<Vec<_>>(),

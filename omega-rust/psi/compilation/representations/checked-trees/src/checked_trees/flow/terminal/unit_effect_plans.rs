@@ -7,18 +7,17 @@ use crate::checked_trees::flow::terminal::{
     CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan, CheckedElementViewWritePlan,
     CheckedPrimitiveStoreDestination, CheckedProviderAttachmentRequirementPlan,
     CheckedScalarStateTerminator, CheckedStructuralByteSequenceFieldByteStorePlan,
-    CheckedStructuralCallCustodyPlan, CheckedStructuralScalarParameterPlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
-    CheckedUnitClaimTransferPlan, CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
-    CheckedUnitStructuralTypePlan,
+    CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
+    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitEntryClaimPlan,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
 };
-use crate::checked_trees::values::{CheckedErasedProofParameterPlan, CheckedProofTerm};
+use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{
     CheckedScalarExpression, CheckedStructuralCaseFieldStorePlan,
-    CheckedStructuralScalarFieldStorePlan, NominalMachineUseSite,
+    CheckedStructuralScalarFieldStorePlan,
 };
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
@@ -197,115 +196,9 @@ pub enum CheckedUnitEffectOperationPlan {
         result: CheckedUnitScalarResultBindingPlan,
         value: CheckedCallScalarArgument,
     },
-    CallUnit {
-        coordinate: CheckedUnitCallCoordinate,
-        target_machine: SymbolHandle,
-        target_state: SymbolHandle,
-        target_contract_report_fingerprint: u64,
-        service_reach: ServiceReachSummary,
-        scalar_arguments: Vec<CheckedCallScalarArgument>,
-        /// Proof-only erased actuals in the target's erased-formal order.
-        erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
-        /// Erased proof-only actuals in the target's erased-proof roster
-        /// order. They carry semantic identity, never a runtime operand.
-        erased_proof_arguments: Vec<CheckedProofTerm>,
-        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
-        claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
-    },
-    /// Invoke one ordinary checked scalar machine from an attached Unit body
-    /// and bind its primitive result into the dense local scalar namespace.
-    /// Scalar graphs remain scalar-only; boundary-return bodies may also
-    /// receive exact structural arguments and their existing linear claims.
-    ScalarCall {
-        coordinate: CheckedUnitCallCoordinate,
-        result: CheckedUnitScalarResultBindingPlan,
-        target_machine: SymbolHandle,
-        target_state: SymbolHandle,
-        target_contract_report_fingerprint: u64,
-        target_contract_commitment: crate::MachineContractCommitment,
-        service_reach: ServiceReachSummary,
-        scalar_arguments: Vec<CheckedCallScalarArgument>,
-        /// Proof-only erased actuals in the target's erased-formal order.
-        erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
-        /// Erased proof-only actuals in the target's erased-proof roster
-        /// order. They carry semantic identity, never a runtime operand.
-        erased_proof_arguments: Vec<CheckedProofTerm>,
-        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
-        claim_transfers: Vec<CheckedUnitClaimTransferPlan>,
-    },
-    /// Invoke an ordinary checked whole owned result producer and retain
-    /// its exact result binding. This is neither a boundary invocation nor a
-    /// selected operator application; the checked callee owns its semantics.
-    StructuralCall {
-        coordinate: CheckedUnitCallCoordinate,
-        source_site: Option<NominalMachineUseSite>,
-        result: CheckedUnitStructuralResultBindingPlan,
-        custody: CheckedStructuralCallCustodyPlan,
-        target_machine: SymbolHandle,
-        target_state: SymbolHandle,
-        target_contract_report_fingerprint: u64,
-        target_contract_commitment: crate::MachineContractCommitment,
-        service_reach: ServiceReachSummary,
-        scalar_arguments: Vec<CheckedCallScalarArgument>,
-        /// Proof-only erased actuals in the target's erased-formal order.
-        erased_scalar_arguments: Vec<CheckedCallScalarArgument>,
-        /// Erased proof-only actuals in the target's erased-proof roster
-        /// order. They carry semantic identity, never a runtime operand.
-        erased_proof_arguments: Vec<CheckedProofTerm>,
-        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
-        discard_result_on_return: bool,
-    },
-    BoundaryCall {
-        coordinate: CheckedUnitCallCoordinate,
-        /// Exact authored call site retained for target-owned occurrence joins.
-        /// Transition-target calls have no statement/expression arena site.
-        source_site: Option<NominalMachineUseSite>,
-        target_machine: SymbolHandle,
-        target_state: SymbolHandle,
-        target_contract_report_fingerprint: u64,
-        service_reach: ServiceReachSummary,
-        /// Checked primitive arguments in the boundary declaration's dense
-        /// scalar-parameter order. Structural arguments retain their separate
-        /// custody namespace below.
-        scalar_arguments: Vec<CheckedCallScalarArgument>,
-        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
-        completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
-    },
-    /// Invoke one result-bearing bodyless boundary and bind its primitive
-    /// result to the exact immutable local declared by this statement. This is
-    /// deliberately distinct from `BoundaryCall`: downstream lowering must
-    /// publish a scalar result and make it available to later operations.
-    BoundaryScalarCall {
-        coordinate: CheckedUnitCallCoordinate,
-        source_site: Option<NominalMachineUseSite>,
-        result: CheckedUnitScalarResultBindingPlan,
-        target_machine: SymbolHandle,
-        target_state: SymbolHandle,
-        target_contract_report_fingerprint: u64,
-        service_reach: ServiceReachSummary,
-        scalar_arguments: Vec<CheckedCallScalarArgument>,
-        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
-        completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
-    },
-    /// Invoke one result-bearing bodyless boundary and bind its whole
-    /// structural result to the exact immutable local declared by this
-    /// statement. The result signature remains target-neutral; physical
-    /// placement belongs to native realization.
-    BoundaryStructuralCall {
-        coordinate: CheckedUnitCallCoordinate,
-        source_site: Option<NominalMachineUseSite>,
-        result: CheckedUnitStructuralResultBindingPlan,
-        target_machine: SymbolHandle,
-        target_state: SymbolHandle,
-        target_contract_report_fingerprint: u64,
-        service_reach: ServiceReachSummary,
-        scalar_arguments: Vec<CheckedCallScalarArgument>,
-        structural_arguments: Vec<CheckedUnitStructuralArgumentPlan>,
-        completion_receipts: Vec<CheckedUnitClaimTransferPlan>,
-        /// One affine result not consumed by a later operation is explicitly
-        /// discarded on the caller's final Unit return.
-        discard_result_on_return: bool,
-    },
+    /// One ordinary or boundary call with a Unit, scalar or structural
+    /// result. Selected operators keep their own operand lanes.
+    Call(CheckedUnitCallPlan),
     PortWrite {
         coordinate: CheckedUnitCallCoordinate,
         port: u16,
@@ -393,11 +286,12 @@ impl CheckedStructuralValueCall {
         value: crate::CheckedStructuralValueHandle,
         operation: CheckedUnitEffectOperationPlan,
     ) -> Option<Self> {
-        matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::StructuralCall { .. }
-        )
-        .then_some(Self { value, operation })
+        // Only an ordinary structural call produces a value operand; a
+        // boundary result keeps its own statement-level binding.
+        operation
+            .call()
+            .is_some_and(|call| !call.is_boundary() && call.structural_result().is_some())
+            .then_some(Self { value, operation })
     }
 
     pub fn operation(&self) -> &CheckedUnitEffectOperationPlan {
@@ -416,9 +310,8 @@ impl CheckedUnitEffectOperationPlan {
             | Self::EstablishViewSubslice { result, .. }
             | Self::EstablishStructuralValue { result, .. }
             | Self::EstablishScalarArray { result, .. }
-            | Self::StructuralCall { result, .. }
-            | Self::BoundaryStructuralCall { result, .. }
             | Self::MoveStructuralField { result, .. } => Some(result),
+            Self::Call(call) => call.structural_result(),
             _ => None,
         }
     }
@@ -450,8 +343,58 @@ impl CheckedUnitEffectOperationPlan {
     /// operation. Selected-operator calls keep their own operand lanes.
     pub fn call_structural_arguments(&self) -> &[CheckedUnitStructuralArgumentPlan] {
         self.call()
-            .map(|call| call.structural_arguments())
+            .map(|call| call.structural_arguments.as_slice())
             .unwrap_or_default()
+    }
+
+    /// The ordinary or boundary call this operation performs; `None` for
+    /// every other operation. Selected operators keep their own operand lanes.
+    pub fn call(&self) -> Option<&CheckedUnitCallPlan> {
+        match self {
+            Self::Call(call) => Some(call),
+            _ => None,
+        }
+    }
+
+    pub fn call_mut(&mut self) -> Option<&mut CheckedUnitCallPlan> {
+        match self {
+            Self::Call(call) => Some(call),
+            _ => None,
+        }
+    }
+
+    /// The structural result binding of a call or a constructed value, the
+    /// producers that own an automatic return discard, with that flag. The
+    /// other structural producers answer `None`.
+    pub fn discardable_structural_result(
+        &self,
+    ) -> Option<(&CheckedUnitStructuralResultBindingPlan, bool)> {
+        match self {
+            Self::EstablishStructuralValue {
+                result,
+                discard_result_on_return,
+                ..
+            } => Some((result, *discard_result_on_return)),
+            Self::Call(call) => call
+                .structural_result()
+                .zip(call.discard_result_on_return()),
+            _ => None,
+        }
+    }
+
+    /// [`Self::discardable_structural_result`] with its flag writable.
+    pub fn discardable_structural_result_mut(
+        &mut self,
+    ) -> Option<(&mut CheckedUnitStructuralResultBindingPlan, &mut bool)> {
+        match self {
+            Self::EstablishStructuralValue {
+                result,
+                discard_result_on_return,
+                ..
+            } => Some((result, discard_result_on_return)),
+            Self::Call(call) => call.structural_result_mut(),
+            _ => None,
+        }
     }
 
     /// Enumerate retained operation dependencies for signature/catalog readers.

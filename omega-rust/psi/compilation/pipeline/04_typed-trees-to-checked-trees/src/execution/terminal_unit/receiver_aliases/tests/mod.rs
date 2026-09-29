@@ -5,6 +5,7 @@ use super::{
 use crate::execution::terminal_unit::receiver_aliases::ReceiverAlias;
 use crate::execution::terminal_unit::receiver_aliases::aliases as alias_roster;
 use crate::tests::front_end::checked_program;
+use checked_trees::CheckedUnitCallResult;
 
 mod mutable;
 
@@ -78,19 +79,22 @@ fn direct_write_only_aliases_preserve_parameters_and_sequential_receivers() {
             CheckedUnitEffectOperationPlan::Complete { .. }
         ));
         for (statement_index, operation) in plan.operations[..2].iter().enumerate() {
-            let CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                structural_arguments,
-                ..
-            } = operation
-            else {
+            let Some(call) = operation.call().filter(|call| {
+                !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit
+            }) else {
                 panic!("receiver call");
             };
-            assert_eq!(coordinate.statement_index as usize, statement_index + 1);
-            assert_eq!(structural_arguments.len(), 1);
-            assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
             assert_eq!(
-                structural_arguments[0].path,
+                call.coordinate.statement_index as usize,
+                statement_index + 1
+            );
+            assert_eq!(call.structural_arguments.len(), 1);
+            assert_eq!(
+                call.structural_arguments[0].source_parameter_index(),
+                Some(0)
+            );
+            assert_eq!(
+                call.structural_arguments[0].path,
                 vec![CheckedUnitStructuralPathSegment::FixedIndex(
                     statement_index as u64
                 )]
@@ -146,14 +150,13 @@ fn projected_self_alias_retains_capture_and_normalized_receiver_paths() {
         .iter()
         .find(|plan| plan.machine == machine.symbol)
         .expect("projected attached caller plan");
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &plan.operations[0]
+    let Some(call) = plan.operations[0]
+        .call()
+        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
     else {
         panic!("receiver call");
     };
-    assert_eq!(structural_arguments[0].path.len(), 2);
+    assert_eq!(call.structural_arguments[0].path.len(), 2);
     let StatementNode::LocalData(local) =
         &checked.statement_table.statements(state.statement_nodes)[0]
     else {

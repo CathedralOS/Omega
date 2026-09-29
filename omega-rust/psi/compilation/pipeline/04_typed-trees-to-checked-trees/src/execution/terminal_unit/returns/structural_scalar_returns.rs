@@ -756,40 +756,32 @@ pub(crate) fn is_bounded_scalar_nominal_cleanup_target(
 
     let mut helpers = Vec::with_capacity(cleanup_calls.len());
     for (statement_index, operation) in cleanup_calls.iter().enumerate() {
-        let CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            scalar_arguments,
-            erased_scalar_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-        } = operation
-        else {
+        // Each cleanup helper is an ordinary Unit call with no operands.
+        let Some(call) = operation.call().filter(|call| {
+            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+        }) else {
             return false;
         };
-        if usize::try_from(coordinate.statement_index).ok() != Some(statement_index)
-            || coordinate.call_ordinal != 0
-            || *target_machine == cleanup_machine
+        let target = call.target;
+        if usize::try_from(call.coordinate.statement_index).ok() != Some(statement_index)
+            || call.coordinate.call_ordinal != 0
+            || target.machine == cleanup_machine
             || helpers
                 .iter()
-                .any(|(helper, _, _)| helper == target_machine)
-            || !service_reach_is_empty(facts, *service_reach)
-            || !scalar_arguments.is_empty()
-            || !erased_scalar_arguments.is_empty()
-            || !erased_proof_arguments.is_empty()
-            || !structural_arguments.is_empty()
-            || !claim_transfers.is_empty()
+                .any(|(helper, _, _)| *helper == target.machine)
+            || !service_reach_is_empty(facts, target.service_reach)
+            || !call.scalar_arguments.is_empty()
+            || !call.erased_scalar_arguments().is_some_and(<[_]>::is_empty)
+            || !call.erased_proof_arguments().is_some_and(<[_]>::is_empty)
+            || !call.structural_arguments.is_empty()
+            || !call.claim_transfers().is_empty()
         {
             return false;
         }
         helpers.push((
-            *target_machine,
-            *target_state,
-            *target_contract_report_fingerprint,
+            target.machine,
+            target.state,
+            target.contract_report_fingerprint,
         ));
     }
 

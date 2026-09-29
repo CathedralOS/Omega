@@ -23,11 +23,11 @@ pub(super) fn validate(
     // Every call but an ordinary scalar call replays its byte loans here.
     let Some(planned) = operation
         .call()
-        .filter(|_| !matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. }))
+        .filter(|call| call.is_boundary() || call.scalar_result().is_none())
     else {
         return Ok(());
     };
-    let arguments = planned.structural_arguments();
+    let arguments = &planned.structural_arguments;
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let signature = authored::target_signature(checked, machine.symbol, call.source_target)?;

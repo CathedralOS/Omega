@@ -38,18 +38,19 @@ impl OperationFrame<'_, '_> {
         operation: &CheckedUnitEffectOperationPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
-        let CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            source_site,
-            target_machine,
-            ..
-        } = operation
-        else {
+        let Some(call) = operation.call().filter(|call| {
+            call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+        }) else {
             return unsupported("boundary Unit call custody drifted before emission");
         };
         let operands = self.boundary_operands(operation, inputs)?;
         let id = self.operations.allocate();
-        self.record_source_call(*coordinate, *source_site, id, *target_machine)?;
+        self.record_source_call(
+            call.coordinate,
+            call.source_site().flatten(),
+            id,
+            call.target.machine,
+        )?;
         self.operations.push(Operation {
             static_reach_binding: None,
             suspension_crossing: None,
@@ -65,16 +66,14 @@ impl OperationFrame<'_, '_> {
         operation: &CheckedUnitEffectOperationPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<ValueDeclaration, LoweringError> {
-        let CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            coordinate,
-            source_site,
-            result,
-            target_machine,
-            ..
-        } = operation
+        let Some((call, result)) = operation
+            .call()
+            .filter(|call| call.is_boundary())
+            .and_then(|call| Some((call, call.scalar_result()?)))
         else {
             return unsupported("boundary scalar call custody drifted before emission");
         };
+        let target_machine = &call.target.machine;
         if usize::try_from(result.binding_ordinal)
             .ok()
             .and_then(|ordinal| ordinal.checked_add(self.scalar_parameter_count))
@@ -93,7 +92,12 @@ impl OperationFrame<'_, '_> {
             scalar_type: terminal_scalar_type(result.primitive_type)?,
         };
         let id = self.operations.allocate();
-        self.record_source_call(*coordinate, *source_site, id, *target_machine)?;
+        self.record_source_call(
+            call.coordinate,
+            call.source_site().flatten(),
+            id,
+            *target_machine,
+        )?;
         self.operations.push(Operation {
             static_reach_binding: None,
             suspension_crossing: None,
@@ -110,17 +114,21 @@ impl OperationFrame<'_, '_> {
         inputs: &CallInputs<'_>,
     ) -> Result<(), LoweringError> {
         let checked = self.checked;
-        let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            source_site,
-            result,
-            target_machine,
-            discard_result_on_return,
-            ..
-        } = operation
+        let Some((
+            call,
+            checked_trees::CheckedUnitCallResult::Structural {
+                binding: result,
+                discard_result_on_return,
+            },
+        )) = operation
+            .call()
+            .filter(|call| call.is_boundary())
+            .map(|call| (call, call.result()))
         else {
             return unsupported("boundary structural call custody drifted before emission");
         };
+        let coordinate = &call.coordinate;
+        let target_machine = &call.target.machine;
         self.results.require_next(
             result,
             "Unit structural result binding ordinal drifted from source order",
@@ -156,7 +164,12 @@ impl OperationFrame<'_, '_> {
         } else {
             Vec::new()
         };
-        self.record_source_call(*coordinate, *source_site, id, *target_machine)?;
+        self.record_source_call(
+            *coordinate,
+            call.source_site().flatten(),
+            id,
+            *target_machine,
+        )?;
         // The declared result domains mint their caller-side establishment
         // through this call's CallEnsures evidence.
         let qualification_establishments =
@@ -216,9 +229,9 @@ impl OperationFrame<'_, '_> {
         let Some(call) = operation.call().filter(|call| call.is_boundary()) else {
             return unsupported("boundary call custody drifted before emission");
         };
-        let target_machine = call.target_machine();
-        let scalar_arguments = call.scalar_arguments();
-        let structural_arguments = call.structural_arguments();
+        let target_machine = call.target.machine;
+        let scalar_arguments = &call.scalar_arguments;
+        let structural_arguments = &call.structural_arguments;
         // A boundary call's claim transfers are its completion receipts.
         let completion_receipts = call.claim_transfers();
         let target = unique_unit_boundary(self.callees.plans, target_machine)?;

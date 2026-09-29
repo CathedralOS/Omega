@@ -132,19 +132,17 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "local receiver does not name established result storage",
             ))?;
-    let mut producers = caller_operations
-        .iter()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-            | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-                if result.binding_ordinal == binding =>
-            {
-                Some(result)
-            }
-            _ => None,
-        });
+    let mut producers = caller_operations.iter().filter_map(|operation| {
+        // A constructed value, a moved field, or a call with a structural
+        // result, ordinary or boundary.
+        let result = match operation {
+            CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => Some(result),
+            _ => operation
+                .discardable_structural_result()
+                .map(|(result, _)| result),
+        }?;
+        (result.binding_ordinal == binding).then_some(result)
+    });
     let result = producers.next().ok_or(LoweringError::Unsupported(
         "local receiver producer missing",
     ))?;

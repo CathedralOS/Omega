@@ -12,7 +12,7 @@ pub(super) fn validate(
     let Some(planned) = operation.call() else {
         return Ok(());
     };
-    let arguments = planned.structural_arguments();
+    let arguments = &planned.structural_arguments;
     if !arguments
         .iter()
         .any(|argument| argument.byte_sequence_literal().is_some())

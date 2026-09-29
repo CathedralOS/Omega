@@ -7,7 +7,7 @@ use crate::TerminalMachineSelection;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::terminal_identities::claim_id;
 use checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitCallResult, CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
 use language_semantics::Multiplicity;
@@ -91,28 +91,29 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
         machine.entry_claims.push(sibling);
     }
     let root_sibling_claim = plans.machines[0].entry_claims[1].claim_identity;
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        claim_transfers, ..
-    } = &mut plans.machines[0].operations[0]
+    let Some(call) = plans.machines[0].operations[0]
+        .call_mut()
+        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
     else {
         unreachable!()
     };
-    claim_transfers.push(checked_trees::CheckedUnitClaimTransferPlan {
-        claim_identity: root_sibling_claim,
-        argument_index: 0,
-    });
+    call.claim_transfers_mut()
+        .push(checked_trees::CheckedUnitClaimTransferPlan {
+            claim_identity: root_sibling_claim,
+            argument_index: 0,
+        });
     let helper_sibling_claim = plans.machines[1].entry_claims[1].claim_identity;
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        completion_receipts,
-        ..
-    } = &mut plans.machines[1].operations[1]
+    let Some(call) = plans.machines[1].operations[1]
+        .call_mut()
+        .filter(|call| call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
     else {
         unreachable!()
     };
-    completion_receipts.push(checked_trees::CheckedUnitClaimTransferPlan {
-        claim_identity: helper_sibling_claim,
-        argument_index: 0,
-    });
+    call.claim_transfers_mut()
+        .push(checked_trees::CheckedUnitClaimTransferPlan {
+            claim_identity: helper_sibling_claim,
+            argument_index: 0,
+        });
 
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("both sibling resources should cross the complete Unit closure");

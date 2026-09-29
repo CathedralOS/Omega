@@ -539,39 +539,30 @@ fn shared_result_operands_keep_exact_authored_identity_and_final_cleanup() {
             .find(|plan| plan.machine == main_machine(&original).symbol)
             .unwrap();
         if mutation == 0 {
-            let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                discard_result_on_return,
-                ..
-            } = plan
+            let (_, discard_result_on_return) = plan
                 .operations
                 .iter_mut()
-                .find(|operation| {
-                    matches!(operation,
-                CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-                    if result.binding_ordinal == 0)
+                .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+                .find(|call| {
+                    call.is_boundary()
+                        && call
+                            .structural_result()
+                            .is_some_and(|result| result.binding_ordinal == 0)
                 })
-                .unwrap()
-            else {
-                panic!("first producer")
-            };
+                .and_then(|call| call.structural_result_mut())
+                .expect("first producer");
             *discard_result_on_return = false;
         } else {
-            let CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            } = plan
+            let structural_arguments = &mut plan
                 .operations
                 .iter_mut()
-                .find(|operation| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-                    )
+                .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+                .find(|call| {
+                    call.is_boundary()
+                        && *call.result() == checked_trees::CheckedUnitCallResult::Unit
                 })
                 .unwrap()
-            else {
-                unreachable!()
-            };
+                .structural_arguments;
             match mutation {
                 1 => {
                     structural_arguments[0].source =

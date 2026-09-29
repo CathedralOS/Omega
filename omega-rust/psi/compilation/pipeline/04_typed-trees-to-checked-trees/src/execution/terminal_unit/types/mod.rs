@@ -74,8 +74,8 @@ pub(super) fn return_unit_affine_discards(
         .flat_map(|operation| operation.with_value_calls())
     {
         if let Some(call) = operation.call() {
-            let coordinate = call.coordinate();
-            for argument in call.structural_arguments() {
+            let coordinate = call.coordinate;
+            for argument in &call.structural_arguments {
                 if argument.access != CheckedStructuralAccess::Owned {
                     continue;
                 }

@@ -1,7 +1,8 @@
 //! Named call results retain their root while projected disposers move fields.
-use super::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
+use super::CheckedUnitStructuralPathSegment;
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
+use checked_trees::CheckedUnitCallResult;
 
 mod anonymous;
 mod anonymous_shared;
@@ -52,40 +53,31 @@ fn partial_result_cleanup_retains_exact_producer_root_and_residual() {
             .for_machine(machine)
             .expect("partial cleanup owns the named result");
         assert_eq!(plan.machine.operations.len(), 3);
-        let result = match &plan.machine.operations[0] {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                result,
+        let result = match plan.machine.operations[0].call().map(|call| call.result()) {
+            Some(CheckedUnitCallResult::Structural {
+                binding,
                 discard_result_on_return,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                result,
-                discard_result_on_return,
-                ..
-            } => {
+            }) => {
                 assert!(
                     !discard_result_on_return,
                     "partial cleanup never discards the whole result"
                 );
-                result
+                binding
             }
             _ => panic!("a real producer precedes the move"),
         };
         assert_eq!(result.binding_ordinal, 0);
         assert_eq!(result.statement_index, 0);
-        let CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            structural_arguments,
-            claim_transfers,
-            ..
-        } = &plan.machine.operations[1]
+        let Some(call) = plan.machine.operations[1]
+            .call()
+            .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
         else {
             panic!("projected Unit disposer")
         };
-        assert_eq!(coordinate.statement_index, 1);
-        assert_eq!(coordinate.call_ordinal, 0);
-        assert!(claim_transfers.is_empty());
-        let [argument] = structural_arguments.as_slice() else {
+        assert_eq!(call.coordinate.statement_index, 1);
+        assert_eq!(call.coordinate.call_ordinal, 0);
+        assert!(call.claim_transfers().is_empty());
+        let [argument] = call.structural_arguments.as_slice() else {
             panic!("one projected argument")
         };
         let source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -115,12 +107,7 @@ fn partial_result_cleanup_retains_exact_producer_root_and_residual() {
                         == language_semantics::PermissionEventSource::Call {
                             statement_index: 1,
                             call_ordinal: 0,
-                            target_symbol: match &plan.machine.operations[1] {
-                                CheckedUnitEffectOperationPlan::CallUnit {
-                                    target_state, ..
-                                } => *target_state,
-                                _ => unreachable!(),
-                            },
+                            target_symbol: call.target.state,
                         }
                     && event.kind == language_semantics::PermissionEventKind::Transfer
             })

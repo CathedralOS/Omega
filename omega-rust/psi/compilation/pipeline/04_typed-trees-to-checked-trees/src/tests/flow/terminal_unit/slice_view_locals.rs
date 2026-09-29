@@ -309,10 +309,12 @@ fn literal_view_local_can_be_borrowed_by_a_boundary_before_a_state_edge() {
         .expect("a borrowed local keeps the same call custody before a state edge");
     assert!(plan.states[0].operations.iter().any(|operation| matches!(
         operation,
-        checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall { structural_arguments, .. }
-            if structural_arguments.iter().any(|argument|
-                argument.source_structural_result_binding_ordinal() == Some(0)
-                    && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
+        checked_trees::CheckedUnitEffectOperationPlan::Call(call)
+            if call.is_boundary()
+                && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                && call.structural_arguments.iter().any(|argument|
+                    argument.source_structural_result_binding_ordinal() == Some(0)
+                        && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
     )));
 }
 

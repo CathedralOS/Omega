@@ -94,7 +94,7 @@ pub(crate) fn validate_store_and_initializer_calls(
         let mut owners = plan.operations.iter().enumerate().filter(|(_, operation)| {
             operation
                 .call()
-                .is_some_and(|call| call.coordinate() == coordinate)
+                .is_some_and(|call| call.coordinate == coordinate)
                 || match operation {
                     CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                         result,
@@ -114,13 +114,11 @@ pub(crate) fn validate_store_and_initializer_calls(
                     } => {
                         result.statement_index == statement_index
                             && calls.iter().all(|call| {
-                                !matches!(
-                                    call.operation(),
-                                    CheckedUnitEffectOperationPlan::StructuralCall {
-                                        coordinate: actual,
-                                        ..
-                                    } if *actual == coordinate
-                                )
+                                !call.operation().call().is_some_and(|planned| {
+                                    !planned.is_boundary()
+                                        && planned.structural_result().is_some()
+                                        && planned.coordinate == coordinate
+                                })
                             })
                     }
                     _ => false,
@@ -138,8 +136,9 @@ pub(crate) fn validate_store_and_initializer_calls(
         } = owner
         {
             // A local initializer's computation owns its outer call as well as
-            // nested operands. Requiring a second ScalarCall would execute it
-            // twice; replay the existing computation's complete call roster.
+            // nested operands. Requiring a second scalar call operation would
+            // execute it twice; replay the existing computation's complete call
+            // roster.
             crate::expression_preparation::source_custody::validate_computation_calls(
                 checked,
                 plan.machine,
@@ -155,11 +154,11 @@ pub(crate) fn validate_store_and_initializer_calls(
             )?;
         }
         if matches!(statement, StatementNode::Call(call) if call.discards_result)
-            && let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                result,
+            && let Some(owner_call) = owner.call().filter(|call| call.is_boundary())
+            && let CheckedUnitCallResult::Structural {
+                binding: result,
                 discard_result_on_return,
-                ..
-            } = owner
+            } = owner_call.result()
         {
             // The source discard independently demands its continuation. A
             // producer cannot delete cleanup and substitute return-time custody.
@@ -213,8 +212,11 @@ pub(crate) fn validate_operation(
     let Some(planned) = operation.call() else {
         return Ok(());
     };
-    let coordinate = planned.coordinate();
-    if let CheckedUnitCallResult::Structural(result) = planned.result() {
+    let coordinate = planned.coordinate;
+    if let CheckedUnitCallResult::Structural {
+        binding: result, ..
+    } = planned.result()
+    {
         initializers::validate_structural(
             checked,
             caller_machine,
@@ -296,7 +298,7 @@ pub(crate) fn validate_operation(
             }
         }
     }
-    let arguments = planned.scalar_arguments();
+    let arguments = &planned.scalar_arguments;
     // A boundary call retains no erased lane.
     let erased_arguments = planned.erased_scalar_arguments().unwrap_or_default();
     let boundary = planned.is_boundary();
@@ -305,7 +307,7 @@ pub(crate) fn validate_operation(
     let initializer_owner = match planned.result() {
         CheckedUnitCallResult::Unit => false,
         CheckedUnitCallResult::Scalar(_) => true,
-        CheckedUnitCallResult::Structural(_) => boundary,
+        CheckedUnitCallResult::Structural { .. } => boundary,
     };
     if initializer_owner
         && coordinate.call_ordinal == 0
@@ -323,8 +325,8 @@ pub(crate) fn validate_operation(
         caller_machine,
         caller_state,
         coordinate,
-        planned.target_machine(),
-        planned.target_state(),
+        planned.target.machine,
+        planned.target.state,
     )?;
     // Unit and scalar calls retain no site to compare.
     if call.boundary != boundary
@@ -479,7 +481,7 @@ fn validate_owned_parameter_arguments(
     let Some(planned) = operation.call() else {
         return Ok(());
     };
-    let structural_arguments = planned.structural_arguments();
+    let structural_arguments = &planned.structural_arguments;
     if !structural_arguments.iter().any(|argument| {
         argument.source_parameter_index().is_some()
             && argument.access == checked_trees::CheckedStructuralAccess::Owned

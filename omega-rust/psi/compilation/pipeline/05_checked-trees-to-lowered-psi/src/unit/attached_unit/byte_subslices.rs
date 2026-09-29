@@ -68,11 +68,11 @@ pub(super) fn emit(
     // and structural calls are refused.
     let Some(call) = operation
         .call()
-        .filter(|call| call.is_boundary() || call.result() == CheckedUnitCallResult::Unit)
+        .filter(|call| call.is_boundary() || *call.result() == CheckedUnitCallResult::Unit)
     else {
         return unsupported("subslice schedule has no call coordinate");
     };
-    let coordinate = call.coordinate();
+    let coordinate = call.coordinate;
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked, plan.state, coordinate,
     )?;

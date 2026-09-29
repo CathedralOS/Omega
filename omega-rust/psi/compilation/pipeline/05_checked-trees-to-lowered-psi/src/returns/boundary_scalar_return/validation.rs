@@ -3,7 +3,7 @@
 use super::super::checked_unit_target_reach_matches;
 use super::{
     CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan, CheckedTrees,
-    CheckedUnitEffectOperationPlan, LoweringError, source_custody, unsupported,
+    LoweringError, source_custody, unsupported,
 };
 pub(crate) fn validate_boundary_scalar_return<'a>(
     checked: &'a CheckedTrees,
@@ -28,17 +28,15 @@ pub(crate) fn validate_boundary_scalar_return<'a>(
         &plan.structural_parameters,
     )?;
     let plans = &checked.facts.flow.terminal_boundary_scalar_returns;
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        coordinate,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        service_reach,
-        ..
-    } = &plan.boundary_call
-    else {
-        return unsupported("result-bearing boundary plan does not contain a boundary call");
-    };
+    let call = super::retained_boundary_call(
+        plan,
+        "result-bearing boundary plan does not contain a boundary call",
+    )?;
+    let coordinate = &call.coordinate;
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
+    let target_contract_report_fingerprint = &call.target.contract_report_fingerprint;
+    let service_reach = &call.target.service_reach;
     if coordinate.statement_index != 0
         || coordinate.call_ordinal != 0
         || plan.return_statement_ordinal != 1
@@ -53,27 +51,18 @@ pub(crate) fn validate_boundary_scalar_return<'a>(
         .terminal_unit_effects
         .for_machine(plan.machine)
     {
-        let CheckedUnitEffectOperationPlan::BoundaryCall {
-            source_site: authored_site,
-            ..
-        } = &plan.boundary_call
-        else {
-            return unsupported("result-bearing boundary plan does not contain a boundary call");
-        };
+        // The Unit plan binds the same call's scalar result: a boundary
+        // call with a scalar result at the same site and target.
+        let authored_site = call.source_site();
         let agrees = unit.operations.iter().any(|operation| {
-            matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                    coordinate: unit_coordinate,
-                    source_site: unit_site,
-                    target_machine: unit_machine,
-                    target_state: unit_state,
-                    ..
-                } if unit_coordinate == coordinate
-                    && unit_site == authored_site
-                    && unit_machine == target_machine
-                    && unit_state == target_state
-            )
+            operation.call().is_some_and(|unit_call| {
+                unit_call.is_boundary()
+                    && unit_call.scalar_result().is_some()
+                    && unit_call.coordinate == *coordinate
+                    && unit_call.source_site() == authored_site
+                    && unit_call.target.machine == *target_machine
+                    && unit_call.target.state == *target_state
+            })
         });
         if !agrees {
             return unsupported(

@@ -12,8 +12,8 @@ use checked_trees::{
     CheckedScalarBindingValue, CheckedScalarBranchDestination, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor, CheckedStructuralScalarReturnMachinePlan,
-    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, ClosedScalarContractValue, ClosedScalarValueContractPlan,
+    CheckedTerminalSignatureEligibility, CheckedTrees, CheckedUnitStructuralParameterPlan,
+    ClosedScalarContractValue, ClosedScalarValueContractPlan,
 };
 use language_semantics::{Multiplicity, PermissionClaimIdentity};
 use lowered_psi::LoweredPsi;

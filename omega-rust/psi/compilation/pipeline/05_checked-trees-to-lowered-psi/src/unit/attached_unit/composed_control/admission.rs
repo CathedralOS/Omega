@@ -306,12 +306,18 @@ pub(super) fn admit_call_targets<'a>(
     let called_boundaries = call_states
         .iter()
         .flat_map(|state| &state.operations)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
-                Some(*target_machine)
+        .filter_map(|operation| {
+            // A boundary call with a Unit or structural result; a boundary
+            // scalar result keeps its own attachment route.
+            let call = operation.call()?;
+            match (call.route(), call.result()) {
+                (
+                    checked_trees::CheckedUnitCallRoute::Boundary,
+                    checked_trees::CheckedUnitCallResult::Unit
+                    | checked_trees::CheckedUnitCallResult::Structural { .. },
+                ) => Some(call.target.machine),
+                _ => None,
             }
-            _ => None,
         })
         .collect::<Vec<_>>();
     if let Some(attachment) = attachment {
@@ -441,8 +447,11 @@ fn unit_targets<'a>(
         .flat_map(|state| state.operation_dependencies())
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
-        let (CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. }
-        | CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }) = operation
+        // An ordinary call with a Unit or structural result enters a Unit body.
+        let Some(target_machine) = operation
+            .call()
+            .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
+            .map(|call| &call.target.machine)
         else {
             continue;
         };
@@ -495,10 +504,11 @@ pub(super) fn validate_leaf(
     if !state.scalar_parameters.is_empty()
         || !state.bindings.is_empty()
         || !state.binding_initializers.is_empty()
+        // One Unit call, ordinary or boundary.
         || !matches!(
             state.operations.as_slice(),
-            [CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-                | CheckedUnitEffectOperationPlan::CallUnit { .. }]
+            [CheckedUnitEffectOperationPlan::Call(call)]
+                if *call.result() == checked_trees::CheckedUnitCallResult::Unit
         )
         || !matches!(
             state.terminator,

@@ -90,13 +90,9 @@ fn boundary_array_parameter_forwarding_rejoins_the_authored_source() {
         let arguments = caller
             .operations
             .iter_mut()
-            .find_map(|operation| match operation {
-                checked_trees::CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                    structural_arguments,
-                    ..
-                } => Some(structural_arguments),
-                _ => None,
-            })
+            .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+            .find(|call| call.is_boundary() && call.scalar_result().is_some())
+            .map(|call| &mut call.structural_arguments)
             .expect("retained boundary invocation");
         if mutation == "different parameter" {
             arguments[0].source =

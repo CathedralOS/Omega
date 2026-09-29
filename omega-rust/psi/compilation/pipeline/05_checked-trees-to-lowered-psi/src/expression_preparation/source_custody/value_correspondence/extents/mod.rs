@@ -392,10 +392,10 @@ impl Context<'_> {
         let Some(call) = operation.call() else {
             return;
         };
-        if call.coordinate().statement_index != self.statement {
+        if call.coordinate.statement_index != self.statement {
             return;
         }
-        for argument in call.structural_arguments() {
+        for argument in &call.structural_arguments {
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                 expression,
                 ..

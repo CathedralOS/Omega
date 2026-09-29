@@ -82,14 +82,13 @@ fn scalar_call_structural_arguments(
     plan.operations
         .iter()
         .find_map(|operation| {
-            let CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            } = operation
-            else {
+            let CheckedUnitEffectOperationPlan::Call(call) = operation else {
                 return None;
             };
-            Some(structural_arguments.as_slice())
+            if call.is_boundary() || call.scalar_result().is_none() {
+                return None;
+            }
+            Some(call.structural_arguments.as_slice())
         })
         .expect("the expression call retains one checked scalar-call operation")
 }

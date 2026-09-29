@@ -516,20 +516,14 @@ fn initializer_computations_and_outer_result_custody_reject_stale_source() {
                         .iter_mut()
                         .find(|plan| plan.machine == machine.symbol)
                         .unwrap();
-                    let scalar_arguments = match &mut plan.operations[0] {
-                        CheckedUnitEffectOperationPlan::ScalarCall {
-                            scalar_arguments, ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                            scalar_arguments,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                            scalar_arguments,
-                            ..
-                        } => scalar_arguments,
-                        _ => panic!("result-bearing outer call"),
+                    // A scalar-result call, or a boundary structural-result call.
+                    let Some(outer) = plan.operations[0].call_mut().filter(|outer| {
+                        outer.scalar_result().is_some()
+                            || (outer.is_boundary() && outer.structural_result().is_some())
+                    }) else {
+                        panic!("result-bearing outer call")
                     };
+                    let scalar_arguments = &mut outer.scalar_arguments;
                     if mutation == 3 {
                         scalar_arguments.swap(0, 1);
                     } else {

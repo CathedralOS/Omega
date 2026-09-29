@@ -2,7 +2,17 @@
 
 use super::{CheckedTrees, LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
-use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitEffectOperationPlan};
+
+/// The operation's call when it is a boundary call with a Unit result.
+fn boundary_unit_call(
+    operation: &mut CheckedUnitEffectOperationPlan,
+) -> Option<&mut CheckedUnitCallPlan> {
+    operation
+        .call_mut()
+        .filter(|call| call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
+}
+
 fn checked_composed_claim() -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(
         r#"
@@ -54,37 +64,30 @@ fn claim_bearing_composed_unit_rejects_plan_and_fact_corruption() {
     let mut receipt = baseline.clone();
     let plan = &mut receipt.facts.flow.terminal_unit_effects.composed_machines[0];
     let entry_claim = plan.states[0].entry_claims[0].claim_identity;
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        completion_receipts,
-        ..
-    } = &mut plan.states[1].operations[0]
-    else {
+    let Some(call) = boundary_unit_call(&mut plan.states[1].operations[0]) else {
         unreachable!()
     };
-    completion_receipts[0].claim_identity = entry_claim;
+    call.claim_transfers_mut()[0].claim_identity = entry_claim;
     rejects(&receipt, "receipt identity");
 
     let mut duplicate = baseline.clone();
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        completion_receipts,
-        ..
-    } = &mut duplicate.facts.flow.terminal_unit_effects.composed_machines[0].states[1].operations
-        [0]
-    else {
+    let Some(call) = boundary_unit_call(
+        &mut duplicate.facts.flow.terminal_unit_effects.composed_machines[0].states[1].operations
+            [0],
+    ) else {
         unreachable!()
     };
+    let completion_receipts = call.claim_transfers_mut();
     completion_receipts.push(completion_receipts[0].clone());
     rejects(&duplicate, "duplicate receipt");
 
     let mut omitted = baseline.clone();
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        completion_receipts,
-        ..
-    } = &mut omitted.facts.flow.terminal_unit_effects.composed_machines[0].states[1].operations[0]
-    else {
+    let Some(call) = boundary_unit_call(
+        &mut omitted.facts.flow.terminal_unit_effects.composed_machines[0].states[1].operations[0],
+    ) else {
         unreachable!()
     };
-    completion_receipts.clear();
+    call.claim_transfers_mut().clear();
     rejects(&omitted, "missing receipt");
 
     let mut facts = baseline.clone();

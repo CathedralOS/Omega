@@ -3,6 +3,7 @@ use super::{
     CheckFacts, CheckedComposedUnitControlMachinePlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, SymbolHandle, TypedTrees,
 };
+use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
 
 use crate::execution::terminal_unit::candidate_closure::retain_available;
 use crate::execution::terminal_unit::scalar_targets;
@@ -128,7 +129,9 @@ fn scalar_fallback_dependency_is_not_a_registered_producer_dependency() {
             .operations
             .iter()
             .find(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. })
+                operation
+                    .call()
+                    .is_some_and(|call| !call.is_boundary() && call.scalar_result().is_some())
             })
             .unwrap();
         assert!(
@@ -203,50 +206,49 @@ fn retain_available_reference(
                     .iter()
                     .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                     .all(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::CallUnit {
-                            target_machine,
-                            target_state,
-                            ..
-                        } => unique_entries.contains(&(*target_machine, *target_state)),
-                        CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
-                            boundary_symbols.contains(target_machine)
-                        }
-                        CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                            target_machine,
-                            ..
-                        } => boundary_symbols.contains(target_machine),
-                        CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                            target_machine,
-                            ..
-                        } => boundary_symbols.contains(target_machine),
-                        CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
-                            scalar_targets::available_target(
-                                program,
-                                facts,
-                                crate::execution::terminal_unit::ScalarCalleePlans {
-                                    boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
-                                    structural_returns: &facts
-                                        .flow
-                                        .terminal_structural_scalar_returns,
-                                },
-                                candidates,
-                                &[],
-                                &scalar_targets::ScalarCallSite::of_plan(plan),
-                                operation,
-                            )
-                            .is_some()
-                        }
-                        CheckedUnitEffectOperationPlan::StructuralCall {
-                            target_machine,
-                            target_state,
-                            ..
-                        } => {
-                            unique_entries.contains(&(*target_machine, *target_state))
-                                || facts
-                                    .flow
-                                    .terminal_structural_returns
-                                    .claim_free_affine_for_machine(*target_machine)
-                                    .is_some()
+                        CheckedUnitEffectOperationPlan::Call(call) => {
+                            match (call.route(), call.result()) {
+                                (CheckedUnitCallRoute::Boundary, _) => {
+                                    boundary_symbols.contains(&call.target.machine)
+                                }
+                                (
+                                    CheckedUnitCallRoute::Module { .. },
+                                    CheckedUnitCallResult::Unit,
+                                ) => unique_entries
+                                    .contains(&(call.target.machine, call.target.state)),
+                                (
+                                    CheckedUnitCallRoute::Module { .. },
+                                    CheckedUnitCallResult::Scalar(_),
+                                ) => scalar_targets::available_target(
+                                    program,
+                                    facts,
+                                    crate::execution::terminal_unit::ScalarCalleePlans {
+                                        boundary_returns: &facts
+                                            .flow
+                                            .terminal_boundary_scalar_returns,
+                                        structural_returns: &facts
+                                            .flow
+                                            .terminal_structural_scalar_returns,
+                                    },
+                                    candidates,
+                                    &[],
+                                    &scalar_targets::ScalarCallSite::of_plan(plan),
+                                    operation,
+                                )
+                                .is_some(),
+                                (
+                                    CheckedUnitCallRoute::Module { .. },
+                                    CheckedUnitCallResult::Structural { .. },
+                                ) => {
+                                    unique_entries
+                                        .contains(&(call.target.machine, call.target.state))
+                                        || facts
+                                            .flow
+                                            .terminal_structural_returns
+                                            .claim_free_affine_for_machine(call.target.machine)
+                                            .is_some()
+                                }
+                            }
                         }
                         CheckedUnitEffectOperationPlan::PortWrite { .. }
                         | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
@@ -285,23 +287,24 @@ fn retain_available_reference(
                     .flat_map(|state| &state.operations)
                     .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                     .all(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::CallUnit {
-                            target_machine,
-                            target_state,
-                            ..
+                        // The reference admits no scalar call, ordinary or
+                        // boundary, in a composed body.
+                        CheckedUnitEffectOperationPlan::Call(call) => {
+                            match (call.route(), call.result()) {
+                                (
+                                    CheckedUnitCallRoute::Module { .. },
+                                    CheckedUnitCallResult::Unit
+                                    | CheckedUnitCallResult::Structural { .. },
+                                ) => unique_entries
+                                    .contains(&(call.target.machine, call.target.state)),
+                                (
+                                    CheckedUnitCallRoute::Boundary,
+                                    CheckedUnitCallResult::Unit
+                                    | CheckedUnitCallResult::Structural { .. },
+                                ) => boundary_symbols.contains(&call.target.machine),
+                                (_, CheckedUnitCallResult::Scalar(_)) => false,
+                            }
                         }
-                        | CheckedUnitEffectOperationPlan::StructuralCall {
-                            target_machine,
-                            target_state,
-                            ..
-                        } => unique_entries.contains(&(*target_machine, *target_state)),
-                        CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } => {
-                            boundary_symbols.contains(target_machine)
-                        }
-                        CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                            target_machine,
-                            ..
-                        } => boundary_symbols.contains(target_machine),
                         CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                         | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                         | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)

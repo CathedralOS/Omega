@@ -1,4 +1,6 @@
-use checked_trees::{CheckedScalarExpression, CheckedUnitEffectOperationPlan};
+use checked_trees::{
+    CheckedScalarExpression, CheckedUnitCallResult, CheckedUnitEffectOperationPlan,
+};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[path = "unit_scalar_result_source/boundary_wrappers.rs"]
@@ -94,6 +96,11 @@ fn main_operations_mut(
         .operations
 }
 
+/// Whether `call` is an ordinary (non-boundary) call with a scalar result.
+fn is_ordinary_scalar_call(call: &checked_trees::CheckedUnitCallPlan) -> bool {
+    !call.is_boundary() && call.scalar_result().is_some()
+}
+
 fn rejection_message(checked: &checked_trees::CheckedTrees) -> &'static str {
     match checked_trees_to_lowered_psi::lower_machine(
         checked,
@@ -107,14 +114,16 @@ fn rejection_message(checked: &checked_trees::CheckedTrees) -> &'static str {
 #[test]
 fn attached_unit_ordinary_scalar_result_rejects_contract_and_argument_fact_drift() {
     let mut contract = ordinary_checked();
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        target_contract_commitment,
-        ..
-    } = &mut main_operations_mut(&mut contract)[0]
+    let Some(call) = main_operations_mut(&mut contract)[0]
+        .call_mut()
+        .filter(|call| is_ordinary_scalar_call(call))
     else {
         panic!("first operation should bind the ordinary scalar result")
     };
-    *target_contract_commitment = checked_trees::MachineContractCommitment::from_digest([0x5a; 32]);
+    *call
+        .contract_commitment_mut()
+        .expect("an ordinary scalar call retains its commitment") =
+        checked_trees::MachineContractCommitment::from_digest([0x5a; 32]);
     assert_eq!(
         rejection_message(&contract),
         "ordinary Unit scalar call disagrees with its checked target signature, contract, or reach"
@@ -132,8 +141,10 @@ fn attached_unit_ordinary_scalar_result_rejects_contract_and_argument_fact_drift
         .expect("Main::main Unit plan")
         .state;
     let (state, statement_ordinal, role) = {
-        let CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. } =
-            &main_operations_mut(&mut argument)[0]
+        let Some(coordinate) = main_operations_mut(&mut argument)[0]
+            .call()
+            .filter(|call| is_ordinary_scalar_call(call))
+            .map(|call| call.coordinate)
         else {
             panic!("first operation should bind the ordinary scalar result")
         };
@@ -175,18 +186,23 @@ fn attached_unit_ordinary_scalar_result_rejects_contract_and_argument_fact_drift
 fn attached_unit_scalar_result_rejects_coordinated_drift_from_original_flow_row() {
     let mut checked = checked();
     let operations = main_operations_mut(&mut checked);
-    let CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-        coordinate, result, ..
-    } = &mut operations[0]
+    let Some(call) = operations[0]
+        .call_mut()
+        .filter(|call| call.is_boundary() && call.scalar_result().is_some())
     else {
         panic!("first operation should bind the scalar result")
     };
-    coordinate.statement_index = 2;
-    result.statement_index = 2;
-    let CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. } = &mut operations[1] else {
+    call.coordinate.statement_index = 2;
+    call.scalar_result_mut()
+        .expect("boundary scalar call result")
+        .statement_index = 2;
+    let Some(call) = operations[1]
+        .call_mut()
+        .filter(|call| call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
+    else {
         panic!("second operation should consume the scalar result")
     };
-    coordinate.statement_index = 3;
+    call.coordinate.statement_index = 3;
     let CheckedUnitEffectOperationPlan::Complete {
         statement_index, ..
     } = &mut operations[2]

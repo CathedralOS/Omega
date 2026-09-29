@@ -65,13 +65,12 @@ fn boundary_local_buffer_preserves_backing_and_loan() {
                         .machines
                         .iter_mut()
                         .flat_map(|machine| &mut machine.operations)
-                        .find_map(|operation| match operation {
-                            checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
-                                structural_arguments,
-                                ..
-                            } => structural_arguments.first_mut(),
-                            _ => None,
+                        .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+                        .filter(|call| {
+                            call.is_boundary()
+                                && *call.result() == checked_trees::CheckedUnitCallResult::Unit
                         })
+                        .find_map(|call| call.structural_arguments.first_mut())
                         .expect("local buffer boundary argument");
                     if mutation == "binding" {
                         argument.source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: other_binding };
@@ -163,7 +162,7 @@ fn boundary_record_result_can_replace_a_field() {
         "statement",
     ] {
         let mut changed = checked.clone();
-        let operation = changed
+        let call = changed
             .facts
             .flow
             .terminal_unit_effects
@@ -171,27 +170,20 @@ fn boundary_record_result_can_replace_a_field() {
             .iter_mut()
             .flat_map(|machine| &mut machine.states)
             .flat_map(|state| &mut state.operations)
-            .find(|operation| {
-                matches!(
-                    operation,
-                    checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                )
-            })
+            .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+            .find(|call| call.is_boundary() && call.structural_result().is_some())
             .expect("boundary call in the assignment's ordered effects");
-        let checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            result,
-            target_state,
-            ..
-        } = operation
-        else {
-            unreachable!();
-        };
         match mutation {
-            "result type" => result.type_identity = "wrong record".to_owned(),
-            "result multiplicity" => result.multiplicity = language_semantics::Multiplicity::Linear,
-            "call target" => *target_state = symbols::SymbolHandle::invalid(),
-            "statement" => coordinate.statement_index += 1,
+            "result type" => {
+                let (result, _) = call.structural_result_mut().expect("structural result");
+                result.type_identity = "wrong record".to_owned();
+            }
+            "result multiplicity" => {
+                let (result, _) = call.structural_result_mut().expect("structural result");
+                result.multiplicity = language_semantics::Multiplicity::Linear;
+            }
+            "call target" => call.target.state = symbols::SymbolHandle::invalid(),
+            "statement" => call.coordinate.statement_index += 1,
             _ => unreachable!(),
         }
         assert!(
@@ -230,13 +222,11 @@ fn explicit_owned_self_call_rejoins_only_its_authored_receiver() {
     let argument = plan
         .operations
         .iter_mut()
-        .find_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            } => structural_arguments.first_mut(),
-            _ => None,
+        .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+        .filter(|call| {
+            call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
         })
+        .find_map(|call| call.structural_arguments.first_mut())
         .expect("first boundary call consumes self");
     assert_eq!(argument.source_parameter_index(), Some(0));
     argument.source =

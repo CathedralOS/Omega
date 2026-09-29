@@ -1,7 +1,6 @@
 use super::{
-    AdmissionProfile, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, ExpressionNode,
-    StatementNode, decode_module, decode_proof_bundle, encode_module, encode_proof_section,
-    main_machine,
+    AdmissionProfile, CheckedScalarExpressionRole, ExpressionNode, StatementNode, decode_module,
+    decode_proof_bundle, encode_module, encode_proof_section, main_machine,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 pub(super) fn encoded_locals(
@@ -135,11 +134,10 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
         .find(|plan| plan.machine == machine.symbol)
         .unwrap();
     for (operation_index, operation) in plan.operations.iter().enumerate() {
-        if !matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::ScalarCall { .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-        ) {
+        if !operation
+            .call()
+            .is_some_and(|call| call.scalar_result().is_some())
+        {
             continue;
         }
         for mutation in 0..2 {
@@ -152,11 +150,10 @@ fn later_initializer_custody_rejects_target_coordinate_namespace_and_result_drif
                 .iter_mut()
                 .find(|plan| plan.machine == machine.symbol)
                 .unwrap();
-            let result = match &mut changed_plan.operations[operation_index] {
-                CheckedUnitEffectOperationPlan::ScalarCall { result, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { result, .. } => result,
-                _ => unreachable!(),
-            };
+            let result = changed_plan.operations[operation_index]
+                .call_mut()
+                .and_then(|call| call.scalar_result_mut())
+                .expect("scalar-result call");
             if mutation == 0 {
                 result.binding_ordinal += 1;
             } else {

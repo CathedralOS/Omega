@@ -144,9 +144,9 @@ use checked_trees::{
     CheckedStructuralScalarReturnPlans, CheckedStructuralUnitControlMachinePlan,
     CheckedStructuralUnitControlPlans, CheckedStructuralUnitControlStatePlan,
     CheckedStructuralUnitControlTerminatorPlan, CheckedTraitOperatorScalarReturnMachinePlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
-    CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallResult,
+    CheckedUnitCallRoute, CheckedUnitClaimTransferPlan, CheckedUnitEffectMachinePlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitEntryClaimPlan,
     CheckedUnitNominalAffineCallerRequirementPlan, CheckedUnitNominalAffineCleanupPlan,
     CheckedUnitNominalAffineCleanupRequirementPlan, CheckedUnitPartialAffineDiscardPlan,
     CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage, CheckedUnitScalarResultBindingPlan,
@@ -402,12 +402,15 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
         .flat_map(|graph| graph.states.iter())
         .flat_map(|state| state.operation_dependencies())
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. } => {
-                Some(omission_key(*target_machine))
+        .filter_map(|operation| {
+            let call = operation.call()?;
+            match (call.route(), call.result()) {
+                (
+                    CheckedUnitCallRoute::Module { .. },
+                    CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
+                ) => Some(omission_key(call.target.machine)),
+                _ => None,
             }
-            _ => None,
         })
         .collect::<Vec<_>>();
     composed_call_targets.sort_unstable();
@@ -514,18 +517,19 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                 } => {
                                     seeded.push(type_identity.as_str());
                                 }
+                                // Any call with a structural result, ordinary
+                                // or boundary.
+                                CheckedUnitEffectOperationPlan::Call(call) => {
+                                    seeded.extend(
+                                        call.structural_result()
+                                            .map(|result| result.type_identity.as_str()),
+                                    );
+                                }
                                 // A state's view subslice may own its view
                                 // type alone: a range over a fixed-array
                                 // field narrows no view an earlier binding
                                 // declared.
-                                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                                    result,
-                                    ..
-                                }
-                                | CheckedUnitEffectOperationPlan::StructuralCall {
-                                    result, ..
-                                }
-                                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                                CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
                                     result,
                                     ..
                                 }
@@ -608,30 +612,43 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             retained_type_identities.insert(argument.type_identity.as_str());
         }
         match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                target_machine: realization_machine,
-                target_state: realization_state,
-                result,
-                ..
-            } => {
-                let Some(realization) = facts
-                    .flow
-                    .terminal_structural_returns
-                    .claim_free_affine_machines
-                    .iter()
-                    .find(|plan| {
-                        plan.machine == *realization_machine && plan.state == *realization_state
-                    })
-                else {
-                    continue;
-                };
-                retained_type_identities.extend(realization.attachment_type_identity.as_deref());
-                retained_type_identities
-                    .insert(realization.structural_parameter.type_identity.as_str());
-                retained_type_identities.insert(result.type_identity.as_str());
-            }
-            CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+            // An ordinary structural result retains its claim-free realization's
+            // carrier; a boundary result retains only its own type.
+            CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
+                (
+                    CheckedUnitCallRoute::Module { .. },
+                    CheckedUnitCallResult::Structural {
+                        binding: result, ..
+                    },
+                ) => {
+                    let Some(realization) = facts
+                        .flow
+                        .terminal_structural_returns
+                        .claim_free_affine_machines
+                        .iter()
+                        .find(|plan| {
+                            plan.machine == call.target.machine && plan.state == call.target.state
+                        })
+                    else {
+                        continue;
+                    };
+                    retained_type_identities
+                        .extend(realization.attachment_type_identity.as_deref());
+                    retained_type_identities
+                        .insert(realization.structural_parameter.type_identity.as_str());
+                    retained_type_identities.insert(result.type_identity.as_str());
+                }
+                (
+                    CheckedUnitCallRoute::Boundary,
+                    CheckedUnitCallResult::Structural {
+                        binding: result, ..
+                    },
+                ) => {
+                    retained_type_identities.insert(result.type_identity.as_str());
+                }
+                _ => {}
+            },
+            CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
@@ -900,19 +917,10 @@ pub(crate) fn build_checked_partial_affine_unit_cleanup_plans(
                         .iter()
                         .map(|discard| discard.type_identity.as_str()),
                 )
-                .chain(
-                    plan.machine
-                        .operations
-                        .iter()
-                        .filter_map(|operation| match operation {
-                            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                                result,
-                                ..
-                            } => Some(result.type_identity.as_str()),
-                            _ => None,
-                        }),
-                )
+                .chain(plan.machine.operations.iter().filter_map(|operation| {
+                    let result = operation.call()?.structural_result()?;
+                    Some(result.type_identity.as_str())
+                }))
         })
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);

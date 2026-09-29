@@ -2,6 +2,12 @@ use super::CheckedUnitEffectOperationPlan;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
+
+/// Whether `call` is an ordinary (non-boundary) call that binds no result.
+fn is_ordinary_unit_call(call: &checked_trees::CheckedUnitCallPlan) -> bool {
+    !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+}
+
 const ORDERED_SOURCE: &str = r#"
     data Pair { left: u16; right: u16; }
     machine observe() {}
@@ -121,20 +127,22 @@ fn ordered_store_source_custody_rejects_omission_reordering_and_substitution() {
                 plan.operations.remove(1);
             }
             9 => {
-                let CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } =
-                    &mut plan.operations[1]
+                let Some(call) = plan.operations[1]
+                    .call_mut()
+                    .filter(|call| is_ordinary_unit_call(call))
                 else {
                     panic!("ordinary call");
                 };
-                coordinate.statement_index = 2;
+                call.coordinate.statement_index = 2;
             }
             10 => {
-                let CheckedUnitEffectOperationPlan::CallUnit { target_state, .. } =
-                    &mut plan.operations[1]
+                let Some(call) = plan.operations[1]
+                    .call_mut()
+                    .filter(|call| is_ordinary_unit_call(call))
                 else {
                     panic!("ordinary call");
                 };
-                *target_state = symbols::SymbolHandle::invalid();
+                call.target.state = symbols::SymbolHandle::invalid();
             }
             _ => unreachable!(),
         }

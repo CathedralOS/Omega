@@ -585,7 +585,7 @@ pub(super) fn checked_unit_provider_candidates(
             operation
                 .call()
                 .filter(|call| call.is_boundary())
-                .map(|call| call.target_machine())
+                .map(|call| call.target.machine)
         })
         .collect::<Vec<_>>();
     boundary_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));

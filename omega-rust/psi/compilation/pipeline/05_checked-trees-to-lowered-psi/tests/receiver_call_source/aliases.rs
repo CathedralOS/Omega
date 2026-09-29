@@ -1,6 +1,9 @@
 //! Erased source-local carriers preserve the existing direct parameter subloan.
 
-use super::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan, unit_plan};
+use super::{
+    CheckedUnitStructuralArgumentSourcePlan, is_ordinary_unit_call, ordinary_unit_call_mut,
+    unit_plan,
+};
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -108,13 +111,8 @@ fn dotted_alias_replay_rejects_changed_field_path_and_endpoint() {
                 .iter_mut()
                 .find(|plan| plan.machine == caller)
                 .unwrap();
-            let CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            } = &mut plan.operations[0]
-            else {
-                panic!("call");
-            };
+            let structural_arguments =
+                &mut ordinary_unit_call_mut(&mut plan.operations[0]).structural_arguments;
             if mutation == 1 {
                 structural_arguments[0].path.reverse();
             } else {
@@ -187,14 +185,9 @@ fn alias_replay_rejects_initializer_and_operand_substitution() {
                 .iter_mut()
                 .find(|plan| plan.machine == caller)
                 .unwrap();
-            let CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                structural_arguments,
-                ..
-            } = &mut plan.operations[0]
-            else {
-                panic!("call");
-            };
+            let call = ordinary_unit_call_mut(&mut plan.operations[0]);
+            let coordinate = &mut call.coordinate;
+            let structural_arguments = &mut call.structural_arguments;
             match mutation {
                 2 => {
                     structural_arguments[0].path[0] =

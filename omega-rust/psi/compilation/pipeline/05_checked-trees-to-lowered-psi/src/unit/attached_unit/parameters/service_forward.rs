@@ -15,22 +15,19 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
         let forwards = caller
             .operations
             .iter()
-            .filter_map(|operation| match operation {
-                checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
-                    coordinate,
-                    target_machine,
-                    target_state,
-                    structural_arguments,
-                    claim_transfers,
-                    ..
-                } => Some((
-                    coordinate,
-                    target_machine,
-                    target_state,
-                    structural_arguments,
-                    claim_transfers,
-                )),
-                _ => None,
+            .filter_map(|operation| {
+                // An internal call is an ordinary call with a Unit result.
+                let call = operation.call().filter(|call| {
+                    !call.is_boundary()
+                        && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                })?;
+                Some((
+                    &call.coordinate,
+                    &call.target.machine,
+                    &call.target.state,
+                    &call.structural_arguments,
+                    call.claim_transfers(),
+                ))
             })
             .collect::<Vec<_>>();
         if forwards.is_empty() {
@@ -123,9 +120,14 @@ pub(super) fn validate(checked: &CheckedTrees) -> Result<(), LoweringError> {
             checked_trees::CheckedUnitEffectOperationPlan::Complete { .. }
         ) || target_body.is_empty()
             || target_body.iter().any(|operation| {
-                !matches!(operation,
-                    checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall { target_state, .. }
-                        if requirement_states.iter().any(|signature| signature.symbol == *target_state))
+                // Each requirement call is a boundary call with a Unit result.
+                !operation.call().is_some_and(|call| {
+                    call.is_boundary()
+                        && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                        && requirement_states
+                            .iter()
+                            .any(|signature| signature.symbol == call.target.state)
+                })
             })
         {
             return unsupported(

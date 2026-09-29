@@ -2,7 +2,7 @@
 //! Record values keep their exact value roots and edge-owned disposal; scalar
 //! observations do not turn the record into a scalar binding or move its owner.
 
-use checked_trees::{CheckFacts, CheckedUnitEffectOperationPlan};
+use checked_trees::{CheckFacts, CheckedUnitCallResult, CheckedUnitEffectOperationPlan};
 use typed_trees::{TypedTrees, statement::StatementNode};
 
 pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
@@ -135,11 +135,9 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                     &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
                                 )?;
                             match &operation {
-                                CheckedUnitEffectOperationPlan::CallUnit {
-                                    claim_transfers,
-                                    ..
-                                } if claim_transfers.is_empty()
-                                    && eligible(program, facts, &operation) =>
+                                CheckedUnitEffectOperationPlan::Call(call)
+                                    if call.claim_transfers().is_empty()
+                                        && eligible(program, facts, &operation) =>
                                 {
                                     Some(operation)
                                 }
@@ -177,20 +175,19 @@ fn eligible(
 ) -> bool {
     use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
     use typed_trees::types::TypeReferenceNode;
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        target_machine,
-        target_state,
-        service_reach,
-        structural_arguments,
-        ..
-    } = operation
+    // Only an ordinary Unit call joins a scalar graph.
+    let Some(call) = operation
+        .call()
+        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
     else {
         return false;
     };
-    let Some(state) = crate::semantic::calls::find_state(program, *target_state) else {
+    let service_reach = call.target.service_reach;
+    let structural_arguments = &call.structural_arguments;
+    let Some(state) = crate::semantic::calls::find_state(program, call.target.state) else {
         return false;
     };
-    let Some(contract) = facts.contract_plans.for_machine(*target_machine) else {
+    let Some(contract) = facts.contract_plans.for_machine(call.target.machine) else {
         return false;
     };
     let plain_primitive = |reference| {

@@ -17,23 +17,17 @@ pub(in crate::unit::attached_unit) fn validate(
     operation: &CheckedUnitEffectOperationPlan,
     target_parameters: &[CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
-    let (CheckedUnitEffectOperationPlan::CallUnit {
-        coordinate,
-        target_machine,
-        target_state,
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::StructuralCall {
-        coordinate,
-        target_machine,
-        target_state,
-        structural_arguments,
-        ..
-    }) = operation
+    // An ordinary call with a Unit or structural result.
+    let Some(call) = operation
+        .call()
+        .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
     else {
         return unsupported("primitive local Unit custody requires an ordinary Unit call");
     };
+    let coordinate = &call.coordinate;
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
+    let structural_arguments = &call.structural_arguments;
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked,
         caller.state,

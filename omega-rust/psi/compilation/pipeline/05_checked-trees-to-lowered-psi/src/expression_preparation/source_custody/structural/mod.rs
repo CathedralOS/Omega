@@ -319,17 +319,19 @@ pub(crate) fn validate(
                 if matching.next().is_some() || consumed_calls.contains(&handle) {
                     return unsupported("structural operand call was retained more than once");
                 }
-                let CheckedUnitEffectOperationPlan::StructuralCall {
-                    coordinate,
-                    target_state,
-                    result: returned,
-                    structural_arguments,
-                    discard_result_on_return: false,
-                    ..
-                } = retained.operation()
+                let Some((retained_call, returned)) = retained
+                    .operation()
+                    .call()
+                    .filter(|call| {
+                        !call.is_boundary() && call.discard_result_on_return() == Some(false)
+                    })
+                    .and_then(|call| Some((call, call.structural_result()?)))
                 else {
                     return unsupported("structural operand is not an ordinary owned result call");
                 };
+                let coordinate = &retained_call.coordinate;
+                let target_state = &retained_call.target.state;
+                let structural_arguments = &retained_call.structural_arguments;
                 // Under a selection a call arm may only contribute a fresh
                 // product: an owned structural argument would move a source's
                 // custody inside one arm without a transfer the receipt names.

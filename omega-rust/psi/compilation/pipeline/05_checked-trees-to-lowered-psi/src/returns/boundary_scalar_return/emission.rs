@@ -10,10 +10,9 @@ use super::super::{
     mint_runtime_index_selectors, validate_transfer_shape, value_id,
 };
 use super::{
-    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    LoweringError, ServiceId, ServiceReachId, StructuralTypeId, argument_evaluation,
-    checked_requirements, content_conservation, lookup_type_id, terminal_scalar_type, unsupported,
-    validate_boundary_scalar_return,
+    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, LoweringError, ServiceId, ServiceReachId,
+    StructuralTypeId, argument_evaluation, checked_requirements, content_conservation,
+    lookup_type_id, terminal_scalar_type, unsupported, validate_boundary_scalar_return,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -54,18 +53,16 @@ pub(crate) fn emit_boundary_scalar_return(
         type_ids,
         service_ids,
     } = catalogs;
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        coordinate,
-        source_site,
-        target_machine,
-        scalar_arguments,
-        structural_arguments,
-        completion_receipts,
-        ..
-    } = &plan.boundary_call
-    else {
-        return unsupported("result-bearing boundary plan does not contain a boundary call");
-    };
+    let call = super::retained_boundary_call(
+        plan,
+        "result-bearing boundary plan does not contain a boundary call",
+    )?;
+    let coordinate = &call.coordinate;
+    let source_site = call.source_site().flatten();
+    let target_machine = &call.target.machine;
+    let scalar_arguments = &call.scalar_arguments;
+    let structural_arguments = &call.structural_arguments;
+    let completion_receipts = call.claim_transfers();
     let boundary_scalar_parameters = boundary
         .scalar_parameters
         .iter()
@@ -226,7 +223,7 @@ pub(crate) fn emit_boundary_scalar_return(
                 LoweringError::Unsupported("result-bearing boundary call ordinal exceeds usize")
             })?,
         },
-        *source_site,
+        source_site,
         operation_id,
         *target_machine,
     )?;

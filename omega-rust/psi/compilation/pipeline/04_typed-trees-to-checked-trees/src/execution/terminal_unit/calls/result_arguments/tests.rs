@@ -1,7 +1,9 @@
 //! Shared call loans retain the original local's storage and ownership.
 
 use crate::tests::front_end::{checked_program, checked_program_result};
-use checked_trees::{CheckedStructuralAccess, CheckedUnitEffectOperationPlan};
+use checked_trees::{
+    CheckedStructuralAccess, CheckedUnitCallResult, CheckedUnitEffectOperationPlan,
+};
 
 #[test]
 fn boundary_call_borrows_whole_local_buffer() {
@@ -34,10 +36,11 @@ fn boundary_call_borrows_whole_local_buffer() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            } => structural_arguments.first(),
+            CheckedUnitEffectOperationPlan::Call(call)
+                if call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+            {
+                call.structural_arguments.first()
+            }
             _ => None,
         })
         .expect("boundary buffer argument");
@@ -87,10 +90,12 @@ fn local_buffer_loans_preserve_fixed_and_slice_presentations() {
                 )
             });
         assert!(plan.operations.iter().any(|operation| matches!(operation,
-            CheckedUnitEffectOperationPlan::BoundaryCall { structural_arguments, .. }
-                if structural_arguments.len() == 1
-                    && structural_arguments[0].access == expected
-                    && structural_arguments[0].source_structural_result_binding_ordinal().is_some())));
+            CheckedUnitEffectOperationPlan::Call(call)
+                if call.is_boundary()
+                    && *call.result() == CheckedUnitCallResult::Unit
+                    && call.structural_arguments.len() == 1
+                    && call.structural_arguments[0].access == expected
+                    && call.structural_arguments[0].source_structural_result_binding_ordinal().is_some())));
 
         // Neither matching element types nor an established local substitute
         // for the exact access captured at the authored call.
@@ -159,10 +164,12 @@ fn state_local_zeroed_buffer_can_end_after_its_boundary_loan() {
             )
         });
     assert!(graph.states.iter().any(|state| state.operations.iter().any(|operation|
-        matches!(operation, CheckedUnitEffectOperationPlan::BoundaryCall { structural_arguments, .. }
-            if structural_arguments.len() == 1
-                && structural_arguments[0].access == CheckedStructuralAccess::MutableBorrow
-                && structural_arguments[0].source_structural_result_binding_ordinal().is_some()))));
+        matches!(operation, CheckedUnitEffectOperationPlan::Call(call)
+            if call.is_boundary()
+                && *call.result() == CheckedUnitCallResult::Unit
+                && call.structural_arguments.len() == 1
+                && call.structural_arguments[0].access == CheckedStructuralAccess::MutableBorrow
+                && call.structural_arguments[0].source_structural_result_binding_ordinal().is_some()))));
 }
 
 fn source(mutable: bool) -> String {
@@ -226,11 +233,9 @@ fn shared_clone_observes_mutable_or_immutable_local_storage() {
             .operations
             .iter()
             .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    structural_arguments,
-                    result,
-                    ..
-                } => Some((structural_arguments, result)),
+                CheckedUnitEffectOperationPlan::Call(call) if !call.is_boundary() => call
+                    .structural_result()
+                    .map(|result| (&call.structural_arguments, result)),
                 _ => None,
             })
             .collect();
@@ -269,15 +274,14 @@ fn mutable_local_shared_clone_requires_captured_read_access() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                structural_arguments,
-                ..
-            } if structural_arguments
-                .iter()
-                .any(|argument| argument.access == CheckedStructuralAccess::SharedBorrow) =>
+            CheckedUnitEffectOperationPlan::Call(call)
+                if !call.is_boundary()
+                    && call.structural_result().is_some()
+                    && call.structural_arguments.iter().any(|argument| {
+                        argument.access == CheckedStructuralAccess::SharedBorrow
+                    }) =>
             {
-                Some(*coordinate)
+                Some(call.coordinate)
             }
             _ => None,
         })

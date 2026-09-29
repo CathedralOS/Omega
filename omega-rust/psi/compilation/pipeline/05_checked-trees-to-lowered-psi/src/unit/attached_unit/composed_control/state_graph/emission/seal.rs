@@ -6,7 +6,7 @@
 use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralParameterDeclaration, ValueId,
 };
-use super::super::super::super::{Block, CheckedUnitEffectOperationPlan, Terminator, unsupported};
+use super::super::super::super::{Block, Terminator, unsupported};
 use super::super::super::LoweringError;
 use super::super::{case_emission, edges};
 use super::StateGraphEmission;
@@ -84,26 +84,13 @@ impl StateGraphEmission<'_, '_> {
                     let discards = trivial_affine_discards;
                     let mut local_discards = Vec::new();
                     for operation in state.operations.iter().rev() {
-                        if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                            result,
-                            discard_result_on_return,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::StructuralCall {
-                            result,
-                            discard_result_on_return,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                            result,
-                            discard_result_on_return,
-                            ..
-                        } = operation
+                        if let Some((result, discard_result_on_return)) =
+                            operation.discardable_structural_result()
                         {
                             local_discards.push((
                                 case_emission::result(state, result.binding_ordinal, &operations)?
                                     .place(),
-                                *discard_result_on_return,
+                                discard_result_on_return,
                             ));
                         }
                     }

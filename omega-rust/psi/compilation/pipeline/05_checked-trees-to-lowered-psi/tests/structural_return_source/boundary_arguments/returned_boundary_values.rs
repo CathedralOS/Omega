@@ -6,6 +6,18 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
+/// The boundary call that binds no result `operation` must be.
+fn boundary_unit_call_mut(
+    operation: &mut CheckedUnitEffectOperationPlan,
+) -> &mut checked_trees::CheckedUnitCallPlan {
+    let Some(call) = operation.call_mut().filter(|call| {
+        call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+    }) else {
+        unreachable!();
+    };
+    call
+}
+
 #[test]
 fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift() {
     let checked = crate::front_end::checked_program(&source(
@@ -75,12 +87,8 @@ fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift()
                     .iter_mut()
                     .find(|plan| plan.machine == root.symbol)
                     .unwrap();
-                let CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. } =
-                    &mut plan.boundary_call
-                else {
-                    unreachable!();
-                };
-                coordinate.call_ordinal += 1;
+                let boundary_call = boundary_unit_call_mut(&mut plan.boundary_call);
+                boundary_call.coordinate.call_ordinal += 1;
             }
             3 => {
                 changed
@@ -102,13 +110,8 @@ fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift()
                     .iter_mut()
                     .find(|plan| plan.machine == root.symbol)
                     .unwrap();
-                let CheckedUnitEffectOperationPlan::BoundaryCall {
-                    scalar_arguments, ..
-                } = &mut plan.boundary_call
-                else {
-                    unreachable!();
-                };
-                scalar_arguments.swap(0, 1);
+                let boundary_call = boundary_unit_call_mut(&mut plan.boundary_call);
+                boundary_call.scalar_arguments.swap(0, 1);
             }
             5 | 10 => {
                 let StatementNode::LocalData(changed_local) = &mut changed

@@ -138,7 +138,7 @@ pub(super) fn checked_provider_attachment_requirements(
         let boundary = operation.call().filter(|planned| planned.is_boundary());
         let coordinate = match operation {
             CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
-            _ => boundary?.coordinate(),
+            _ => boundary?.coordinate,
         };
         let matching_calls = calls
             .iter()
@@ -169,7 +169,7 @@ pub(super) fn checked_provider_attachment_requirements(
             // settles it. A legacy operator likewise names its own requirement;
             // an unrelated console field must not turn it into a receiver use.
             let has_independent_requirement = boundary.is_some_and(|planned| {
-                let target_machine = planned.target_machine();
+                let target_machine = planned.target.machine;
                 program
                     .machines()
                     .iter()
@@ -215,7 +215,7 @@ pub(super) fn checked_provider_attachment_requirements(
             {
                 continue;
             }
-            if !boundary.is_some_and(|planned| planned.target_machine() == call.target_symbol) {
+            if !boundary.is_some_and(|planned| planned.target.machine == call.target_symbol) {
                 return None;
             }
             requirements.push(CheckedProviderAttachmentRequirementPlan {

@@ -1,8 +1,8 @@
 //! Authored result binding and return custody for the boundary-return route.
 use super::super::{CheckedScalarExpression, CheckedScalarExpressionRole, PrimitiveType};
 use super::{
-    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    LoweringError, checked_requirements, memberships, terminal_scalar_type, unsupported,
+    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, LoweringError, checked_requirements,
+    memberships, terminal_scalar_type, unsupported,
 };
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
@@ -212,14 +212,10 @@ pub(super) fn validate(
     if !returns_local {
         return unsupported("boundary scalar return plan does not read its established result");
     }
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        coordinate,
-        scalar_arguments,
-        ..
-    } = &plan.boundary_call
-    else {
-        return unsupported("boundary scalar return has no boundary operation");
-    };
+    let call =
+        super::retained_boundary_call(plan, "boundary scalar return has no boundary operation")?;
+    let coordinate = &call.coordinate;
+    let scalar_arguments = &call.scalar_arguments;
     if scalar_arguments.iter().any(|argument| {
         matches!(
             argument,

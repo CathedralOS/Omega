@@ -207,7 +207,7 @@ pub(super) fn emit(
             operation
                 .call()
                 .filter(|call| call.is_boundary())
-                .map(|call| call.target_machine())
+                .map(|call| call.target.machine)
         })
         .collect::<Vec<_>>();
     let provider_boundaries = lowered_boundary_parameters
@@ -962,9 +962,9 @@ fn establish_call_literals(
         let Some(call) = operation.call() else {
             continue;
         };
-        let target_machine = call.target_machine();
+        let target_machine = call.target.machine;
         literal_arguments.extend(
-            call.structural_arguments()
+            call.structural_arguments
                 .iter()
                 .enumerate()
                 .filter(|(_, argument)| argument.byte_sequence_literal().is_some())
@@ -1240,12 +1240,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                 return self.emit_through_frame(operation, step.source_value_count);
             }
-            CheckedUnitEffectOperationPlan::CallUnit { .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            | CheckedUnitEffectOperationPlan::ScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
+            CheckedUnitEffectOperationPlan::Call(_) => {
                 return self.emit_call_through_frame(operation, step);
             }
             CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. } => {

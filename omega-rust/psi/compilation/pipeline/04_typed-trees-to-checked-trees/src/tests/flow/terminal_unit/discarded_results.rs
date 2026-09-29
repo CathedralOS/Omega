@@ -50,8 +50,10 @@ fn discarded_blocking_boundary_result_keeps_the_entry_unit_plan() {
     assert_eq!(plan.operations.len(), 5);
     assert!(matches!(
         &plan.operations[1],
-        CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
-            if coordinate.statement_index == 1
+        CheckedUnitEffectOperationPlan::Call(call)
+            if call.is_boundary()
+                && call.structural_result().is_some()
+                && call.coordinate.statement_index == 1
     ));
     assert!(
         plan.attachment_type_identity.is_some(),

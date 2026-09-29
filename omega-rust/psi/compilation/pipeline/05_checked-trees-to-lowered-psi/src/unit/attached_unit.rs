@@ -708,13 +708,15 @@ impl RealizationRoots {
         }
         for machine_symbol in closure {
             for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
-                let target =
-                    match operation {
-                        CheckedUnitEffectOperationPlan::StructuralCall {
-                            target_machine, ..
-                        } if !UnitBody::contains(plans, *target_machine) => Some(*target_machine),
-                        _ => None,
-                    };
+                // An ordinary structural call whose target has no Unit body.
+                let target = operation
+                    .call()
+                    .filter(|call| {
+                        !call.is_boundary()
+                            && call.structural_result().is_some()
+                            && !UnitBody::contains(plans, call.target.machine)
+                    })
+                    .map(|call| call.target.machine);
                 if let Some(target) = target
                     && !structural_results.contains(&target)
                 {

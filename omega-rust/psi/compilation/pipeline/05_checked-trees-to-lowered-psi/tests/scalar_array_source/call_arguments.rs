@@ -84,13 +84,9 @@ fn source_array_forwarding_without_scalar_parameters_uses_the_ordinary_signature
                 let arguments = forward
                     .operations
                     .iter_mut()
-                    .find_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::StructuralCall {
-                            structural_arguments,
-                            ..
-                        } => Some(structural_arguments),
-                        _ => None,
-                    })
+                    .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+                    .find(|call| !call.is_boundary() && call.structural_result().is_some())
+                    .map(|call| &mut call.structural_arguments)
                     .expect("forward retains its ordinary call");
                 if mutation == "same typed parameter" {
                     arguments[0].source =

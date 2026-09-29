@@ -1,15 +1,14 @@
 //! Result-bearing boundary custody lowering.
 use super::{
     BoundaryMachineDeclaration, BoundaryMachineResult, CheckedBoundaryMachinePlan,
-    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    DomainSemanticId, LoweredPsi, LoweringError, ProofBundle, SemanticDomainId, ServiceDeclaration,
-    ServiceId, ServiceReachId, ServiceReachSummary, StructuralDomainDeclaration,
-    StructuralDomainId, StructuralDomainRequirement, StructuralTypeId, TerminalModule,
-    boundary_machine_id, checked_unit_boundary_identity,
-    collect_installation_machine_contract_services, collect_published_contract_services,
-    collect_service_summary, content_conservation, contract_id, dense_identity,
-    finalize_operation_proofs, lookup_domain_id, lookup_service_id, lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, DomainSemanticId, LoweredPsi,
+    LoweringError, ProofBundle, SemanticDomainId, ServiceDeclaration, ServiceId, ServiceReachId,
+    ServiceReachSummary, StructuralDomainDeclaration, StructuralDomainId,
+    StructuralDomainRequirement, StructuralTypeId, TerminalModule, boundary_machine_id,
+    checked_unit_boundary_identity, collect_installation_machine_contract_services,
+    collect_published_contract_services, collect_service_summary, content_conservation,
+    contract_id, dense_identity, finalize_operation_proofs, lookup_domain_id, lookup_service_id,
+    lookup_type_id, lower_boundary_content_guarantees, lower_boundary_crash_routes,
     lower_published_service_ceiling, lower_root_service_reach, lower_structural_type_plans,
     lower_unit_parameters, machine_id, service_id, structural_domain_id, terminal_scalar_type,
     unsupported,
@@ -31,6 +30,20 @@ pub(crate) use emission::{
 pub(crate) use requirements::checked_requirements;
 pub(crate) use validation::validate_boundary_scalar_return;
 
+/// The call a result-bearing boundary plan retains: a boundary call with a
+/// Unit result. The machine's return reads the boundary's own scalar result.
+pub(crate) fn retained_boundary_call<'plan>(
+    plan: &'plan CheckedBoundaryScalarReturnMachinePlan,
+    missing: &'static str,
+) -> Result<&'plan checked_trees::CheckedUnitCallPlan, LoweringError> {
+    plan.boundary_call
+        .call()
+        .filter(|call| {
+            call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+        })
+        .ok_or(LoweringError::Unsupported(missing))
+}
+
 pub(crate) fn lower_boundary_scalar_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedBoundaryScalarReturnMachinePlan,
@@ -38,14 +51,12 @@ pub(crate) fn lower_boundary_scalar_return_machine(
     let boundary = validate_boundary_scalar_return(checked, plan)?;
     crate::unit::attached_unit::validate_requirement_kind(checked, boundary)?;
     let plans = &checked.facts.flow.terminal_boundary_scalar_returns;
-    let CheckedUnitEffectOperationPlan::BoundaryCall {
-        service_reach,
-        scalar_arguments,
-        ..
-    } = &plan.boundary_call
-    else {
-        return unsupported("result-bearing boundary plan does not contain a boundary call");
-    };
+    let call = retained_boundary_call(
+        plan,
+        "result-bearing boundary plan does not contain a boundary call",
+    )?;
+    let service_reach = &call.target.service_reach;
+    let scalar_arguments = &call.scalar_arguments;
     let (structural_types, type_ids) = lower_structural_type_plans(&plans.structural_types)?;
     let (structural_domains, domain_ids) =
         lower_boundary_scalar_domains(checked, plans, plan, boundary, &type_ids)?;

@@ -44,12 +44,12 @@ pub(super) fn continues(operations: &[CheckedUnitEffectOperationPlan], index: us
         return false;
     };
     let produced = match producer {
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate, result, ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate, result, ..
-        } if coordinate.call_ordinal == 0 && coordinate.statement_index == *statement_index => {
+        // The statement's own call with a structural result, ordinary or boundary.
+        CheckedUnitEffectOperationPlan::Call(call)
+            if let Some(result) = call.structural_result()
+                && call.coordinate.call_ordinal == 0
+                && call.coordinate.statement_index == *statement_index =>
+        {
             result
         }
         CheckedUnitEffectOperationPlan::EstablishStructuralValue {

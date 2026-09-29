@@ -1,6 +1,7 @@
 //! The partial affine unit cleanup machine and its residuals.
 
 use crate::execution::terminal_unit::cleanup::anonymous;
+use checked_trees::CheckedUnitCallResult;
 
 use crate::execution::terminal_unit::calls::{
     ExpectedCallValueResult, build_call_operation, entry_claims,
@@ -242,33 +243,21 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
                 &control::LocalConstructionTrace::default(),
             )?;
             let mut operation = control::bind_structural_call_result(operation, result.clone())?;
-            match &mut operation {
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    structural_arguments,
-                    scalar_arguments,
-                    discard_result_on_return,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    structural_arguments,
-                    scalar_arguments,
-                    discard_result_on_return,
-                    ..
-                } => {
-                    if !scalar_arguments.is_empty()
-                        || structural_arguments.len() != structural_parameters.len()
-                        || structural_arguments.iter().any(|argument| {
-                            argument.source_parameter_index() != Some(0)
-                                || !argument.path.is_empty()
-                                || argument.access != CheckedStructuralAccess::Owned
-                        })
-                    {
-                        return None;
-                    }
-                    *discard_result_on_return = false;
-                }
-                _ => return None,
+            // Any call with a structural result, ordinary or boundary.
+            let call = operation.call_mut()?;
+            if call.structural_result().is_none()
+                || !call.scalar_arguments.is_empty()
+                || call.structural_arguments.len() != structural_parameters.len()
+                || call.structural_arguments.iter().any(|argument| {
+                    argument.source_parameter_index() != Some(0)
+                        || !argument.path.is_empty()
+                        || argument.access != CheckedStructuralAccess::Owned
+                })
+            {
+                return None;
             }
+            let (_, discard_result_on_return) = call.structural_result_mut()?;
+            *discard_result_on_return = false;
             operations.push(operation);
             continue;
         }
@@ -290,16 +279,13 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
             result_binding.as_slice(),
             &control::LocalConstructionTrace::default(),
         )?;
-        let CheckedUnitEffectOperationPlan::CallUnit {
-            target_machine,
-            structural_arguments,
-            claim_transfers,
-            ..
-        } = &operation
-        else {
-            return None;
-        };
-        let [argument] = structural_arguments.as_slice() else {
+        // Only an ordinary Unit call moves one partial-affine path.
+        let call = operation
+            .call()
+            .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)?;
+        let target_machine = &call.target.machine;
+        let claim_transfers = call.claim_transfers();
+        let [argument] = call.structural_arguments.as_slice() else {
             return None;
         };
         if !is_partial_affine_path(&argument.path) {
@@ -354,21 +340,18 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
     }) && (!program.machine_contracts(machine).is_empty()
         || !program.state_contracts(state).is_empty()
         || operations.iter().any(|operation| {
-            let CheckedUnitEffectOperationPlan::CallUnit {
-                target_machine,
-                target_state,
-                ..
-            } = operation
-            else {
-                return !matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                );
+            // Ordinary Unit calls need contract-free targets; any call with a
+            // structural result passes; every other operation rejects.
+            let Some(call) = operation.call().filter(|call| {
+                !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit
+            }) else {
+                return !operation
+                    .call()
+                    .is_some_and(|call| call.structural_result().is_some());
             };
-            !crate::lookup::machine_by_symbol(program, *target_machine)
+            !crate::lookup::machine_by_symbol(program, call.target.machine)
                 .is_some_and(|target| program.machine_contracts(target).is_empty())
-                || !crate::semantic::calls::find_state(program, *target_state)
+                || !crate::semantic::calls::find_state(program, call.target.state)
                     .is_some_and(|target| program.state_contracts(target).is_empty())
         }))
     {

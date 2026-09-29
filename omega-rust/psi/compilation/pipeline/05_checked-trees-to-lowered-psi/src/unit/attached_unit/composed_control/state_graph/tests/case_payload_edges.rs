@@ -217,10 +217,13 @@ fn case_payload_edge_rejoins_the_tested_local_result() {
             else {
                 panic!("result source");
             };
-            for operation in &mut state.operations {
-                if let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
-                    result, ..
-                } = operation
+            for call in state
+                .operations
+                .iter_mut()
+                .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+                .filter(|call| !call.is_boundary())
+            {
+                if let Some((result, _)) = call.structural_result_mut()
                     && result.binding_ordinal == binding_ordinal
                 {
                     result.statement_index = when_true.statement_ordinal;
@@ -230,13 +233,11 @@ fn case_payload_edge_rejoins_the_tested_local_result() {
             let decoy = state
                 .operations
                 .iter()
-                .find_map(|operation| match operation {
-                    checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
-                        result,
-                        ..
-                    } if result.statement_index == 0 => Some(result.binding_ordinal),
-                    _ => None,
-                })
+                .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call)
+                .filter(|call| !call.is_boundary())
+                .filter_map(checked_trees::CheckedUnitCallPlan::structural_result)
+                .find(|result| result.statement_index == 0)
+                .map(|result| result.binding_ordinal)
                 .expect("retained same-typed decoy call");
             subject.source =
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {

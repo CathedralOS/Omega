@@ -427,30 +427,8 @@ pub(crate) fn build_checked_machine_residual_parts(
     let transferred_local_ordinals = operations
         .iter()
         .flat_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                structural_arguments,
-                ..
-            } => structural_arguments
+            CheckedUnitEffectOperationPlan::Call(call) => call
+                .structural_arguments
                 .iter()
                 .filter_map(|argument| argument.source_local_declaration_ordinal())
                 .collect::<Vec<_>>(),

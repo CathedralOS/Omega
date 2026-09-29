@@ -93,13 +93,14 @@ fn selected_roots(
                 // same statement; only their roots join the pending set, the
                 // member's statement custody belongs to the construction.
                 for call in calls {
-                    let CheckedUnitEffectOperationPlan::StructuralCall {
-                        scalar_arguments, ..
-                    } = call.operation()
+                    let Some(value_call) = call
+                        .operation()
+                        .call()
+                        .filter(|call| !call.is_boundary() && call.structural_result().is_some())
                     else {
                         return unsupported("composed scalar selection lost its value call");
                     };
-                    for argument in scalar_arguments {
+                    for argument in &value_call.scalar_arguments {
                         let CheckedCallScalarArgument::Computation(handle) = argument else {
                             continue;
                         };
@@ -184,7 +185,7 @@ fn selected_roots(
                     }
                 }
             };
-            let arguments = call.scalar_arguments();
+            let arguments = &call.scalar_arguments;
             crate::emission::call_source_custody::validate_operation(
                 checked,
                 machine,
@@ -218,10 +219,13 @@ pub(super) fn selected_targets(
         .flat_map(|state| state.operation_dependencies())
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
-        if let CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } = operation
-            && !targets.contains(target_machine)
+        // An ordinary scalar call.
+        if let Some(call) = operation
+            .call()
+            .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
+            && !targets.contains(&call.target.machine)
         {
-            targets.push(*target_machine);
+            targets.push(call.target.machine);
         }
     }
     Ok(targets)

@@ -644,22 +644,15 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
         .iter_mut()
         .find(|plan| plan.machine == probe)
         .expect("Main::probe has a Unit plan");
-    let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
-        claim_transfers, ..
-    } = probe_plan
+    let settle_call = probe_plan
         .operations
         .iter_mut()
-        .find(|operation| {
-            matches!(
-                operation,
-                checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
-            )
+        .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+        .find(|call| {
+            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
         })
-        .expect("probe retains its settle call")
-    else {
-        unreachable!()
-    };
-    claim_transfers.push(transfer);
+        .expect("probe retains its settle call");
+    settle_call.claim_transfers_mut().push(transfer);
     rejects(
         &stray_transfer,
         "Unit structural result argument has invalid claim-carrying custody",

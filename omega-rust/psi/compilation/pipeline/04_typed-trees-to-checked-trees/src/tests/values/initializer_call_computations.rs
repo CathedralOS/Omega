@@ -56,14 +56,10 @@ fn state_graph_initializers_retain_boundary_results_and_ordinary_helper_computat
             ..
         }
     ));
-    let CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-        coordinate,
-        target_machine,
-        scalar_arguments,
-        result,
-        ..
-    } = &entry.operations[1]
-    else {
+    let Some(call) = entry.operations[1].call().filter(|call| call.is_boundary()) else {
+        panic!("bodyless requirement retains its boundary result operation");
+    };
+    let Some(result) = call.scalar_result() else {
         panic!("bodyless requirement retains its boundary result operation");
     };
     let requirement = checked
@@ -71,11 +67,11 @@ fn state_graph_initializers_retain_boundary_results_and_ordinary_helper_computat
         .iter()
         .find(|machine| machine.name.as_str() == "Sink::produce")
         .unwrap();
-    assert_eq!(*target_machine, requirement.symbol);
-    assert_eq!(coordinate.statement_index, 1);
+    assert_eq!(call.target.machine, requirement.symbol);
+    assert_eq!(call.coordinate.statement_index, 1);
     assert_eq!(result.binding_ordinal, 1);
     assert!(matches!(
-        scalar_arguments.as_slice(),
+        call.scalar_arguments.as_slice(),
         [CheckedCallScalarArgument::Computation(_)]
     ));
     let roots = checked

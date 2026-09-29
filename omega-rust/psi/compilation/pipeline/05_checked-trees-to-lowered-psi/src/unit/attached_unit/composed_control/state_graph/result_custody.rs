@@ -18,27 +18,16 @@ use language_semantics::{
     PermissionProvenance,
 };
 
+/// A call or constructed-value result that no automatic return discard
+/// retires: the selected edge owns its disposal.
 pub(super) fn result(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<&checked_trees::CheckedUnitStructuralResultBindingPlan> {
-    match operation {
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            result,
-            discard_result_on_return: false,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            result,
-            discard_result_on_return: false,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result,
-            discard_result_on_return: false,
-            ..
-        } => Some(result),
-        _ => None,
-    }
+    operation
+        .discardable_structural_result()
+        .and_then(|(result, discard_result_on_return)| {
+            (!discard_result_on_return).then_some(result)
+        })
 }
 
 /// Which role an authored local plays in an owned-selection receipt, if any.
@@ -197,7 +186,7 @@ fn retired_in_body(
         let Some(call) = consumer.call().filter(|call| !call.is_boundary()) else {
             continue;
         };
-        let coordinate = call.coordinate();
+        let coordinate = call.coordinate;
         let statements = checked.statement_table.statements(source.statement_nodes);
         let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
         else {

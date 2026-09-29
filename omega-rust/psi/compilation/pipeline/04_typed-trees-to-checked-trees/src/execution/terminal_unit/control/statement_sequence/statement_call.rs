@@ -382,21 +382,11 @@ pub(super) fn plan(
         // Dispose plain affine contents on this normal continuation, before
         // the next authored effect, rather than extending custody to return.
         operation = bind_structural_call_result(operation, result.clone())?;
-        let (CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            discard_result_on_return,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            discard_result_on_return,
-            ..
-        }) = &mut operation
-        else {
-            return None;
-        };
+        // Any call with a structural result, ordinary or boundary.
+        let call = operation.call_mut()?;
+        let coordinate = call.coordinate;
+        let (_, discard_result_on_return) = call.structural_result_mut()?;
         *discard_result_on_return = false;
-        let coordinate = *coordinate;
         consume_results(&mut *operations, &operation)?;
         operations.push(operation);
         if result.multiplicity == Multiplicity::Affine {
@@ -426,11 +416,10 @@ pub(super) fn plan(
             {
                 array_bindings.push((symbol, result.clone()));
             }
-            if matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-            ) {
+            if operation
+                .call()
+                .is_some_and(|call| call.structural_result().is_some())
+            {
                 structural_results.push((result, facts::PlaceRoot::Symbol(symbol)));
             }
         }
@@ -455,16 +444,12 @@ pub(super) fn plan(
     }
     *structural_count = structural_count.checked_add(structural_store_bindings)?;
     if let Some(discard) = displaced_discard {
-        let coordinate = operations
-            .iter()
-            .rev()
-            .find_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. } => {
-                    Some(*coordinate)
-                }
-                _ => None,
-            })?;
+        let coordinate = operations.iter().rev().find_map(|operation| {
+            operation
+                .call()
+                .filter(|call| call.structural_result().is_some())
+                .map(|call| call.coordinate)
+        })?;
         operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
             coordinate,
             affine_discards: vec![discard],

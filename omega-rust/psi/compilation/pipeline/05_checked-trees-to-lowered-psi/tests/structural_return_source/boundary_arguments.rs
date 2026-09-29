@@ -22,6 +22,20 @@ use crate::structural_return_source::{
 use checked_trees::CheckedUnitEffectOperationPlan;
 use typed_trees::statement::StatementNode;
 
+/// Whether `operation` is an ordinary (non-boundary) call with a scalar result.
+fn is_ordinary_scalar_call(operation: &CheckedUnitEffectOperationPlan) -> bool {
+    operation
+        .call()
+        .is_some_and(|call| !call.is_boundary() && call.scalar_result().is_some())
+}
+
+/// Whether `operation` is an ordinary (non-boundary) call with a structural result.
+fn is_ordinary_structural_call(operation: &CheckedUnitEffectOperationPlan) -> bool {
+    operation
+        .call()
+        .is_some_and(|call| !call.is_boundary() && call.structural_result().is_some())
+}
+
 fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     let root = checked
         .typed
@@ -319,25 +333,15 @@ fn assert_constructed_wrapper_execution(source: &str) {
         .terminal_unit_effects
         .machines
         .iter_mut()
-        .find(|machine| {
-            machine.operations.iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. })
-            })
-        })
+        .find(|machine| machine.operations.iter().any(is_ordinary_scalar_call))
         .unwrap();
     let call = root
         .operations
         .iter_mut()
-        .find(|operation| matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. }))
+        .find(|operation| is_ordinary_scalar_call(operation))
+        .and_then(CheckedUnitEffectOperationPlan::call_mut)
         .unwrap();
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        structural_arguments,
-        ..
-    } = call
-    else {
-        unreachable!()
-    };
-    match &mut structural_arguments[0].source {
+    match &mut call.structural_arguments[0].source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
             declaration_ordinal,
         } => *declaration_ordinal += 1,

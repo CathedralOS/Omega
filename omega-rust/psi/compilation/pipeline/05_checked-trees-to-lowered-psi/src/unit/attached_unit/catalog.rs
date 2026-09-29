@@ -283,13 +283,19 @@ pub(super) fn lower_unit_structural_types_including(
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     type_identity, ..
                 } => roots.push(type_identity.clone()),
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    target_machine,
-                    target_state,
-                    result,
-                    ..
-                } if UnitBody::contains(plans, *target_machine) => {
-                    let target = UnitBody::find(plans, *target_machine)?;
+                // An ordinary structural call into a Unit body roots its
+                // callee's structural signature.
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if let (
+                        checked_trees::CheckedUnitCallRoute::Module { .. },
+                        checked_trees::CheckedUnitCallResult::Structural {
+                            binding: result, ..
+                        },
+                    ) = (call.route(), call.result())
+                        && UnitBody::contains(plans, call.target.machine) =>
+                {
+                    let target_state = &call.target.state;
+                    let target = UnitBody::find(plans, call.target.machine)?;
                     let checked_trees::CheckedControlResultPlan::Structural(signature) =
                         target.result()?
                     else {
@@ -310,11 +316,13 @@ pub(super) fn lower_unit_structural_types_including(
                             .map(|parameter| parameter.type_identity.clone()),
                     );
                 }
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    target_machine: realization_machine,
-                    target_state: realization_state,
-                    ..
-                } => {
+                // Any other ordinary structural call is a claim-free
+                // realization owned by its structural return catalog.
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && call.structural_result().is_some() =>
+                {
+                    let realization_machine = &call.target.machine;
+                    let realization_state = &call.target.state;
                     let realizations = checked
                         .facts
                         .flow
@@ -334,7 +342,10 @@ pub(super) fn lower_unit_structural_types_including(
                     roots.push(realization.structural_parameter.type_identity.clone());
                     roots.push(realization.result.type_identity.clone());
                 }
-                CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if let Some(result) = call.structural_result()
+                        && call.is_boundary() =>
+                {
                     roots.push(result.type_identity.clone());
                 }
                 _ => {}
@@ -1121,15 +1132,10 @@ pub(super) fn lower_unit_services_including(
         }
         for operation in body.operations() {
             match operation {
-                CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. }
-                | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }
-                | CheckedUnitEffectOperationPlan::StructuralCall { service_reach, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { service_reach, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    service_reach, ..
+                CheckedUnitEffectOperationPlan::Call(call) => {
+                    collect_service_summary(&facts.rows, call.target.service_reach, &mut selected)?;
                 }
-                | CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
+                CheckedUnitEffectOperationPlan::PortWrite { service_reach, .. } => {
                     collect_service_summary(&facts.rows, *service_reach, &mut selected)?;
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }

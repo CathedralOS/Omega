@@ -538,65 +538,17 @@ fn drop_subslice_sources(checked: &mut CheckedTrees) {
 fn operation_structural_arguments(
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
 ) -> &[checked_trees::CheckedUnitStructuralArgumentPlan] {
-    use checked_trees::CheckedUnitEffectOperationPlan as Operation;
-    match operation {
-        Operation::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | Operation::ScalarCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::StructuralCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::BoundaryCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::BoundaryScalarCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::BoundaryStructuralCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => &[],
+    match operation.call() {
+        Some(call) => &call.structural_arguments,
+        None => &[],
     }
 }
 
 fn operation_structural_arguments_mut(
     operation: &mut checked_trees::CheckedUnitEffectOperationPlan,
 ) -> &mut [checked_trees::CheckedUnitStructuralArgumentPlan] {
-    use checked_trees::CheckedUnitEffectOperationPlan as Operation;
-    match operation {
-        Operation::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | Operation::ScalarCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::StructuralCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::BoundaryCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::BoundaryScalarCall {
-            structural_arguments,
-            ..
-        }
-        | Operation::BoundaryStructuralCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => &mut [],
+    match operation.call_mut() {
+        Some(call) => &mut call.structural_arguments,
+        None => &mut [],
     }
 }

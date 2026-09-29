@@ -818,7 +818,7 @@ fn established_record_borrow(
 /// ledger — the name then denotes that loaned place for its whole scope,
 /// the same compile-time carrier as a `&mut place` borrow local, so the
 /// statement plans no operation. Calls that did leave a flow row are
-/// ordinary call results and still plan a `StructuralCall`.
+/// ordinary call results and still plan a call with a structural result.
 fn is_call_view_loan_binding(
     program: &TypedTrees,
     facts: &CheckFacts,

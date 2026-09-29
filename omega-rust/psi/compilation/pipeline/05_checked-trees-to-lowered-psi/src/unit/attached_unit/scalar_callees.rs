@@ -13,12 +13,11 @@ use super::super::{
 use super::operation_frame::BoundaryParameters;
 use super::{
     CallEmissionContext, CheckedBoundaryMachinePlan, CheckedScalarCallee, CheckedTrees,
-    CheckedUnitEffectOperationPlan, ClosureOccurrences, LoweringError, MachineId,
-    PreparedScalarCallee, SemanticDomainId, ServiceReachSummary, StructuralDomainId,
-    StructuralTypeId, TERMINAL_MACHINE_IDENTITY_STRIDE, checked_unit_boundary_identity,
-    collect_installation_machine_contract_services, collect_service_summary, contract_id,
-    lookup_machine_id, lower_declared_service_reach, lower_installation_machine_service_ceiling,
-    lower_unit_parameters, unsupported,
+    ClosureOccurrences, LoweringError, MachineId, PreparedScalarCallee, SemanticDomainId,
+    ServiceReachSummary, StructuralDomainId, StructuralTypeId, TERMINAL_MACHINE_IDENTITY_STRIDE,
+    checked_unit_boundary_identity, collect_installation_machine_contract_services,
+    collect_service_summary, contract_id, lookup_machine_id, lower_declared_service_reach,
+    lower_installation_machine_service_ceiling, lower_unit_parameters, unsupported,
 };
 use terminal_psi::{ObligationEvidence, ScalarFloatRange, ScalarIntegerRange};
 pub(super) fn retain_catalog_roots<'checked>(
@@ -119,14 +118,13 @@ pub(super) fn retain_catalog_roots<'checked>(
             plan.service_reach,
             service_roots,
         )?;
-        let CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. } =
-            &plan.boundary_call
-        else {
-            return unsupported("scalar wrapper lost its boundary operation");
-        };
+        let call = crate::returns::boundary_scalar_return::retained_boundary_call(
+            plan,
+            "scalar wrapper lost its boundary operation",
+        )?;
         collect_service_summary(
             &checked.facts.service_reaches.rows,
-            *service_reach,
+            call.target.service_reach,
             service_roots,
         )?;
     }
@@ -306,15 +304,16 @@ pub(super) fn emit(
             let PreparedScalarCallee::Boundary { plan, .. } = machine else {
                 unreachable!("scalar callee has exactly one checked body owner")
             };
-            let CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. } =
-                &plan.boundary_call
-            else {
-                return unsupported("scalar wrapper lost its boundary operation");
-            };
+            let target_machine = crate::returns::boundary_scalar_return::retained_boundary_call(
+                plan,
+                "scalar wrapper lost its boundary operation",
+            )?
+            .target
+            .machine;
             let boundary = catalog
                 .boundary_parameters
                 .iter()
-                .find_map(|boundary| (boundary.source == *target_machine).then_some(boundary.id))
+                .find_map(|boundary| (boundary.source == target_machine).then_some(boundary.id))
                 .ok_or(LoweringError::Unsupported(
                     "scalar wrapper boundary is absent from the shared catalog",
                 ))?;

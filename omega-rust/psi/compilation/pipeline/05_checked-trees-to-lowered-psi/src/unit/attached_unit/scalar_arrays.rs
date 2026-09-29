@@ -206,11 +206,17 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-        | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } => {
+        | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
             Some(result.statement_index)
         }
+        // A structural result names its binding statement; every other call
+        // names its coordinate's statement.
+        CheckedUnitEffectOperationPlan::Call(call) => Some(
+            call.structural_result()
+                .map_or(call.coordinate.statement_index, |result| {
+                    result.statement_index
+                }),
+        ),
         CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
             Some(result.statement_index)
         }
@@ -223,11 +229,7 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal {
             statement_index, ..
         } => Some(*statement_index),
-        CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => {
+        CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => {
             Some(coordinate.statement_index)
         }
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {

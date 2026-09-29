@@ -448,8 +448,9 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
                         .operations
                         .iter()
                         .position(|operation| {
-                            matches!(operation,
-                    checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. })
+                            operation.call().is_some_and(|call| {
+                                call.is_boundary() && call.structural_result().is_some()
+                            })
                         })
                         .map(|operation_index| (plan_index, state_index, operation_index))
                 })
@@ -457,23 +458,25 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
         .unwrap();
     for mutation in 0..4 {
         let mut changed = checked.clone();
-        let checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            result,
-            discard_result_on_return,
-            ..
-        } = &mut changed.facts.flow.terminal_unit_effects.composed_machines[plan_index].states
-            [state_index]
+        let Some(call) = changed.facts.flow.terminal_unit_effects.composed_machines[plan_index]
+            .states[state_index]
             .operations[operation_index]
+            .call_mut()
+            .filter(|call| call.is_boundary() && call.structural_result().is_some())
         else {
             panic!("result call")
         };
-        match mutation {
-            0 => *discard_result_on_return = true,
-            1 => result.statement_index += 1,
-            2 => coordinate.statement_index += 1,
-            3 => result.binding_ordinal += 1,
-            _ => unreachable!(),
+        if mutation == 2 {
+            call.coordinate.statement_index += 1;
+        } else {
+            let (result, discard_result_on_return) =
+                call.structural_result_mut().expect("structural result");
+            match mutation {
+                0 => *discard_result_on_return = true,
+                1 => result.statement_index += 1,
+                3 => result.binding_ordinal += 1,
+                _ => unreachable!(),
+            }
         }
         assert!(
             lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
@@ -674,19 +677,19 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
                         .operations
                         .iter()
                         .position(|operation| {
-                            matches!(
-                                operation,
-                                checked_trees::CheckedUnitEffectOperationPlan::CallUnit { .. }
-                            )
+                            operation.call().is_some_and(|call| {
+                                !call.is_boundary()
+                                    && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                            })
                         })
                         .map(|operation_index| (plan_index, state_index, operation_index))
                 })
         })
         .expect("closed-sum ordinary Unit operation");
-    let checked_trees::CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        target_machine: entry_boundary,
-        ..
-    } = plans[plan_index].states[0].operations[0]
+    let Some(entry_boundary) = plans[plan_index].states[0].operations[0]
+        .call()
+        .filter(|call| call.is_boundary() && call.structural_result().is_some())
+        .map(|call| call.target.machine)
     else {
         panic!("closed-sum entry boundary")
     };
@@ -730,8 +733,12 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
             "operand coordinate drift rejects"
         );
     }
-    let checked_trees::CheckedUnitEffectOperationPlan::CallUnit { target_state, .. } =
-        &plans[plan_index].states[state_index].operations[operation_index]
+    let Some(target_state) = plans[plan_index].states[state_index].operations[operation_index]
+        .call()
+        .filter(|call| {
+            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+        })
+        .map(|call| call.target.state)
     else {
         unreachable!();
     };
@@ -741,7 +748,7 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
         .control
         .calls
         .iter()
-        .find(|(_, call)| call.target_symbol == *target_state && call.call_ordinal == 0)
+        .find(|(_, call)| call.target_symbol == target_state && call.call_ordinal == 0)
         .expect("captured closed-sum leaf call");
     let mut changed = checked.clone();
     changed

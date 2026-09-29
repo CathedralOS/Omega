@@ -1,6 +1,6 @@
 use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpressionRole,
-    CheckedUnitEffectOperationPlan,
+    CheckedUnitCallResult,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -417,15 +417,14 @@ fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
                 .iter_mut()
                 .find(|plan| plan.machine == main.symbol)
                 .unwrap();
-            let scalar_arguments = match &mut plan.operations[0] {
-                CheckedUnitEffectOperationPlan::BoundaryCall {
-                    scalar_arguments, ..
-                }
-                | CheckedUnitEffectOperationPlan::CallUnit {
-                    scalar_arguments, ..
-                } => scalar_arguments,
-                _ => panic!("retained outer statement call"),
+            // A boundary or ordinary call that binds no result.
+            let Some(call) = plan.operations[0]
+                .call_mut()
+                .filter(|call| *call.result() == CheckedUnitCallResult::Unit)
+            else {
+                panic!("retained outer statement call")
             };
+            let scalar_arguments = &mut call.scalar_arguments;
             assert!(matches!(
                 scalar_arguments.as_slice(),
                 [
