@@ -12,6 +12,96 @@ use language_semantics::declaration_selection::{
 mod indexed_operators;
 mod projected_receivers;
 
+#[test]
+fn module_namespace_is_only_a_static_call_prefix_not_a_runtime_value() {
+    for (body, accepted) in [
+        ("first::Envelope::read<u64>(value)", true),
+        ("first", false),
+        ("let result: u64 = first; result", false),
+    ] {
+        let declaration = "module first; pub data Envelope<T [copy]> { value: T; } pub machine Envelope::read<T [copy]>(envelope: &Envelope<T>) -> T { envelope.value }";
+        let caller =
+            format!("use first; machine read(value: &first::Envelope<u64>) -> u64 {{ {body} }}");
+        let mut sources = source::SourceMap::default();
+        let first = sources
+            .add("first.omg".into(), declaration.to_owned())
+            .source_id;
+        let main = sources.add("main.omg".into(), caller.clone()).source_id;
+        let typed = crate::tests::front_end::typed_program_from_source_map_with_generic_data(
+            sources,
+            &[(first, declaration), (main, caller.as_str())],
+        );
+        let checked = lower_typed_trees(typed, &CheckingRequest::settled());
+        assert_eq!(checked.is_ok(), accepted, "{body}: {checked:?}");
+    }
+}
+
+#[test]
+fn static_generic_field_reads_retain_authored_member_identity() {
+    let typed = crate::tests::front_end::typed_program_with_generic_data_result(
+        r#"
+        data Envelope<T [copy]> { value: T; }
+        machine Envelope::read<T [copy]>(envelope: &Envelope<T>) -> T { envelope.value }
+        machine read_integer(value: &Envelope<u64>) -> u64 { Envelope::read<u64>(value) }
+        machine read_boolean(value: &Envelope<bool>) -> bool { Envelope::read<bool>(value) }
+    "#,
+    )
+    .expect("normalize generic data before checking");
+    let checked =
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("static generic reads");
+    let template = checked
+        .typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Envelope")
+        .expect("template");
+    let typed_trees::data::DataMember::Field(field) = &checked.typed.data_members(template)[0]
+    else {
+        panic!("template field");
+    };
+    let selections = checked.authored_declaration_selections();
+    assert!(selections.iter().any(|selection| {
+        selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess
+            && matches!(selection.target(), AuthoredDeclarationSelectionTarget::Resolved(target) if target.selected_symbol() == field.symbol)
+    }));
+}
+
+#[test]
+fn copied_member_occurrence_rejects_a_different_declaration() {
+    let mut typed = typed_program(
+        r#"
+        data First { value: u64; }
+        data Second { value: u64; }
+        machine first(value: &First) -> u64 { value.value }
+        machine second(value: &Second) -> u64 { value.value }
+    "#,
+    );
+    let members: Vec<_> = typed
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(expression, node)| {
+            matches!(node, typed_trees::expression::ExpressionNode::Member(_)).then_some(expression)
+        })
+        .collect();
+    assert_eq!(members.len(), 2);
+    let occurrences: Vec<_> = typed
+        .expression_table
+        .authored_selection_occurrences(members[0])
+        .collect();
+    typed
+        .expression_table
+        .attach_authored_selection_occurrences(members[1], occurrences);
+    let diagnostic = crate::authored_selections::finalize_checked_authored_selections(
+        &mut typed,
+        &checked_trees::CheckFacts::default(),
+    )
+    .expect_err("same spelling cannot equate different authored members");
+    assert!(
+        diagnostic.message.contains("resolved inconsistently"),
+        "{diagnostic:?}"
+    );
+}
+
 fn typed_root_binding_fixture(source: &str, toolchain: bool) -> typed_trees::TypedTrees {
     let mut sources = source::SourceMap::default();
     let source_id = sources

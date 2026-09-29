@@ -181,7 +181,9 @@ pub(crate) fn bind_pre_specialization_authored_selections(
                 )
                 .map(|target| match target {
                     contexts::OwnerMemberTarget::Declaration(symbol) => {
-                        CheckedResolutionTarget::Declaration(symbol)
+                        CheckedResolutionTarget::Declaration(member_targets::authored_data_member(
+                            program, symbol,
+                        ))
                     }
                     contexts::OwnerMemberTarget::CollectionMeasure(measure) => {
                         CheckedResolutionTarget::Intrinsic(measure.intrinsic())
