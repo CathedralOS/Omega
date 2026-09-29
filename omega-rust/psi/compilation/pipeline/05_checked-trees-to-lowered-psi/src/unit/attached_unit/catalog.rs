@@ -627,12 +627,18 @@ pub(crate) fn lower_unit_structural_type_roots(
                         provider_type_identity,
                         erasure,
                     } => {
-                        if !erasure.requirement.is_valid() {
+                        if !erasure.requirement.is_valid()
+                            || checked.fused_service_erasure(erasure.requirement).is_none()
+                        {
                             return unsupported(
                                 "fused Service erasure lacks an exact requirement receipt",
                             );
                         }
-                        (field.relevance, StructuralFieldType::Erased {
+                        // Fused realization removes the runtime carrier after
+                        // its authorization is checked. This applies to ordinary
+                        // parameter records as well as provisioned entry records;
+                        // lexical machine attachment cannot grant erasure.
+                        (language_core::BindingRelevance::Erased, StructuralFieldType::Erased {
                             type_identity: provider_type_identity.clone(),
                         })
                     }

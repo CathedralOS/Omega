@@ -107,6 +107,76 @@ fn checked_binding_context(source: &str) -> checked_trees::CheckedTrees {
 }
 
 #[test]
+fn explicit_binding_source_replay_rejects_missing_parameter_and_erasure() {
+    let checked = checked_binding_context(
+        "pub boundary trait Host { machine ticks() -> u64; machine mark(value: u64); }
+         pub data Clock { host: Binding<Host>; }
+         machine read(clock: &mut Clock) reaches Host {
+             let ticks: u64 = clock.host.ticks();
+             Host::mark(ticks);
+         }",
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter()
+        .find(|plan| !plan.structural_parameters.is_empty())
+        .expect("context parameter plan");
+    let operation = plan
+        .operations
+        .iter()
+        .find(|operation| operation.call().is_some())
+        .expect("projected boundary call");
+    super::validate_operation(
+        &checked,
+        plan.machine,
+        plan.state,
+        operation,
+        &plan.structural_parameters,
+    )
+    .expect("source replay accepts exact authorized context");
+    let error = super::validate_operation(&checked, plan.machine, plan.state, operation, &[])
+        .expect_err("missing parameter custody");
+    assert!(format!("{error:?}").contains("lost its retained structural parameter"));
+
+    let mut changed = checked.clone();
+    let field = changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .structural_types
+        .iter_mut()
+        .filter_map(|shape| match &mut shape.shape {
+            checked_trees::CheckedUnitStructuralTypeShape::Record { fields } => Some(fields),
+            _ => None,
+        })
+        .flatten()
+        .find(|field| {
+            matches!(
+                field.field_type,
+                checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
+            )
+        })
+        .expect("binding field receipt");
+    if let checked_trees::CheckedUnitStructuralFieldType::FusedServiceBacked { erasure, .. } =
+        &mut field.field_type
+    {
+        erasure.requirement = symbols::SymbolHandle::invalid();
+    }
+    let error = super::validate_operation(
+        &changed,
+        plan.machine,
+        plan.state,
+        operation,
+        &plan.structural_parameters,
+    )
+    .expect_err("forged field erasure receipt");
+    assert!(format!("{error:?}").contains("lost its exact Fused field erasure receipt"));
+}
+
+#[test]
 fn boundary_local_buffer_preserves_backing_and_loan() {
     for (formal, borrow) in [
         ("&mut [u8]", "&mut"),

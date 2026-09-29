@@ -122,7 +122,7 @@ pub(crate) use parameters::{
     checked_scalar_source_parameters, literal_argument_places, lower_boundary_parameter_order,
     lower_installation_machine_service_ceiling, lower_published_service_ceiling,
     lower_structural_arguments, lower_unit_parameters, mint_runtime_index_selectors,
-    structural_carrier_type, validate_transfer_shape,
+    statement_receiver_path, structural_carrier_type, validate_transfer_shape,
 };
 pub(crate) use provider_attachments::lower_provider_attachment_places;
 pub(crate) use providers::realize_receiver_adapters;
