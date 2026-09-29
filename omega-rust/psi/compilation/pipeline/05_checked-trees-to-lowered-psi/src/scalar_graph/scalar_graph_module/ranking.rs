@@ -22,7 +22,6 @@ struct MemberCoordinate {
 
 pub(super) fn retain(
     machine: &mut TerminalMachine,
-    header: BlockId,
     state_symbols: &[symbols::SymbolHandle],
     identity_base: u64,
     plan: &crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan,
@@ -30,6 +29,15 @@ pub(super) fn retain(
     let Some(rank) = &plan.rank else {
         return Ok(());
     };
+    // Preparation validated the rank's header against the graph's one loop
+    // header; its block is that authored row's source block.
+    let header_row = state_symbols
+        .iter()
+        .position(|state| *state == rank.header_state)
+        .ok_or(LoweringError::Unsupported(
+            "scalar rank lost its loop header",
+        ))?;
+    let header = scalar_source_block(identity_base, header_row);
     let header_block = machine
         .blocks
         .iter()

@@ -1,7 +1,7 @@
 use super::{
     CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan, CheckedTrees,
-    LoweringError, prepare, source_custody, validate_rank,
+    LoweringError, ScalarLoopEntry, prepare, source_custody, validate_rank,
 };
 use crate::scalar_graph::PrimitiveType;
 
@@ -113,17 +113,7 @@ fn fixture_with_ranking(
 }
 
 fn graph(checked: &CheckedTrees) -> &CheckedScalarMachineGraph {
-    let machine = checked
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "walk")
-        .expect("walk");
-    checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(machine.symbol)
-        .expect("scalar graph")
+    named_graph(checked, "walk")
 }
 
 fn validate(
@@ -316,4 +306,223 @@ fn source_rank_custody_rejoins_successors_instead_of_matching_two_retained_roste
         "missing executable edge cannot be covered by a retained rank row"
     );
     assert!(prepare(&checked, &changed, &[], &[], &mut 10).is_err());
+}
+
+fn named_graph<'a>(checked: &'a CheckedTrees, name: &str) -> &'a CheckedScalarMachineGraph {
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == name)
+        .expect("machine");
+    checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine.symbol)
+        .expect("scalar graph")
+}
+
+/// Square-and-multiply re-enters `step`, never the entry; the nested count
+/// re-enters both `row` and the self-transferring `column`.
+const INTERIOR_HEADER_LOOPS: [(&str, &str); 2] = [
+    (
+        "modular_power",
+        "machine modular_power(base: i32, exponent: i32) -> i32 {
+             transition exponent < 0 {
+                 true -> (0)
+                 _ -> step(1, base % 100, exponent)
+             }
+             state step(result: i32, base: i32, exponent: i32) -> i32 {
+                 transition exponent == 0 {
+                     true -> (result)
+                     _ -> classify(result, base, exponent)
+                 }
+             }
+             state classify(result: i32, base: i32, exponent: i32) -> i32 {
+                 let bit: i32 = exponent % 2;
+                 transition bit == 1 {
+                     true -> accumulate(result, base, exponent)
+                     _ -> square(result, base, exponent)
+                 }
+             }
+             state accumulate(result: i32, base: i32, exponent: i32) -> i32 {
+                 let next_result: i32 = ((result % 100) * (base % 100)) % 100;
+                 transition {
+                     _ -> square(next_result, base, exponent)
+                 }
+             }
+             state square(result: i32, base: i32, exponent: i32) -> i32 {
+                 let next_base: i32 = ((base % 100) * (base % 100)) % 100;
+                 transition {
+                     _ -> step(result, next_base, exponent / 2)
+                 }
+             }
+         }",
+    ),
+    (
+        "grid_count",
+        "machine grid_count(rows: i32, columns: i32) -> i32 {
+             transition {
+                 _ -> row(0, rows % 8, columns % 8)
+             }
+             state row(total: i32, remaining_rows: i32, columns: i32) -> i32 {
+                 transition remaining_rows <= 0 {
+                     true -> (total)
+                     _ -> column(total, remaining_rows - 1, columns, columns)
+                 }
+             }
+             state column(total: i32, remaining_rows: i32, columns: i32, remaining_columns: i32) -> i32 {
+                 transition remaining_columns <= 0 {
+                     true -> row(total, remaining_rows, columns)
+                     _ -> column((total % 100) + 1, remaining_rows, columns, remaining_columns - 1)
+                 }
+             }
+         }",
+    ),
+];
+
+#[test]
+fn interior_loop_headers_leave_the_entry_as_a_once_run_prologue() {
+    for (name, source) in INTERIOR_HEADER_LOOPS {
+        let checked = crate::front_end::checked_program(source);
+        let plan = prepare(&checked, named_graph(&checked, name), &[], &[], &mut 10)
+            .expect("a dominating interior header admits the cycle")
+            .expect("the cycle yields a loop plan");
+        assert!(
+            matches!(plan.entry, ScalarLoopEntry::Prologue) && plan.rank.is_none(),
+            "{name}: the entry binds only on the machine signature, and no rank is invented"
+        );
+        let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name(name))
+            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| panic!("{name}: the unranked interior loop verifies: {error:?}"));
+        let machine = &lowered.semantic_module.machines[0];
+        let entry = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == machine.entry)
+            .expect("entry block");
+        assert!(
+            entry.parameters.is_empty() && entry.structural_parameters.is_empty(),
+            "{name}: the entry is the machine's own block, not a loop header"
+        );
+        let components = terminal_verifier::control_cycle_members(machine).unwrap();
+        assert!(
+            !components.is_empty()
+                && components
+                    .iter()
+                    .all(|members| !members.contains(&machine.entry)),
+            "{name}: every cycle stays behind the prologue: {components:?}"
+        );
+        assert!(machine.ranked_scc.is_none(), "{name}: no authored witness");
+    }
+}
+
+#[test]
+fn a_cycle_without_a_dominating_header_declines() {
+    // Either state can be entered first, so neither dominates the other and
+    // the cycle has no single header to carry its values.
+    let checked = crate::front_end::checked_program(
+        "machine ping_pong(start: i32, count: i32) -> i32 {
+             transition start > 0 {
+                 true -> ping(count % 16, 0)
+                 _ -> pong(count % 16, 0)
+             }
+             state ping(remaining: i32, total: i32) -> i32 {
+                 transition remaining <= 0 {
+                     true -> (total)
+                     _ -> pong(remaining - 1, (total % 100) + 1)
+                 }
+             }
+             state pong(remaining: i32, total: i32) -> i32 {
+                 transition remaining <= 0 {
+                     true -> (total)
+                     _ -> ping(remaining - 1, (total % 100) + 2)
+                 }
+             }
+         }",
+    );
+    assert!(matches!(
+        prepare(
+            &checked,
+            named_graph(&checked, "ping_pong"),
+            &[],
+            &[],
+            &mut 10
+        ),
+        Err(LoweringError::Unsupported(
+            "scalar graph cycle has no dominating loop header"
+        ))
+    ));
+}
+
+#[test]
+fn an_interior_header_keeps_its_owners_authored_ranking_obligation() {
+    // A Nat countdown witness on the header's own machine without a retained
+    // ranked plan is a lost judgment, not an unranked loop.
+    let ranked = fixture("remaining > 0", true, true, true);
+    let witness = ranked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "walk")
+        .and_then(|machine| machine.termination_plan.implementation_witness.clone())
+        .expect("authored Nat witness");
+    let (name, source) = INTERIOR_HEADER_LOOPS[0];
+    let mut changed = crate::front_end::checked_program(source);
+    changed
+        .typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.name.as_str() == name)
+        .unwrap()
+        .termination_plan
+        .implementation_witness = Some(witness);
+    assert!(matches!(
+        prepare(&changed, named_graph(&changed, name), &[], &[], &mut 10),
+        Err(LoweringError::Unsupported(
+            "scalar loop lost or substituted its authored ranking witness"
+        ))
+    ));
+
+    // A fused member heading its own loop carries a witness the checker never
+    // judged for the dispatch machine's graph.
+    let fused = crate::front_end::checked_program(
+        "data Main {}
+         machine Main::evaluate(&mut self) -> u64 {
+             transition {
+                 _ -> self.walk(4, 0)
+             }
+         }
+         machine Main::walk(&mut self, limit: u64, index: u64)
+         terminates by (index, limit) -> Nat::BoundedDistance;
+         -> u64
+         {
+             transition index < limit {
+                 true -> walk(limit, index + 1)
+                 false -> index
+             }
+         }",
+    );
+    let evaluate = fused
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::evaluate")
+        .expect("evaluate");
+    let graph = fused
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(evaluate.symbol)
+        .expect("fused scalar graph");
+    assert!(graph.states.len() > 1, "walk fuses into evaluate's graph");
+    assert!(matches!(
+        prepare(&fused, graph, &[], &[], &mut 10),
+        Err(LoweringError::Unsupported(
+            "scalar loop header's ranking witness has no graph judgment"
+        ))
+    ));
 }

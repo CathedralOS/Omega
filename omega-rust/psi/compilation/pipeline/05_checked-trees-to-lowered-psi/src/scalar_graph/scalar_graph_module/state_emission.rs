@@ -18,13 +18,16 @@ use crate::emission::boolean_control::{LoweredBooleanDecision, LoweredBooleanDec
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::proofs::crash_routes::lowered_direct_scalar_term;
+use crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarBranchTerminator;
 
 impl GraphEmission<'_> {
     /// Emit the state at `index` in the graph's emission order.
     pub(super) fn emit_state(&mut self, index: usize) -> Result<(), LoweringError> {
         let states = self.states;
-        let loop_plan = self.loop_plan;
+        // Only a re-entered entry row is a loop header block; otherwise its
+        // roster stays on the machine signature.
+        let entry_is_block = self.loop_plan.is_some_and(ScalarLoopPlan::reenters_entry);
         let state = &states[index];
         let operation_start = self.all_operations.len();
         let current_parameters = self.state_parameters[index].clone();
@@ -35,7 +38,7 @@ impl GraphEmission<'_> {
                 .checked_add(1)
                 .expect("block identity is nonzero"),
         );
-        let source_block_parameters = if index == 0 && loop_plan.is_none() {
+        let source_block_parameters = if index == 0 && !entry_is_block {
             Vec::new()
         } else {
             current_parameters.clone()
@@ -911,12 +914,12 @@ impl GraphEmission<'_> {
                 }
             }
         };
-        let erased_scalar_formals = if index == 0 && loop_plan.is_none() {
+        let erased_scalar_formals = if index == 0 && !entry_is_block {
             Vec::new()
         } else {
             self.state_erased_formals[index].clone()
         };
-        let erased_proof_formals = if index == 0 && loop_plan.is_none() {
+        let erased_proof_formals = if index == 0 && !entry_is_block {
             Vec::new()
         } else {
             self.state_erased_proof_formals[index].clone()
