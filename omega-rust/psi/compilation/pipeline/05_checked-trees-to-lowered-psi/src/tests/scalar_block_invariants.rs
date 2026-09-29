@@ -55,8 +55,10 @@ fn exhausted_optional_obligation_ids_do_not_reject_an_existing_program() {
 /// machine contract is narrowed to `x <= 4` and `s <= 0` is offered only
 /// behind an undischarged implication. Hoisting that premise's conclusion
 /// into ambient facts is the only way `s <= 4` could close, so custody
-/// requires the merged header candidate to drop — and the kernel-verified
-/// module must still stand without it.
+/// requires the merged header candidate's upper bounds to drop — and the
+/// kernel-verified module must still stand without them. Pruning keeps
+/// members that hold independently, including carrier bounds such as
+/// `0 <= s` over `u64`, so only those may survive.
 #[test]
 fn relaxed_arrival_rejects_when_only_a_guarded_premise_could_close_it() {
     let checked = crate::front_end::checked_program(
@@ -98,9 +100,28 @@ fn relaxed_arrival_rejects_when_only_a_guarded_premise_could_close_it() {
         }
     }
     crate::proofs::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
+    let carrier_bound = |member: &Proposition| {
+        let Proposition::LessOrEqual(left, right) = member else {
+            return false;
+        };
+        left.integer_value()
+            .is_some_and(|(integer_type, value)| value == integer_type.minimum_value())
+            || right
+                .integer_value()
+                .is_some_and(|(integer_type, value)| value == integer_type.maximum_value())
+    };
+    let retained = lowered
+        .semantic_module
+        .scalar_block_invariants
+        .iter()
+        .flat_map(|invariant| match &invariant.predicate {
+            Proposition::Conjunction(members) => members.clone(),
+            member => vec![member.clone()],
+        })
+        .collect::<Vec<_>>();
     assert!(
-        lowered.semantic_module.scalar_block_invariants.is_empty(),
-        "an undischarged implication premise cannot supply the missing bound"
+        retained.iter().all(carrier_bound),
+        "an undischarged implication premise cannot supply the missing bound: {retained:?}"
     );
     // The drop must come from candidate rejection, not module invalidation:
     // the module still validates, finalization still succeeds, and the kernel
