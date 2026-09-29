@@ -1477,15 +1477,23 @@ crash and native exit behavior. Use affected check/native corpus slices under
   valid zero omission on case replacement, all-tag dispatch and unequal-common-field
   equality. Each cause needs its own checked and interpreter/native outcome.
 
-- **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied fixed-array and borrowed-slice
-  fields into record literals at local, nested, return and field-store sites.
-  Stage 04 `values/scalar/computations/structural_values.rs` sends non-scalar
-  record members through structural values, but `fixed_array_value` declines
-  closed primitive arrays; their ordinary scalar-array producer is separate.
-  Omitted zero-valid array fields already compose (`tests/flow/terminal_unit/returns.rs`).
-  Stage 05 `attached_unit/structural_values/emission.rs` still refuses general
-  `FixedArray` establishment. Reuse existing array/record producers and carry
-  exact element types, evaluation order and ownership through the full route.
+- **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied borrowed-slice fields and
+  the remaining owned-array producers into record literals.
+  Literal closed primitive array members already compose at local, nested,
+  return and field-store sites: stage 04 `record_value` sends them to
+  `CheckedStructuralValueKind::ScalarArray`, whose row-major leaves are keyed
+  `StructuralArrayElement { expression, element_ordinal }`, and stage 05
+  replays each leaf and emits `EstablishScalarArray` as the record's field.
+  `pass/structs/record_literal_array_field` runs natively with exit 0; it
+  observes through `self` fields because same-state reads of such a record
+  local (`local_scalar_record_field`), element reads of a record state
+  parameter (Omega stage 00 `InvalidPrimitiveScalarRead`) and moving the local
+  into a field (`continuation cleanup owner`) are still refused.
+  Remaining owned producers: a named array source (`Packet { samples: bare }`),
+  array payloads of a case literal (`structural_case_value`), and element-policy
+  or structural-element arrays, which still meet `FixedArray`'s "fixed array
+  literal has no Terminal establishment" refusal (pinned by
+  `folded_index_faces_the_literal_lowering_boundary`).
 
   Borrowed views are another field producer, not owned array storage:
   `borrowed_slice_view_place` currently requires the expression to be the
@@ -1493,13 +1501,11 @@ crash and native exit behavior. Use affected check/native corpus slices under
   stored-loan origins and lifetimes; **REFERENCE-LOCAL-BINDING-ROUTES** owns
   reference locals. Existing record emission already accepts borrowed-view fields.
 
-  The pending `structs/record_literal_array_field` contains only a flat
-  `[i32; 4]` literal. Materialize its controls: inline/variable arrays,
-  scalar/nested-record fields, bare array locals, element-filled fields,
-  lengths/types, negative operands, nested and generic/const-generic records,
-  and later by-reference use. Promote it with its Build entry and exit-0 oracle.
-  Acceptance includes unchanged `samples/cli/systems/wire_protocol` and
-  `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit 70 with
+  The wire customers now construct their records and stop at the generated
+  codec call, `statement sequence: call: flow call`, as does the array-free
+  `pass/wire/runtime_wire_decode_rejects_wrong_era_exit`: that call has no
+  unit route. Acceptance stays unchanged `samples/cli/systems/wire_protocol`
+  and `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit 70 with
   13-byte encode/decode, room 300, samples [150, -2], depth -64. The borrowed
   customer `pass/wire/runtime_wire_decode_byte_slice_exit` must exit 70 after
   re-encoding the decoded view to five bytes with payload [72, 105]. Run checked

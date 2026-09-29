@@ -1,0 +1,114 @@
+// A record literal supplies closed primitive array members. Each member lowers
+// as one scalar-array establishment whose leaves are the authored elements in
+// row-major order, and the enclosing record consumes it as a structural field.
+// Reduced from `samples/cli/systems/wire_protocol`.
+//
+// Local sites (constructed, then discarded):
+//   `packet`        the original all-zero `[i32; 4]` reduction;
+//   `local_pair`    two array members in one literal;
+//   `local_grid`    a nested `[[i32; 2]; 2]` member;
+//   `local_framed`  an array beside scalar and nested-record members;
+//   `local_outer`   an array member inside a nested record literal.
+// Field-store sites, read back in a later state:
+//   `self.filled`   element order and the negative operand `0 - 2`;
+//   `self.pair`     `[u8; 2]` twice in one literal;
+//   `self.grid`     the nested member, flattened outer index first;
+//   `self.framed`   a `[i64; 3]` member beside `header` and `tag`;
+//   `self.outer`    the array inside the nested `inner` record;
+//   `self.stored`   a second negative operand, `0 - 6`.
+//
+// Observation goes through `self` fields. Same-state reads of a record local
+// that carries an array member, element reads of a record state parameter, and
+// moving such a local into a `self` field are separate gaps, as are a named
+// array source (`Packet { samples: bare }`) and array payloads of a case
+// literal.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Packet {
+    samples: [i32; 4];
+}
+
+data Pair {
+    left: [u8; 2];
+    right: [u8; 2];
+}
+
+data Grid {
+    cells: [[i32; 2]; 2];
+}
+
+data Header {
+    version: u32;
+}
+
+data Framed {
+    header: Header;
+    samples: [i64; 3];
+    tag: u8;
+}
+
+data Outer {
+    inner: Packet;
+    count: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    filled: Packet;
+    pair: Pair;
+    grid: Grid;
+    framed: Framed;
+    outer: Outer;
+    stored: Packet;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let packet: Packet = Packet { samples: [0, 0, 0, 0] };
+    let local_pair: Pair = Pair { left: [1, 2], right: [3, 4] };
+    let local_grid: Grid = Grid { cells: [[1, 2], [3, 4]] };
+    let local_framed: Framed = Framed { header: Header { version: 9 }, samples: [5, 6, 7], tag: 3 };
+    let local_outer: Outer = Outer { inner: Packet { samples: [10, 20, 30, 40] }, count: 2 };
+    self.filled = Packet { samples: [4, 0 - 2, 7, 1] };
+    self.pair = Pair { left: [1, 2], right: [3, 4] };
+    self.grid = Grid { cells: [[1, 2], [3, 4]] };
+    self.framed = Framed { header: Header { version: 9 }, samples: [5, 6, 7], tag: 3 };
+    self.outer = Outer { inner: Packet { samples: [10, 20, 30, 40] }, count: 2 };
+    self.stored = Packet { samples: [5, 0 - 6, 7, 8] };
+    let constructed: bool = true;
+    transition constructed {
+        true -> check()
+        false -> bad()
+    }
+
+    state check(&mut self) {
+        let ok: bool = self.filled.samples[0] == 4
+            && self.filled.samples[1] == 0 - 2
+            && self.filled.samples[2] == 7
+            && self.filled.samples[3] == 1
+            && self.pair.left[0] == 1
+            && self.pair.left[1] == 2
+            && self.pair.right[0] == 3
+            && self.pair.right[1] == 4
+            && self.grid.cells[0][1] == 2
+            && self.grid.cells[1][0] == 3
+            && self.framed.header.version == 9
+            && self.framed.samples[2] == 7
+            && self.framed.tag == 3
+            && self.outer.inner.samples[3] == 40
+            && self.outer.count == 2
+            && self.stored.samples[1] == 0 - 6;
+        transition ok {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

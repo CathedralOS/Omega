@@ -158,6 +158,7 @@ pub(crate) fn locate(
             CheckedScalarExpressionRole::StructuralValueSubject { .. }
             | CheckedScalarExpressionRole::StructuralValuePattern { .. }
             | CheckedScalarExpressionRole::RecordField { .. }
+            | CheckedScalarExpressionRole::StructuralArrayElement { .. }
             | CheckedScalarExpressionRole::StructuralValueField { .. },
         ) => {
             let (expression, primitive) =

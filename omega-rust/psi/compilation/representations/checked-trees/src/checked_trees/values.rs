@@ -277,6 +277,14 @@ pub enum CheckedScalarExpressionRole {
         source: CheckedArrayConstructionSource,
         element_ordinal: u32,
     },
+    /// One row-major scalar leaf of a closed primitive array supplied inside a
+    /// structural value, such as a record literal's `samples: [1, 2]` field.
+    /// The key is the array's own authored expression, exactly as `RecordField`
+    /// keys by its record literal, so two arrays in one statement stay distinct.
+    StructuralArrayElement {
+        expression: ExpressionHandle,
+        element_ordinal: u32,
+    },
     /// Scalar operand of a returned case construction, in authored order.
     ReturnCaseField {
         field_ordinal: u32,
