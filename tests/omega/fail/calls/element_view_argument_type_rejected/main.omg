@@ -53,6 +53,6 @@ machine Main::main(&mut self) {
         _ -> bad()
     }
 
-    state good(&mut self) {}
-    state bad(&mut self) {}
+    state good() {}
+    state bad() {}
 }
