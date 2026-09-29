@@ -8,6 +8,7 @@ audited VM implementations and normative semantics remain in `bootstrap/0_alpha/
 | `conformance.sh` | Pins every Alpha opcode and the selected seed profile. | Delete only when a stronger executable conformance gate subsumes every case. |
 | `container.sh`, `container.py` | Validates both audited seed containers as native executables on every host: bound identity for the non-host seed too, PE32+/Mach-O structure, hole offset equal to the tape section's raw extent, and the stamped-artifact contract. | Delete only when an identity or provenance gate covers the same native-container contract. |
 | `bounds.py` | Hand-encoded bounds cases shared by native and reference checks. | Delete when stronger conformance controls subsume these exact/adjacent observations. |
+| `native_exit.py` | Runs a stamped seed through a native subprocess and reduces its raw exit DWORD to the POSIX surface, restoring byte-level exit expectations on MSYS hosts whose shell collapses every other sign-bit-set code to 127. | Delete when no seed-executing host normalizes process exit codes this way. |
 | `io-registers.hex` | Shared raw-tape regression for host scratch/register isolation. | Delete when stronger I/O conformance checks subsume its full-word and operand controls. |
 | `parity.sh` | On Linux x86-64, runs the conformance opcode battery plus the diamond edge corpus through both the committed `alpha_x64_linux` container and the independent reference, failing on any exit-code or stdout disagreement. | Delete when the reference interpreter is deleted, or when host-seed agreement coverage reaches the Linux container another way. |
 | `reference/` | Independent VM differential checks. | Delete when checked native correspondence subsumes the diagnostic. |
@@ -46,30 +47,28 @@ macOS arm64 and Linux x86-64 execution are validated for the identities in the
 [seed inventory](../../bootstrap/0_alpha/README.md#retention-inventory).
 These tests do not discharge native correspondence proofs.
 
-Windows x64 execution is now measured on Git Bash with the selected seed:
+Windows x64 execution is measured on Git Bash with the selected seed:
 `bounds.py` passes 78/78 native cases, the Beta reconstruction tape reproduces
 its compiler byte-identically, `io-registers.hex` returns 0 with stdout
-`ABCDEF` for input `AB`, and 29 of 34 `conformance.sh` cases pass. The five
-red cases decompose into one real divergence and one host-observation limit:
+`ABCDEF` for input `AB`, and all 34 `conformance.sh` cases pass. The former
+`div_zero_trap`/`div_ovf_trap` divergence — the hardware divide faults
+`0xC0000094`/`0xC0000095` surfacing instead of the audited illegal-instruction
+routine — is closed by the divisor pre-check the PE seed now shares with the
+Linux and arm64 seeds, so every trap class reports `0xC000001D` (132 through
+the shell).
 
-- `div_zero_trap`/`div_ovf_trap` reach the hardware divide faults —
-  `0xC0000094` (`STATUS_INTEGER_DIVIDE_BY_ZERO`) for a zero divisor and
-  `0xC0000095` (`STATUS_INTEGER_OVERFLOW`) for `INT64_MIN / -1` — rather
-  than the illegal-instruction trap routine that unknown opcodes and memory
-  bounds deliver (`0xC000001D`, which Git Bash reports as 132). The semantic
-  Trap contract — a non-resumable halt that preserves the stdout prefix and
-  appends no bytes — still holds, but the audited mechanism says
-  implementations raise an illegal instruction, and the Windows
-  divide/remainder handlers do not carry the divisor pre-check the Linux and
-  arm64 seeds use for exactly this hardware/OS mismatch.
-- `div_neg`/`mod_neg`/`read_eof` (and the diamond's `jlt_signed` via its
-  halt-r0 target) halt with a sign-bit-set register. The seed exits with the
-  raw low-32 code (PowerShell reads `$LASTEXITCODE = -3` for the `-7/2 = -3`
-  case, `-1` for the `-1` halts), so the VM itself is correct; Git Bash
-  collapses every negative process exit code to 127, which makes the
-  byte-level expected values unobservable through that shell. Those cases
-  need a native-shell observation route or a normalized expected-127 surface
-  on MSYS hosts.
+Git Bash still normalizes the raw exit DWORD: every sign-bit-set code other
+than `0xC000001D` observes as 127, so a halt whose register sign-extends
+(`div_neg` = 253, `mod_neg`/`read_eof` = 255, the diamond's `jlt_signed`)
+hides its authored byte behind `$?`. The cases' VM result was always correct —
+PowerShell reads `$LASTEXITCODE = -3` for `-7/2` — the loss was the MSYS
+shell's observation. `conformance.sh` and `diamond-py.sh` therefore run the
+stamped container through `native_exit.py` on these hosts
+(`ALPHA_SEED_EXIT_COLLAPSED` in `seed_env.sh`): a Windows-native subprocess
+sees the real DWORD, which the helper reduces to the POSIX surface — 132 for
+the audited `0xC000001D` trap, the raw DWORD for any foreign exception (so a
+leaked `0xC0000094` can never alias a legal expectation), and the authored
+low byte otherwise.
 
 ## Register isolation
 

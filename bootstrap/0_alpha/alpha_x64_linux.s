@@ -190,7 +190,7 @@ h_div:
     mov rax, qword ptr [rbx+rcx*8]
     test r8, r8
     jz trap                             # /0 -> Trap (arm64 sibling's Ldz;
-                                        # the PE leaks #DE instead)
+                                        # the PE seed carries the same check)
     cmp r8, -1
     jne div_ok
     movabs r9, 0x8000000000000000

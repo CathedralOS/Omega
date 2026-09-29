@@ -25,8 +25,11 @@ printf 'probe-tape!' > "$TMP/probe.tape"
 stamp_seed "$TMP/probe.tape" "$SEED" "$TMP/stamped.exe" ||
   fail "stamping the audited seed failed"
 { printf '\013\000\000\000'; cat "$TMP/probe.tape"; } > "$TMP/expected"
-tape_in_seed "$TMP/stamped.exe" > "$TMP/stamped"
-cmp -s "$TMP/stamped" "$TMP/expected" ||
+# The extraction target must not be the bare sibling "stamped": on MSYS hosts
+# (Cygwin transparent .exe resolution) opening "stamped" for write resolves to
+# the existing "stamped.exe" and truncates it before tape_in_seed reads it.
+tape_in_seed "$TMP/stamped.exe" > "$TMP/stamped.tape"
+cmp -s "$TMP/stamped.tape" "$TMP/expected" ||
   fail "stamped [len][tape] payload differs from the probe tape"
 echo "materialize: stamped seed embeds exactly [len][probe tape]"
 

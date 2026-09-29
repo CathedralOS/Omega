@@ -41,11 +41,12 @@ address is `0x140004000`, and `SizeOfImage` is `0x1004000`. The loader calls
 PAGE_READWRITE)` through a fourth import entry, traps on a null return, and
 keeps `MEMSIZE`/`MEMSIZE-8` in callee-saved `r13`/`r14` because `imm32` cannot
 encode the extent. The tape hole still begins at file offset `0x1400`.
-Windows execution is now measured: the container reconstructs exactly and
-executes, but divide/remainder traps take the hardware `0xC0000094`/`0xC0000095`
-faults rather than the audited illegal-instruction routine; see
-[bounds conformance](../../tests/alpha/README.md#bounds-conformance) for the
-measured record.
+Windows execution is measured: the container reconstructs exactly and executes,
+and its divide/remainder handlers carry the same divisor pre-check as the other
+seeds — this host would deliver a hardware `#DE` as `0xC0000094`/`0xC0000095`,
+so both faulting divisor forms take the audited illegal-instruction routine
+instead. See [bounds conformance](../../tests/alpha/README.md#bounds-conformance)
+for the measured record.
 
 The Linux x86-64 realization is a static ELF64 built from
 `alpha_x64_linux.s` with GNU `as` and `ld -s --build-id=none` (binutils
@@ -162,7 +163,7 @@ repository bytes, separate from their realization/conformance obligations:
 | Container | Bytes | SHA-256 |
 | --- | ---: | --- |
 | `alpha_arm64_macos` | 16,844,016 | `a8a198082d00458c2645ca388e07dc814166f4380f2a42104724e6185763624b` |
-| `alpha_x64_windows.exe` | 16,782,336 | `4ee9ee0f97c1b11c5a7ef32ffd05f1eeb193d1e9b327cb89df9ac54431aad701` |
+| `alpha_x64_windows.exe` | 16,782,336 | `e2556e507167f75ce2bb276e855d5f9c77823a69585f3d30c16e1cdfbbb6eb66` |
 | `alpha_x64_linux` | 16,789,856 | `39ccffa0303d07c0c1fee7dc40ded00e0e667b311836cdbced2768f868b775b1` |
 
 | Retained files | Direct role | Deletion condition |
