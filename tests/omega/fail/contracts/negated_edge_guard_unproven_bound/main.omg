@@ -8,12 +8,12 @@ requires v < 50u64
 
 data Main {}
 
-machine Main::opaque(&mut self) -> u64 {
+machine opaque() -> u64 {
     transition { _ -> (75u64) }
 }
 
 machine Main::main(&mut self) {
-    let v: u64 = self.opaque();
+    let v: u64 = opaque();
     transition v >= 100u64 {
         true -> bad()
         _ -> then(v)

@@ -15,7 +15,7 @@ data Main {
     player: Player;
 }
 
-machine Main::heal(&mut self, player: &mut Player)
+machine heal(player: &mut Player)
 requires
     player in Player::Valid
 ensures
@@ -25,5 +25,5 @@ ensures
 }
 
 machine Main::main(&mut self) {
-    self.heal(&mut self.player);
+    heal(&mut self.player);
 }

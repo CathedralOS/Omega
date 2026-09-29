@@ -16,11 +16,11 @@ data Main {
     cell: Cell;
 }
 
-machine Main::read(&mut self, cell: &Cell) -> i32 {
+machine read(cell: &Cell) -> i32 {
     transition { _ -> cell.value }
 }
 
 machine Main::main(&mut self) suspends; reaches Scheduler {
     let message: Message = Message { body: &self.cell };
-    let values: [i32; 2] = [suspend self.scheduler.park(), self.read(message.body)];
+    let values: [i32; 2] = [suspend self.scheduler.park(), read(message.body)];
 }

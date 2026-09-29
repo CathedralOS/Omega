@@ -10,8 +10,8 @@ data Main {
 machine Main::main(&mut self) {
     let view: &[u8] = self.items.as_slice();
     self.items.push(7);
-    self.read_alias(view);
+    read_alias(view);
 }
 
-machine Main::read_alias(&self, items: &[u8]) {
+machine read_alias(items: &[u8]) {
 }
