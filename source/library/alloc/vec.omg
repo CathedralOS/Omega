@@ -380,19 +380,19 @@ pub machine Vec::grow8to16(&mut self, old: &mut Backing8, fresh: &mut Backing16,
 
 // Read one element out of the resident store — the caller's index proof
 // bounds the access to the live prefix.
-pub machine Vec::read4(&mut self, store: &Backing4, index: u64) -> u32
+pub machine Vec::read4(store: &Backing4, index: u64) -> u32
 requires index <= 3
 {
     store.e[index]
 }
 
-pub machine Vec::read8(&mut self, store: &Backing8, index: u64) -> u32
+pub machine Vec::read8(store: &Backing8, index: u64) -> u32
 requires index <= 7
 {
     store.e[index]
 }
 
-pub machine Vec::read16(&mut self, store: &Backing16, index: u64) -> u32
+pub machine Vec::read16(store: &Backing16, index: u64) -> u32
 requires index <= 15
 {
     store.e[index]
@@ -409,7 +409,7 @@ pub machine Vec::len(&mut self) -> u64 {
 // Explicit backing return: the live store's elements are read back into
 // the caller's `out` record and the store is unheld — under the contract
 // this is the caller draining the resident extent before `close`.
-pub machine Vec::drain4(&mut self, live: &mut Backing4, out: &mut Backing4) {
+pub machine Vec::drain4(live: &mut Backing4, out: &mut Backing4) {
     out.e[0] = live.e[0];
     out.e[1] = live.e[1];
     out.e[2] = live.e[2];
@@ -421,7 +421,7 @@ pub machine Vec::drain4(&mut self, live: &mut Backing4, out: &mut Backing4) {
     live.held = 0;
 }
 
-pub machine Vec::drain8(&mut self, live: &mut Backing8, out: &mut Backing8) {
+pub machine Vec::drain8(live: &mut Backing8, out: &mut Backing8) {
     out.e[0] = live.e[0];
     out.e[1] = live.e[1];
     out.e[2] = live.e[2];
@@ -441,7 +441,7 @@ pub machine Vec::drain8(&mut self, live: &mut Backing8, out: &mut Backing8) {
     live.held = 0;
 }
 
-pub machine Vec::drain16(&mut self, live: &mut Backing16, out: &mut Backing16) {
+pub machine Vec::drain16(live: &mut Backing16, out: &mut Backing16) {
     out.e[0] = live.e[0];
     out.e[1] = live.e[1];
     out.e[2] = live.e[2];
