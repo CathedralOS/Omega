@@ -20,7 +20,7 @@ SecondaryWndClassWindowProcedureSlot:
 UnusedWindowProcedureSlot:
     Spread satisfies PrivateCallbackSlot<UnusedProcedure::call>;
 
-machine Spread::plan(&mut self, schema: Schema) -> Plan {
+machine Spread::plan(schema: Schema) -> Plan {
     let mut owned_entries: [FieldEntry; 64];
     owned_entries[0] = FieldEntry {
         key: schema.fields[0].key,
