@@ -1,8 +1,9 @@
 //! Projections ending in a primitive structural referent.
 //!
-//! A primitive leaf is a `PrimitiveScalar` place: a whole primitive root, an
+//! A primitive leaf is a whole `PrimitiveScalar` root, an
 //! element reached through record fields holding structural children and
-//! fixed-array elements, or a byte carrier's u8 element. Primitive stores and reads name it by a
+//! fixed-array elements, a plain IEEE record field, or a byte carrier's u8
+//! element. Primitive stores and reads name it by a
 //! `StructuralPathSegment` projection whose elements may be runtime-selected
 //! (`primitive_projection_type`); a static projection also has one canonical
 //! spelling (`canonical_primitive_path`) that facts are keyed by. The backend's
@@ -17,13 +18,15 @@
 //! but its element is chosen by a runtime value, so it names no canonical
 //! leaf: it keys no field fact, and the verifier bounds its selector with the
 //! `RuntimeIndex` obligation it already reconstructs for every primitive read.
-//! A projection with no runtime element must keep the canonical field read, so
+//! A static integer/Boolean projection keeps the canonical field read, so
 //! each read has one spelling. This is the smaller of two routes: giving the
 //! field observations a runtime carrier would change the canonical path type
 //! that every field fact is keyed by, while the primitive read already carries
 //! runtime elements through Terminal verification and every Omega stage. Stores
 //! keep `StructuralScalarFieldStore`, which owns a bounded field's range
-//! obligation; a primitive store ending at a record field would bypass it.
+//! obligation; admitting bounded fields as primitive endpoints would bypass it.
+//! Plain IEEE fields instead use primitive storage: there is no integer-field
+//! equation for their bits, and their exact format survives the path unchanged.
 
 use crate::static_path::canonical_structural_path_tip;
 use semantic_vocabulary::{
@@ -41,6 +44,19 @@ pub fn primitive_place_type<'a>(
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
 ) -> Option<ScalarType> {
+    if let Some((CanonicalStructuralPathSegment::Field(field), carrier)) = path.split_last() {
+        let declaration = canonical_structural_path_tip(declarations.clone(), root, carrier)?;
+        if let StructuralTypeShape::Record { fields } = &declaration.shape {
+            let mut matching = fields.iter().filter(|candidate| candidate.id == *field);
+            let field = matching.next()?;
+            if matching.next().is_some() || field.relevance.is_erased() {
+                return None;
+            }
+            if let Some(scalar) = plain_scalar_field(&field.field_type) {
+                return Some(scalar);
+            }
+        }
+    }
     match canonical_structural_path_tip(declarations, root, path)?.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
         _ => None,
@@ -73,8 +89,8 @@ pub fn fixed_array_place_shape<'a>(
 }
 
 /// Resolve a primitive leaf projection that may select elements at run time.
-/// Fields step only into structural children, a literal index stays inside
-/// its extent, and a runtime index steps into any fixed array's element: its
+/// Fields step into structural children or end at a plain IEEE scalar. A literal
+/// index stays inside its extent; a runtime index selects an array element: its
 /// bound is the obligation of the operation carrying the path. `Referent`
 /// names no primitive leaf; a byte carrier's element is the u8 scalar.
 /// This grants no access authority.
@@ -157,8 +173,19 @@ pub fn canonical_primitive_path<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> Option<Vec<CanonicalStructuralPathSegment>> {
-    let (canonical, tip) = canonical_static_projection(declarations, root, path)?;
-    matches!(tip.shape, StructuralTypeShape::PrimitiveScalar(_)).then_some(canonical)
+    let mut canonical = Some(Vec::with_capacity(path.len()));
+    let tip = walk_primitive_projection(declarations, root, path, |step| {
+        match (step, &mut canonical) {
+            (Some(segment), Some(canonical)) => canonical.push(segment),
+            (None, canonical) => *canonical = None,
+            (Some(_), None) => {}
+        }
+    })?;
+    if matches!(tip, ProjectionTip::ByteElement) {
+        return None;
+    }
+    tip.primitive_scalar()?;
+    canonical
 }
 
 /// The canonical spelling of any static projection of fields holding
@@ -191,12 +218,25 @@ pub fn canonical_static_projection<'a>(
 /// carrier's element — the u8 scalar that rides no declared identity.
 enum ProjectionTip<'a> {
     Declared(&'a StructuralTypeDeclaration),
+    ScalarField(ScalarType),
     ByteElement,
+}
+
+// Bounded integers and qualified carriers retain their separate store proof
+// contracts. A plain read/store must not erase those obligations merely
+// because their representation is also a scalar.
+fn plain_scalar_field(field: &StructuralFieldType) -> Option<ScalarType> {
+    match field {
+        StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => Some(*scalar),
+        StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
+        _ => None,
+    }
 }
 
 impl ProjectionTip<'_> {
     fn primitive_scalar(&self) -> Option<ScalarType> {
         match self {
+            Self::ScalarField(scalar) => Some(*scalar),
             Self::Declared(declaration) => match declaration.shape {
                 StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
                 _ => None,
@@ -218,6 +258,7 @@ fn walk_primitive_projection<'a>(
 ) -> Option<ProjectionTip<'a>> {
     enum Position {
         Declared(StructuralTypeId),
+        ScalarField(ScalarType),
         ByteElement,
     }
     let unique = |id: StructuralTypeId| {
@@ -237,14 +278,21 @@ fn walk_primitive_projection<'a>(
             (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
                 let mut matching = fields.iter().filter(|field| field.identity == *identity);
                 let field = matching.next()?;
-                if matching.next().is_some() || field.relevance.is_erased() {
+                if matching.next().is_some()
+                    || field.relevance.is_erased()
+                    || fields
+                        .iter()
+                        .filter(|candidate| candidate.id == field.id)
+                        .count()
+                        != 1
+                {
                     return None;
                 }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return None;
-                };
                 step(Some(CanonicalStructuralPathSegment::Field(field.id)));
-                Position::Declared(child)
+                match field.field_type {
+                    StructuralFieldType::Structural(child) => Position::Declared(child),
+                    _ => Position::ScalarField(plain_scalar_field(&field.field_type)?),
+                }
             }
             (
                 StructuralPathSegment::FixedIndex(index),
@@ -281,6 +329,7 @@ fn walk_primitive_projection<'a>(
     }
     match position {
         Position::Declared(root) => unique(root).map(ProjectionTip::Declared),
+        Position::ScalarField(scalar) => Some(ProjectionTip::ScalarField(scalar)),
         Position::ByteElement => Some(ProjectionTip::ByteElement),
     }
 }
@@ -294,6 +343,84 @@ mod tests {
     };
     use semantic_vocabulary::{IntegerSign, IntegerType, StructuralFieldId};
     use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
+
+    #[test]
+    fn plain_float_field_paths_preserve_format_and_reject_other_endpoints() {
+        use semantic_vocabulary::{BoundedIntegerType, IeeeFloatFormat, IntegerValue};
+        use terminal_psi::StructuralPathSegment;
+        let root = StructuralTypeId::new(1).unwrap();
+        let field = StructuralFieldId::new(1).unwrap();
+        let path = [StructuralPathSegment::Field("value".into())];
+        let canonical = [CanonicalStructuralPathSegment::Field(field)];
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        for field_type in [
+            StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32),
+            StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64),
+        ] {
+            let declaration = StructuralTypeDeclaration {
+                id: root,
+                identity: "Record".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: field,
+                        identity: "value".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: field_type.clone(),
+                    }],
+                },
+            };
+            let types = [declaration];
+            let expected = field_type.scalar_type();
+            assert_eq!(
+                super::primitive_projection_type(types.iter(), root, &path),
+                expected
+            );
+            assert_eq!(
+                primitive_place_type(types.iter(), root, &canonical),
+                expected
+            );
+            assert_eq!(
+                super::canonical_primitive_path(types.iter(), root, &path),
+                Some(canonical.to_vec())
+            );
+            // A scalar endpoint is not a fabricated structural declaration.
+            assert!(super::canonical_static_projection(types.iter(), root, &path).is_none());
+            let mut below_leaf = path.to_vec();
+            below_leaf.push(StructuralPathSegment::FixedIndex(0));
+            assert!(super::primitive_projection_type(types.iter(), root, &below_leaf).is_none());
+            for mutation in 0..6 {
+                let mut invalid = types.clone();
+                let StructuralTypeShape::Record { fields } = &mut invalid[0].shape else {
+                    unreachable!()
+                };
+                match mutation {
+                    0 => fields[0].relevance = BindingRelevance::Erased,
+                    1 => fields.push(fields[0].clone()),
+                    2 => {
+                        fields[0].field_type = StructuralFieldType::BoundedInteger(
+                            BoundedIntegerType::new(
+                                integer,
+                                IntegerValue::Unsigned(0),
+                                IntegerValue::Unsigned(3),
+                            )
+                            .unwrap(),
+                        )
+                    }
+                    3 => fields[0].identity = "other".into(),
+                    4 => fields[0].field_type = StructuralFieldType::Scalar(ScalarType::Boolean),
+                    _ => {
+                        fields[0].field_type =
+                            StructuralFieldType::Scalar(ScalarType::Integer(integer))
+                    }
+                }
+                assert!(super::primitive_projection_type(invalid.iter(), root, &path).is_none());
+                assert!(super::canonical_primitive_path(invalid.iter(), root, &path).is_none());
+                if mutation != 3 {
+                    assert!(primitive_place_type(invalid.iter(), root, &canonical).is_none());
+                }
+            }
+        }
+    }
 
     #[test]
     fn primitive_projection_checks_selected_fields_and_extents_not_unrelated_erased_metadata() {

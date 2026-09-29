@@ -647,6 +647,7 @@ pub(crate) fn lower_destination_path(
             scalar_type
         }
         Walked::ByteElement => terminal_scalar_type(PrimitiveType::U8)?,
+        Walked::ScalarField(scalar) => scalar,
     };
     Ok((steps, scalar_type))
 }
@@ -767,6 +768,7 @@ pub(crate) fn lower_indexed_element_field_path(
 /// carrier's element — the u8 scalar that rides no declared identity.
 enum Walked {
     Declared(StructuralTypeId),
+    ScalarField(ScalarType),
     ByteElement,
 }
 
@@ -807,13 +809,23 @@ fn walk_path(
                 {
                     return unsupported("primitive projection field is erased or ambiguous");
                 }
-                let StructuralFieldType::Structural(child) = field.field_type else {
-                    return unsupported("primitive projection requires a structural carrier field");
-                };
                 result.push(ProjectionStep::Static(Segment::Field(
                     field.identity.clone(),
                 )));
-                Walked::Declared(child)
+                match field.field_type {
+                    StructuralFieldType::Structural(child) => Walked::Declared(child),
+                    StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => {
+                        Walked::ScalarField(scalar)
+                    }
+                    StructuralFieldType::IeeeFloat(format) => {
+                        Walked::ScalarField(ScalarType::IeeeFloat(format))
+                    }
+                    _ => {
+                        return unsupported(
+                            "primitive projection requires a plain IEEE or structural field",
+                        );
+                    }
+                }
             }
             (
                 CheckedUnitStructuralPathSegment::FixedIndex(index),
