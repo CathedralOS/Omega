@@ -488,6 +488,23 @@ fn moved_to_successor_in_cycle(
         })
 }
 
+/// Result custody is independent of whether a constructor or a call produced
+/// it. This is only an eligibility fence: the ordinary frontier walk proves
+/// consumption on every path and rejects a second production while the old
+/// value is still live. A consumer in another block is therefore sufficient
+/// here, but a consumer on only one branch cannot make an invalid join pass.
+fn result_disposed_before_reentry(
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+    cyclic_blocks: &BTreeSet<BlockId>,
+    place: PlaceId,
+) -> bool {
+    !cyclic_blocks.contains(&block.id)
+        || result_discarded_in_cycle(machine, cyclic_blocks, place)
+        || moved_to_successor_in_cycle(machine, cyclic_blocks, place)
+        || reseated_in_cycle(machine, cyclic_blocks, place)
+}
+
 /// The structural successor bindings of each edge that carries them.
 fn successor_bindings(terminator: &Terminator) -> Vec<(BlockId, &[StructuralArgument])> {
     match terminator {
@@ -578,8 +595,10 @@ fn cycle_operation_eligible(
         // An unrestricted scalar case is a copy payload, like the
         // unrestricted structural case below: re-entering the establishment
         // replaces a custody-free value each traversal and no disposal
-        // obligation exists. An affine scalar case stays confined to the
-        // block's return or dispatch source.
+        // obligation exists. An affine scalar case uses the same custody
+        // lifetime as a call result: dispatch/return, disposal, owned transfer,
+        // or consumption by a field repair. Construction need not be adjacent
+        // to its consumer, and frontier replay still proves every arrival.
         OperationKind::EstablishScalarCase { .. } => {
             crate::validation::scalar::case::fields(module, machine, operation).is_ok()
                 && operation.result.structural().is_some_and(|result| {
@@ -587,6 +606,14 @@ fn cycle_operation_eligible(
                                     if *source == result.place)
                         || case_source == Some(result.place)
                         || result.multiplicity == StructuralMultiplicity::Unrestricted
+                        || (result.multiplicity == StructuralMultiplicity::Affine
+                            && result.qualification_establishments.is_empty()
+                            && result_disposed_before_reentry(
+                                machine,
+                                block,
+                                cyclic_blocks,
+                                result.place,
+                            ))
                 })
         }
         // A confined result — the same block's affine dispatch or return
@@ -1240,10 +1267,7 @@ fn owned_call_result(
                     || owned_argument(module, machine, argument)
                     || copied_payload_argument(module, machine, argument, parameter)
             })
-        && (!cyclic_blocks.contains(&block.id)
-            || result_discarded_in_cycle(machine, cyclic_blocks, result.place)
-            || moved_to_successor_in_cycle(machine, cyclic_blocks, result.place)
-            || reseated_in_cycle(machine, cyclic_blocks, result.place))
+        && result_disposed_before_reentry(machine, block, cyclic_blocks, result.place)
 }
 
 /// Borrowing a place an earlier operation in the same machine produced lends
