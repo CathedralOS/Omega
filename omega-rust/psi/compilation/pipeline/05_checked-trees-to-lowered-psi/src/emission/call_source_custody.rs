@@ -274,8 +274,15 @@ pub(crate) fn validate_operation(
                     ) {
                     CheckedScalarExpressionRole::Return
                 } else {
+                    // Keyed by the local's authored ordinal, not the dense
+                    // binding ordinal its plan assigns.
                     CheckedScalarExpressionRole::LocalInitializer {
-                        binding_ordinal: result.binding_ordinal,
+                        binding_ordinal:
+                            crate::expression_preparation::source_custody::source_local_ordinal(
+                                checked,
+                                caller_state,
+                                result.statement_index,
+                            )?,
                     }
                 };
                 let source = crate::expression_preparation::source_custody::locate(

@@ -128,6 +128,23 @@ pub(crate) fn authored_state(
     Ok((machine, state))
 }
 
+/// The source-role ordinal of the `let` at `statement`: the authored local
+/// ordinal its `LocalInitializer` and `CallArgument` roles carry, not the
+/// dense binding ordinal its plan assigns.
+pub(crate) fn source_local_ordinal(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    statement: u32,
+) -> Result<u32, LoweringError> {
+    let (_, state) = authored_state(checked, state)?;
+    u32::try_from(
+        checked
+            .typed
+            .immutable_scalar_locals_before(state, statement as usize),
+    )
+    .map_err(|_| LoweringError::Unsupported("scalar local ordinal exceeds u32"))
+}
+
 pub(crate) fn locate(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
@@ -142,38 +159,14 @@ pub(crate) fn locate(
         .ok_or(LoweringError::Unsupported(
             "scalar source custody has no authored statement",
         ))?;
+    // Source roles key a `let` by its authored local ordinal: the immutable
+    // scalar locals the state declares before it. A plan's dense binding
+    // ordinal also counts the call results of preceding field stores, and the
+    // planner binds those only for some calls, so no count of authored
+    // statements reproduces it; a consumer holding a plan ordinal converts
+    // through `source_local_ordinal` before it names a role.
+    let source_local_count = program.immutable_scalar_locals_before(state, statement as usize);
     let preceding = &statements[..statement as usize];
-    // Scalar bindings share one dense ordinal with the established scalar
-    // results of preceding calls: an assignment binding a primitive call
-    // result and an immutable scalar local each consume one slot of
-    // `CheckedUnitScalarResultBindingPlan::binding_ordinal` in statement
-    // order, so a `LocalInitializer` ordinal counts both shapes.
-    let scalar_binding_count = preceding
-        .iter()
-        .filter(|statement| match statement {
-            StatementNode::LocalData(local) => {
-                !local.is_mutable
-                    && local.initial_value.is_valid()
-                    && program
-                        .primitive_type_reference(local.type_reference)
-                        .is_some()
-            }
-            StatementNode::Assignment(assignment) => {
-                matches!(
-                    program.expression_table.expression(assignment.value),
-                    ExpressionNode::Call(_)
-                ) && validation::expression_result_type_reference(
-                    program,
-                    machine,
-                    state,
-                    assignment.value,
-                )
-                .and_then(|reference| program.primitive_type_reference(reference))
-                .is_some()
-            }
-            _ => false,
-        })
-        .count();
     let absent = symbols::SymbolHandle::invalid();
     let selected = match (authored, role) {
         (
@@ -337,7 +330,7 @@ pub(crate) fn locate(
             StatementNode::LocalData(local),
             CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
         ) if !local.is_mutable
-            && usize::try_from(binding_ordinal).ok() == Some(scalar_binding_count) =>
+            && usize::try_from(binding_ordinal).ok() == Some(source_local_count) =>
         {
             program
                 .primitive_type_reference(local.type_reference)
