@@ -148,8 +148,10 @@ fn format_marker_drift_rejects_and_preserves_the_published_destination() {
     // The format marker is the little-endian u16 immediately after the
     // eight-byte magic. A drifted marker must reject before the
     // destination is touched in either direction.
-    for marker in [106u16, 108u16] {
-        let mut bytes = canonical_bytes();
+    let current_bytes = canonical_bytes();
+    let current_marker = u16::from_le_bytes(current_bytes[8..10].try_into().unwrap());
+    for marker in [current_marker - 1, current_marker + 1] {
+        let mut bytes = current_bytes.clone();
         bytes[8..10].copy_from_slice(&marker.to_le_bytes());
         let publication = TerminalSemanticArtifactPublication::begin(&destination).unwrap();
         publication

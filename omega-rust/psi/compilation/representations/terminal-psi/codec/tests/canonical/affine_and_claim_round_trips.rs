@@ -431,6 +431,7 @@ fn provider_attachment_encoding_counts_only_signature_boundary_calls() {
     let mut declared = module.boundary_machines[0].clone();
     declared.id = boundary_machine_id(2);
     declared.identity = "example::Device::reset".into();
+    declared.kind = terminal_psi::BoundaryRequirementKind::Machine;
     declared.attachment = Some(structural_type_id(1));
     module.boundary_machines.push(declared);
     module.machines[0]
