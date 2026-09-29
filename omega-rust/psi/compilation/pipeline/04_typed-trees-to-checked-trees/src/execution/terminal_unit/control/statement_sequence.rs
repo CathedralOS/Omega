@@ -1594,33 +1594,9 @@ pub(super) fn consume_results(
     operations: &mut [CheckedUnitEffectOperationPlan],
     consumer: &CheckedUnitEffectOperationPlan,
 ) -> Option<()> {
-    if let CheckedUnitEffectOperationPlan::StructuralCall {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::ScalarCall {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryCall {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        structural_arguments,
-        ..
-    } = consumer
-    {
+    if let Some(call) = consumer.call() {
         for (binding_ordinal, access, projected) in
-            structural_arguments.iter().filter_map(|argument| {
+            call.structural_arguments().iter().filter_map(|argument| {
                 argument
                     .source_structural_result_binding_ordinal()
                     .map(|ordinal| (ordinal, argument.access, !argument.path.is_empty()))

@@ -854,38 +854,14 @@ fn terminator_call_consumes_result(
     operation: &CheckedUnitEffectOperationPlan,
     binding_ordinal: u32,
 ) -> bool {
-    let structural_arguments = match operation {
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::ScalarCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => return false,
-    };
-    structural_arguments.iter().any(|argument| {
-        argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
-            && argument.access == CheckedStructuralAccess::Owned
-            && argument.path.is_empty()
-    })
+    operation
+        .call_structural_arguments()
+        .iter()
+        .any(|argument| {
+            argument.source_structural_result_binding_ordinal() == Some(binding_ordinal)
+                && argument.access == CheckedStructuralAccess::Owned
+                && argument.path.is_empty()
+        })
 }
 
 /// Whole owned call arguments consume affine and linear results. Accounting

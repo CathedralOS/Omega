@@ -49,13 +49,8 @@ pub(super) fn checked_provider_attachment_requirements(
     let call_operations = operations
         .iter()
         .filter(|operation| {
-            matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                    | CheckedUnitEffectOperationPlan::PortWrite { .. }
-            )
+            operation.call().is_some_and(|call| call.is_boundary())
+                || matches!(operation, CheckedUnitEffectOperationPlan::PortWrite { .. })
         })
         .collect::<Vec<_>>();
     // A routed receiver carries ordinary structural arguments beside the
@@ -140,12 +135,10 @@ pub(super) fn checked_provider_attachment_requirements(
 
     let mut requirements = Vec::with_capacity(call_operations.len());
     for operation in call_operations {
+        let boundary = operation.call().filter(|planned| planned.is_boundary());
         let coordinate = match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => coordinate,
-            _ => return None,
+            CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
+            _ => boundary?.coordinate(),
         };
         let matching_calls = calls
             .iter()
@@ -175,28 +168,22 @@ pub(super) fn checked_provider_attachment_requirements(
             // exact satisfied requirement and the leaf's own selected row
             // settles it. A legacy operator likewise names its own requirement;
             // an unrelated console field must not turn it into a receiver use.
-            let has_independent_requirement = match operation {
-                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    target_machine, ..
-                } => {
-                    program
-                        .machines()
-                        .iter()
-                        .any(|candidate| candidate.symbol == *target_machine)
-                        || (call.target_symbol == *target_machine
-                            && program.operators().iter().any(|operator| {
-                                operator.is_boundary && operator.symbol == *target_machine
-                            }))
-                        || validation::exact_external_leaf_boundary_requirement(
-                            program,
-                            call.target_symbol,
-                        )
-                        .is_some_and(|(requirement, _)| requirement == *target_machine)
-                }
-                _ => false,
-            };
+            let has_independent_requirement = boundary.is_some_and(|planned| {
+                let target_machine = planned.target_machine();
+                program
+                    .machines()
+                    .iter()
+                    .any(|candidate| candidate.symbol == target_machine)
+                    || (call.target_symbol == target_machine
+                        && program.operators().iter().any(|operator| {
+                            operator.is_boundary && operator.symbol == target_machine
+                        }))
+                    || validation::exact_external_leaf_boundary_requirement(
+                        program,
+                        call.target_symbol,
+                    )
+                    .is_some_and(|(requirement, _)| requirement == target_machine)
+            });
             if has_independent_requirement {
                 continue;
             }
@@ -228,12 +215,7 @@ pub(super) fn checked_provider_attachment_requirements(
             {
                 continue;
             }
-            if !matches!(operation,
-                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. }
-                    if *target_machine == call.target_symbol)
-            {
+            if !boundary.is_some_and(|planned| planned.target_machine() == call.target_symbol) {
                 return None;
             }
             requirements.push(CheckedProviderAttachmentRequirementPlan {
