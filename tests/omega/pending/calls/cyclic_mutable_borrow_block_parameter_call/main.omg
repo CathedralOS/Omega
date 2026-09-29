@@ -1,0 +1,63 @@
+// PENDING canary: a `&mut` machine argument rebinds through an UNRANKED
+// control cycle's block-parameter channel, then is re-borrowed whole into a
+// unit machine call. The terminal CallUnit argument spells the place with an
+// empty path and `MutableBorrow` access — a call-scoped loan created and
+// released inside the operation, the same custody pattern the cyclic
+// eligibility arm admits for persistent receivers. The arm keys that
+// admission on MACHINE structural parameters only, so the block-parameter
+// rebinding channel falls outside every admitted shape:
+//
+//   InvalidTerminalModule(ControlCycleIneligible {
+//       block: ..., reason: BlockOperation { block: ..., operation: ... } })
+//
+// Reduced from squalr's `Mini` provider loop — `module: &mut NormalizedModule`
+// carried through the cycle and forwarded to `module.set_module_name(...)`,
+// where the arg place is the block parameter of the machine's `&mut` input.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Sink {
+    value: u64 in Wrapping;
+}
+
+machine Sink::bump(&mut self) {
+    self.value = self.value + 1 as u64 in Wrapping;
+}
+
+data Driver {
+    ticks: u64 in Wrapping;
+}
+
+machine Driver::drive(&mut self, sink: &mut Sink, more: bool) {
+    transition { _ -> go(sink, more) }
+
+    state go(&mut self, sink: &mut Sink, more: bool) {
+        transition more {
+            true -> step(sink)
+            false -> done()
+        }
+    }
+
+    state step(&mut self, sink: &mut Sink) {
+        sink.bump();
+        self.ticks = self.ticks + 1 as u64 in Wrapping;
+        transition self.ticks > 4 {
+            true -> go(sink, false)
+            false -> go(sink, true)
+        }
+    }
+
+    state done(&mut self) { }
+}
+
+data Main {
+    driver: Driver;
+    sink: Sink;
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.driver.drive(&mut self.sink, true);
+    self.console.exit_process(0);
+}
