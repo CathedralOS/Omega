@@ -10,6 +10,7 @@ use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;
+    discard: i32;
     mode: i32;
     fd: i32;
     rc: i32;
@@ -23,9 +24,9 @@ machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.fd = self.fs.create("/tmp/omega_nlink.txt", self.mode);
     self.n = self.fs.write(self.fd, "hi");
-    self.n = self.fs.close(self.fd);
+    self.discard = self.fs.close(self.fd);
     // defensive: clear a stale link from a prior failed run (rc ignored)
-    self.n = self.fs.remove("/tmp/omega_nlink_2.txt");
+    self.discard = self.fs.remove("/tmp/omega_nlink_2.txt");
     self.rc = self.fs.read_metadata("/tmp/omega_nlink.txt", &mut self.buffer);
     self.nlink1 =
         widen_u8_to_i32(self.buffer[6]) | (widen_u8_to_i32(self.buffer[7]) << 8);
@@ -35,8 +36,8 @@ machine Main::main(&mut self) reaches FilesystemHost {
         self.rc = self.fs.read_metadata("/tmp/omega_nlink.txt", &mut self.buffer);
         self.nlink2 =
             widen_u8_to_i32(self.buffer[6]) | (widen_u8_to_i32(self.buffer[7]) << 8);
-        self.n = self.fs.remove("/tmp/omega_nlink_2.txt");
-        self.n = self.fs.remove("/tmp/omega_nlink.txt");
+        self.discard = self.fs.remove("/tmp/omega_nlink_2.txt");
+        self.discard = self.fs.remove("/tmp/omega_nlink.txt");
         transition self.nlink1 == 1 { true -> check2() _ -> fail() }
     }
     state check2(&mut self) {

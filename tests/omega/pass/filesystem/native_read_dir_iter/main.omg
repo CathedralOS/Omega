@@ -12,6 +12,7 @@ use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;
+    discard: i32;
     dirmode: i32;
     filemode: i32;
     rdonly: i32;
@@ -44,9 +45,9 @@ machine Main::main(&mut self) reaches FilesystemHost {
     self.count = 0;
     self.rc = self.fs.create_dir("/tmp/omega_rdi", self.dirmode);
     self.fd = self.fs.create("/tmp/omega_rdi/alpha", self.filemode);
-    self.n = self.fs.close(self.fd);
+    self.discard = self.fs.close(self.fd);
     self.fd = self.fs.create("/tmp/omega_rdi/beta", self.filemode);
-    self.n = self.fs.close(self.fd);
+    self.discard = self.fs.close(self.fd);
     self.dfd = self.fs.open("/tmp/omega_rdi", self.rdonly);
     transition self.dfd >= 0 { true -> readit() _ -> fail() }
     state readit(&mut self) {
@@ -73,9 +74,9 @@ machine Main::main(&mut self) reaches FilesystemHost {
         transition self.off < self.totalu { true -> walk() _ -> done() }
     }
     state done(&mut self) {
-        self.n = self.fs.close(self.dfd);
-        self.n = self.fs.remove("/tmp/omega_rdi/alpha");
-        self.n = self.fs.remove("/tmp/omega_rdi/beta");
+        self.discard = self.fs.close(self.dfd);
+        self.discard = self.fs.remove("/tmp/omega_rdi/alpha");
+        self.discard = self.fs.remove("/tmp/omega_rdi/beta");
         self.rc = self.fs.remove_dir("/tmp/omega_rdi");
         // entries: ".", "..", "alpha", "beta" => 4
         transition self.count == 4 { true -> good() _ -> fail() }

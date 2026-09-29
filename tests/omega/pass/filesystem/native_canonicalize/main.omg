@@ -10,6 +10,7 @@ use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;
+    discard: i32;
     mode: i32;
     fd: i32;
     rc: i64;
@@ -23,9 +24,9 @@ data Main {
 machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.fd = self.fs.create("/tmp/omega_canon.txt", self.mode);
-    self.n = self.fs.close(self.fd);
+    self.discard = self.fs.close(self.fd);
     self.rc = self.fs.canonicalize("/tmp/omega_canon.txt", &mut self.buffer);
-    self.n = self.fs.remove("/tmp/omega_canon.txt");
+    self.discard = self.fs.remove("/tmp/omega_canon.txt");
     transition self.rc != 0 { true -> decode() _ -> fail() }
     state decode(&mut self) {
         // realpath resolves /tmp -> /private/tmp: the canonical path is

@@ -10,6 +10,7 @@ use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;
+    discard: i32;
     mode: i32;
     fd: i32;
     rc: i32;
@@ -23,7 +24,7 @@ machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.fd = self.fs.create("/tmp/omega_blocks.txt", self.mode);
     self.n = self.fs.write(self.fd, "some content here");
-    self.n = self.fs.close(self.fd);
+    self.discard = self.fs.close(self.fd);
     self.rc = self.fs.read_metadata("/tmp/omega_blocks.txt", &mut self.buffer);
     // carrier note: each little-endian field is assembled in the unsigned
     // carrier of its own width and reinterpreted once at the end, so every
@@ -47,7 +48,7 @@ machine Main::main(&mut self) reaches FilesystemHost {
             | (widen_u8_to_u64(self.buffer[109]) << 40)
             | (widen_u8_to_u64(self.buffer[110]) << 48)
             | (widen_u8_to_u64(self.buffer[111]) << 56));
-    self.n = self.fs.remove("/tmp/omega_blocks.txt");
+    self.discard = self.fs.remove("/tmp/omega_blocks.txt");
     transition self.blksize > 0 { true -> good() _ -> fail() }
     state good(&mut self) { self.n = self.fs.write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }
     state fail(&mut self) { self.n = self.fs.write(1, "FAIL: blocks/blksize\n"); }

@@ -9,6 +9,7 @@ use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;
+    discard: i32;
     mode: i32;
     fd: i32;
     rc: i32;
@@ -23,9 +24,9 @@ machine Main::main(&mut self) reaches FilesystemHost {
     self.mode = 420;
     self.fd = self.fs.create("/tmp/omega_cd_a.txt", self.mode);
     self.n = self.fs.write(self.fd, "a");
-    self.n = self.fs.close(self.fd);
+    self.discard = self.fs.close(self.fd);
     self.fd = self.fs.create("/tmp/omega_cd_b.txt", self.mode);
-    self.n = self.fs.close(self.fd);
+    self.discard = self.fs.close(self.fd);
     self.rc = self.fs.read_metadata("/tmp/omega_cd_a.txt", &mut self.buffer);
     // carrier note: each little-endian field is assembled in the unsigned
     // carrier of its own width and reinterpreted once at the end, so every
@@ -55,8 +56,8 @@ machine Main::main(&mut self) reaches FilesystemHost {
             | (widen_u8_to_u32(self.buffer[1]) << 8)
             | (widen_u8_to_u32(self.buffer[2]) << 16)
             | (widen_u8_to_u32(self.buffer[3]) << 24));
-    self.n = self.fs.remove("/tmp/omega_cd_a.txt");
-    self.n = self.fs.remove("/tmp/omega_cd_b.txt");
+    self.discard = self.fs.remove("/tmp/omega_cd_a.txt");
+    self.discard = self.fs.remove("/tmp/omega_cd_b.txt");
     transition self.ctime > 1000000000 { true -> checkdev() _ -> fail() }
     state checkdev(&mut self) {
         // two files on the same filesystem share a device id
