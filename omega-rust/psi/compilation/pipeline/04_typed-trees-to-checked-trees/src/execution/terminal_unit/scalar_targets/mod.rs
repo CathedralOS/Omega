@@ -452,8 +452,26 @@ pub(super) fn available_target(
             primitive_type,
         )
     };
-    if structural_arguments.len() != structural.len()
-        || structural_arguments
+    // A borrowed receiver the callee leaves ambient on its attachment carrier
+    // still occupies its authored slot among the call's structural arguments;
+    // it owns no plan entry, so forwarded operands compare around it. The gap
+    // is real only when the arguments actually carry one extra slot — a
+    // roster that forwards self (a `&mut self` callee whose plan parameter
+    // does not flag it) keeps argument and parameter arity equal.
+    let ambient_receiver = program
+        .state_parameters(state)
+        .iter()
+        .position(|parameter| parameter.is_self && is_reference(program, parameter.type_reference))
+        .filter(|_| !structural.iter().any(|parameter| parameter.is_self))
+        .filter(|_| structural_arguments.len() == structural.len() + 1);
+    let forwarded = structural_arguments
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| ambient_receiver != Some(*index))
+        .map(|(_, argument)| argument)
+        .collect::<Vec<_>>();
+    if forwarded.len() != structural.len()
+        || forwarded
             .iter()
             .zip(structural)
             .any(|(argument, parameter)| {
@@ -462,7 +480,10 @@ pub(super) fn available_target(
             })
         || claim_transfers.len() != claims.len()
         || claim_transfers.iter().zip(claims).any(|(transfer, claim)| {
-            transfer.argument_index != claim.parameter_index || claim.carry != CarryPolicy::STRICT
+            let expected_argument = structural
+                .get(usize::try_from(claim.parameter_index).unwrap_or(usize::MAX))
+                .map(|parameter| parameter.position);
+            Some(transfer.argument_index) != expected_argument || claim.carry != CarryPolicy::STRICT
         })
     {
         return None;

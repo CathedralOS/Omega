@@ -660,8 +660,62 @@ impl OperationFrame<'_, '_> {
             if target.structural_parameters().is_empty() && !structural_arguments.is_empty() {
                 return unsupported("structural scalar call has no structural checked body");
             }
+            // A borrowed receiver the callee leaves ambient on its attachment
+            // carrier still occupies its authored slot among the call's
+            // structural arguments; the emitted boundary rejoins the callee's
+            // forwarded formals only, so the slot and its transfer rows are
+            // filtered out and the remaining indices rebased. The gap is real
+            // only when the arguments actually carry one extra slot — a roster
+            // that forwards self keeps argument and parameter arity equal.
+            let ambient_receiver = target
+                .entry_state()
+                .ok()
+                .and_then(|state| {
+                    crate::expression_preparation::source_custody::authored_state(checked, state)
+                        .ok()
+                })
+                .and_then(|(_, callee_state)| {
+                    checked
+                        .state_parameters(callee_state)
+                        .iter()
+                        .position(|parameter| {
+                            parameter.is_self
+                                && matches!(
+                                    checked
+                                        .type_reference_table
+                                        .type_reference(parameter.type_reference),
+                                    checked_trees::types::TypeReferenceNode::Reference { .. }
+                                )
+                        })
+                        .filter(|_| {
+                            !target
+                                .structural_parameters()
+                                .iter()
+                                .any(|parameter| parameter.is_self)
+                        })
+                })
+                .filter(|_| structural_arguments.len() == target.structural_parameters().len() + 1);
+            let forwarded_arguments = structural_arguments
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| ambient_receiver != Some(*index))
+                .map(|(_, argument)| argument.clone())
+                .collect::<Vec<_>>();
+            let forwarded_transfers = claim_transfers
+                .iter()
+                .filter(|transfer| ambient_receiver != Some(transfer.argument_index as usize))
+                .map(|transfer| {
+                    let mut transfer = transfer.clone();
+                    if ambient_receiver
+                        .is_some_and(|index| transfer.argument_index as usize > index)
+                    {
+                        transfer.argument_index -= 1;
+                    }
+                    transfer
+                })
+                .collect::<Vec<_>>();
             let mut selector_values = parameters::mint_runtime_index_selectors(
-                structural_arguments,
+                &forwarded_arguments,
                 &self.evaluation.structural_fields,
                 self.values,
                 self.next_value,
@@ -670,10 +724,10 @@ impl OperationFrame<'_, '_> {
             .into_iter();
             let earlier = self
                 .results
-                .earlier(structural_arguments, self.operations)?;
+                .earlier(&forwarded_arguments, self.operations)?;
             validate_transfer_shape(
-                structural_arguments,
-                claim_transfers,
+                &forwarded_arguments,
+                &forwarded_transfers,
                 self.parameters,
                 self.caller.local_places,
                 &earlier,
@@ -690,7 +744,7 @@ impl OperationFrame<'_, '_> {
                         target
                             .structural_parameters()
                             .get(claim.parameter_index as usize)
-                            .zip(structural_arguments.get(claim.parameter_index as usize))
+                            .zip(forwarded_arguments.get(claim.parameter_index as usize))
                             .is_none_or(|(parameter, argument)| {
                                 !parameter.is_self
                                     || argument
@@ -714,7 +768,7 @@ impl OperationFrame<'_, '_> {
                 erased_arguments,
                 erased_proof_arguments,
                 structural_arguments: lower_structural_arguments(
-                    structural_arguments,
+                    &forwarded_arguments,
                     self.parameters,
                     self.caller.local_places,
                     &earlier,
@@ -725,8 +779,8 @@ impl OperationFrame<'_, '_> {
                     Some(&mut *self.calls),
                 )?,
                 claim_transfers: emitted_claim_transfers(
-                    structural_arguments,
-                    claim_transfers,
+                    &forwarded_arguments,
+                    &forwarded_transfers,
                     target.structural_parameters(),
                     &self.operations.structural_values,
                     self.caller.claims.bindings(),

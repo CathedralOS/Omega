@@ -7,6 +7,7 @@ use super::{
     LoweringError, Multiplicity, StatementNode, unsupported,
 };
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
+use checked_trees::types::TypeReferenceNode;
 
 /// Rejoin a whole named linear operand to its earlier successful call, not
 /// merely another result with the same carrier type. Source claims retain the
@@ -1241,7 +1242,33 @@ pub(crate) fn validate_consumer(
                 return unsupported("structural result use requires an ordinary or boundary call");
             }
         };
-    if structural_arguments.len() != target_parameters.len() {
+    // A borrowed receiver the callee leaves ambient on its attachment carrier
+    // still occupies its authored slot among the call's structural arguments;
+    // it owns no forwarded formal, so the walk skips that position. The gap is
+    // real only when the arguments actually carry one extra slot — a roster
+    // that forwards self keeps argument and parameter arity equal.
+    let ambient_receiver =
+        crate::expression_preparation::source_custody::authored_state(checked, target_state)
+            .ok()
+            .and_then(|(_, callee_state)| {
+                checked
+                    .state_parameters(callee_state)
+                    .iter()
+                    .position(|parameter| {
+                        parameter.is_self
+                            && matches!(
+                                checked
+                                    .type_reference_table
+                                    .type_reference(parameter.type_reference),
+                                TypeReferenceNode::Reference { .. }
+                            )
+                    })
+                    .filter(|_| !target_parameters.iter().any(|parameter| parameter.is_self))
+            })
+            .filter(|_| structural_arguments.len() == target_parameters.len() + 1);
+    if structural_arguments.len()
+        != target_parameters.len() + usize::from(ambient_receiver.is_some())
+    {
         return unsupported("Unit structural argument arity disagrees with its target");
     }
     let operation_index = caller
@@ -1287,11 +1314,22 @@ pub(crate) fn validate_consumer(
     } else {
         None
     };
-    for (index, (argument, parameter)) in structural_arguments
-        .iter()
-        .zip(target_parameters)
-        .enumerate()
-    {
+    let mut forwarded_parameters = target_parameters.iter();
+    let mut parameter_position = 0usize;
+    // `index` keeps the argument's authored call position (claim transfers,
+    // boundary positions, consumer callbacks); `parameter_index` is the
+    // forwarded formal's position in the callee roster (entry claims).
+    for (index, argument) in structural_arguments.iter().enumerate() {
+        if ambient_receiver == Some(index) {
+            continue;
+        }
+        let parameter = forwarded_parameters
+            .next()
+            .ok_or(LoweringError::Unsupported(
+                "structural result consumer lost a target parameter",
+            ))?;
+        let parameter_index = parameter_position;
+        parameter_position += 1;
         let source_position = boundary_source_positions
             .as_ref()
             .map(|positions| positions[index])
@@ -1327,7 +1365,7 @@ pub(crate) fn validate_consumer(
                 || parameter.is_self
                 || target_entry_claims
                     .iter()
-                    .any(|claim| claim.parameter_index as usize == index)
+                    .any(|claim| claim.parameter_index as usize == parameter_index)
                 || claim_transfers
                     .iter()
                     .any(|transfer| transfer.argument_index as usize == index)
@@ -1357,7 +1395,7 @@ pub(crate) fn validate_consumer(
             )?;
             if target_entry_claims
                 .iter()
-                .any(|claim| claim.parameter_index as usize == index)
+                .any(|claim| claim.parameter_index as usize == parameter_index)
                 || claim_transfers
                     .iter()
                     .any(|transfer| transfer.argument_index as usize == index)
@@ -1400,7 +1438,7 @@ pub(crate) fn validate_consumer(
                             if name.symbol == source_parameter.symbol
                                 && name.head_symbol == source_parameter.symbol
                                 && checked.expression_table.name_path_members(name.members).len() == 1))
-                    || target_entry_claims.iter().any(|claim| claim.parameter_index as usize == index)
+                    || target_entry_claims.iter().any(|claim| claim.parameter_index as usize == parameter_index)
                     || claim_transfers.iter().any(|transfer| transfer.argument_index as usize == index))
             {
                 return unsupported("primitive array parameter requires exact whole owned ordinary transport");
@@ -1540,7 +1578,7 @@ pub(crate) fn validate_consumer(
                 && parameter.fused_service_erasure.is_none()
                 && target_entry_claims
                     .iter()
-                    .all(|claim| claim.parameter_index as usize != index)
+                    .all(|claim| claim.parameter_index as usize != parameter_index)
                 && claim_transfers
                     .iter()
                     .all(|transfer| transfer.argument_index as usize != index);
@@ -1585,7 +1623,7 @@ pub(crate) fn validate_consumer(
                 || parameter.fused_service_erasure.is_some()
                 || target_entry_claims
                     .iter()
-                    .any(|claim| claim.parameter_index as usize == index)
+                    .any(|claim| claim.parameter_index as usize == parameter_index)
                 || claim_transfers
                     .iter()
                     .any(|transfer| transfer.argument_index as usize == index))

@@ -1,0 +1,43 @@
+// Borrowed-receiver scalar return: `self.probe.count(&self.buf)` calls a
+// `&self` machine carrying one `&[u8]` structural parameter and returning
+// u64. The callee leaves its receiver ambient on the attachment carrier, so
+// the call's structural arguments carry one slot the forwarded roster
+// rejoins around — admission, qualifier replay, source custody, and transfer
+// shape all compare around the ambient position.
+//
+// Mirrors Squalr's `self.reader.read_bytes(&self.info, 0, &mut self.buf)`
+// field-receiver scalar calls carrying byte-view arguments.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Probe {
+    base: u64;
+}
+
+machine Probe::count(&self, bytes: &[u8]) -> u64 {
+    (bytes.len)
+}
+
+data Main {
+    console: Binding<Console>;
+    probe: Probe;
+    buf: [u8; 8];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.buf[0] = 1;
+    let n: u64 = self.probe.count(&self.buf);
+    transition n == 8 {
+        true -> done()
+        _ -> missed()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    builder.application("ambient_receiver_scalar_return_exit");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}

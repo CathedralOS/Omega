@@ -36,13 +36,50 @@ pub(super) fn validate_call_source(
     )?;
     let (source_machine, source_state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    // A borrowed receiver the callee leaves ambient on its attachment carrier
+    // still occupies its authored slot among the call's structural arguments;
+    // it owns no forwarded formal, so the rejoin compares around that position.
+    // The gap is real only when the arguments actually carry one extra slot —
+    // a roster that forwards self keeps argument and parameter arity equal.
+    let ambient_receiver = target
+        .entry_state()
+        .ok()
+        .and_then(|state| {
+            crate::expression_preparation::source_custody::authored_state(checked, state).ok()
+        })
+        .and_then(|(_, callee_state)| {
+            checked
+                .state_parameters(callee_state)
+                .iter()
+                .position(|parameter| {
+                    parameter.is_self
+                        && matches!(
+                            checked
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            TypeReferenceNode::Reference { .. }
+                        )
+                })
+                .filter(|_| {
+                    !target
+                        .structural_parameters()
+                        .iter()
+                        .any(|parameter| parameter.is_self)
+                })
+        })
+        .filter(|_| structural_arguments.len() == target.structural_parameters().len() + 1);
+    let forwarded = structural_arguments
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| ambient_receiver != Some(*index))
+        .collect::<Vec<_>>();
     if source_machine.symbol != caller.machine
         || *target_machine != target.source_machine()
         || *target_state != target.entry_state()?
         || authored.target_machine != target.source_machine()
         || authored.target_state != target.entry_state()?
         || authored.boundary
-        || structural_arguments.len() != target.structural_parameters().len()
+        || forwarded.len() != target.structural_parameters().len()
     {
         return unsupported("scalar wrapper structural source disagrees with its exact call");
     }
@@ -54,10 +91,10 @@ pub(super) fn validate_call_source(
         target.entry_claims(),
     )?;
     let mut expected_transfers = Vec::new();
-    for (argument_index, (argument, parameter)) in structural_arguments
+    for ((argument_index, argument), parameter) in forwarded
         .iter()
+        .copied()
         .zip(target.structural_parameters())
-        .enumerate()
     {
         if argument
             .source_structural_result_binding_ordinal()
