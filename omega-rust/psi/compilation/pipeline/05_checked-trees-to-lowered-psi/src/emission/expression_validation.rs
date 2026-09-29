@@ -10,6 +10,7 @@ pub(crate) fn validate_boolean_parameter_types(
     match expression {
         LoweredBooleanReturnExpression::Constant { .. } => Ok(()),
         LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => Ok(()),
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
@@ -87,6 +88,7 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::ElementViewRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
         }
+        LoweredDirectExpression::ByteCarrierFieldRead { .. } => Ok(()),
         LoweredDirectExpression::IntegerBinary { left, right, .. }
         | LoweredDirectExpression::SaturatingShiftLeft { left, right, .. } => {
             validate_direct_parameter_types(left, parameter_types)?;
@@ -118,6 +120,7 @@ pub(crate) fn contains_short_circuit(expression: &LoweredBooleanReturnExpression
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => false,
         LoweredBooleanReturnExpression::Not { operand } => contains_short_circuit(operand),
         LoweredBooleanReturnExpression::Equal { left, right } => {
@@ -149,6 +152,7 @@ pub(crate) fn validate_short_circuit_expression(
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. }
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => Ok(()),
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {

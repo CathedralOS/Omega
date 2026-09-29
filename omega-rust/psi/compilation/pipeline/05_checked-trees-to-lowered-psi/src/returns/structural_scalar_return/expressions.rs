@@ -58,7 +58,8 @@ pub(super) fn is_structural_boolean_return_expression(
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { path, .. } => {
             path.len() == 1
         }
-        LoweredBooleanReturnExpression::StructuralField { .. } => true,
+        LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. } => true,
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
@@ -107,6 +108,7 @@ pub(super) fn is_branch_free_structural_integer_expression(
         LoweredDirectExpression::IeeeFloatLiteral { .. }
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
+        | LoweredDirectExpression::ByteCarrierFieldRead { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceFieldRead { .. }
         | LoweredDirectExpression::IndexedPrimitiveRead { .. }
@@ -174,7 +176,8 @@ pub(super) fn is_branch_free_structural_boolean_expression(
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { path, .. } => {
             path.len() == 1
         }
-        LoweredBooleanReturnExpression::StructuralField { .. } => true,
+        LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. } => true,
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
@@ -219,6 +222,7 @@ pub(super) fn boolean_local_reference_count(
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => 0,
     }
 }
@@ -261,6 +265,7 @@ pub(super) fn inline_boolean_local(
             ..
         }
         | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. }) => expression.clone(),
     }
 }
