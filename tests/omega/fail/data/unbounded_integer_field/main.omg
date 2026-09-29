@@ -17,5 +17,5 @@ data Main {
     counter: Counter;
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }

@@ -22,5 +22,5 @@ data Main {
     invalid: RatIndexed<RatIndices::INVALID>;
 }
 
-machine Main::main(&mut self) {
+machine main() {
 }

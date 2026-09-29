@@ -10,6 +10,6 @@ data Value<T> {
     case Boolean(value: T) where T == bool;
 }
 data Main { vs: [Value<i32>; 4]; }
-machine Main::main(&mut self) {
+machine main() {
     let m: Main = Main {};
 }

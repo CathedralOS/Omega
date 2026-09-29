@@ -11,7 +11,7 @@ use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
-demo_target machine Helper::paradigm_internal(&self) -> i32 {
+demo_target machine paradigm_internal() -> i32 {
     transition { _ -> 63 }
 }
 

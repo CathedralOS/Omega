@@ -6,4 +6,4 @@ data Main {
     span: u64 in Distance;
 }
 
-machine Main::main(&mut self) {}
+machine main() {}

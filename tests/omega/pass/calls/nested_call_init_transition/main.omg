@@ -91,7 +91,7 @@ machine Main::size_of(&self, sum: Sum, unit: u64) -> u64 {
         Sum::Second { payload } -> (self.sat_mul(payload as u64 in Saturating, unit as u64 in Saturating))
     }
 }
-machine Main::size_via_call(&self, cell: Cell) -> u64 {
+machine size_via_call(cell: Cell) -> u64 {
     transition cell.get_sum() {
         Sum::First -> (1)
         Sum::Second { payload } -> (payload)
