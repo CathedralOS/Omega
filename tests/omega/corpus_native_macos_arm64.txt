@@ -149,11 +149,13 @@ pass/calls/runtime_value_call_terminal_exit rejected 1563ms
 pass/calls/serviceful_borrowed_scalar_exit built 933ms exit:70 stdout:match @f9a8ced78a89
 pass/calls/statement_call_recursive_overload_compile checked 181ms
 pass/calls/transition_arg_local_from_embedded_call_exit built 924ms exit:70 @3da828ba5434+wt
+pass/calls/unread_multistate_receiver_exit built 530ms exit:70 @5c1d6f8344c7
 pass/calls/value_call_as_host_arg_exit rejected 428ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a call statement`
 pass/calls/value_call_element_view_arg_compile checked 169ms
 pass/calls/value_call_embedded_in_binary_exit built 794ms exit:70 @3da828ba5434+wt
 pass/calls/value_call_param_effect_arm built 652ms exit:1
+pass/calls/value_call_transition_argument built 514ms @5c1d6f8344c7
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
 pass/capabilities/acquires_through_helper_return built 301ms
 pass/capabilities/boundary_trait_multiple_effects checked 164ms
