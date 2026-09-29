@@ -137,6 +137,10 @@ pub(super) fn validate(
             // namespace an `as_slice` view local's value does.
             | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
+            // A `let`-bound closed scalar array takes the next structural
+            // ordinal when checking plans it (`local_data`), so a later
+            // structural binding in the same state counts past it.
+            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
             // The displaced field value is a fresh structural binding in the
             // same namespace as the call result that replaces it.
             | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
