@@ -46,6 +46,7 @@ mod selection;
 pub(crate) use selection::collect_expression_tree;
 mod body_rewriting;
 pub(crate) use body_rewriting::collect_statement_expression_trees;
+pub(crate) use body_rewriting::runtime_bound_occurrence_in;
 pub(crate) mod identities;
 pub(crate) use identities::{
     bind_specialization_contract_identities, canonical_state_signature_bytes,

@@ -33,7 +33,7 @@ pub(crate) fn substitute_cloned_type_parameters(
             })
             .map(|(handle, _, _)| handle)
             .collect();
-        let replacement = copy_type_reference(
+        let replacement_handle = copy_type_reference(
             source,
             program,
             binding.expect("complete specialization"),
@@ -41,13 +41,21 @@ pub(crate) fn substitute_cloned_type_parameters(
         );
         let replacement = program
             .type_reference_table
-            .type_reference(replacement)
+            .type_reference(replacement_handle)
             .clone();
         for occurrence in occurrences {
             program
                 .type_reference_table
                 .substitute_node(occurrence, replacement.clone());
         }
+        // Clone-owned compounds whose child still names the binder point at
+        // the template's interned leaf — out of the occurrence scan's reach.
+        // Repoint those fields at the argument's fresh node.
+        program.type_reference_table.substitute_shared_children(
+            type_start,
+            *parameter_symbol,
+            replacement_handle,
+        );
     }
     for ((parameter_symbol, _, _), binding) in candidate
         .template
@@ -69,7 +77,7 @@ pub(crate) fn substitute_cloned_type_parameters(
             })
             .map(|(handle, _, _)| handle)
             .collect();
-        let replacement = copy_type_reference(
+        let replacement_handle = copy_type_reference(
             source,
             program,
             binding.expect("complete const specialization"),
@@ -77,13 +85,18 @@ pub(crate) fn substitute_cloned_type_parameters(
         );
         let replacement = program
             .type_reference_table
-            .type_reference(replacement)
+            .type_reference(replacement_handle)
             .clone();
         for occurrence in occurrences {
             program
                 .type_reference_table
                 .substitute_node(occurrence, replacement.clone());
         }
+        program.type_reference_table.substitute_shared_children(
+            type_start,
+            *parameter_symbol,
+            replacement_handle,
+        );
     }
     let fixed_array_replacements =
         fixed_array_const_replacements(source.unwrap_or(program), candidate);

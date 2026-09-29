@@ -724,6 +724,17 @@ pub(super) fn parameter_qualifications(
                 base_type,
                 constraints,
             } => {
+                // An arithmetic-policy shell (`i32 in Wrapping`) carries no
+                // semantic-domain custody for a parameter to honor: the
+                // integer policy stays in the type identity while the plan
+                // peels to the underlying carrier.
+                if validation::is_arithmetic_policy_only_integer(
+                    program,
+                    type_reference,
+                ) {
+                    type_reference = *base_type;
+                    continue;
+                }
                 for constraint in program.type_reference_table.constraints(*constraints) {
                     let TypeConstraintNode::Domain(domain) = constraint else {
                         return None;
@@ -1497,11 +1508,17 @@ fn partial_affine_source_contents_are_owned(
     }
     visited.push(symbol);
     program.data_members(data).iter().all(|member| {
-        let DataMember::Field(field) = member else {
-            return false;
+        // A selected case owns its whole payload: union members carry owned
+        // contents exactly when every payload field is owned, the same
+        // classification a record field takes.
+        let fields: &[typed_trees::data::DataField] = match member {
+            DataMember::Field(field) => std::slice::from_ref(field),
+            DataMember::Variant(variant) => program.data_payload_fields(variant),
         };
-        !field.relevance.is_erased()
-            && partial_affine_source_contents_are_owned(program, field.type_reference, visited)
+        fields.iter().all(|field| {
+            !field.relevance.is_erased()
+                && partial_affine_source_contents_are_owned(program, field.type_reference, visited)
+        })
     })
 }
 
@@ -1656,6 +1673,22 @@ impl<'program> ShapeCollector<'program> {
         }
         self.types.insert(identity.clone(), plan);
         Some(identity)
+    }
+
+    /// Read a const actual bound through a substitution as a usize array
+    /// length. Literal spellings are `Named` rows whose identity is the
+    /// decimal text; const-evaluated applications keep a `ConstExpression`.
+    fn const_length_reference_value(&self, reference: TypeReferenceHandle) -> Option<usize> {
+        match self.program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { name, .. } => name.as_str().parse::<usize>().ok(),
+            TypeReferenceNode::ConstExpression(expression) => usize::try_from(
+                self.program
+                    .expression_table
+                    .constant_integer_value(*expression)?,
+            )
+            .ok(),
+            _ => None,
+        }
     }
 
     fn is_unrestricted_nonatomic_primitive(&self, type_reference: TypeReferenceHandle) -> bool {
@@ -2006,12 +2039,30 @@ impl<'program> ShapeCollector<'program> {
         }
         if let TypeReferenceNode::FixedArray {
             element_type,
-            length: typed_trees::types::FixedArrayLength::Literal(length),
+            length,
         } = self
             .program
             .type_reference_table
             .type_reference(type_reference)
         {
+            // An element carrier spelled with a const parameter binds its
+            // declared length at each application. Literal actuals resolve
+            // here; an open binder keeps no numeric extent and declines.
+            let Some(length) = (match length {
+                typed_trees::types::FixedArrayLength::Literal(value) => Some(*value),
+                typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. } => {
+                    substitutions
+                        .iter()
+                        .rev()
+                        .find(|(parameter, _)| parameter == symbol)
+                        .and_then(|(_, replacement)| {
+                            self.const_length_reference_value(*replacement)
+                        })
+                }
+                typed_trees::types::FixedArrayLength::ConstCall { .. } => None,
+            }) else {
+                return None;
+            };
             let plain_owned_array = validation::has_plain_owned_contents_with_substitutions(
                 self.program,
                 type_reference,
@@ -2048,18 +2099,23 @@ impl<'program> ShapeCollector<'program> {
             {
                 element_carrier = *base_type;
             }
-            if (*length == 0
+            if (length == 0
                 && !validation::is_closed_primitive_array_type(self.program, type_reference))
                 || (!plain_owned_array
                     && !owned_affine_array
-                    && (!substitutions.is_empty()
-                        || (!matches!(
-                            self.program
-                                .type_reference_table
-                                .type_reference(element_carrier),
-                            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                        ) && !unrestricted_primitive_element
-                            && !unrestricted_nested_primitive_array_element)
+                    && (substitutions.iter().any(|(parameter, _)| {
+                        crate::monomorphization::runtime_bound_occurrence_in(
+                            self.program,
+                            &[*element_type],
+                            *parameter,
+                        )
+                    }) || (!matches!(
+                        self.program
+                            .type_reference_table
+                            .type_reference(element_carrier),
+                        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+                    ) && !unrestricted_primitive_element
+                        && !unrestricted_nested_primitive_array_element)
                         || (crate::checks::type_multiplicity(self.program, *element_type)
                             != Multiplicity::Linear
                             && !unrestricted_primitive_element
@@ -2074,7 +2130,7 @@ impl<'program> ShapeCollector<'program> {
                 self.in_progress.remove(&identity);
                 return None;
             };
-            let length = u64::try_from(*length).ok()?;
+            let length = u64::try_from(length).ok()?;
             self.types.insert(
                 identity.clone(),
                 CheckedUnitStructuralTypePlan {
@@ -2109,7 +2165,9 @@ impl<'program> ShapeCollector<'program> {
                     .type_reference_handles(*arguments)
                     .to_vec(),
             ),
-            _ => return None,
+            _ => {
+                return None;
+            }
         };
         let data = self
             .program
