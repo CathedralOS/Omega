@@ -1710,12 +1710,16 @@ crash and native exit behavior. Use affected check/native corpus slices under
     tree pass the checker, including named operators with literal operands
     (`min(a * b, 11.5)`). On macOS ARM64, `pass/float/nested_float_operator_applications_exit`
     exits **70**, `arithmetic/stats_compute` **70**, `basics/unit_converter`
-    **70** and `rendering/mandelbrot` **0** natively. A float-to-integer
-    `in Saturating`/`in Trapping` cast binds, after named result-overload
-    resolution, to the destination-owned `I32::from_f64`-style overload its
-    result qualification selects (`validation::bind_float_conversion_casts`);
-    the Exact erasure `(..) as i32` of such an application adds no operation.
-    `pass/float/runtime_float_to_integer_policy_casts_exit` exits **70**.
+    **70** and `rendering/mandelbrot` **0** natively.
+    `validation::bind_float_conversion_casts` binds whole-carrier-exact float
+    widenings, and float-to-integer `in Saturating`/`in Trapping`
+    casts, to their exact destination-owned requirement. Same-carrier policy
+    erasure adds no operation. On macOS ARM64, `omega run
+    tests/omega/pass/expressions/runtime_numeric_cast_exit/main.omg` exits
+    **70** unchanged, as does `float/runtime_float_to_integer_policy_casts_exit`.
+    Value-dependent float representability and target-predicate casts still
+    need their proof-preserving lowering; a rounding named conversion cannot
+    substitute for an exact cast or erase its predicate.
     `abs`/`clamp` applications keep their authored call's acknowledgement and
     one Call selection each. Exact float-to-integer casts still have no route:
     the unqualified conversion's `requires` entailment reads neither declared

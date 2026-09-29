@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 12, "jobs": null, "load1_end": 87.67, "load1_start": 100.97, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 9.07, "load1_start": 2.49, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -378,8 +378,7 @@ pass/expressions/owned_match_record_values checked 207ms
 pass/expressions/owned_match_values checked 193ms
 pass/expressions/qualified_call_result_argument checked 204ms
 pass/expressions/runtime_flat_boolean_logic_exit built 786ms exit:70
-pass/expressions/runtime_numeric_cast_exit rejected 1523ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 2)
+pass/expressions/runtime_numeric_cast_exit built 2496ms exit:70 @1c13b12180bf+wt
 pass/expressions/runtime_widened_comparison_exit built 853ms exit:70
 pass/expressions/scalar_match_boundary_composition_exit built 1964ms exit:70 @de036fe72b0b
 pass/filesystem/cross_linux_value_syscalls checked 2659ms
@@ -501,6 +500,7 @@ pass/float/named_provider_min_max_sqrt_exit built 13966ms exit:70 @fb2178def922
 pass/float/named_provider_multiply_then_add_exit built 1381ms exit:70 @22df272b5668+wt
 pass/float/named_provider_negate_is_nan_exit built 2014ms exit:70 @bbdbb0a83995+wt
 pass/float/runtime_float_integer_conversion_boundaries_exit built 1554ms exit:70 @0c6abc6d1e0c+wt
+pass/float/runtime_float_to_integer_policy_casts_exit built 2588ms exit:70 @1c13b12180bf+wt
 pass/float/runtime_named_float_to_integer_conversion_exit built 1366ms exit:70 @0c6abc6d1e0c+wt
 pass/float/runtime_named_format_conversion_exit built 1813ms exit:70 @0d9777b52aee+wt
 pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
