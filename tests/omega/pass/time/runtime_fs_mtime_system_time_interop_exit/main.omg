@@ -2,7 +2,7 @@
 // 2026-07-10g): a real file's Metadata mtime, decoded at the darwin stat
 // offset (st_mtimespec.tv_sec, i64 @48 -- the native_metadata_modified
 // idiom) and bridged through SystemTime::from_unix_seconds, is comparable
-// with Time::system_time_now(): now.duration_since(modified) must be Ok
+// with Time::system_time_now(): SystemTime::duration_since must be Ok
 // (a just-created file is never in the future), the gap must be sane, and
 // the bridged mtime must be a real timestamp (>= the virtual model's
 // 10^9 constant; a zeroed decode fails).
@@ -26,63 +26,53 @@ data Main {
     console: Binding<Console>;
     fs: Binding<FilesystemHost>;
     time: Time;
-    mode: i32;
-    fd: i32;
-    n: i64;
-    rc: i64;
-    buffer: [u8; 144];
-    mtime: i64;
-    modified: SystemTime;
-    now_keep: SystemTime;
-    diff: SystemTimeDifference;
 }
 
-machine Main::main(&mut self) reaches Console + FilesystemHost {
-    self.mode = 438;
-    self.fd = self.fs.create("/tmp/omega_time_interop.txt", self.mode);
-    self.n = self.fs.write(self.fd, "interop");
-    self.n = self.fs.close(self.fd);
-    self.rc = self.fs.read_metadata("/tmp/omega_time_interop.txt", &mut self.buffer);
-    self.n = self.fs.remove("/tmp/omega_time_interop.txt");
-    transition self.rc == 0 { true -> decode() _ -> bad(71) }
-    state decode(&mut self) {
+machine Main::main(context: &mut Main) reaches Console + FilesystemHost {
+    let mode: i32 = 438;
+    let mut buffer: [u8; 144];
+    let descriptor: i32 = context.fs.create("/tmp/omega_time_interop.txt", mode);
+    let written: i64 = context.fs.write(descriptor, "interop");
+    let closed: i64 = context.fs.close(descriptor);
+    let metadata_status: i64 = context.fs.read_metadata("/tmp/omega_time_interop.txt", &mut buffer);
+    let removed: i64 = context.fs.remove("/tmp/omega_time_interop.txt");
+    transition metadata_status == 0 { true -> decode(context, buffer) _ -> bad(context, 71) }
+    state decode(context: &mut Main, buffer: [u8; 144]) {
         // carrier note: the little-endian field is assembled in `u64` and
         // reinterpreted once at the landing, so every shifted byte is
         // Exact-representable: 255 << 56 is 18374686479671623680 against a u64
         // ceiling of 18446744073709551615. Shifting in `i64` reaches the same
         // 18374686479671623680 against a ceiling of 9223372036854775807, which
         // is a decision-17 obligation no return range can discharge.
-        self.mtime = narrow_u64_to_i64_wrapping(
-            widen_u8_to_u64(self.buffer[48])
-                | (widen_u8_to_u64(self.buffer[49]) << 8)
-                | (widen_u8_to_u64(self.buffer[50]) << 16)
-                | (widen_u8_to_u64(self.buffer[51]) << 24)
-                | (widen_u8_to_u64(self.buffer[52]) << 32)
-                | (widen_u8_to_u64(self.buffer[53]) << 40)
-                | (widen_u8_to_u64(self.buffer[54]) << 48)
-                | (widen_u8_to_u64(self.buffer[55]) << 56));
-        self.modified = SystemTime::from_unix_seconds(self.mtime);
-        self.now_keep = self.time.system_time_now();
-        // Direct call on the NON-FIRST SystemTime field: per-instance
-        // receivers (2026-07-10t) retired the a/b first-field shuffle idiom.
-        self.diff = self.now_keep.duration_since(self.modified);
-        transition self.diff {
-            SystemTimeDifference::Ok { duration } -> check_gap(duration)
-            SystemTimeDifference::Backwards { amount } -> bad_backwards(amount)
-            SystemTimeDifference::Unmeasured -> bad(73)
+        let modified_seconds: i64 = narrow_u64_to_i64_wrapping(
+            widen_u8_to_u64(buffer[48])
+                | (widen_u8_to_u64(buffer[49]) << 8)
+                | (widen_u8_to_u64(buffer[50]) << 16)
+                | (widen_u8_to_u64(buffer[51]) << 24)
+                | (widen_u8_to_u64(buffer[52]) << 32)
+                | (widen_u8_to_u64(buffer[53]) << 40)
+                | (widen_u8_to_u64(buffer[54]) << 48)
+                | (widen_u8_to_u64(buffer[55]) << 56));
+        let modified: SystemTime = SystemTime::from_unix_seconds(modified_seconds);
+        let now: SystemTime = Time::system_time_now(&mut context.time);
+        let difference: SystemTimeDifference = SystemTime::duration_since(&now, modified);
+        transition difference {
+            SystemTimeDifference::Ok { duration } -> check_gap(context, modified_seconds, duration)
+            SystemTimeDifference::Backwards { amount } -> bad_backwards(context, amount)
+            SystemTimeDifference::Unmeasured -> bad(context, 73)
         }
     }
-    state check_gap(duration: Duration) {
+    state check_gap(context: &mut Main, modified_seconds: i64, duration: Duration) {
         // Native: ~0s (just created). Interp: ~767M s (2001 -> 2026 virtual
         // constants). Both < 10^9; a garbage decode blows the bound.
-        transition duration.seconds < 1000000000 { true -> check_mtime() _ -> bad(74) }
+        transition duration.seconds < 1000000000 { true -> check_mtime(context, modified_seconds) _ -> bad(context, 74) }
     }
-    state check_mtime(&mut self) {
+    state check_mtime(context: &mut Main, modified_seconds: i64) {
         // A real timestamp: >= the virtual model's 10^9 (2001) constant;
         // native darwin is ~1.77e9. A zeroed decode fails here.
-        transition self.mtime >= 1000000000 { true -> good() _ -> bad(75) }
+        transition modified_seconds >= 1000000000 { true -> good(context) _ -> bad(context, 75) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code: i32) { self.console.exit_process(code); }
-    state bad_backwards(&mut self, amount: Duration) { self.console.exit_process(72); }
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state bad(context: &mut Main, code: i32) { context.console.exit_process(code); }
+    state bad_backwards(context: &mut Main, amount: Duration) { context.console.exit_process(72); }
 }
