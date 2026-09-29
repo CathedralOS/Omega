@@ -3,11 +3,7 @@
 // transition. `asm` is a statement keyword -- `parse_statement` dispatches it
 // contextually -- and this fixture compiles as a pass canary.
 
-data Main {
-    value: i32;
-}
-
-machine Main::main(&mut self) {
+machine main() {
     asm {
         jmp other()
     }

@@ -7,9 +7,5 @@ data Token {
     case End;
 }
 
-data Main {
-    value: i32;
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

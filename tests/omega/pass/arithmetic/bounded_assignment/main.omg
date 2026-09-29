@@ -1,7 +1,3 @@
-data Main {
-    health: i32;
-}
-
-machine Main::main(&mut self) {
-    self.health = 25;
+machine main() {
+    let health: i32 = 25;
 }

@@ -23,9 +23,5 @@ data Envelope [carry(
     stamp: i64;
 }
 
-data Main {
-    value: i32;
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }
