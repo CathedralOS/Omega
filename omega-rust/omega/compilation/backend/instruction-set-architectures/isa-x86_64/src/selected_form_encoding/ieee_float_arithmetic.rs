@@ -18,6 +18,9 @@
 //!   the sign mask, `XORPD`/`XORPS`, move out. No memory constant is needed;
 //! - square root and format conversion: payload in, one
 //!   `SQRTS?`/`CVTSS2SD`/`CVTSD2SS`, move out;
+//! - NaN classification: payload in, `CMPUNORDSS`/`CMPUNORDSD` against itself,
+//!   `PSRLD #31`, `MOVD` out. The low dword of either format's unordered mask
+//!   becomes canonical zero or one, without evaluating the operand twice;
 //! - integer to float: one `CVTSI2S?` reading the general register (32-bit
 //!   for `i32`, 64-bit for `i64`), move out. A `u32` operand is first copied
 //!   with a 32-bit `MOV` into the result register, which zero-extends it, and
@@ -187,9 +190,10 @@ enum Instruction {
     Move32 { destination: u8, source: u8 },
     /// `66 0F 28 /r`: `MOVAPD xmm, xmm`.
     MoveAligned { destination: u8, source: u8 },
-    /// `F2 0F C2 /r ib`: `CMPSD xmm, xmm, predicate`, an all-ones or zero
+    /// `F2|F3 0F C2 /r ib`: `CMPSD|CMPSS xmm, xmm, predicate`, an all-ones or zero
     /// mask in the destination's low lane.
     CompareScalar {
+        double: bool,
         predicate: u8,
         destination: u8,
         source: u8,
@@ -291,10 +295,17 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
             source,
         } => bytes.extend([0x66, 0x0f, 0x28, modrm(destination, source)]),
         Instruction::CompareScalar {
+            double,
             predicate,
             destination,
             source,
-        } => bytes.extend([0xf2, 0x0f, 0xc2, modrm(destination, source), predicate]),
+        } => bytes.extend([
+            scalar_prefix(double),
+            0x0f,
+            0xc2,
+            modrm(destination, source),
+            predicate,
+        ]),
         Instruction::And {
             destination,
             source,
@@ -385,10 +396,18 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
                 rest,
             ))
         }
-        [0xf2, 0x0f, 0xc2, modrm, predicate, rest @ ..] => {
+        [
+            prefix @ (0xf2 | 0xf3),
+            0x0f,
+            0xc2,
+            modrm,
+            predicate,
+            rest @ ..,
+        ] => {
             let (destination, source) = register_pair(*modrm)?;
             Some((
                 Instruction::CompareScalar {
+                    double: *prefix == 0xf2,
                     predicate: *predicate,
                     destination,
                     source,
@@ -533,6 +552,29 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
         source: LEFT_SCRATCH,
     };
     match form.operation {
+        IeeeFloatArithmeticOperation::IsNan => vec![
+            move_in(registers[0], LEFT_SCRATCH, double),
+            Instruction::CompareScalar {
+                double,
+                predicate: 3,
+                destination: LEFT_SCRATCH,
+                source: LEFT_SCRATCH,
+            },
+            // The unordered mask's low dword suffices for either format.
+            // Normalize it to a Boolean with flag-free SSE2, then MOVD
+            // zero-extends the result instead of retaining a floating mask.
+            Instruction::ShiftRight {
+                arithmetic: false,
+                xmm: LEFT_SCRATCH,
+                count: 31,
+            },
+            Instruction::Transfer {
+                to_float: false,
+                wide: false,
+                xmm: LEFT_SCRATCH,
+                general: result,
+            },
+        ],
         IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
             move_in(registers[0], LEFT_SCRATCH, double),
             move_in(registers[1], RIGHT_SCRATCH, double),
@@ -694,6 +736,7 @@ fn truncation(
             source: left,
         },
         Instruction::CompareScalar {
+            double: true,
             predicate: ORDERED,
             destination: right,
             source: left,
@@ -771,6 +814,7 @@ fn truncation(
     program.extend(bound(if wide { TWO_TO_63 } else { TWO_TO_31 }));
     program.extend([
         Instruction::CompareScalar {
+            double: true,
             predicate: LESS_OR_EQUAL,
             destination: right,
             source: left,
@@ -1110,6 +1154,31 @@ mod tests {
         );
         assert_eq!(unsigned[9..14], [0x66, 0x0f, 0x72, 0xd4, 0x10]);
         assert_eq!(unsigned[18..22], [0xf2, 0x0f, 0x5a, 0xe4]);
+    }
+
+    #[test]
+    fn nan_classification_encodings_match_the_architectural_bytes() {
+        for (format, expected) in [
+            (
+                IeeeFloatFormat::Binary32,
+                vec![
+                    0x66, 0x0f, 0x6e, 0xe7, 0xf3, 0x0f, 0xc2, 0xe4, 0x03, 0x66, 0x0f, 0x72, 0xd4,
+                    0x1f, 0x66, 0x0f, 0x7e, 0xe0,
+                ],
+            ),
+            (
+                IeeeFloatFormat::Binary64,
+                vec![
+                    0x66, 0x48, 0x0f, 0x6e, 0xe7, 0xf2, 0x0f, 0xc2, 0xe4, 0x03, 0x66, 0x0f, 0x72,
+                    0xd4, 0x1f, 0x66, 0x0f, 0x7e, 0xe0,
+                ],
+            ),
+        ] {
+            assert_eq!(
+                bytes_of(IeeeFloatArithmeticOperation::IsNan, format, &["rdi", "rax"]),
+                expected
+            );
+        }
     }
 
     #[test]

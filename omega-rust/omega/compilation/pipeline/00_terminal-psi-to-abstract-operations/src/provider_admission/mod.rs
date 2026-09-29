@@ -26,7 +26,7 @@ mod terminal_authority_review;
 pub use callback_arguments::admit_native_callback_arguments;
 pub use compiler_builtins::{
     CompilerIntrinsicPlanProvenance, CompilerIntrinsicSettlementProposal,
-    TerminalCompilerBuiltinProposal, boundary_float_results, demanded_boundary_identities,
+    TerminalCompilerBuiltinProposal, boundary_float_formats, demanded_boundary_identities,
     derive_selected_intrinsic_settlement_proposals, prepare_retained_compiler_builtins,
     validate_retained_compiler_builtins,
 };

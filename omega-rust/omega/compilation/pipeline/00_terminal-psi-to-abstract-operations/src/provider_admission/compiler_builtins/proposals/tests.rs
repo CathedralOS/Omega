@@ -6,6 +6,24 @@ use effects::provider_plan::{ProviderBinding, ProviderPlanRow};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
+fn nan_classification_requires_the_called_boundary_format() {
+    use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
+    use target_operations::{CompilerBuiltinExecution, IeeeFloatArithmeticOperation};
+    let identity =
+        CompilerIntrinsicExecutionIdentity::BuiltinFunction(symbols::BuiltinFunction::FloatIsNan);
+    assert_eq!(super::compiler_builtin_execution(identity, None), None);
+    for format in [Binary32, Binary64] {
+        assert_eq!(
+            super::compiler_builtin_execution(identity, Some(format)),
+            Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                operation: IeeeFloatArithmeticOperation::IsNan,
+                format,
+            })
+        );
+    }
+}
+
+#[test]
 fn multiply_then_add_keeps_selected_format_and_distinct_fused_identity() {
     use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
     use symbols::BuiltinFunction;

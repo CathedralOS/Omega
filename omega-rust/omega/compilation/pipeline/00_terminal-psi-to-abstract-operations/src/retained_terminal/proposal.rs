@@ -115,7 +115,7 @@ pub fn project_terminal_native_realization_proposal(
                     },
                 ),
             &demanded_intrinsics,
-            &crate::provider_admission::boundary_float_results(&terminal_module),
+            &crate::provider_admission::boundary_float_formats(&terminal_module.boundary_machines),
         )?
         .into_iter()
         .map(|proposal| {

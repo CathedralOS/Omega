@@ -52,6 +52,27 @@ fn exact_signature(realization: NearestIeeeFloatArithmeticRealization) -> Vec<Sc
 }
 
 #[test]
+fn float_format_proposals_keep_boolean_results_and_conversion_direction() {
+    use IeeeFloatFormat::{Binary32, Binary64};
+    for (input, output, expected) in [
+        (Binary32, ScalarType::Boolean, Binary32),
+        (Binary64, ScalarType::Boolean, Binary64),
+        (Binary32, ScalarType::IeeeFloat(Binary64), Binary64),
+        (Binary64, ScalarType::IeeeFloat(Binary32), Binary32),
+    ] {
+        let declaration = boundary(
+            vec![ScalarType::IeeeFloat(input)],
+            BoundaryMachineResult::Scalar(output),
+        );
+        let identity = declaration.identity.clone();
+        assert_eq!(
+            super::boundary_float_formats(&[declaration]).get(&identity),
+            Some(&expected)
+        );
+    }
+}
+
+#[test]
 fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
     for target in [
         target::NativeTarget::linux_x64(),
@@ -71,7 +92,7 @@ fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
             );
         }
     }
-    assert_eq!(forms().count(), 62);
+    assert_eq!(forms().count(), 64);
 }
 
 #[test]
@@ -83,9 +104,10 @@ fn a_substituted_format_or_shape_cannot_realize_the_boundary() {
     let unsigned32 = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
     let signed16 = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).unwrap());
     for realization in forms() {
-        let (own, other) = match realization.format {
-            IeeeFloatFormat::Binary32 => (binary32, binary64),
-            IeeeFloatFormat::Binary64 => (binary64, binary32),
+        let own = realization.operation.result_type(realization.format);
+        let other = match realization.format {
+            IeeeFloatFormat::Binary32 => binary64,
+            IeeeFloatFormat::Binary64 => binary32,
         };
         let exact = exact_signature(realization);
         let operand = exact[0];

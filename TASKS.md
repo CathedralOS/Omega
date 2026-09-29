@@ -1772,9 +1772,8 @@ crash and native exit behavior. Use affected check/native corpus slices under
     `pass/float/local_after_float_call_store_exit`,
     `pass/calls/local_after_call_result_store_exit` and
     `float/named_provider_min_max_sqrt_exit` exit **70** on macOS ARM64.
-    `float/named_provider_negate_is_nan_exit` and
-    `named_provider_fused_multiply_add_exit` now stop at native installation of
-    the `F32::is_nan` and `F32::fused_multiply_add` compiler intrinsics
+    `float/named_provider_fused_multiply_add_exit` stops at native installation of
+    the `F32::fused_multiply_add` compiler intrinsic
     (`has no native boundary realization`).
   - Finish native specialization custody: retain the exact closed requirement,
     provider instance, static tuple and artifact-bound application occurrence
@@ -1796,7 +1795,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
     rows do not declare), `u64` in both directions (no SSE2 conversion),
     directed arithmetic and distinct FMA. Primitive
     `Float::{add,subtract,multiply,divide}`,
-    `F32`/`F64::{negate,minimum,maximum,square_root,multiply_then_add}`, `from_{i8,i16,i32,i64,u8,u16,u32}`,
+    `F32`/`F64::{negate,is_nan,minimum,maximum,square_root,multiply_then_add}`, `from_{i8,i16,i32,i64,u8,u16,u32}`,
     `F64::from_f32`/`F32::from_f64` and unqualified or Saturating
     `{I8,I16,I32,I64,U8,U16,U32}::from_f32`/`from_f64` install:
     stage 00 `compiler_builtins.rs` admits each as one
@@ -1804,7 +1803,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
     and the exact boundary signature of that operation, stage 02
     `control_flow/ieee_float_arithmetic.rs` realizes the call inline, and each
     ISA encodes one form through scratch FP registers with its own decoder.
-    The 62 forms share selected-form tag 230 followed by an ordinal payload
+    The 64 forms share selected-form tag 230 followed by an ordinal payload
     byte, so new operations need no new tag. `pass/float/{nearest_even_binary_arithmetic_exit,named_ieee_operations_exit,named_ieee_conversions_exit,named_ieee_truncations_exit}`
     execute with exit **70** on macOS ARM64 and build for linux_x86_64, and
     `samples/cli/arithmetic/fibonacci_golden` meets its exit **161** oracle.

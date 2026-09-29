@@ -54,22 +54,30 @@ pub fn demanded_boundary_identities(
     Ok(demanded)
 }
 
-/// The IEEE result format of every declared boundary whose result is one
-/// float scalar, by requirement identity. Format-generic selected builtins
-/// (`BuiltinFunction` minimum, maximum and square root carry no format) take
-/// their executable format from the called boundary; admission then requires
-/// the boundary's complete signature again.
-pub fn boundary_float_results(
-    module: &terminal_psi::TerminalModule,
+/// The boundary's IEEE format: prefer its result, otherwise its first IEEE
+/// operand. Classification returns Bool, not the classified carrier, so
+/// format-free builtin identities cannot infer their format from results alone.
+/// This is only a proposal; admission independently checks the complete
+/// signature, rejecting mixed carriers or a substituted result.
+pub fn boundary_float_formats(
+    boundaries: &[terminal_psi::BoundaryMachineDeclaration],
 ) -> BTreeMap<String, semantic_vocabulary::IeeeFloatFormat> {
-    module
-        .boundary_machines
+    boundaries
         .iter()
-        .filter_map(|boundary| match boundary.result {
-            terminal_psi::BoundaryMachineResult::Scalar(
-                semantic_vocabulary::ScalarType::IeeeFloat(format),
-            ) => Some((boundary.identity.clone(), format)),
-            _ => None,
+        .filter_map(|boundary| {
+            let format = match boundary.result {
+                terminal_psi::BoundaryMachineResult::Scalar(
+                    semantic_vocabulary::ScalarType::IeeeFloat(format),
+                ) => Some(format),
+                _ => boundary
+                    .scalar_parameters
+                    .iter()
+                    .find_map(|parameter| match parameter {
+                        semantic_vocabulary::ScalarType::IeeeFloat(format) => Some(*format),
+                        _ => None,
+                    }),
+            }?;
+            Some((boundary.identity.clone(), format))
         })
         .collect()
 }
@@ -88,7 +96,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     plans: &[ProviderPlan],
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
-    float_results: &BTreeMap<String, semantic_vocabulary::IeeeFloatFormat>,
+    float_formats: &BTreeMap<String, semantic_vocabulary::IeeeFloatFormat>,
 ) -> Result<Vec<CompilerIntrinsicSettlementProposal>, Vec<Diagnostic>> {
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
@@ -159,7 +167,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             continue;
         };
         let Some(execution) =
-            compiler_builtin_execution(execution, float_results.get(requirement).copied())
+            compiler_builtin_execution(execution, float_formats.get(requirement).copied())
         else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected compiler intrinsic `{}` for Terminal boundary `{requirement}` has no native boundary realization",
@@ -181,12 +189,12 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
 }
 
 /// The native realization of one selected intrinsic identity, if the local
-/// catalog has one. `result_format` is the called boundary's IEEE result
+/// catalog has one. `boundary_format` is the called boundary's IEEE
 /// format, which the format-free builtin identities need; admission rejoins
 /// the complete boundary signature independently.
 fn compiler_builtin_execution(
     identity: CompilerIntrinsicExecutionIdentity,
-    result_format: Option<semantic_vocabulary::IeeeFloatFormat>,
+    boundary_format: Option<semantic_vocabulary::IeeeFloatFormat>,
 ) -> Option<target_operations::CompilerBuiltinExecution> {
     use target_operations::CompilerBuiltinExecution;
     use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
@@ -244,9 +252,10 @@ fn compiler_builtin_execution(
                 symbols::BuiltinFunction::Min => Arithmetic::Minimum,
                 symbols::BuiltinFunction::Max => Arithmetic::Maximum,
                 symbols::BuiltinFunction::Sqrt => Arithmetic::SquareRoot,
+                symbols::BuiltinFunction::FloatIsNan => Arithmetic::IsNan,
                 _ => return None,
             };
-            (operation, result_format?)
+            (operation, boundary_format?)
         }
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             (Arithmetic::Negate, ieee_format(format))
