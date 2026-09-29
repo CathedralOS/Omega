@@ -210,14 +210,72 @@ pub(crate) fn selected_compiler_intrinsic_realization(
     ))
 }
 
-pub(crate) const fn named_float_realization_arity(realization: NamedFloatRealization) -> usize {
-    match realization {
-        NamedFloatRealization::Builtin { arity, .. } => arity,
-        NamedFloatRealization::Negate(_) | NamedFloatRealization::Convert(_) => 1,
-        NamedFloatRealization::MultiplyThenAdd(_)
-        | NamedFloatRealization::FusedMultiplyAdd(_)
-        | NamedFloatRealization::DirectedFusedMultiplyAdd(_, _) => 3,
-        NamedFloatRealization::DirectedSquareRoot(_, _) => 1,
-        NamedFloatRealization::DirectedBinary(_, _, _) => 2,
+#[cfg(test)]
+mod tests {
+    use super::{
+        SelectedCompilerIntrinsicExecutionIdentity,
+        derive_selected_compiler_intrinsic_execution_identity,
+    };
+
+    #[test]
+    fn primitive_requirement_execution_rejoins_exact_selected_plan() {
+        for (primitive, namespace) in [("i32", "Comparison"), ("f32", "Float")] {
+            let source = format!(
+                "data {namespace} {{}}
+                 boundary machine == {namespace}::equal(left: {primitive}, right: {primitive}) -> bool;
+                 data Provider {{}}
+                 machine Provider::equal(left: {primitive}, right: {primitive}) -> bool
+                     satisfies {namespace}::equal via ForeignBinding::CompilerIntrinsic;
+                 pub machine compare(left: {primitive}, right: {primitive}) -> bool {{ left == right }}"
+            );
+            let typed = crate::core_service_fixture::typed_with_core_service(
+                "primitive_requirement.omg",
+                &source,
+            );
+            let plans = provider_planning::derive_satisfies_plans(
+                &typed,
+                provider_planning::ProviderPlanDerivation::unevaluated(None),
+            );
+            let [derived] = plans.as_slice() else {
+                panic!("one exact comparison provider is required")
+            };
+            let checked = typed_trees_to_checked_trees::lower_typed_trees(
+                typed,
+                &typed_trees_to_checked_trees::CheckingRequest::settled(),
+            )
+            .expect("check primitive comparison call");
+            let uses = checked
+                .facts
+                .operators
+                .named_requirement_uses
+                .iter()
+                .map(|(_, requirement_use)| requirement_use.requirement_symbol)
+                .collect::<Vec<_>>();
+            let [selected_use] = uses.as_slice() else {
+                panic!("token syntax must retain one ordinary requirement call")
+            };
+            assert!(matches!(
+                derive_selected_compiler_intrinsic_execution_identity(
+                    &checked,
+                    &derived.plan,
+                    *selected_use
+                )
+                .expect("primitive comparisons retain closed execution identities"),
+                Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(_))
+            ));
+            let mut mismatched = derived.plan.clone();
+            mismatched.rows[0].binding =
+                effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+                    machine: "Provider::wrong".into(),
+                };
+            assert!(
+                derive_selected_compiler_intrinsic_execution_identity(
+                    &checked,
+                    &mismatched,
+                    *selected_use
+                )
+                .is_err()
+            );
+        }
     }
 }

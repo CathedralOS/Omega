@@ -14,7 +14,7 @@ pub(crate) fn named_float_realization_builtin(
     realization: NamedFloatRealization,
 ) -> Result<BuiltinFunction, Diagnostic> {
     let function = match realization {
-        NamedFloatRealization::Builtin { function, .. } => function,
+        NamedFloatRealization::Builtin(function) => function,
         // Keep multiply-then-add and FMA as distinct unnameable builtins.
         // The first executes two explicit roundings; the second remains one
         // fused operation through instruction selection.
@@ -80,26 +80,23 @@ pub(crate) fn named_float_realization_for(
     if requirement.starts_with("from_") {
         return Some(NamedFloatRealization::Convert(ArithmeticDomain::Exact));
     }
-    let builtin = |function, arity| NamedFloatRealization::Builtin { function, arity };
+    let builtin = NamedFloatRealization::Builtin;
     match requirement {
-        "minimum" => Some(builtin(BuiltinFunction::Min, 2)),
-        "maximum" => Some(builtin(BuiltinFunction::Max, 2)),
-        "square_root" => Some(builtin(BuiltinFunction::Sqrt, 1)),
+        "minimum" => Some(builtin(BuiltinFunction::Min)),
+        "maximum" => Some(builtin(BuiltinFunction::Max)),
+        "square_root" => Some(builtin(BuiltinFunction::Sqrt)),
         "negate" => Some(NamedFloatRealization::Negate(format)),
         "multiply_then_add" => Some(NamedFloatRealization::MultiplyThenAdd(format)),
         "fused_multiply_add" => Some(NamedFloatRealization::FusedMultiplyAdd(format)),
-        "is_nan" => Some(builtin(BuiltinFunction::FloatIsNan, 1)),
-        "is_finite" => Some(builtin(BuiltinFunction::FloatIsFinite, 1)),
-        "is_infinite" => Some(builtin(BuiltinFunction::FloatIsInfinite, 1)),
-        "is_normal" => Some(builtin(BuiltinFunction::FloatIsNormal, 1)),
-        "is_subnormal" => Some(builtin(BuiltinFunction::FloatIsSubnormal, 1)),
-        "classify" => Some(builtin(
-            match format {
-                FloatFormat::F32 => BuiltinFunction::FloatClassifyF32,
-                FloatFormat::F64 => BuiltinFunction::FloatClassifyF64,
-            },
-            1,
-        )),
+        "is_nan" => Some(builtin(BuiltinFunction::FloatIsNan)),
+        "is_finite" => Some(builtin(BuiltinFunction::FloatIsFinite)),
+        "is_infinite" => Some(builtin(BuiltinFunction::FloatIsInfinite)),
+        "is_normal" => Some(builtin(BuiltinFunction::FloatIsNormal)),
+        "is_subnormal" => Some(builtin(BuiltinFunction::FloatIsSubnormal)),
+        "classify" => Some(builtin(match format {
+            FloatFormat::F32 => BuiltinFunction::FloatClassifyF32,
+            FloatFormat::F64 => BuiltinFunction::FloatClassifyF64,
+        })),
         _ => directed_float_realization(requirement, format),
     }
 }
