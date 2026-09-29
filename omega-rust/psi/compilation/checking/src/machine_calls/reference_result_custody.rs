@@ -1634,7 +1634,11 @@ pub fn result_loan(
     else {
         return None;
     };
-    let mutable_view = mutable_borrowed_parts(program, local.type_reference).is_some();
+    // `mutable_borrowed_parts` peels every `&mut`, including the whole
+    // primitive references `parts` already owns; those keep the ingress and
+    // leaf rosters. Only a non-primitive `&mut` view takes the tail walk.
+    let mutable_view = parts(program, local.type_reference).is_none()
+        && mutable_borrowed_parts(program, local.type_reference).is_some();
     if !mutable_view {
         parts(program, local.type_reference)?;
     }
