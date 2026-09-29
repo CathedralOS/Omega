@@ -100,6 +100,7 @@ pass/calls/nested_machine_continuation rejected 1337ms @0484de104502
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::write_byte),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 pass/calls/nested_self_call_argument_exit built 1561ms exit:70 @0484de104502
 pass/calls/nested_value_call_arg_compile built 1495ms @0484de104502
+pass/calls/ordered_field_selector_calls_exit built 1145ms exit:70 @6a1a9e480036
 pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 1101ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
 pass/calls/runtime_assignment_call_post_mutation_value_exit rejected 1500ms @0484de104502
