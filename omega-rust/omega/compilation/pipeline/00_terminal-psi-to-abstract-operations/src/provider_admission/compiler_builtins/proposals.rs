@@ -248,16 +248,20 @@ fn compiler_builtin_execution(
                 _ => None,
             };
             let carrier = |numeric| match numeric {
+                Numeric::I8 => Some(Carrier::I8),
+                Numeric::I16 => Some(Carrier::I16),
                 Numeric::I32 => Some(Carrier::I32),
                 Numeric::I64 => Some(Carrier::I64),
+                Numeric::U8 => Some(Carrier::U8),
+                Numeric::U16 => Some(Carrier::U16),
                 Numeric::U32 => Some(Carrier::U32),
                 _ => None,
             };
             // Conversions into a float format are total nearest-even Exact
             // requirements. Conversions to an integer truncate: Exact and
             // Saturating realize as one clamped truncation, Trapping has no
-            // realization. Carriers without a native conversion on both
-            // architectures stay unrealized.
+            // realization. `u64`, which has no SSE2 conversion, stays
+            // unrealized.
             match (float(source), float(target), domain) {
                 (Some(from), Some(format), ArithmeticDomain::Exact) if from != format => {
                     (Arithmetic::ConvertFormat, format)

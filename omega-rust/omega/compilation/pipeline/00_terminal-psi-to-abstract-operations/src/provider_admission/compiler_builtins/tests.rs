@@ -71,7 +71,7 @@ fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
             );
         }
     }
-    assert_eq!(forms().count(), 36);
+    assert_eq!(forms().count(), 60);
 }
 
 #[test]

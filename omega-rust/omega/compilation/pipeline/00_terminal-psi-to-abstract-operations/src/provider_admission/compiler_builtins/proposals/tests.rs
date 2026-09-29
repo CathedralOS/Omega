@@ -327,6 +327,7 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
             ("g_i32", Some(conversion(Numeric::I32, Numeric::F64, exact))),
             ("h_i64", Some(conversion(Numeric::I64, Numeric::F32, exact))),
             ("i_u32", Some(conversion(Numeric::U32, Numeric::F64, exact))),
+            ("i_u8", Some(conversion(Numeric::U8, Numeric::F32, exact))),
             (
                 "j_to_i32",
                 Some(conversion(Numeric::F64, Numeric::I32, exact)),
@@ -370,6 +371,7 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
             "g_i32",
             "h_i64",
             "i_u32",
+            "i_u8",
             "j_to_i32",
             "k_to_i64",
             "l_to_u32",
@@ -387,6 +389,7 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
         (Arithmetic::FromInteger(Integer::I32), Binary64),
         (Arithmetic::FromInteger(Integer::I64), Binary32),
         (Arithmetic::FromInteger(Integer::U32), Binary64),
+        (Arithmetic::FromInteger(Integer::U8), Binary32),
         (
             Arithmetic::TruncateToInteger {
                 target: Integer::I32,
@@ -449,8 +452,8 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
                 Some(conversion(Numeric::U64, Numeric::F64, exact)),
             ),
             (
-                "from_i8",
-                Some(conversion(Numeric::I8, Numeric::F32, exact)),
+                "to_u64_exact",
+                Some(conversion(Numeric::F32, Numeric::U64, exact)),
             ),
             ("same", Some(conversion(Numeric::F64, Numeric::F64, exact))),
             ("unformatted", Some(builtin(symbols::BuiltinFunction::Min))),
@@ -463,7 +466,7 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
             "trapping",
             "to_u64",
             "from_u64",
-            "from_i8",
+            "to_u64_exact",
             "same",
             "unformatted",
         ]),

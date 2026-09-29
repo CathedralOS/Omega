@@ -112,6 +112,18 @@ pub(super) fn execute(selected: &SelectedFunction) -> u64 {
             SelectedInstructionKind::ZeroExtendU8 => {
                 values[operands[1]] = values[operands[0]] & 0xff
             }
+            SelectedInstructionKind::ZeroExtendU16 => {
+                values[operands[1]] = values[operands[0]] & 0xffff
+            }
+            SelectedInstructionKind::ZeroExtendU32 => {
+                values[operands[1]] = values[operands[0]] & 0xffff_ffff
+            }
+            SelectedInstructionKind::SignExtendI8 => {
+                values[operands[1]] = values[operands[0]] as i8 as i64 as u64
+            }
+            SelectedInstructionKind::SignExtendI16 => {
+                values[operands[1]] = values[operands[0]] as i16 as i64 as u64
+            }
             SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
                 let inputs = form.operand_count();
                 let arguments = operands[..inputs]

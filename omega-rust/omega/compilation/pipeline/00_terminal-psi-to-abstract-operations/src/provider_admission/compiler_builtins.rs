@@ -240,8 +240,12 @@ fn compiler_intrinsic_execution_identity(
                 domain: numerics::arithmetic::ArithmeticDomain::Exact,
             };
             let carrier = |carrier| match carrier {
+                Integer::I8 => Numeric::I8,
+                Integer::I16 => Numeric::I16,
                 Integer::I32 => Numeric::I32,
                 Integer::I64 => Numeric::I64,
+                Integer::U8 => Numeric::U8,
+                Integer::U16 => Numeric::U16,
                 Integer::U32 => Numeric::U32,
             };
             let builtin = CompilerIntrinsicExecutionIdentity::BuiltinFunction;
