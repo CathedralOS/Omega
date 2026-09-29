@@ -567,15 +567,19 @@ linux_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut Con
 }
 "#;
 
-/// An application root over an ordinary Console package whose provider also
-/// selects itself as the package's own default, so both consumers discover
-/// the Console exit binding.
-struct ConsoleApplicationFixture(PathBuf);
+/// An application over an ordinary provider package. Both the application and
+/// dependency select the provider, but only the application proposes permission.
+struct HostedExitApplicationFixture(PathBuf);
 
-impl ConsoleApplicationFixture {
-    fn new(console_source: &str) -> Self {
+impl HostedExitApplicationFixture {
+    fn new(provider_source: &str, service: &str, requirement: &str) -> Self {
+        let core_import = if requirement == "ProcessExit" {
+            "\nuse omega::language::core::process_exit;"
+        } else {
+            ""
+        };
         let root = std::env::temp_dir().join(format!(
-            "omega-candidate-console-permission-{}-{}",
+            "omega-candidate-hosted-exit-permission-{}-{}",
             std::process::id(),
             NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
         ));
@@ -586,30 +590,34 @@ impl ConsoleApplicationFixture {
             "machine build(builder: &mut Build) { builder.package(\"ordinary_console\"); }\n",
         )
         .unwrap();
-        fs::write(root.join("console/main.omg"), console_source).unwrap();
+        fs::write(root.join("console/main.omg"), provider_source).unwrap();
         fs::write(
             root.join("application/build.omg"),
-            r#"machine build(builder: &mut Build) {
+            format!(
+                r#"machine build(builder: &mut Build) {{
     builder.application("console_consumer");
-    builder.depend_as("ordinary_console", Source::Path { location: "../console" });
-    builder.select_provider<ordinary_console::Console, ordinary_console::ConsoleNativeProvider>();
+    builder.depend_as("ordinary_console", Source::Path {{ location: "../console" }});
+    builder.select_provider<{requirement}, ordinary_console::{service}NativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
-}
-"#,
+}}
+"#
+            ),
         )
         .unwrap();
         fs::write(
             root.join("application/main.omg"),
-            r#"use ordinary_console::main;
-use omega::language::core::binding;
+            format!(
+                r#"use ordinary_console::main;
+use omega::language::core::binding;{core_import}
 
-data Main { console: Binding<Console>; }
+data Main {{ console: Binding<{service}>; }}
 machine Main::main(&mut self)
-reaches Console
-{
+reaches {service}
+{{
     self.console.exit_process(70);
-}
-"#,
+}}
+"#
+            ),
         )
         .unwrap();
         Self(root)
@@ -633,7 +641,7 @@ reaches Console
     }
 }
 
-impl Drop for ConsoleApplicationFixture {
+impl Drop for HostedExitApplicationFixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
@@ -677,10 +685,62 @@ fn assert_root_console_permissions(
     console_source: &str,
     expected: &[(&str, effects::TerminalAuthorityClass)],
 ) {
-    use package_compilation::AcceptedSemanticBindingRole;
-    use package_evidence::record::PackageReviewCanonicalRowKind;
+    assert_root_exit_permissions(
+        HostedExitApplicationFixture::new(console_source, "Console", "ordinary_console::Console"),
+        "Console",
+        package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        expected,
+    );
+}
 
-    let fixture = ConsoleApplicationFixture::new(console_source);
+#[test]
+fn discovery_proposes_core_process_exit_permission_as_a_blocking_row() {
+    let source = "use omega::language::core::process_exit;
+        pub data ProcessExitNativeProvider {}
+        linux_x86_64 boundary machine ProcessExitNativeProvider::exit_process(return_code: i32)
+            satisfies ProcessExit::exit_process;
+        linux_x86_64 machine ProcessExitNativeProvider::provider_defaults(defaults: &mut ProcessExitNativeProvider) {
+            defaults.select_provider<ProcessExit, ProcessExitNativeProvider>();
+        }";
+    assert_root_exit_permissions(
+        HostedExitApplicationFixture::new(source, "ProcessExit", "ProcessExit"),
+        "ProcessExit",
+        package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+        &[(
+            "exit_process",
+            effects::TerminalAuthorityClass::ProcessTermination,
+        )],
+    );
+}
+
+#[test]
+fn discovery_does_not_nominate_package_owned_process_exit_lookalikes() {
+    let source = EXIT_ONLY_CONSOLE.replace("Console", "ProcessExit");
+    let fixture =
+        HostedExitApplicationFixture::new(&source, "ProcessExit", "ordinary_console::ProcessExit");
+    let closure = fixture.closure();
+    let reviews = compile_resolved_package_reviews(
+        &closure.for_exact_target(target::TargetProfile::LinuxX64),
+        &fixture.0.join("review"),
+        SemanticBindingReview::Discover,
+    )
+    .expect("ordinary same-named boundary is not core's process-exit contract");
+    for review in reviews.reviews() {
+        assert!(review.semantic_bindings().iter().all(|binding| {
+            binding.role()
+                != package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32
+        }));
+        assert!(review.policy().terminal_permissions().services().is_empty());
+    }
+}
+
+fn assert_root_exit_permissions(
+    fixture: HostedExitApplicationFixture,
+    service_name: &str,
+    role: package_compilation::AcceptedSemanticBindingRole,
+    expected: &[(&str, effects::TerminalAuthorityClass)],
+) {
+    use package_evidence::record::PackageReviewCanonicalRowKind;
     // A source read in either discovery or final checking must observe the
     // caller's inventory. Full package custody still includes this sibling.
     let build_path = fixture.0.join("application/build.omg");
@@ -735,21 +795,19 @@ fn assert_root_console_permissions(
     .map(|compiled| compiled.reviews)
     .expect("preliminary pass");
     let proposals = candidate_semantic_binding_inputs(&discovery, &root).unwrap();
-    let console_proposals = proposals
+    let exit_proposals = proposals
         .iter()
-        .filter(|input| {
-            input.binding().role() == AcceptedSemanticBindingRole::ConsoleExitProcessI32
-        })
+        .filter(|input| input.binding().role() == role)
         .collect::<Vec<_>>();
-    assert_eq!(console_proposals.len(), 2, "{proposals:#?}");
+    assert_eq!(exit_proposals.len(), 2, "{proposals:#?}");
     let schema = discovery
         .review(&root)
         .unwrap()
         .projection()
         .selected_providers()
         .iter()
-        .find(|provider| provider.service_schema() == "Console")
-        .expect("selected Console provider")
+        .find(|provider| provider.service_schema() == service_name)
+        .expect("selected exit provider")
         .schema()
         .clone();
     let requirement = |name: &str| {
@@ -761,7 +819,7 @@ fn assert_root_console_permissions(
             .requirement_identity
             .clone()
     };
-    for input in console_proposals {
+    for input in exit_proposals {
         let permissions = input.binding().terminal_authority_permissions();
         if input.consumer() == &root {
             assert_eq!(
@@ -801,7 +859,7 @@ fn assert_root_console_permissions(
     let [service] = root_review.policy().terminal_permissions().services() else {
         panic!("root policy retains one permitted service");
     };
-    assert_eq!(service.service().path(), "Console");
+    assert_eq!(service.service().path(), service_name);
     assert_eq!(service.permissions().len(), expected.len());
     for review in reviews.reviews() {
         if review.key() != &root {
@@ -848,7 +906,11 @@ fn assert_root_console_permissions(
 fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
     use crate::declarations::DependencyPurpose;
 
-    let fixture = ConsoleApplicationFixture::new(EXIT_ONLY_CONSOLE);
+    let fixture = HostedExitApplicationFixture::new(
+        EXIT_ONLY_CONSOLE,
+        "Console",
+        "ordinary_console::Console",
+    );
     fs::create_dir_all(fixture.0.join("plain")).unwrap();
     fs::write(
         fixture.0.join("plain/build.omg"),
