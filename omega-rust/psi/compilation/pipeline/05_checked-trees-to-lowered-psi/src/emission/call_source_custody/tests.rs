@@ -19,6 +19,30 @@ use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 #[test]
+fn qualified_static_binding_context_crosses_state_transition() {
+    let checked = checked_binding_context(
+        "pub boundary trait Host { machine ticks() -> u64; machine mark(value: u64); }
+         pub data Clock { host: Binding<Host>; }
+         machine Clock::read(clock: &mut Clock) reaches Host {
+             let ticks: u64 = clock.host.ticks();
+             transition ticks == 0 {
+                 true -> report(ticks)
+                 false -> report(ticks)
+             }
+             state report(ticks: u64) { Host::mark(ticks); }
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Clock::read"))
+        .expect("qualified static state graph lowers");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("qualified static state graph is independently verified");
+}
+
+#[test]
 fn qualified_static_binding_context_lowers_without_attachment() {
     let checked = checked_binding_context(
         "pub boundary trait Host { machine ticks() -> u64; machine mark(value: u64); }
