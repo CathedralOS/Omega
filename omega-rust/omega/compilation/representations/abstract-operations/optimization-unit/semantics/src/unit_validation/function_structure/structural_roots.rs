@@ -296,13 +296,22 @@ pub(crate) fn validate_structural_root_operations(
                     // Availability above and exclusive-transfer replay below
                     // independently establish dominance and live custody.
                     let exact_destination = match destination {
-                        abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+                        abstract_operations::StructuralScalarStoreDestination::Parameter(
+                            parameter,
+                        ) => {
                             exact_store_destination(parameter)
-                                && matches!(parameter.access, terminal_psi::StructuralAccess::MutableBorrow | terminal_psi::StructuralAccess::WriteOnlyBorrow)
+                                && matches!(
+                                    parameter.access,
+                                    terminal_psi::StructuralAccess::MutableBorrow
+                                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                                )
                                 && parameter.qualifications.is_empty()
                                 && parameter.projected_qualifications.is_empty()
                         }
-                        abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
+                        abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                            producer,
+                            result,
+                        } => {
                             place_kinds.get(&result.place) == Some(&StructuralPlaceKind::OperationResult { producer: *producer, structural_type: result.structural_type })
                                 && result.claims.is_empty()
                                 && result.qualifications.is_empty()
@@ -320,6 +329,11 @@ pub(crate) fn validate_structural_root_operations(
                                             result: AbstractStructuralCallResult::Structural { result, .. },
                                             ..
                                         }
+                                        // A view local is a loan descriptor
+                                        // rather than a record home, but it
+                                        // is the exact authored carrier an
+                                        // indexed field store writes through.
+                                        | O::EstablishElementView { psi_operation, result, .. }
                                         | O::BoundaryCall { psi_operation, result: abstract_operations::AbstractBoundaryResult::Structural(result), .. } => (psi_operation, result),
                                         _ => return false,
                                     };

@@ -866,7 +866,9 @@ pub(super) fn owned_store_destination(
                 | LegalizedScalarInstructionKind::EstablishScalarArray { result, .. }
                 | LegalizedScalarInstructionKind::EstablishCase { result, .. }
                 | LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. }
-                | LegalizedScalarInstructionKind::HostedReadByte { result, .. } => result,
+                | LegalizedScalarInstructionKind::HostedReadByte { result, .. }
+                | LegalizedScalarInstructionKind::EstablishElementView { result, .. }
+                | LegalizedScalarInstructionKind::ElementViewSubslice { result, .. } => result,
                 LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
                 _ => return None,
             };

@@ -1108,6 +1108,17 @@ fn resolve_structural_path_with_leaf(
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::FixedArray { element, .. },
             ) if runtime_indexes == RuntimeIndexes::Admit => *element,
+            // A view's extent is its stored runtime length: both index
+            // spellings select an element whose bound the store or read
+            // re-proves against that extent at execution.
+            (
+                StructuralPathSegment::FixedIndex(_),
+                StructuralTypeShape::ElementView { element },
+            ) => *element,
+            (
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::ElementView { element },
+            ) if runtime_indexes == RuntimeIndexes::Admit => *element,
             _ => return None,
         };
     }
