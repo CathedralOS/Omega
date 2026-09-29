@@ -264,6 +264,21 @@ pub(super) fn plan(
         });
         return Some(LocalPlan::Planned);
     }
+    local_phase("statement sequence: local data: shared place loan");
+    // The shared `&` loan arms before the structural-value root lookup: a
+    // shared borrow registers a value root upstream (exclusive `&mut`
+    // borrows do not), so a `&`-typed local would enter the block below and
+    // die at its root-identity gate before the loan arm could admit it.
+    if is_shared_place_loan(
+        program,
+        machine.symbol,
+        state,
+        structural_parameters,
+        statement_index,
+        local,
+    ) {
+        return Some(LocalPlan::Planned);
+    }
     // An initializer call may establish structural argument values at this
     // same statement. Only the initializer's own occurrence can establish the
     // local directly; argument roots stay with the ordinary call planner.
@@ -423,15 +438,6 @@ pub(super) fn plan(
     ) {
         return Some(LocalPlan::Planned);
     }
-    if is_shared_place_loan(
-        program,
-        state,
-        structural_parameters,
-        statement_index,
-        local,
-    ) {
-        return Some(LocalPlan::Planned);
-    }
     local_phase("statement sequence: local data: view loan binding");
     if is_call_view_loan_binding(program, facts, machine, state, statement_index, local) {
         return Some(LocalPlan::Planned);
@@ -584,10 +590,7 @@ fn exclusive_place_loan_referent(
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<()> {
-    let (target, recast) = match program
-        .expression_table
-        .expression(local.initial_value)
-    {
+    let (target, recast) = match program.expression_table.expression(local.initial_value) {
         ExpressionNode::Borrow(borrow)
             if borrow.access == language_core::ReferenceAccess::Mutable =>
         {
@@ -663,11 +666,13 @@ fn exclusive_place_loan_referent(
 /// denotes one place for its whole scope and plans no operation: every read
 /// through it is a read of that place, and the borrow layer owns the loan's
 /// lifetime. The conditions mirror the exclusive ones — the place roots at
-/// a structural parameter and its projection bottoms out in exactly the
-/// declared referent — minus write authority: the loan is `&`, never `&mut`,
+/// a structural parameter or an earlier local and its projection bottoms out
+/// in exactly the declared referent, with the same recast peel and runtime
+/// index admission — minus write authority: the loan is `&`, never `&mut`,
 /// and the referent may still be a record or a primitive.
 fn is_shared_place_loan(
     program: &TypedTrees,
+    machine: SymbolHandle,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
@@ -675,6 +680,7 @@ fn is_shared_place_loan(
 ) -> bool {
     shared_place_loan_referent(
         program,
+        machine,
         state,
         structural_parameters,
         statement_index,
@@ -685,23 +691,35 @@ fn is_shared_place_loan(
 
 fn shared_place_loan_referent(
     program: &TypedTrees,
+    machine: SymbolHandle,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<()> {
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
-    else {
-        return None;
+    let (target, recast) = match program.expression_table.expression(local.initial_value) {
+        ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Shared =>
+        {
+            match program.expression_table.expression(borrow.target) {
+                // The shared recast is the same nested shape as the
+                // exclusive one: `&p as &T` loans p's storage spelled as
+                // T under read-only custody.
+                ExpressionNode::Cast(cast)
+                    if cast.form == language_core::cast_form::CastForm::RecastShared =>
+                {
+                    (cast.value, true)
+                }
+                _ => (borrow.target, false),
+            }
+        }
+        _ => return None,
     };
-    let (referee, access) = super::super::super::reference_results::shared_borrowed_parts(
+    let (referee, access) = super::super::super::reference_results::shared_place_borrowed_parts(
         program,
         local.type_reference,
     )?;
-    if borrow.access != language_core::ReferenceAccess::Shared
-        || access != CheckedStructuralAccess::SharedBorrow
-        || local.is_mutable
-    {
+    if access != CheckedStructuralAccess::SharedBorrow || local.is_mutable {
         return None;
     }
     let statement = usize::try_from(statement_index).ok()?;
@@ -709,28 +727,39 @@ fn shared_place_loan_referent(
         program,
         state.symbol,
         statement,
-        borrow.target,
+        target,
     )?;
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    let position = program
+    let parameter_root = program
         .state_parameters(state)
         .iter()
-        .position(|parameter| parameter.symbol == symbol)?;
-    structural_parameters
-        .iter()
-        .position(|parameter| parameter.position as usize == position)?;
-    let (storage, _) = crate::execution::terminal_unit::calls::projected_argument_path(
+        .position(|parameter| parameter.symbol == symbol)
+        .is_some_and(|position| {
+            structural_parameters
+                .iter()
+                .any(|parameter| parameter.position as usize == position)
+        });
+    let local_root = program
+        .state_local_declaration(state, symbol)
+        .is_some_and(|(ordinal, _)| ordinal < statement);
+    if !parameter_root && !local_root {
+        return None;
+    }
+    let (storage, _) = crate::execution::terminal_unit::calls::projected_borrowed_path(
         program,
+        machine,
         state.symbol,
         statement,
         &place,
     )?;
+    if recast {
+        return Some(());
+    }
     (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
         .then_some(())
 }
-
 
 /// A `let` binding an exclusive `&mut`-view result of a call that left no
 /// flow call row: `let slots: &mut [Cell] = self.cells.as_mut_slice()`.
@@ -762,11 +791,8 @@ fn is_call_view_loan_binding(
     }
     let index = usize::try_from(statement_index).ok();
     let Some(index) = index else { return false };
-    let flow = crate::execution::terminal_unit::types::state_flow(
-        facts,
-        machine.symbol,
-        state.symbol,
-    );
+    let flow =
+        crate::execution::terminal_unit::types::state_flow(facts, machine.symbol, state.symbol);
     let has_call_row = flow.is_some_and(|flow| {
         facts
             .flow

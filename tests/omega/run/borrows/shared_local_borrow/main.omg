@@ -1,0 +1,21 @@
+// Shared `&` borrow of a plain LOCAL — the shared counterpart of
+// `local_mut_borrow`. The shared place-loan arm admits the same three
+// shapes the exclusive arm does: a place rooted at a structural
+// parameter or at an earlier local of this state.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    size: u32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let v: u32 = 7;
+    let borrowed: &u32 = &v;
+    transition { _ -> done() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}

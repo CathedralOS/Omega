@@ -1212,6 +1212,32 @@ pub fn shared_borrowed_parts(
     }
 }
 
+/// The referee beneath any `& T` place-loan carrier, with constraint shells
+/// peeled as `shared_borrowed_parts` peels them but without that
+/// classifier's named-referent restriction. A `&[u8; 48]` loan names the
+/// array's storage in the caller's frame just as a `&u32` does — the same
+/// coverage `mutable_borrowed_parts` gives the exclusive side. Callers that
+/// need the shared reference-result shape keep using
+/// `shared_borrowed_parts`.
+pub fn shared_place_borrowed_parts(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
+    let mut reference = reference;
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } => {
+                return (*access == language_semantics::ReferenceAccess::Shared)
+                    .then_some((*referee, CheckedStructuralAccess::SharedBorrow));
+            }
+            _ => return None,
+        }
+    }
+}
+
 /// Source reference use multiplicity does not encode the lifetime obligation
 /// of a materialized carrier. Mutable carrier custody must end exactly once.
 pub fn result_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle) -> Multiplicity {
@@ -1437,16 +1463,12 @@ fn mutable_view_source_parameter(
     if borrow.access != language_semantics::ReferenceAccess::Mutable {
         return None;
     }
-    let Some(machine) = program
-        .machines()
-        .iter()
-        .find(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .any(|candidate| candidate.symbol == state.symbol)
-        })
-    else {
+    let Some(machine) = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+    }) else {
         return None;
     };
     let authored = program.state_parameters(state);
@@ -1462,9 +1484,7 @@ fn mutable_view_source_parameter(
         }
     };
     for _ in 0..8 {
-        if authored.iter().any(|parameter| parameter.symbol == symbol)
-            || symbol == machine.symbol
-        {
+        if authored.iter().any(|parameter| parameter.symbol == symbol) || symbol == machine.symbol {
             break;
         }
         if view_self_member_symbol(program, state, machine.symbol, symbol).is_some() {
@@ -1477,8 +1497,7 @@ fn mutable_view_source_parameter(
             .iter()
             .map(|(_, candidate)| candidate)
             .find(|candidate| {
-                candidate.machine_symbol == machine.symbol
-                    && candidate.state_symbol == state.symbol
+                candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
             })
         else {
             return None;
@@ -1503,7 +1522,9 @@ fn mutable_view_source_parameter(
     let position = if symbol == machine.symbol {
         authored.iter().position(|parameter| parameter.is_self)?
     } else {
-        authored.iter().position(|parameter| parameter.symbol == symbol)?
+        authored
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)?
     };
     if !view_source_parameter_is_mutable(program, authored.get(position)?) {
         return None;
@@ -1518,8 +1539,7 @@ fn view_source_parameter_is_mutable(
     program: &TypedTrees,
     parameter: &typed_trees::signature::StateParameter,
 ) -> bool {
-    parameter.is_mutable
-        || mutable_borrowed_parts(program, parameter.type_reference).is_some()
+    parameter.is_mutable || mutable_borrowed_parts(program, parameter.type_reference).is_some()
 }
 
 /// The field symbol `root` names inside the `*self` receiver's attached data,
@@ -1552,10 +1572,15 @@ fn view_self_member_symbol(
         .data_definitions()
         .iter()
         .find(|data| data.symbol == symbol)?;
-    program.data_members(data).iter().find_map(|member| match member {
-        typed_trees::data::DataMember::Field(field) if field.symbol == root => Some(field.symbol),
-        _ => None,
-    })
+    program
+        .data_members(data)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.symbol == root => {
+                Some(field.symbol)
+            }
+            _ => None,
+        })
 }
 
 /// The data definition an argument root denotes: the machine's attached data
@@ -1827,8 +1852,7 @@ pub fn result_loan(
             return None;
         }
         let authored_root_mutable = program.state_parameters(state).iter().any(|parameter| {
-            (parameter.symbol == actual.symbol
-                || (parameter.is_self && actual.symbol == machine))
+            (parameter.symbol == actual.symbol || (parameter.is_self && actual.symbol == machine))
                 && !parameter.is_const
                 && view_source_parameter_is_mutable(program, parameter)
         });
@@ -1841,12 +1865,8 @@ pub fn result_loan(
             let member = members.last()?;
             // The loan's denoted root is the field declaration's symbol, not
             // the member expression's resolution identity.
-            let Some(data_symbol) = arg_root_data_symbol(
-                program,
-                state,
-                machine,
-                actual.symbol,
-            ) else {
+            let Some(data_symbol) = arg_root_data_symbol(program, state, machine, actual.symbol)
+            else {
                 return None;
             };
             let Some(data) = program
