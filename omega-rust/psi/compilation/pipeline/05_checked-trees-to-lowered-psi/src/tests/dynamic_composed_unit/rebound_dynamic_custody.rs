@@ -154,6 +154,29 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
     );
     for (handle, event) in events {
         assert_eq!(event.provenance, provenance);
+        // The lowering entrance validates the whole permission ledger before
+        // this join reads it. An affine local's cleanup pair carries no claim
+        // identity, so a forged live obligation on either row is malformed
+        // there, as is a row moved to a state its machine does not declare.
+        assert_eq!(
+            event.claim_identity,
+            language_semantics::PermissionClaimIdentity::Unknown
+        );
+        let entrance_refusals: &[(fn(&mut checked_trees::FlowPermissionEventFact), &str)] = &[
+            (
+                |event| event.obligation_live = true,
+                "checked permission event carries a live obligation without an identified claim",
+            ),
+            (
+                |event| event.state_symbol = symbols::SymbolHandle::default(),
+                "checked permission event names no declared state of its machine",
+            ),
+        ];
+        for (mutate, expected) in entrance_refusals {
+            let mut tampered = checked.clone();
+            mutate(tampered.facts.flow.ownership.permissions.get_mut(handle));
+            assert_eq!(unsupported_message(&tampered), *expected);
+        }
         let mutations: &[fn(&mut checked_trees::FlowPermissionEventFact)] = &[
             |event| event.provenance = PermissionProvenance::Unknown,
             |event| {
@@ -163,12 +186,21 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
                     source: PermissionEventSource::StateEntry,
                 }
             },
-            |event| event.obligation_live = true,
+            // A live obligation that does name a claim passes the ledger and
+            // must still drift from the checked affine cleanup here.
+            |event| {
+                event.obligation_live = true;
+                event.claim_identity = language_semantics::PermissionClaimIdentity::Established {
+                    machine_symbol: event.machine_symbol,
+                    state_symbol: event.state_symbol,
+                    source: event.source,
+                    ordinal: 0,
+                };
+            },
             |event| event.multiplicity = language_semantics::Multiplicity::Linear,
             |event| event.access = language_semantics::PermissionAccess::Shared,
             |event| event.kind = PermissionEventKind::Transfer,
             |event| event.source = PermissionEventSource::StateEntry,
-            |event| event.state_symbol = symbols::SymbolHandle::default(),
             |event| event.root = facts::PlaceRoot::Symbol(symbols::SymbolHandle::default()),
             |event| {
                 event.claim_identity = language_semantics::PermissionClaimIdentity::Established {
@@ -188,6 +220,8 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
                 "stored dynamic continuation local cleanup drifted after checking"
             );
         }
+        // A byte-identical repeat is refused by the entrance ledger check;
+        // the non-identical extra rows below reach this join.
         let mut duplicate = checked.clone();
         duplicate
             .facts
@@ -197,7 +231,7 @@ fn stored_dynamic_cleanup_requires_exact_affine_establishment_and_disposal() {
             .insert(event.clone());
         assert_eq!(
             unsupported_message(&duplicate),
-            "stored dynamic continuation local cleanup drifted after checking"
+            "checked permission ledger repeats an identical event"
         );
         for kind in [PermissionEventKind::Transfer, PermissionEventKind::Consume] {
             let mut extra = checked.clone();
