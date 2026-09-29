@@ -519,7 +519,10 @@ def settle_package_review(omega, project_dir, target):
             [str(omega), "update", "--resume",
              "--project", str(project_dir)], cwd=str(project_dir))
     lock = project_dir / "omega.lock"
-    if code != 0 or not lock.is_file():
+    # A depend-free project's first `update` publishes omega.lock directly;
+    # the resume then exits nonzero with "no pending package review". The
+    # lock's presence, not the resume's exit, decides settlement.
+    if not lock.is_file():
         unbound = UNBOUND_ROOT_SLOT.search(text)
         if unbound:
             raise SubjectNotApplicable(unbound.group(0))

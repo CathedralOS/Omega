@@ -1,10 +1,10 @@
 {
-  "schema": "omega-benchmark-record/1",
-  "recorded_utc": "2026-09-23T09:58:24Z",
+  "schema": "omega-benchmark-record/2",
+  "recorded_utc": "2026-09-29T00:54:01Z",
   "subject": {
     "name": "standalone",
     "root": "samples/cli/basics/standalone/main.omg",
-    "source_revision": "0758547f31effa829bdb043749e69d41d7eb13a5"
+    "source_revision": "7badd87bf572d660069f3da59d9f6be01c0c7e1e"
   },
   "key": {
     "target": "macos_arm64",
@@ -12,7 +12,15 @@
       "enabled": [],
       "disabled": []
     },
-    "selection_source": "build.omg enable calls plus --enable/--disable"
+    "selection_source": "build.omg enable calls plus --enable/--disable",
+    "selection_receipt": {
+      "requested": [
+        "ControlFlowCleanup"
+      ],
+      "applied": [],
+      "effective": []
+    },
+    "probe_disable": "ControlFlowCleanup"
   },
   "host": {
     "os": "darwin",
@@ -21,7 +29,9 @@
     "logical_cpus": 12,
     "python": "3.9.6",
     "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
-    "omega_binary": "/Users/jarod/Library/Caches/mbx/targets/v1/500e901f2ac79b1edb3d16c6caa05552e0aedbfd5321d37c06e7c9b98780b017/debug/omega",
+    "omega_binary": "/Users/jarod/Library/Caches/mbx/targets/v1/62bec9297cc093128125dd786ef82ef6b5dea3b4b0293e82c32a80f09476b534/debug/omega",
+    "omega_binary_sha256": "e976afc5dbb573484c74b99ae226572c90387e6ee18457903603244666ddd6f3",
+    "omega_version": "omega 0.1.0-dev (unrecorded; aarch64-apple-darwin)",
     "omega_profile": "dev"
   },
   "metrics": {
@@ -29,28 +39,32 @@
       "status": "measured",
       "unit": "ms",
       "samples": [
-        38553.889709,
-        39762.091958,
-        38399.41991700001
+        3607.2747919999997,
+        3963.7344169999997,
+        3648.5025419999993
       ],
-      "median_ms": 38553.889709,
-      "min_ms": 38399.41991700001,
+      "median_ms": 3648.5025419999993,
+      "min_ms": 3607.2747919999997,
       "stage_timings_last_sample_ms": {
-        "prepare: project -> prepared sources": 34.589,
-        "compile: sources -> requested product": 38170.28,
-        "publish: retained product -> published product": 182.444,
-        "Stage 01: SourceFiles -> TokenStreams": 7.311,
-        "Stage 02: TokenStreams -> SyntaxTrees": 5.443,
-        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 98.015,
-        "Stage 04: SymbolResolvedTrees -> TypedTrees": 20.016,
-        "Stage 05: TypedTrees -> CheckedTrees": 29816.669,
-        "total elapsed": 38388.249
+        "prepare: project -> prepared sources": 41.092,
+        "compile: sources -> requested product": 3586.754,
+        "publish: retained product -> published product": 7.646,
+        "Stage 01: SourceFiles -> TokenStreams": 11.707,
+        "Stage 02: TokenStreams -> SyntaxTrees": 11.322,
+        "Step: assemble: PreparedSources -> AssembledSyntax": 24.745,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 40.671,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 25.795,
+        "Step: build: AssembledSyntax -> CheckedTrees (contains Stage 01-05)": 1249.005,
+        "Step: pre-build check: TypedTrees -> CheckedTrees (declaration admission)": 1155.253,
+        "Stage 05: TypedTrees -> CheckedTrees": 11.458,
+        "Step: settle: CheckedTrees -> SelectedExecution": 169.709,
+        "total elapsed": 3636.426
       }
     },
     "peak_memory_bytes": {
       "status": "measured",
       "unit": "bytes",
-      "compile_max_rss": 120684544,
+      "compile_max_rss": 167919616,
       "run_max_rss": null
     },
     "code_size_bytes": {
@@ -76,7 +90,5 @@
       "reason": "--no-run was passed"
     }
   },
-  "notes": [
-    "matching-host macOS arm64 compile-only leg; standalone emits no ProcessExit provider so runtime is structurally skipped"
-  ]
+  "notes": []
 }
