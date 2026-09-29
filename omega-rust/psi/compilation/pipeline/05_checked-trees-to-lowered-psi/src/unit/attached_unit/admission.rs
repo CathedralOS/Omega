@@ -46,9 +46,14 @@ pub(super) fn admit<'a>(
     requirements_owner: RuntimeRequirementOwner,
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
+    // Computation roots belong to both operation bodies and scalar graphs.
+    // Both use the same exact boundary roster; the body's return shape must
+    // not decide whether a nested application can resolve its declaration.
+    for source in closure.iter().chain(scalar_closure) {
+        retain_nested_boundary_applications(checked, plans, *source, boundaries)?;
+    }
     let mut bodies = Vec::with_capacity(closure.len());
     for source in closure {
-        retain_nested_boundary_applications(checked, plans, *source, boundaries)?;
         let admitted = match UnitBody::find(plans, *source)? {
             UnitBody::Composed(plan) => {
                 let body = composed_control::admit_callable(checked, plan)?;

@@ -10,7 +10,8 @@ pub(crate) mod callee;
 pub(crate) mod embedded;
 
 /// Scalar bodies share the ordinary catalog whenever their closure needs places
-/// or services. A selected callback's published reach is a contract contribution
+/// or services, including boundary declarations referenced by computations.
+/// A selected callback's published reach is a contract contribution
 /// even when its body only returns a scalar; the pure assembler has no service
 /// namespace and must not erase that contribution.
 pub(crate) fn requires_shared_catalog(
@@ -81,6 +82,23 @@ pub(crate) fn requires_shared_catalog(
             }
             continue;
         };
+        let computations = &checked.facts.values.scalar_computations;
+        let roots = computations
+            .roots
+            .iter()
+            .filter_map(|(_, root)| (root.machine == machine).then_some(root.root))
+            .collect::<Vec<_>>();
+        if crate::expression_preparation::computation_graph::reachable_nodes(checked, &roots)?
+            .into_iter()
+            .any(|node| {
+                matches!(
+                    computations.nodes.get(node).kind,
+                    checked_trees::CheckedScalarComputationKind::BoundaryCall { .. }
+                )
+            })
+        {
+            return Ok(true);
+        }
         if graph.states.iter().any(|state| {
             !state.structural_parameters.is_empty()
                 || !state.primitive_locals.is_empty()

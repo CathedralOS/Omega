@@ -1,0 +1,32 @@
+// Scalar helpers share the caller's boundary namespace regardless of whether
+// the application appears inside a match subject or an ordinary call operand.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine narrow(value: f32, scale: f32, expected: f32) -> i64 {
+    match (value + value) * scale { expected -> 7, _ -> 11 }
+}
+
+machine identity(value: f64) -> f64 { value }
+
+machine wide(value: f64, scale: f64, expected: f64) -> i64 {
+    match identity(value * scale) { expected -> 9, _ -> 13 }
+}
+
+machine marker(value: i64) -> i64 { value }
+
+data Main { console: Binding<Console>; }
+
+machine Main::main(&mut self) reaches Console {
+    let first: i64 = narrow(0.5f32, 2.0f32, 2.0f32);
+    let intervening: i64 = marker(3);
+    let second: i64 = wide(0.5f64, 4.0f64, 2.0f64);
+    let fallback: i64 = narrow(0.5f32, 2.0f32, 3.0f32);
+    transition first == 7 && intervening == 3 && second == 9 && fallback == 11 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}
