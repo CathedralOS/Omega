@@ -530,6 +530,7 @@ pass/float/foreign_control_state_restore rejected 2402ms
 	unimplemented: `Main::main` applies boundary operator `F64::from_i32`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/float/guarded_exact_float_conversion checked 742ms
 pass/float/named_infinity_classification_exit checked 1167ms @0d9777b52aee+wt
+pass/float/named_nan_semantic_only_exit checked 4389ms @d78b523c16f5+wt
 pass/float/named_provider_directed_divide_exit rejected 335ms
 	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `divide_toward_negative(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
 	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `divide_toward_negative(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
@@ -1573,6 +1574,8 @@ fail/float/named_argument_format_rejected rejected 127ms expected
 	argument `value` for state `entry` delivers a `f64` value to a `f32` parameter; a landed float retains its format, so changing format requires an explicit conversion
 fail/float/named_float_to_integer_no_context_unproven rejected 444ms expected
 	machine `Main::main` state `main` cannot prove unqualified `I32::from_f64` operand `self.value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
+fail/float/named_nan_runtime_materialization rejected 835ms expected @d78b523c16f5+wt
+	constant initializer: undetermined NaN has no representation for a raw-bit recast
 fail/float/suffix_format_disagrees_rejected rejected 110ms expected
 	literal `1.5` is suffixed `f32` but lands in a `f64` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/generics/closed_indexed_domain_mismatch rejected 221ms expected
