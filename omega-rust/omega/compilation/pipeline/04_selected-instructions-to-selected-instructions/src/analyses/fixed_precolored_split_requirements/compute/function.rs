@@ -21,7 +21,7 @@ pub(super) fn derive(
     work: &mut Work,
 ) -> Result<FunctionFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let tied = tied_registers(ranges);
-    let (early, early_uses) = early_clobber_registers(ranges)?;
+    let early_uses = early_clobber_uses(ranges)?;
     work.function(
         ranges.tied_pairs.len(),
         ranges.early_clobbers.len(),
@@ -65,7 +65,6 @@ pub(super) fn derive(
             legal,
             &fixed.intervals[start..fixed_offset],
             tied.contains(&range.virtual_register),
-            early.contains(&range.virtual_register),
             work,
         )?);
     }
@@ -86,17 +85,20 @@ fn tied_registers(ranges: &FunctionLiveRanges) -> BTreeSet<VirtualRegisterId> {
         .collect()
 }
 
-fn early_clobber_registers(
+// Early-clobber participants are admitted: the analysis never intersects
+// `early_clobber_points` candidates into source domains, so a register
+// partitions identically whether or not it carries an early-clobber hazard.
+// The hazard itself is re-derived on the transformed plan and enforced by
+// physical write-unit/use-unit conflicts at post-copy assignment. The use
+// count still prices the constraint rows the function carries.
+fn early_clobber_uses(
     ranges: &FunctionLiveRanges,
-) -> Result<(BTreeSet<VirtualRegisterId>, usize), FixedPrecoloredSplitRequirementError> {
-    let mut registers = BTreeSet::new();
+) -> Result<usize, FixedPrecoloredSplitRequirementError> {
     let mut use_count = 0usize;
     for row in &ranges.early_clobbers {
-        registers.insert(row.def_virtual_register);
-        registers.extend(row.uses.iter().map(|used| used.virtual_register));
         use_count = use_count
             .checked_add(row.uses.len())
             .ok_or(FixedPrecoloredSplitRequirementError::WorkOverflow)?;
     }
-    Ok((registers, use_count))
+    Ok(use_count)
 }
