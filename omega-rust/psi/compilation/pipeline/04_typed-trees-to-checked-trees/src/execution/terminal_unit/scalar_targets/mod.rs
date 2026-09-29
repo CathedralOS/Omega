@@ -480,9 +480,18 @@ pub(super) fn available_target(
             })
         || claim_transfers.len() != claims.len()
         || claim_transfers.iter().zip(claims).any(|(transfer, claim)| {
-            let expected_argument = structural
-                .get(usize::try_from(claim.parameter_index).unwrap_or(usize::MAX))
-                .map(|parameter| parameter.position);
+            // A claim names a dense structural parameter; its transfer names
+            // the dense call-argument slot forwarded to that parameter, one
+            // later when the ambient receiver's slot precedes it. Authored
+            // signature positions also count scalar formals, so they never
+            // index this list.
+            let parameter_index = usize::try_from(claim.parameter_index).unwrap_or(usize::MAX);
+            let expected_argument = (parameter_index < structural.len())
+                .then(|| {
+                    parameter_index
+                        + usize::from(ambient_receiver.is_some_and(|slot| slot <= parameter_index))
+                })
+                .and_then(|index| u32::try_from(index).ok());
             Some(transfer.argument_index) != expected_argument || claim.carry != CarryPolicy::STRICT
         })
     {
