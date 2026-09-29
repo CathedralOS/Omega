@@ -890,6 +890,105 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
     }
 }
 
+/// Pins the complete unit identity of one structural-result call. Every
+/// roster the row encodes is nonempty, and the result carries qualifications,
+/// a projected qualification and a claim, so the digest binds the tag, the
+/// result position, the argument rows, both claim rosters and the tail order.
+#[test]
+fn structural_result_call_identity_bytes_are_stable() {
+    let baseline =
+        reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    let result_place = id(12, PlaceId::new);
+    let result_type = id(13, StructuralTypeId::new);
+    let operation = AbstractOperation::CallStructural {
+        psi_operation: id(1, OperationId::new),
+        result: terminal_psi::StructuralOperationResult {
+            place: result_place,
+            structural_type: result_type,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            qualifications: vec![id(14, StructuralDomainId::new)],
+            projected_qualifications: vec![terminal_psi::StructuralPathQualification {
+                path: vec![terminal_psi::StructuralPathSegment::Field(
+                    "left".to_owned(),
+                )],
+                domain: id(15, StructuralDomainId::new),
+            }],
+            qualification_establishments: Vec::new(),
+            claims: vec![terminal_psi::StructuralResultClaimBinding {
+                claim: id(6, ClaimId::new),
+                path: Vec::new(),
+            }],
+        },
+        callee: id(2, MachineId::new),
+        arguments: vec![id(3, ValueId::new)],
+        structural_arguments: vec![terminal_psi::StructuralArgument {
+            place: id(11, PlaceId::new),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            path: Vec::new(),
+        }],
+        claim_transfers: vec![terminal_psi::ClaimTransfer {
+            claim: id(5, ClaimId::new),
+            argument_index: 0,
+        }],
+        returned_claim_transfers: vec![terminal_psi::StructuralResultClaimTransfer {
+            callee_claim: id(7, ClaimId::new),
+            caller_claim: id(6, ClaimId::new),
+        }],
+        requirement_obligations: vec![id(8, ObligationId::new)],
+        crash_continuations: vec![CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        }],
+        selected_evidence: vec![terminal_psi::OutcomeSpecificCallEvidence {
+            guard: terminal_psi::OutcomeSpecificGuard {
+                result_type,
+                result_case: id(1, semantic_vocabulary::StructuralCaseId::new),
+            },
+            position: 0,
+            callee_obligation: id(9, ObligationId::new),
+            callee_term: id(1, semantic_vocabulary::EvidenceTermId::new),
+            output_field: "ready".to_owned(),
+            callee_proposition: id(1, semantic_vocabulary::PropositionId::new),
+            instantiated_proposition: id(2, semantic_vocabulary::PropositionId::new),
+            output: id(2, semantic_vocabulary::EvidenceTermId::new),
+            result_substitution: Some(terminal_psi::OutcomeSpecificCallResultSubstitution {
+                argument_position: 0,
+                callee_result: id(16, PlaceId::new),
+                caller_result: result_place,
+            }),
+            validity: terminal_psi::OutcomeSpecificCallEvidenceValidity {
+                result: result_place,
+                proposition_dependencies: vec![result_place],
+                evidence_interface: terminal_psi::EvidenceInterfaceIdentity {
+                    trait_identity: "test::Ready".to_owned(),
+                    arguments: Vec::new(),
+                    requirements: Vec::new(),
+                },
+                interface_dependencies: vec![result_place],
+            },
+            expected_use_count: 0,
+            uses: Vec::new(),
+        }],
+    };
+    let mut changed = baseline.clone();
+    changed.functions[0].blocks[0].nodes[0].operation = operation;
+    let identity = recompute_psi_optimization_unit_identity(&changed);
+    let canonical = crate::optimization_unit::identity::collect_unit_canonical_bytes(&changed);
+    assert_eq!(
+        OptimizationUnitIdentity::from_canonical_bytes(&canonical),
+        identity
+    );
+    assert_eq!(
+        identity.bytes(),
+        [
+            151, 227, 147, 43, 12, 62, 158, 200, 93, 56, 140, 29, 165, 138, 79, 202, 206, 238, 66,
+            183, 162, 193, 160, 44, 44, 176, 252, 108, 159, 72, 174, 166,
+        ],
+        "structural (tag 5)"
+    );
+}
+
 #[test]
 fn rebuild_is_deterministic_and_keeps_distinct_fuel_sites() {
     let schedule = FuelScheduleIdentity::new(1).expect("nonzero schedule");
