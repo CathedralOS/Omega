@@ -237,6 +237,17 @@ pub(crate) fn emit(
         && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow
     {
         emission.direct_element_view(source)?
+    } else if emission.sources.is_empty()
+        && let CheckedStructuralValueKind::MutableSliceView { source } = &checked
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get(*value)
+            .kind
+        && source.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+    {
+        emission.direct_mutable_element_view(source)?
     } else {
         let place = emission.value(*value, None)?;
         // A moved place is materialized into the result binding; a copied
@@ -1573,6 +1584,78 @@ impl Emission<'_, '_, '_> {
                 claims: Vec::new(),
             }),
             kind: OperationKind::EstablishElementView {
+                destination: place,
+                source: argument,
+                element,
+            },
+        });
+        self.temporary_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id,
+                structural_type: self.structural_type,
+            },
+        });
+        Ok(place)
+    }
+
+    /// Establish one mutably borrowed element view without a selection join:
+    /// the mutable sibling of `direct_element_view`, publishing the fresh
+    /// `EstablishMutableElementView` result directly as this binding's
+    /// completed operation result under `MutableBorrow` custody.
+    fn direct_mutable_element_view(
+        &mut self,
+        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<PlaceId, LoweringError> {
+        let element = self
+            .structural_types
+            .iter()
+            .find_map(|declaration| match declaration.shape {
+                StructuralTypeShape::ElementView { element }
+                    if declaration.id == self.structural_type =>
+                {
+                    Some(element)
+                }
+                _ => None,
+            })
+            .ok_or(LoweringError::Unsupported(
+                "mutable element view lost its element carrier",
+            ))?;
+        let argument =
+            crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
+                .with_structural_parameters(&self.evaluation.structural_parameters)
+                .with_structural_locals(&self.evaluation.structural_locals)
+                .borrowed_structural_argument(
+                    source,
+                    crate::expression_preparation::source_custody::authored_state(
+                        self.checked,
+                        self.state,
+                    )?
+                    .0,
+                    self.checked.state_parameters(
+                        crate::expression_preparation::source_custody::authored_state(
+                            self.checked,
+                            self.state,
+                        )?
+                        .1,
+                    ),
+                )?;
+        let id = self.operations.allocate();
+        let place = place_id(allocate_dense(self.next_place)?);
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place,
+                structural_type: self.structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishMutableElementView {
                 destination: place,
                 source: argument,
                 element,

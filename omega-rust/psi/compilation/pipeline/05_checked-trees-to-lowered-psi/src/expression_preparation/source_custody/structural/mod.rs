@@ -141,6 +141,19 @@ pub(crate) fn validate(
     let carrier = shared_borrow_record_referent(checked, reference)
         .or(view_carrier)
         .unwrap_or(reference);
+    // A `&mut`-referee establishment joins affine loan custody of the
+    // referent's storage; its borrow shell still spells `Unrestricted`, so
+    // the expected multiplicity follows the referee lane, not the shell's.
+    let expected_multiplicity = if validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        reference,
+    )
+    .is_some()
+    {
+        language_semantics::Multiplicity::Affine
+    } else {
+        checked.type_multiplicity(reference)
+    };
     if owner.symbol != machine
         || root.machine != machine
         || root.state != state
@@ -148,7 +161,7 @@ pub(crate) fn validate(
         || root.type_reference != reference
         || root.root != *value
         || checked.normalized_type_identity(carrier).as_str() != result.type_identity
-        || checked.type_multiplicity(reference) != result.multiplicity
+        || expected_multiplicity != result.multiplicity
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
             || validation::has_cleanup_owned_contents(&checked.typed, carrier)
             || validation::reference_result_custody::is_reference_record(&checked.typed, reference)
@@ -206,6 +219,7 @@ pub(crate) fn validate(
             state,
             result.statement_index,
             local.symbol,
+            local.type_reference,
             result.multiplicity,
             *discard_result_on_return,
         )?;
@@ -1596,6 +1610,7 @@ pub(crate) fn validate_local_ownership(
     state: SymbolHandle,
     statement: u32,
     symbol: SymbolHandle,
+    type_reference: TypeReferenceHandle,
     multiplicity: language_semantics::Multiplicity,
     discard_result_on_return: bool,
 ) -> Result<(), LoweringError> {
@@ -1690,6 +1705,18 @@ pub(crate) fn validate_local_ownership(
             PermissionEventKind::Transfer => transfers += 1,
             _ => return unsupported("structural local changed its ownership event"),
         }
+    }
+    // A `&mut`-referee local's custody is its loan, not the owned axis: it
+    // establishes no owned receipt and owes no owned final disposition — the
+    // event loop above already replayed (and rejected any stray owned
+    // events on) the borrow axis its lifecycle lives in.
+    if validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        type_reference,
+    )
+    .is_some()
+    {
+        return Ok(());
     }
     if selected_uses > 1
         || establishments
@@ -1906,12 +1933,26 @@ pub(crate) fn plain_record(
 
 /// A non-byte slice uses the ElementView carrier. Byte slices keep their
 /// distinct ByteSequence representation and must not enter this producer lane.
-fn borrowed_element_view_referent(
+pub(crate) fn borrowed_element_view_referent(
     checked: &CheckedTrees,
     reference: checked_trees::types::TypeReferenceHandle,
 ) -> Option<checked_trees::types::TypeReferenceHandle> {
     let (carrier, element, _) = borrowed_slice_type(checked, reference)?;
     (checked.primitive_type_reference(element) != Some(PrimitiveType::U8)).then_some(carrier)
+}
+
+/// The carrier a `&mut`-referee binding joins: element-view referees
+/// (`&mut [T]` over non-byte elements) peel to the view carrier — the same
+/// peel `add_type` applies recording the result identity — while named and
+/// primitive referees keep the `ref-mut` borrow shell the verifier checks
+/// against its admitted `Reference` shapes. `None` for non-mutable-reference
+/// types.
+pub(crate) fn mutable_view_carrier(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    validation::reference_result_custody::mutable_borrowed_parts(&checked.typed, reference)?;
+    borrowed_element_view_referent(checked, reference)
 }
 
 /// The carrier of an actual shared slice view, including byte slices. This

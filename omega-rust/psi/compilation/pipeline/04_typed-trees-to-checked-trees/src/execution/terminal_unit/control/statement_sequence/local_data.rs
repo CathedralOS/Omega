@@ -334,7 +334,20 @@ pub(super) fn plan(
             statement_index,
             binding_ordinal: u32::try_from(*structural_count).ok()?,
             type_identity: shapes.add_type(local.type_reference, binders, &[])?,
-            multiplicity: program.type_multiplicity(local.type_reference),
+            // A `&mut`-view local's binding is affine loan custody of the
+            // referent's storage even though the borrow shell itself spells
+            // `Unrestricted` — its one holder is the loan, and naming it a
+            // second time must dispose it.
+            multiplicity: if super::super::super::reference_results::mutable_borrowed_parts(
+                program,
+                local.type_reference,
+            )
+            .is_some()
+            {
+                Multiplicity::Affine
+            } else {
+                program.type_multiplicity(local.type_reference)
+            },
         };
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));

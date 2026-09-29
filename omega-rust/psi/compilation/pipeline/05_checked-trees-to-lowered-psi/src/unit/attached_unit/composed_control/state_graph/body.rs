@@ -68,12 +68,20 @@ pub(super) fn validate(
     // own: each write through it is planned as the ordinary store of that
     // place, and the binding itself plans nothing.
     let is_marker_at = |index: usize| {
-        statements.get(index).is_some_and(|statement| {
-            is_record_pattern_marker(statement)
-                || (!closed_sum && is_arm_pattern_marker(statement))
-                || is_loan_marker(checked, statement)
-                || is_exclusive_loan_marker(checked, machine, source, statement, index)
-        }) || crate::emission::atomic_sources::result_placeholder(checked, statements, index)
+        let marker_kind = statements.get(index).and_then(|statement| {
+            if is_record_pattern_marker(statement) {
+                Some("record")
+            } else if !closed_sum && is_arm_pattern_marker(statement) {
+                Some("arm")
+            } else if is_loan_marker(checked, statement) {
+                Some("loan")
+            } else if is_exclusive_loan_marker(checked, machine, source, statement, index) {
+                Some("xloan")
+            } else {
+                None
+            }
+        });
+        marker_kind.is_some() || crate::emission::atomic_sources::result_placeholder(checked, statements, index)
             // A runtime-indexed dispatch's shared subject plans no operation:
             // each arm observes the borrowed element itself.
             || crate::expression_preparation::source_custody::case_sources::is_erased_dispatch_subject(
@@ -969,6 +977,24 @@ fn is_exclusive_loan_marker(
             borrow.access == language_core::ReferenceAccess::Mutable
         }
         checked_trees::expression::ExpressionNode::Call(_) => {
+            // A call-spelled view opener that registered a structural value
+            // establishes the view in the structural namespace: its binding
+            // plans the `EstablishStructuralValue` the root minted, so it is
+            // not a carrier-only marker. Loan-only openers — the shape this
+            // arm was written for — still plan nothing.
+            if checked
+                .facts
+                .values
+                .structural_values
+                .root_for_expression(
+                    source.symbol,
+                    u32::try_from(index).unwrap_or(u32::MAX),
+                    local.initial_value,
+                )
+                .is_some()
+            {
+                return false;
+            }
             let has_call_row = checked
                 .facts
                 .flow

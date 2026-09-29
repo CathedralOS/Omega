@@ -50,18 +50,30 @@ pub(super) fn signature_matches(
             // A borrowed `&[T]` view result names the peeled slice carrier in
             // its identity — the contents live in the caller's frame, so the
             // owned-contents custody clause does not apply.
-            // A `&mut` view result keeps its reference shell exactly as a
-            // shared-borrowed named view does: the plan names the `ref-mut`
-            // identity and carries the affine view-loan multiplicity.
+            // A `&mut` view result names its referee's carrier identity for
+            // view/named referees and keeps the `ref-mut` shell for the
+            // primitives — `add_mutable_view_type`'s own peel — and carries
+            // the affine view-loan multiplicity.
             if validation::reference_result_custody::mutable_borrowed_parts(
                 &checked.typed,
                 source.return_type,
             )
             .is_some()
             {
-                return checked
-                    .normalized_type_identity(source.return_type)
-                    .as_str()
+                // The result identity follows `add_mutable_view_type`'s peel:
+                // view/named referees join the view or record carrier while
+                // primitive referees keep the `ref-mut` borrow shell.
+                let identity = crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+                    checked,
+                    source.return_type,
+                )
+                .map(|carrier| checked.normalized_type_identity(carrier).into_string())
+                .unwrap_or_else(|| {
+                    checked
+                        .normalized_type_identity(source.return_type)
+                        .into_string()
+                });
+                return identity.as_str()
                     == result.type_identity
                     && result.multiplicity == Multiplicity::Affine
                     && view_result_qualifications(checked, source.return_type).as_ref()

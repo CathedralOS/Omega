@@ -442,6 +442,7 @@ pub(super) fn build_traced(
             facts,
             machine,
             state,
+            structural,
             &operations,
             &terminator,
             &disposable_locals,
