@@ -32,7 +32,7 @@ data Main {
 }
 
 // Looping value-returning machine: acc + s[0] at each step, recurse on s[1..].
-machine Adder::walk(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+machine walk(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
@@ -53,7 +53,7 @@ machine Main::main(&mut self) reaches Console {
 
     // Sum all 6 elements via shrinking-window recursion: 3+7+12+18+5+25 = 70.
     let s: &[i32 in Wrapping] = self.arr.as_slice();
-    let t: i32 = self.adder.walk(s, 0);
+    let t: i32 = walk(s, 0);
 
     transition t == 70 {
         true -> good()

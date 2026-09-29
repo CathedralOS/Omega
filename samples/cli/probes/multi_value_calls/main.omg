@@ -13,8 +13,8 @@
 //
 // Scripted:
 //   r1 = self.double(15)     = 30
-//   r2 = self.add3(5, 10, 7) = 22
-//   r3 = self.clamp_low(18, 20) = 20   (18 < 20, so clamped to 20)
+//   r2 = add3(5, 10, 7) = 22
+//   r3 = clamp_low(18, 20) = 20   (18 < 20, so clamped to 20)
 //   total = r1 + r2 - r3 + self.offset
 //         = 30 + 22 - 20 + 38 = 70
 //
@@ -32,19 +32,19 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::double_val(&mut self, n: i32 in Saturating) -> i32 in Saturating {
+machine double_val(n: i32 in Saturating) -> i32 in Saturating {
     transition {
         _ -> (n * 2)
     }
 }
 
-machine Main::add3(&mut self, a: i32 in Saturating, b: i32 in Saturating, c: i32 in Saturating) -> i32 in Saturating {
+machine add3(a: i32 in Saturating, b: i32 in Saturating, c: i32 in Saturating) -> i32 in Saturating {
     transition {
         _ -> (a + b + c)
     }
 }
 
-machine Main::clamp_low(&mut self, n: i32 in Saturating, min_val: i32 in Saturating) -> i32 in Saturating {
+machine clamp_low(n: i32 in Saturating, min_val: i32 in Saturating) -> i32 in Saturating {
     transition n < min_val {
         true -> min_val
         _ -> n
@@ -57,9 +57,9 @@ machine Main::main(&mut self) reaches Console {
     self.offset = 38;
 
     // Three sequential value-returning calls with different arities.
-    let r1: i32 in Saturating = self.double_val(15);    // r1 = 30
-    let r2: i32 in Saturating = self.add3(5, 10, 7);   // r2 = 22
-    let r3: i32 in Saturating = self.clamp_low(18, 20); // r3 = 20
+    let r1: i32 in Saturating = double_val(15);    // r1 = 30
+    let r2: i32 in Saturating = add3(5, 10, 7);   // r2 = 22
+    let r3: i32 in Saturating = clamp_low(18, 20); // r3 = 20
 
     // Use all three results together with self.offset.
     let total: i32 in Saturating = r1 + r2 - r3 + self.offset;
