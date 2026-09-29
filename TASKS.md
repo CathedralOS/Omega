@@ -1479,8 +1479,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
   The wire customers now construct their records and stop at the generated
   codec call, `statement sequence: call: flow call`, as does the array-free
-  `pass/wire/runtime_wire_decode_rejects_wrong_era_exit`: that call has no
-  unit route. Acceptance stays unchanged `samples/cli/systems/wire_protocol`
+  `pass/wire/runtime_wire_decode_rejects_wrong_era_exit`. `Schema::encode` and
+  `Schema::decode` are stage 04 intrinsics (`authored_selections/intrinsic_calls.rs`,
+  `WireEncode`/`WireDecode`) with no body, Terminal operation or Omega
+  realization; only the checked interpreter executes them.
+  [Codecs](wiki/spec/layouts/codecs.md) are ordinary checked library machines
+  whose generated bodies are Admitted, so generate one checked machine per
+  schema, value type and buffer from the validated plan and bind the call to
+  it. A hand-written equivalent body then meets ordinary-call gaps: a
+  `&mut [u8; N]` argument (`structural arguments: parameter path`), borrowed
+  local arrays and records (`caller structural result`), a case store through
+  `&mut` (`structural value field store`) and a guarded `out[at] = byte`
+  sub-state (`conditional successors: target state`). Acceptance stays unchanged `samples/cli/systems/wire_protocol`
   and `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit 70 with
   13-byte encode/decode, room 300, samples [150, -2], depth -64. The borrowed
   customer `pass/wire/runtime_wire_decode_byte_slice_exit` must exit 70 after
@@ -3279,16 +3289,13 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     from `i <= 3` and the establishment's extent; it must retain the
     predecessor's `i < s.len` through the nearest dominating same-view length
     observation. `runtime_slice_iteration_exit` needs the loop-carried
-    `index < entries.len` as a relational block invariant: with a plain `i32`
-    field its header read stops at `OperationProofUnavailable` holding only
-    `entries.len == 4`.
+    `index < entries.len` as a relational block invariant: its header read
+    stops at `OperationProofUnavailable` holding only `entries.len == 4`.
   - Copy bounded, erased and structural fields of `[copy]` view elements under
     [ownership](wiki/spec/language/ownership.md). Stage 04's
     `values/scalar/computations/structural_values.rs::view_element_copy` admits
-    plain scalar fields, and the plain-field copy customers exit natively;
-    `runtime_slice_iteration_exit`'s `value: i32 in Wrapping` element copy
-    fails Terminal validation with `InvalidStructuralLeafCopy`. Confirm
-    rejection of affine moves from shared views.
+    plain scalar fields and fields under exactly one arithmetic policy; a
+    ranged, erased or structural field still declines.
   - Establish byte views over fixed byte fields for `runtime_subslice_len_exit`
     and `wire/runtime_wire_encode_byte_slice_exit`; `field_collection` currently
     admits only non-byte element views. Preserve the wire fixture's five exact

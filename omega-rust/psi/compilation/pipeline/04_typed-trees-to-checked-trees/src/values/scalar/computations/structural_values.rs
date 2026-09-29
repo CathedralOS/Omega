@@ -247,6 +247,30 @@ pub(super) fn is_view_element_copy(
             })
 }
 
+/// A view-copied record field's carrier: a bare primitive, or a primitive
+/// under exactly one arithmetic policy. A policy changes operations, not the
+/// stored bits, so the element read and the fresh record carry the same
+/// scalar; a range or any other qualification needs its own evidence and
+/// keeps the copy declined.
+fn plain_or_policy_scalar_field(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { .. } => true,
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            matches!(
+                program.type_reference_table.constraint_span(*constraints),
+                Some([typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)])
+            ) && matches!(
+                program.type_reference_table.type_reference(*base_type),
+                TypeReferenceNode::Named { .. }
+            )
+        }
+        _ => false,
+    }
+}
+
 /// A LocalData initializer whose declared type is a fixed array of structural
 /// elements spelled as a literal. Primitive arrays keep their scalar-element
 /// route; structural elements each register their own value node, the same
@@ -1067,12 +1091,7 @@ impl Builder<'_, '_> {
                 .primitive_type_reference(field.type_reference)?;
             if field.relevance.is_erased()
                 || primitive_type == PrimitiveType::Addr
-                || !matches!(
-                    self.program
-                        .type_reference_table
-                        .type_reference(field.type_reference),
-                    TypeReferenceNode::Named { .. }
-                )
+                || !plain_or_policy_scalar_field(self.program, field.type_reference)
             {
                 return None;
             }

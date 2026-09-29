@@ -385,6 +385,60 @@ fn a_record_element_copies_through_its_field_reads() {
     );
 }
 
+/// A field under an arithmetic policy copies the same way: a policy changes
+/// operations, not stored bits, so the element read and the fresh record
+/// carry the plain scalar. A ranged field still declines, because its range
+/// needs evidence that a plain element read does not carry.
+#[test]
+fn a_policy_field_record_element_copies_through_its_field_reads() {
+    let copied = |weight: &str| {
+        RECORD_ELEMENTS
+            .replace("data Entry {", "data Entry [copy] {")
+            .replace("weight: u64;", &format!("weight: {weight};"))
+            .replace(
+                "Output::observe(tail[1].value);",
+                "let index: u64 = 1;\n        let chosen: Entry = tail[index];\n        Output::observe(chosen.value);",
+            )
+    };
+    let lowered = lower(&copied("u64 in Wrapping")).expect("a policy-field element copy lowers");
+    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
+        .expect("reload module");
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .expect("reload proof");
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("a policy-field element copy verifies independently");
+    let operations = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        operations
+            .iter()
+            .filter(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::ElementViewRead { .. }
+            ))
+            .count(),
+        2,
+        "the copy reads each field of the selected element once"
+    );
+    assert!(
+        operations.iter().any(|operation| matches!(
+            &operation.kind,
+            terminal_psi::OperationKind::EstablishRecord { fields } if fields.len() == 2
+        )),
+        "the leaves establish one fresh record"
+    );
+    assert!(
+        lower(&copied("u64 [0..=9]")).is_err(),
+        "a ranged field keeps the element copy declined"
+    );
+}
+
 /// A copied `[copy]` element feeds a guard in a state graph: the copy's
 /// field is an ordinary local record field read.
 #[test]
