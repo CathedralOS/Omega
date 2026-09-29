@@ -1,6 +1,7 @@
 //! Authored structural paths shared by parameter and call-result operands.
 use super::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
 use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 enum SourceProjection {
@@ -143,13 +144,25 @@ pub(crate) fn source_place_path(
                         .name_path_members(name.members)
                         .len()
                         == 1
-                    && let Some(position) = source_state.and_then(|state| {
-                        runtime_index_parameter_position(checked, state, name.symbol)
-                    })
                 {
-                    projections.push(SourceProjection::RuntimeIndex(position));
-                    expression = indexed.collection;
-                    continue;
+                    if let Some(position) = source_state.and_then(|state| {
+                        runtime_index_parameter_position(checked, state, name.symbol)
+                    }) {
+                        projections.push(SourceProjection::RuntimeIndex(position));
+                        expression = indexed.collection;
+                        continue;
+                    }
+                    // A bare immutable local bound to a constant integer
+                    // selects the element statically; the checker folds the
+                    // same name to a `FixedIndex` segment, so this mirror
+                    // must produce the fixed coordinate too.
+                    if let Some(index) = source_state
+                        .and_then(|state| constant_local_index(checked, state, name.symbol))
+                    {
+                        projections.push(SourceProjection::Index(index));
+                        expression = indexed.collection;
+                        continue;
+                    }
                 }
                 let ExpressionNode::Integer(index) =
                     checked.expression_table.expression(indexed.index)
@@ -333,6 +346,33 @@ pub(crate) fn source_place_path(
         }
     }
     Ok((root, path, access))
+}
+
+/// An immutable integer local bound to a constant initializer resolves the
+/// authored selector statically, mirroring the checker's `FixedIndex` fold of
+/// the same name; mutable locals and non-constant initializers stay on the
+/// runtime-selector routes.
+fn constant_local_index(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    symbol: symbols::SymbolHandle,
+) -> Option<u64> {
+    let local = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol && !local.is_mutable => {
+                Some(local)
+            }
+            _ => None,
+        })?;
+    u64::try_from(
+        checked
+            .expression_table
+            .constant_integer_value(local.initial_value)?,
+    )
+    .ok()
 }
 
 /// The dense scalar position of an immutable integer parameter of `state`,

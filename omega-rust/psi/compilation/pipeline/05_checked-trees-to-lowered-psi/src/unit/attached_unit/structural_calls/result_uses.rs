@@ -1583,11 +1583,11 @@ pub(crate) fn validate_consumer(
             }
             continue;
         }
-        // A live result binding may lend one of its record's leaves — or its
-        // whole extent — through an exclusive borrow: the binding is not
-        // consumed, the projected field path (empty for a whole-place loan)
-        // is already rejoined against the authored operand above, and the
-        // borrowed formal carries no claims.
+        // A live result binding may lend one of its record's leaves, fixed
+        // elements, or its whole extent through an exclusive borrow: the
+        // binding is not consumed, the projected path (empty for a
+        // whole-place loan) is already rejoined against the authored operand
+        // above, and the borrowed formal carries no claims.
         let scalar_leaf_borrow = matches!(
             result.multiplicity,
             Multiplicity::Affine | Multiplicity::Unrestricted
@@ -1598,6 +1598,8 @@ pub(crate) fn validate_consumer(
             matches!(
                 segment,
                 checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                    | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                    | checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { .. }
             )
         }) && matches!(
             argument.access,
