@@ -4,6 +4,8 @@
 
 #[path = "structural_unit/borrowed_frontier.rs"]
 mod borrowed_frontier;
+#[path = "structural_unit/boundary_block_views.rs"]
+mod boundary_block_views;
 #[path = "structural_unit/boundary_buffers.rs"]
 mod boundary_buffers;
 #[path = "structural_unit/bounded_byte_owner_calls.rs"]
