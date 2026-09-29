@@ -218,28 +218,18 @@ pub(crate) fn rejoin_computation_call_arguments(
     // The receiver has a distinct captured occurrence, not a fabricated row in
     // the explicit-argument observation roster. Its storage still enters the
     // ordinary positional structural lane before the explicit actuals.
-    if has_receiver {
+    let receiver_argument = if has_receiver {
         let Some(CheckedScalarComputationStructuralArgument::Place(argument)) = structural.next()
         else {
             return unsupported("computed receiver lost its structural operand");
         };
-        borrowed_nominal_arguments::validate(
-            checked,
-            caller_state,
-            statement,
-            owner,
-            &parameters[0],
-            call.receiver,
-            argument,
-            borrow_call.ok_or(LoweringError::Unsupported(
-                "computed receiver lost its call custody",
-            ))?,
-            None,
-        )?;
         result.push(RejoinedComputationArgument::Structural {
             expression: call.receiver,
         });
-    }
+        Some(argument)
+    } else {
+        None
+    };
     let mut structural_ordinal = 0u32;
     for (formal_position, (parameter, expression)) in explicit_parameters
         .iter()
@@ -431,7 +421,7 @@ pub(crate) fn rejoin_computation_call_arguments(
                     expression,
                     argument,
                     borrow_call,
-                    Some(position),
+                    borrowed_nominal_arguments::ArgumentOccurrence::Explicit(position),
                 )?;
                 position
             } else {
@@ -459,6 +449,31 @@ pub(crate) fn rejoin_computation_call_arguments(
     }
     if scalars.next().is_some() || structural.next().is_some() {
         return unsupported("computed invocation has extra scalar or structural arguments");
+    }
+    // Check the receiver after all explicit actuals have been admitted. Only
+    // then can their exact formal types distinguish completed scalar reads
+    // from storage that remains borrowed across the invocation.
+    if let Some(argument) = receiver_argument {
+        borrowed_nominal_arguments::validate(
+            checked,
+            caller_state,
+            statement,
+            owner,
+            &parameters[0],
+            call.receiver,
+            argument,
+            borrow_call.ok_or(LoweringError::Unsupported(
+                "computed receiver lost its call custody",
+            ))?,
+            borrowed_nominal_arguments::ArgumentOccurrence::Receiver {
+                parameters: explicit_parameters,
+                access_positions: access_positions
+                    .as_deref()
+                    .ok_or(LoweringError::Unsupported(
+                        "computed receiver lost its explicit argument observations",
+                    ))?,
+            },
+        )?;
     }
     Ok(result)
 }
