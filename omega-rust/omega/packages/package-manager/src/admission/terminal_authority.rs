@@ -149,6 +149,7 @@ pub fn realize_accepted_native_report(
         rollback_receipt,
         trust_settlement,
         pcc_context,
+        settlement,
         _reviews,
     ) = match input {
         AcceptedNativeInput::Terminal {
@@ -167,6 +168,7 @@ pub fn realize_accepted_native_report(
                 rollback_receipt,
                 trust_settlement,
                 pcc_context,
+                None,
                 None,
             )
         }
@@ -187,28 +189,31 @@ pub fn realize_accepted_native_report(
                 .map_or(build_selected, |receipt| receipt.effective().clone());
             let post_terminal_optimizations = effective_optimizations.project_post_terminal();
             let (reviews, root_path, checked_root) = candidate.into_production_parts();
-            let build_observation = checked_root.build_observation_identity();
-            let build_outputs = checked_root.completed_build_outputs()?;
-            compiler::RequestedCompileProduct::NativeArtifact.admit_build_requirements(
-                checked_root.application_artifact_only(),
-                checked_root.build().config.settings.pcc,
+            // The direct native route's admission: completed files, evaluated
+            // Build requirements and final-composition progress.
+            let settlement = match checked_root.prepare_product_report(
+                root_path.clone(),
+                compiler::RequestedCompileProduct::NativeArtifact,
                 optimization_rollback,
-            )?;
-            if checked_root.application_artifact_only() {
-                let subject = checked_root.production_subject()?.ok_or_else(|| {
-                    diagnostics("accepted build outputs require package production custody")
-                })?;
-                validate_accepted_package_production_subject(&subject, evidence)?;
-                let outputs = build_outputs
-                    .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
-                return compiler::CompileReport::from_build_outputs(
-                    root_path,
-                    checked_root.source_file_count(),
-                    outputs,
-                    Some(subject),
-                )
-                .map_err(diagnostics);
-            }
+                compiler::TrustAdmissionSettlement::default(),
+            )? {
+                compilation_products::CheckedProductReport::Native(settlement) => settlement,
+                compilation_products::CheckedProductReport::Complete(report) => {
+                    let subject = report
+                        .production_manifest()
+                        .map(compiler::ProductionCompilationManifest::subject)
+                        .ok_or_else(|| {
+                            diagnostics("accepted build outputs require package production custody")
+                        })?;
+                    validate_accepted_package_production_subject(subject, evidence)?;
+                    return Ok(report);
+                }
+                compilation_products::CheckedProductReport::Terminal(_) => {
+                    return Err(diagnostics(
+                        "accepted native admission settled a Terminal product",
+                    ));
+                }
+            };
             // Native proof requests describe the eventual native product, not
             // this intermediate Terminal artifact. Keep them with the pending
             // request rather than attaching an impossible context to a report.
@@ -226,7 +231,6 @@ pub fn realize_accepted_native_report(
                 retained,
                 subject,
             )
-            .and_then(|report| report.with_build_outputs(build_outputs, build_observation))
             .map_err(diagnostics)?;
             (
                 report,
@@ -234,6 +238,7 @@ pub fn realize_accepted_native_report(
                 rollback_receipt,
                 compiler::TrustAdmissionSettlement::default(),
                 pcc_context,
+                Some(settlement),
                 Some(reviews),
             )
         }
@@ -291,7 +296,7 @@ pub fn realize_accepted_native_report(
             "accepted Terminal realization requires direct image custody",
         ));
     };
-    compiler::CompileReport::from_retained_native_artifact(
+    let report = compiler::CompileReport::from_retained_native_artifact(
         root_path,
         source_file_count,
         artifact,
@@ -302,7 +307,12 @@ pub fn realize_accepted_native_report(
     .and_then(|report| report.with_pcc_context(pcc_requests, pcc_admission_profile))
     .and_then(|report| report.with_build_outputs(build_outputs, build_observation))
     .and_then(|report| report.with_application_metadata(application))
-    .map_err(|message| vec![Diagnostic::error(message)])
+    .map_err(|message| vec![Diagnostic::error(message)])?;
+    // Reviewed input rejoins the companions its checked admission retained.
+    match settlement {
+        Some(settlement) => settlement.finish(report),
+        None => Ok(report),
+    }
 }
 
 fn validate_accepted_terminal_production_subject(

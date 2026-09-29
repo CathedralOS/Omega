@@ -140,6 +140,13 @@ impl CheckedCompilation {
             .map_err(diagnostics);
         }
         let terminal = requested == RequestedCompileProduct::TerminalArtifact;
+        if !terminal {
+            // Final composition stops at build-bound progress that no
+            // installed provider occurrence has discharged.
+            provider_planning::component_progress::reject_undischarged_build_bound_progress(
+                self.execution().component_progress.as_ref(),
+            )?;
+        }
         let settlement = CompileReportSettlement {
             expected_kind: if terminal {
                 CompileOutputKind::TerminalArtifact
