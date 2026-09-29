@@ -5,6 +5,7 @@
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
+use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
 /// Walk an authored member/indexed place chain to its root name, rebuilding
@@ -99,14 +100,22 @@ pub(crate) fn walk_exact_place(
             }
             // A literal fixed index is an exact place segment the same way a
             // record field is: the checked planner recorded its ordinal after
-            // the same literal-length bound check replayed here. A
-            // non-literal index replays the checker's `RuntimeIndex`
-            // coordinate instead — the selector's bound obligation is the
-            // terminal verifier's, not this walk's.
+            // the same literal-length bound check replayed here. An immutable
+            // local bound to a constant integer folds to the same literal the
+            // checker folded at admission. A non-literal index replays the
+            // checker's `RuntimeIndex` coordinate instead — the selector's
+            // bound obligation is the terminal verifier's, not this walk's.
             ExpressionNode::Indexed(indexed) => {
-                let ExpressionNode::Integer(index) =
-                    checked.expression_table.expression(indexed.index)
-                else {
+                let literal = match checked.expression_table.expression(indexed.index) {
+                    ExpressionNode::Integer(index) => {
+                        index.value_bignum().and_then(|value| value.to_u64())
+                    }
+                    ExpressionNode::Name(name) => {
+                        constant_local_index(checked, authored, name.symbol)
+                    }
+                    _ => None,
+                };
+                let Some(index) = literal else {
                     checked_path.push(
                         checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
                             runtime_index_selector(checked, machine, authored, indexed.index)?,
@@ -115,12 +124,6 @@ pub(crate) fn walk_exact_place(
                     cursor = indexed.collection;
                     continue;
                 };
-                let index = index
-                    .value_bignum()
-                    .and_then(|value| value.to_u64())
-                    .ok_or(LoweringError::Unsupported(
-                        "borrowed selection index exceeds u64",
-                    ))?;
                 let container = validation::declared_place_type_raw(
                     &checked.typed,
                     machine,
@@ -179,6 +182,35 @@ fn selector_is_integer(
                 | checked_trees::types::PrimitiveType::I64
         )
     )
+}
+
+/// The literal index an immutable local scalar names: `let i: u64 = 2`
+/// selects exactly element 2 for the whole state because nothing can write
+/// the binding. Mirrors the checker's `FixedIndex` fold of the same name; a
+/// bare `Name` selector spelled against a state-local immutable binding with
+/// a constant initializer folds, and every other shape stays on the
+/// runtime-selector routes.
+fn constant_local_index(
+    checked: &CheckedTrees,
+    authored: &checked_trees::state::State,
+    symbol: SymbolHandle,
+) -> Option<u64> {
+    let local = checked
+        .statement_table
+        .statements(authored.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol && !local.is_mutable => {
+                Some(local)
+            }
+            _ => None,
+        })?;
+    u64::try_from(
+        checked
+            .expression_table
+            .constant_integer_value(local.initial_value)?,
+    )
+    .ok()
 }
 
 /// Re-derive the `RuntimeIndex` coordinate the checker minted for a
