@@ -1,7 +1,10 @@
 //! Compatible-policy leader and redundant-operation classification.
 
-use abstract_operations::AbstractOperation as O;
-use semantic_vocabulary::ScalarType;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
+use semantic_vocabulary::{IntegerType, ScalarType, ValueId};
 
 use super::{CompatiblePolicyScalarExpressionKey, ScalarExpressionRow, canonical_pair};
 
@@ -9,100 +12,35 @@ pub(in crate::rules) fn compatible_policy_scalar_leader(
     operation: &O,
 ) -> Option<ScalarExpressionRow<CompatiblePolicyScalarExpressionKey>> {
     let row = match operation {
-        O::WrappingIntegerShiftLeft {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
             count_type,
+            policy: IntegerShiftPolicy::Wrapping,
+            direction,
             value,
             count,
         } => (
-            CompatiblePolicyScalarExpressionKey::ShiftLeft(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
+            shift_key(*direction, *value_type, *count_type, *value, *count),
             *psi_operation,
             *result,
             ScalarType::Integer(*value_type),
         ),
-        O::WrappingIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-        } => (
-            CompatiblePolicyScalarExpressionKey::ShiftRight(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-        ),
-        O::WrappingIntegerAdd {
+        O::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
-        }
-        | O::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            let (left, right) = canonical_pair(*left, *right);
+        } if matches!(
+            arithmetic.policy(),
+            IntegerOverflowPolicy::Wrapping | IntegerOverflowPolicy::Saturating
+        ) =>
+        {
             (
-                CompatiblePolicyScalarExpressionKey::Add(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-            )
-        }
-        O::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | O::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            CompatiblePolicyScalarExpressionKey::Subtract(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-        ),
-        O::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | O::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            let (left, right) = canonical_pair(*left, *right);
-            (
-                CompatiblePolicyScalarExpressionKey::Multiply(*scalar_type, left, right),
+                arithmetic_key(arithmetic.operator(), *scalar_type, *left, *right)?,
                 *psi_operation,
                 *result,
                 ScalarType::Integer(*scalar_type),
@@ -117,90 +55,81 @@ pub(in crate::rules) fn compatible_policy_scalar_redundant(
     operation: &O,
 ) -> Option<ScalarExpressionRow<CompatiblePolicyScalarExpressionKey>> {
     let row = match operation {
-        O::ExactIntegerShiftLeft {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
             count_type,
+            policy: IntegerShiftPolicy::Exact { .. },
+            direction,
             value,
             count,
-            ..
         } => (
-            CompatiblePolicyScalarExpressionKey::ShiftLeft(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
+            shift_key(*direction, *value_type, *count_type, *value, *count),
             *psi_operation,
             *result,
             ScalarType::Integer(*value_type),
         ),
-        O::ExactIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        } => (
-            CompatiblePolicyScalarExpressionKey::ShiftRight(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-        ),
-        O::ExactIntegerAdd {
+        O::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
-            ..
-        } => {
-            let (left, right) = canonical_pair(*left, *right);
-            (
-                CompatiblePolicyScalarExpressionKey::Add(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-            )
-        }
-        O::ExactIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        } => (
-            CompatiblePolicyScalarExpressionKey::Subtract(*scalar_type, *left, *right),
+        } if arithmetic.policy() == IntegerOverflowPolicy::Exact => (
+            arithmetic_key(arithmetic.operator(), *scalar_type, *left, *right)?,
             *psi_operation,
             *result,
             ScalarType::Integer(*scalar_type),
         ),
-        O::ExactIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        } => {
-            let (left, right) = canonical_pair(*left, *right);
-            (
-                CompatiblePolicyScalarExpressionKey::Multiply(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-            )
-        }
         _ => return None,
     };
     Some(row)
+}
+
+fn shift_key(
+    direction: IntegerShiftDirection,
+    value_type: IntegerType,
+    count_type: IntegerType,
+    value: ValueId,
+    count: ValueId,
+) -> CompatiblePolicyScalarExpressionKey {
+    match direction {
+        IntegerShiftDirection::Left => {
+            CompatiblePolicyScalarExpressionKey::ShiftLeft(value_type, count_type, value, count)
+        }
+        IntegerShiftDirection::Right => {
+            CompatiblePolicyScalarExpressionKey::ShiftRight(value_type, count_type, value, count)
+        }
+    }
+}
+
+/// The policy-independent key of add, subtract and multiply; divide and
+/// remainder have no compatible-policy leader.
+fn arithmetic_key(
+    operator: IntegerArithmeticOperator,
+    scalar_type: IntegerType,
+    left: ValueId,
+    right: ValueId,
+) -> Option<CompatiblePolicyScalarExpressionKey> {
+    let (low, high) = canonical_pair(left, right);
+    match operator {
+        IntegerArithmeticOperator::Add => Some(CompatiblePolicyScalarExpressionKey::Add(
+            scalar_type,
+            low,
+            high,
+        )),
+        IntegerArithmeticOperator::Subtract => Some(CompatiblePolicyScalarExpressionKey::Subtract(
+            scalar_type,
+            left,
+            right,
+        )),
+        IntegerArithmeticOperator::Multiply => Some(CompatiblePolicyScalarExpressionKey::Multiply(
+            scalar_type,
+            low,
+            high,
+        )),
+        IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder => None,
+    }
 }

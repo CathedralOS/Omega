@@ -4,7 +4,8 @@ use crate::candidates::sparse_conditional_constant_propagation::scalar_value_def
 use crate::tests::support::id;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, IntegerArithmetic,
+    IntegerArithmeticOperator, IntegerOverflowPolicy,
 };
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
@@ -115,11 +116,16 @@ pub(crate) fn redundant_parameter_region_fixture() -> (
                             trivial_affine_discards: Vec::new(),
                         },
                     },
-                    AbstractOperation::ExactIntegerAdd {
+                    AbstractOperation::IntegerArithmetic {
                         psi_operation: id(711, OperationId::new),
-                        obligation: id(713, semantic_vocabulary::ObligationId::new),
                         result,
                         scalar_type: integer,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Exact,
+                            IntegerArithmeticOperator::Add,
+                            Some(id(713, semantic_vocabulary::ObligationId::new)),
+                        )
+                        .expect("admitted integer arithmetic"),
                         left: parameter,
                         right: alternate,
                     },
@@ -182,17 +188,22 @@ pub(crate) fn integer_candidate_with_facts_and_cost(
     let function = &unit.functions[0];
     let block = &function.blocks[0];
     let node = &block.nodes[2];
-    let AbstractOperation::ExactIntegerAdd {
+    let AbstractOperation::IntegerArithmetic {
         psi_operation,
         result,
         scalar_type,
+        arithmetic,
         left,
         right,
-        ..
     } = node.operation
     else {
         panic!("fixture contains exact add")
     };
+    assert_eq!(
+        (arithmetic.policy(), arithmetic.operator()),
+        (IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Add),
+        "fixture contains exact add"
+    );
     let location = NodeLocation {
         machine: function.machine,
         block: block.id,

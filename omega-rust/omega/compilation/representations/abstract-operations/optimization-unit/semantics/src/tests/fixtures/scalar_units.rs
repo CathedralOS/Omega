@@ -3,6 +3,7 @@ use crate::tests::support::id;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractStructuralCallResult,
+    IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
 };
 use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
@@ -196,11 +197,16 @@ pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
                     scalar_type: ScalarType::Integer(integer),
                     value: IntegerValue::Unsigned(8),
                 },
-                AbstractOperation::ExactIntegerAdd {
+                AbstractOperation::IntegerArithmetic {
                     psi_operation: id(208, OperationId::new),
-                    obligation: id(209, semantic_vocabulary::ObligationId::new),
                     result,
                     scalar_type: integer,
+                    arithmetic: IntegerArithmetic::new(
+                        IntegerOverflowPolicy::Exact,
+                        IntegerArithmeticOperator::Add,
+                        Some(id(209, semantic_vocabulary::ObligationId::new)),
+                    )
+                    .expect("admitted integer arithmetic"),
                     left,
                     right,
                 },

@@ -4,7 +4,10 @@
 //! longer consults it — each action admits by its root's own home or arrival
 //! declaration where the edge commits the discard.
 
-use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
+use abstract_operations::{
+    AbstractFunction, AbstractOperation, AbstractStructuralCallResult, IntegerArithmeticOperator,
+    IntegerOverflowPolicy,
+};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
@@ -56,16 +59,24 @@ pub(super) fn accepts(
         | AbstractOperation::IntegerEqual { .. }
         | AbstractOperation::IntegerLessThan { .. }
         | AbstractOperation::IntegerLessOrEqual { .. }
-        | AbstractOperation::ExactIntegerAdd { .. }
-        | AbstractOperation::ExactIntegerSubtract { .. }
-        | AbstractOperation::ExactIntegerMultiply { .. }
-        | AbstractOperation::ExactIntegerRemainder { .. }
-        | AbstractOperation::WrappingIntegerSubtract { .. }
-        | AbstractOperation::WrappingIntegerMultiply { .. }
-        | AbstractOperation::WrappingIntegerDivide { .. }
         | AbstractOperation::IntegerBitwiseOr { .. }
         | AbstractOperation::IntegerBitwiseNot { .. }
         | AbstractOperation::Call { .. } => true,
+        AbstractOperation::IntegerArithmetic { arithmetic, .. } => matches!(
+            (arithmetic.policy(), arithmetic.operator()),
+            (
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Add
+                    | IntegerArithmeticOperator::Subtract
+                    | IntegerArithmeticOperator::Multiply
+                    | IntegerArithmeticOperator::Remainder
+            ) | (
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Subtract
+                    | IntegerArithmeticOperator::Multiply
+                    | IntegerArithmeticOperator::Divide
+            )
+        ),
         AbstractOperation::EstablishPrimitiveLocal { result, .. } => !declarations
             .iter()
             .any(|parameter| parameter.place == result.place),

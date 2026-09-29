@@ -135,21 +135,7 @@ pub(in crate::function_fragments) fn arrivals(
         | AbstractOperation::IntegerBitwiseOr { .. }
         | AbstractOperation::IntegerBitwiseXor { .. }
         | AbstractOperation::IntegerBitwiseNot { .. }
-        | AbstractOperation::ExactIntegerAdd { .. }
-        | AbstractOperation::WrappingIntegerAdd { .. }
-        | AbstractOperation::ExactIntegerDivide { .. }
-        | AbstractOperation::WrappingIntegerRemainder { .. }
-        | AbstractOperation::SaturatingIntegerSubtract { .. }
-        | AbstractOperation::SaturatingIntegerAdd { .. }
-        | AbstractOperation::SaturatingIntegerDivide { .. }
-        | AbstractOperation::ExactIntegerSubtract { .. }
-        | AbstractOperation::ExactIntegerMultiply { .. }
-        | AbstractOperation::ExactIntegerRemainder { .. }
-        | AbstractOperation::WrappingIntegerSubtract { .. }
-        | AbstractOperation::WrappingIntegerMultiply { .. }
-        | AbstractOperation::WrappingIntegerDivide { .. }
-        | AbstractOperation::SaturatingIntegerRemainder { .. }
-        | AbstractOperation::SaturatingIntegerMultiply { .. }
+        | AbstractOperation::IntegerArithmetic { .. }
         | AbstractOperation::TrappingInteger { .. }
         | AbstractOperation::Call { .. }
         | AbstractOperation::Jump { .. }

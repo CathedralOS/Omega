@@ -1,6 +1,7 @@
 //! Integer expression vocabulary and exact proof-bearing arithmetic.
 
 use crate::{ScalarParameterLocation, TargetByteView, TargetElementView};
+use abstract_operations::{IntegerArithmetic, IntegerShiftDirection, IntegerShiftPolicy};
 use calling_conventions::ValuePlacement;
 use semantic_vocabulary::{
     IntegerType, IntegerValue, OperationId, PlaceId, StructuralFieldId, ValueId,
@@ -101,113 +102,23 @@ pub enum TargetIntegerExpression {
         left: Box<TargetIntegerExpression>,
         right: Box<TargetIntegerExpression>,
     },
-    WrappingShiftLeft {
+    /// One fixed-width shift of `value` by an independently typed `count`.
+    /// `policy` carries the verifier-discharged in-range count obligation
+    /// exactly when the shift is exact.
+    Shift {
         psi_operation: OperationId,
+        policy: IntegerShiftPolicy,
+        direction: IntegerShiftDirection,
         count_type: IntegerType,
         value: Box<TargetIntegerExpression>,
         count: Box<TargetIntegerExpression>,
     },
-    WrappingShiftRight {
+    /// One fixed-width binary arithmetic operation over two operands of the
+    /// enclosing expression's carrier; `arithmetic` names its policy pair and
+    /// the obligation that pair requires.
+    Arithmetic {
         psi_operation: OperationId,
-        count_type: IntegerType,
-        value: Box<TargetIntegerExpression>,
-        count: Box<TargetIntegerExpression>,
-    },
-    ExactShiftLeft {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        count_type: IntegerType,
-        value: Box<TargetIntegerExpression>,
-        count: Box<TargetIntegerExpression>,
-    },
-    ExactShiftRight {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        count_type: IntegerType,
-        value: Box<TargetIntegerExpression>,
-        count: Box<TargetIntegerExpression>,
-    },
-    WrappingAdd {
-        psi_operation: OperationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    ExactAdd {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    SaturatingAdd {
-        psi_operation: OperationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    WrappingSubtract {
-        psi_operation: OperationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    ExactSubtract {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    SaturatingSubtract {
-        psi_operation: OperationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    WrappingMultiply {
-        psi_operation: OperationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    ExactMultiply {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    ExactDivide {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    ExactRemainder {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    WrappingDivide {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    WrappingRemainder {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    SaturatingDivide {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    SaturatingRemainder {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        left: Box<TargetIntegerExpression>,
-        right: Box<TargetIntegerExpression>,
-    },
-    SaturatingMultiply {
-        psi_operation: OperationId,
+        arithmetic: IntegerArithmetic,
         left: Box<TargetIntegerExpression>,
         right: Box<TargetIntegerExpression>,
     },

@@ -1,15 +1,17 @@
 //! Remainder-by-one tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 
 use super::super::super::LiveProofCertifiedIntegerRemainderByOneEliminationRule;
 use crate::rules::proof_check_elision::integer_zero;
 use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_function_result;
 use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
-    SelfRemainderPolicy, live_remainder_by_one_unit, live_self_remainder_unit,
+    live_remainder_by_one_unit, live_self_remainder_unit,
 };
 use crate::{AnalysisProduct, RuleAnalysisView};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisKind, OptimizationFactReference, OptimizationValidatorIdentity,
     ScalarConstantFactIdentity,
@@ -34,9 +36,9 @@ fn proof_certified_remainder_by_one_materializes_typed_zero_for_every_policy_and
         IntegerType::new(IntegerSign::Signed, 8).unwrap(),
     ] {
         for policy in [
-            SelfRemainderPolicy::Exact,
-            SelfRemainderPolicy::Wrapping,
-            SelfRemainderPolicy::Saturating,
+            IntegerOverflowPolicy::Exact,
+            IntegerOverflowPolicy::Wrapping,
+            IntegerOverflowPolicy::Saturating,
         ] {
             let unit = live_remainder_by_one_unit(integer, policy);
             let contract = LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract();
@@ -141,7 +143,7 @@ fn proof_certified_remainder_by_one_materializes_typed_zero_for_every_policy_and
 fn proof_certified_remainder_by_one_declines_closed_shapes_and_rejects_corruption() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let contract = LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract();
-    let unit = live_remainder_by_one_unit(integer, SelfRemainderPolicy::Exact);
+    let unit = live_remainder_by_one_unit(integer, IntegerOverflowPolicy::Exact);
     let mut manager = crate::AnalysisManager::new(&unit);
     let products = manager
         .require_all(&unit, contract.required_analyses())
@@ -268,11 +270,16 @@ fn proof_certified_remainder_by_one_declines_closed_shapes_and_rejects_corruptio
     );
 
     let mut foreign_operation = unit.clone();
-    foreign_operation.functions[0].blocks[0].nodes[1].operation = O::ExactIntegerDivide {
+    foreign_operation.functions[0].blocks[0].nodes[1].operation = O::IntegerArithmetic {
         psi_operation: id(327, OperationId::new),
-        obligation: id(328, ObligationId::new),
         result: id(325, ValueId::new),
         scalar_type: integer,
+        arithmetic: IntegerArithmetic::new(
+            IntegerOverflowPolicy::Exact,
+            IntegerArithmeticOperator::Divide,
+            Some(id(328, ObligationId::new)),
+        )
+        .expect("admitted integer arithmetic"),
         left: id(323, ValueId::new),
         right: id(324, ValueId::new),
     };
@@ -329,7 +336,7 @@ fn proof_certified_remainder_by_one_declines_closed_shapes_and_rejects_corruptio
         missing_reference,
         missing_catalog,
         discard_scalar_function_result(unit.clone()),
-        live_self_remainder_unit(integer, SelfRemainderPolicy::Exact),
+        live_self_remainder_unit(integer, IntegerOverflowPolicy::Exact),
     ] {
         let mut manager = crate::AnalysisManager::new(&ineligible);
         let products = manager

@@ -1,5 +1,9 @@
 //! Correspondence controls do not supply the nonzero-divisor proof required by legalization.
 use crate::LegalizationError;
+use abstract_operations::{
+    AbstractBlockEntry, AbstractParameter, AbstractResult, IntegerArithmetic,
+    IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 
 use super::super::{BlockId, ValueId};
 use super::{
@@ -9,7 +13,6 @@ use super::{
 };
 use crate::legalization::scalar_graph_input::supports_wrapping_division;
 use crate::legalization::scalar_graph_input::target::Expression;
-use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractResult};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ObligationId, OperationId,
 };
@@ -61,21 +64,31 @@ fn fixture(
                 trivial_affine_discards: Vec::new(),
                 residual_affine_discards: Vec::new(),
             },
-            AbstractOperation::WrappingIntegerRemainder {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: OperationId::new(1).unwrap(),
                 result: value(3),
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Remainder,
+                    Some(ObligationId::new(1).unwrap()),
+                )
+                .expect("admitted integer arithmetic"),
                 left: value(1),
                 right: value(2),
-                obligation: ObligationId::new(1).unwrap(),
             },
-            AbstractOperation::WrappingIntegerRemainder {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: OperationId::new(2).unwrap(),
                 result: value(4),
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Remainder,
+                    Some(ObligationId::new(2).unwrap()),
+                )
+                .expect("admitted integer arithmetic"),
                 left: value(3),
                 right: value(2),
-                obligation: ObligationId::new(2).unwrap(),
             },
             AbstractOperation::Return {
                 psi_edge: EdgeId::new(2).unwrap(),
@@ -135,7 +148,10 @@ fn signed_wrapping_remainder_preserves_width_and_prior_result_homes() {
         let TargetUnitOperation::ScalarDefinition {
             expression:
                 TargetScalarExpression::Integer {
-                    expression: Expression::WrappingRemainder { left, .. },
+                    expression:
+                        Expression::Arithmetic {
+                            arithmetic, left, ..
+                        },
                     ..
                 },
             ..
@@ -143,6 +159,10 @@ fn signed_wrapping_remainder_preserves_width_and_prior_result_homes() {
         else {
             panic!("remainder");
         };
+        assert!(arithmetic.is(
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Remainder
+        ));
         assert!(
             matches!(left.as_ref(), Expression::ScalarHome(home) if home.source_value == value(3))
         );
@@ -192,26 +212,42 @@ fn wrapping_remainder_replay_rejects_policy_evidence_and_snapshot_drift() {
         else {
             panic!("remainder");
         };
-        let Expression::WrappingRemainder {
+        let Expression::Arithmetic {
             psi_operation,
-            obligation,
+            arithmetic,
             left,
             right,
         } = expression
         else {
             panic!("wrapping policy");
         };
+        assert!(arithmetic.is(
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Remainder
+        ));
         match mutation {
             "operation" => *psi_operation = OperationId::new(99).unwrap(),
-            "obligation" => *obligation = ObligationId::new(99).unwrap(),
+            "obligation" => {
+                *arithmetic = IntegerArithmetic::new(
+                    arithmetic.policy(),
+                    arithmetic.operator(),
+                    Some(ObligationId::new(99).unwrap()),
+                )
+                .expect("admitted integer arithmetic")
+            }
             "operand" => std::mem::swap(left, right),
             "width" => *scalar_type = IntegerType::new(IntegerSign::Signed, 64).unwrap(),
             "home" => result_home.source_value = value(3),
             "reevaluation" => **left = first_expression,
             _ => {
-                *expression = Expression::ExactRemainder {
+                *expression = Expression::Arithmetic {
                     psi_operation: *psi_operation,
-                    obligation: *obligation,
+                    arithmetic: IntegerArithmetic::new(
+                        IntegerOverflowPolicy::Exact,
+                        IntegerArithmeticOperator::Remainder,
+                        arithmetic.obligation(),
+                    )
+                    .expect("admitted integer arithmetic"),
                     left: left.clone(),
                     right: right.clone(),
                 }

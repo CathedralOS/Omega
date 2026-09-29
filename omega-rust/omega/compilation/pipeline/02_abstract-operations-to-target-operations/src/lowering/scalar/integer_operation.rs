@@ -1,8 +1,5 @@
 //! Exhaustive selection of integer scalar-operation semantics.
-use super::{
-    IntegerBinaryKind, KnownInteger, KnownScalar, WrappingShiftKind, lower_exact_shift_left,
-    lower_exact_shift_right, lower_integer_binary, lower_wrapping_shift,
-};
+use super::{IntegerBinaryKind, KnownInteger, KnownScalar, lower_integer_binary, lower_shift};
 use crate::LoweringError;
 use crate::lowering::scalar::expressions::insert_value;
 use abstract_operations::AbstractOperation;
@@ -34,10 +31,11 @@ pub(in crate::lowering) fn try_lower_integer_operation(
                 KnownInteger::Immediate(*value),
             )
         }
-        AbstractOperation::WrappingIntegerAdd {
+        AbstractOperation::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
         } => (
@@ -50,296 +48,7 @@ pub(in crate::lowering) fn try_lower_integer_operation(
                 *scalar_type,
                 *left,
                 *right,
-                IntegerBinaryKind::WrappingAdd,
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::ExactIntegerAdd {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::ExactAdd(*obligation),
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::SaturatingAdd,
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::WrappingSubtract,
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::ExactIntegerSubtract {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::ExactSubtract(*obligation),
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::SaturatingSubtract,
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::WrappingMultiply,
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::ExactIntegerMultiply {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::ExactMultiply(*obligation),
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::SaturatingMultiply,
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::ExactIntegerDivide {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::ExactDivide(*obligation),
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::ExactIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::ExactRemainder(*obligation),
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::WrappingIntegerDivide {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::WrappingDivide(*obligation),
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::WrappingIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::WrappingRemainder(*obligation),
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::SaturatingIntegerDivide {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::SaturatingDivide(*obligation),
-                *psi_operation,
-            )?,
-        ),
-        AbstractOperation::SaturatingIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            lower_integer_binary(
-                values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                IntegerBinaryKind::SaturatingRemainder(*obligation),
+                IntegerBinaryKind::Arithmetic(*arithmetic),
                 *psi_operation,
             )?,
         ),
@@ -477,90 +186,29 @@ pub(in crate::lowering) fn try_lower_integer_operation(
                 )?,
             )
         }
-        AbstractOperation::WrappingIntegerShiftLeft {
+        AbstractOperation::IntegerShift {
             psi_operation,
             result,
             value_type,
             count_type,
-            value,
-            count,
-        }
-        | AbstractOperation::WrappingIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-        } => {
-            let kind = if matches!(
-                operation,
-                AbstractOperation::WrappingIntegerShiftLeft { .. }
-            ) {
-                WrappingShiftKind::Left
-            } else {
-                WrappingShiftKind::Right
-            };
-            (
-                *psi_operation,
-                *result,
-                *value_type,
-                lower_wrapping_shift(
-                    values,
-                    *result,
-                    *value_type,
-                    *count_type,
-                    *value,
-                    *count,
-                    kind,
-                    *psi_operation,
-                )?,
-            )
-        }
-        AbstractOperation::ExactIntegerShiftRight {
-            psi_operation,
-            obligation,
-            result,
-            value_type,
-            count_type,
+            policy,
+            direction,
             value,
             count,
         } => (
             *psi_operation,
             *result,
             *value_type,
-            lower_exact_shift_right(
+            lower_shift(
                 values,
                 *result,
                 *value_type,
                 *count_type,
                 *value,
                 *count,
+                *policy,
+                *direction,
                 *psi_operation,
-                *obligation,
-            )?,
-        ),
-        AbstractOperation::ExactIntegerShiftLeft {
-            psi_operation,
-            obligation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-        } => (
-            *psi_operation,
-            *result,
-            *value_type,
-            lower_exact_shift_left(
-                values,
-                *result,
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-                *psi_operation,
-                *obligation,
             )?,
         ),
         _ => return Ok(false),

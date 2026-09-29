@@ -4,7 +4,8 @@ use super::super::id;
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperationPlan,
-    AbstractParameter, AbstractResult,
+    AbstractParameter, AbstractResult, IntegerArithmetic, IntegerArithmeticOperator,
+    IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy,
 };
 use optimization_unit::{
     PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
@@ -73,16 +74,24 @@ pub(crate) fn bitwise_neutral_identity_unit_with_type_and_liveness(
         result_is_live,
     );
     let node = &mut unit.functions[0].blocks[0].nodes[1];
-    let O::WrappingIntegerAdd {
+    let O::IntegerArithmetic {
         psi_operation,
         result,
         scalar_type,
         left,
         right,
+        arithmetic,
+        ..
     } = node.operation
     else {
         unreachable!("fixture starts from wrapping addition")
     };
+    if !arithmetic.is(
+        IntegerOverflowPolicy::Wrapping,
+        IntegerArithmeticOperator::Add,
+    ) {
+        unreachable!("fixture starts from wrapping addition")
+    }
     node.operation = match operation {
         BitwiseNeutralOperation::And => O::IntegerBitwiseAnd {
             psi_operation,
@@ -149,48 +158,16 @@ pub(crate) fn saturating_neutral_identity_unit_with_type_and_liveness(
         result_is_live,
     );
     let node = &mut unit.functions[0].blocks[0].nodes[1];
-    node.operation = match node.operation {
-        O::WrappingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => O::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => O::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => O::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        _ => unreachable!("fixture selected one arithmetic operation"),
+    let O::IntegerArithmetic { arithmetic, .. } = &mut node.operation else {
+        unreachable!("fixture selected one arithmetic operation")
     };
+    assert_eq!(arithmetic.policy(), IntegerOverflowPolicy::Wrapping);
+    *arithmetic = IntegerArithmetic::new(
+        IntegerOverflowPolicy::Saturating,
+        arithmetic.operator(),
+        None,
+    )
+    .expect("admitted integer arithmetic");
     unit.identity = recompute_psi_optimization_unit_identity(&unit);
     validate_psi_optimization_unit(&unit).unwrap();
     unit
@@ -256,40 +233,62 @@ pub(crate) fn wrapping_neutral_identity_unit_with_value_and_identity_types_and_l
         (other, literal)
     };
     let operation = match operation {
-        WrappingNeutralOperation::Add => O::WrappingIntegerAdd {
+        WrappingNeutralOperation::Add => O::IntegerArithmetic {
             psi_operation: identity_operation,
             result,
             scalar_type: value_type,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Add,
+                None,
+            )
+            .expect("admitted integer arithmetic"),
             left,
             right,
         },
-        WrappingNeutralOperation::Subtract => O::WrappingIntegerSubtract {
+        WrappingNeutralOperation::Subtract => O::IntegerArithmetic {
             psi_operation: identity_operation,
             result,
             scalar_type: value_type,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Subtract,
+                None,
+            )
+            .expect("admitted integer arithmetic"),
             left,
             right,
         },
-        WrappingNeutralOperation::Multiply => O::WrappingIntegerMultiply {
+        WrappingNeutralOperation::Multiply => O::IntegerArithmetic {
             psi_operation: identity_operation,
             result,
             scalar_type: value_type,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Multiply,
+                None,
+            )
+            .expect("admitted integer arithmetic"),
             left,
             right,
         },
-        WrappingNeutralOperation::ShiftLeft => O::WrappingIntegerShiftLeft {
+        WrappingNeutralOperation::ShiftLeft => O::IntegerShift {
             psi_operation: identity_operation,
             result,
             value_type,
             count_type: identity_operand_type,
+            policy: IntegerShiftPolicy::Wrapping,
+            direction: IntegerShiftDirection::Left,
             value: other,
             count: literal,
         },
-        WrappingNeutralOperation::ShiftRight => O::WrappingIntegerShiftRight {
+        WrappingNeutralOperation::ShiftRight => O::IntegerShift {
             psi_operation: identity_operation,
             result,
             value_type,
             count_type: identity_operand_type,
+            policy: IntegerShiftPolicy::Wrapping,
+            direction: IntegerShiftDirection::Right,
             value: other,
             count: literal,
         },
@@ -400,10 +399,16 @@ pub(crate) fn wrapping_multiply_literal_pair_unit(
                         scalar_type,
                         value: right_value,
                     },
-                    O::WrappingIntegerMultiply {
+                    O::IntegerArithmetic {
                         psi_operation: id(1_958, OperationId::new),
                         result,
                         scalar_type: integer,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Wrapping,
+                            IntegerArithmeticOperator::Multiply,
+                            None,
+                        )
+                        .expect("admitted integer arithmetic"),
                         left,
                         right,
                     },
@@ -429,16 +434,24 @@ pub(crate) fn bitwise_literal_pair_unit(
 ) -> PsiOptimizationUnit {
     let mut unit = wrapping_multiply_literal_pair_unit(left_value, right_value);
     let node = &mut unit.functions[0].blocks[0].nodes[2];
-    let O::WrappingIntegerMultiply {
+    let O::IntegerArithmetic {
         psi_operation,
         result,
         scalar_type,
         left,
         right,
+        arithmetic,
+        ..
     } = node.operation
     else {
         unreachable!("pair fixture starts from wrapping multiplication")
     };
+    if !arithmetic.is(
+        IntegerOverflowPolicy::Wrapping,
+        IntegerArithmeticOperator::Multiply,
+    ) {
+        unreachable!("pair fixture starts from wrapping multiplication")
+    }
     node.operation = match operation {
         BitwiseNeutralOperation::And => O::IntegerBitwiseAnd {
             psi_operation,

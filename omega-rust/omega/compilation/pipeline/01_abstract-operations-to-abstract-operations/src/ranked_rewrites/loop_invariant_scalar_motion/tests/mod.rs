@@ -17,7 +17,10 @@ mod structural_establishments;
 pub(crate) use computations::MULTI_SOURCE_ENTRY_SOURCE;
 
 use crate::VerifiedPsiOptimizationSession;
-use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
+use abstract_operations::{
+    AbstractOperation, AbstractStructuralCallResult, IntegerArithmeticOperator,
+    IntegerOverflowPolicy,
+};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     PsiOptimizationUnit, PsiProvenance, recompute_psi_optimization_unit_identity,
@@ -67,7 +70,16 @@ pub(super) fn member_addition<'function>(
             .find(|block| block.id == *member)
             .expect("member block exists");
         for node in &block.nodes {
-            if let AbstractOperation::WrappingIntegerAdd { left, right, .. } = &node.operation
+            if let AbstractOperation::IntegerArithmetic {
+                arithmetic,
+                left,
+                right,
+                ..
+            } = &node.operation
+                && arithmetic.is(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Add,
+                )
                 && left == right
                 && block
                     .parameters

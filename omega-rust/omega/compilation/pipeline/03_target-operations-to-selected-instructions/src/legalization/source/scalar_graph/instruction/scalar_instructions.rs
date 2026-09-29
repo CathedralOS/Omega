@@ -4,7 +4,10 @@
 use super::super::{Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{
+    AbstractOperation, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 use legalized_operations::{
     LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarInstructionKind,
 };
@@ -50,56 +53,83 @@ pub(super) fn project_integer_exact_cast(
     Ok(kind)
 }
 
+/// One integer arithmetic node's fields, read once by the dispatch.
+#[derive(Clone, Copy)]
+pub(super) struct IntegerArithmeticNode {
+    pub(super) psi_operation: semantic_vocabulary::OperationId,
+    pub(super) scalar_type: semantic_vocabulary::IntegerType,
+    pub(super) arithmetic: IntegerArithmetic,
+    pub(super) left: semantic_vocabulary::ValueId,
+    pub(super) right: semantic_vocabulary::ValueId,
+}
+
+/// Project one integer arithmetic pair to the legalized instruction kind that
+/// realizes it. Wrapping add, subtract and multiply need no carrier or
+/// obligation beyond node admission; every other pair checks its carrier and,
+/// when it carries one, its accepted obligation.
+pub(super) fn project_integer_arithmetic(
+    node: IntegerArithmeticNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    use IntegerArithmeticOperator as Operator;
+    use IntegerOverflowPolicy as Policy;
+    let IntegerArithmeticNode { left, right, .. } = node;
+    match (node.arithmetic.policy(), node.arithmetic.operator()) {
+        (Policy::Wrapping, Operator::Add) => {
+            Ok(LegalizedScalarInstructionKind::WrappingAdd { left, right })
+        }
+        (Policy::Wrapping, Operator::Subtract) => {
+            Ok(LegalizedScalarInstructionKind::WrappingSubtract { left, right })
+        }
+        (Policy::Wrapping, Operator::Multiply) => {
+            Ok(LegalizedScalarInstructionKind::WrappingMultiply { left, right })
+        }
+        (Policy::Wrapping, Operator::Divide | Operator::Remainder) => {
+            project_wrapping_integer_division(node, optimized, unit)
+        }
+        (Policy::Saturating, Operator::Add | Operator::Subtract | Operator::Multiply) => {
+            project_saturating_integer_arithmetic(node, optimized)
+        }
+        (Policy::Saturating, Operator::Divide | Operator::Remainder) => {
+            project_saturating_integer_division(node, optimized, unit)
+        }
+        (Policy::Exact, _) => project_exact_integer_arithmetic(node, optimized, unit),
+    }
+}
+
 /// Saturating add, subtract, and multiply name the carrier the source
 /// operation declares and carry no obligation: saturation defines every
 /// result. Node admission already rejected every non-carrier width as an
 /// unsupported family, so a missing carrier here is a custody mismatch.
-pub(super) fn project_saturating_integer_arithmetic(
-    node: &optimization_unit::OptimizationNode,
+fn project_saturating_integer_arithmetic(
+    node: IntegerArithmeticNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let (scalar_type, left, right) = match &node.operation {
-        AbstractOperation::SaturatingIntegerAdd {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-            ..
-        } => (*scalar_type, *left, *right),
-        _ => unreachable!("dispatched project_saturating_integer_arithmetic"),
-    };
+    let IntegerArithmeticNode {
+        scalar_type,
+        arithmetic,
+        left,
+        right,
+        ..
+    } = node;
     let carrier = scalar_graph_input::saturating_carrier(scalar_type).ok_or(Error::custody())?;
     if [left, right].iter().any(|value| {
         scalar_graph_input::value_type(optimized, *value) != Some(ScalarType::Integer(scalar_type))
     }) {
         return Err(Error::custody());
     }
-    Ok(match &node.operation {
-        AbstractOperation::SaturatingIntegerAdd { .. } => {
-            LegalizedScalarInstructionKind::SaturatingAdd {
-                carrier,
-                left,
-                right,
-            }
-        }
-        AbstractOperation::SaturatingIntegerSubtract { .. } => {
-            LegalizedScalarInstructionKind::SaturatingSubtract {
-                carrier,
-                left,
-                right,
-            }
-        }
+    Ok(match arithmetic.operator() {
+        IntegerArithmeticOperator::Add => LegalizedScalarInstructionKind::SaturatingAdd {
+            carrier,
+            left,
+            right,
+        },
+        IntegerArithmeticOperator::Subtract => LegalizedScalarInstructionKind::SaturatingSubtract {
+            carrier,
+            left,
+            right,
+        },
         _ => LegalizedScalarInstructionKind::SaturatingMultiply {
             carrier,
             left,
@@ -153,79 +183,50 @@ pub(super) fn project_trapping_integer(
     })
 }
 
-pub(super) fn project_saturating_integer_divide(
-    node: &optimization_unit::OptimizationNode,
+/// Saturating division and remainder name the carrier the source operation
+/// declares. Saturating clamps signed MIN / -1 to MAX, unsigned division
+/// never overflows, and a mathematical remainder always lies inside the
+/// carrier; none defines division by zero, so the accepted nonzero-divisor
+/// fact stays with the instruction for every carrier.
+fn project_saturating_integer_division(
+    node: IntegerArithmeticNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::SaturatingIntegerDivide {
+    let IntegerArithmeticNode {
         psi_operation,
-        obligation,
         scalar_type,
+        arithmetic,
         left,
         right,
-        ..
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_saturating_integer_divide")
-    };
-    let carrier = scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::custody())?;
+    } = node;
+    let obligation = arithmetic.obligation().ok_or(Error::custody())?;
+    let carrier = scalar_graph_input::saturating_carrier(scalar_type).ok_or(Error::custody())?;
     if [left, right].iter().any(|value| {
-        scalar_graph_input::value_type(optimized, **value)
-            != Some(ScalarType::Integer(*scalar_type))
+        scalar_graph_input::value_type(optimized, *value) != Some(ScalarType::Integer(scalar_type))
     }) {
         return Err(Error::custody());
     }
-    // Saturating clamps signed MIN / -1 to MAX and unsigned division never
-    // overflows; neither defines division by zero, so the accepted
-    // nonzero-divisor fact stays with the instruction for every carrier.
-    let accepted_fact =
-        accepted_nonzero_divisor_fact(optimized, unit, *psi_operation, *obligation)?;
-    Ok(LegalizedScalarInstructionKind::SaturatingDivide {
-        carrier,
-        left: *left,
-        right: *right,
-        obligation: *obligation,
-        accepted_fact,
-    })
-}
-
-/// Saturating remainder names the carrier the source operation declares.
-/// The mathematical remainder always lies inside the carrier, so saturation
-/// adds no clamp; the accepted nonzero-divisor fact stays with the
-/// instruction because saturating does not define a zero divisor.
-pub(super) fn project_saturating_integer_remainder(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::SaturatingIntegerRemainder {
-        psi_operation,
-        obligation,
-        scalar_type,
-        left,
-        right,
-        ..
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_saturating_integer_remainder")
-    };
-    let carrier = scalar_graph_input::saturating_carrier(*scalar_type).ok_or(Error::custody())?;
-    if [left, right].iter().any(|value| {
-        scalar_graph_input::value_type(optimized, **value)
-            != Some(ScalarType::Integer(*scalar_type))
-    }) {
-        return Err(Error::custody());
-    }
-    let accepted_fact =
-        accepted_nonzero_divisor_fact(optimized, unit, *psi_operation, *obligation)?;
-    Ok(LegalizedScalarInstructionKind::SaturatingRemainder {
-        carrier,
-        left: *left,
-        right: *right,
-        obligation: *obligation,
-        accepted_fact,
-    })
+    let accepted_fact = accepted_nonzero_divisor_fact(optimized, unit, psi_operation, obligation)?;
+    Ok(
+        if arithmetic.operator() == IntegerArithmeticOperator::Divide {
+            LegalizedScalarInstructionKind::SaturatingDivide {
+                carrier,
+                left,
+                right,
+                obligation,
+                accepted_fact,
+            }
+        } else {
+            LegalizedScalarInstructionKind::SaturatingRemainder {
+                carrier,
+                left,
+                right,
+                obligation,
+                accepted_fact,
+            }
+        },
+    )
 }
 
 /// The single accepted fact discharging this operation's divisor obligation,
@@ -252,63 +253,44 @@ fn accepted_nonzero_divisor_fact(
     Ok(fact.identity)
 }
 
-/// Wrapping remainder admits every fixed native carrier. Wrapping defines
-/// MIN % -1 as zero, not a failed Exact quotient, but it does not define
-/// division by zero: the accepted nonzero-divisor fact stays with the
+/// Wrapping division and remainder admit every fixed native carrier. A
+/// signed MIN / -1 quotient wraps back to MIN (selection normalizes the
+/// widened narrow quotient and guards the i64 one), wrapping defines
+/// MIN % -1 as zero, not a failed Exact quotient, and unsigned division never
+/// overflows. Division by zero stays the accepted obligation carried by the
 /// instruction.
-pub(super) fn project_wrapping_integer_remainder(
-    node: &optimization_unit::OptimizationNode,
+fn project_wrapping_integer_division(
+    node: IntegerArithmeticNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::WrappingIntegerRemainder {
+    let IntegerArithmeticNode {
         psi_operation,
-        obligation,
         scalar_type,
+        arithmetic,
         left,
         right,
-        ..
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_wrapping_integer_remainder")
-    };
-    wrapping_division_operands(optimized, *scalar_type, *left, *right)?;
-    Ok(LegalizedScalarInstructionKind::WrappingRemainder {
-        left: *left,
-        right: *right,
-        obligation: *obligation,
-        accepted_fact: accepted_nonzero_divisor_fact(optimized, unit, *psi_operation, *obligation)?,
-    })
-}
-
-/// Wrapping division admits every fixed native carrier: a signed MIN / -1
-/// quotient wraps back to MIN (selection normalizes the widened narrow
-/// quotient and guards the i64 one), and unsigned division never overflows.
-/// Division by zero stays the accepted obligation carried by the
-/// instruction.
-pub(super) fn project_wrapping_integer_divide(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let AbstractOperation::WrappingIntegerDivide {
-        psi_operation,
-        obligation,
-        scalar_type,
-        left,
-        right,
-        ..
-    } = &node.operation
-    else {
-        unreachable!("dispatched project_wrapping_integer_divide")
-    };
-    wrapping_division_operands(optimized, *scalar_type, *left, *right)?;
-    Ok(LegalizedScalarInstructionKind::WrappingDivide {
-        left: *left,
-        right: *right,
-        obligation: *obligation,
-        accepted_fact: accepted_nonzero_divisor_fact(optimized, unit, *psi_operation, *obligation)?,
-    })
+    } = node;
+    let obligation = arithmetic.obligation().ok_or(Error::custody())?;
+    wrapping_division_operands(optimized, scalar_type, left, right)?;
+    let accepted_fact = accepted_nonzero_divisor_fact(optimized, unit, psi_operation, obligation)?;
+    Ok(
+        if arithmetic.operator() == IntegerArithmeticOperator::Divide {
+            LegalizedScalarInstructionKind::WrappingDivide {
+                left,
+                right,
+                obligation,
+                accepted_fact,
+            }
+        } else {
+            LegalizedScalarInstructionKind::WrappingRemainder {
+                left,
+                right,
+                obligation,
+                accepted_fact,
+            }
+        },
+    )
 }
 
 /// Node admission already refused every carrier wrapping division is not
@@ -339,40 +321,18 @@ pub(super) fn project_shift(
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let (psi_operation, value_type, count_type, value, count) = match &node.operation {
-        AbstractOperation::WrappingIntegerShiftLeft {
-            psi_operation,
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerShiftRight {
-            psi_operation,
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftLeft {
-            psi_operation,
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftRight {
-            psi_operation,
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        } => (*psi_operation, *value_type, *count_type, *value, *count),
-        _ => unreachable!("dispatched project_shift"),
+    let AbstractOperation::IntegerShift {
+        psi_operation,
+        value_type,
+        count_type,
+        policy,
+        direction,
+        value,
+        count,
+        ..
+    } = node.operation
+    else {
+        unreachable!("dispatched project_shift")
     };
     if scalar_graph_input::scalar_shape(ScalarType::Integer(value_type)).is_none()
         || scalar_graph_input::scalar_shape(ScalarType::Integer(count_type)).is_none()
@@ -381,148 +341,89 @@ pub(super) fn project_shift(
     {
         return Err(Error::custody());
     }
-    Ok(match &node.operation {
-        AbstractOperation::WrappingIntegerShiftLeft { .. } => {
-            LegalizedScalarInstructionKind::WrappingShiftLeft { value, count }
-        }
-        AbstractOperation::WrappingIntegerShiftRight { .. } => {
-            LegalizedScalarInstructionKind::WrappingShiftRight { value, count }
-        }
-        AbstractOperation::ExactIntegerShiftLeft { obligation, .. } => {
-            LegalizedScalarInstructionKind::ExactShiftLeft {
-                value,
-                count,
-                obligation: *obligation,
-                accepted_fact: {
-                    let fact = unit
-                        .accepted_obligation_facts
-                        .iter()
-                        .find(|fact| {
-                            fact.machine == optimized.machine
-                                && fact.operation == psi_operation
-                                && fact.obligation == *obligation
-                        })
-                        .ok_or(Error::custody())?;
-                    if !optimized.facts.iter().any(|fact| matches!(fact,
-                            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                            if referenced == obligation && *support == psi_operation)) {
-                        return Err(Error::custody());
-                    }
-                    fact.identity
-                },
+    let IntegerShiftPolicy::Exact { obligation } = policy else {
+        return Ok(match direction {
+            IntegerShiftDirection::Left => {
+                LegalizedScalarInstructionKind::WrappingShiftLeft { value, count }
             }
-        }
-        AbstractOperation::ExactIntegerShiftRight { obligation, .. } => {
-            LegalizedScalarInstructionKind::ExactShiftRight {
-                value,
-                count,
-                obligation: *obligation,
-                accepted_fact: {
-                    let fact = unit
-                        .accepted_obligation_facts
-                        .iter()
-                        .find(|fact| {
-                            fact.machine == optimized.machine
-                                && fact.operation == psi_operation
-                                && fact.obligation == *obligation
-                        })
-                        .ok_or(Error::custody())?;
-                    if !optimized.facts.iter().any(|fact| matches!(fact,
-                            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                            if referenced == obligation && *support == psi_operation)) {
-                        return Err(Error::custody());
-                    }
-                    fact.identity
-                },
+            IntegerShiftDirection::Right => {
+                LegalizedScalarInstructionKind::WrappingShiftRight { value, count }
             }
-        }
-        _ => unreachable!("dispatched project_shift"),
-    })
-}
-
-pub(super) fn project_exact_integer_add(
-    node: &optimization_unit::OptimizationNode,
-    optimized: &optimization_unit::PsiOptimizationFunction,
-    unit: &PsiOptimizationUnit,
-) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let (AbstractOperation::ExactIntegerAdd {
-        psi_operation,
-        obligation,
-        left,
-        right,
-        ..
-    }
-    | AbstractOperation::ExactIntegerSubtract {
-        psi_operation,
-        obligation,
-        left,
-        right,
-        ..
-    }
-    | AbstractOperation::ExactIntegerDivide {
-        psi_operation,
-        obligation,
-        left,
-        right,
-        ..
-    }
-    | AbstractOperation::ExactIntegerRemainder {
-        psi_operation,
-        obligation,
-        left,
-        right,
-        ..
-    }
-    | AbstractOperation::ExactIntegerMultiply {
-        psi_operation,
-        obligation,
-        left,
-        right,
-        ..
-    }) = &node.operation
-    else {
-        unreachable!("dispatched project_exact_integer_add")
+        });
     };
-    let kind = {
+    let accepted_fact = {
         let fact = unit
             .accepted_obligation_facts
             .iter()
             .find(|fact| {
                 fact.machine == optimized.machine
-                    && fact.operation == *psi_operation
-                    && fact.obligation == *obligation
+                    && fact.operation == psi_operation
+                    && fact.obligation == obligation
             })
             .ok_or(Error::custody())?;
         if !optimized.facts.iter().any(|fact| matches!(fact,
                 optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                if referenced == obligation && support == psi_operation)) {
-                return Err(Error::custody());
-            }
-        LegalizedScalarInstructionKind::ExactBinary {
-            operator: if matches!(node.operation, AbstractOperation::ExactIntegerAdd { .. }) {
-                LegalizedExactIntegerOperator::Add
-            } else if matches!(node.operation, AbstractOperation::ExactIntegerDivide { .. }) {
-                LegalizedExactIntegerOperator::Divide
-            } else if matches!(
-                node.operation,
-                AbstractOperation::ExactIntegerRemainder { .. }
-            ) {
-                LegalizedExactIntegerOperator::Remainder
-            } else if matches!(
-                node.operation,
-                AbstractOperation::ExactIntegerMultiply { .. }
-            ) {
-                LegalizedExactIntegerOperator::Multiply
-            } else {
-                LegalizedExactIntegerOperator::Subtract
-            },
-            left: *left,
-            right: *right,
-            obligation: *obligation,
-            accepted_fact: fact.identity,
+                if *referenced == obligation && *support == psi_operation)) {
+            return Err(Error::custody());
         }
+        fact.identity
     };
-    Ok(kind)
+    Ok(match direction {
+        IntegerShiftDirection::Left => LegalizedScalarInstructionKind::ExactShiftLeft {
+            value,
+            count,
+            obligation,
+            accepted_fact,
+        },
+        IntegerShiftDirection::Right => LegalizedScalarInstructionKind::ExactShiftRight {
+            value,
+            count,
+            obligation,
+            accepted_fact,
+        },
+    })
+}
+
+fn project_exact_integer_arithmetic(
+    node: IntegerArithmeticNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let IntegerArithmeticNode {
+        psi_operation,
+        arithmetic,
+        left,
+        right,
+        ..
+    } = node;
+    let obligation = arithmetic.obligation().ok_or(Error::custody())?;
+    let fact = unit
+        .accepted_obligation_facts
+        .iter()
+        .find(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == psi_operation
+                && fact.obligation == obligation
+        })
+        .ok_or(Error::custody())?;
+    if !optimized.facts.iter().any(|fact| matches!(fact,
+            optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+            if *referenced == obligation && *support == psi_operation)) {
+        return Err(Error::custody());
+    }
+    Ok(LegalizedScalarInstructionKind::ExactBinary {
+        operator: match arithmetic.operator() {
+            IntegerArithmeticOperator::Add => LegalizedExactIntegerOperator::Add,
+            IntegerArithmeticOperator::Subtract => LegalizedExactIntegerOperator::Subtract,
+            IntegerArithmeticOperator::Multiply => LegalizedExactIntegerOperator::Multiply,
+            IntegerArithmeticOperator::Divide => LegalizedExactIntegerOperator::Divide,
+            IntegerArithmeticOperator::Remainder => LegalizedExactIntegerOperator::Remainder,
+        },
+        left,
+        right,
+        obligation,
+        accepted_fact: fact.identity,
+    })
 }
 
 pub(super) fn project_boolean_equal(

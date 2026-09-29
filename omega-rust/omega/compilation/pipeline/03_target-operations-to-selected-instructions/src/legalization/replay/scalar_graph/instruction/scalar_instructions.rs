@@ -4,7 +4,9 @@
 use super::super::{Error, PsiOptimizationUnit};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{
+    AbstractOperation, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftPolicy,
+};
 use legalized_operations::{
     LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind,
@@ -64,53 +66,35 @@ pub(super) fn validate_wrapping_division(
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
     let (
-        (left, right, obligation, accepted_fact),
-        (psi_operation, source_obligation, scalar_type, source_left, source_right),
-    ) = match (&actual.kind, &node.operation) {
-        (
-            LegalizedScalarInstructionKind::WrappingRemainder {
-                left,
-                right,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::WrappingIntegerRemainder {
-                psi_operation,
-                obligation: source_obligation,
-                scalar_type,
-                left: source_left,
-                right: source_right,
-                ..
-            },
-        )
-        | (
-            LegalizedScalarInstructionKind::WrappingDivide {
-                left,
-                right,
-                obligation,
-                accepted_fact,
-            },
-            AbstractOperation::WrappingIntegerDivide {
-                psi_operation,
-                obligation: source_obligation,
-                scalar_type,
-                left: source_left,
-                right: source_right,
-                ..
-            },
-        ) => (
-            (left, right, obligation, accepted_fact),
-            (
-                psi_operation,
-                source_obligation,
-                scalar_type,
-                source_left,
-                source_right,
-            ),
-        ),
-        _ => unreachable!("dispatched validate_wrapping_division"),
+        LegalizedScalarInstructionKind::WrappingRemainder {
+            left,
+            right,
+            obligation,
+            accepted_fact,
+        }
+        | LegalizedScalarInstructionKind::WrappingDivide {
+            left,
+            right,
+            obligation,
+            accepted_fact,
+        },
+        AbstractOperation::IntegerArithmetic {
+            psi_operation,
+            scalar_type,
+            arithmetic,
+            left: source_left,
+            right: source_right,
+            ..
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        unreachable!("dispatched validate_wrapping_division")
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
+    let Some(source_obligation) = arithmetic.obligation() else {
+        return Err(invalid);
+    };
+    let source_obligation = &source_obligation;
     let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
         fact.machine == optimized.machine
             && fact.operation == *psi_operation
@@ -150,37 +134,9 @@ pub(super) fn validate_exact_binary(
             obligation,
             accepted_fact,
         },
-        AbstractOperation::ExactIntegerAdd {
+        AbstractOperation::IntegerArithmetic {
             psi_operation,
-            obligation: source_obligation,
-            left: source_left,
-            right: source_right,
-            ..
-        }
-        | AbstractOperation::ExactIntegerSubtract {
-            psi_operation,
-            obligation: source_obligation,
-            left: source_left,
-            right: source_right,
-            ..
-        }
-        | AbstractOperation::ExactIntegerDivide {
-            psi_operation,
-            obligation: source_obligation,
-            left: source_left,
-            right: source_right,
-            ..
-        }
-        | AbstractOperation::ExactIntegerRemainder {
-            psi_operation,
-            obligation: source_obligation,
-            left: source_left,
-            right: source_right,
-            ..
-        }
-        | AbstractOperation::ExactIntegerMultiply {
-            psi_operation,
-            obligation: source_obligation,
+            arithmetic,
             left: source_left,
             right: source_right,
             ..
@@ -190,14 +146,20 @@ pub(super) fn validate_exact_binary(
         unreachable!("dispatched validate_exact_binary")
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
-    let expected_operator = match node.operation {
-        AbstractOperation::ExactIntegerAdd { .. } => LegalizedExactIntegerOperator::Add,
-        AbstractOperation::ExactIntegerSubtract { .. } => LegalizedExactIntegerOperator::Subtract,
-        AbstractOperation::ExactIntegerDivide { .. } => LegalizedExactIntegerOperator::Divide,
-        AbstractOperation::ExactIntegerRemainder { .. } => LegalizedExactIntegerOperator::Remainder,
-        AbstractOperation::ExactIntegerMultiply { .. } => LegalizedExactIntegerOperator::Multiply,
-        _ => return Err(invalid),
+    if arithmetic.policy() != IntegerOverflowPolicy::Exact {
+        return Err(invalid);
+    }
+    let expected_operator = match arithmetic.operator() {
+        IntegerArithmeticOperator::Add => LegalizedExactIntegerOperator::Add,
+        IntegerArithmeticOperator::Subtract => LegalizedExactIntegerOperator::Subtract,
+        IntegerArithmeticOperator::Divide => LegalizedExactIntegerOperator::Divide,
+        IntegerArithmeticOperator::Remainder => LegalizedExactIntegerOperator::Remainder,
+        IntegerArithmeticOperator::Multiply => LegalizedExactIntegerOperator::Multiply,
     };
+    let Some(source_obligation) = arithmetic.obligation() else {
+        return Err(invalid);
+    };
+    let source_obligation = &source_obligation;
     let fact = unit
         .accepted_obligation_facts
         .iter()
@@ -238,22 +200,13 @@ pub(super) fn validate_shift(
         count_type,
     ) = match (&actual.kind, &node.operation) {
         (
-            LegalizedScalarInstructionKind::WrappingShiftLeft { value, count },
-            AbstractOperation::WrappingIntegerShiftLeft {
+            LegalizedScalarInstructionKind::WrappingShiftLeft { value, count }
+            | LegalizedScalarInstructionKind::WrappingShiftRight { value, count },
+            AbstractOperation::IntegerShift {
                 psi_operation,
                 value_type,
                 count_type,
-                value: source_value,
-                count: source_count,
-                ..
-            },
-        )
-        | (
-            LegalizedScalarInstructionKind::WrappingShiftRight { value, count },
-            AbstractOperation::WrappingIntegerShiftRight {
-                psi_operation,
-                value_type,
-                count_type,
+                policy: IntegerShiftPolicy::Wrapping,
                 value: source_value,
                 count: source_count,
                 ..
@@ -274,29 +227,21 @@ pub(super) fn validate_shift(
                 count,
                 obligation,
                 accepted_fact,
-            },
-            AbstractOperation::ExactIntegerShiftLeft {
-                psi_operation,
-                obligation: source_obligation,
-                value_type,
-                count_type,
-                value: source_value,
-                count: source_count,
-                ..
-            },
-        )
-        | (
-            LegalizedScalarInstructionKind::ExactShiftRight {
+            }
+            | LegalizedScalarInstructionKind::ExactShiftRight {
                 value,
                 count,
                 obligation,
                 accepted_fact,
             },
-            AbstractOperation::ExactIntegerShiftRight {
+            AbstractOperation::IntegerShift {
                 psi_operation,
-                obligation: source_obligation,
                 value_type,
                 count_type,
+                policy:
+                    IntegerShiftPolicy::Exact {
+                        obligation: source_obligation,
+                    },
                 value: source_value,
                 count: source_count,
                 ..

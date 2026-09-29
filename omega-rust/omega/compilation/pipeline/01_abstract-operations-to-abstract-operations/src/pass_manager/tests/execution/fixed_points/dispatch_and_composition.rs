@@ -3,15 +3,16 @@
 use super::super::super::super::run_unit;
 use super::super::super::{
     AbstractOperation, AnalysisProduct, Optimization, OptimizationCandidateVerdict,
-    OptimizationFactReference, OptimizationSelections, PsiTransformationLedger, SelfDividePolicy,
-    SelfRemainderPolicy, budget, built_in_psi_registries, built_in_psi_registry,
-    compatible_policy_local_cse_unit, dead_exact_add_unit, dead_wrapping_add_unit,
-    dependent_exact_chain_unit, dominator_gvn_unit, live_divide_by_one_unit,
-    live_exact_multiply_by_zero_unit, live_exact_zero_value_shift_unit, live_self_divide_unit,
-    live_self_remainder_unit, local_cse_unit, proof_certified_dominator_gvn_unit,
-    proof_certified_local_cse_unit, propagated_block_parameter_unit,
-    randomized_built_in_registries, redundant_block_parameter_unit, run_test_pipeline,
+    OptimizationFactReference, OptimizationSelections, PsiTransformationLedger, budget,
+    built_in_psi_registries, built_in_psi_registry, compatible_policy_local_cse_unit,
+    dead_exact_add_unit, dead_wrapping_add_unit, dependent_exact_chain_unit, dominator_gvn_unit,
+    live_divide_by_one_unit, live_exact_multiply_by_zero_unit, live_exact_zero_value_shift_unit,
+    live_self_divide_unit, live_self_remainder_unit, local_cse_unit,
+    proof_certified_dominator_gvn_unit, proof_certified_local_cse_unit,
+    propagated_block_parameter_unit, randomized_built_in_registries,
+    redundant_block_parameter_unit, run_test_pipeline,
 };
+use abstract_operations::{IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy};
 
 #[test]
 fn shuffled_builtin_registration_constructs_identical_multi_rule_runs() {
@@ -36,7 +37,7 @@ fn shuffled_builtin_registration_constructs_identical_multi_rule_runs() {
                     8,
                 )
                 .unwrap(),
-                SelfDividePolicy::Exact,
+                IntegerOverflowPolicy::Exact,
             ),
         ),
         (
@@ -94,11 +95,16 @@ fn full_sccp_cfg_copy_gvn_proof_dead_scalar_second_sweep_is_a_composed_ledger_fi
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
                 .unwrap(),
             |psi_operation, obligation, result, scalar_type, left, right| {
-                AbstractOperation::ExactIntegerDivide {
+                AbstractOperation::IntegerArithmetic {
                     psi_operation,
-                    obligation,
                     result,
                     scalar_type,
+                    arithmetic: IntegerArithmetic::new(
+                        IntegerOverflowPolicy::Exact,
+                        IntegerArithmeticOperator::Divide,
+                        Some(obligation),
+                    )
+                    .expect("admitted integer arithmetic"),
                     left,
                     right,
                 }
@@ -117,12 +123,12 @@ fn full_sccp_cfg_copy_gvn_proof_dead_scalar_second_sweep_is_a_composed_ledger_fi
         live_self_remainder_unit(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
                 .unwrap(),
-            SelfRemainderPolicy::Exact,
+            IntegerOverflowPolicy::Exact,
         ),
         live_self_divide_unit(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
                 .unwrap(),
-            SelfDividePolicy::Exact,
+            IntegerOverflowPolicy::Exact,
         ),
     ] {
         let (first_output, first_manifests, first_ledger) = run_test_pipeline(initial, &registries);

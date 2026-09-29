@@ -113,28 +113,11 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::IntegerBitwiseAnd { .. }
         | AbstractOperation::IntegerBitwiseOr { .. }
         | AbstractOperation::IntegerBitwiseXor { .. }
-        | AbstractOperation::WrappingIntegerShiftLeft { .. }
-        | AbstractOperation::WrappingIntegerShiftRight { .. }
-        | AbstractOperation::ExactIntegerShiftLeft { .. }
-        | AbstractOperation::ExactIntegerShiftRight { .. }
-        | AbstractOperation::WrappingIntegerAdd { .. }
-        | AbstractOperation::ExactIntegerAdd { .. }
-        | AbstractOperation::SaturatingIntegerAdd { .. }
-        | AbstractOperation::WrappingIntegerSubtract { .. }
-        | AbstractOperation::ExactIntegerSubtract { .. }
-        | AbstractOperation::SaturatingIntegerSubtract { .. }
-        | AbstractOperation::WrappingIntegerMultiply { .. }
-        | AbstractOperation::ExactIntegerMultiply { .. }
-        | AbstractOperation::ExactIntegerDivide { .. }
-        | AbstractOperation::ExactIntegerRemainder { .. }
-        | AbstractOperation::WrappingIntegerDivide { .. }
-        | AbstractOperation::WrappingIntegerRemainder { .. }
-        | AbstractOperation::SaturatingIntegerDivide { .. }
-        | AbstractOperation::SaturatingIntegerRemainder { .. }
+        | AbstractOperation::IntegerShift { .. }
+        | AbstractOperation::IntegerArithmetic { .. }
         // A Trapping primitive stops through an inline architectural trap,
         // like the `Crash` leaf; it names no call, boundary, or port.
         | AbstractOperation::TrappingInteger { .. }
-        | AbstractOperation::SaturatingIntegerMultiply { .. }
         | AbstractOperation::Jump { .. }
         | AbstractOperation::Conditional { .. }
         | AbstractOperation::StructuralCase { .. }

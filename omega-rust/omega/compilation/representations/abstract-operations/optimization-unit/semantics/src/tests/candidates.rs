@@ -15,7 +15,9 @@ use crate::{
     validate_dead_scalar_node_candidate, validate_integer_evaluation_candidate,
     validate_psi_optimization_unit,
 };
-use abstract_operations::AbstractOperation;
+use abstract_operations::{
+    AbstractOperation, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -137,21 +139,28 @@ fn redundant_parameter_region_observation_is_canonical_and_axis_complete() {
 
     let mut arithmetic_policy = output.clone();
     let node = &mut arithmetic_policy.functions[0].blocks[1].nodes[0];
-    let AbstractOperation::ExactIntegerAdd {
+    let AbstractOperation::IntegerArithmetic {
         psi_operation,
         result,
         scalar_type,
+        arithmetic,
         left,
         right,
-        ..
     } = node.operation.clone()
     else {
         unreachable!()
     };
-    node.operation = AbstractOperation::WrappingIntegerAdd {
+    assert_eq!(arithmetic.policy(), IntegerOverflowPolicy::Exact);
+    node.operation = AbstractOperation::IntegerArithmetic {
         psi_operation,
         result,
         scalar_type,
+        arithmetic: IntegerArithmetic::new(
+            IntegerOverflowPolicy::Wrapping,
+            arithmetic.operator(),
+            None,
+        )
+        .expect("admitted integer arithmetic"),
         left,
         right,
     };
@@ -289,7 +298,9 @@ fn independent_integer_rewrite_constructor_accepts_only_declared_evaluation() {
     ));
     assert!(matches!(
         input.functions[0].blocks[0].nodes[2].operation,
-        AbstractOperation::ExactIntegerAdd { .. }
+        AbstractOperation::IntegerArithmetic { arithmetic, .. }
+            if (arithmetic.policy(), arithmetic.operator())
+                == (IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Add)
     ));
 
     let wrong = integer_candidate(&input, IntegerValue::Unsigned(14));

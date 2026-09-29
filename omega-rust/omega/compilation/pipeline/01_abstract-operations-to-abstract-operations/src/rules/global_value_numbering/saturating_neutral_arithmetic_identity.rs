@@ -1,7 +1,9 @@
 //! The exact saturating neutral-arithmetic rule, and the closed semantic partition
 //! (`classify`) it proposes over.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -42,81 +44,57 @@ impl PsiOptimizationRule for SaturatingNeutralArithmeticIdentityRule {
 /// Signed one-bit integers have no positive-one literal, so the shared literal
 /// fact lookup naturally declines both multiplication rows for that type.
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
-    match operation {
-        O::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => vec![
-            TotalScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *right,
-                law_operand: *left,
-                scalar_type: *scalar_type,
-                law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::SaturatingIntegerAddZeroLeft,
-                expected_law_value: integer_value(*scalar_type, 0),
-            },
-            TotalScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *left,
-                law_operand: *right,
-                scalar_type: *scalar_type,
-                law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::SaturatingIntegerAddZeroRight,
-                expected_law_value: integer_value(*scalar_type, 0),
-            },
-        ],
-        O::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => vec![TotalScalarIdentityShape {
-            source_operation: *psi_operation,
-            result: *result,
-            replacement: *left,
-            law_operand: *right,
-            scalar_type: *scalar_type,
-            law_operand_type: *scalar_type,
-            identity: TotalScalarIdentityKind::SaturatingIntegerSubtractZeroRight,
-            expected_law_value: integer_value(*scalar_type, 0),
-        }],
-        O::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => vec![
-            TotalScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *right,
-                law_operand: *left,
-                scalar_type: *scalar_type,
-                law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::SaturatingIntegerMultiplyOneLeft,
-                expected_law_value: integer_value(*scalar_type, 1),
-            },
-            TotalScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *left,
-                law_operand: *right,
-                scalar_type: *scalar_type,
-                law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::SaturatingIntegerMultiplyOneRight,
-                expected_law_value: integer_value(*scalar_type, 1),
-            },
-        ],
-        _ => Vec::new(),
+    use TotalScalarIdentityKind as Kind;
+    let O::IntegerArithmetic {
+        psi_operation,
+        result,
+        scalar_type,
+        arithmetic,
+        left,
+        right,
+    } = operation
+    else {
+        return Vec::new();
+    };
+    if arithmetic.policy() != IntegerOverflowPolicy::Saturating {
+        return Vec::new();
     }
+    let zero = integer_value(*scalar_type, 0);
+    let one = integer_value(*scalar_type, 1);
+    // (replacement, law operand, identity, expected law value)
+    let laws = match arithmetic.operator() {
+        IntegerArithmeticOperator::Add => vec![
+            (*right, *left, Kind::SaturatingIntegerAddZeroLeft, zero),
+            (*left, *right, Kind::SaturatingIntegerAddZeroRight, zero),
+        ],
+        IntegerArithmeticOperator::Subtract => {
+            vec![(
+                *left,
+                *right,
+                Kind::SaturatingIntegerSubtractZeroRight,
+                zero,
+            )]
+        }
+        IntegerArithmeticOperator::Multiply => vec![
+            (*right, *left, Kind::SaturatingIntegerMultiplyOneLeft, one),
+            (*left, *right, Kind::SaturatingIntegerMultiplyOneRight, one),
+        ],
+        IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder => Vec::new(),
+    };
+    laws.into_iter()
+        .map(
+            |(replacement, law_operand, identity, expected_law_value)| TotalScalarIdentityShape {
+                source_operation: *psi_operation,
+                result: *result,
+                replacement,
+                law_operand,
+                scalar_type: *scalar_type,
+                law_operand_type: *scalar_type,
+                identity,
+                expected_law_value,
+            },
+        )
+        .collect()
 }
 
 const fn integer_value(scalar_type: IntegerType, value: u128) -> IntegerValue {

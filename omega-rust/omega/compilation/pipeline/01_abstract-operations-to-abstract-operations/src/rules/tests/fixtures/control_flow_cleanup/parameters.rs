@@ -1,6 +1,7 @@
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, IntegerArithmetic,
+    IntegerArithmeticOperator, IntegerOverflowPolicy, ValueBinding,
 };
 use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
@@ -97,11 +98,16 @@ pub(crate) fn redundant_block_parameter_unit(redundant: bool) -> PsiOptimization
                             trivial_affine_discards: Vec::new(),
                         },
                     },
-                    AbstractOperation::ExactIntegerAdd {
+                    AbstractOperation::IntegerArithmetic {
                         psi_operation: id(711, OperationId::new),
-                        obligation: id(713, ObligationId::new),
                         result,
                         scalar_type: integer,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Exact,
+                            IntegerArithmeticOperator::Add,
+                            Some(id(713, ObligationId::new)),
+                        )
+                        .expect("admitted integer arithmetic"),
                         left: parameter,
                         right: alternate,
                     },

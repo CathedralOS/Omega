@@ -1,6 +1,6 @@
 //! Proof-certified self division.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, IntegerArithmeticOperator};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -67,30 +67,17 @@ impl PsiOptimizationRule for LiveProofCertifiedIntegerSelfDivideEliminationRule 
             for block in &function.blocks {
                 for (node_index, node) in block.nodes.iter().enumerate() {
                     let (psi_operation, result, scalar_type, left, right) = match &node.operation {
-                        O::ExactIntegerDivide {
+                        O::IntegerArithmetic {
                             psi_operation,
                             result,
                             scalar_type,
                             left,
                             right,
+                            arithmetic,
                             ..
+                        } if arithmetic.operator() == IntegerArithmeticOperator::Divide => {
+                            (psi_operation, result, scalar_type, left, right)
                         }
-                        | O::WrappingIntegerDivide {
-                            psi_operation,
-                            result,
-                            scalar_type,
-                            left,
-                            right,
-                            ..
-                        }
-                        | O::SaturatingIntegerDivide {
-                            psi_operation,
-                            result,
-                            scalar_type,
-                            left,
-                            right,
-                            ..
-                        } => (psi_operation, result, scalar_type, left, right),
                         _ => continue,
                     };
                     if left != right

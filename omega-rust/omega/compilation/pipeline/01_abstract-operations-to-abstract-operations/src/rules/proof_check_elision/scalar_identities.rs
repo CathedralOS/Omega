@@ -1,6 +1,9 @@
 //! General proof-certified integer identities.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -20,95 +23,61 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 fn proof_certified_scalar_identity_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
+    use ProofCertifiedScalarIdentityKind as Kind;
     match operation {
-        O::ExactIntegerAdd {
+        O::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
-            ..
-        } => vec![
-            (
-                ProofCertifiedScalarIdentityShape {
-                    source_operation: *psi_operation,
-                    result: *result,
-                    replacement: *right,
-                    identity_operand: *left,
-                    scalar_type: *scalar_type,
-                    identity: ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroLeft,
-                },
-                integer_zero(*scalar_type),
-            ),
-            (
-                ProofCertifiedScalarIdentityShape {
-                    source_operation: *psi_operation,
-                    result: *result,
-                    replacement: *left,
-                    identity_operand: *right,
-                    scalar_type: *scalar_type,
-                    identity: ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroRight,
-                },
-                integer_zero(*scalar_type),
-            ),
-        ],
-        O::ExactIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        } => vec![(
-            ProofCertifiedScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *left,
-                identity_operand: *right,
-                scalar_type: *scalar_type,
-                identity: ProofCertifiedScalarIdentityKind::ExactIntegerSubtractZeroRight,
-            },
-            integer_zero(*scalar_type),
-        )],
-        O::ExactIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        } => vec![
-            (
-                ProofCertifiedScalarIdentityShape {
-                    source_operation: *psi_operation,
-                    result: *result,
-                    replacement: *right,
-                    identity_operand: *left,
-                    scalar_type: *scalar_type,
-                    identity: ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneLeft,
-                },
-                integer_one(*scalar_type),
-            ),
-            (
-                ProofCertifiedScalarIdentityShape {
-                    source_operation: *psi_operation,
-                    result: *result,
-                    replacement: *left,
-                    identity_operand: *right,
-                    scalar_type: *scalar_type,
-                    identity: ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneRight,
-                },
-                integer_one(*scalar_type),
-            ),
-        ],
-        O::ExactIntegerShiftLeft {
+        } if arithmetic.policy() == IntegerOverflowPolicy::Exact => {
+            let zero = integer_zero(*scalar_type);
+            let one = integer_one(*scalar_type);
+            // (replacement, identity operand, identity, identity constant),
+            // left-literal law before right-literal law.
+            let laws = match arithmetic.operator() {
+                IntegerArithmeticOperator::Add => vec![
+                    (*right, *left, Kind::ExactIntegerAddZeroLeft, zero),
+                    (*left, *right, Kind::ExactIntegerAddZeroRight, zero),
+                ],
+                IntegerArithmeticOperator::Subtract => {
+                    vec![(*left, *right, Kind::ExactIntegerSubtractZeroRight, zero)]
+                }
+                IntegerArithmeticOperator::Multiply => vec![
+                    (*right, *left, Kind::ExactIntegerMultiplyOneLeft, one),
+                    (*left, *right, Kind::ExactIntegerMultiplyOneRight, one),
+                ],
+                IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder => {
+                    Vec::new()
+                }
+            };
+            laws.into_iter()
+                .map(|(replacement, identity_operand, identity, constant)| {
+                    (
+                        ProofCertifiedScalarIdentityShape {
+                            source_operation: *psi_operation,
+                            result: *result,
+                            replacement,
+                            identity_operand,
+                            scalar_type: *scalar_type,
+                            identity,
+                        },
+                        constant,
+                    )
+                })
+                .collect()
+        }
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
-            count,
-            value,
             count_type,
-            ..
+            policy: IntegerShiftPolicy::Exact { .. },
+            direction,
+            value,
+            count,
         } => vec![(
             ProofCertifiedScalarIdentityShape {
                 source_operation: *psi_operation,
@@ -116,26 +85,10 @@ fn proof_certified_scalar_identity_shapes(
                 replacement: *value,
                 identity_operand: *count,
                 scalar_type: *value_type,
-                identity: ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroCount,
-            },
-            integer_zero(*count_type),
-        )],
-        O::ExactIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
-            count,
-            value,
-            count_type,
-            ..
-        } => vec![(
-            ProofCertifiedScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *value,
-                identity_operand: *count,
-                scalar_type: *value_type,
-                identity: ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroCount,
+                identity: match direction {
+                    IntegerShiftDirection::Left => Kind::ExactIntegerShiftLeftZeroCount,
+                    IntegerShiftDirection::Right => Kind::ExactIntegerShiftRightZeroCount,
+                },
             },
             integer_zero(*count_type),
         )],

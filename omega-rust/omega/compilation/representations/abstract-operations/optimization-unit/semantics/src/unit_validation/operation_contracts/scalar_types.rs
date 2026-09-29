@@ -1,6 +1,6 @@
-use abstract_operations::AbstractOperation as O;
 use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::{AbstractDynamicCallResult, AbstractDynamicDispatch};
+use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
 use optimization_unit::{PsiOptimizationFunction, ValueDefinition};
 use semantic_vocabulary::{
     BoundaryMachineId, IntegerCarrier, IntegerType, MachineId, ScalarType, StructuralPlaceKind,
@@ -216,129 +216,32 @@ pub(crate) fn operation_scalar_types_match(
             left,
             right,
             ..
-        }
-        | O::WrappingIntegerAdd {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::SaturatingIntegerAdd {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::WrappingIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::SaturatingIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::WrappingIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::SaturatingIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-            ..
         } => binary(*left, *right, *scalar_type),
-        O::ExactIntegerAdd {
+        // Proof-bearing pairs (exact arithmetic and every divide or
+        // remainder) are admitted only over fixed carriers.
+        O::IntegerArithmetic {
             scalar_type,
+            arithmetic,
             left,
             right,
             ..
+        } => {
+            (arithmetic.obligation().is_none() || fixed(*scalar_type))
+                && binary(*left, *right, *scalar_type)
         }
-        | O::ExactIntegerSubtract {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::ExactIntegerMultiply {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::ExactIntegerDivide {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::ExactIntegerRemainder {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::WrappingIntegerDivide {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::WrappingIntegerRemainder {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::SaturatingIntegerDivide {
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | O::SaturatingIntegerRemainder {
-            scalar_type,
-            left,
-            right,
-            ..
-        } => fixed(*scalar_type) && binary(*left, *right, *scalar_type),
-        O::WrappingIntegerShiftLeft {
+        O::IntegerShift {
             value_type,
             count_type,
-            value,
-            count,
-            ..
-        }
-        | O::WrappingIntegerShiftRight {
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        } => integer(*value, *value_type) && integer(*count, *count_type),
-        O::ExactIntegerShiftLeft {
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        }
-        | O::ExactIntegerShiftRight {
-            value_type,
-            count_type,
+            policy,
             value,
             count,
             ..
         } => {
-            fixed(*value_type)
-                && fixed(*count_type)
-                && integer(*value, *value_type)
-                && integer(*count, *count_type)
+            let carriers_admitted = match policy {
+                IntegerShiftPolicy::Wrapping => true,
+                IntegerShiftPolicy::Exact { .. } => fixed(*value_type) && fixed(*count_type),
+            };
+            carriers_admitted && integer(*value, *value_type) && integer(*count, *count_type)
         }
         // A Trapping primitive rejoins both carrier axes: binary operands the
         // result carrier, a shift's value the result carrier and its count

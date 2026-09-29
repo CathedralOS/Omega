@@ -7,6 +7,11 @@ use super::{
     SemanticFingerprint, TerminalPsiIdentity, ValueId, VocabularyMarker, id,
     reconstruct_psi_optimization_unit_seed, with_synthetic_accepted_obligations,
 };
+use abstract_operations::{
+    IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection,
+    IntegerShiftPolicy,
+};
+
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum BinaryConstantFixtureKind {
     ExactAdd,
@@ -44,155 +49,56 @@ impl BinaryConstantFixtureKind {
         left: ValueId,
         right: ValueId,
     ) -> AbstractOperation {
+        use IntegerArithmeticOperator as Operator;
+        use IntegerOverflowPolicy as Policy;
+        let arithmetic = |policy, operator| O::IntegerArithmetic {
+            psi_operation,
+            result,
+            scalar_type,
+            arithmetic: IntegerArithmetic::new(
+                policy,
+                operator,
+                IntegerArithmetic::requires_obligation(policy, operator).then_some(obligation),
+            )
+            .expect("admitted integer arithmetic"),
+            left,
+            right,
+        };
+        let shift = |policy, direction| O::IntegerShift {
+            psi_operation,
+            result,
+            value_type: scalar_type,
+            count_type,
+            policy,
+            direction,
+            value: left,
+            count: right,
+        };
+        let exact_shift = IntegerShiftPolicy::Exact { obligation };
         match self {
-            Self::ExactAdd => O::ExactIntegerAdd {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::ExactSubtract => O::ExactIntegerSubtract {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::ExactMultiply => O::ExactIntegerMultiply {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::WrappingAdd => O::WrappingIntegerAdd {
-                psi_operation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::WrappingSubtract => O::WrappingIntegerSubtract {
-                psi_operation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::WrappingMultiply => O::WrappingIntegerMultiply {
-                psi_operation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::SaturatingAdd => O::SaturatingIntegerAdd {
-                psi_operation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::SaturatingSubtract => O::SaturatingIntegerSubtract {
-                psi_operation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::SaturatingMultiply => O::SaturatingIntegerMultiply {
-                psi_operation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::ExactDivide => O::ExactIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::ExactRemainder => O::ExactIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::WrappingDivide => O::WrappingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::WrappingRemainder => O::WrappingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::SaturatingDivide => O::SaturatingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::SaturatingRemainder => O::SaturatingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            Self::ExactShiftLeft => O::ExactIntegerShiftLeft {
-                psi_operation,
-                obligation,
-                result,
-                value_type: scalar_type,
-                count_type,
-                value: left,
-                count: right,
-            },
-            Self::ExactShiftRight => O::ExactIntegerShiftRight {
-                psi_operation,
-                obligation,
-                result,
-                value_type: scalar_type,
-                count_type,
-                value: left,
-                count: right,
-            },
-            Self::WrappingShiftLeft => O::WrappingIntegerShiftLeft {
-                psi_operation,
-                result,
-                value_type: scalar_type,
-                count_type,
-                value: left,
-                count: right,
-            },
-            Self::WrappingShiftRight => O::WrappingIntegerShiftRight {
-                psi_operation,
-                result,
-                value_type: scalar_type,
-                count_type,
-                value: left,
-                count: right,
-            },
+            Self::ExactAdd => arithmetic(Policy::Exact, Operator::Add),
+            Self::ExactSubtract => arithmetic(Policy::Exact, Operator::Subtract),
+            Self::ExactMultiply => arithmetic(Policy::Exact, Operator::Multiply),
+            Self::WrappingAdd => arithmetic(Policy::Wrapping, Operator::Add),
+            Self::WrappingSubtract => arithmetic(Policy::Wrapping, Operator::Subtract),
+            Self::WrappingMultiply => arithmetic(Policy::Wrapping, Operator::Multiply),
+            Self::SaturatingAdd => arithmetic(Policy::Saturating, Operator::Add),
+            Self::SaturatingSubtract => arithmetic(Policy::Saturating, Operator::Subtract),
+            Self::SaturatingMultiply => arithmetic(Policy::Saturating, Operator::Multiply),
+            Self::ExactDivide => arithmetic(Policy::Exact, Operator::Divide),
+            Self::ExactRemainder => arithmetic(Policy::Exact, Operator::Remainder),
+            Self::WrappingDivide => arithmetic(Policy::Wrapping, Operator::Divide),
+            Self::WrappingRemainder => arithmetic(Policy::Wrapping, Operator::Remainder),
+            Self::SaturatingDivide => arithmetic(Policy::Saturating, Operator::Divide),
+            Self::SaturatingRemainder => arithmetic(Policy::Saturating, Operator::Remainder),
+            Self::ExactShiftLeft => shift(exact_shift, IntegerShiftDirection::Left),
+            Self::ExactShiftRight => shift(exact_shift, IntegerShiftDirection::Right),
+            Self::WrappingShiftLeft => {
+                shift(IntegerShiftPolicy::Wrapping, IntegerShiftDirection::Left)
+            }
+            Self::WrappingShiftRight => {
+                shift(IntegerShiftPolicy::Wrapping, IntegerShiftDirection::Right)
+            }
             Self::BitwiseAnd => O::IntegerBitwiseAnd {
                 psi_operation,
                 result,

@@ -19,7 +19,7 @@ pub(crate) fn validate_fact_index(
 /// rewritten site. Compressed return-tuple locals are metadata-only and have
 /// no executable producer, so they are deliberately absent from this walk.
 pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<OptimizationFact> {
-    use abstract_operations::AbstractOperation as O;
+    use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
 
     let mut expected = Vec::new();
     for operation in function
@@ -121,65 +121,30 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 psi_operation,
                 obligation,
                 ..
-            }
-            | O::ExactIntegerShiftLeft {
+            } => expected.push(OptimizationFact::OperationObligationReference {
+                obligation: *obligation,
+                support: *psi_operation,
+            }),
+            O::IntegerShift {
                 psi_operation,
-                obligation,
-                ..
-            }
-            | O::ExactIntegerShiftRight {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::ExactIntegerAdd {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::ExactIntegerSubtract {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::ExactIntegerMultiply {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::ExactIntegerDivide {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::ExactIntegerRemainder {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::WrappingIntegerDivide {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::WrappingIntegerRemainder {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::SaturatingIntegerDivide {
-                psi_operation,
-                obligation,
-                ..
-            }
-            | O::SaturatingIntegerRemainder {
-                psi_operation,
-                obligation,
+                policy: IntegerShiftPolicy::Exact { obligation },
                 ..
             } => expected.push(OptimizationFact::OperationObligationReference {
                 obligation: *obligation,
                 support: *psi_operation,
             }),
+            O::IntegerArithmetic {
+                psi_operation,
+                arithmetic,
+                ..
+            } => {
+                if let Some(obligation) = arithmetic.obligation() {
+                    expected.push(OptimizationFact::OperationObligationReference {
+                        obligation,
+                        support: *psi_operation,
+                    });
+                }
+            }
             _ => {}
         }
         // Each runtime-selected path element's bound, owned by its operation.

@@ -1187,25 +1187,8 @@ fn scan_operation(
         | O::IntegerBitwiseAnd { .. }
         | O::IntegerBitwiseOr { .. }
         | O::IntegerBitwiseXor { .. }
-        | O::WrappingIntegerShiftLeft { .. }
-        | O::WrappingIntegerShiftRight { .. }
-        | O::ExactIntegerShiftLeft { .. }
-        | O::ExactIntegerShiftRight { .. }
-        | O::WrappingIntegerAdd { .. }
-        | O::ExactIntegerAdd { .. }
-        | O::SaturatingIntegerAdd { .. }
-        | O::WrappingIntegerSubtract { .. }
-        | O::ExactIntegerSubtract { .. }
-        | O::SaturatingIntegerSubtract { .. }
-        | O::WrappingIntegerMultiply { .. }
-        | O::ExactIntegerMultiply { .. }
-        | O::ExactIntegerDivide { .. }
-        | O::ExactIntegerRemainder { .. }
-        | O::WrappingIntegerDivide { .. }
-        | O::WrappingIntegerRemainder { .. }
-        | O::SaturatingIntegerDivide { .. }
-        | O::SaturatingIntegerRemainder { .. }
-        | O::SaturatingIntegerMultiply { .. }
+        | O::IntegerShift { .. }
+        | O::IntegerArithmetic { .. }
         | O::TrappingInteger { .. } => {}
     }
 }

@@ -3,8 +3,11 @@ use crate::candidates::global_value_numbering::expression_keys::{
     IndependentCompatiblePolicyScalarExpressionKey, IndependentScalarExpressionKey,
     independent_pair,
 };
-use abstract_operations::AbstractOperation as O;
-use semantic_vocabulary::{OperationId, ScalarType, ValueId};
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
+use semantic_vocabulary::{IntegerType, OperationId, ScalarType, ValueId};
 
 pub(crate) fn independent_compatible_policy_scalar_leader(
     operation: &O,
@@ -16,100 +19,35 @@ pub(crate) fn independent_compatible_policy_scalar_leader(
     Option<semantic_vocabulary::ObligationId>,
 )> {
     let row = match operation {
-        O::WrappingIntegerShiftLeft {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
             count_type,
+            policy: IntegerShiftPolicy::Wrapping,
+            direction,
             value,
             count,
         } => (
-            IndependentCompatiblePolicyScalarExpressionKey::ShiftLeft(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
+            shift_key(*direction, *value_type, *count_type, *value, *count),
             *psi_operation,
             *result,
             ScalarType::Integer(*value_type),
         ),
-        O::WrappingIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-        } => (
-            IndependentCompatiblePolicyScalarExpressionKey::ShiftRight(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-        ),
-        O::WrappingIntegerAdd {
+        O::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
-        }
-        | O::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            let (left, right) = independent_pair(*left, *right);
+        } if matches!(
+            arithmetic.policy(),
+            IntegerOverflowPolicy::Wrapping | IntegerOverflowPolicy::Saturating
+        ) =>
+        {
             (
-                IndependentCompatiblePolicyScalarExpressionKey::Add(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-            )
-        }
-        O::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | O::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            IndependentCompatiblePolicyScalarExpressionKey::Subtract(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-        ),
-        O::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | O::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            let (left, right) = independent_pair(*left, *right);
-            (
-                IndependentCompatiblePolicyScalarExpressionKey::Multiply(*scalar_type, left, right),
+                arithmetic_key(arithmetic.operator(), *scalar_type, *left, *right)?,
                 *psi_operation,
                 *result,
                 ScalarType::Integer(*scalar_type),
@@ -136,94 +74,36 @@ pub(crate) fn independent_compatible_policy_scalar_redundant(
     Option<semantic_vocabulary::ObligationId>,
 )> {
     let row = match operation {
-        O::ExactIntegerShiftLeft {
+        O::IntegerShift {
             psi_operation,
-            obligation,
             result,
             value_type,
             count_type,
+            policy: IntegerShiftPolicy::Exact { obligation },
+            direction,
             value,
             count,
         } => (
-            IndependentCompatiblePolicyScalarExpressionKey::ShiftLeft(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
+            shift_key(*direction, *value_type, *count_type, *value, *count),
             *psi_operation,
             *result,
             ScalarType::Integer(*value_type),
             *obligation,
         ),
-        O::ExactIntegerShiftRight {
+        O::IntegerArithmetic {
             psi_operation,
-            obligation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-        } => (
-            IndependentCompatiblePolicyScalarExpressionKey::ShiftRight(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-            *obligation,
-        ),
-        O::ExactIntegerAdd {
-            psi_operation,
-            obligation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
-        } => {
-            let (left, right) = independent_pair(*left, *right);
-            (
-                IndependentCompatiblePolicyScalarExpressionKey::Add(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-                *obligation,
-            )
-        }
-        O::ExactIntegerSubtract {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            IndependentCompatiblePolicyScalarExpressionKey::Subtract(*scalar_type, *left, *right),
+        } if arithmetic.policy() == IntegerOverflowPolicy::Exact => (
+            arithmetic_key(arithmetic.operator(), *scalar_type, *left, *right)?,
             *psi_operation,
             *result,
             ScalarType::Integer(*scalar_type),
-            *obligation,
+            arithmetic.obligation()?,
         ),
-        O::ExactIntegerMultiply {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            let (left, right) = independent_pair(*left, *right);
-            (
-                IndependentCompatiblePolicyScalarExpressionKey::Multiply(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-                *obligation,
-            )
-        }
         _ => return None,
     };
     Some((
@@ -233,4 +113,44 @@ pub(crate) fn independent_compatible_policy_scalar_redundant(
         row.3,
         Some(row.4),
     ))
+}
+
+fn shift_key(
+    direction: IntegerShiftDirection,
+    value_type: IntegerType,
+    count_type: IntegerType,
+    value: ValueId,
+    count: ValueId,
+) -> IndependentCompatiblePolicyScalarExpressionKey {
+    match direction {
+        IntegerShiftDirection::Left => IndependentCompatiblePolicyScalarExpressionKey::ShiftLeft(
+            value_type, count_type, value, count,
+        ),
+        IntegerShiftDirection::Right => IndependentCompatiblePolicyScalarExpressionKey::ShiftRight(
+            value_type, count_type, value, count,
+        ),
+    }
+}
+
+/// The policy-independent key of add, subtract and multiply; divide and
+/// remainder have no compatible-policy leader.
+fn arithmetic_key(
+    operator: IntegerArithmeticOperator,
+    scalar_type: IntegerType,
+    left: ValueId,
+    right: ValueId,
+) -> Option<IndependentCompatiblePolicyScalarExpressionKey> {
+    let (low, high) = independent_pair(left, right);
+    match operator {
+        IntegerArithmeticOperator::Add => Some(
+            IndependentCompatiblePolicyScalarExpressionKey::Add(scalar_type, low, high),
+        ),
+        IntegerArithmeticOperator::Subtract => Some(
+            IndependentCompatiblePolicyScalarExpressionKey::Subtract(scalar_type, left, right),
+        ),
+        IntegerArithmeticOperator::Multiply => Some(
+            IndependentCompatiblePolicyScalarExpressionKey::Multiply(scalar_type, low, high),
+        ),
+        IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder => None,
+    }
 }

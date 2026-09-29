@@ -1,7 +1,7 @@
 //! Exact unused unconditionally-total scalar elimination: the rule and its
 //! closed total-operation admission.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -99,42 +99,6 @@ pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
             result,
             scalar_type,
             ..
-        }
-        | O::WrappingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
         } => (*psi_operation, *result, ScalarType::Integer(*scalar_type)),
         O::IntegerWiden {
             psi_operation,
@@ -142,16 +106,22 @@ pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
             target_type,
             ..
         } => (*psi_operation, *result, ScalarType::Integer(*target_type)),
-        O::WrappingIntegerShiftLeft {
+        // Integer arithmetic is total exactly when it carries no obligation:
+        // wrapping and saturating add, subtract and multiply.
+        O::IntegerArithmetic {
             psi_operation,
             result,
-            value_type,
+            scalar_type,
+            arithmetic,
             ..
+        } if arithmetic.obligation().is_none() => {
+            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
-        | O::WrappingIntegerShiftRight {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
+            policy: IntegerShiftPolicy::Wrapping,
             ..
         } => (*psi_operation, *result, ScalarType::Integer(*value_type)),
         _ => return None,

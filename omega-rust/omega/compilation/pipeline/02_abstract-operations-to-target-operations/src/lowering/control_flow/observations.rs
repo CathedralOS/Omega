@@ -7,7 +7,10 @@ use crate::lowering::scalar::{
     order_integer, scalar_parameter_location,
 };
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation, AbstractParameter};
+use abstract_operations::{
+    AbstractFunction, AbstractOperation, AbstractParameter, IntegerArithmeticOperator,
+    IntegerOverflowPolicy,
+};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{ScalarType, ValueId};
 use std::collections::BTreeMap;
@@ -139,67 +142,41 @@ pub(super) fn lower(
         return Ok(());
     }
     let (psi_operation, result, scalar_type, expression) = match operation {
-        AbstractOperation::WrappingIntegerAdd {
+        AbstractOperation::IntegerArithmetic {
             psi_operation,
             result,
-            ..
+            scalar_type,
+            arithmetic,
+            left,
+            right,
+        } if arithmetic.policy() == IntegerOverflowPolicy::Exact
+            && matches!(
+                arithmetic.operator(),
+                IntegerArithmeticOperator::Add | IntegerArithmeticOperator::Subtract
+            ) =>
+        {
+            use crate::lowering::scalar::{IntegerBinaryKind, lower_integer_binary};
+            let known = lower_integer_binary(
+                &values,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+                IntegerBinaryKind::Arithmetic(*arithmetic),
+                *psi_operation,
+            )?;
+            provenance.operations.push(*psi_operation);
+            (
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                TargetScalarExpression::Integer {
+                    scalar_type: *scalar_type,
+                    expression: known.into_expression(*result),
+                },
+            )
         }
-        | AbstractOperation::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ExactIntegerMultiply {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ExactIntegerDivide {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ExactIntegerRemainder {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerDivide {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerRemainder {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerDivide {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerRemainder {
+        AbstractOperation::IntegerArithmetic {
             psi_operation,
             result,
             ..
@@ -224,22 +201,7 @@ pub(super) fn lower(
             result,
             ..
         }
-        | AbstractOperation::WrappingIntegerShiftLeft {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerShiftRight {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftLeft {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftRight {
+        | AbstractOperation::IntegerShift {
             psi_operation,
             result,
             ..
@@ -355,48 +317,6 @@ pub(super) fn lower(
                         left,
                         right,
                     },
-                },
-            )
-        }
-        AbstractOperation::ExactIntegerAdd {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | AbstractOperation::ExactIntegerSubtract {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            use crate::lowering::scalar::{IntegerBinaryKind, lower_integer_binary};
-            let kind = if matches!(operation, AbstractOperation::ExactIntegerAdd { .. }) {
-                IntegerBinaryKind::ExactAdd(*obligation)
-            } else {
-                IntegerBinaryKind::ExactSubtract(*obligation)
-            };
-            let known = lower_integer_binary(
-                &values,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-                kind,
-                *psi_operation,
-            )?;
-            provenance.operations.push(*psi_operation);
-            (
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-                TargetScalarExpression::Integer {
-                    scalar_type: *scalar_type,
-                    expression: known.into_expression(*result),
                 },
             )
         }

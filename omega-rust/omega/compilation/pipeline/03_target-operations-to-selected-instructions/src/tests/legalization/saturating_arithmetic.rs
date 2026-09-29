@@ -4,7 +4,7 @@
 //! sibling operation than the source operation.
 use abstract_operations::{
     AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, AbstractParameter,
-    AbstractResult,
+    AbstractResult, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
 };
 use legalized_operations::LegalizedScalarInstructionKind;
 use optimization_unit::PsiOptimizationUnit;
@@ -45,18 +45,30 @@ fn saturating_binary_inputs(
         integer,
         native,
         if adds {
-            AbstractOperation::SaturatingIntegerAdd {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: OperationId::new(1).unwrap(),
                 result: value(3),
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Saturating,
+                    IntegerArithmeticOperator::Add,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
                 left: operands.0,
                 right: operands.1,
             }
         } else {
-            AbstractOperation::SaturatingIntegerSubtract {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: OperationId::new(1).unwrap(),
                 result: value(3),
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Saturating,
+                    IntegerArithmeticOperator::Subtract,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
                 left: operands.0,
                 right: operands.1,
             }
@@ -239,10 +251,16 @@ fn every_fixed_carrier_saturating_multiply_legalizes_to_its_carrier_kind() {
             let (source, target, unit) = binary_inputs(
                 integer,
                 native,
-                AbstractOperation::SaturatingIntegerMultiply {
+                AbstractOperation::IntegerArithmetic {
                     psi_operation: OperationId::new(1).unwrap(),
                     result: value(3),
                     scalar_type: integer,
+                    arithmetic: IntegerArithmetic::new(
+                        IntegerOverflowPolicy::Saturating,
+                        IntegerArithmeticOperator::Multiply,
+                        None,
+                    )
+                    .expect("admitted integer arithmetic"),
                     left: value(1),
                     right: value(2),
                 },

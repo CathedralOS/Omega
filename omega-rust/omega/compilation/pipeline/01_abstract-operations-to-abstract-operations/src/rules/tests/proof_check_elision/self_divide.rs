@@ -1,5 +1,8 @@
 //! Self-division tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 
 use super::super::super::LiveProofCertifiedIntegerSelfDivideEliminationRule;
 use crate::RuleAnalysisView;
@@ -7,9 +10,8 @@ use crate::rules::proof_check_elision::integer_one;
 use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_function_result;
 use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
-    SelfDividePolicy, live_proof_binary_identity_unit, live_self_divide_unit,
+    live_proof_binary_identity_unit, live_self_divide_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{OptimizationFactReference, OptimizationValidatorIdentity};
 use optimization_unit::{
     IntegerConstantRewrite, NodeLocation, OptimizationFact, ProvenanceDisposition,
@@ -30,9 +32,9 @@ fn proof_certified_self_divide_materializes_typed_one_for_every_policy_and_sign(
         IntegerType::new(IntegerSign::Signed, 8).unwrap(),
     ] {
         for policy in [
-            SelfDividePolicy::Exact,
-            SelfDividePolicy::Wrapping,
-            SelfDividePolicy::Saturating,
+            IntegerOverflowPolicy::Exact,
+            IntegerOverflowPolicy::Wrapping,
+            IntegerOverflowPolicy::Saturating,
         ] {
             let unit = live_self_divide_unit(integer, policy);
             let contract = LiveProofCertifiedIntegerSelfDivideEliminationRule::contract();
@@ -132,7 +134,7 @@ fn proof_certified_self_divide_materializes_typed_one_for_every_policy_and_sign(
 #[test]
 fn proof_certified_self_divide_declines_ineligible_shapes_and_rejects_corruption() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    let unit = live_self_divide_unit(integer, SelfDividePolicy::Exact);
+    let unit = live_self_divide_unit(integer, IntegerOverflowPolicy::Exact);
     let contract = LiveProofCertifiedIntegerSelfDivideEliminationRule::contract();
     let mut manager = crate::AnalysisManager::new(&unit);
     let products = manager
@@ -236,25 +238,36 @@ fn proof_certified_self_divide_declines_ineligible_shapes_and_rejects_corruption
         integer,
         IntegerValue::Unsigned(1),
         false,
-        |psi_operation, obligation, result, scalar_type, left, right| O::ExactIntegerDivide {
+        |psi_operation, obligation, result, scalar_type, left, right| O::IntegerArithmetic {
             psi_operation,
-            obligation,
             result,
             scalar_type,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Divide,
+                Some(obligation),
+            )
+            .expect("admitted integer arithmetic"),
             left,
             right,
         },
     );
     let signed_one_bit = live_self_divide_unit(
         IntegerType::new(IntegerSign::Signed, 1).unwrap(),
-        SelfDividePolicy::Exact,
+        IntegerOverflowPolicy::Exact,
     );
-    let address = live_self_divide_unit(IntegerType::address(64).unwrap(), SelfDividePolicy::Exact);
+    let address = live_self_divide_unit(
+        IntegerType::address(64).unwrap(),
+        IntegerOverflowPolicy::Exact,
+    );
     for ineligible in [
         unequal,
         signed_one_bit,
         address,
-        discard_scalar_function_result(live_self_divide_unit(integer, SelfDividePolicy::Exact)),
+        discard_scalar_function_result(live_self_divide_unit(
+            integer,
+            IntegerOverflowPolicy::Exact,
+        )),
     ] {
         let mut manager = crate::AnalysisManager::new(&ineligible);
         let products = manager
@@ -274,11 +287,11 @@ fn proof_certified_self_divide_declines_ineligible_shapes_and_rejects_corruption
     for (remove_catalog, mut missing) in [
         (
             true,
-            live_self_divide_unit(integer, SelfDividePolicy::Exact),
+            live_self_divide_unit(integer, IntegerOverflowPolicy::Exact),
         ),
         (
             false,
-            live_self_divide_unit(integer, SelfDividePolicy::Exact),
+            live_self_divide_unit(integer, IntegerOverflowPolicy::Exact),
         ),
     ] {
         if remove_catalog {
@@ -306,7 +319,7 @@ fn proof_certified_self_divide_declines_ineligible_shapes_and_rejects_corruption
 
     let signed_one_bit = live_self_divide_unit(
         IntegerType::new(IntegerSign::Signed, 1).unwrap(),
-        SelfDividePolicy::Exact,
+        IntegerOverflowPolicy::Exact,
     );
     let node = &signed_one_bit.functions[0].blocks[0].nodes[0];
     let signed_one_bit_patch = IntegerConstantRewrite {

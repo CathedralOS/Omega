@@ -86,25 +86,8 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::IntegerBitwiseAnd { psi_operation, .. }
         | O::IntegerBitwiseOr { psi_operation, .. }
         | O::IntegerBitwiseXor { psi_operation, .. }
-        | O::WrappingIntegerShiftLeft { psi_operation, .. }
-        | O::WrappingIntegerShiftRight { psi_operation, .. }
-        | O::ExactIntegerShiftLeft { psi_operation, .. }
-        | O::ExactIntegerShiftRight { psi_operation, .. }
-        | O::WrappingIntegerAdd { psi_operation, .. }
-        | O::ExactIntegerAdd { psi_operation, .. }
-        | O::SaturatingIntegerAdd { psi_operation, .. }
-        | O::WrappingIntegerSubtract { psi_operation, .. }
-        | O::ExactIntegerSubtract { psi_operation, .. }
-        | O::SaturatingIntegerSubtract { psi_operation, .. }
-        | O::WrappingIntegerMultiply { psi_operation, .. }
-        | O::ExactIntegerMultiply { psi_operation, .. }
-        | O::ExactIntegerDivide { psi_operation, .. }
-        | O::ExactIntegerRemainder { psi_operation, .. }
-        | O::WrappingIntegerDivide { psi_operation, .. }
-        | O::WrappingIntegerRemainder { psi_operation, .. }
-        | O::SaturatingIntegerDivide { psi_operation, .. }
-        | O::SaturatingIntegerRemainder { psi_operation, .. }
-        | O::SaturatingIntegerMultiply { psi_operation, .. }
+        | O::IntegerShift { psi_operation, .. }
+        | O::IntegerArithmetic { psi_operation, .. }
         | O::TrappingInteger { psi_operation, .. } => PsiProvenance::Operation(*psi_operation),
     };
     vec![site]

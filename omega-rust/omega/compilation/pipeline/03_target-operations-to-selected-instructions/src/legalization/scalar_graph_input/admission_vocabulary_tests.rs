@@ -173,13 +173,8 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::EstablishZeroedStructural { .. }
         | AbstractOperation::EstablishScalarArray { .. }
         | AbstractOperation::EstablishCase { .. }
-        | AbstractOperation::ExactIntegerAdd { .. }
-        | AbstractOperation::ExactIntegerDivide { .. }
-        | AbstractOperation::ExactIntegerMultiply { .. }
-        | AbstractOperation::ExactIntegerRemainder { .. }
-        | AbstractOperation::ExactIntegerShiftLeft { .. }
-        | AbstractOperation::ExactIntegerShiftRight { .. }
-        | AbstractOperation::ExactIntegerSubtract { .. }
+        | AbstractOperation::IntegerArithmetic { .. }
+        | AbstractOperation::IntegerShift { .. }
         | AbstractOperation::IeeeFloatCompare { .. }
         | AbstractOperation::IeeeFloatConstant { .. }
         | AbstractOperation::IntegerBitwiseAnd { .. }
@@ -196,11 +191,6 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }
         | AbstractOperation::ReleaseReference { .. }
-        | AbstractOperation::SaturatingIntegerAdd { .. }
-        | AbstractOperation::SaturatingIntegerDivide { .. }
-        | AbstractOperation::SaturatingIntegerMultiply { .. }
-        | AbstractOperation::SaturatingIntegerRemainder { .. }
-        | AbstractOperation::SaturatingIntegerSubtract { .. }
         | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
         | AbstractOperation::StructuralByteSequenceFieldRead { .. }
@@ -213,13 +203,6 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::EstablishTrivialAffineLocal { .. }
         | AbstractOperation::StructuralScalarFieldStore { .. }
         | AbstractOperation::TrappingInteger { .. }
-        | AbstractOperation::WrappingIntegerAdd { .. }
-        | AbstractOperation::WrappingIntegerDivide { .. }
-        | AbstractOperation::WrappingIntegerMultiply { .. }
-        | AbstractOperation::WrappingIntegerRemainder { .. }
-        | AbstractOperation::WrappingIntegerShiftLeft { .. }
-        | AbstractOperation::WrappingIntegerShiftRight { .. }
-        | AbstractOperation::WrappingIntegerSubtract { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. } => AdmissionRoute::BodyAdmitted,
         AbstractOperation::Conditional { .. }
         | AbstractOperation::Crash { .. }

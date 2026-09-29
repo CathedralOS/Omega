@@ -4,6 +4,7 @@ use super::{
     TargetIntegerExpression, TargetLoweringRequest, ValueId, direct_call_plan,
     lower_to_target_operations, parameter_return_plan,
 };
+use abstract_operations::{IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy};
 use target_operations::TargetScalarExpression;
 
 #[test]
@@ -47,19 +48,30 @@ fn scalar_graph_retains_repeated_value_definitions_once() {
         for position in 0..depth {
             let result = ValueId::new(1000 + position).unwrap();
             let operation = if wrapping {
-                AbstractOperation::WrappingIntegerAdd {
+                AbstractOperation::IntegerArithmetic {
                     psi_operation: OperationId::new(1000 + position).unwrap(),
                     result,
                     scalar_type: integer,
+                    arithmetic: IntegerArithmetic::new(
+                        IntegerOverflowPolicy::Wrapping,
+                        IntegerArithmeticOperator::Add,
+                        None,
+                    )
+                    .expect("admitted integer arithmetic"),
                     left: previous,
                     right: previous,
                 }
             } else {
-                AbstractOperation::ExactIntegerAdd {
+                AbstractOperation::IntegerArithmetic {
                     psi_operation: OperationId::new(1000 + position).unwrap(),
-                    obligation: ObligationId::new(1000 + position).unwrap(),
                     result,
                     scalar_type: integer,
+                    arithmetic: IntegerArithmetic::new(
+                        IntegerOverflowPolicy::Exact,
+                        IntegerArithmeticOperator::Add,
+                        Some(ObligationId::new(1000 + position).unwrap()),
+                    )
+                    .expect("admitted integer arithmetic"),
                     left: previous,
                     right: previous,
                 }
@@ -103,8 +115,12 @@ fn scalar_graph_retains_repeated_value_definitions_once() {
                 expression:
                     TargetScalarExpression::Integer {
                         expression:
-                            TargetIntegerExpression::ExactAdd { left, right, .. }
-                            | TargetIntegerExpression::WrappingAdd { left, right, .. },
+                            TargetIntegerExpression::Arithmetic {
+                                arithmetic,
+                                left,
+                                right,
+                                ..
+                            },
                         ..
                     },
                 ..
@@ -112,6 +128,7 @@ fn scalar_graph_retains_repeated_value_definitions_once() {
             else {
                 panic!("one scalar definition per addition");
             };
+            assert_eq!(arithmetic.operator(), IntegerArithmeticOperator::Add);
             assert_eq!(left, right);
             assert!(matches!(
                 left.as_ref(),

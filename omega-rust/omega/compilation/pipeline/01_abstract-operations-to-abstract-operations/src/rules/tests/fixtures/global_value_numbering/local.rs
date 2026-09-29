@@ -2,7 +2,8 @@ use super::super::{id, with_synthetic_accepted_obligations};
 use abstract_operations::AbstractOperation as O;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, IntegerArithmetic,
+    IntegerArithmeticOperator, IntegerOverflowPolicy,
 };
 use optimization_unit::{
     OptimizationFact, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
@@ -26,21 +27,32 @@ pub(crate) fn proof_certified_local_cse_unit() -> PsiOptimizationUnit {
 pub(crate) fn compatible_policy_local_cse_unit() -> PsiOptimizationUnit {
     let mut unit = proof_certified_local_cse_unit();
     let node = &mut unit.functions[0].blocks[0].nodes[0];
-    let O::ExactIntegerAdd {
+    let O::IntegerArithmetic {
         psi_operation,
         result,
         scalar_type,
         left,
         right,
+        arithmetic,
         ..
     } = node.operation
     else {
         unreachable!("proof CSE leader is exact add")
     };
-    node.operation = O::WrappingIntegerAdd {
+    assert!(
+        arithmetic.is(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Add),
+        "proof CSE leader is exact add"
+    );
+    node.operation = O::IntegerArithmetic {
         psi_operation,
         result,
         scalar_type,
+        arithmetic: IntegerArithmetic::new(
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Add,
+            None,
+        )
+        .expect("admitted integer arithmetic"),
         left,
         right,
     };
@@ -64,19 +76,30 @@ pub(crate) fn scalar_local_cse_unit(proof_certified: bool) -> PsiOptimizationUni
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let binary = |psi_operation, obligation, result, left, right| {
         if proof_certified {
-            AbstractOperation::ExactIntegerAdd {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation,
-                obligation,
                 result,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Add,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             }
         } else {
-            AbstractOperation::WrappingIntegerAdd {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation,
                 result,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Add,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             }

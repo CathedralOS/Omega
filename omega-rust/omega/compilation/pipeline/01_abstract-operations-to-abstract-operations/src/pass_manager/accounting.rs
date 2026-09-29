@@ -114,25 +114,8 @@ fn integer_evaluation_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::ExactIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerShiftLeft { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerShiftRight { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerShiftLeft { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerShiftRight { .. }
+                abstract_operations::AbstractOperation::IntegerArithmetic { .. }
+                    | abstract_operations::AbstractOperation::IntegerShift { .. }
                     | abstract_operations::AbstractOperation::IntegerExactCast { .. }
                     | abstract_operations::AbstractOperation::IntegerWiden { .. }
                     | abstract_operations::AbstractOperation::IntegerBitwiseNot { .. }
@@ -164,9 +147,14 @@ fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .iter()
         .flat_map(|function| &function.blocks)
         .flat_map(|block| &block.nodes)
-        .filter(|node| {
-            matches!(
-                node.operation,
+        .filter(|node| match &node.operation {
+            // Integer arithmetic is total exactly when it carries no
+            // obligation.
+            abstract_operations::AbstractOperation::IntegerArithmetic { arithmetic, .. } => {
+                arithmetic.obligation().is_none()
+            }
+            operation => matches!(
+                operation,
                 abstract_operations::AbstractOperation::IntegerConstant { .. }
                     | abstract_operations::AbstractOperation::BooleanConstant { .. }
                     | abstract_operations::AbstractOperation::BooleanNot { .. }
@@ -179,15 +167,11 @@ fn dead_total_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
                     | abstract_operations::AbstractOperation::IntegerBitwiseOr { .. }
                     | abstract_operations::AbstractOperation::IntegerBitwiseXor { .. }
                     | abstract_operations::AbstractOperation::IntegerWiden { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerShiftLeft { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerShiftRight { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerMultiply { .. }
-            )
+                    | abstract_operations::AbstractOperation::IntegerShift {
+                        policy: abstract_operations::IntegerShiftPolicy::Wrapping,
+                        ..
+                    }
+            ),
         })
         .count()
         .try_into()
@@ -199,22 +183,18 @@ fn proof_certified_scalar_operation_count(unit: &PsiOptimizationUnit) -> u64 {
         .iter()
         .flat_map(|function| &function.blocks)
         .flat_map(|block| &block.nodes)
-        .filter(|node| {
-            matches!(
-                node.operation,
+        .filter(|node| match &node.operation {
+            abstract_operations::AbstractOperation::IntegerArithmetic { arithmetic, .. } => {
+                arithmetic.obligation().is_some()
+            }
+            operation => matches!(
+                operation,
                 abstract_operations::AbstractOperation::IntegerExactCast { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerShiftLeft { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerShiftRight { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerAdd { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerSubtract { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerMultiply { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::ExactIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::WrappingIntegerRemainder { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerDivide { .. }
-                    | abstract_operations::AbstractOperation::SaturatingIntegerRemainder { .. }
-            )
+                    | abstract_operations::AbstractOperation::IntegerShift {
+                        policy: abstract_operations::IntegerShiftPolicy::Exact { .. },
+                        ..
+                    }
+            ),
         })
         .count()
         .try_into()

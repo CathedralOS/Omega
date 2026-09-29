@@ -10,6 +10,7 @@
 
 use super::super::VerifiedPsiOptimizationSession;
 use super::AbstractOperation;
+use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit_semantics::OptimizationUnitValidationError;
 
@@ -209,11 +210,21 @@ fn early_exit_ranked_cycles_still_reject_a_changed_decrement() {
         .find_map(|function| {
             function.blocks.iter_mut().find_map(|block| {
                 block.nodes.iter_mut().find_map(|node| {
-                    let AbstractOperation::ExactIntegerSubtract { left, right, .. } =
-                        &mut node.operation
+                    let AbstractOperation::IntegerArithmetic {
+                        arithmetic,
+                        left,
+                        right,
+                        ..
+                    } = &mut node.operation
                     else {
                         return None;
                     };
+                    if !arithmetic.is(
+                        IntegerOverflowPolicy::Exact,
+                        IntegerArithmeticOperator::Subtract,
+                    ) {
+                        return None;
+                    }
                     *right = *left;
                     Some((function.machine, block.id))
                 })

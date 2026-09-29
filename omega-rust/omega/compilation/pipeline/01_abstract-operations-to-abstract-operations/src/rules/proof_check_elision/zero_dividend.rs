@@ -1,6 +1,8 @@
 //! Proof-certified zero dividends.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -20,84 +22,32 @@ fn proof_certified_integer_zero_dividend_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
     let (source_operation, result, scalar_type, left, identity) = match operation {
-        O::ExactIntegerDivide {
+        O::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             left,
             ..
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            *left,
-            ProofCertifiedScalarIdentityKind::ExactIntegerDivideZeroLeft,
-        ),
-        O::WrappingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            ..
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            *left,
-            ProofCertifiedScalarIdentityKind::WrappingIntegerDivideZeroLeft,
-        ),
-        O::SaturatingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            ..
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            *left,
-            ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideZeroLeft,
-        ),
-        O::ExactIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            ..
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            *left,
-            ProofCertifiedScalarIdentityKind::ExactIntegerRemainderZeroLeft,
-        ),
-        O::WrappingIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            ..
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            *left,
-            ProofCertifiedScalarIdentityKind::WrappingIntegerRemainderZeroLeft,
-        ),
-        O::SaturatingIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            ..
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            *left,
-            ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft,
-        ),
+        } => {
+            use IntegerArithmeticOperator as Operator;
+            use IntegerOverflowPolicy as Policy;
+            use ProofCertifiedScalarIdentityKind as Kind;
+            let identity = match (arithmetic.policy(), arithmetic.operator()) {
+                (Policy::Exact, Operator::Divide) => Kind::ExactIntegerDivideZeroLeft,
+                (Policy::Wrapping, Operator::Divide) => Kind::WrappingIntegerDivideZeroLeft,
+                (Policy::Saturating, Operator::Divide) => Kind::SaturatingIntegerDivideZeroLeft,
+                (Policy::Exact, Operator::Remainder) => Kind::ExactIntegerRemainderZeroLeft,
+                (Policy::Wrapping, Operator::Remainder) => Kind::WrappingIntegerRemainderZeroLeft,
+                (Policy::Saturating, Operator::Remainder) => {
+                    Kind::SaturatingIntegerRemainderZeroLeft
+                }
+                (_, Operator::Add | Operator::Subtract | Operator::Multiply) => {
+                    return Vec::new();
+                }
+            };
+            (*psi_operation, *result, *scalar_type, *left, identity)
+        }
         _ => return Vec::new(),
     };
     vec![(

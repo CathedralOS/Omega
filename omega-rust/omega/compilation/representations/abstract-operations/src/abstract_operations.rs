@@ -48,6 +48,11 @@ pub use control_flow::{
 };
 pub mod values;
 pub use values::{AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding};
+mod integer_arithmetic;
+pub use integer_arithmetic::{
+    IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection,
+    IntegerShiftPolicy,
+};
 pub mod operations;
 pub use operations::AbstractOperation;
 mod structural_stores;

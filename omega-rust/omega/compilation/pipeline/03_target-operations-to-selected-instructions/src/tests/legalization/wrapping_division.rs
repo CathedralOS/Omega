@@ -3,7 +3,9 @@
 //! zero, so each row carries the exact accepted nonzero-divisor fact, and
 //! replay rejects the sibling division family, swapped operands, and any
 //! other obligation or fact.
-use abstract_operations::AbstractOperation;
+use abstract_operations::{
+    AbstractOperation, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use legalized_operations::{LegalizedExactIntegerOperator, LegalizedScalarInstructionKind};
 use optimization_core::AcceptedObligationFactIdentity;
 use optimization_unit::{AcceptedObligationFact, attach_accepted_obligation_facts};
@@ -15,20 +17,30 @@ use crate::{legalize_target_operations, validate_legalized_operations};
 fn division(divides: bool, integer: IntegerType) -> AbstractOperation {
     let (psi_operation, obligation) = (OperationId::new(1).unwrap(), ObligationId::new(1).unwrap());
     if divides {
-        AbstractOperation::WrappingIntegerDivide {
+        AbstractOperation::IntegerArithmetic {
             psi_operation,
-            obligation,
             result: value(3),
             scalar_type: integer,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Divide,
+                Some(obligation),
+            )
+            .expect("admitted integer arithmetic"),
             left: value(1),
             right: value(2),
         }
     } else {
-        AbstractOperation::WrappingIntegerRemainder {
+        AbstractOperation::IntegerArithmetic {
             psi_operation,
-            obligation,
             result: value(3),
             scalar_type: integer,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Remainder,
+                Some(obligation),
+            )
+            .expect("admitted integer arithmetic"),
             left: value(1),
             right: value(2),
         }

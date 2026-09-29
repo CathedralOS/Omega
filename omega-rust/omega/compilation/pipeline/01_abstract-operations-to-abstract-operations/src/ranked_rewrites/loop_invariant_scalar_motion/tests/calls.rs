@@ -9,7 +9,10 @@ use crate::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
-use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
+use abstract_operations::{
+    AbstractOperation, AbstractStructuralCallResult, IntegerArithmeticOperator,
+    IntegerOverflowPolicy,
+};
 use optimization_unit::{
     ProvenanceDisposition, PsiRealizationSite, recompute_psi_optimization_unit_identity,
 };
@@ -1744,7 +1747,8 @@ fn crash_continuation_call_relocates_rederiving_its_roster() {
                 .expect("source block exists");
             matches!(
                 source.nodes[usize::try_from(relocation.node().location().node).unwrap()].operation,
-                AbstractOperation::WrappingIntegerAdd { .. }
+                AbstractOperation::IntegerArithmetic { arithmetic, .. }
+                    if arithmetic.is(IntegerOverflowPolicy::Wrapping, IntegerArithmeticOperator::Add)
             )
         }),
         "the computation chained on the call result relocates in the same run"

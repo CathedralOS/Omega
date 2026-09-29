@@ -8,7 +8,10 @@ use super::{
     reconstruct_psi_optimization_unit_seed,
 };
 use crate::rules::{IntegerRangeComparisonKind, IntegerRangePairComparisonKind};
-use abstract_operations::AbstractParameter;
+use abstract_operations::{
+    AbstractParameter, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 use optimization_unit::{
     AcceptedObligationFact, ProofQuestion, ProofQuestionClass, ProofQuestionOwner,
     attach_accepted_obligation_facts, attach_proof_questions,
@@ -44,12 +47,13 @@ fn proof_range_operation(
             .unwrap();
             ProofRangeOperation {
                 input_type,
-                operation: AbstractOperation::ExactIntegerShiftRight {
+                operation: AbstractOperation::IntegerShift {
                     psi_operation: operation,
-                    obligation,
                     result,
                     value_type: input_type,
                     count_type: scalar_type,
+                    policy: IntegerShiftPolicy::Exact { obligation },
+                    direction: IntegerShiftDirection::Right,
                     value: input,
                     count: ranged,
                 },
@@ -65,11 +69,16 @@ fn proof_range_operation(
         }
         ProofRangeKind::Nonzero => ProofRangeOperation {
             input_type: scalar_type,
-            operation: AbstractOperation::WrappingIntegerDivide {
+            operation: AbstractOperation::IntegerArithmetic {
                 psi_operation: operation,
-                obligation,
                 result,
                 scalar_type,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Divide,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left: input,
                 right: ranged,
             },

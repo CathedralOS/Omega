@@ -1,6 +1,8 @@
 //! Proof-certified division by one.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -20,50 +22,30 @@ fn proof_certified_integer_divide_by_one_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
     let (source_operation, result, scalar_type, left, right, identity) = match operation {
-        O::ExactIntegerDivide {
+        O::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
-            ..
-        } => (
+        } if arithmetic.operator() == IntegerArithmeticOperator::Divide => (
             *psi_operation,
             *result,
             *scalar_type,
             *left,
             *right,
-            ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight,
-        ),
-        O::WrappingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            *left,
-            *right,
-            ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight,
-        ),
-        O::SaturatingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        } => (
-            *psi_operation,
-            *result,
-            *scalar_type,
-            *left,
-            *right,
-            ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight,
+            match arithmetic.policy() {
+                IntegerOverflowPolicy::Exact => {
+                    ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight
+                }
+                IntegerOverflowPolicy::Wrapping => {
+                    ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight
+                }
+                IntegerOverflowPolicy::Saturating => {
+                    ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight
+                }
+            },
         ),
         _ => return Vec::new(),
     };

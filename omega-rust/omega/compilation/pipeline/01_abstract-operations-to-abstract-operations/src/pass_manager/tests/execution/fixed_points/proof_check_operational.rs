@@ -3,13 +3,14 @@
 use super::super::super::super::{OptimizationRunError, run_unit};
 use super::super::super::{
     AbstractOperation, Optimization, OptimizationCandidateVerdict, OptimizationFactReference,
-    OptimizationRuleIdentity, OptimizationSelections, PsiOptimizationUnit, SelfDividePolicy,
-    SelfRemainderPolicy, budget, built_in_psi_registry, dead_exact_add_unit,
-    live_divide_by_one_unit, live_exact_add_zero_unit, live_exact_multiply_by_zero_unit,
-    live_exact_self_subtract_unit, live_exact_signed_negative_one_shift_right_unit,
-    live_exact_zero_value_shift_unit, live_remainder_by_one_unit, live_self_divide_unit,
-    live_self_remainder_unit, live_signed_remainder_by_negative_one_unit, live_zero_dividend_unit,
+    OptimizationRuleIdentity, OptimizationSelections, PsiOptimizationUnit, budget,
+    built_in_psi_registry, dead_exact_add_unit, live_divide_by_one_unit, live_exact_add_zero_unit,
+    live_exact_multiply_by_zero_unit, live_exact_self_subtract_unit,
+    live_exact_signed_negative_one_shift_right_unit, live_exact_zero_value_shift_unit,
+    live_remainder_by_one_unit, live_self_divide_unit, live_self_remainder_unit,
+    live_signed_remainder_by_negative_one_unit, live_zero_dividend_unit,
 };
+use abstract_operations::{IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy};
 struct Case {
     unit: PsiOptimizationUnit,
     rule: OptimizationRuleIdentity,
@@ -49,14 +50,7 @@ fn cases() -> Vec<Case> {
             unit: live_divide_by_one_unit(
                 unsigned,
                 |psi_operation, obligation, result, scalar_type, left, right| {
-                    AbstractOperation::ExactIntegerDivide {
-                        psi_operation,
-                        obligation,
-                        result,
-                        scalar_type,
-                        left,
-                        right,
-                    }
+                    AbstractOperation::IntegerArithmetic { psi_operation, result, scalar_type, arithmetic: IntegerArithmetic::new(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Divide, Some(obligation)).expect("admitted integer arithmetic"), left, right }
                 },
             ),
             rule: crate::rules::LiveProofCertifiedIntegerDivideByOneEliminationRule::contract().identity(),
@@ -80,14 +74,7 @@ fn cases() -> Vec<Case> {
             unit: live_zero_dividend_unit(
                 unsigned,
                 |psi_operation, obligation, result, scalar_type, left, right| {
-                    AbstractOperation::ExactIntegerDivide {
-                        psi_operation,
-                        obligation,
-                        result,
-                        scalar_type,
-                        left,
-                        right,
-                    }
+                    AbstractOperation::IntegerArithmetic { psi_operation, result, scalar_type, arithmetic: IntegerArithmetic::new(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Divide, Some(obligation)).expect("admitted integer arithmetic"), left, right }
                 },
             ),
             rule: crate::rules::LiveProofCertifiedIntegerZeroDividendEliminationRule::contract()
@@ -119,7 +106,7 @@ fn cases() -> Vec<Case> {
             consumes_constant: false,
         },
         Case {
-            unit: live_self_remainder_unit(unsigned, SelfRemainderPolicy::Exact),
+            unit: live_self_remainder_unit(unsigned, IntegerOverflowPolicy::Exact),
             rule: crate::rules::LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract()
                 .identity(),
             validator: validator(
@@ -129,7 +116,7 @@ fn cases() -> Vec<Case> {
             consumes_constant: false,
         },
         Case {
-            unit: live_self_divide_unit(unsigned, SelfDividePolicy::Exact),
+            unit: live_self_divide_unit(unsigned, IntegerOverflowPolicy::Exact),
             rule: crate::rules::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity(),
             validator: validator(
                 b"omega.validator.live-proof-certified-integer-self-divide-elimination.v1",
@@ -138,7 +125,7 @@ fn cases() -> Vec<Case> {
             consumes_constant: false,
         },
         Case {
-            unit: live_remainder_by_one_unit(unsigned, SelfRemainderPolicy::Exact),
+            unit: live_remainder_by_one_unit(unsigned, IntegerOverflowPolicy::Exact),
             rule: crate::rules::LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract()
                 .identity(),
             validator: validator(
@@ -150,7 +137,7 @@ fn cases() -> Vec<Case> {
         Case {
             unit: live_signed_remainder_by_negative_one_unit(
                 signed,
-                SelfRemainderPolicy::Exact,
+                IntegerOverflowPolicy::Exact,
             ),
             rule:
                 crate::rules::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule::contract()

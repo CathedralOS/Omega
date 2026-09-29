@@ -1,11 +1,13 @@
 //! Division-by-one tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 
 use super::super::super::LiveProofCertifiedIntegerDivideByOneEliminationRule;
 use crate::RuleAnalysisView;
 use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::live_divide_by_one_unit;
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationValidatorIdentity;
 use optimization_unit::{OptimizationFact, ProofCertifiedScalarIdentityKind, PsiRewritePatch};
 use optimization_unit_semantics::validate_proof_certified_scalar_identity_candidate;
@@ -34,27 +36,42 @@ fn proof_certified_divide_by_one_covers_every_policy_and_integer_sign() {
             let unit = live_divide_by_one_unit(
                 integer,
                 |psi_operation, obligation, result, scalar_type, left, right| match policy {
-                    0 => O::ExactIntegerDivide {
+                    0 => O::IntegerArithmetic {
                         psi_operation,
-                        obligation,
                         result,
                         scalar_type,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Exact,
+                            IntegerArithmeticOperator::Divide,
+                            Some(obligation),
+                        )
+                        .expect("admitted integer arithmetic"),
                         left,
                         right,
                     },
-                    1 => O::WrappingIntegerDivide {
+                    1 => O::IntegerArithmetic {
                         psi_operation,
-                        obligation,
                         result,
                         scalar_type,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Wrapping,
+                            IntegerArithmeticOperator::Divide,
+                            Some(obligation),
+                        )
+                        .expect("admitted integer arithmetic"),
                         left,
                         right,
                     },
-                    2 => O::SaturatingIntegerDivide {
+                    2 => O::IntegerArithmetic {
                         psi_operation,
-                        obligation,
                         result,
                         scalar_type,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Saturating,
+                            IntegerArithmeticOperator::Divide,
+                            Some(obligation),
+                        )
+                        .expect("admitted integer arithmetic"),
                         left,
                         right,
                     },

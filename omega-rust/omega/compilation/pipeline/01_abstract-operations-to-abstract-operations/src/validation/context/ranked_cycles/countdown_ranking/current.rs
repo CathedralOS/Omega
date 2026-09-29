@@ -1,6 +1,7 @@
 //! Optimizer module role: reconstruction leaf. Current-IR countdown evidence inference.
 
 use super::super::super::super::O;
+use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, ValueId};
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerValue, ScalarType};
@@ -127,14 +128,26 @@ fn derive_from_header(
         return Err(());
     }
     let subtract = scalar_node(decrement, binding.argument).ok_or(())?;
-    let O::ExactIntegerSubtract {
+    let O::IntegerArithmetic {
         psi_operation: subtract_operation,
-        obligation: subtract_obligation,
         result: argument,
         scalar_type: subtract_type,
+        arithmetic,
         left: source_parameter,
         right: one,
     } = subtract.operation
+    else {
+        return Err(());
+    };
+    let (
+        IntegerOverflowPolicy::Exact,
+        IntegerArithmeticOperator::Subtract,
+        Some(subtract_obligation),
+    ) = (
+        arithmetic.policy(),
+        arithmetic.operator(),
+        arithmetic.obligation(),
+    )
     else {
         return Err(());
     };

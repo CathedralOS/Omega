@@ -4,7 +4,10 @@ use super::{
     AbstractFunction, Control, FunctionFragment, SelectedSuccessorRole, SemanticCodeAttribution,
     SemanticCodeSite, ordinal, produce, validate,
 };
-use abstract_operations::{AbstractFunctionResult, AbstractOperation};
+use abstract_operations::{
+    AbstractFunctionResult, AbstractOperation, IntegerArithmetic, IntegerArithmeticOperator,
+    IntegerOverflowPolicy,
+};
 use machine_code::{FunctionFragmentBlockSpan, FunctionFragmentInstructionSpan};
 use selected_instructions::{
     MachineAlternativeFamily, MachineAlternativeKey, SelectedBlockId, SelectedInstructionId,
@@ -69,10 +72,16 @@ fn bitwise_and_attribution_requires_a_unique_authored_operation_ordinal() {
 fn wrapping_add_attribution_requires_its_exact_complete_interval_and_ordinal() {
     let (fragment, mut source) = fixture();
     let operation = OperationId::new(2).unwrap();
-    source.operations[1] = AbstractOperation::WrappingIntegerAdd {
+    source.operations[1] = AbstractOperation::IntegerArithmetic {
         psi_operation: operation,
         result: ValueId::new(3).unwrap(),
         scalar_type: IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+        arithmetic: IntegerArithmetic::new(
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Add,
+            None,
+        )
+        .expect("admitted integer arithmetic"),
         left: ValueId::new(1).unwrap(),
         right: ValueId::new(1).unwrap(),
     };
@@ -119,13 +128,18 @@ fn wrapping_add_attribution_requires_its_exact_complete_interval_and_ordinal() {
 fn wrapping_remainder_attribution_requires_a_unique_authored_operation_ordinal() {
     let (_, mut source) = fixture();
     let operation = OperationId::new(2).unwrap();
-    source.operations[1] = AbstractOperation::WrappingIntegerRemainder {
+    source.operations[1] = AbstractOperation::IntegerArithmetic {
         psi_operation: operation,
         result: ValueId::new(3).unwrap(),
         scalar_type: IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+        arithmetic: IntegerArithmetic::new(
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Remainder,
+            Some(semantic_vocabulary::ObligationId::new(1).unwrap()),
+        )
+        .expect("admitted integer arithmetic"),
         left: ValueId::new(1).unwrap(),
         right: ValueId::new(2).unwrap(),
-        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
     };
     assert_eq!(
         ordinal(&source, SemanticCodeSite::Operation(operation)).unwrap(),
@@ -173,64 +187,96 @@ fn legalized_scalar_family_attribution_requires_unique_authored_ordinals() {
         ),
         (
             "wrapping subtract",
-            AbstractOperation::WrappingIntegerSubtract {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: operation,
                 result,
                 scalar_type: signed64,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Subtract,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
         ),
         (
             "wrapping multiply",
-            AbstractOperation::WrappingIntegerMultiply {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: operation,
                 result,
                 scalar_type: unsigned64,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Multiply,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
         ),
         (
             "wrapping divide",
-            AbstractOperation::WrappingIntegerDivide {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: operation,
-                obligation,
                 result,
                 scalar_type: signed64,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Divide,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
         ),
         (
             "saturating remainder",
-            AbstractOperation::SaturatingIntegerRemainder {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: operation,
-                obligation,
                 result,
                 scalar_type: signed64,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Saturating,
+                    IntegerArithmeticOperator::Remainder,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
         ),
         (
             "exact multiply",
-            AbstractOperation::ExactIntegerMultiply {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: operation,
-                obligation,
                 result,
                 scalar_type: unsigned64,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Multiply,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
         ),
         (
             "exact remainder",
-            AbstractOperation::ExactIntegerRemainder {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: operation,
-                obligation,
                 result,
                 scalar_type: unsigned64,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Remainder,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },

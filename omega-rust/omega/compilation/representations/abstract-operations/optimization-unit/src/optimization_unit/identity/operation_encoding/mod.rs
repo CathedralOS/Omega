@@ -9,6 +9,8 @@ mod atomic;
 mod calls_and_effects;
 mod control;
 mod ieee_float;
+#[cfg(test)]
+mod integer_policy_tags_tests;
 mod scalar;
 mod scalar_shapes;
 mod structural;
@@ -78,25 +80,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::IntegerBitwiseAnd { .. }
         | O::IntegerBitwiseOr { .. }
         | O::IntegerBitwiseXor { .. }
-        | O::WrappingIntegerShiftLeft { .. }
-        | O::WrappingIntegerShiftRight { .. }
-        | O::ExactIntegerShiftLeft { .. }
-        | O::ExactIntegerShiftRight { .. }
-        | O::WrappingIntegerAdd { .. }
-        | O::ExactIntegerAdd { .. }
-        | O::SaturatingIntegerAdd { .. }
-        | O::WrappingIntegerSubtract { .. }
-        | O::ExactIntegerSubtract { .. }
-        | O::SaturatingIntegerSubtract { .. }
-        | O::WrappingIntegerMultiply { .. }
-        | O::ExactIntegerMultiply { .. }
-        | O::ExactIntegerDivide { .. }
-        | O::ExactIntegerRemainder { .. }
-        | O::WrappingIntegerDivide { .. }
-        | O::WrappingIntegerRemainder { .. }
-        | O::SaturatingIntegerDivide { .. }
-        | O::SaturatingIntegerRemainder { .. }
-        | O::SaturatingIntegerMultiply { .. }
+        | O::IntegerShift { .. }
+        | O::IntegerArithmetic { .. }
         | O::TrappingInteger { .. } => scalar::encode(bytes, operation),
 
         O::Jump { .. }

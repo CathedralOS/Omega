@@ -20,11 +20,11 @@ use crate::rules::tests::fixtures::global_value_numbering::{
     proof_certified_phi_translated_gvn_unit, wrapping_neutral_identity_unit,
 };
 use crate::rules::tests::fixtures::proof_check_elision::{
-    SelfDividePolicy, SelfRemainderPolicy, dependent_exact_chain_unit, exact_add_unit,
-    live_divide_by_one_unit, live_exact_add_zero_unit, live_exact_multiply_by_zero_unit,
-    live_exact_self_subtract_unit, live_exact_signed_negative_one_shift_right_unit,
-    live_exact_zero_value_shift_unit, live_remainder_by_one_unit, live_self_divide_unit,
-    live_self_remainder_unit, live_signed_remainder_by_negative_one_unit, live_zero_dividend_unit,
+    dependent_exact_chain_unit, exact_add_unit, live_divide_by_one_unit, live_exact_add_zero_unit,
+    live_exact_multiply_by_zero_unit, live_exact_self_subtract_unit,
+    live_exact_signed_negative_one_shift_right_unit, live_exact_zero_value_shift_unit,
+    live_remainder_by_one_unit, live_self_divide_unit, live_self_remainder_unit,
+    live_signed_remainder_by_negative_one_unit, live_zero_dividend_unit,
 };
 use crate::rules::tests::fixtures::randomized_built_in_registries;
 use crate::rules::{ExactIntegerAddConstantsRule, ExactIntegerSubtractConstantsRule};

@@ -5,6 +5,8 @@ use crate::rules::proof_check_elision::{integer_one, integer_zero};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperation as O, AbstractOperationPlan, AbstractParameter, AbstractResult,
+    IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection,
+    IntegerShiftPolicy,
 };
 use optimization_unit::{
     OptimizationFact, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
@@ -64,11 +66,16 @@ pub(crate) fn live_exact_multiply_by_zero_unit(
         integer_zero(integer),
         zero_left,
         |psi_operation, obligation, result, scalar_type, left, right| {
-            AbstractOperation::ExactIntegerMultiply {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation,
-                obligation,
                 result,
                 scalar_type,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Multiply,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             }
@@ -92,74 +99,52 @@ pub(crate) fn live_zero_dividend_unit(
 
 pub(crate) fn live_remainder_by_one_unit(
     integer: IntegerType,
-    policy: SelfRemainderPolicy,
+    policy: IntegerOverflowPolicy,
 ) -> PsiOptimizationUnit {
     live_proof_binary_identity_unit(
         integer,
         integer_one(integer),
         false,
-        |psi_operation, obligation, result, scalar_type, left, right| match policy {
-            SelfRemainderPolicy::Exact => AbstractOperation::ExactIntegerRemainder {
+        |psi_operation, obligation, result, scalar_type, left, right| {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation,
-                obligation,
                 result,
                 scalar_type,
+                arithmetic: IntegerArithmetic::new(
+                    policy,
+                    IntegerArithmeticOperator::Remainder,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
-            },
-            SelfRemainderPolicy::Wrapping => AbstractOperation::WrappingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            SelfRemainderPolicy::Saturating => AbstractOperation::SaturatingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
+            }
         },
     )
 }
 
 pub(crate) fn live_signed_remainder_by_negative_one_unit(
     integer: IntegerType,
-    policy: SelfRemainderPolicy,
+    policy: IntegerOverflowPolicy,
 ) -> PsiOptimizationUnit {
     live_proof_binary_identity_unit(
         integer,
         IntegerValue::Signed(-1),
         false,
-        |psi_operation, obligation, result, scalar_type, left, right| match policy {
-            SelfRemainderPolicy::Exact => AbstractOperation::ExactIntegerRemainder {
+        |psi_operation, obligation, result, scalar_type, left, right| {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation,
-                obligation,
                 result,
                 scalar_type,
+                arithmetic: IntegerArithmetic::new(
+                    policy,
+                    IntegerArithmeticOperator::Remainder,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
-            },
-            SelfRemainderPolicy::Wrapping => AbstractOperation::WrappingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            SelfRemainderPolicy::Saturating => AbstractOperation::SaturatingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
+            }
         },
     )
 }
@@ -174,22 +159,24 @@ pub(crate) fn live_exact_zero_value_shift_unit(
         true,
         |psi_operation, obligation, result, value_type, value, count| {
             if left_shift {
-                AbstractOperation::ExactIntegerShiftLeft {
+                AbstractOperation::IntegerShift {
                     psi_operation,
-                    obligation,
                     result,
                     value_type,
                     count_type: integer,
+                    policy: IntegerShiftPolicy::Exact { obligation },
+                    direction: IntegerShiftDirection::Left,
                     value,
                     count,
                 }
             } else {
-                AbstractOperation::ExactIntegerShiftRight {
+                AbstractOperation::IntegerShift {
                     psi_operation,
-                    obligation,
                     result,
                     value_type,
                     count_type: integer,
+                    policy: IntegerShiftPolicy::Exact { obligation },
+                    direction: IntegerShiftDirection::Right,
                     value,
                     count,
                 }
@@ -206,12 +193,13 @@ pub(crate) fn live_exact_signed_negative_one_shift_right_unit(
         IntegerValue::Signed(-1),
         true,
         |psi_operation, obligation, result, value_type, value, count| {
-            AbstractOperation::ExactIntegerShiftRight {
+            AbstractOperation::IntegerShift {
                 psi_operation,
-                obligation,
                 result,
                 value_type,
                 count_type: integer,
+                policy: IntegerShiftPolicy::Exact { obligation },
+                direction: IntegerShiftDirection::Right,
                 value,
                 count,
             }
@@ -259,11 +247,16 @@ pub(crate) fn live_exact_self_subtract_unit(integer: IntegerType) -> PsiOptimiza
                     operation_offset: 0,
                 }],
                 operations: vec![
-                    AbstractOperation::ExactIntegerSubtract {
+                    AbstractOperation::IntegerArithmetic {
                         psi_operation: operation,
-                        obligation,
                         result,
                         scalar_type: integer,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Exact,
+                            IntegerArithmeticOperator::Subtract,
+                            Some(obligation),
+                        )
+                        .expect("admitted integer arithmetic"),
                         left: operand,
                         right: operand,
                     },
@@ -283,16 +276,9 @@ pub(crate) fn live_exact_self_subtract_unit(integer: IntegerType) -> PsiOptimiza
     with_synthetic_accepted_obligations(unit)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SelfRemainderPolicy {
-    Exact,
-    Wrapping,
-    Saturating,
-}
-
 pub(crate) fn live_self_remainder_unit(
     integer: IntegerType,
-    policy: SelfRemainderPolicy,
+    policy: IntegerOverflowPolicy,
 ) -> PsiOptimizationUnit {
     let machine = id(341, MachineId::new);
     let block = id(342, BlockId::new);
@@ -301,31 +287,18 @@ pub(crate) fn live_self_remainder_unit(
     let operation = id(345, OperationId::new);
     let obligation = id(346, ObligationId::new);
     let scalar_type = ScalarType::Integer(integer);
-    let operation = match policy {
-        SelfRemainderPolicy::Exact => AbstractOperation::ExactIntegerRemainder {
-            psi_operation: operation,
-            obligation,
-            result,
-            scalar_type: integer,
-            left: operand,
-            right: operand,
-        },
-        SelfRemainderPolicy::Wrapping => AbstractOperation::WrappingIntegerRemainder {
-            psi_operation: operation,
-            obligation,
-            result,
-            scalar_type: integer,
-            left: operand,
-            right: operand,
-        },
-        SelfRemainderPolicy::Saturating => AbstractOperation::SaturatingIntegerRemainder {
-            psi_operation: operation,
-            obligation,
-            result,
-            scalar_type: integer,
-            left: operand,
-            right: operand,
-        },
+    let operation = AbstractOperation::IntegerArithmetic {
+        psi_operation: operation,
+        result,
+        scalar_type: integer,
+        arithmetic: IntegerArithmetic::new(
+            policy,
+            IntegerArithmeticOperator::Remainder,
+            Some(obligation),
+        )
+        .expect("admitted integer arithmetic"),
+        left: operand,
+        right: operand,
     };
     let unit = reconstruct_psi_optimization_unit_seed(
         &AbstractOperationPlan {
@@ -376,16 +349,9 @@ pub(crate) fn live_self_remainder_unit(
     with_synthetic_accepted_obligations(unit)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SelfDividePolicy {
-    Exact,
-    Wrapping,
-    Saturating,
-}
-
 pub(crate) fn live_self_divide_unit(
     integer: IntegerType,
-    policy: SelfDividePolicy,
+    policy: IntegerOverflowPolicy,
 ) -> PsiOptimizationUnit {
     let machine = id(351, MachineId::new);
     let block = id(352, BlockId::new);
@@ -394,31 +360,18 @@ pub(crate) fn live_self_divide_unit(
     let operation = id(355, OperationId::new);
     let obligation = id(356, ObligationId::new);
     let scalar_type = ScalarType::Integer(integer);
-    let operation = match policy {
-        SelfDividePolicy::Exact => AbstractOperation::ExactIntegerDivide {
-            psi_operation: operation,
-            obligation,
-            result,
-            scalar_type: integer,
-            left: operand,
-            right: operand,
-        },
-        SelfDividePolicy::Wrapping => AbstractOperation::WrappingIntegerDivide {
-            psi_operation: operation,
-            obligation,
-            result,
-            scalar_type: integer,
-            left: operand,
-            right: operand,
-        },
-        SelfDividePolicy::Saturating => AbstractOperation::SaturatingIntegerDivide {
-            psi_operation: operation,
-            obligation,
-            result,
-            scalar_type: integer,
-            left: operand,
-            right: operand,
-        },
+    let operation = AbstractOperation::IntegerArithmetic {
+        psi_operation: operation,
+        result,
+        scalar_type: integer,
+        arithmetic: IntegerArithmetic::new(
+            policy,
+            IntegerArithmeticOperator::Divide,
+            Some(obligation),
+        )
+        .expect("admitted integer arithmetic"),
+        left: operand,
+        right: operand,
     };
     let unit = reconstruct_psi_optimization_unit_seed(
         &AbstractOperationPlan {
@@ -577,21 +530,31 @@ pub(crate) fn exact_chain_unit(include_multiply: bool) -> PsiOptimizationUnit {
             scalar_type: ScalarType::Integer(integer),
             value: IntegerValue::Unsigned(8),
         },
-        AbstractOperation::ExactIntegerAdd {
+        AbstractOperation::IntegerArithmetic {
             psi_operation: id(308, OperationId::new),
-            obligation: id(309, ObligationId::new),
             result: sum,
             scalar_type: integer,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Add,
+                Some(id(309, ObligationId::new)),
+            )
+            .expect("admitted integer arithmetic"),
             left,
             right,
         },
     ];
     if include_multiply {
-        operations.push(AbstractOperation::ExactIntegerMultiply {
+        operations.push(AbstractOperation::IntegerArithmetic {
             psi_operation: id(312, OperationId::new),
-            obligation: id(313, ObligationId::new),
             result: product,
             scalar_type: integer,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Multiply,
+                Some(id(313, ObligationId::new)),
+            )
+            .expect("admitted integer arithmetic"),
             left: sum,
             right,
         });

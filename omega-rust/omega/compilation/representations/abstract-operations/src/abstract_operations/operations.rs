@@ -548,160 +548,28 @@ pub enum AbstractOperation {
         left: ValueId,
         right: ValueId,
     },
-    WrappingIntegerShiftLeft {
+    /// One fixed-width shift. `policy` carries the verifier-discharged
+    /// in-range count obligation exactly when the shift is exact.
+    IntegerShift {
         psi_operation: OperationId,
         result: ValueId,
         value_type: IntegerType,
         count_type: IntegerType,
+        policy: crate::IntegerShiftPolicy,
+        direction: crate::IntegerShiftDirection,
         value: ValueId,
         count: ValueId,
     },
-    WrappingIntegerShiftRight {
-        psi_operation: OperationId,
-        result: ValueId,
-        value_type: IntegerType,
-        count_type: IntegerType,
-        value: ValueId,
-        count: ValueId,
-    },
-    ExactIntegerShiftLeft {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        value_type: IntegerType,
-        count_type: IntegerType,
-        value: ValueId,
-        count: ValueId,
-    },
-    ExactIntegerShiftRight {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        value_type: IntegerType,
-        count_type: IntegerType,
-        value: ValueId,
-        count: ValueId,
-    },
-    WrappingIntegerAdd {
+    /// One fixed-width binary arithmetic operation over two `scalar_type`
+    /// operands. An exact operation is admitted only after Psi verifies its
+    /// range obligation; target realization may use the same modular
+    /// instruction as wrapping arithmetic, but the policy remains part of the
+    /// semantic identity for optimization and audit.
+    IntegerArithmetic {
         psi_operation: OperationId,
         result: ValueId,
         scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    /// Exact mathematical addition admitted only after Psi verifies the
-    /// operation's overflow obligation. Target realization may use the same
-    /// modular instruction as wrapping addition, but the semantic operation
-    /// identity remains distinct for optimization and audit.
-    ExactIntegerAdd {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    SaturatingIntegerAdd {
-        psi_operation: OperationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    WrappingIntegerSubtract {
-        psi_operation: OperationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    /// Exact mathematical subtraction with a verifier-discharged range
-    /// obligation. It must not be reclassified as wrapping arithmetic merely
-    /// because both lower to the same native instruction on admitted inputs.
-    ExactIntegerSubtract {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    SaturatingIntegerSubtract {
-        psi_operation: OperationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    WrappingIntegerMultiply {
-        psi_operation: OperationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    /// Exact mathematical multiplication with a verifier-discharged range
-    /// obligation, retained separately from modular multiplication.
-    ExactIntegerMultiply {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    ExactIntegerDivide {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    ExactIntegerRemainder {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    WrappingIntegerDivide {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    WrappingIntegerRemainder {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    SaturatingIntegerDivide {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    SaturatingIntegerRemainder {
-        psi_operation: OperationId,
-        obligation: semantic_vocabulary::ObligationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-    },
-    SaturatingIntegerMultiply {
-        psi_operation: OperationId,
-        result: ValueId,
-        scalar_type: IntegerType,
+        arithmetic: crate::IntegerArithmetic,
         left: ValueId,
         right: ValueId,
     },
@@ -922,25 +790,8 @@ impl AbstractOperation {
             | Self::IntegerBitwiseAnd { psi_operation, .. }
             | Self::IntegerBitwiseOr { psi_operation, .. }
             | Self::IntegerBitwiseXor { psi_operation, .. }
-            | Self::WrappingIntegerShiftLeft { psi_operation, .. }
-            | Self::WrappingIntegerShiftRight { psi_operation, .. }
-            | Self::ExactIntegerShiftLeft { psi_operation, .. }
-            | Self::ExactIntegerShiftRight { psi_operation, .. }
-            | Self::WrappingIntegerAdd { psi_operation, .. }
-            | Self::ExactIntegerAdd { psi_operation, .. }
-            | Self::SaturatingIntegerAdd { psi_operation, .. }
-            | Self::WrappingIntegerSubtract { psi_operation, .. }
-            | Self::ExactIntegerSubtract { psi_operation, .. }
-            | Self::SaturatingIntegerSubtract { psi_operation, .. }
-            | Self::WrappingIntegerMultiply { psi_operation, .. }
-            | Self::ExactIntegerMultiply { psi_operation, .. }
-            | Self::ExactIntegerDivide { psi_operation, .. }
-            | Self::ExactIntegerRemainder { psi_operation, .. }
-            | Self::WrappingIntegerDivide { psi_operation, .. }
-            | Self::WrappingIntegerRemainder { psi_operation, .. }
-            | Self::SaturatingIntegerDivide { psi_operation, .. }
-            | Self::SaturatingIntegerRemainder { psi_operation, .. }
-            | Self::SaturatingIntegerMultiply { psi_operation, .. }
+            | Self::IntegerShift { psi_operation, .. }
+            | Self::IntegerArithmetic { psi_operation, .. }
             | Self::TrappingInteger { psi_operation, .. } => Some(*psi_operation),
             Self::DynamicDescriptorParameter { .. }
             | Self::Jump { .. }

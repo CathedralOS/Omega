@@ -1,6 +1,6 @@
 //! Proof-certified exact shifts of a zero value.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, IntegerShiftDirection, IntegerShiftPolicy};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -20,11 +20,13 @@ fn proof_certified_exact_integer_zero_value_shift_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
     let (source_operation, result, scalar_type, value, identity) = match operation {
-        O::ExactIntegerShiftLeft {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
             value,
+            policy: IntegerShiftPolicy::Exact { .. },
+            direction: IntegerShiftDirection::Left,
             ..
         } => (
             *psi_operation,
@@ -33,11 +35,13 @@ fn proof_certified_exact_integer_zero_value_shift_shapes(
             *value,
             ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue,
         ),
-        O::ExactIntegerShiftRight {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
             value,
+            policy: IntegerShiftPolicy::Exact { .. },
+            direction: IntegerShiftDirection::Right,
             ..
         } => (
             *psi_operation,

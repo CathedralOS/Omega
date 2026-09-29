@@ -8,6 +8,7 @@ use crate::legalization::scalar_graph_input::target::location_matches;
 use crate::legalization::scalar_graph_input::{
     saturating_carrier, supports_wrapping_division, trapping_form,
 };
+use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
 use target_operations::{ScalarAbiValue, TargetUnitScalarArgumentSource as Source};
 
 pub(super) fn validate(
@@ -137,26 +138,9 @@ pub(super) fn observed_family(abstracted: &AbstractOperation) -> bool {
             | AbstractOperation::IntegerLessOrEqual { .. }
             | AbstractOperation::BooleanNot { .. }
             | AbstractOperation::BooleanEqual { .. }
-            | AbstractOperation::SaturatingIntegerSubtract { .. }
-            | AbstractOperation::SaturatingIntegerAdd { .. }
-            | AbstractOperation::SaturatingIntegerDivide { .. }
-            | AbstractOperation::SaturatingIntegerRemainder { .. }
-            | AbstractOperation::SaturatingIntegerMultiply { .. }
             | AbstractOperation::TrappingInteger { .. }
-            | AbstractOperation::WrappingIntegerAdd { .. }
-            | AbstractOperation::WrappingIntegerSubtract { .. }
-            | AbstractOperation::WrappingIntegerMultiply { .. }
-            | AbstractOperation::WrappingIntegerDivide { .. }
-            | AbstractOperation::WrappingIntegerRemainder { .. }
-            | AbstractOperation::WrappingIntegerShiftLeft { .. }
-            | AbstractOperation::WrappingIntegerShiftRight { .. }
-            | AbstractOperation::ExactIntegerShiftLeft { .. }
-            | AbstractOperation::ExactIntegerShiftRight { .. }
-            | AbstractOperation::ExactIntegerAdd { .. }
-            | AbstractOperation::ExactIntegerSubtract { .. }
-            | AbstractOperation::ExactIntegerMultiply { .. }
-            | AbstractOperation::ExactIntegerDivide { .. }
-            | AbstractOperation::ExactIntegerRemainder { .. }
+            | AbstractOperation::IntegerArithmetic { .. }
+            | AbstractOperation::IntegerShift { .. }
             | AbstractOperation::IntegerBitwiseAnd { .. }
             | AbstractOperation::IntegerBitwiseOr { .. }
             | AbstractOperation::IntegerBitwiseXor { .. }
@@ -178,53 +162,29 @@ pub(super) fn observation(
         return Err(LegalizationError::custody());
     };
     let (operation, value, scalar_type) = match abstracted {
-        AbstractOperation::SaturatingIntegerDivide {
+        // Divide and remainder are realized only on the carriers their
+        // wrapping or saturating selection supports; every pair resolves both
+        // operands through available sources of its carrier.
+        AbstractOperation::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
         } => {
-            if !saturating_carrier(*scalar_type).is_some()
-                || checker.available.is_none_or(|sources| {
-                    [left, right].iter().any(|operand| {
-                        !sources.iter().any(|(value, source)| {
-                            value == *operand
-                                && source.scalar_type() == ScalarType::Integer(*scalar_type)
-                        })
-                    })
-                })
-            {
-                return Err(LegalizationError::custody());
-            }
-            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
-        }
-        AbstractOperation::WrappingIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        } => {
-            if !supports_wrapping_division(*scalar_type)
+            let carrier_admitted = match (arithmetic.policy(), arithmetic.operator()) {
+                (
+                    IntegerOverflowPolicy::Saturating,
+                    IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder,
+                ) => saturating_carrier(*scalar_type).is_some(),
+                (
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder,
+                ) => supports_wrapping_division(*scalar_type),
+                _ => true,
+            };
+            if !carrier_admitted
                 || checker.available.is_none_or(|sources| {
                     [left, right].iter().any(|operand| {
                         !sources.iter().any(|(value, source)| {
@@ -331,88 +291,6 @@ pub(super) fn observation(
             scalar_type,
             left,
             right,
-        }
-        | AbstractOperation::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | AbstractOperation::WrappingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | AbstractOperation::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | AbstractOperation::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | AbstractOperation::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | AbstractOperation::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | AbstractOperation::ExactIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | AbstractOperation::ExactIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | AbstractOperation::ExactIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | AbstractOperation::ExactIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
-        }
-        | AbstractOperation::ExactIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-            ..
         } => {
             if checker.available.is_none_or(|sources| {
                 [left, right].iter().any(|operand| {
@@ -426,34 +304,7 @@ pub(super) fn observation(
             }
             (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
-        AbstractOperation::WrappingIntegerShiftLeft {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftLeft {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftRight {
+        AbstractOperation::IntegerShift {
             psi_operation,
             result,
             value_type,

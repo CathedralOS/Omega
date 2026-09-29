@@ -20,27 +20,15 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::IntegerWiden { .. }
         | O::IntegerBitwiseAnd { .. }
         | O::IntegerBitwiseOr { .. }
-        | O::IntegerBitwiseXor { .. }
-        | O::WrappingIntegerShiftLeft { .. }
-        | O::WrappingIntegerShiftRight { .. }
-        | O::WrappingIntegerAdd { .. }
-        | O::SaturatingIntegerAdd { .. }
-        | O::WrappingIntegerSubtract { .. }
-        | O::SaturatingIntegerSubtract { .. }
-        | O::WrappingIntegerMultiply { .. }
-        | O::SaturatingIntegerMultiply { .. } => Some(DeadScalarFamily::UnconditionallyTotal),
-        O::IntegerExactCast { .. }
-        | O::ExactIntegerShiftLeft { .. }
-        | O::ExactIntegerShiftRight { .. }
-        | O::ExactIntegerAdd { .. }
-        | O::ExactIntegerSubtract { .. }
-        | O::ExactIntegerMultiply { .. }
-        | O::ExactIntegerDivide { .. }
-        | O::ExactIntegerRemainder { .. }
-        | O::WrappingIntegerDivide { .. }
-        | O::WrappingIntegerRemainder { .. }
-        | O::SaturatingIntegerDivide { .. }
-        | O::SaturatingIntegerRemainder { .. } => Some(DeadScalarFamily::ProofCertified),
+        | O::IntegerBitwiseXor { .. } => Some(DeadScalarFamily::UnconditionallyTotal),
+        O::IntegerExactCast { .. } => Some(DeadScalarFamily::ProofCertified),
+        // An integer policy pair is total exactly when it carries no
+        // obligation: wrapping and saturating add, subtract and multiply, and
+        // wrapping shifts.
+        O::IntegerShift { policy, .. } => Some(obligation_family(policy.obligation())),
+        O::IntegerArithmetic { arithmetic, .. } => {
+            Some(obligation_family(arithmetic.obligation()))
+        }
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishPrimitiveLocal { .. }
@@ -97,6 +85,13 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => None,
+    }
+}
+
+fn obligation_family(obligation: Option<semantic_vocabulary::ObligationId>) -> DeadScalarFamily {
+    match obligation {
+        None => DeadScalarFamily::UnconditionallyTotal,
+        Some(_) => DeadScalarFamily::ProofCertified,
     }
 }
 
@@ -184,42 +179,6 @@ pub(crate) fn independently_validated_dead_scalar_shape(
                 result,
                 scalar_type,
                 ..
-            }
-            | O::WrappingIntegerAdd {
-                psi_operation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::SaturatingIntegerAdd {
-                psi_operation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::WrappingIntegerSubtract {
-                psi_operation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::SaturatingIntegerSubtract {
-                psi_operation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::WrappingIntegerMultiply {
-                psi_operation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::SaturatingIntegerMultiply {
-                psi_operation,
-                result,
-                scalar_type,
-                ..
             },
         ) => Some((
             *psi_operation,
@@ -242,26 +201,6 @@ pub(crate) fn independently_validated_dead_scalar_shape(
             None,
         )),
         (
-            DeadScalarFamily::UnconditionallyTotal,
-            O::WrappingIntegerShiftLeft {
-                psi_operation,
-                result,
-                value_type,
-                ..
-            }
-            | O::WrappingIntegerShiftRight {
-                psi_operation,
-                result,
-                value_type,
-                ..
-            },
-        ) => Some((
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-            None,
-        )),
-        (
             DeadScalarFamily::ProofCertified,
             O::IntegerExactCast {
                 psi_operation,
@@ -276,98 +215,37 @@ pub(crate) fn independently_validated_dead_scalar_shape(
             ScalarType::Integer(*target_type),
             Some(*obligation),
         )),
+        // The partition above already bound the family to the obligation's
+        // presence, so the pair's own obligation is the shape's obligation.
         (
-            DeadScalarFamily::ProofCertified,
-            O::ExactIntegerShiftLeft {
+            DeadScalarFamily::UnconditionallyTotal | DeadScalarFamily::ProofCertified,
+            O::IntegerShift {
                 psi_operation,
-                obligation,
                 result,
                 value_type,
-                ..
-            }
-            | O::ExactIntegerShiftRight {
-                psi_operation,
-                obligation,
-                result,
-                value_type,
+                policy,
                 ..
             },
         ) => Some((
             *psi_operation,
             *result,
             ScalarType::Integer(*value_type),
-            Some(*obligation),
+            policy.obligation(),
         )),
         (
-            DeadScalarFamily::ProofCertified,
-            O::ExactIntegerAdd {
+            DeadScalarFamily::UnconditionallyTotal | DeadScalarFamily::ProofCertified,
+            O::IntegerArithmetic {
                 psi_operation,
-                obligation,
                 result,
                 scalar_type,
-                ..
-            }
-            | O::ExactIntegerSubtract {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::ExactIntegerMultiply {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::ExactIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::ExactIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::WrappingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::WrappingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::SaturatingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                ..
-            }
-            | O::SaturatingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
+                arithmetic,
                 ..
             },
         ) => Some((
             *psi_operation,
             *result,
             ScalarType::Integer(*scalar_type),
-            Some(*obligation),
+            arithmetic.obligation(),
         )),
         _ => None,
     }

@@ -1,5 +1,8 @@
 //! Self-remainder tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 
 use super::super::super::{
     LiveProofCertifiedIntegerSelfRemainderEliminationRule, PROOF_CHECK_ELISION_PASS_NAME,
@@ -9,9 +12,8 @@ use crate::rules::proof_check_elision::integer_zero;
 use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_function_result;
 use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
-    SelfRemainderPolicy, live_proof_binary_identity_unit, live_self_remainder_unit,
+    live_proof_binary_identity_unit, live_self_remainder_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     OptimizationFactReference, OptimizationPassIdentity, OptimizationRuleContract,
     OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationValidatorIdentity,
@@ -39,9 +41,9 @@ fn proof_certified_self_remainder_materializes_typed_zero_for_every_policy_and_s
         IntegerType::new(IntegerSign::Signed, 8).unwrap(),
     ] {
         for policy in [
-            SelfRemainderPolicy::Exact,
-            SelfRemainderPolicy::Wrapping,
-            SelfRemainderPolicy::Saturating,
+            IntegerOverflowPolicy::Exact,
+            IntegerOverflowPolicy::Wrapping,
+            IntegerOverflowPolicy::Saturating,
         ] {
             let unit = live_self_remainder_unit(integer, policy);
             let contract = LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract();
@@ -144,7 +146,7 @@ fn proof_certified_self_remainder_materializes_typed_zero_for_every_policy_and_s
 #[test]
 fn proof_certified_self_remainder_declines_and_rejects_corruption() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-    let unit = live_self_remainder_unit(integer, SelfRemainderPolicy::Exact);
+    let unit = live_self_remainder_unit(integer, IntegerOverflowPolicy::Exact);
     let contract = LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract();
     let mut manager = crate::AnalysisManager::new(&unit);
     let products = manager
@@ -358,21 +360,31 @@ fn proof_certified_self_remainder_declines_and_rejects_corruption() {
         integer,
         IntegerValue::Unsigned(1),
         false,
-        |psi_operation, obligation, result, scalar_type, left, right| O::ExactIntegerRemainder {
+        |psi_operation, obligation, result, scalar_type, left, right| O::IntegerArithmetic {
             psi_operation,
-            obligation,
             result,
             scalar_type,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Remainder,
+                Some(obligation),
+            )
+            .expect("admitted integer arithmetic"),
             left,
             right,
         },
     );
     let mut foreign_operation = unit.clone();
-    foreign_operation.functions[0].blocks[0].nodes[0].operation = O::ExactIntegerDivide {
+    foreign_operation.functions[0].blocks[0].nodes[0].operation = O::IntegerArithmetic {
         psi_operation: patch.source_operation,
-        obligation: id(346, ObligationId::new),
         result: patch.result,
         scalar_type: integer,
+        arithmetic: IntegerArithmetic::new(
+            IntegerOverflowPolicy::Exact,
+            IntegerArithmeticOperator::Divide,
+            Some(id(346, ObligationId::new)),
+        )
+        .expect("admitted integer arithmetic"),
         left: id(343, ValueId::new),
         right: id(343, ValueId::new),
     };
@@ -401,7 +413,7 @@ fn proof_certified_self_remainder_declines_and_rejects_corruption() {
         unequal,
         discard_scalar_function_result(live_self_remainder_unit(
             integer,
-            SelfRemainderPolicy::Exact,
+            IntegerOverflowPolicy::Exact,
         )),
     ] {
         let mut manager = crate::AnalysisManager::new(&ineligible);
@@ -422,11 +434,11 @@ fn proof_certified_self_remainder_declines_and_rejects_corruption() {
     for (remove_catalog, mut missing) in [
         (
             true,
-            live_self_remainder_unit(integer, SelfRemainderPolicy::Exact),
+            live_self_remainder_unit(integer, IntegerOverflowPolicy::Exact),
         ),
         (
             false,
-            live_self_remainder_unit(integer, SelfRemainderPolicy::Exact),
+            live_self_remainder_unit(integer, IntegerOverflowPolicy::Exact),
         ),
     ] {
         if remove_catalog {

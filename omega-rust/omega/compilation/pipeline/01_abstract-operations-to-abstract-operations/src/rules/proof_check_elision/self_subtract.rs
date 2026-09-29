@@ -1,6 +1,8 @@
 //! Proof-certified exact self subtraction.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -65,17 +67,23 @@ impl PsiOptimizationRule for LiveProofCertifiedExactIntegerSelfSubtractEliminati
         for function in &unit.functions {
             for block in &function.blocks {
                 for (node_index, node) in block.nodes.iter().enumerate() {
-                    let O::ExactIntegerSubtract {
+                    let O::IntegerArithmetic {
                         psi_operation,
-                        obligation: _,
                         result,
                         scalar_type,
+                        arithmetic,
                         left,
                         right,
                     } = &node.operation
                     else {
                         continue;
                     };
+                    if !arithmetic.is(
+                        IntegerOverflowPolicy::Exact,
+                        IntegerArithmeticOperator::Subtract,
+                    ) {
+                        continue;
+                    }
                     if left != right
                         || !use_definitions.uses.iter().any(|(machine, use_site)| {
                             *machine == function.machine && use_site.value == *result

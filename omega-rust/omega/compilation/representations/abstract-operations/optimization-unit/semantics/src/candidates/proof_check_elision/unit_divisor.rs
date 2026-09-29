@@ -8,7 +8,7 @@ use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
     validate_psi_optimization_unit,
 };
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, IntegerArithmeticOperator};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
     OptimizationSafetyClass, OptimizationValidatorIdentity,
@@ -58,37 +58,26 @@ pub(crate) fn independent_remainder_unit_constant(
     divisor: IndependentRemainderUnitDivisor,
 ) -> Option<IndependentRemainderUnitConstant> {
     let (psi_operation, obligation, result, scalar_type, left, right) = match operation {
-        O::ExactIntegerRemainder {
+        O::IntegerArithmetic {
             psi_operation,
-            obligation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
+        } if arithmetic.operator() == IntegerArithmeticOperator::Remainder
+            && scalar_type.carrier() == IntegerCarrier::Fixed
+            && left != right =>
+        {
+            (
+                *psi_operation,
+                arithmetic.obligation()?,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+            )
         }
-        | O::WrappingIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        }
-        | O::SaturatingIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } if scalar_type.carrier() == IntegerCarrier::Fixed && left != right => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *scalar_type,
-            *left,
-            *right,
-        ),
         _ => return None,
     };
     divisor.value(scalar_type)?;

@@ -1,7 +1,9 @@
 //! The exact saturating multiply-zero rule, and the closed semantic partition
 //! (`classify`) it proposes over.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -39,16 +41,24 @@ impl PsiOptimizationRule for SaturatingMultiplyZeroAnnihilationRule {
 /// Return the two saturating multiplication annihilation laws in canonical
 /// left-zero/right-zero order. The zero operand is also the replacement.
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
-    let O::SaturatingIntegerMultiply {
+    let O::IntegerArithmetic {
         psi_operation,
         result,
         scalar_type,
         left,
         right,
+        arithmetic,
+        ..
     } = operation
     else {
         return Vec::new();
     };
+    if !arithmetic.is(
+        IntegerOverflowPolicy::Saturating,
+        IntegerArithmeticOperator::Multiply,
+    ) {
+        return Vec::new();
+    }
     vec![
         TotalScalarIdentityShape {
             source_operation: *psi_operation,

@@ -430,34 +430,17 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 // The i64 complement re-normalizes narrow unsigned results;
                 // replay binds that normalization to the declared carrier.
                 | AbstractOperation::IntegerBitwiseNot { .. }
-                | AbstractOperation::ExactIntegerAdd { .. }
-                | AbstractOperation::ExactIntegerSubtract { .. }
-                | AbstractOperation::ExactIntegerMultiply { .. }
-                | AbstractOperation::ExactIntegerDivide { .. }
                 // Wrapping add, subtract, and multiply have no overflow
                 // obligation. Mandatory replay still checks exact operands
-                // and the low-width normalization.
-                | AbstractOperation::WrappingIntegerAdd { .. }
-                | AbstractOperation::WrappingIntegerSubtract { .. }
-                | AbstractOperation::WrappingIntegerMultiply { .. }
-                // Every divide and remainder below replays its operand
-                // snapshots and accepted nonzero-divisor evidence.
-                | AbstractOperation::ExactIntegerRemainder { .. }
-                | AbstractOperation::WrappingIntegerRemainder { .. }
-                | AbstractOperation::WrappingIntegerDivide { .. }
+                // and the low-width normalization. Every divide and remainder
+                // replays its operand snapshots and accepted nonzero-divisor
+                // evidence. Saturating arithmetic replays the carrier its
+                // policy names; add, subtract, and multiply carry no
+                // obligation.
+                | AbstractOperation::IntegerArithmetic { .. }
                 // Shifts replay their value/count snapshots; the exact forms
                 // keep the accepted in-range count evidence.
-                | AbstractOperation::WrappingIntegerShiftLeft { .. }
-                | AbstractOperation::WrappingIntegerShiftRight { .. }
-                | AbstractOperation::ExactIntegerShiftLeft { .. }
-                | AbstractOperation::ExactIntegerShiftRight { .. }
-                // Saturating arithmetic replays the carrier its kind names;
-                // add, subtract, and multiply carry no obligation.
-                | AbstractOperation::SaturatingIntegerSubtract { .. }
-                | AbstractOperation::SaturatingIntegerAdd { .. }
-                | AbstractOperation::SaturatingIntegerMultiply { .. }
-                | AbstractOperation::SaturatingIntegerDivide { .. }
-                | AbstractOperation::SaturatingIntegerRemainder { .. }
+                | AbstractOperation::IntegerShift { .. }
                 // A Trapping form replays its form, operands and carriers;
                 // its check and inline trap are the kind's own encoding.
                 | AbstractOperation::TrappingInteger { .. } => true,
