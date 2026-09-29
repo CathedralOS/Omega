@@ -8,8 +8,9 @@ use super::{AbstractOperation, AbstractOperationPlan, NativeTarget, OperationId}
 use calling_conventions::{CallPlan, ValueClass};
 use semantic_vocabulary::{MachineId, ValueId};
 use target_operations::{
-    TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceSource,
-    TargetDynamicDescriptorParameterAbi, TargetFunction, TargetOperationPlan, TargetUnitOperation,
+    TargetDynamicCallResult, TargetDynamicDescriptorArgument,
+    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
+    TargetDynamicDispatch, TargetFunction, TargetOperationPlan, TargetUnitOperation,
     TargetUnitScalarHomeRequirement,
 };
 
@@ -72,8 +73,20 @@ fn lowered(native: NativeTarget, source: &AbstractOperationPlan) -> TargetOperat
         .expect("descriptor parameter source lowers")
 }
 
+/// A scalar-result call through a descriptor parameter.
+fn is_parameter_scalar_call(operation: &TargetUnitOperation) -> bool {
+    matches!(
+        operation,
+        TargetUnitOperation::CallDynamic {
+            dispatch: TargetDynamicDispatch::Parameter { .. },
+            result: TargetDynamicCallResult::Scalar(_),
+            ..
+        }
+    )
+}
+
 /// The helper that invokes `erased.code()` — the only function retaining a
-/// `DynamicParameterScalarCall` row.
+/// scalar-result parameter-dispatch `CallDynamic` row.
 fn dispatching_function(plan: &TargetOperationPlan) -> &TargetFunction {
     plan.functions
         .iter()
@@ -83,12 +96,7 @@ fn dispatching_function(plan: &TargetOperationPlan) -> &TargetFunction {
                 .blocks
                 .iter()
                 .flat_map(|block| &block.operations)
-                .any(|operation| {
-                    matches!(
-                        operation,
-                        TargetUnitOperation::DynamicParameterScalarCall { .. }
-                    )
-                })
+                .any(is_parameter_scalar_call)
         })
         .expect("parameter dispatch function")
 }
@@ -102,12 +110,7 @@ fn dispatching_function_mut(plan: &mut TargetOperationPlan) -> &mut TargetFuncti
                 .blocks
                 .iter()
                 .flat_map(|block| &block.operations)
-                .any(|operation| {
-                    matches!(
-                        operation,
-                        TargetUnitOperation::DynamicParameterScalarCall { .. }
-                    )
-                })
+                .any(is_parameter_scalar_call)
         })
         .expect("parameter dispatch function")
 }
@@ -173,23 +176,26 @@ fn mutate_dispatch_row(
     for function in &mut target.functions {
         for block in &mut function.graph.blocks {
             for operation in &mut block.operations {
-                let TargetUnitOperation::DynamicParameterScalarCall {
-                    dynamic_dispatch,
-                    parameter_abi,
-                    requirement,
-                    dispatch_call_plan,
-                    table_slot_byte_offset,
-                    result_home,
+                let TargetUnitOperation::CallDynamic {
+                    dispatch:
+                        TargetDynamicDispatch::Parameter {
+                            custody,
+                            parameter_abi,
+                            requirement,
+                            table_slot_byte_offset,
+                        },
+                    call_plan,
+                    result: TargetDynamicCallResult::Scalar(result_home),
                     ..
                 } = operation
                 else {
                     continue;
                 };
                 f(
-                    dynamic_dispatch,
+                    custody,
                     parameter_abi,
                     requirement,
-                    dispatch_call_plan,
+                    call_plan,
                     table_slot_byte_offset,
                     result_home,
                 );
@@ -207,8 +213,13 @@ fn mutate_forwarded_argument(
     for function in &mut target.functions {
         for block in &mut function.graph.blocks {
             for operation in &mut block.operations {
-                let TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
-                    dynamic_arguments,
+                let TargetUnitOperation::CallDynamic {
+                    dispatch:
+                        TargetDynamicDispatch::DescriptorArguments {
+                            arguments: dynamic_arguments,
+                            ..
+                        },
+                    result: TargetDynamicCallResult::Scalar(_),
                     ..
                 } = operation
                 else {
@@ -417,8 +428,11 @@ fn forged_dispatch_row_rejects_unrelated_operation_identity() {
         for function in &mut forged.functions {
             for block in &mut function.graph.blocks {
                 for operation in &mut block.operations {
-                    if let TargetUnitOperation::DynamicParameterScalarCall {
-                        psi_operation, ..
+                    if let TargetUnitOperation::CallDynamic {
+                        psi_operation,
+                        dispatch: TargetDynamicDispatch::Parameter { .. },
+                        result: TargetDynamicCallResult::Scalar(_),
+                        ..
                     } = operation
                     {
                         *psi_operation = OperationId::new(77).unwrap();
@@ -452,7 +466,11 @@ fn unit_parameter_dispatch_lowers_indirect_call_and_validates() {
                     .any(|operation| {
                         matches!(
                             operation,
-                            TargetUnitOperation::DynamicParameterUnitCall { .. }
+                            TargetUnitOperation::CallDynamic {
+                                dispatch: TargetDynamicDispatch::Parameter { .. },
+                                result: TargetDynamicCallResult::Unit,
+                                ..
+                            }
                         )
                     })
             })
@@ -470,12 +488,16 @@ fn unit_parameter_dispatch_lowers_indirect_call_and_validates() {
             .iter()
             .flat_map(|block| &block.operations)
             .find_map(|operation| match operation {
-                TargetUnitOperation::DynamicParameterUnitCall {
-                    dynamic_dispatch,
-                    parameter_abi,
-                    requirement,
-                    dispatch_call_plan,
-                    table_slot_byte_offset,
+                TargetUnitOperation::CallDynamic {
+                    dispatch:
+                        TargetDynamicDispatch::Parameter {
+                            custody: dynamic_dispatch,
+                            parameter_abi,
+                            requirement,
+                            table_slot_byte_offset,
+                        },
+                    call_plan: dispatch_call_plan,
+                    result: TargetDynamicCallResult::Unit,
                     ..
                 } => Some((
                     dynamic_dispatch,
@@ -519,8 +541,13 @@ fn unit_parameter_dispatch_lowers_indirect_call_and_validates() {
                     .iter()
                     .flat_map(|block| &block.operations)
                     .any(|operation| match operation {
-                        TargetUnitOperation::StructuralUnitCallWithDynamicArguments {
-                            dynamic_arguments,
+                        TargetUnitOperation::CallDynamic {
+                            dispatch:
+                                TargetDynamicDispatch::DescriptorArguments {
+                                    arguments: dynamic_arguments,
+                                    ..
+                                },
+                            result: TargetDynamicCallResult::Unit,
                             ..
                         } => dynamic_arguments.iter().any(|argument| {
                             matches!(
@@ -539,9 +566,14 @@ fn unit_parameter_dispatch_lowers_indirect_call_and_validates() {
             .iter()
             .flat_map(|block| &block.operations)
             .find_map(|operation| match operation {
-                TargetUnitOperation::StructuralUnitCallWithDynamicArguments {
+                TargetUnitOperation::CallDynamic {
+                    dispatch:
+                        TargetDynamicDispatch::DescriptorArguments {
+                            arguments: dynamic_arguments,
+                            ..
+                        },
                     call_plan,
-                    dynamic_arguments,
+                    result: TargetDynamicCallResult::Unit,
                     ..
                 } => Some((call_plan, dynamic_arguments.first()?)),
                 _ => None,

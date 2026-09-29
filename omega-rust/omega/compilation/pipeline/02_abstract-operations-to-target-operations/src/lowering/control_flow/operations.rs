@@ -143,72 +143,14 @@ pub(super) fn lower_operation(
             }
             Ok(())
         }
-        AbstractOperation::CallDynamic { dispatch, .. } => {
-            let home = match dispatch {
-                AbstractDynamicDispatch::Rebound(_) => {
-                    crate::lowering::unit::dynamic::lower_rebound_dynamic_call(
-                        operation,
-                        function,
-                        target,
-                        functions,
-                        structural_types,
-                        parameters_by_place,
-                        &mut BTreeMap::new(),
-                        &mut BTreeSet::new(),
-                        &mut live.integers,
-                        operations,
-                        provenance,
-                    )?
-                }
-                AbstractDynamicDispatch::Stored(dynamic_dispatch) => {
-                    let store_available = live
-                        .stored_descriptors
-                        .contains(&dynamic_dispatch.stored.descriptor.establishment_operation);
-                    Some(
-                        crate::lowering::unit::dynamic::lower_stored_dynamic_scalar_call(
-                            operation,
-                            function,
-                            target,
-                            functions,
-                            structural_types,
-                            parameters_by_place,
-                            &mut BTreeMap::new(),
-                            &mut BTreeSet::new(),
-                            &mut live.integers,
-                            store_available,
-                            operations,
-                            provenance,
-                        )?,
-                    )
-                }
-                AbstractDynamicDispatch::Parameter(_) => {
-                    crate::lowering::unit::parameter_dynamic::lower_parameter_dynamic_call(
-                        operation,
-                        function,
-                        target,
-                        &prepared.dynamic_parameters,
-                        &mut live.integers,
-                        operations,
-                        provenance,
-                    )?
-                }
-            };
-            if let Some(home) = home
-                && home.scalar_type == ScalarType::Boolean
-            {
-                live.scalar_homes.insert(home.source_value, home);
-            }
-            Ok(())
-        }
-        // A call that forwards descriptors lowers through the descriptor-pair
-        // ABI. These two arms must stay ahead of the plain scalar-result and
-        // Unit-result arms below, which do not test `dynamic_arguments`.
-        AbstractOperation::CallStructural {
-            dynamic_arguments,
-            result: AbstractStructuralCallResult::Scalar(_),
-            ..
-        } if !dynamic_arguments.is_empty() => {
-            let home = crate::lowering::unit::lower_dynamic_argument_scalar_call(
+        // Descriptor dispatches and direct calls that forward descriptors lower
+        // to one `CallDynamic` row. This arm must stay ahead of the plain
+        // scalar-result and Unit-result arms below, which do not test
+        // `dynamic_arguments`.
+        AbstractOperation::CallDynamic { .. } | AbstractOperation::CallStructural { .. }
+            if crate::lowering::unit::dynamic::is_dynamic_call(operation) =>
+        {
+            let home = crate::lowering::unit::dynamic::lower_dynamic_call(
                 operation,
                 function,
                 target,
@@ -216,35 +158,19 @@ pub(super) fn lower_operation(
                 structural_types,
                 parameters_by_place,
                 &prepared.dynamic_parameters,
+                &live.stored_descriptors,
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
                 &mut live.integers,
                 operations,
                 provenance,
             )?;
-            if home.scalar_type == ScalarType::Boolean {
+            if let Some(home) = home
+                && home.scalar_type == ScalarType::Boolean
+            {
                 live.scalar_homes.insert(home.source_value, home);
             }
             Ok(())
-        }
-        AbstractOperation::CallStructural {
-            dynamic_arguments,
-            result: AbstractStructuralCallResult::Unit,
-            ..
-        } if !dynamic_arguments.is_empty() => {
-            crate::lowering::unit::lower_dynamic_argument_unit_call(
-                operation,
-                function,
-                target,
-                functions,
-                structural_types,
-                parameters_by_place,
-                &prepared.dynamic_parameters,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-                operations,
-                provenance,
-            )
         }
         // Descriptor parameters are interface declarations: they produce no
         // graph operation, but the declared row must be the same one the

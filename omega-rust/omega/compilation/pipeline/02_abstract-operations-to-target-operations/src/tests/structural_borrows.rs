@@ -16,7 +16,10 @@ use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
-use target_operations::{TargetOperationPlan, TargetStructuralArgument, TargetUnitOperation};
+use target_operations::{
+    TargetDynamicCallResult, TargetDynamicDispatch, TargetOperationPlan, TargetStructuralArgument,
+    TargetUnitOperation,
+};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi_to_abstract_operations::lower_artifact;
 use tokens_to_syntax_trees::parse_syntax_trees;
@@ -1169,9 +1172,9 @@ fn reference_result_call_plan() -> abstract_operations::AbstractOperationPlan {
 }
 
 /// A descriptor stored into an aggregate field and later called through it.
-/// The retained rows are one `StoreDynamicDescriptor` plus one
-/// `StoredDynamicScalarCall` whose plan and source argument replay the
-/// selected realization's single-parameter signature.
+/// The retained rows are one `StoreDynamicDescriptor` plus one stored-dispatch
+/// `CallDynamic` whose plan and source argument replay the selected
+/// realization's single-parameter signature.
 fn stored_descriptor_source() -> abstract_operations::AbstractOperationPlan {
     source_plan(
         r#"
@@ -1191,8 +1194,9 @@ fn stored_descriptor_source() -> abstract_operations::AbstractOperationPlan {
     )
 }
 
-/// A rebound descriptor call: the retained `DynamicScalarCall` carries both
-/// the initializer and the latest source against the same realization plan.
+/// A rebound descriptor call: the retained rebound-dispatch `CallDynamic`
+/// carries both the initializer and the latest source against the same
+/// realization plan.
 fn rebound_descriptor_source() -> abstract_operations::AbstractOperationPlan {
     source_plan(
         r#"
@@ -2148,6 +2152,58 @@ fn direct_calls_reject_cross_kind_result_custody() {
     }
 }
 
+/// The retained dispatch of one `CallDynamic` row a substitution rewrites.
+fn dynamic_dispatch(operation: &mut TargetUnitOperation) -> &mut TargetDynamicDispatch {
+    let TargetUnitOperation::CallDynamic { dispatch, .. } = operation else {
+        unreachable!("dynamic call row")
+    };
+    dispatch
+}
+
+/// The scalar result home of one `CallDynamic` row a substitution rewrites.
+fn dynamic_result_home(
+    operation: &mut TargetUnitOperation,
+) -> &mut target_operations::TargetUnitScalarHomeRequirement {
+    let TargetUnitOperation::CallDynamic {
+        result: TargetDynamicCallResult::Scalar(home),
+        ..
+    } = operation
+    else {
+        unreachable!("scalar-result dynamic call row")
+    };
+    home
+}
+
+fn stored_source_argument(operation: &mut TargetUnitOperation) -> &mut TargetStructuralArgument {
+    let TargetDynamicDispatch::Stored {
+        source_argument, ..
+    } = dynamic_dispatch(operation)
+    else {
+        unreachable!("stored dispatch")
+    };
+    source_argument
+}
+
+fn rebound_initial_argument(operation: &mut TargetUnitOperation) -> &mut TargetStructuralArgument {
+    let TargetDynamicDispatch::Rebound {
+        initial_argument, ..
+    } = dynamic_dispatch(operation)
+    else {
+        unreachable!("rebound dispatch")
+    };
+    initial_argument
+}
+
+fn rebound_latest_argument(operation: &mut TargetUnitOperation) -> &mut TargetStructuralArgument {
+    let TargetDynamicDispatch::Rebound {
+        rebound_argument, ..
+    } = dynamic_dispatch(operation)
+    else {
+        unreachable!("rebound dispatch")
+    };
+    rebound_argument
+}
+
 #[test]
 fn stored_descriptor_calls_replay_unique_custody_plan_and_result() {
     let source = stored_descriptor_source();
@@ -2196,7 +2252,10 @@ fn stored_descriptor_calls_replay_unique_custody_plan_and_result() {
         for operation in operations {
             match operation {
                 TargetUnitOperation::StoreDynamicDescriptor { .. } => store = Some(operation),
-                TargetUnitOperation::StoredDynamicScalarCall { .. } => call = Some(operation),
+                TargetUnitOperation::CallDynamic {
+                    dispatch: TargetDynamicDispatch::Stored { .. },
+                    ..
+                } => call = Some(operation),
                 _ => {}
             }
         }
@@ -2208,10 +2267,13 @@ fn stored_descriptor_calls_replay_unique_custody_plan_and_result() {
         };
         assert_eq!(source_argument.access, StructuralAccess::SharedBorrow);
         assert_eq!(source_argument.shape.class, ValueClass::BorrowedReference);
-        let TargetUnitOperation::StoredDynamicScalarCall {
+        let TargetUnitOperation::CallDynamic {
+            dispatch:
+                TargetDynamicDispatch::Stored {
+                    source_argument, ..
+                },
             call_plan,
-            result_home,
-            source_argument,
+            result: TargetDynamicCallResult::Scalar(result_home),
             ..
         } = call.expect("stored dynamic call row")
         else {
@@ -2234,39 +2296,35 @@ fn stored_descriptor_calls_replay_unique_custody_plan_and_result() {
         let is_stored_call = |operation: &TargetUnitOperation| {
             matches!(
                 operation,
-                TargetUnitOperation::StoredDynamicScalarCall { .. }
+                TargetUnitOperation::CallDynamic {
+                    dispatch: TargetDynamicDispatch::Stored { .. },
+                    ..
+                }
             )
         };
         for mutation in [
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall {
-                    dynamic_dispatch, ..
-                } = operation
+                let TargetDynamicDispatch::Stored { custody, .. } = dynamic_dispatch(operation)
                 else {
                     unreachable!()
                 };
-                dynamic_dispatch.dispatch.realization = MachineId::new(77).unwrap();
+                custody.dispatch.realization = MachineId::new(77).unwrap();
             }) as Box<dyn FnOnce(&mut TargetUnitOperation)>,
+            // A stored descriptor is never invoked for a Unit result.
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall { result, .. } = operation else {
+                let TargetUnitOperation::CallDynamic { result, .. } = operation else {
                     unreachable!()
                 };
-                result.value = ValueId::new(99).unwrap();
+                *result = TargetDynamicCallResult::Unit;
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall { call_plan, .. } = operation
-                else {
+                let TargetUnitOperation::CallDynamic { call_plan, .. } = operation else {
                     unreachable!()
                 };
                 call_plan.stack_alignment = call_plan.stack_alignment.wrapping_add(8);
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall {
-                    source_argument, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
+                let source_argument = stored_source_argument(operation);
                 source_argument.access = if source_argument.access == StructuralAccess::Owned {
                     StructuralAccess::MutableBorrow
                 } else {
@@ -2274,61 +2332,34 @@ fn stored_descriptor_calls_replay_unique_custody_plan_and_result() {
                 };
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall {
-                    source_argument, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
+                let source_argument = stored_source_argument(operation);
                 source_argument.source_byte_offset =
                     source_argument.source_byte_offset.wrapping_add(8);
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall {
-                    source_argument, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
-                source_argument.path.clear();
+                stored_source_argument(operation).path.clear();
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall {
-                    source_argument, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
-                source_argument.destination.locations.clear();
+                stored_source_argument(operation)
+                    .destination
+                    .locations
+                    .clear();
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall {
-                    source_argument, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
-                source_argument.source =
+                stored_source_argument(operation).source =
                     target_operations::TargetStructuralArgumentSource::StructuralHome {
                         psi_operation: OperationId::new(1).unwrap(),
                     };
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall { result_home, .. } = operation
-                else {
-                    unreachable!()
-                };
-                result_home.source_value = ValueId::new(99).unwrap();
+                dynamic_result_home(operation).source_value = ValueId::new(99).unwrap();
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall { result_home, .. } = operation
-                else {
-                    unreachable!()
-                };
-                result_home.shape = calling_conventions::ValueShape::integer(8, 8);
+                dynamic_result_home(operation).shape =
+                    calling_conventions::ValueShape::integer(8, 8);
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::StoredDynamicScalarCall {
+                let TargetUnitOperation::CallDynamic {
                     requirement_obligations,
                     ..
                 } = operation
@@ -2414,6 +2445,15 @@ fn rebound_dynamic_calls_replay_both_instance_projections() {
             _ => None,
         })
         .expect("rebound dynamic call operation");
+    let is_rebound_call = |operation: &TargetUnitOperation| {
+        matches!(
+            operation,
+            TargetUnitOperation::CallDynamic {
+                dispatch: TargetDynamicDispatch::Rebound { .. },
+                ..
+            }
+        )
+    };
     for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target =
             crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
@@ -2428,13 +2468,17 @@ fn rebound_dynamic_calls_replay_both_instance_projections() {
             .blocks
             .iter()
             .flat_map(|block| &block.operations)
-            .find(|operation| matches!(operation, TargetUnitOperation::DynamicScalarCall { .. }))
+            .find(|operation| is_rebound_call(operation))
             .expect("retained rebound call");
-        let TargetUnitOperation::DynamicScalarCall {
+        let TargetUnitOperation::CallDynamic {
+            dispatch:
+                TargetDynamicDispatch::Rebound {
+                    initial_argument,
+                    rebound_argument,
+                    ..
+                },
             call_plan,
-            result_home,
-            initial_argument,
-            rebound_argument,
+            result: TargetDynamicCallResult::Scalar(result_home),
             ..
         } = call
         else {
@@ -2454,46 +2498,31 @@ fn rebound_dynamic_calls_replay_both_instance_projections() {
             machine: source.entry,
             operation: call_operation,
         };
-    let is_rebound_call = |operation: &TargetUnitOperation| {
-        matches!(operation, TargetUnitOperation::DynamicScalarCall { .. })
-    };
     for native in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let target =
             crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
                 .unwrap();
         for mutation in [
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall {
-                    dynamic_dispatch, ..
-                } = operation
+                let TargetDynamicDispatch::Rebound { custody, .. } = dynamic_dispatch(operation)
                 else {
                     unreachable!()
                 };
-                dynamic_dispatch.dispatch.realization = MachineId::new(77).unwrap();
+                custody.dispatch.realization = MachineId::new(77).unwrap();
             }) as Box<dyn FnOnce(&mut TargetUnitOperation)>,
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall { call_plan, .. } = operation else {
+                let TargetUnitOperation::CallDynamic { call_plan, .. } = operation else {
                     unreachable!()
                 };
                 call_plan.stack_alignment = call_plan.stack_alignment.wrapping_add(8);
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall {
-                    initial_argument, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
+                let initial_argument = rebound_initial_argument(operation);
                 initial_argument.source_byte_offset =
                     initial_argument.source_byte_offset.wrapping_add(8);
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall {
-                    initial_argument, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
+                let initial_argument = rebound_initial_argument(operation);
                 initial_argument.access = if initial_argument.access == StructuralAccess::Owned {
                     StructuralAccess::MutableBorrow
                 } else {
@@ -2501,37 +2530,22 @@ fn rebound_dynamic_calls_replay_both_instance_projections() {
                 };
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall {
-                    rebound_argument, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
-                rebound_argument.path.clear();
+                rebound_latest_argument(operation).path.clear();
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall {
-                    rebound_argument, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
-                rebound_argument.destination.locations.clear();
+                rebound_latest_argument(operation)
+                    .destination
+                    .locations
+                    .clear();
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall { result_home, .. } = operation else {
-                    unreachable!()
-                };
-                result_home.source_value = ValueId::new(99).unwrap();
+                dynamic_result_home(operation).source_value = ValueId::new(99).unwrap();
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall { result, .. } = operation else {
-                    unreachable!()
-                };
-                result.scalar_type = ScalarType::Boolean;
+                dynamic_result_home(operation).scalar_type = ScalarType::Boolean;
             }),
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall {
+                let TargetUnitOperation::CallDynamic {
                     requirement_obligations,
                     ..
                 } = operation
@@ -2543,28 +2557,10 @@ fn rebound_dynamic_calls_replay_both_instance_projections() {
             // Dropping the scalar result row is a different call role, not a
             // cheaper presentation of the same call.
             Box::new(|operation: &mut TargetUnitOperation| {
-                let TargetUnitOperation::DynamicScalarCall {
-                    psi_operation,
-                    dynamic_dispatch,
-                    call_plan,
-                    initial_argument,
-                    rebound_argument,
-                    requirement_obligations,
-                    crash_continuations,
-                    ..
-                } = operation.clone()
-                else {
+                let TargetUnitOperation::CallDynamic { result, .. } = operation else {
                     unreachable!()
                 };
-                *operation = TargetUnitOperation::DynamicUnitCall {
-                    psi_operation,
-                    dynamic_dispatch,
-                    call_plan,
-                    initial_argument,
-                    rebound_argument,
-                    requirement_obligations,
-                    crash_continuations,
-                };
+                *result = TargetDynamicCallResult::Unit;
             }),
         ] {
             let mutated = mutate_call_row(&target, is_rebound_call, mutation);

@@ -1,4 +1,16 @@
-//! Exact target lowering for rebound and stored descriptor calls.
+//! Exact target lowering for every call whose ABI transports existential
+//! descriptors, and for the descriptor stores such calls reload.
+//!
+//! `lower_dynamic_call` is the one entry. Each dispatch kind derives its own
+//! call plan and custody row: a direct call forwarding descriptor pairs
+//! (`descriptor_arguments`), a stored or rebound descriptor (here), or the
+//! function's own descriptor parameter (`parameter`). Every kind admits its
+//! result role through the shared `dynamic_result_home`, and one
+//! `TargetUnitOperation::CallDynamic` row retains the dispatch, plan and
+//! result together.
+
+mod descriptor_arguments;
+mod parameter;
 
 use super::super::scalar::scalar_shape;
 use super::super::structural_signature::StructuralCallSignature;
@@ -8,7 +20,7 @@ use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{
     AbstractDynamicCallResult, AbstractDynamicDispatch, AbstractFunction, AbstractFunctionResult,
-    AbstractOperation, AbstractResult,
+    AbstractOperation, AbstractResult, AbstractStructuralCallResult,
 };
 use abstract_operations::{AbstractReboundDynamicDispatch, AbstractStoredDynamicDispatch};
 use calling_conventions::{CallPlan, ValueShape};
@@ -16,9 +28,198 @@ use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, Structura
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
+    TargetDynamicCallResult, TargetDynamicDescriptorParameterAbi, TargetDynamicDispatch,
     TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
     TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
+
+/// Whether `operation` lowers to one `CallDynamic` row: every descriptor
+/// dispatch, and a direct Unit- or scalar-result call that forwards
+/// descriptors. A structural result never forwards descriptors; the ordinary
+/// structural call lowering refuses one that does.
+pub(in crate::lowering) fn is_dynamic_call(operation: &AbstractOperation) -> bool {
+    match operation {
+        AbstractOperation::CallDynamic { .. } => true,
+        AbstractOperation::CallStructural {
+            dynamic_arguments,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
+            ..
+        } => !dynamic_arguments.is_empty(),
+        _ => false,
+    }
+}
+
+/// One dispatch kind's lowered custody, the evaluated plan of the native call,
+/// and the scalar home its result role defines.
+struct LoweredDynamicCall {
+    dispatch: TargetDynamicDispatch,
+    call_plan: CallPlan,
+    result_home: Option<TargetUnitScalarHomeRequirement>,
+}
+
+/// Lower one call admitted by `is_dynamic_call` to its `CallDynamic` row. An
+/// integer result home joins the known-integer map; the home is returned so
+/// the sequencing owner can publish it.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::lowering) fn lower_dynamic_call(
+    operation: &AbstractOperation,
+    function: &AbstractFunction,
+    target: NativeTarget,
+    functions: &BTreeMap<MachineId, &AbstractFunction>,
+    structural_types: &StructuralTypeLookup<'_>,
+    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    dynamic_parameters: &[TargetDynamicDescriptorParameterAbi],
+    stored_descriptors: &BTreeSet<OperationId>,
+    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
+    operations: &mut Vec<TargetUnitOperation>,
+    provenance: &mut TerminalPsiProvenance,
+) -> Result<Option<TargetUnitScalarHomeRequirement>, LoweringError> {
+    let (AbstractOperation::CallDynamic {
+        psi_operation,
+        requirement_obligations,
+        crash_continuations,
+        ..
+    }
+    | AbstractOperation::CallStructural {
+        psi_operation,
+        requirement_obligations,
+        crash_continuations,
+        ..
+    }) = operation
+    else {
+        unreachable!("dynamic-call lowering receives only calls admitted by `is_dynamic_call`")
+    };
+    let lowered = match operation {
+        AbstractOperation::CallDynamic {
+            dispatch: AbstractDynamicDispatch::Rebound(custody),
+            result,
+            ..
+        } => lower_rebound_dispatch(
+            function,
+            target,
+            functions,
+            structural_types,
+            parameters_by_place,
+            shape_cache,
+            active,
+            *psi_operation,
+            custody,
+            *result,
+        )?,
+        AbstractOperation::CallDynamic {
+            dispatch: AbstractDynamicDispatch::Stored(custody),
+            result,
+            ..
+        } => lower_stored_dispatch(
+            function,
+            target,
+            functions,
+            structural_types,
+            parameters_by_place,
+            stored_descriptors,
+            shape_cache,
+            active,
+            *psi_operation,
+            custody,
+            *result,
+        )?,
+        AbstractOperation::CallDynamic {
+            dispatch: AbstractDynamicDispatch::Parameter(custody),
+            result,
+            ..
+        } => parameter::lower(
+            function,
+            target,
+            dynamic_parameters,
+            *psi_operation,
+            custody,
+            *result,
+        )?,
+        _ => descriptor_arguments::lower(
+            operation,
+            function,
+            target,
+            functions,
+            structural_types,
+            parameters_by_place,
+            dynamic_parameters,
+            shape_cache,
+            active,
+        )?,
+    };
+    let LoweredDynamicCall {
+        dispatch,
+        call_plan,
+        result_home,
+    } = lowered;
+    record_integer_result_home(scalar_values, result_home)?;
+    operations.push(TargetUnitOperation::CallDynamic {
+        psi_operation: *psi_operation,
+        dispatch,
+        call_plan,
+        result: result_home.map_or(
+            TargetDynamicCallResult::Unit,
+            TargetDynamicCallResult::Scalar,
+        ),
+        requirement_obligations: requirement_obligations.clone(),
+        crash_continuations: crash_continuations.clone(),
+    });
+    provenance.operations.push(*psi_operation);
+    Ok(result_home)
+}
+
+/// The durable home one scalar descriptor-call result defines, after
+/// admitting only Boolean and integer results.
+fn scalar_result_home(
+    psi_operation: OperationId,
+    result: AbstractResult,
+) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
+    if !matches!(
+        result.scalar_type,
+        ScalarType::Boolean | ScalarType::Integer(_)
+    ) {
+        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
+            result.value,
+        ));
+    }
+    Ok(TargetUnitScalarHomeRequirement {
+        defining_operation: psi_operation,
+        source_value: result.value,
+        scalar_type: result.scalar_type,
+        shape: scalar_shape(result.value, result.scalar_type, false)?,
+    })
+}
+
+/// The scalar home one descriptor call's result role defines. A Unit result
+/// defines none.
+fn dynamic_result_home(
+    psi_operation: OperationId,
+    result: AbstractDynamicCallResult,
+) -> Result<Option<TargetUnitScalarHomeRequirement>, LoweringError> {
+    result
+        .scalar()
+        .map(|result| scalar_result_home(psi_operation, result))
+        .transpose()
+}
+
+/// Publish an integer result home to the producer's known-integer map.
+fn record_integer_result_home(
+    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
+    result_home: Option<TargetUnitScalarHomeRequirement>,
+) -> Result<(), LoweringError> {
+    if let Some(result_home) = result_home
+        && matches!(result_home.scalar_type, ScalarType::Integer(_))
+    {
+        insert_known_unit_integer(
+            scalar_values,
+            result_home.source_value,
+            KnownUnitInteger::Home(result_home),
+        )?;
+    }
+    Ok(())
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_stored_descriptor(
@@ -66,7 +267,7 @@ pub(in crate::lowering) fn lower_stored_descriptor(
         return Err(invalid());
     };
     let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
-    let lowered = lower_stored_call(
+    let (_, source_argument) = lower_stored_call(
         function,
         target,
         functions,
@@ -82,72 +283,53 @@ pub(in crate::lowering) fn lower_stored_descriptor(
     operations.push(TargetUnitOperation::StoreDynamicDescriptor {
         psi_operation: *psi_operation,
         stored: stored.clone(),
-        source_argument: lowered.source_argument,
+        source_argument,
     });
     provenance.operations.push(*psi_operation);
     Ok(())
 }
 
+/// Lower one call through a stored descriptor. Stored custody is admitted
+/// only with a scalar result; stage 00 never produces a stored Unit call.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::lowering) fn lower_stored_dynamic_scalar_call(
-    operation: &AbstractOperation,
+fn lower_stored_dispatch(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    stored_descriptors: &BTreeSet<OperationId>,
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
-    store_available: bool,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
-    let AbstractOperation::CallDynamic {
-        psi_operation,
-        dispatch: AbstractDynamicDispatch::Stored(dynamic_dispatch),
-        result,
-        requirement_obligations,
-        crash_continuations,
-    } = operation
-    else {
-        unreachable!("stored dynamic scalar lowering receives only stored calls")
+    psi_operation: OperationId,
+    custody: &AbstractStoredDynamicDispatch,
+    result: AbstractDynamicCallResult,
+) -> Result<LoweredDynamicCall, LoweringError> {
+    let invalid = || LoweringError::InvalidDynamicDispatch {
+        machine: function.machine,
+        operation: psi_operation,
     };
-    // Stored custody is admitted only with a scalar result; stage 00 never
-    // produces a stored Unit call.
     let AbstractDynamicCallResult::Scalar(result) = result else {
-        return Err(LoweringError::InvalidDynamicDispatch {
-            machine: function.machine,
-            operation: *psi_operation,
-        });
+        return Err(invalid());
     };
-    if !matches!(
-        result.scalar_type,
-        ScalarType::Boolean | ScalarType::Integer(_)
-    ) {
-        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
-            result.value,
-        ));
-    }
+    let result_home = scalar_result_home(psi_operation, result)?;
     // The sequencing owner supplies availability: an earlier flat operation or
     // a dominating graph definition. Authored block order is not execution order.
+    let store_available =
+        stored_descriptors.contains(&custody.stored.descriptor.establishment_operation);
     let store_count = function
         .operations
         .iter()
         .filter(|candidate| {
             matches!(candidate,
                 AbstractOperation::StoreDynamicDescriptor { stored, .. }
-                    if stored == &dynamic_dispatch.stored)
+                    if stored == &custody.stored)
         })
         .count();
     if !store_available || store_count != 1 {
-        return Err(LoweringError::InvalidDynamicDispatch {
-            machine: function.machine,
-            operation: *psi_operation,
-        });
+        return Err(invalid());
     }
-    let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
-    let lowered = lower_stored_call(
+    let (call_plan, source_argument) = lower_stored_call(
         function,
         target,
         functions,
@@ -155,43 +337,23 @@ pub(in crate::lowering) fn lower_stored_dynamic_scalar_call(
         parameters_by_place,
         shape_cache,
         active,
-        *psi_operation,
-        dynamic_dispatch,
-        result.scalar_type,
-        result_shape,
+        psi_operation,
+        custody,
+        result_home.scalar_type,
+        result_home.shape,
     )?;
-    let result_home = TargetUnitScalarHomeRequirement {
-        defining_operation: *psi_operation,
-        source_value: result.value,
-        scalar_type: result.scalar_type,
-        shape: result_shape,
-    };
-    if matches!(result.scalar_type, ScalarType::Integer(_)) {
-        insert_known_unit_integer(
-            scalar_values,
-            result.value,
-            KnownUnitInteger::Home(result_home),
-        )?;
-    }
-    operations.push(TargetUnitOperation::StoredDynamicScalarCall {
-        psi_operation: *psi_operation,
-        result: *result,
-        dynamic_dispatch: dynamic_dispatch.clone(),
-        call_plan: lowered.call_plan,
-        result_home,
-        source_argument: lowered.source_argument,
-        requirement_obligations: requirement_obligations.clone(),
-        crash_continuations: crash_continuations.clone(),
-    });
-    provenance.operations.push(*psi_operation);
-    Ok(result_home)
+    Ok(LoweredDynamicCall {
+        dispatch: TargetDynamicDispatch::Stored {
+            custody: custody.clone(),
+            source_argument,
+        },
+        call_plan,
+        result_home: Some(result_home),
+    })
 }
 
-struct LoweredStoredDynamicCall {
-    call_plan: CallPlan,
-    source_argument: TargetStructuralArgument,
-}
-
+/// The realization plan and projected source argument shared by a descriptor
+/// store and its unique stored call.
 #[allow(clippy::too_many_arguments)]
 fn lower_stored_call(
     function: &AbstractFunction,
@@ -205,7 +367,7 @@ fn lower_stored_call(
     dynamic_dispatch: &AbstractStoredDynamicDispatch,
     expected_result: ScalarType,
     result_shape: ValueShape,
-) -> Result<LoweredStoredDynamicCall, LoweringError> {
+) -> Result<(CallPlan, TargetStructuralArgument), LoweringError> {
     let invalid = || LoweringError::InvalidDynamicDispatch {
         machine: function.machine,
         operation: psi_operation,
@@ -258,135 +420,14 @@ fn lower_stored_call(
         shape_cache,
         active,
     )?;
-    Ok(LoweredStoredDynamicCall {
-        call_plan,
-        source_argument,
-    })
-}
-
-/// The scalar result and home one descriptor call defines, after admitting
-/// only Boolean and integer results. A Unit result defines neither.
-pub(in crate::lowering) fn dynamic_result_home(
-    psi_operation: OperationId,
-    result: AbstractDynamicCallResult,
-) -> Result<Option<(AbstractResult, TargetUnitScalarHomeRequirement)>, LoweringError> {
-    let AbstractDynamicCallResult::Scalar(result) = result else {
-        return Ok(None);
-    };
-    if !matches!(
-        result.scalar_type,
-        ScalarType::Boolean | ScalarType::Integer(_)
-    ) {
-        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
-            result.value,
-        ));
-    }
-    let shape = scalar_shape(result.value, result.scalar_type, false)?;
-    Ok(Some((
-        result,
-        TargetUnitScalarHomeRequirement {
-            defining_operation: psi_operation,
-            source_value: result.value,
-            scalar_type: result.scalar_type,
-            shape,
-        },
-    )))
-}
-
-/// Publish an integer result home to the producer's known-integer map.
-pub(in crate::lowering) fn record_integer_result_home(
-    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
-    result_home: Option<TargetUnitScalarHomeRequirement>,
-) -> Result<(), LoweringError> {
-    if let Some(result_home) = result_home
-        && matches!(result_home.scalar_type, ScalarType::Integer(_))
-    {
-        insert_known_unit_integer(
-            scalar_values,
-            result_home.source_value,
-            KnownUnitInteger::Home(result_home),
-        )?;
-    }
-    Ok(())
+    Ok((call_plan, source_argument))
 }
 
 /// Lower one call through a rebound descriptor. Both result roles share the
 /// callee join and the two projected selection arguments; the role selects
-/// only the target row and whether a scalar home is defined.
+/// only the plan's result placement and whether a scalar home is defined.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::lowering) fn lower_rebound_dynamic_call(
-    operation: &AbstractOperation,
-    function: &AbstractFunction,
-    target: NativeTarget,
-    functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &StructuralTypeLookup<'_>,
-    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<Option<TargetUnitScalarHomeRequirement>, LoweringError> {
-    let AbstractOperation::CallDynamic {
-        psi_operation,
-        dispatch: AbstractDynamicDispatch::Rebound(dynamic_dispatch),
-        result,
-        requirement_obligations,
-        crash_continuations,
-    } = operation
-    else {
-        unreachable!("rebound dynamic lowering receives only rebound descriptor calls")
-    };
-    let scalar = dynamic_result_home(*psi_operation, *result)?;
-    let result_home = scalar.map(|(_, home)| home);
-    let lowered = lower_dynamic_call(
-        function,
-        target,
-        functions,
-        structural_types,
-        parameters_by_place,
-        shape_cache,
-        active,
-        *psi_operation,
-        dynamic_dispatch,
-        result_home.map(|home| home.scalar_type),
-        result_home.map(|home| home.shape),
-    )?;
-    record_integer_result_home(scalar_values, result_home)?;
-    operations.push(match scalar {
-        Some((result, result_home)) => TargetUnitOperation::DynamicScalarCall {
-            psi_operation: *psi_operation,
-            result,
-            dynamic_dispatch: dynamic_dispatch.clone(),
-            call_plan: lowered.call_plan,
-            result_home,
-            initial_argument: lowered.initial_argument,
-            rebound_argument: lowered.rebound_argument,
-            requirement_obligations: requirement_obligations.clone(),
-            crash_continuations: crash_continuations.clone(),
-        },
-        None => TargetUnitOperation::DynamicUnitCall {
-            psi_operation: *psi_operation,
-            dynamic_dispatch: dynamic_dispatch.clone(),
-            call_plan: lowered.call_plan,
-            initial_argument: lowered.initial_argument,
-            rebound_argument: lowered.rebound_argument,
-            requirement_obligations: requirement_obligations.clone(),
-            crash_continuations: crash_continuations.clone(),
-        },
-    });
-    provenance.operations.push(*psi_operation);
-    Ok(result_home)
-}
-
-struct LoweredDynamicCall {
-    call_plan: CallPlan,
-    initial_argument: TargetStructuralArgument,
-    rebound_argument: TargetStructuralArgument,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn lower_dynamic_call(
+fn lower_rebound_dispatch(
     function: &AbstractFunction,
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
@@ -395,20 +436,22 @@ fn lower_dynamic_call(
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
     psi_operation: OperationId,
-    dynamic_dispatch: &AbstractReboundDynamicDispatch,
-    expected_result: Option<ScalarType>,
-    result_shape: Option<ValueShape>,
+    custody: &AbstractReboundDynamicDispatch,
+    result: AbstractDynamicCallResult,
 ) -> Result<LoweredDynamicCall, LoweringError> {
+    let result_home = dynamic_result_home(psi_operation, result)?;
+    let expected_result = result_home.map(|home| home.scalar_type);
+    let result_shape = result_home.map(|home| home.shape);
     let invalid = || LoweringError::InvalidDynamicDispatch {
         machine: function.machine,
         operation: psi_operation,
     };
     if function.attachment.is_none()
-        || !dynamic_dispatch.has_complete_application_custody(function.machine, psi_operation)
+        || !custody.has_complete_application_custody(function.machine, psi_operation)
     {
         return Err(invalid());
     }
-    let callee = dynamic_dispatch.dispatch.realization;
+    let callee = custody.dispatch.realization;
     let callee_function = functions
         .get(&callee)
         .copied()
@@ -445,7 +488,7 @@ fn lower_dynamic_call(
     let initial_argument = projected_argument::lower(
         function.machine,
         callee,
-        &dynamic_dispatch.initial.source,
+        &custody.initial.source,
         callee_parameter,
         destination,
         structural_types,
@@ -456,7 +499,7 @@ fn lower_dynamic_call(
     let rebound_argument = projected_argument::lower(
         function.machine,
         callee,
-        &dynamic_dispatch.rebound.source,
+        &custody.rebound.source,
         callee_parameter,
         destination,
         structural_types,
@@ -465,8 +508,12 @@ fn lower_dynamic_call(
         active,
     )?;
     Ok(LoweredDynamicCall {
+        dispatch: TargetDynamicDispatch::Rebound {
+            custody: custody.clone(),
+            initial_argument,
+            rebound_argument,
+        },
         call_plan,
-        initial_argument,
-        rebound_argument,
+        result_home,
     })
 }

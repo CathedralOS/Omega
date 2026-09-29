@@ -13,6 +13,8 @@ pub use abi::{
     TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
     TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
 };
+mod dynamic;
+pub use dynamic::{TargetDynamicCallResult, TargetDynamicDispatch};
 mod arguments;
 pub use arguments::{
     TargetBoundaryResult, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,

@@ -4,15 +4,11 @@ use crate::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, ProviderExecutionBinding, TargetBoundaryResult,
-    TargetDynamicDescriptorArgument, TargetDynamicDescriptorParameterAbi,
     TargetIeeeFloatFmaOperand, TargetStructuralArgument, TargetStructuralHomeRequirement,
     TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource, TargetX86ScalarFmaSettlement,
 };
-use abstract_operations::{
-    AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
-    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
-};
+use abstract_operations::{AbstractResult, AbstractStoredDynamicDescriptor, CompletionClaimSource};
 use calling_conventions::{CallPlan, ValueShape};
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
@@ -399,34 +395,19 @@ pub enum TargetUnitOperation {
         result_case: semantic_vocabulary::StructuralCaseId,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
-    /// One direct scalar-result call whose authored parameter roster contains
-    /// one or more existential descriptors. This role remains distinct from
-    /// an ordinary structural call because each descriptor expands to an
-    /// ordered `{data, table}` ABI pair and requires adapter-table custody.
-    StructuralScalarCallWithDynamicArguments {
+    /// One call whose ABI transports existential descriptors: a direct call
+    /// forwarding `{data, table}` descriptor pairs, or an indirect call
+    /// through a stored, rebound or parameter descriptor. `dispatch` keeps
+    /// each route's custody distinct. `call_plan` is the evaluated native plan
+    /// of the call itself: the direct callee's descriptor-pair plan, the
+    /// selected realization's single-argument plan, or the erased one-pointer
+    /// adapter plan (policy, clobbers, stack contract) of a parameter slot.
+    /// `result` is a property of the invoked row, not of the route.
+    CallDynamic {
         psi_operation: OperationId,
-        result: AbstractResult,
-        callee: MachineId,
+        dispatch: crate::TargetDynamicDispatch,
         call_plan: CallPlan,
-        /// Durable home required when later Unit operations consume the
-        /// forwarded call's fixed-width scalar result.
-        result_home: TargetUnitScalarHomeRequirement,
-        structural_arguments: Vec<TargetStructuralArgument>,
-        dynamic_arguments: Vec<TargetDynamicDescriptorArgument>,
-        claim_transfers: Vec<ClaimTransfer>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One direct Unit-result call whose authored parameter roster contains
-    /// existential descriptors. The descriptor ABI is identical to the
-    /// scalar form, but no semantic result or durable scalar home exists.
-    StructuralUnitCallWithDynamicArguments {
-        psi_operation: OperationId,
-        callee: MachineId,
-        call_plan: CallPlan,
-        structural_arguments: Vec<TargetStructuralArgument>,
-        dynamic_arguments: Vec<TargetDynamicDescriptorArgument>,
-        claim_transfers: Vec<ClaimTransfer>,
+        result: crate::TargetDynamicCallResult,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
@@ -437,79 +418,6 @@ pub enum TargetUnitOperation {
         psi_operation: OperationId,
         stored: AbstractStoredDynamicDescriptor,
         source_argument: TargetStructuralArgument,
-    },
-    /// Reload and invoke a descriptor established by the unique preceding
-    /// store with the same target-neutral custody.
-    StoredDynamicScalarCall {
-        psi_operation: OperationId,
-        result: AbstractResult,
-        dynamic_dispatch: AbstractStoredDynamicDispatch,
-        call_plan: CallPlan,
-        result_home: TargetUnitScalarHomeRequirement,
-        source_argument: TargetStructuralArgument,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One exact rebound dynamic invocation. Both source versions are lowered
-    /// against the selected realization ABI, but only `rebound_argument`
-    /// supplies the runtime instance. The retained dispatch row is private
-    /// table content; later assignment/emission must call through that table.
-    DynamicScalarCall {
-        psi_operation: OperationId,
-        result: AbstractResult,
-        dynamic_dispatch: AbstractReboundDynamicDispatch,
-        call_plan: CallPlan,
-        result_home: TargetUnitScalarHomeRequirement,
-        initial_argument: TargetStructuralArgument,
-        rebound_argument: TargetStructuralArgument,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One exact rebound Unit invocation. Descriptor and table custody are
-    /// identical to the scalar form, while the native call signature and
-    /// operation deliberately contain no result or result-home carrier.
-    DynamicUnitCall {
-        psi_operation: OperationId,
-        dynamic_dispatch: AbstractReboundDynamicDispatch,
-        call_plan: CallPlan,
-        initial_argument: TargetStructuralArgument,
-        rebound_argument: TargetStructuralArgument,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One indirect scalar call through a requirement slot of this function's
-    /// own borrowed descriptor parameter. `parameter_abi` binds the incoming
-    /// `{instance, table}` pair to the graph's call plan, `requirement` is the
-    /// closed interface row `dispatch_call_plan` invokes, and
-    /// `table_slot_byte_offset` is the byte offset of its entry in the
-    /// incoming table. `dispatch_call_plan` retains the erased one-pointer
-    /// adapter ABI — policy, clobbers, stack contract — while the semantic
-    /// dispatch row never names a concrete realization.
-    DynamicParameterScalarCall {
-        psi_operation: OperationId,
-        result: AbstractResult,
-        dynamic_dispatch: AbstractParameterDynamicDispatch,
-        parameter_abi: TargetDynamicDescriptorParameterAbi,
-        requirement: terminal_psi::TerminalDynamicRequirement,
-        dispatch_call_plan: CallPlan,
-        table_slot_byte_offset: u32,
-        result_home: TargetUnitScalarHomeRequirement,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// One indirect Unit call through a requirement slot of this function's
-    /// own borrowed descriptor parameter. Descriptor and table custody are
-    /// identical to the scalar form, while the signature and operation carry
-    /// no result or result-home carrier.
-    DynamicParameterUnitCall {
-        psi_operation: OperationId,
-        dynamic_dispatch: AbstractParameterDynamicDispatch,
-        parameter_abi: TargetDynamicDescriptorParameterAbi,
-        requirement: terminal_psi::TerminalDynamicRequirement,
-        dispatch_call_plan: CallPlan,
-        table_slot_byte_offset: u32,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
     },
     /// One Unit-returning evaluated import leaf. Native settlement rejoins
     /// this exact carrier; lowering never accepts locator or calling-plan
