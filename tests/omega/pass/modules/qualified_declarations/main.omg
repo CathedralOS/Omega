@@ -15,7 +15,7 @@ machine score() -> u32 { damage() }
 machine qualified_score() -> u32 { combat::damage() }
 
 data Main {}
-machine Main::main(&mut self) {}
+machine Main::main() {}
 
 machine qualified_record() -> combat::Damage {
     combat::Damage { amount: 7 }

@@ -12,6 +12,6 @@ requires
 {
 }
 
-machine Main::main(&mut self) {
-    self.accept(5);
+machine Main::main() {
+    Main::accept(5);
 }

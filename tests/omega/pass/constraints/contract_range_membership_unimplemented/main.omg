@@ -6,16 +6,16 @@ data Body {
     mass: i32;
 }
 
-machine Body::set_mass(&mut self, mass: i32)
+machine Body::set_mass(body: &mut Body, mass: i32)
 requires
     mass in 1..=100
 {
-    self.mass = mass;
+    body.mass = mass;
 }
 
-data Main {
-    body: Body;
-}
+data Main {}
 
-machine Main::main(&mut self) {
+machine Main::main() {
+    let mut body: Body;
+    Body::set_mass(&mut body, 50);
 }
