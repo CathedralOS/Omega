@@ -46,7 +46,7 @@ data WindowClass {
 WindowProcedureSlot:
     WindowClass satisfies PrivateCallbackSlot<WindowProcedure::window_procedure>;
 
-machine WindowClass::plan(&mut self, schema: Schema) -> Plan {
+machine plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,

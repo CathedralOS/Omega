@@ -5,7 +5,7 @@ data Room {
     exits: i32;
 }
 
-machine RoomFormatter::render(&self, room: &Room, out: &mut i32) {
+machine render(room: &Room, out: &mut i32) {
     out = room.exits;
 }
 

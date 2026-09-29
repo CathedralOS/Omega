@@ -47,7 +47,7 @@ reaches PortIo
     status
 }
 
-machine Root::main(&mut self) reaches PortIo {
+machine main() reaches PortIo {
     let region: Region in Owned = Region { length: 4 };
     _ = Root::enter(region);
 }

@@ -52,20 +52,20 @@ machine Cell::size_of_sum(&self, unit: u64) -> u64 {
     }
 }
 
-machine Main::bump(&self, x: u64) -> u64 {
+machine bump(x: u64) -> u64 {
     transition { _ -> (x | 1) }
 }
 
 // API SHAPE 1 (AnonymousValueString::clone): `let mut` local initialized by a
 // structural-result call whose arguments hold nested calls.
-machine Main::clone_cell(&mut self, source: &Cell) -> Cell {
+machine clone_cell(source: &Cell) -> Cell {
     let mut value: Cell = Cell::fresh(source.get_sum(), source.get_len());
     transition { _ -> (value) }
 }
 
 // API SHAPE 1b: record-literal field holding a nested call inside a local
 // initializer.
-machine Main::init_field_call(&mut self, source: &Cell) -> u64 {
+machine init_field_call(source: &Cell) -> u64 {
     let cell: Cell = Cell { sum: source.get_sum(), len: source.get_len() };
     transition { _ -> (cell.len) }
 }
@@ -82,13 +82,13 @@ machine Main::holds(&mut self, result: Parse, want_len: u64, want_size: u64) -> 
 
 // API SHAPE 5 (ContainerType::get_total_size_in_bytes): arm payload is a
 // call whose argument is itself a payload-bound call + a cast.
-machine Main::sat_mul(&self, left: u64 in Saturating, right: u64 in Saturating) -> u64 {
+machine sat_mul(left: u64 in Saturating, right: u64 in Saturating) -> u64 {
     (left * right) as u64
 }
-machine Main::size_of(&self, sum: Sum, unit: u64) -> u64 {
+machine size_of(sum: Sum, unit: u64) -> u64 {
     transition sum {
         Sum::First -> (unit)
-        Sum::Second { payload } -> (self.sat_mul(payload as u64 in Saturating, unit as u64 in Saturating))
+        Sum::Second { payload } -> (sat_mul(payload as u64 in Saturating, unit as u64 in Saturating))
     }
 }
 machine size_via_call(cell: Cell) -> u64 {
@@ -100,7 +100,7 @@ machine size_via_call(cell: Cell) -> u64 {
 
 // API SHAPE 3: nested scalar call inside a named-target transition argument.
 machine Main::next_arg(&mut self, x: u64) -> u64 {
-    transition { _ -> finish(self.bump(x)) }
+    transition { _ -> finish(bump(x)) }
     state finish(&mut self, y: u64) -> u64 {
         transition { _ -> (y) }
     }
@@ -108,15 +108,15 @@ machine Main::next_arg(&mut self, x: u64) -> u64 {
 
 // Nested call inside a named-target arm argument (call-in-call).
 machine Main::target_arg_nested(&mut self, x: u64) -> u64 {
-    transition { _ -> finish(self.bump(self.bump(x))) }
+    transition { _ -> finish(bump(bump(x))) }
     state finish(&mut self, y: u64) -> u64 {
         transition { _ -> (y) }
     }
 }
 
 // API SHAPE 4: call inside the transition scrutinee expression.
-machine Main::scrutinee_call(&mut self, x: u64) -> u64 {
-    transition self.bump(x) {
+machine scrutinee_call(x: u64) -> u64 {
+    transition bump(x) {
         _ -> (x)
     }
 }
