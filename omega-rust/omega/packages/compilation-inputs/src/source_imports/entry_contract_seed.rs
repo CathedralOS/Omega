@@ -7,6 +7,7 @@
 
 use crate::PackageCompilationInputs;
 use crate::source_imports::SourceStorage;
+use semantic_vocabulary::PackageKeyIdentity;
 use std::path::PathBuf;
 
 pub struct EntryContractSeed {
@@ -64,44 +65,59 @@ pub fn entry_contract_seeds(
     Ok(seeds)
 }
 
+/// The source choice a binding can affect, separate from its later authority.
+/// With one supplier, nominating another target or changing a schema record
+/// does not change the source forest. Multiple suppliers still require the
+/// exact accepted package; an unavailable selection must not reuse a fallback.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum EntryContractSource {
+    Bundled,
+    Package(PackageKeyIdentity),
+    Unavailable,
+}
+
+impl EntryContractSource {
+    pub(crate) fn select(
+        contract: target::ProgramEntryPhysicalContractPackage,
+        package_inputs: Option<&PackageCompilationInputs>,
+    ) -> Self {
+        let Some(inputs) = package_inputs else {
+            return Self::Bundled;
+        };
+        let accepted_package = inputs
+            .accepted_semantic_binding(crate::program_entry_semantic_binding_role(contract))
+            .map(|binding| binding.package());
+        let mut suppliers = inputs
+            .packages()
+            .filter(|(_, root)| root.join(contract.package_relative_source()).is_file())
+            .map(|(identity, _)| identity)
+            .collect::<Vec<_>>();
+        suppliers.sort();
+        match suppliers.as_slice() {
+            [single] => Self::Package(*single),
+            [] if accepted_package.is_none() => Self::Bundled,
+            _ => accepted_package
+                .filter(|accepted| suppliers.contains(accepted))
+                .map_or(Self::Unavailable, Self::Package),
+        }
+    }
+}
+
 fn contract_seed(
     contract_package: target::ProgramEntryPhysicalContractPackage,
     relative_source: &str,
     package_inputs: Option<&PackageCompilationInputs>,
     bundled_root: &std::path::Path,
 ) -> Option<EntryContractSeed> {
-    let bundled = || {
-        let contract_root = bundled_root.to_path_buf();
-        EntryContractSeed {
-            source: contract_root.join(relative_source),
-            root: contract_root,
-            closed_subtree: true,
-        }
+    let (root, closed_subtree) = match EntryContractSource::select(contract_package, package_inputs)
+    {
+        EntryContractSource::Bundled => (bundled_root, true),
+        EntryContractSource::Package(package) => (package_inputs?.package_root(package)?, false),
+        EntryContractSource::Unavailable => return None,
     };
-    let Some(inputs) = package_inputs else {
-        return Some(bundled());
-    };
-    let accepted_role = crate::program_entry_semantic_binding_role(contract_package);
-    let accepted_package = inputs
-        .accepted_semantic_binding(accepted_role)
-        .map(|binding| binding.package());
-    let mut suppliers = inputs
-        .packages()
-        .filter(|(_, root)| root.join(relative_source).is_file())
-        .collect::<Vec<_>>();
-    suppliers.sort_by_key(|(identity, _)| *identity);
-    let supplier = match suppliers.as_slice() {
-        [single] => Some(*single),
-        _ => suppliers
-            .iter()
-            .find(|(identity, _)| Some(*identity) == accepted_package)
-            .copied(),
-    };
-    supplier
-        .map(|(_, root)| EntryContractSeed {
-            source: root.join(relative_source),
-            root: root.to_path_buf(),
-            closed_subtree: false,
-        })
-        .or_else(|| (suppliers.is_empty() && accepted_package.is_none()).then(bundled))
+    Some(EntryContractSeed {
+        source: root.join(relative_source),
+        root: root.to_path_buf(),
+        closed_subtree,
+    })
 }

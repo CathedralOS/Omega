@@ -16,6 +16,7 @@ mod project;
 
 pub use bindings::{PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings};
 pub use build_prelude::{BuildPrelude, prepare_build_prelude};
+pub(crate) use entry_contract_seed::EntryContractSource;
 pub use entry_contract_seed::{EntryContractSeed, entry_contract_seeds};
 pub use frontier::{
     SourceFile, SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
