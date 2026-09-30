@@ -403,129 +403,129 @@ machine Main::main(&mut self) reaches Console {
 
     // Layer 1: raw field guards (bypass value-call entirely).
     transition self.accounts[0].balance == 40 {
-        true -> raw_check_acc2()
-        _ -> bad_raw0()
+        true -> raw_check_acc2(&mut self)
+        _ -> bad_raw0(&mut self)
     }
 
-    state bad_raw0(&mut self) {
-        self.console.write_line("FAIL: raw acc[0].balance wrong -- expected 40 (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_raw0(main: &mut Main) {
+        main.console.write_line("FAIL: raw acc[0].balance wrong -- expected 40 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state raw_check_acc2(&mut self) {
-        transition self.accounts[2].balance == 30 {
-            true -> raw_check_acc1()
-            _ -> bad_raw2()
+    state raw_check_acc2(main: &mut Main) {
+        transition main.accounts[2].balance == 30 {
+            true -> raw_check_acc1(main)
+            _ -> bad_raw2(main)
         }
     }
 
-    state bad_raw2(&mut self) {
-        self.console.write_line("FAIL: raw acc[2].balance wrong -- expected 30 (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_raw2(main: &mut Main) {
+        main.console.write_line("FAIL: raw acc[2].balance wrong -- expected 30 (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 
-    state raw_check_acc1(&mut self) {
-        transition self.accounts[1].balance == 120 {
-            true -> raw_check_acc3()
-            _ -> bad_raw1()
+    state raw_check_acc1(main: &mut Main) {
+        transition main.accounts[1].balance == 120 {
+            true -> raw_check_acc3(main)
+            _ -> bad_raw1(main)
         }
     }
 
-    state bad_raw1(&mut self) {
-        self.console.write_line("FAIL: raw acc[1].balance wrong -- expected 120 (exit 73)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(73);
+    state bad_raw1(main: &mut Main) {
+        main.console.write_line("FAIL: raw acc[1].balance wrong -- expected 120 (exit 73)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(73);
     }
 
-    state raw_check_acc3(&mut self) {
-        transition self.accounts[3].balance == 40 {
-            true -> vcall_check_b0()
-            _ -> bad_raw3()
+    state raw_check_acc3(main: &mut Main) {
+        transition main.accounts[3].balance == 40 {
+            true -> vcall_check_b0(main)
+            _ -> bad_raw3(main)
         }
     }
 
-    state bad_raw3(&mut self) {
-        self.console.write_line("FAIL: raw acc[3].balance wrong -- expected 40 (exit 74)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(74);
+    state bad_raw3(main: &mut Main) {
+        main.console.write_line("FAIL: raw acc[3].balance wrong -- expected 40 (exit 74)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(74);
     }
 
     // Layer 2: value-call reads (balance_of captures+mutates+returns).
-    state vcall_check_b0(&mut self) {
-        let b0: i32 in Wrapping = Main::balance_of(&mut self, 0);
+    state vcall_check_b0(main: &mut Main) {
+        let b0: i32 in Wrapping = Main::balance_of(&mut main, 0);
         transition b0 == 40 {
-            true -> vcall_check_b2(b0)
-            _ -> bad_vcall0()
+            true -> vcall_check_b2(main, b0)
+            _ -> bad_vcall0(main)
         }
     }
 
-    state bad_vcall0(&mut self) {
-        self.console.write_line("FAIL: balance_of(0) value-call read wrong -- expected 40 (exit 75)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(75);
+    state bad_vcall0(main: &mut Main) {
+        main.console.write_line("FAIL: balance_of(0) value-call read wrong -- expected 40 (exit 75)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(75);
     }
 
-    state vcall_check_b2(&mut self, b0: i32 in Wrapping) {
-        let b2: i32 in Wrapping = Main::balance_of(&mut self, 2);
+    state vcall_check_b2(main: &mut Main, b0: i32 in Wrapping) {
+        let b2: i32 in Wrapping = Main::balance_of(&mut main, 2);
         transition b2 == 30 {
-            true -> vcall_check_sum(b0, b2)
-            _ -> bad_vcall2()
+            true -> vcall_check_sum(main, b0, b2)
+            _ -> bad_vcall2(main)
         }
     }
 
-    state bad_vcall2(&mut self) {
-        self.console.write_line("FAIL: balance_of(2) value-call read wrong -- expected 30 (exit 76)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(76);
+    state bad_vcall2(main: &mut Main) {
+        main.console.write_line("FAIL: balance_of(2) value-call read wrong -- expected 30 (exit 76)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(76);
     }
 
     // Layer 3: two sequential value-call results combined in arithmetic.
     // balance_of(0) + balance_of(2) = 40 + 30 = 70 (the key checksum).
     // If layers 1-2 pass but this fires, it's a value-call arithmetic miscompile
     // (the stack_vm-style bug -- distinct from the payload-extraction bug above).
-    state vcall_check_sum(&mut self, b0: i32 in Wrapping, b2: i32 in Wrapping) {
+    state vcall_check_sum(main: &mut Main, b0: i32 in Wrapping, b2: i32 in Wrapping) {
         let checksum: i32 in Wrapping = b0 + b2;
         transition checksum == 70 {
-            true -> check_total()
-            _ -> bad_sum()
+            true -> check_total(main)
+            _ -> bad_sum(main)
         }
     }
 
-    state bad_sum(&mut self) {
-        self.console.write_line("FAIL: balance_of(0)+balance_of(2) checksum wrong -- expected 70 (exit 77)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(77);
+    state bad_sum(main: &mut Main) {
+        main.console.write_line("FAIL: balance_of(0)+balance_of(2) checksum wrong -- expected 70 (exit 77)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(77);
     }
 
     // Layer 4: total() value-call.
-    state check_total(&mut self) {
-        let t: i32 in Wrapping = Main::total(&mut self);
+    state check_total(main: &mut Main) {
+        let t: i32 in Wrapping = Main::total(&mut main);
         transition t == 230 {
-            true -> good()
-            _ -> bad_total()
+            true -> good(main)
+            _ -> bad_total(main)
         }
     }
 
-    state bad_total(&mut self) {
-        self.console.write_line("FAIL: total() wrong -- expected 230 (exit 78)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(78);
+    state bad_total(main: &mut Main) {
+        main.console.write_line("FAIL: total() wrong -- expected 230 (exit 78)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(78);
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: all 4 balances + value-call checksum 70 + total 230 verified (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: all 4 balances + value-call checksum 70 + total 230 verified (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 }

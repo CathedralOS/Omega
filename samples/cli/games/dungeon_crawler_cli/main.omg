@@ -29,18 +29,18 @@ machine Main::main(&mut self) {
     self.game.initialize(7);
 
     transition {
-        _ -> running()
+        _ -> running(&mut self)
     }
 
 
-    state running(&mut self) {
-        block self.game.run_game_loop();
+    state running(main: &mut Main) {
+        block main.game.run_game_loop();
 
         transition {
-            _ -> shutdown()
+            _ -> shutdown(main)
         }
     }
 
-    state shutdown(&mut self) {
+    state shutdown(main: &mut Main) {
     }
 }
