@@ -496,6 +496,19 @@ pub(super) fn argument(
         } else {
             base_type_identity(program, referent, &[])? == result.type_identity
         };
+    // An anonymous literal constructs its operand in place under the
+    // case-construction contents family: its interval-domain scalar members
+    // are legal because the construction proves each member's range
+    // obligation, so moving that result whole keeps the mint's requirement.
+    let constructed_literal = matches!(
+        place.root,
+        facts::PlaceRoot::Expression(source)
+            if source == value_expression
+                && !matches!(
+                    program.expression_table.expression(source),
+                    ExpressionNode::Call(_)
+                )
+    );
     if !storage_identity_matches
         || program.type_multiplicity(referent) != result.multiplicity
         || (!unrestricted
@@ -505,7 +518,9 @@ pub(super) fn argument(
             // A nominal-cleanup result is discharged by the consuming call's
             // own transfer edge, replayed below through its exact permission
             // event, so cleanup-owned contents admit the same whole move.
-            && !validation::has_cleanup_owned_contents(program, referent))
+            && !validation::has_cleanup_owned_contents(program, referent)
+            && !(constructed_literal
+                && validation::has_case_construction_contents(program, referent)))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;
