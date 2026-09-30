@@ -739,8 +739,12 @@ fn subject_call(
     let CheckedUnitEffectOperationPlan::Call(planned) = &operation else {
         return None;
     };
-    // A boundary result carries receipts this dispatch does not yet replay.
-    if planned.is_boundary()
+    // A boundary result is the same once-evaluated owned subject as a named
+    // local's result. Keep the complete boundary call plan: normal source and
+    // receiver replay still own its authority. Composed structural-result
+    // calls do not yet discharge completion receipts here, so preserve that
+    // custody fence rather than rejecting every boundary-produced subject.
+    if (planned.is_boundary() && !planned.claim_transfers().is_empty())
         || !super::operation_custody::call_custody_admitted(planned, operations)
     {
         return None;
