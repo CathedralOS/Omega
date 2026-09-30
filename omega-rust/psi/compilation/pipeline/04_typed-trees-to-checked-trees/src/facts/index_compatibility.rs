@@ -21,6 +21,8 @@ use typed_trees::types::{
 };
 
 #[cfg(test)]
+mod index_term_tests;
+#[cfg(test)]
 mod tests;
 
 #[derive(Debug, Clone)]
@@ -407,7 +409,7 @@ fn append_expression_compatibilities(
                     .iter()
                     .chain(&expected.arguments)
                     .all(|argument| {
-                        bound_index_argument_is_closed(program, *argument, &substitutions)
+                        index_argument_term(program, *argument, &substitutions).is_closed()
                     })
                 {
                     IndexCompatibilityDischarge::ClosedEvaluation
@@ -1085,6 +1087,9 @@ fn call_flow_at_point(
         .find(|call| call.statement_index == statement_index && call.call_ordinal == call_ordinal)
 }
 
+/// Whether two index arguments are spelled identically, before any call
+/// substitution. Identically spelled positions need no equality fact; this is
+/// spelling identity, not the index equality `index_terms_equal` decides.
 fn index_arguments_structurally_equal(
     program: &TypedTrees,
     left: TypeReferenceHandle,
@@ -1120,7 +1125,7 @@ fn index_arguments_structurally_equal(
 /// A symbolic call to a generic target compares the callee's declared
 /// `Coordinate<I>` against the caller's instance as the bound index: `I` is
 /// the template's spelling, and this records what this call supplied.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BoundIndexArgument {
     /// The caller-side subject symbol the argument denotes: a parameter, a
     /// `let` declared before the call, a forwarded generic binder, or a named
@@ -1362,9 +1367,96 @@ fn value_call_substitutions(
     )
 }
 
+/// One side of an index comparison after the call's binder substitutions.
+/// Each argument or leaf is classified once, and `index_terms_equal` decides
+/// every pairing of kinds in one table. A `Named` binder the call bound
+/// becomes the caller-side index it denotes; any other `Named` argument stays
+/// an open name; a const expression stays an expression, whose own leaves
+/// substitute only when it is compared against another expression.
+#[derive(Debug, Clone, Copy)]
+enum IndexTerm<'a> {
+    /// A callee binder this call bound: the caller-side subject or literal.
+    Bound(&'a BoundIndexArgument),
+    /// A `Named` index the call did not bind — a binder, subject, or const by
+    /// symbol, or a literal atom by spelling.
+    Open { symbol: SymbolHandle, name: &'a str },
+    /// A const expression, compared leaf-wise.
+    Expression(ExpressionHandle),
+    /// Any other type-reference shape, which denotes only itself.
+    Opaque(TypeReferenceHandle),
+}
+
+impl IndexTerm<'_> {
+    /// Literals close a position; bound subjects, open binders, and
+    /// expressions keep it open. An open name is closed when it spells a
+    /// canonical const atom or an integer.
+    fn is_closed(self) -> bool {
+        match self {
+            IndexTerm::Bound(BoundIndexArgument::Literal(_)) => true,
+            IndexTerm::Bound(BoundIndexArgument::Subject(_)) => false,
+            IndexTerm::Open { name, .. } => {
+                language_semantics::const_value::CanonicalConstValue::from_atom(name).is_some()
+                    || name.parse::<i128>().is_ok()
+            }
+            IndexTerm::Expression(_) | IndexTerm::Opaque(_) => false,
+        }
+    }
+}
+
+/// The caller-side index a call bound `binder` to; the first binding wins.
+fn bound_index(
+    substitutions: &BoundIndexSubstitutions,
+    binder: SymbolHandle,
+) -> Option<&BoundIndexArgument> {
+    substitutions
+        .iter()
+        .find(|(candidate, _)| *candidate == binder)
+        .map(|(_, bound)| bound)
+}
+
+fn index_argument_term<'a>(
+    program: &'a TypedTrees,
+    argument: TypeReferenceHandle,
+    substitutions: &'a BoundIndexSubstitutions,
+) -> IndexTerm<'a> {
+    match program.type_reference_table.type_reference(argument) {
+        TypeReferenceNode::Named { symbol, name } => bound_index(substitutions, *symbol).map_or(
+            IndexTerm::Open {
+                symbol: *symbol,
+                name: name.as_str(),
+            },
+            IndexTerm::Bound,
+        ),
+        TypeReferenceNode::ConstExpression(expression) => IndexTerm::Expression(*expression),
+        _ => IndexTerm::Opaque(argument),
+    }
+}
+
+/// A const-expression leaf naming a binder the call bound — by its resolved
+/// symbol, or by its head symbol when unresolved — denotes the bound index;
+/// every other node stays an expression.
+fn index_leaf_term<'a>(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    substitutions: &'a BoundIndexSubstitutions,
+) -> IndexTerm<'a> {
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
+        let leaf_symbol = if path.symbol.is_valid() {
+            path.symbol
+        } else {
+            path.head_symbol
+        };
+        if leaf_symbol.is_valid()
+            && let Some(bound) = bound_index(substitutions, leaf_symbol)
+        {
+            return IndexTerm::Bound(bound);
+        }
+    }
+    IndexTerm::Expression(expression)
+}
+
 /// Substitute binder positions on both sides, then compare pairwise. `true`
-/// only when every pair denotes the same bound index — the same subject
-/// symbol or the same literal spelling — after substitution.
+/// only when every pair denotes the same index after substitution.
 fn bound_index_arguments_equal(
     program: &TypedTrees,
     actual: &[TypeReferenceHandle],
@@ -1378,93 +1470,75 @@ fn bound_index_arguments_equal(
             .iter()
             .zip(expected.iter())
             .all(|(actual, expected)| {
-                bound_index_argument_equal(program, *actual, *expected, substitutions)
+                index_terms_equal(
+                    program,
+                    index_argument_term(program, *actual, substitutions),
+                    index_argument_term(program, *expected, substitutions),
+                    substitutions,
+                )
             })
 }
 
-fn bound_index_argument_equal(
+/// Whether two index terms denote the same index. Every pairing of term kinds
+/// has its own row, and each row is symmetric in its sides.
+fn index_terms_equal(
     program: &TypedTrees,
-    actual: TypeReferenceHandle,
-    expected: TypeReferenceHandle,
+    left: IndexTerm<'_>,
+    right: IndexTerm<'_>,
     substitutions: &BoundIndexSubstitutions,
 ) -> bool {
-    // An index spelled as a const expression substitutes the callee's binder
-    // at leaf positions rather than as a whole argument: the callee's
-    // `Indexed<A + 0>` compares against the caller's `Indexed<I + 0>`
-    // leaf-wise under `A -> I`.
-    match (
-        program.type_reference_table.type_reference(actual),
-        program.type_reference_table.type_reference(expected),
-    ) {
-        (TypeReferenceNode::ConstExpression(left), TypeReferenceNode::ConstExpression(right)) => {
-            return bound_index_expressions_equal(program, *left, *right, substitutions);
+    match (left, right) {
+        // The same subject symbol, or the same literal spelling.
+        (IndexTerm::Bound(left), IndexTerm::Bound(right)) => left == right,
+        // A bound subject is the open name's symbol; a bound literal is its
+        // spelling, not its value.
+        (IndexTerm::Bound(bound), IndexTerm::Open { symbol, name })
+        | (IndexTerm::Open { symbol, name }, IndexTerm::Bound(bound)) => match bound {
+            BoundIndexArgument::Subject(subject) => *subject == symbol,
+            BoundIndexArgument::Literal(spelling) => spelling.as_str() == name,
+        },
+        // Against a bound index the expression keeps its own spelling: its
+        // leaves are not substituted, so `A` bound to `N` does not match `A`
+        // spelled as an expression.
+        (IndexTerm::Bound(bound), IndexTerm::Expression(expression))
+        | (IndexTerm::Expression(expression), IndexTerm::Bound(bound)) => {
+            bound_index_matches_expression(program, bound, expression)
+        }
+        (IndexTerm::Open { symbol, name }, IndexTerm::Expression(expression))
+        | (IndexTerm::Expression(expression), IndexTerm::Open { symbol, name }) => {
+            open_index_matches_expression(
+                program,
+                symbol,
+                name,
+                expression,
+                OpenNameMatch::SymbolOrSpelling,
+            )
         }
         (
-            named @ TypeReferenceNode::Named { .. },
-            TypeReferenceNode::ConstExpression(expression),
-        )
-        | (
-            TypeReferenceNode::ConstExpression(expression),
-            named @ TypeReferenceNode::Named { .. },
-        ) => {
-            return bound_index_named_matches_expression(
-                program,
-                named,
-                *expression,
-                substitutions,
-            );
+            IndexTerm::Open {
+                symbol: left_symbol,
+                name: left_name,
+            },
+            IndexTerm::Open {
+                symbol: right_symbol,
+                name: right_name,
+            },
+        ) => left_symbol == right_symbol && left_name == right_name,
+        // The callee's `Indexed<A + 0>` compares against the caller's
+        // `Indexed<I + 0>` leaf-wise under `A -> I`.
+        (IndexTerm::Expression(left), IndexTerm::Expression(right)) => {
+            bound_index_expressions_equal(program, left, right, substitutions)
         }
-        _ => {}
+        (IndexTerm::Opaque(left), IndexTerm::Opaque(right)) => left == right,
+        (IndexTerm::Opaque(_), _) | (_, IndexTerm::Opaque(_)) => false,
     }
-    let bound_actual = substitute_bound_index(program, actual, substitutions);
-    let bound_expected = substitute_bound_index(program, expected, substitutions);
-    match (bound_actual, bound_expected) {
-        (None, None) => index_arguments_structurally_equal(program, actual, expected),
-        (Some(bound), None) => bound_index_argument_matches(program, bound, expected),
-        (None, Some(bound)) => bound_index_argument_matches(program, bound, actual),
-        (Some(left), Some(right)) => bound_index_argument_values_equal(left, right),
-    }
-}
-
-fn bound_index_argument_values_equal(
-    left: &BoundIndexArgument,
-    right: &BoundIndexArgument,
-) -> bool {
-    match (left, right) {
-        (BoundIndexArgument::Subject(left), BoundIndexArgument::Subject(right)) => left == right,
-        (BoundIndexArgument::Literal(left), BoundIndexArgument::Literal(right)) => left == right,
-        _ => false,
-    }
-}
-
-/// The bound index a leaf denotes when the leaf names a binder the enclosing
-/// call bound to a caller-side index.
-fn bound_index_leaf_argument<'a>(
-    program: &TypedTrees,
-    expression: ExpressionHandle,
-    substitutions: &'a BoundIndexSubstitutions,
-) -> Option<&'a BoundIndexArgument> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    let leaf_symbol = if path.symbol.is_valid() {
-        path.symbol
-    } else {
-        path.head_symbol
-    };
-    if !leaf_symbol.is_valid() {
-        return None;
-    }
-    substitutions
-        .iter()
-        .find(|(binder, _)| *binder == leaf_symbol)
-        .map(|(_, bound)| bound)
 }
 
 /// Whether a bound index denotes the same index an expression leaf spells: a
 /// bound subject is the leaf's own binder symbol, and a bound literal is the
-/// leaf's closed value.
-fn bound_index_argument_matches_expression(
+/// leaf's closed value — an integer leaf by value, a name leaf by spelling or
+/// value. A bound literal never matches a Boolean leaf.
+fn bound_index_matches_expression(
     program: &TypedTrees,
     bound: &BoundIndexArgument,
     expression: ExpressionHandle,
@@ -1488,33 +1562,51 @@ fn bound_index_argument_matches_expression(
     }
 }
 
-/// Whether a `Named` index argument denotes the same index an
-/// expression-spelled argument does: a bound binder compares through its
-/// bound index; an unbound one compares only to a leaf spelling the same
-/// binder or closed literal.
-fn bound_index_named_matches_expression(
+/// How an open name meets a name leaf. The two comparisons differ only when
+/// both sides carry resolved symbols that disagree.
+#[derive(Debug, Clone, Copy)]
+enum OpenNameMatch {
+    /// Between index arguments: the leaf's symbol, or its single-member
+    /// spelling even when the symbols disagree.
+    SymbolOrSpelling,
+    /// Against an established fact's operand: resolved symbols on both sides
+    /// decide alone; spelling decides only when a side is unresolved.
+    ResolvedSymbolFirst,
+}
+
+/// Whether an open name denotes the index an expression spells: a name leaf
+/// by symbol or spelling (per `rule`), an integer leaf by value, and a
+/// Boolean leaf by its `true`/`false` spelling.
+fn open_index_matches_expression(
     program: &TypedTrees,
-    named: &TypeReferenceNode,
+    symbol: SymbolHandle,
+    name: &str,
     expression: ExpressionHandle,
-    substitutions: &BoundIndexSubstitutions,
+    rule: OpenNameMatch,
 ) -> bool {
-    let TypeReferenceNode::Named { symbol, name } = named else {
-        return false;
-    };
-    if let Some((_, bound)) = substitutions.iter().find(|(binder, _)| binder == symbol) {
-        return bound_index_argument_matches_expression(program, bound, expression);
-    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
-            (symbol.is_valid() && (path.symbol == *symbol || path.head_symbol == *symbol))
-                || matches!(
-                    program.expression_table.name_path_members(path.members),
-                    [only] if only.as_str() == name.as_str()
-                )
+            let symbol_matches =
+                symbol.is_valid() && (path.symbol == symbol || path.head_symbol == symbol);
+            let spelling_matches = matches!(
+                program.expression_table.name_path_members(path.members),
+                [only] if only.as_str() == name
+            );
+            match rule {
+                OpenNameMatch::SymbolOrSpelling => symbol_matches || spelling_matches,
+                OpenNameMatch::ResolvedSymbolFirst => {
+                    if symbol.is_valid() && (path.symbol.is_valid() || path.head_symbol.is_valid())
+                    {
+                        symbol_matches
+                    } else {
+                        spelling_matches
+                    }
+                }
+            }
         }
-        ExpressionNode::Integer(literal) => named_integer_value(name.as_str())
+        ExpressionNode::Integer(literal) => named_integer_value(name)
             .is_some_and(|expected| literal.value_bignum() == Some(expected)),
-        ExpressionNode::Boolean(value) => boolean_literal_spelling(name.as_str()) == Some(*value),
+        ExpressionNode::Boolean(value) => boolean_literal_spelling(name) == Some(*value),
         _ => false,
     }
 }
@@ -1528,25 +1620,27 @@ pub(crate) fn expression_uses_binder(
     expression: ExpressionHandle,
     substitutions: &BoundIndexSubstitutions,
 ) -> bool {
-    bound_index_leaf_argument(program, expression, substitutions).is_some()
-        || match program.expression_table.expression(expression) {
-            ExpressionNode::Unary(unary) => {
-                expression_uses_binder(program, unary.operand, substitutions)
-            }
-            ExpressionNode::Binary(binary) => {
-                expression_uses_binder(program, binary.left, substitutions)
-                    || expression_uses_binder(program, binary.right, substitutions)
-            }
-            ExpressionNode::Member(member) => {
-                expression_uses_binder(program, member.receiver, substitutions)
-            }
-            _ => false,
+    matches!(
+        index_leaf_term(program, expression, substitutions),
+        IndexTerm::Bound(_)
+    ) || match program.expression_table.expression(expression) {
+        ExpressionNode::Unary(unary) => {
+            expression_uses_binder(program, unary.operand, substitutions)
         }
+        ExpressionNode::Binary(binary) => {
+            expression_uses_binder(program, binary.left, substitutions)
+                || expression_uses_binder(program, binary.right, substitutions)
+        }
+        ExpressionNode::Member(member) => {
+            expression_uses_binder(program, member.receiver, substitutions)
+        }
+        _ => false,
+    }
 }
 
-/// Substitute bound binder leaves on both sides, then compare the index
-/// expressions pairwise: every leaf denotes the same bound subject or literal
-/// and every interior node has the same shape.
+/// Compare two index expressions leaf-wise under the call's substitutions: a
+/// leaf naming a bound binder denotes its bound index, and every other node
+/// must have the same shape over equal children.
 pub(crate) fn bound_index_expressions_equal(
     program: &TypedTrees,
     actual: ExpressionHandle,
@@ -1559,17 +1653,12 @@ pub(crate) fn bound_index_expressions_equal(
     if !actual.is_valid() || !expected.is_valid() {
         return false;
     }
-    let bound_actual = bound_index_leaf_argument(program, actual, substitutions);
-    let bound_expected = bound_index_leaf_argument(program, expected, substitutions);
-    if bound_actual.is_some() || bound_expected.is_some() {
-        return match (bound_actual, bound_expected) {
-            (Some(left), Some(right)) => bound_index_argument_values_equal(left, right),
-            (Some(bound), None) => {
-                bound_index_argument_matches_expression(program, bound, expected)
-            }
-            (None, Some(bound)) => bound_index_argument_matches_expression(program, bound, actual),
-            (None, None) => false,
-        };
+    match (
+        index_leaf_term(program, actual, substitutions),
+        index_leaf_term(program, expected, substitutions),
+    ) {
+        (IndexTerm::Expression(_), IndexTerm::Expression(_)) => {}
+        (left, right) => return index_terms_equal(program, left, right, substitutions),
     }
     match (
         program.expression_table.expression(actual),
@@ -1625,55 +1714,9 @@ pub(crate) fn bound_index_expressions_equal(
     }
 }
 
-fn substitute_bound_index<'a>(
-    program: &TypedTrees,
-    argument: TypeReferenceHandle,
-    substitutions: &'a BoundIndexSubstitutions,
-) -> Option<&'a BoundIndexArgument> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(argument)
-    else {
-        return None;
-    };
-    substitutions
-        .iter()
-        .find(|(binder, _)| *binder == *symbol)
-        .map(|(_, bound)| bound)
-}
-
-fn bound_index_argument_matches(
-    program: &TypedTrees,
-    bound: &BoundIndexArgument,
-    argument: TypeReferenceHandle,
-) -> bool {
-    match bound {
-        BoundIndexArgument::Subject(subject) => matches!(
-            program.type_reference_table.type_reference(argument),
-            TypeReferenceNode::Named { symbol, .. } if *symbol == *subject
-        ),
-        BoundIndexArgument::Literal(spelling) => {
-            match program.type_reference_table.type_reference(argument) {
-                TypeReferenceNode::Named { name, .. } => name.as_str() == spelling.as_str(),
-                _ => false,
-            }
-        }
-    }
-}
-
-/// Whether a substituted index argument position is a closed index — literals
-/// close the position; bound subjects keep it open.
-fn bound_index_argument_is_closed(
-    program: &TypedTrees,
-    argument: TypeReferenceHandle,
-    substitutions: &BoundIndexSubstitutions,
-) -> bool {
-    match substitute_bound_index(program, argument, substitutions) {
-        Some(BoundIndexArgument::Literal(_)) => true,
-        Some(BoundIndexArgument::Subject(_)) => false,
-        None => is_closed_index_argument(program, argument),
-    }
-}
-
+/// Whether an established fact's operand, with the fact's own call
+/// parameters substituted, denotes the index `argument` spells under the
+/// enclosing call's binder substitutions.
 fn substituted_expression_matches_index_argument(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -1681,46 +1724,26 @@ fn substituted_expression_matches_index_argument(
     argument: TypeReferenceHandle,
     bound_substitutions: &BoundIndexSubstitutions,
 ) -> bool {
-    match program.type_reference_table.type_reference(argument) {
-        TypeReferenceNode::ConstExpression(expected) => substituted_expressions_equal(
+    let operand = || substituted_root(program, expression, substitutions).unwrap_or(expression);
+    match index_argument_term(program, argument, bound_substitutions) {
+        // The named position is a callee binder the enclosing call bound: it
+        // denotes the bound index, not its own spelling.
+        IndexTerm::Bound(bound) => bound_index_matches_expression(program, bound, operand()),
+        IndexTerm::Open { symbol, name } => open_index_matches_expression(
+            program,
+            symbol,
+            name,
+            operand(),
+            OpenNameMatch::ResolvedSymbolFirst,
+        ),
+        IndexTerm::Expression(expected) => substituted_expressions_equal(
             program,
             expression,
             substitutions,
-            *expected,
+            expected,
             bound_substitutions,
         ),
-        TypeReferenceNode::Named { symbol, name } => {
-            let expression =
-                substituted_root(program, expression, substitutions).unwrap_or(expression);
-            if let Some((_, bound)) = bound_substitutions
-                .iter()
-                .find(|(binder, _)| binder == symbol)
-            {
-                // The named position is a callee binder the enclosing call
-                // bound: it denotes the bound index, not its own spelling.
-                return bound_index_argument_matches_expression(program, bound, expression);
-            }
-            match program.expression_table.expression(expression) {
-                ExpressionNode::Name(path) => {
-                    if symbol.is_valid() && (path.symbol.is_valid() || path.head_symbol.is_valid())
-                    {
-                        path.symbol == *symbol || path.head_symbol == *symbol
-                    } else {
-                        matches!(
-                            program.expression_table.name_path_members(path.members),
-                            [only] if only.as_str() == name.as_str()
-                        )
-                    }
-                }
-                ExpressionNode::Integer(literal) => named_integer_value(name.as_str())
-                    .is_some_and(|expected| literal.value_bignum() == Some(expected)),
-                ExpressionNode::Boolean(value) => {
-                    boolean_literal_spelling(name.as_str()) == Some(*value)
-                }
-                _ => false,
-            }
-        }
-        _ => false,
+        IndexTerm::Opaque(_) => false,
     }
 }
 
@@ -1775,8 +1798,8 @@ fn substituted_expressions_equal(
     // A leaf on the compared index side can name a callee binder the
     // enclosing call bound to a caller-side index; the leaf denotes the
     // bound index, not its own spelling.
-    if let Some(bound) = bound_index_leaf_argument(program, local, bound_substitutions) {
-        return bound_index_argument_matches_expression(program, bound, authored);
+    if let IndexTerm::Bound(bound) = index_leaf_term(program, local, bound_substitutions) {
+        return bound_index_matches_expression(program, bound, authored);
     }
     if substitutions.is_empty()
         && bound_substitutions.is_empty()
@@ -2269,13 +2292,7 @@ fn index_argument_label(program: &TypedTrees, argument: TypeReferenceHandle) -> 
 }
 
 fn is_closed_index_argument(program: &TypedTrees, argument: TypeReferenceHandle) -> bool {
-    match program.type_reference_table.type_reference(argument) {
-        TypeReferenceNode::Named { name, .. } => {
-            language_semantics::const_value::CanonicalConstValue::from_atom(name.as_str()).is_some()
-                || name.as_str().parse::<i128>().is_ok()
-        }
-        _ => false,
-    }
+    index_argument_term(program, argument, &Vec::new()).is_closed()
 }
 
 fn named_integer_value(name: &str) -> Option<numerics::bignum::BigInt> {
