@@ -894,7 +894,8 @@ impl Replay<'_> {
     }
 
     /// An evaluated normalized foreign call embeds the boundary's own entry
-    /// plan and projects borrowed flat-record arguments through it. The
+    /// plan and projects borrowed arguments through it: record fields, fixed
+    /// array elements, or a caller parameter's whole forwarded loan. The
     /// retained plan, locator, provider binding, and argument rows are never
     /// authority: every coordinate is re-derived from the unique boundary
     /// declaration, the caller's checked structural parameter roster, and the
@@ -1519,10 +1520,17 @@ impl Replay<'_> {
                 | StructuralAccess::MutableBorrow
                 | StructuralAccess::WriteOnlyBorrow => {
                     if semantic.path.is_empty() {
-                        // A whole-place borrow is legal only as a stored
-                        // descriptor view: the root itself must carry
-                        // `ByteSequence(BorrowedView)` storage.
-                        if !borrowed_view_root {
+                        // A whole-place borrow is either a stored descriptor
+                        // view, whose root carries `ByteSequence(BorrowedView)`
+                        // storage, or a caller parameter forwarding the loan
+                        // it received, whose placement already holds the
+                        // referent pointer word.
+                        if !borrowed_view_root
+                            && !matches!(
+                                actual.source,
+                                TargetStructuralArgumentSource::Placement(_)
+                            )
+                        {
                             return Err(psi_operation);
                         }
                         (
@@ -1530,6 +1538,36 @@ impl Replay<'_> {
                             structural_shapes::reconstruct(root.structural_type, self.declarations)
                                 .map_err(|_| psi_operation)?,
                             0,
+                        )
+                    } else if semantic
+                        .path
+                        .iter()
+                        .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
+                    {
+                        // A fixed element (`&text[0]`) is one static offset
+                        // inside the referent, like a field; the element's
+                        // own declaration supplies its storage shape.
+                        if semantic.path.iter().any(|segment| {
+                            !matches!(
+                                segment,
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                            )
+                        }) {
+                            return Err(psi_operation);
+                        }
+                        let (element_type, element_offset) =
+                            structural_shapes::project_static_path(
+                                root.structural_type,
+                                &semantic.path,
+                                self.declarations,
+                            )
+                            .map_err(|_| psi_operation)?;
+                        (
+                            element_type,
+                            structural_shapes::reconstruct(element_type, self.declarations)
+                                .map_err(|_| psi_operation)?,
+                            element_offset,
                         )
                     } else {
                         if semantic

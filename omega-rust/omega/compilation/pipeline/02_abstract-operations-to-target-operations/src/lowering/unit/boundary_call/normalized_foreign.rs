@@ -3,7 +3,7 @@
 use super::super::super::control_flow::scalar_sources::{ScalarSources, resolved_source};
 use super::super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::super::structural_layout::{
-    borrowed_view_field_offset, byte_sequence_shape, resolve_structural_field_path,
+    borrowed_view_field_offset, byte_sequence_shape, resolve_structural_projection_path,
     structural_parameter_shape, structural_shape,
 };
 #[cfg(test)]
@@ -31,10 +31,12 @@ use terminal_psi::{StructuralAccess, StructuralPathSegment};
 /// from lane-local proof and custody coordinates. Private callback slots are
 /// inserted by the evaluated calling plan, not by the semantic declaration.
 ///
-/// Each admitted borrowed argument must resolve to one flat-record
-/// projection: a nonempty field-only path rooted at a caller structural
-/// parameter, the projected type equal to the declared parameter type, and
-/// the evaluated plan placing the referent pointer as one pointer-width word.
+/// Each admitted borrowed argument must resolve to one static projection
+/// rooted at a caller structural parameter: record fields and fixed array
+/// elements (`&record.field`, `&text[0]`), or the whole parameter when the
+/// caller forwards a loan it received. The projected type equals the declared
+/// parameter type, and the evaluated plan places the referent pointer as one
+/// pointer-width word.
 /// A borrowed dynamic descriptor — a `ByteSequence(BorrowedView)` referent —
 /// instead projects either the caller's whole stored view (empty path) or a
 /// stored descriptor field (field-only path), and the evaluated plan places
@@ -168,29 +170,55 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     )
                 };
                 if argument.path.is_empty() {
-                    if !descriptor_root(source_structural_type) {
+                    if descriptor_root(source_structural_type) {
+                        (
+                            source_structural_type,
+                            byte_sequence_shape(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                                },
+                                source_structural_type,
+                            )
+                            .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
+                            0,
+                        )
+                    } else if parameters_by_place.contains_key(&argument.place) {
+                        // A whole caller parameter lent unchanged (`leaf(text)`
+                        // for a `text: &u8` formal) is its own referent: the
+                        // pointer word is the parameter's place at offset zero.
+                        (
+                            source_structural_type,
+                            structural_shape(
+                                source_structural_type,
+                                structural_types,
+                                shape_cache,
+                                active,
+                            )
+                            .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
+                            0,
+                        )
+                    } else {
                         return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                     }
-                    (
-                        source_structural_type,
-                        byte_sequence_shape(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView {
-                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                            },
-                            source_structural_type,
-                        )
-                        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
-                        0,
-                    )
                 } else {
-                    if argument
+                    // Record fields and fixed array elements both resolve to
+                    // one static byte offset inside the caller's referent, so
+                    // `&text[0]` lends the element's address exactly as
+                    // `&record.field` lends the field's. Runtime indices and
+                    // byte ranges stay outside this pointer-word transport.
+                    if argument.path.iter().any(|segment| {
+                        !matches!(
+                            segment,
+                            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+                        )
+                    }) {
+                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                    }
+                    let field_only = argument
                         .path
                         .iter()
-                        .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-                    {
-                        return Err(LoweringError::BoundaryRealizationMismatch(boundary));
-                    }
-                    match resolve_structural_field_path(
+                        .all(|segment| matches!(segment, StructuralPathSegment::Field(_)));
+                    match resolve_structural_projection_path(
                         source_structural_type,
                         &argument.path,
                         structural_types,
@@ -198,6 +226,9 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         active,
                     ) {
                         Ok(projection) => projection,
+                        Err(_) if !field_only => {
+                            return Err(LoweringError::BoundaryRealizationMismatch(boundary));
+                        }
                         Err(_) => {
                             let Some(offset) = borrowed_view_field_offset(
                                 source_structural_type,
