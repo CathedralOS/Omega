@@ -1,6 +1,91 @@
 use crate::tests::front_end::checked_program;
 
 #[test]
+fn local_field_loan_write_retains_conditional_cleanup() {
+    let checked = checked_program(
+        r#"
+        data Root {}
+        data Storage { raw: u8; }
+        machine Root::route(context: &mut Root) {
+            let mut storage: Storage;
+            storage.raw = 1;
+            let seen: &mut u8 = &mut storage.raw;
+            seen = 0;
+            transition storage.raw == 0 {
+                true -> good(context)
+                _ -> bad(context)
+            }
+            state good(context: &mut Root) {}
+            state bad(context: &mut Root) {}
+        }
+        "#,
+    );
+    let (machine, entry) = super::machine_and_entry_state(&checked, "route");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_state(machine, entry)
+        .expect("the local home retains its cleanup independently of the field loan");
+    assert_eq!(plan.edges.len(), 2);
+    assert!(
+        plan.edges
+            .iter()
+            .all(|edge| edge.trivial_affine_discard_parameter_positions.is_empty())
+    );
+
+    use language_semantics::{PermissionAccess, PermissionEventKind};
+    let permissions = &checked.facts.flow.ownership.permissions;
+    let (establishment, original) = permissions
+        .iter()
+        .find(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == entry
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Owned
+        })
+        .expect("owned local establishment");
+    let (loan, _) = permissions
+        .iter()
+        .find(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == entry
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Exclusive
+        })
+        .expect("exclusive field loan establishment");
+    for corruption in [
+        "missing establishment",
+        "duplicate establishment",
+        "live obligation",
+        "loan is not ownership",
+    ] {
+        let mut changed = checked.facts.clone();
+        let permissions = &mut changed.flow.ownership.permissions;
+        match corruption {
+            "missing establishment" => {
+                permissions.get_mut(establishment).machine_symbol = Default::default()
+            }
+            "duplicate establishment" => {
+                permissions.insert(original.clone());
+            }
+            "live obligation" => permissions.get_mut(establishment).obligation_live = true,
+            "loan is not ownership" => permissions.get_mut(loan).access = PermissionAccess::Owned,
+            _ => unreachable!(),
+        }
+        let rebuilt =
+            crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+                &checked.typed,
+                &changed,
+            );
+        assert!(
+            rebuilt.for_state(machine, entry).is_none(),
+            "{corruption} must reject the cleanup plan"
+        );
+    }
+}
+
+#[test]
 fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
     let supported = checked_program(
         r#"

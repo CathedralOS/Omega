@@ -204,6 +204,8 @@ pub(super) fn matches_entry_loans(
             program,
             reassigned_place,
             statement_index,
+            statement,
+            None,
         );
         while loans
             .peek()

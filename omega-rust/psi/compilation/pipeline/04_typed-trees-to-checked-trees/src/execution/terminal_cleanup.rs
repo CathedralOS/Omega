@@ -971,6 +971,7 @@ pub(super) fn state_exit_result_locals(
                     && event.state_symbol == state.symbol
                     && event.root == drop.root
                     && event.kind == PermissionEventKind::Establish
+                    && event.access == PermissionAccess::Owned
             });
             let (_, establish) = establishments.next()?;
             if establishments.next().is_some()
@@ -1063,6 +1064,7 @@ pub(super) fn state_exit_result_locals(
                     && event.state_symbol == state.symbol
                     && event.root == drop.root
                     && event.kind == PermissionEventKind::Transfer
+                    && event.access == PermissionAccess::Owned
                     && matches!(event.source,
                         PermissionEventSource::Call { statement_index, .. }
                         | PermissionEventSource::Statement { statement_index }
@@ -1114,12 +1116,11 @@ pub(super) fn state_exit_result_locals(
             event.machine_symbol == machine.symbol
                 && event.state_symbol == state.symbol
                 && event.root == drop.root
-                // A loan (a Transfer event carrying Shared or Exclusive
-                // access) does not move the local's owned home: its custody
-                // evidence lives on the loan's own root, so it takes no part
-                // in this local's exit roster.
-                && !(event.kind == PermissionEventKind::Transfer
-                    && event.access != PermissionAccess::Owned)
+                // Establishing, transferring and ending a loan may name this
+                // same storage root. Those access claims are checked by the
+                // borrow ledger; they neither establish nor consume the owned
+                // local whose exit disposal this roster accounts for.
+                && event.access == PermissionAccess::Owned
                 && (!exact(event)
                     || (event.kind == PermissionEventKind::AffineDrop
                         && event.source != PermissionEventSource::StateExit)

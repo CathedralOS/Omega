@@ -1,10 +1,12 @@
-data Main {
+data Storage {
     value: i32;
 }
 
-machine Main::main(&mut self) {
-    let alias: &mut i32 = &mut self.value;
-    use_value(&mut self.value);
+machine main() {
+    let mut storage: Storage;
+    let alias: &mut i32 = &mut storage.value;
+    alias = 3;
+    use_value(&mut storage.value);
     write_alias(alias);
 }
 

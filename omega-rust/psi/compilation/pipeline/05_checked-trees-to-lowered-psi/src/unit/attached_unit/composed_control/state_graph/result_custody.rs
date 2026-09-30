@@ -405,6 +405,10 @@ pub(super) fn validate(
                 event.machine_symbol == machine
                     && event.state_symbol == source.symbol
                     && event.root == facts::PlaceRoot::Symbol(local.symbol)
+                    // Loan access may name the same home without establishing
+                    // or consuming its owned value. Borrow custody validates
+                    // those records; this roster rejoins owned dispositions.
+                    && event.access == PermissionAccess::Owned
             })
     };
     // Plain copy payloads retain producer dominance, not affine receipts. The

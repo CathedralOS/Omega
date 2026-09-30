@@ -7,8 +7,8 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(context: &mut Main) reaches Console {
     let mut total: i32;
     total = 1;
-    self.console.exit_process(total);
+    context.console.exit_process(total);
 }
