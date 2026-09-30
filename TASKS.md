@@ -1429,20 +1429,15 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `dependent/runtime_sibling_len_index_exit` exercises the library returned-view
   form `let view: &[u8] = self.buf.as_slice()`.
 
-  The next record-view dependencies are formation-time capture for mutable
-  field-held selectors and the static overlay's structural-place declaration
-  roster. Runtime byte overlays currently retain immutable scalar parameter
-  selectors. Constant locals fold to static selector paths; the current producer
+  The next record-view dependency is formation-time capture for mutable
+  field-held selectors. Runtime byte overlays currently retain immutable scalar
+  parameter selectors. Constant locals fold to static selector paths; the current producer
   does not mint a dynamic-local coordinate. A live field selector explicitly
   declines instead of reloading a changed selector at observation.
-  `pass/borrows/shared_recast_loan_member_read`
-  rejects with `NonCanonicalOrder("structural places by PlaceId")`; the same
-  rejection is reproduced by the unpatched `c853eb3693` compiler on identical
-  fixture bytes. The seven-fixture native slice therefore remains red against
-  its old golden despite six built programs with matching executions. Repair
-  that roster without relaxing canonical validation, and extend captured loans
-  through remaining producer/read/call/state-forwarding compositions. Coordinate
-  record re-views with **RECAST-SOURCE-POSITIONS**.
+  Preserve `pass/borrows/shared_recast_loan_member_read`'s native/interpreted
+  exit 0 and canonical place ordering beside provider attachments. Extend
+  captured loans through remaining producer/read/call/state-forwarding
+  compositions. Coordinate record re-views with **RECAST-SOURCE-POSITIONS**.
 
   Retain `calls/caller_result_binding_mutable_loan_exit` and
   `calls/runtime_alias_write_through_guarded_transition_exit` as native exit-70

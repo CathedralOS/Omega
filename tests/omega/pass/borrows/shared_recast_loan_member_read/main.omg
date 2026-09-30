@@ -1,10 +1,8 @@
-// Byte-carrier record referee member read — `borrowed.tag` through a
-// recast `as &Desc` shared loan over byte storage. --check passes and the
-// checked interpreter exits 0 (`borrowed.tag` decodes the `Desc` layout
-// over `buf[0..4]` little-endian); the native leg declines at the abstract
-// lowering's `InvalidStructuralLeafCopy` — the byte-carrier overlay has no
-// abstract/native realization yet (record-over-bytes carrier family,
-// BLOCK-WINDOW adjacency), so this rows `rejected` in the check leg.
+// Shared byte-carrier record read: `borrowed.tag` decodes the `Desc`
+// layout over `buf[0..4]` little-endian. Native and interpreted execution
+// exit 0. The high-ID overlay copy and the later dense Console attachment
+// must publish one canonical place roster, even when every copy declaration
+// was already retained by machine assembly.
 use omega_language_std::console;
 use omega::language::core::binding;
 
