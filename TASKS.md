@@ -872,24 +872,27 @@ the complete product bar; focused successes below do not establish that baseline
   the disconnected entry. Unpublished application checkpoint `c9e4cf4` restores
   that route and delegates listing to Snapshot's deletion-aware page/count APIs,
   retaining global IDs and the eight/seven-result oracle. On macOS ARM64,
-  `omega update --project samples/apps/squalr/squalr-tests --target linux_x86_64`
-  checks all 17 source packages with the observed-carrier-bound repair atop
-  `0376680ac29`. Nested member stores and the list executor's Exact increment
-  now check without changing the application. Arithmetic's ordered facts retain
-  the consequence of observing `position < result:u64` across state edges and
-  unrelated writes, without assuming repeated receiver calls return equal values.
-  Native `arithmetic/runtime_observed_call_bound_exit` exits 42 at the u64
-  endpoint; 659 validation tests preserve width, polarity, exact declaration,
-  state argument and within-guard mutation controls. Direct receiver-call
-  requirements still have their separate denotational-call admission boundary.
-  Package preparation now awaits explicit decisions in the generated
-  `squalr-tests/build/package-manager/review-linux_x86_64.txt`; accepted project
-  files remain unchanged. Review the local-source and execution-host changes,
-  resume the update, then run the application's documented native acceptance.
-  Before the listing change, the restored entry checked 282 sources but native
-  emission stopped at `Main::main`'s missing checked transitive machine plan
-  (`state signature: parameter signature: attached data shape, state 0`).
-  Coordinate that admission with STATIC-MACHINE-MIGRATION.
+  ordinary `omega update --resume --offline --project
+  samples/apps/squalr/squalr-tests` now accepts all 17 packages after explicit
+  review of the local-source and execution-host changes. The retained local
+  lockfile records that acceptance; the application checkpoints remain unpublished.
+  With the array-shape repair atop `bbd0a9fdb8d`, `omega run --target
+  linux_x86_64 --keep samples/apps/squalr/squalr-tests/main.omg` gets past
+  `Main::main`'s attached data shape without application changes. Stage 04's
+  `execution/terminal_unit/types/shape_collector.rs` retains the provider-bearing
+  `TrackableTaskManager.tasks` element shape through arrays instead of requiring
+  copyability or trivial disposal. Generic members resolve their actual type
+  before choosing reference, provider, or scalar storage. The native
+  `structural/runtime_provider_payload_array_exit` retains nested arrays and
+  exits 42; 65 focused checks preserve reference shells, cleanup, duplicate-move
+  rejection and array-operation limits.
+  The current application refusal is `CommandDriver::run`, state 0, statement 7:
+  `call operation: structural arguments: caller structural result`, at the
+  `set_scan_settings(settings)` handoff after updating alignment. Trace
+  `execution/terminal_unit/calls/structural_arguments.rs` and coordinate any
+  `calls/result_arguments/` changes with STATIC-MACHINE-MIGRATION. Complete
+  the documented native acceptance on Linux x86-64 after emission succeeds;
+  cross-target compilation on macOS does not establish execution.
   Selected record payloads now reuse stage 05's ordinary canonical field-path
   resolver in `expression_preparation/bindings/structural_fields/`, preserving
   full paths in successor-edge observations instead of a fixed-depth walk.

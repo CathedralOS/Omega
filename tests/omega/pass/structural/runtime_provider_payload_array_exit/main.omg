@@ -1,0 +1,17 @@
+// Repeating an affine payload preserves its provider-bearing element layout.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Task { console: Binding<Console>; count: u64; }
+data Slot { case Empty; case Held(task: Task); }
+data Main {
+    console: Binding<Console>;
+    slots: [[Slot; 2]; 3];
+    count: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.count = 42;
+    transition { _ -> finish() }
+    state finish(&mut self) { self.console.exit_process(self.count); }
+}

@@ -77,3 +77,23 @@ fn material_receiver_shapes_plan_as_composed_unit_machines() {
         );
     }
 }
+
+#[test]
+fn array_wrapping_preserves_provider_bearing_receiver_shapes() {
+    let payload = r#"
+pub data Task { host: Binding<Host>; count: u64; }
+pub data Slot { case Empty; case Held(task: Task); }
+pub data Wrapper<T> { value: T; }
+"#;
+    // A material record or selected payload keeps its service field's exact
+    // authority. Repeating its storage does not require permission to discard
+    // that authority, and must not turn it into ordinary scalar contents.
+    for member in ["Slot", "[Slot; 2]", "[[Slot; 2]; 3]", "[Wrapper<Slot>; 2]"] {
+        let part = format!("{payload}\npub data Part {{ slots: {member}; }}");
+        assert_eq!(
+            composed_plan_count(&part),
+            (1, None),
+            "{member}: array storage composes with the existing element shape"
+        );
+    }
+}
