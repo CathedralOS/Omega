@@ -1,3 +1,7 @@
+//! Expected types determine both scalar landing and operand ownership. Capture
+//! owned operands before proceeding to the next authored expression; borrowed
+//! destinations and Ref values keep their existing storage relationships.
+
 use crate::interpreter::evaluator::{
     EvalResult, EvaluatedArgument, Evaluator, ExpressionHandle, ExpressionNode, Frame,
     PrimitiveType, State, TypeReferenceHandle, TypeReferenceNode, Value, unsupported,
@@ -59,9 +63,43 @@ impl Evaluator<'_> {
         let mut values = Vec::new();
         for element in self.program.expression_table.expression_handles(elements) {
             let value = self.eval_expression_at_type(*element, element_type, frame)?;
+            let value = self.capture_value_operand(value, element_type)?;
             values.push(self.allocate_cell(value)?);
         }
         Ok(Value::Array(values))
+    }
+
+    /// Establish each value operand before the next operand can mutate
+    /// its source. Waiting for the enclosing assignment's value copy is too
+    /// late: ordinary Value clones retain the original aggregate cells.
+    /// Calls and record, case, and array construction share this rule regardless of the
+    /// expression that produced the operand. References retain their referent;
+    /// an Array carrier is owned only at a fixed-array destination, not a view.
+    pub(in crate::interpreter::evaluator) fn capture_value_operand(
+        &self,
+        value: Value,
+        destination: TypeReferenceHandle,
+    ) -> EvalResult<Value> {
+        match self
+            .program
+            .type_reference_table
+            .type_reference(destination)
+        {
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                return self.capture_value_operand(value, *base_type);
+            }
+            // Implicit shared lending may carry the aggregate without a Ref
+            // wrapper. Its declared access still forbids taking an owned copy.
+            TypeReferenceNode::Reference { .. } => return Ok(value),
+            _ => {}
+        }
+        let owned_aggregate = matches!(value, Value::Struct { .. } | Value::Enum { .. })
+            || (matches!(value, Value::Array(_)) && self.declared_type_is_fixed_array(destination));
+        if owned_aggregate {
+            value.deep_clone_with(&|value| self.allocate_cell(value))
+        } else {
+            Ok(value)
+        }
     }
 
     /// Use the compiler's exact anonymous value at the actual destination.
@@ -173,11 +211,14 @@ impl Evaluator<'_> {
             .collect();
         let mut evaluated = Vec::with_capacity(arguments.len());
         for (ordinal, argument) in arguments.iter().copied().enumerate() {
-            evaluated.push(self.eval_state_argument(
-                argument,
-                destinations.get(ordinal).copied().unwrap_or_default(),
-                frame,
-            )?);
+            let destination = destinations.get(ordinal).copied().unwrap_or_default();
+            let argument = self.eval_state_argument(argument, destination, frame)?;
+            let value = argument.cell.borrow().clone();
+            let value = self.capture_value_operand(value, destination)?;
+            // Argument evaluation allocated this staging cell. Replace only its
+            // value, preserving recast metadata and any borrowed referent.
+            *argument.cell.borrow_mut() = value;
+            evaluated.push(argument);
         }
         Ok(evaluated)
     }

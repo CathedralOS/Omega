@@ -20,6 +20,7 @@ mod entry_context_provisioning;
 mod field_ranking_arrivals;
 mod mixed_integer_comparisons;
 mod mutable_slice_view;
+mod operand_capture;
 mod projected_results;
 mod raw_literal_bytes;
 mod resolved_state_execution;

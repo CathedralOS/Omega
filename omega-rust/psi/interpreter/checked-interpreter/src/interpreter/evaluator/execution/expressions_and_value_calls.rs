@@ -313,7 +313,11 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::ArrayLiteral(values) => {
                 let mut elements = Vec::new();
                 for value in self.program.expression_table.expression_handles(values) {
+                    let element_type = self
+                        .expression_type_reference(*value, frame)
+                        .unwrap_or_default();
                     let value = self.eval_expression(*value, frame)?;
+                    let value = self.capture_value_operand(value, element_type)?;
                     elements.push(self.allocate_cell(value)?);
                 }
                 Ok(Value::Array(elements))
@@ -1562,6 +1566,7 @@ impl<'program> Evaluator<'program> {
                 Some(type_reference) => self.coerce_scalar_value(value, type_reference)?,
                 None => value,
             };
+            let value = self.capture_value_operand(value, field_type.unwrap_or_default())?;
             fields.insert(field.name.as_str().into(), self.allocate_cell(value)?);
         }
         Ok(Value::Struct {
@@ -1634,6 +1639,7 @@ impl<'program> Evaluator<'program> {
                 .or_else(|| self.field_type_reference(data.symbol, field.name.as_str()));
             let value =
                 self.eval_expression_at_type(field.value, field_type.unwrap_or_default(), frame)?;
+            let value = self.capture_value_operand(value, field_type.unwrap_or_default())?;
             let Some(slot) = payload
                 .iter_mut()
                 .find(|(name, _)| **name == *field.name.as_str())
