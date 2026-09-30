@@ -32,7 +32,6 @@ const ELF64_SECTION_HEADER_SIZE: usize = 64;
 const ELF64_SECTION_HEADER_COUNT: usize = 14;
 const ELF64_SECTION_HEADER_TABLE_SIZE: usize =
     ELF64_SECTION_HEADER_SIZE * ELF64_SECTION_HEADER_COUNT;
-const ELF64_SECTION_NAME_TABLE_INDEX: u16 = 12;
 
 const ET_EXEC: u16 = 2;
 const EM_X86_64: u16 = 62;
@@ -224,7 +223,7 @@ fn derive_contents(
     write_u16(&mut header_prefix_bytes, ELF64_PROGRAM_HEADER_COUNT as u16);
     write_u16(&mut header_prefix_bytes, ELF64_SECTION_HEADER_SIZE as u16);
     write_u16(&mut header_prefix_bytes, ELF64_SECTION_HEADER_COUNT as u16);
-    write_u16(&mut header_prefix_bytes, ELF64_SECTION_NAME_TABLE_INDEX);
+    write_u16(&mut header_prefix_bytes, section_name_table_index(layout)?);
 
     for header in layout.program_headers() {
         write_program_header(&mut header_prefix_bytes, header);
@@ -324,7 +323,7 @@ fn validate_contents(
             && header.program_header_count == ELF64_PROGRAM_HEADER_COUNT as u16
             && header.section_header_entry_size == ELF64_SECTION_HEADER_SIZE as u16
             && header.section_header_count == ELF64_SECTION_HEADER_COUNT as u16
-            && header.section_name_table_index == ELF64_SECTION_NAME_TABLE_INDEX,
+            && header.section_name_table_index == section_name_table_index(layout)?,
         "decoded dynamic ELF header drifted from its target, sizes, or closed table geometry",
     )?;
 
@@ -508,6 +507,21 @@ fn expected_entry_address(layout: &ValidatedElfDynamicLoadLayout) -> Result<u64,
 
 fn load_layout(resolved: &ValidatedElfResolvedDynamicTable) -> &ValidatedElfDynamicLoadLayout {
     resolved.placed_section_headers().load_layout()
+}
+
+/// `e_shstrndx` is the row the sealed numeric roster assigned to `.shstrtab`,
+/// read from that roster rather than restated here, so a roster that gains or
+/// reorders a section cannot leave the header naming a different table.
+fn section_name_table_index(layout: &ValidatedElfDynamicLoadLayout) -> Result<u16, Diagnostic> {
+    u16::try_from(
+        layout
+            .relative()
+            .payloads()
+            .section_headers()
+            .roster()
+            .section_name_table_index(),
+    )
+    .map_err(|_| Diagnostic::error("dynamic ELF section-name table index exceeds e_shstrndx"))
 }
 
 fn target_machine(target: TargetProfile) -> Result<u16, Diagnostic> {

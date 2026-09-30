@@ -5346,6 +5346,26 @@ justified skips; **RC-RELEASE-RECORD-AND-CLOSURE** joins the same-commit evidenc
 These are independent host runs of shared gates; capability repairs retain
 their existing owners.
 
+- **QUALIFIED-CALLBACK-REGISTRAR-CALLS.** (new-scope) Since e7ae1518437, a
+  trait-qualified boundary call whose signature has a `machine`-kind type
+  parameter rejects in Psi checking with "qualified call `<name>` has no
+  resolved callable declaration". The namespace branch of
+  `checking/src/machine_calls/calls/receiver_calls.rs` accepts only
+  `validate_resolved_receiver_call`, and
+  `write_frames/boundary_calls.rs::boundary_trait_signature_and_receiver_inner`
+  returns no signature for a non-empty `type_parameters` list (the write-frame
+  route admits only `Type`-kind parameters); the older fallback accepted these
+  calls without validating them. Customers:
+  `pass/capabilities/callback_direct_install_compile`
+  (`HookRegistrar::install<HookProvider::call>(1u64, 2u64)`, check and macOS
+  native legs) and 9 of 12 `compiler --test callback_terminal_custody` tests
+  (`WindowRegistrar::register<…>` / `…::install<…>`). Acceptance: validate the
+  call against its selected signature, binding each `native callback procedure
+  from Handler` parameter to its machine type argument rather than to an
+  explicit argument, while keeping result-use and argument checks; the
+  fixture's check leg then reaches the dynamic writer's callback relocation,
+  which image-elf's `image_local_relocations` tests pin to the private function.
+
 - **ELF-LOADER-CONFIGURATION.** Build-owned [loader selection](wiki/spec/build/configuration.md#elf-executable-loader-selection)
   is wired end to end: `builder.elf_interpreter.<target>` rows override the
   Linux target environments' declared glibc defaults, the effective loader
@@ -5357,10 +5377,12 @@ their existing owners.
   `providers/external_boundary_requirement_via_exit` (libc.so.6 `abs`/`exit` at
   GLIBC_2.2.5) records `built … exit:21` in `corpus_native_linux_x86_64.txt`.
   Its `linux_arm64` bindings request GLIBC_2.2.5, which aarch64 glibc (from
-  GLIBC_2.17) does not define; fix the fixture before an arm64 run. Dynamic
-  images also expose `pass/capabilities/callback_direct_install_compile`:
-  `image-emission/src/final_image_validation.rs::validate_callback_relocation_targets`
-  finds the dynamic writer's callback rel32 target off its private function.
+  GLIBC_2.17) does not define; fix the fixture before an arm64 run. The
+  dynamic writer resolves image-local relocations (internal calls, callback
+  addresses, `.text` references into `.data`/`.bss`, data pointers) at its load
+  layout and names `.shstrtab` in `e_shstrndx`;
+  `pass/capabilities/callback_direct_install_compile` now stops earlier, in Psi
+  (**QUALIFIED-CALLBACK-REGISTRAR-CALLS**).
 
 - **RC-NATIVE-MATRIX-LINUX-X86-64.** Close the shared gates with actual ELF
   x86-64 execution, including dynamic imports (**ELF-LOADER-CONFIGURATION**).
