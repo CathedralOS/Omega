@@ -53,6 +53,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::Call { .. } => calls_and_effects::encode(bytes, operation),
 
         O::IeeeFloatConstant { .. }
+        | O::FloatResultPolicy { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. } => ieee_float::encode(bytes, operation),
 

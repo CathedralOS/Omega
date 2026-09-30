@@ -53,6 +53,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. }
+        | O::FloatResultPolicy { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }

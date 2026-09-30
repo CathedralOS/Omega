@@ -4,4 +4,6 @@
 //! pipeline stages and consume these data types.
 
 mod unit;
-pub use unit::{NativeCallOrigin, TargetStructuralRuntimeIndex, TargetUnitOperation};
+pub use unit::{
+    NativeCallOrigin, TargetFloatResultPolicy, TargetStructuralRuntimeIndex, TargetUnitOperation,
+};

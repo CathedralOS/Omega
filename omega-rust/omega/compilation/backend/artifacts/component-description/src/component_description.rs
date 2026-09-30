@@ -780,6 +780,7 @@ pub(crate) fn derive_component_inventory(
                     // A Trapping primitive's crash is closure-internal: it
                     // grants no outgoing boundary or port authority.
                     | OperationKind::TrappingInteger { .. }
+                    | OperationKind::FloatResultPolicy { .. }
                     | OperationKind::MoveStructuralField { .. }
                     | OperationKind::StoreStructuralField { .. }
                     | OperationKind::EstablishByteSequenceConcatenation { .. } => {}

@@ -1894,14 +1894,19 @@ crash and native exit behavior. Use affected check/native corpus slices under
     expression-selection projection as legacy named and spelled operators;
     the interpreter rejects missing, substituted or duplicate selections.
     Native policy-result adaptation remains unfinished. The unpublished
-    policy-call-results candidate based on `f136a75fbbc` retains same-carrier
+    policy-call-results candidate based on `57538be07e8` retains same-carrier
     policy casts and emits one checked `FloatResultPolicy` after the original
     boundary call through the shared nested, statement and direct-return paths.
     Source replay checks exact occurrence, format, raw result, ordered operands
     and saturation rule; it rejects missing or substituted adapters and raw-result
     bypass. Serialized Terminal execution checks adapted consumers and retained
-    traps even when the result is unused. Native lowering, current-only format
-    integration and trusted-site inventory integration remain required. The last
+    traps even when the result is unused. Omega stage 00 and optimizer replay
+    retain exact formats, operands and operation-owned crash observations:
+    270 of 272 scoped library tests pass; both failures reproduce on that base.
+    Target/legalized lowering and independent replay are implemented but their
+    tests await the selected-instruction form. Selected/native policy emission,
+    current-only format integration and trusted-site inventory integration
+    remain required. The last
     native run before adding this operation returned **78** instead of authored
     **77**, and **70** instead of trapping in the overflow and propagated-NaN
     controls. Acceptance remains `python3 tools/corpus_gate.py --native --filter

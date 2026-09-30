@@ -117,6 +117,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         // A Trapping primitive stops through an inline architectural trap,
         // like the `Crash` leaf; it names no call, boundary, or port.
         | AbstractOperation::TrappingInteger { .. }
+        | AbstractOperation::FloatResultPolicy { .. }
         | AbstractOperation::Jump { .. }
         | AbstractOperation::Conditional { .. }
         | AbstractOperation::StructuralCase { .. }

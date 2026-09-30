@@ -120,6 +120,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             psi_operation,
             result,
             ..
+        }
+        | AbstractOperation::FloatResultPolicy {
+            psi_operation,
+            result,
+            ..
         } => Ok((*psi_operation, *result)),
         AbstractOperation::PrimitiveScalarRead {
             psi_operation,
@@ -768,6 +773,17 @@ pub(super) fn validate(
                     .and_then(|(_, result)| result)
                     .ok_or_else(LegalizationError::custody)?
                     .scalar_type
+            }
+            AbstractOperation::FloatResultPolicy { format, policy, .. } => {
+                let scalar_type = ScalarType::IeeeFloat(*format);
+                if policy
+                    .operands()
+                    .into_iter()
+                    .any(|operand| value_type(optimized, operand) != Some(scalar_type))
+                {
+                    return Err(LegalizationError::custody());
+                }
+                scalar_type
             }
             AbstractOperation::IeeeFloatCompare {
                 format,

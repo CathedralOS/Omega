@@ -249,12 +249,20 @@ impl LegalizedScalarInstruction {
             LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic { arguments, .. } => {
                 arguments.iter().copied().for_each(visit)
             }
+            LegalizedScalarInstructionKind::FloatResultPolicy { policy, .. } => {
+                policy.operands().into_iter().for_each(visit)
+            }
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    /// Post-call policy with the original operation's exact ordered value IDs.
+    FloatResultPolicy {
+        format: semantic_vocabulary::IeeeFloatFormat,
+        policy: terminal_psi::FloatResultPolicy,
+    },
     /// One indivisible access. Result custody names the resident this event
     /// observed; an RMW must never be split into a separate load and store.
     AtomicAccess {

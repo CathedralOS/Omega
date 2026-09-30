@@ -21,14 +21,15 @@ use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 
 mod aggregate_argument;
-mod call_arguments;
 mod aggregate_memory;
 mod aggregate_return;
 mod atomic_access;
 mod boolean_value;
 mod byte_input;
 mod byte_output;
+mod call_arguments;
 mod control;
+mod float_result_policy;
 mod ieee_comparison;
 mod ieee_float_arithmetic;
 mod integer_arithmetic;
@@ -196,6 +197,9 @@ pub(in crate::selection) fn validate_with_environment(
                     }
                     LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic { .. } => {
                         ieee_float_arithmetic::validate(operation, &mut replay)?
+                    }
+                    LegalizedScalarInstructionKind::FloatResultPolicy { .. } => {
+                        float_result_policy::validate(operation, &mut replay)?
                     }
                     LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {
                         structural::observe(source, &mut replay, operation)?

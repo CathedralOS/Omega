@@ -32,8 +32,66 @@ pub enum NativeCallOrigin {
     },
 }
 
+/// Exact available sources consumed by a post-call float adapter. Fixed fields
+/// preserve the divisor position without another argument roster to reconcile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TargetFloatResultPolicy {
+    Trapping {
+        raw_result: TargetUnitScalarArgumentSource,
+    },
+    Saturating {
+        raw_result: TargetUnitScalarArgumentSource,
+        left: TargetUnitScalarArgumentSource,
+        right: TargetUnitScalarArgumentSource,
+        rule: terminal_psi::FloatSaturationRule,
+    },
+}
+
+impl TargetFloatResultPolicy {
+    pub fn operands(self) -> impl Iterator<Item = TargetUnitScalarArgumentSource> {
+        match self {
+            Self::Trapping { raw_result } => [Some(raw_result), None, None],
+            Self::Saturating {
+                left,
+                right,
+                raw_result,
+                ..
+            } => [Some(left), Some(right), Some(raw_result)],
+        }
+        .into_iter()
+        .flatten()
+    }
+
+    pub fn semantic_policy(self) -> terminal_psi::FloatResultPolicy {
+        match self {
+            Self::Trapping { raw_result } => terminal_psi::FloatResultPolicy::Trapping {
+                raw_result: raw_result.source_value(),
+            },
+            Self::Saturating {
+                raw_result,
+                left,
+                right,
+                rule,
+            } => terminal_psi::FloatResultPolicy::Saturating {
+                raw_result: raw_result.source_value(),
+                left: left.source_value(),
+                right: right.source_value(),
+                rule,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetUnitOperation {
+    /// Adapt the completed boundary payload without changing its provider or
+    /// replaying its operands. A trapping adapter keeps its own operation site.
+    FloatResultPolicy {
+        psi_operation: OperationId,
+        result_home: TargetUnitScalarHomeRequirement,
+        format: IeeeFloatFormat,
+        policy: TargetFloatResultPolicy,
+    },
     /// One indivisible access at an aligned scalar field. Scalar inputs are
     /// resolved in the event's operand order; an observing result is defined
     /// by this event, never by an independent load of the same location.

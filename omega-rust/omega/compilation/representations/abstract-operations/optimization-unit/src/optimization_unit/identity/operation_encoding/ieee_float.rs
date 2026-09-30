@@ -5,6 +5,34 @@ use super::{AbstractOperation, CanonicalBytes};
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
     match operation {
+        O::FloatResultPolicy {
+            psi_operation,
+            result,
+            format,
+            policy,
+        } => {
+            bytes.u8(97);
+            bytes.id(*psi_operation);
+            bytes.id(*result);
+            bytes.u8(match format {
+                semantic_vocabulary::IeeeFloatFormat::Binary32 => 0,
+                semantic_vocabulary::IeeeFloatFormat::Binary64 => 1,
+            });
+            bytes.u8(match policy {
+                terminal_psi::FloatResultPolicy::Trapping { .. } => 0,
+                terminal_psi::FloatResultPolicy::Saturating {
+                    rule: terminal_psi::FloatSaturationRule::FiniteOperandOverflow,
+                    ..
+                } => 1,
+                terminal_psi::FloatResultPolicy::Saturating {
+                    rule: terminal_psi::FloatSaturationRule::FiniteDivisionOverflow,
+                    ..
+                } => 2,
+            });
+            for operand in policy.operands() {
+                bytes.id(operand);
+            }
+        }
         O::IeeeFloatConstant {
             psi_operation,
             result,
@@ -71,5 +99,78 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*addend);
         }
         _ => unreachable!("operation family routing admitted a non-IEEE operation"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IeeeFloatFormat, OperationId, ValueId};
+    use terminal_psi::{FloatResultPolicy, FloatSaturationRule};
+
+    fn encoded(operation: &AbstractOperation) -> Vec<u8> {
+        let mut bytes = CanonicalBytes::collect();
+        super::super::encode_operation(&mut bytes, operation);
+        bytes.finish()
+    }
+
+    #[test]
+    fn float_result_policy_identity_binds_format_rule_and_ordered_operands() {
+        let value = |raw| ValueId::new(raw).expect("nonzero value");
+        let original = AbstractOperation::FloatResultPolicy {
+            psi_operation: OperationId::new(1).expect("operation"),
+            result: value(5),
+            format: IeeeFloatFormat::Binary64,
+            policy: FloatResultPolicy::Saturating {
+                left: value(2),
+                right: value(3),
+                raw_result: value(4),
+                rule: FloatSaturationRule::FiniteDivisionOverflow,
+            },
+        };
+        let original_bytes = encoded(&original);
+        assert_eq!(original_bytes[0], 97);
+        for mutation in 0..7 {
+            let mut candidate = original.clone();
+            let AbstractOperation::FloatResultPolicy {
+                psi_operation,
+                result,
+                format,
+                policy,
+            } = &mut candidate
+            else {
+                unreachable!()
+            };
+            match mutation {
+                0 => *psi_operation = OperationId::new(9).expect("operation"),
+                1 => *result = value(9),
+                2 => *format = IeeeFloatFormat::Binary32,
+                3 => {
+                    *policy = FloatResultPolicy::Trapping {
+                        raw_result: value(4),
+                    }
+                }
+                4 => {
+                    let FloatResultPolicy::Saturating { rule, .. } = policy else {
+                        unreachable!()
+                    };
+                    *rule = FloatSaturationRule::FiniteOperandOverflow;
+                }
+                5 => {
+                    let FloatResultPolicy::Saturating { left, right, .. } = policy else {
+                        unreachable!()
+                    };
+                    std::mem::swap(left, right);
+                }
+                6 => {
+                    let FloatResultPolicy::Saturating { raw_result, .. } = policy else {
+                        unreachable!()
+                    };
+                    *raw_result = value(9);
+                }
+                _ => unreachable!(),
+            }
+            assert_ne!(original_bytes, encoded(&candidate), "mutation {mutation}");
+        }
     }
 }

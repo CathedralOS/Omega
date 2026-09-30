@@ -21,14 +21,15 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType, ValueId};
 
 mod aggregate_argument;
-mod call_arguments;
 mod aggregate_memory;
 mod aggregate_return;
 mod atomic_access;
 mod boolean_value;
 mod byte_input;
 mod byte_output;
+mod call_arguments;
 mod control;
+mod float_result_policy;
 mod ieee_comparison;
 mod ieee_float_arithmetic;
 mod integer_arithmetic;
@@ -330,6 +331,9 @@ fn select_function(
                     }
                     LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic { .. } => {
                         ieee_float_arithmetic::emit(operation, &mut builder)?
+                    }
+                    LegalizedScalarInstructionKind::FloatResultPolicy { .. } => {
+                        float_result_policy::emit(operation, &mut builder)?
                     }
                     LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {
                         structural::observe(source, &mut builder, operation)?

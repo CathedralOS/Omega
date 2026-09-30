@@ -1172,6 +1172,7 @@ impl Replay<'_> {
         {
             let home = match operation {
                 TargetUnitOperation::IeeeFloatCompare { result_home, .. }
+                | TargetUnitOperation::FloatResultPolicy { result_home, .. }
                 | TargetUnitOperation::NearestIeeeFloatArithmetic { result_home, .. }
                 | TargetUnitOperation::ScalarDefinition { result_home, .. } => Some(*result_home),
                 TargetUnitOperation::Call { result, .. } => result.scalar_home().copied(),
@@ -3616,6 +3617,12 @@ fn scalar_home_result(operation: &AbstractOperation) -> Option<(OperationId, Abs
             ..
         } => boolean(*psi_operation, *result),
         AbstractOperation::NearestIeeeFloatFusedMultiplyAdd {
+            psi_operation,
+            result,
+            format,
+            ..
+        }
+        | AbstractOperation::FloatResultPolicy {
             psi_operation,
             result,
             format,
