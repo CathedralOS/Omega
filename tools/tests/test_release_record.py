@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Guard the release-record substrate: the gate manifest must stay
 verbatim-equal to the completion contract's command blocks, the validator
-must reject records that read closed without every required row, and
-committed records must re-validate.
+must reject records that read closed without every required row, a
+timed-out, unavailable or limited command must leave its gate open, the
+four-lane join must reject mixed or misattributed records and close only a
+complete same-commit set, and committed records must re-validate.
 
 Runs locally only; no GitHub access or non-standard Python packages:
 
@@ -13,9 +15,12 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
-import sys
 import re
+import subprocess
+import sys
+import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -165,7 +170,7 @@ class ManifestPinsContract(unittest.TestCase):
                     required.add(" ".join(stripped.split()))
                 continue
             for span in re.findall(r"`([^`]+)`", line):
-                if span.startswith("mbx "):
+                if span.startswith(("mbx ", "python tools/")):
                     required.add(" ".join(span.split()))
         self.assertTrue(required, "the contract names no commands")
 
@@ -472,6 +477,547 @@ class ExecutedUnits(unittest.TestCase):
     def test_missing_summary_reads_as_zero(self):
         self.assertEqual(0, self.units("python tools/corpus_gate.py", ""))
         self.assertEqual(0, self.units("mbx nextest run -p x", "error"))
+
+
+class CommandResolution(unittest.TestCase):
+    def test_mbx_commands_resolve_to_the_selected_runner(self):
+        self.assertEqual(
+            ["cargo", "nextest", "run"],
+            release_record.resolve_command("mbx nextest run", "cargo"))
+
+    def test_the_formatting_leg_is_never_rewritten_to_the_runner(self):
+        # The contract's formatting leg is `python tools/fmt.py --check`, the
+        # portable route, not a Cargo subcommand: an installed `mbx` must not
+        # capture it.
+        self.assertEqual(
+            [sys.executable, "tools/fmt.py", "--check"],
+            release_record.resolve_command(
+                "python tools/fmt.py --check", "mbx"))
+
+    def test_the_formatting_leg_is_available_without_any_runner(self):
+        self.assertIsNone(release_record.command_unavailable(
+            "python tools/fmt.py --check", None))
+
+    def test_mbx_command_is_unavailable_without_a_runner(self):
+        self.assertEqual(
+            "mbx and Cargo unavailable",
+            release_record.command_unavailable("mbx check --workspace", None))
+
+    def test_nextest_command_is_unavailable_without_cargo_nextest(self):
+        with mock.patch.object(release_record, "nextest_available",
+                               return_value=False):
+            self.assertEqual(
+                "cargo-nextest unavailable",
+                release_record.command_unavailable(
+                    "mbx nextest run --workspace --lib", "cargo"))
+            self.assertIsNone(release_record.command_unavailable(
+                "mbx check --workspace --all-targets", "cargo"))
+
+    def test_every_contract_command_resolves_to_an_argument_vector(self):
+        for name, gate in release_record.GATES.items():
+            for command in gate["commands"]:
+                argv = release_record.resolve_command(command, "cargo")
+                self.assertTrue(argv, "{} empty command".format(name))
+                self.assertTrue(all(isinstance(part, str) for part in argv))
+                self.assertNotIn(argv[0], ("mbx", "python"), command)
+
+
+class HostLanes(unittest.TestCase):
+    def test_each_required_host_maps_to_its_lane(self):
+        cases = [("Linux", "x86_64", "linux_x86_64"),
+                 ("Linux", "aarch64", "linux_arm64"),
+                 ("Darwin", "arm64", "macos_arm64"),
+                 ("Windows", "AMD64", "windows_x86_64")]
+        for os_name, machine, lane in cases:
+            with self.subTest(host=(os_name, machine)):
+                self.assertEqual(
+                    [lane], release_record.host_lanes(os_name, machine))
+
+    def test_unlisted_host_records_no_lane(self):
+        self.assertEqual([], release_record.host_lanes("FreeBSD", "amd64"))
+        self.assertFalse(release_record.lane_host_match(
+            "linux_x86_64", os_name="FreeBSD", machine="amd64"))
+
+    def test_only_linux_arm64_accepts_a_named_emulator(self):
+        self.assertTrue(release_record.lane_host_match(
+            "linux_arm64", emulator="qemu-aarch64 9.0.0",
+            os_name="linux", machine="x86_64"))
+        self.assertFalse(release_record.lane_host_match(
+            "windows_x86_64", emulator="wine 9.0",
+            os_name="linux", machine="x86_64"))
+
+
+class GateExecution(unittest.TestCase):
+    """`run_gate_commands` against real processes on this interpreter."""
+
+    def run_gate(self, commands, **options):
+        with tempfile.TemporaryDirectory() as scratch, \
+                mock.patch("builtins.print"):
+            rows = release_record.run_gate_commands(
+                "RC-TEST", commands, "cargo", log_dir=Path(scratch),
+                **options)
+            logs = sorted(path.name for path in Path(scratch).iterdir())
+        return rows, logs
+
+    def status(self, rows):
+        return release_record.gate_status(rows, run_complete=True)
+
+    def test_all_zero_exits_pass_and_keep_full_logs(self):
+        rows, logs = self.run_gate([
+            "python -c pass",
+            "python -c \"print('evidence')\"",
+        ])
+        self.assertEqual([0, 0], [row["exit"] for row in rows])
+        self.assertEqual([None, None], [row["incomplete"] for row in rows])
+        self.assertEqual(["RC-TEST-0.log", "RC-TEST-1.log"], logs)
+        self.assertEqual("evidence", rows[1]["output_tail"].strip())
+        self.assertEqual("pass", self.status(rows))
+
+    def test_nonzero_exit_fails_the_gate(self):
+        rows, _ = self.run_gate(["python -c \"import sys; sys.exit(3)\""])
+        self.assertEqual(3, rows[0]["exit"])
+        self.assertEqual("fail", self.status(rows))
+
+    def test_timeout_leaves_the_gate_open(self):
+        rows, _ = self.run_gate(
+            ["python -c \"import time; time.sleep(30)\""], timeout=0.5)
+        self.assertIsNone(rows[0]["exit"])
+        self.assertTrue(rows[0]["incomplete"].startswith("timeout"))
+        self.assertEqual("open", self.status(rows))
+
+    def test_unavailable_command_is_recorded_not_run(self):
+        with mock.patch.object(release_record, "nextest_available",
+                               return_value=False):
+            rows, logs = self.run_gate(["mbx nextest run -p x"])
+        self.assertIsNone(rows[0]["exit"])
+        self.assertEqual("cargo-nextest unavailable", rows[0]["incomplete"])
+        self.assertEqual([], logs)
+        self.assertEqual("open", self.status(rows))
+
+    def test_command_that_cannot_start_leaves_the_gate_open(self):
+        rows, _ = self.run_gate(["definitely-not-a-real-release-tool"])
+        self.assertIsNone(rows[0]["exit"])
+        self.assertTrue(rows[0]["incomplete"].startswith("could not start"))
+        self.assertEqual("open", self.status(rows))
+
+    def test_limit_records_the_remaining_commands_not_run(self):
+        rows, logs = self.run_gate(
+            ["python -c pass", "python -c pass"], limit=1)
+        self.assertEqual(2, len(rows), "the contract's command count stays")
+        self.assertEqual(0, rows[0]["exit"])
+        self.assertEqual("beyond --limit", rows[1]["incomplete"])
+        self.assertEqual(["RC-TEST-0.log"], logs)
+        self.assertEqual("open", self.status(rows))
+
+    def test_nonzero_exit_outranks_an_incomplete_command(self):
+        rows, _ = self.run_gate(
+            ["python -c \"import sys; sys.exit(1)\"", "python -c pass"],
+            limit=1)
+        self.assertEqual("fail", self.status(rows))
+
+
+class IncompleteCommandRecords(unittest.TestCase):
+    def test_timed_out_command_validates_as_an_open_gate(self):
+        record = minimal_record()
+        row = record["gates"][1]["commands"][0]
+        row.update({"exit": None, "incomplete": "timeout after 7200 s",
+                    "output_tail": ""})
+        with self.assertRaises(ValueError) as caught:
+            release_record.validate_record(record, "fixture.json")
+        self.assertIn("RC-SOURCE-SEMANTICS status pass contradicts",
+                      str(caught.exception))
+        record["gates"][1]["status"] = "open"
+        record["closure"]["open_rows"].insert(0, "RC-SOURCE-SEMANTICS")
+        release_record.validate_record(record, "fixture.json")
+
+    def test_rejects_missing_exit_without_a_reason(self):
+        record = minimal_record()
+        record["gates"][1]["commands"][0]["exit"] = None
+        record["gates"][1]["status"] = "open"
+        record["closure"]["open_rows"].insert(0, "RC-SOURCE-SEMANTICS")
+        with self.assertRaises(ValueError) as caught:
+            release_record.validate_record(record, "fixture.json")
+        self.assertIn("exit/elapsed evidence", str(caught.exception))
+
+    def test_rejects_incomplete_reason_beside_an_exit(self):
+        record = minimal_record()
+        record["gates"][1]["commands"][0]["incomplete"] = "timeout"
+        with self.assertRaises(ValueError) as caught:
+            release_record.validate_record(record, "fixture.json")
+        self.assertIn("exit/elapsed evidence", str(caught.exception))
+
+
+class ExpectedSkipReconciliation(unittest.TestCase):
+    def skipping_record(self):
+        record = minimal_record()
+        row = record["gates"][3]["commands"][0]
+        row["skipped_tests"] = 1
+        row["skipped_names"] = ["terminal-codec host::only"]
+        return record
+
+    def test_undeclared_skip_keeps_the_gate_open(self):
+        record = self.skipping_record()
+        record["unlisted_skips"] = ["terminal-codec host::only"]
+        with self.assertRaises(ValueError) as caught:
+            release_record.validate_record(record, "fixture.json")
+        self.assertIn("RC-PORTABLE-PSI status pass contradicts",
+                      str(caught.exception))
+        record["gates"][3]["status"] = "open"
+        record["closure"]["open_rows"].insert(0, "RC-PORTABLE-PSI")
+        release_record.validate_record(record, "fixture.json")
+
+    def test_skip_declared_for_the_same_gate_passes(self):
+        record = self.skipping_record()
+        record["expected_skips"] = [{
+            "gate": "RC-PORTABLE-PSI", "test": "terminal-codec host::only",
+            "reason": "irrelevant to this runner"}]
+        release_record.validate_record(record, "fixture.json")
+
+    def test_skip_declared_for_another_gate_is_unlisted(self):
+        record = self.skipping_record()
+        record["expected_skips"] = [{
+            "gate": "RC-REPOSITORY", "test": "terminal-codec host::only",
+            "reason": "irrelevant to this runner"}]
+        record["unlisted_skips"] = ["terminal-codec host::only"]
+        record["gates"][3]["status"] = "open"
+        record["closure"]["open_rows"].insert(0, "RC-PORTABLE-PSI")
+        with self.assertRaises(ValueError) as caught:
+            release_record.validate_record(record, "fixture.json")
+        # RC-REPOSITORY observed no skip, so its declaration is stale.
+        self.assertIn("not observed in RC-REPOSITORY", str(caught.exception))
+
+    def test_rejects_declared_skip_when_the_gate_skipped_nothing(self):
+        record = minimal_record()
+        record["expected_skips"] = [{
+            "gate": "RC-PCC-REPLAY", "test": "pkg::never_skipped",
+            "reason": "irrelevant to this runner"}]
+        with self.assertRaises(ValueError) as caught:
+            release_record.validate_record(record, "fixture.json")
+        self.assertIn("not observed", str(caught.exception))
+
+    def test_rejects_declared_skip_for_a_gate_not_run(self):
+        record = minimal_record()
+        record["gates"] = [gate for gate in record["gates"]
+                           if gate["name"] != "RC-PCC-REPLAY"]
+        record["closure"]["open_rows"].insert(0, "RC-PCC-REPLAY")
+        release_record.validate_record(record, "fixture.json")
+        record["expected_skips"] = [{
+            "gate": "RC-PCC-REPLAY", "test": "pkg::x", "reason": "because"}]
+        with self.assertRaises(ValueError) as caught:
+            release_record.validate_record(record, "fixture.json")
+        self.assertIn("did not run", str(caught.exception))
+
+    def test_doc_test_skips_are_named_by_crate_harness(self):
+        output = ("   Doc-tests terminal_codec\n\nrunning 2 tests\n"
+                  "test src/lib.rs - f (line 5) ... ignored\n"
+                  "test src/lib.rs - f (line 2) ... ok\n\n"
+                  "test result: ok. 1 passed; 0 failed; 1 ignored; "
+                  "0 measured; 0 filtered out; finished in 0.99s\n"
+                  "   Doc-tests terminal_verifier\n\nrunning 1 test\n"
+                  "test src/lib.rs - f (line 5) ... ignored\n\n"
+                  "test result: ok. 0 passed; 0 failed; 1 ignored; "
+                  "0 measured; 0 filtered out; finished in 0.50s\n")
+        self.assertEqual(
+            ["terminal_codec src/lib.rs - f (line 5)",
+             "terminal_verifier src/lib.rs - f (line 5)"],
+            release_record.skipped_test_names(output))
+        self.assertEqual(2, release_record.skipped_test_count(output))
+
+
+LANE_HOSTS = {
+    "linux_x86_64": ("linux", "x86_64"),
+    "linux_arm64": ("linux", "aarch64"),
+    "macos_arm64": ("darwin", "arm64"),
+    "windows_x86_64": ("windows", "amd64"),
+}
+RELEASE_COMMIT = "a" * 40
+PER_HOST_GATES = ["RC-NATIVE-MATRIX", "RC-REPRESENTATIVE-PROGRAMS"]
+
+
+def lane_record(target, gate_names=None, commit=RELEASE_COMMIT):
+    """A valid record of one lane made on that lane's own host.
+
+    Every listed gate passes and the lane's own observation passes; the
+    record's own closure lists the gates it did not run and the other three
+    lanes, as a single lane's record always must.
+    """
+    names = list(release_record.GATES) if gate_names is None else gate_names
+    record = minimal_record()
+    record["gates"] = [gate for gate in record["gates"]
+                       if gate["name"] in names]
+    record["commit"] = commit
+    record["target"] = target
+    os_name, machine = LANE_HOSTS[target]
+    record["host"] = {"os": os_name, "machine": machine, "python": "3.10.0"}
+    for row in record["platform_runs"]:
+        own = row["target"] == target
+        row["status"] = "recorded" if own else "open"
+        row["observation"] = minimal_observation() if own else None
+    record["closure"] = {
+        "status": "open",
+        "open_rows": ([name for name in release_record.GATES
+                       if name not in names]
+                      + [lane for lane in LANE_HOSTS if lane != target]),
+    }
+    return record
+
+
+def fail_gate(record, gate_name):
+    gate = next(gate for gate in record["gates"] if gate["name"] == gate_name)
+    gate["commands"][0]["exit"] = 101
+    gate["status"] = "fail"
+    rows = [name for name in release_record.GATES
+            if name == gate_name or name in record["closure"]["open_rows"]]
+    lanes = [lane for lane in record["closure"]["open_rows"]
+             if lane in LANE_HOSTS]
+    record["closure"]["open_rows"] = rows + lanes
+
+
+def entries(records):
+    return [("{}.json".format(record["target"]), record, "0" * 64)
+            for record in records]
+
+
+def four_lanes(**overrides):
+    return [overrides.get(lane) or lane_record(lane) for lane in LANE_HOSTS]
+
+
+class Closure(unittest.TestCase):
+    def close(self, records, commit=None):
+        return release_record.close_records(entries(records), commit=commit)
+
+    def assert_rejected(self, records, fragment, commit=None):
+        with self.assertRaises(ValueError) as caught:
+            self.close(records, commit=commit)
+        self.assertIn(fragment, str(caught.exception))
+
+    def test_four_complete_same_commit_records_close(self):
+        closure = self.close(four_lanes())
+        self.assertEqual(release_record.CLOSURE_SCHEMA, closure["schema"])
+        self.assertEqual("closed", closure["status"])
+        self.assertEqual(RELEASE_COMMIT, closure["commit"])
+        self.assertEqual({lane: [] for lane in LANE_HOSTS},
+                         closure["open_rows"])
+        self.assertEqual([], closure["unrun_gates"])
+        self.assertEqual(list(LANE_HOSTS),
+                         [lane["target"] for lane in closure["lanes"]])
+        for gate in closure["gates"]:
+            self.assertEqual({lane: "pass" for lane in LANE_HOSTS},
+                             gate["hosts"], gate["name"])
+
+    def test_shared_gates_on_one_lane_and_per_host_gates_everywhere_close(self):
+        records = four_lanes(**{
+            lane: lane_record(lane, PER_HOST_GATES)
+            for lane in ("linux_arm64", "macos_arm64", "windows_x86_64")})
+        self.assertEqual("closed", self.close(records)["status"])
+
+    def test_per_host_gate_missing_on_a_lane_keeps_closure_open(self):
+        records = four_lanes(
+            macos_arm64=lane_record("macos_arm64", ["RC-NATIVE-MATRIX"]))
+        closure = self.close(records)
+        self.assertEqual("open", closure["status"])
+        self.assertEqual(["RC-REPRESENTATIVE-PROGRAMS"],
+                         closure["open_rows"]["macos_arm64"])
+        self.assertEqual([], closure["open_rows"]["linux_x86_64"])
+
+    def test_gate_no_lane_ran_keeps_closure_open(self):
+        names = [name for name in release_record.GATES
+                 if name != "RC-PCC-REPLAY"]
+        closure = self.close([lane_record(lane, names)
+                              for lane in LANE_HOSTS])
+        self.assertEqual("open", closure["status"])
+        self.assertEqual(["RC-PCC-REPLAY"], closure["unrun_gates"])
+        self.assertEqual({lane: [] for lane in LANE_HOSTS},
+                         closure["open_rows"])
+
+    def test_open_gate_keeps_closure_open(self):
+        windows = lane_record("windows_x86_64")
+        fail_gate(windows, "RC-NATIVE-MATRIX")
+        closure = self.close(four_lanes(windows_x86_64=windows))
+        self.assertEqual("open", closure["status"])
+        self.assertEqual(["RC-NATIVE-MATRIX"],
+                         closure["open_rows"]["windows_x86_64"])
+        self.assertEqual([], closure["open_rows"]["linux_x86_64"])
+
+    def test_shared_gate_failing_on_any_lane_that_ran_it_stays_open(self):
+        windows = lane_record("windows_x86_64")
+        fail_gate(windows, "RC-REPOSITORY")
+        closure = self.close(four_lanes(windows_x86_64=windows))
+        self.assertEqual("open", closure["status"])
+        self.assertEqual(["RC-REPOSITORY"],
+                         closure["open_rows"]["windows_x86_64"])
+
+    def test_lane_without_a_passing_observation_stays_open(self):
+        macos = lane_record("macos_arm64")
+        own = next(row for row in macos["platform_runs"]
+                   if row["target"] == "macos_arm64")
+        own["observation"] = minimal_observation(exit_code=1)
+        own["status"] = "open"
+        macos["closure"]["open_rows"] = [
+            "linux_x86_64", "linux_arm64", "macos_arm64", "windows_x86_64"]
+        closure = self.close(four_lanes(macos_arm64=macos))
+        self.assertEqual("open", closure["status"])
+        self.assertEqual(["macos_arm64"], closure["open_rows"]["macos_arm64"])
+
+    def test_undeclared_skip_keeps_its_lane_open_until_declared(self):
+        arm = lane_record("linux_arm64")
+        native = next(gate for gate in arm["gates"]
+                      if gate["name"] == "RC-NATIVE-MATRIX")
+        native["commands"][0]["skipped_tests"] = 1
+        native["commands"][0]["skipped_names"] = ["native x86::only"]
+        native["status"] = "open"
+        arm["unlisted_skips"] = ["native x86::only"]
+        arm["closure"]["open_rows"].insert(0, "RC-NATIVE-MATRIX")
+        closure = self.close(four_lanes(linux_arm64=arm))
+        self.assertEqual(["RC-NATIVE-MATRIX"],
+                         closure["open_rows"]["linux_arm64"])
+
+        declared = copy.deepcopy(arm)
+        declared["expected_skips"] = [{
+            "gate": "RC-NATIVE-MATRIX", "test": "native x86::only",
+            "reason": "x86-only encoding probe"}]
+        declared["unlisted_skips"] = []
+        native = next(gate for gate in declared["gates"]
+                      if gate["name"] == "RC-NATIVE-MATRIX")
+        native["status"] = "pass"
+        declared["closure"]["open_rows"].remove("RC-NATIVE-MATRIX")
+        closure = self.close(four_lanes(linux_arm64=declared))
+        self.assertEqual("closed", closure["status"])
+        lane = next(lane for lane in closure["lanes"]
+                    if lane["target"] == "linux_arm64")
+        self.assertEqual(declared["expected_skips"], lane["expected_skips"])
+
+    def test_linux_arm64_under_a_named_emulator_joins(self):
+        arm = lane_record("linux_arm64")
+        arm["host"] = {"os": "linux", "machine": "x86_64", "python": "3.10.0"}
+        arm["emulator"] = "qemu-aarch64 9.0.0"
+        next(row for row in arm["platform_runs"]
+             if row["target"] == "linux_arm64")["emulator"] = arm["emulator"]
+        closure = self.close(four_lanes(linux_arm64=arm))
+        self.assertEqual("closed", closure["status"])
+        lane = next(lane for lane in closure["lanes"]
+                    if lane["target"] == "linux_arm64")
+        self.assertEqual("qemu-aarch64 9.0.0", lane["emulator"])
+
+    def test_mixed_commits_reject(self):
+        records = four_lanes(
+            macos_arm64=lane_record("macos_arm64", commit="b" * 40))
+        self.assert_rejected(records, "mix commits")
+
+    def test_stale_records_reject_against_the_release_commit(self):
+        self.assert_rejected(four_lanes(), "stale", commit="c" * 40)
+        self.assertEqual("closed",
+                         self.close(four_lanes(),
+                                    commit=RELEASE_COMMIT)["status"])
+
+    def test_mixed_toolchains_reject(self):
+        windows = lane_record("windows_x86_64")
+        windows["toolchain"]["rustc"] = "rustc 1.101.0-nightly"
+        self.assert_rejected(four_lanes(windows_x86_64=windows),
+                             "mix toolchains")
+
+    def test_missing_lane_rejects(self):
+        records = [record for record in four_lanes()
+                   if record["target"] != "linux_arm64"]
+        self.assert_rejected(records, "lane linux_arm64 has no record")
+
+    def test_duplicate_lane_rejects(self):
+        records = four_lanes() + [lane_record("macos_arm64")]
+        self.assert_rejected(records, "lane macos_arm64 has 2 records")
+
+    def test_lane_recorded_by_another_lanes_record_rejects(self):
+        linux = lane_record("linux_x86_64")
+        borrowed = next(row for row in linux["platform_runs"]
+                        if row["target"] == "macos_arm64")
+        borrowed["status"] = "recorded"
+        borrowed["observation"] = minimal_observation()
+        linux["closure"]["open_rows"].remove("macos_arm64")
+        self.assert_rejected(four_lanes(linux_x86_64=linux), "another lane")
+
+    def test_record_made_on_another_lanes_host_rejects(self):
+        # The macos_arm64 record claims its lane from a Linux host. With its
+        # own row left open the record is internally valid, but it cannot
+        # stand for the macOS lane in the join.
+        macos = lane_record("macos_arm64")
+        macos["host"] = {"os": "linux", "machine": "x86_64",
+                         "python": "3.10.0"}
+        own = next(row for row in macos["platform_runs"]
+                   if row["target"] == "macos_arm64")
+        own["status"] = "open"
+        own["observation"] = None
+        macos["closure"]["open_rows"] = list(LANE_HOSTS)
+        release_record.validate_record(macos, "macos.json")
+        self.assert_rejected(four_lanes(macos_arm64=macos),
+                             "cannot record lane macos_arm64")
+
+    def test_invalid_record_rejects_the_join(self):
+        linux = lane_record("linux_x86_64")
+        linux["closure"] = {"status": "closed", "open_rows": []}
+        self.assert_rejected(four_lanes(linux_x86_64=linux), "closure")
+
+
+class CommandLine(unittest.TestCase):
+    def invoke(self, *arguments):
+        return subprocess.run(
+            [sys.executable, str(TOOL), *arguments],
+            cwd=ROOT, check=False, capture_output=True, text=True)
+
+    def write_records(self, directory, records):
+        paths = []
+        for record in records:
+            path = Path(directory) / "{}.json".format(record["target"])
+            path.write_text(json.dumps(record), encoding="utf-8")
+            paths.append(str(path))
+        return paths
+
+    def test_plan_lists_every_gate_this_host_and_the_lanes(self):
+        result = self.invoke("plan")
+        self.assertEqual(0, result.returncode, result.stderr)
+        for name in release_record.GATES:
+            self.assertIn(name, result.stdout)
+        for lane in LANE_HOSTS:
+            self.assertIn(lane, result.stdout)
+        self.assertIn("this host:", result.stdout)
+
+    def test_unknown_gate_refuses_before_any_work(self):
+        result = self.invoke("plan", "--gate", "RC-NOT-A-GATE")
+        self.assertEqual(2, result.returncode)
+
+    def test_close_exits_zero_only_for_a_closed_release(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            paths = self.write_records(scratch, four_lanes())
+            output = Path(scratch) / "closure.json"
+            result = self.invoke("close", *paths, "--commit", RELEASE_COMMIT,
+                                 "--output", str(output))
+            self.assertEqual(0, result.returncode, result.stderr)
+            closure = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual("closed", closure["status"])
+            self.assertTrue(all(len(lane["sha256"]) == 64
+                                for lane in closure["lanes"]))
+
+    def test_close_writes_an_open_closure_and_exits_nonzero(self):
+        windows = lane_record("windows_x86_64")
+        fail_gate(windows, "RC-NATIVE-MATRIX")
+        with tempfile.TemporaryDirectory() as scratch:
+            paths = self.write_records(
+                scratch, four_lanes(windows_x86_64=windows))
+            result = self.invoke("close", *paths)
+            self.assertEqual(1, result.returncode, result.stderr)
+            closure = json.loads(result.stdout)
+            self.assertEqual("open", closure["status"])
+            self.assertEqual(["RC-NATIVE-MATRIX"],
+                             closure["open_rows"]["windows_x86_64"])
+
+    def test_close_rejects_a_missing_lane_without_a_document(self):
+        records = [record for record in four_lanes()
+                   if record["target"] != "windows_x86_64"]
+        with tempfile.TemporaryDirectory() as scratch:
+            paths = self.write_records(scratch, records)
+            output = Path(scratch) / "closure.json"
+            result = self.invoke("close", *paths, "--output", str(output))
+            self.assertEqual(1, result.returncode)
+            self.assertIn("lane windows_x86_64 has no record", result.stderr)
+            self.assertFalse(output.exists())
 
 
 class CommittedRecords(unittest.TestCase):

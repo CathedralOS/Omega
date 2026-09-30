@@ -41,7 +41,7 @@ SOURCE_READERS = {
 DOCUMENTATION_FILES = {
     "AGENTS.md", "CLAUDE.md", "README.md", "OWNER_QUESTIONS.md",
     "TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
-    "tools/claims.md", "tools/landing.md", "tools/release_matrix.md",
+    "tools/claims.md", "tools/landing.md",
     "tools/rust_producer_omission.md", "tools/testing.md",
     "omega-rust/omega/foundation/optimization-core/rules.md",
 }

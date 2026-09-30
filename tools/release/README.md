@@ -223,21 +223,25 @@ not require the producer's Rust checkout.
 the record must contain the commit, pinned Rust toolchain, host OS and
 architecture, commands, results, elapsed time, and the exact list of expected
 skips. The tool owns the eight-gate manifest verbatim, runs a gate's command
-block on one host, and writes one `omega-release-record/2` JSON document per
-runner row under `records/`.
+block on one host, writes one `omega-release-record/3` JSON document per
+runner row under `records/`, and joins the four rows' records into one
+`omega-release-closure/1` document. It is the only release recorder.
 
 The substrate records evidence; it does not certify the matrix. A failed
-command is recorded as a `fail` gate, an unrun gate or runner row stays
-`open`, and the closure reads `closed` only when all eight gates pass and all
-four platform runs are recorded on the same commit. `check` re-validates a
-stored record so a hand-edited record cannot read as closed.
+command is recorded as a `fail` gate and an unrun gate or runner row stays
+`open`. One record evidences one lane, so its own closure always lists the
+other three lanes; only [`close`](#joining-the-four-lanes) can read `closed`.
+`check` re-validates a stored record so a hand-edited record cannot read as
+closed.
 
 An exit status alone does not pass a gate. A gate whose commands all exit 0
 reads `pass` only when the record also proves a complete run:
 
 - every skip the runners counted is named (`run` sets
   `NEXTEST_STATUS_LEVEL=skip` so nextest prints the names, and reads
-  ignored doc tests from cargo's per-test lines);
+  ignored doc tests from cargo's per-test lines, qualified by their
+  `Doc-tests <crate>` harness) and declared as an
+  [expected skip](#expected-skips) of that same gate;
 - no doc test was filtered out;
 - each nextest, doc-test, corpus-gate or sample-refresh command reports at
   least one executed test, crate harness, fixture or sample in its summary,
@@ -246,9 +250,30 @@ reads `pass` only when the record also proves a complete run:
   `OMEGA_CORPUS_FIXTURE_FILTER`, `OMEGA_CORPUS_SHARD`, `NEXTEST_PROFILE` or
   `NEXTEST_RUN_IGNORED` narrowed the selection (`environment_filters`).
 
-Otherwise the gate reads `open`. `check` derives each gate status, the
-recorded lane rows and `closure.open_rows` from that stored evidence and
-rejects a record whose fields disagree with it.
+Otherwise the gate reads `open`. A command that did not complete is
+recorded with `exit: null` and an `incomplete` reason, and also leaves its
+gate `open` — the contract's timeout and unavailable-dependency cases:
+
+- `--timeout SECONDS` sets a per-command ceiling; a timed-out command reads
+  `timeout after N s`;
+- a command this host cannot run is not started — `mbx and Cargo
+  unavailable`, or `cargo-nextest unavailable` when `<runner> nextest
+  --version` fails (`plan` shows the same detection);
+- a command that cannot start (for example a missing emulator) reads
+  `could not start: ...`;
+- `--limit COUNT` runs at most that many commands per gate for a smoke run
+  and records the rest `beyond --limit`.
+
+stdout and stderr share one pipe so the stored `output_tail` (the last
+64 KiB) keeps the runners' order. The full output of every command goes to
+`target/release_record/<lane>__<commit>__<utc>/<gate>-<index>.log`
+(override with `--log-dir`), and each command row names its `log`. The
+cleanliness check ignores the records directory, so a second run in the same
+checkout does not read dirty because of the first run's record.
+
+`check` derives each gate status, `unlisted_skips`, the recorded lane rows
+and `closure.open_rows` from that stored evidence and rejects a record whose
+fields disagree with it.
 
 Requirements: Python 3.9+ and Git. Standard library only; identical under
 PowerShell on Windows and sh on macOS/Linux. Gate commands run through `mbx`
@@ -327,10 +352,15 @@ that fails its observation still writes the record — the row stays `open`.
 On a host that cannot execute the lane at all, `run` refuses rather than
 writing a record that cannot carry the lane.
 
+`python3 tools/release/release_record.py plan` first prints the manifest,
+the lane this host can record, and every command this host cannot run.
 PowerShell uses the same invocation with `python`. Restrict to one gate with
-`--gate RC-REPOSITORY` (repeatable). A red gate still writes a record — the
-record is the evidence, open rows and all — so `run` exits 0 after writing
-and reports `closure: open` with the open rows.
+`--gate RC-REPOSITORY` (repeatable). The per-host gates `RC-NATIVE-MATRIX`
+and `RC-REPRESENTATIVE-PROGRAMS` must run in every lane's record; the other
+six must pass in every record that runs them and run in at least one. A red
+gate still writes a record — the record is the evidence, open rows and all —
+so `run` exits 0 after writing and reports the record's open rows and its log
+directory.
 
 The `linux_arm64` lane additionally accepts any host when the record names
 the emulator (the contract's "emulation is acceptable only when the release
@@ -352,9 +382,16 @@ expected skip while recording:
 --expect-skip '<gate>|<skipped test path>|<why this runner cannot run it>'
 ```
 
-Skipped tests observed in nextest/cargo output that are not declared this way
-land in `unlisted_skips` and keep the closure `open` — the contract requires
-the *exact* list.
+The gate must be one this run selects. A nextest skip is named
+`<binary-id> <test-name>` and an ignored doc test `<crate> <doc-test name>`,
+exactly as the record's `skipped_names` spell them.
+
+A declaration is per gate: a skip declared for one gate does not cover the
+same test skipped by another. Skipped tests observed in nextest/cargo output
+that are not declared for their gate land in `unlisted_skips` and keep that
+gate `open` — the contract counts an unexpected ignored test as open and
+requires the *exact* list. `check` rejects a declared skip its gate did not
+observe, and one naming a gate the record did not run.
 
 ## Validating a record
 
@@ -368,6 +405,46 @@ platform row lacks a passing direct-execution observation or its lane's
 matching host, an emulator appears on a non-arm64 row, or the recorded
 closure contradicts the rows.
 
+## Joining the four lanes
+
+Each lane's host records its own row. Collect one record per lane — made at
+the same commit — and join them:
+
+```text
+python3 tools/release/release_record.py close \
+    records/linux_x86_64__<commit>__<utc>.json \
+    records/linux_arm64__<commit>__<utc>.json \
+    records/macos_arm64__<commit>__<utc>.json \
+    records/windows_x86_64__<commit>__<utc>.json \
+    --commit <full release commit sha> --output closure.json
+```
+
+`close` validates every record as `check` does, then rejects the join when a
+lane has no record or more than one, a record's host cannot execute its own
+lane (so no lane is recorded by another lane's record), the records mix
+commits, any record differs from `--commit` (stale), or the records mix
+toolchains (`rust-toolchain.toml` channel or `rustc --version`). A rejected
+join writes no document.
+
+A valid join writes the closure document (to stdout without `--output`):
+the commit, toolchain, every gate's status on each lane, and per lane the
+record path and SHA-256, host, emulator, direct-execution observation and
+expected skips. It reads `closed` only when:
+
+- `RC-NATIVE-MATRIX` and `RC-REPRESENTATIVE-PROGRAMS`, the per-host gates,
+  pass in every lane's record;
+- every other gate passes in every record that ran it, and at least one
+  record ran it (otherwise it is listed in `unrun_gates`);
+- every lane's own record carries its passing direct-execution observation.
+
+Otherwise it reads `open`, and `open_rows` names the exact open gates and
+lane rows per host. `close` exits 0 only for a closed release; an open
+closure is still written and exits 1. A valid open record may be retained as
+evidence; it never counts as closure.
+
 `tools/tests/test_release_record.py` guards the substrate itself: the gate
 manifest must stay verbatim-equal to the completion document's command
-blocks, and committed records under `records/` must re-validate.
+blocks in both directions, incomplete commands and undeclared skips keep
+their gates open, the join rejects mixed, stale, missing, duplicated and
+misattributed records and closes a complete same-commit set, and committed
+records under `records/` must re-validate.

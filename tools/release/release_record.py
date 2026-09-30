@@ -4,19 +4,30 @@
 `wiki/drafts/reference/rust_compiler_completion.md` defines eight named gates and four
 required platform runs, and requires the release record to contain the commit,
 pinned Rust toolchain, host OS and architecture, commands, results, elapsed
-time, and the exact list of expected skips. This tool is that record's
-substrate: it owns the gate manifest verbatim, runs a gate's command block on
-one host, and writes one versioned JSON record per runner row under
-`records/` so a row's evidence survives the machine that produced it.
+time, and the exact list of expected skips. This tool is that record's only
+recorder: it owns the gate manifest verbatim, runs a gate's command block on
+one host, writes one versioned JSON record per runner row under `records/`
+so a row's evidence survives the machine that produced it, and joins the four
+lanes' records into the release closure.
 
 The harness records outcomes; it does not judge the matrix. A red gate is
 recorded as `fail` and the closure stays `open` — the substrate never turns a
 failed or missing row into a pass. A gate whose commands exit 0 still reads
-`open` unless their output proves a complete run: every skipped test is named,
-nothing was filtered out, a test/fixture/sample command executed at least one
-item, the checkout was clean, and no inherited environment variable narrowed
-the selection. `check` re-derives every gate status and the closure from that
-evidence, so a hand-edited or truncated record cannot read as closed.
+`open` unless their output proves a complete run: every skipped test is named
+and declared as an expected skip, nothing was filtered out, a
+test/fixture/sample command executed at least one item, the checkout was
+clean, and no inherited environment variable narrowed the selection. A
+command that timed out, could not start, or that this host cannot run
+(missing cargo-nextest, or beyond `--limit`) is recorded with its reason and
+leaves its gate `open`. `check` re-derives every gate status and the closure
+from that evidence, so a hand-edited or truncated record cannot read as
+closed.
+
+One record evidences one lane, so its own closure always lists the other
+three lanes. `close` is the only route to a closed release: it validates one
+record per lane, rejects mixed commits or toolchains and lanes recorded by
+another lane's record, and emits one closure document listing the exact open
+rows per host.
 
 Requirements: Python 3.9+ and Git. Standard library only; identical under
 PowerShell on Windows and sh on macOS/Linux. Commands run through `mbx` when
@@ -29,6 +40,8 @@ it is installed and through Cargo otherwise, per AGENTS.md.
         --emulator "qemu-aarch64 9.0.0" --gate RC-NATIVE-MATRIX \
         --native-execution "qemu-aarch64 <emitted-elf>"
     python3 tools/release/release_record.py check records/<file>.json
+    python3 tools/release/release_record.py close \
+        records/*__<commit[:10]>__*.json --commit <commit> --output closure.json
 
 A runner row is only `recorded` when the record carries a passing
 `--native-execution` observation — direct execution of the emitted programs —
@@ -37,6 +50,8 @@ also accepts any host under a named emulator).
 """
 
 import argparse
+import functools
+import hashlib
 import json
 import os
 import platform
@@ -50,12 +65,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Schema 2 added the run-level evidence (`environment_filters`,
-# `worktree_clean`) that a gate needs before it can read `pass`.
-SCHEMA = "omega-release-record/2"
+# `worktree_clean`) that a gate needs before it can read `pass`. Schema 3
+# lets a command row carry `exit: null` with an `incomplete` reason (timeout,
+# unavailable tool, `--limit`) and a `log` path, and derives `unlisted_skips`
+# per gate from the declared expected skips.
+SCHEMA = "omega-release-record/3"
+CLOSURE_SCHEMA = "omega-release-closure/1"
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOLCHAIN_FILE = ROOT / "rust-toolchain.toml"
 RECORDS_DIR = Path(__file__).resolve().parent / "records"
+# Full command output is host-local diagnosis, not committed evidence: the
+# record keeps a bounded tail and names the log file under the ignored target.
+LOGS_DIR = ROOT / "target" / "release_record"
 
 # The eight gates of the release matrix, verbatim from
 # wiki/drafts/reference/rust_compiler_completion.md. Each gate runs its command block
@@ -198,6 +220,20 @@ TARGET_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 OUTPUT_TAIL_BYTES = 64 * 1024
 
 
+# `Doc-tests <crate>` precedes each crate's doc-test harness output; ignored
+# doc tests are qualified by it because two crates can share a doc-test name.
+DOC_TESTS_HEADER = re.compile(r"^\s*Doc-tests (\S+)\s*$")
+
+
+def host_lanes(os_name=None, machine=None):
+    """Lanes whose matching host is the given (or current) host."""
+    os_name = (os_name if os_name is not None else platform.system()).lower()
+    machine = (machine if machine is not None
+               else platform.machine()).lower()
+    return [row["target"] for row in PLATFORM_RUNNERS
+            if (os_name, machine) in row["hosts"]]
+
+
 def lane_host_match(target, emulator=None, os_name=None, machine=None):
     """Whether the given (or current) host may record the lane's row.
 
@@ -206,20 +242,14 @@ def lane_host_match(target, emulator=None, os_name=None, machine=None):
     "emulation is acceptable only when the release record names the emulator
     and version" allowance.
     """
-    os_name = (os_name if os_name is not None else platform.system()).lower()
-    machine = (machine if machine is not None
-               else platform.machine()).lower()
-    hosts = {row["target"]: row["hosts"] for row in PLATFORM_RUNNERS}[target]
-    if (os_name, machine) in hosts:
+    if target in host_lanes(os_name, machine):
         return True
     return target == "linux_arm64" and bool(emulator)
 
 
-def runner():
-    selected = shutil.which("mbx") or shutil.which("cargo")
-    if selected is None:
-        raise ValueError("Install mbx (preferred) or Cargo to run gates")
-    return selected
+def available_runner():
+    """The `mbx` wrapper when installed, otherwise Cargo, otherwise None."""
+    return shutil.which("mbx") or shutil.which("cargo")
 
 
 def resolve_command(text, selected_runner):
@@ -227,8 +257,38 @@ def resolve_command(text, selected_runner):
     if argv and argv[0] == "mbx":
         argv[0] = selected_runner
     elif argv and argv[0] == "python":
+        # The contract's portable Python legs (`tools/fmt.py`, the corpus
+        # gate) run on this interpreter, never through the Cargo wrapper.
         argv[0] = sys.executable
     return argv
+
+
+@functools.lru_cache(maxsize=None)
+def nextest_available(selected_runner):
+    try:
+        completed = subprocess.run(
+            [selected_runner, "nextest", "--version"], cwd=ROOT,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    except OSError:
+        return False
+    return completed.returncode == 0
+
+
+def command_unavailable(text, selected_runner):
+    """Why this host cannot run a contract command, or None when it can.
+
+    A missing tool is the contract's "unavailable runtime dependency": the
+    command is recorded as not run and its gate stays open, rather than
+    running and reading as a test failure.
+    """
+    argv = shlex.split(text)
+    if argv and argv[0] == "python":
+        return None
+    if argv and argv[0] == "mbx" and selected_runner is None:
+        return "mbx and Cargo unavailable"
+    if "nextest" in argv and not nextest_available(selected_runner):
+        return "cargo-nextest unavailable"
+    return None
 
 
 def toolchain_channel():
@@ -257,10 +317,23 @@ def commit_sha():
     return completed.stdout.strip()
 
 
-def worktree_clean():
+def worktree_clean(excluded=()):
+    """Whether the checkout has no changes outside the excluded directories.
+
+    The records directory is excluded: an earlier run's record there cannot
+    change what a gate compiles, and counting it would make every later run
+    in the same checkout read dirty.
+    """
+    pathspecs = ["."]
+    for directory in excluded:
+        try:
+            relative = Path(directory).resolve().relative_to(ROOT)
+        except ValueError:
+            continue
+        pathspecs.append(":(exclude){}".format(relative.as_posix()))
     completed = subprocess.run(
-        ["git", "status", "--porcelain"], cwd=ROOT, capture_output=True,
-        text=True, check=True)
+        ["git", "status", "--porcelain", "--", *pathspecs], cwd=ROOT,
+        capture_output=True, text=True, check=True)
     return not completed.stdout.strip()
 
 
@@ -269,33 +342,135 @@ def environment_filters(environment):
             if environment.get(name, "").strip()}
 
 
-def run_command(command, selected_runner):
-    argv = resolve_command(command, selected_runner)
-    started = time.monotonic()
-    completed = subprocess.run(
-        argv, cwd=ROOT, capture_output=True, text=True, check=False,
-        env={**os.environ, **NAMED_SKIP_ENVIRONMENT})
-    elapsed_ms = (time.monotonic() - started) * 1000.0
-    output = completed.stdout + completed.stderr
+def skipped_test_names(output):
+    """Every skipped test a nextest or doc-test run names in its output."""
+    names = {"{} {}".format(binary, test)
+             for binary, test in NEXTEST_SKIPPED.findall(output)}
+    harness = None
+    for line in output.splitlines():
+        header = DOC_TESTS_HEADER.match(line)
+        if header:
+            harness = header.group(1)
+            continue
+        ignored = CARGO_TEST_IGNORED.match(line)
+        if ignored:
+            names.add(ignored.group(1) if harness is None
+                      else "{} {}".format(harness, ignored.group(1)))
+    return sorted(names)
+
+
+def skipped_test_count(output):
+    return (sum(int(value) for value in NEXTEST_SUMMARY.findall(output))
+            + sum(int(value) for value in CARGO_TEST_RESULT.findall(output)))
+
+
+def output_text(value):
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def display_path(target):
+    try:
+        return Path(target).resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return str(target)
+
+
+def command_row(command, argv, exit_code, elapsed_ms, output, incomplete,
+                log):
     # The count comes from the runners' own summaries and the names from
     # their per-test lines; a record reconciles the two rather than
     # substituting one for the other.
-    skipped_names = sorted(
-        {"{} {}".format(binary, test)
-         for binary, test in NEXTEST_SKIPPED.findall(output)}
-        | set(CARGO_TEST_IGNORED.findall(output)))
-    skipped_count = (
-        sum(int(value) for value in NEXTEST_SUMMARY.findall(output))
-        + sum(int(value) for value in CARGO_TEST_RESULT.findall(output)))
     return {
         "command": command,
         "argv": argv,
-        "exit": completed.returncode,
+        "exit": exit_code,
+        "incomplete": incomplete,
         "elapsed_ms": elapsed_ms,
-        "skipped_tests": skipped_count,
-        "skipped_names": skipped_names,
+        "skipped_tests": skipped_test_count(output),
+        "skipped_names": skipped_test_names(output),
         "output_tail": output[-OUTPUT_TAIL_BYTES:],
+        "log": log,
     }
+
+
+def run_command(command, selected_runner, timeout=None, log_path=None):
+    """Run one command and keep its evidence; never raise on its failure.
+
+    stdout and stderr share one pipe so the stored tail keeps the runners'
+    chronological order (a doc-test header before its results, the final
+    summary last). A timeout or a command that cannot start is recorded with
+    `exit: null` and its reason, which leaves the gate open.
+    """
+    argv = resolve_command(command, selected_runner)
+    started = time.monotonic()
+    exit_code = None
+    incomplete = None
+    try:
+        completed = subprocess.run(
+            argv, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            encoding="utf-8", errors="replace", check=False, timeout=timeout,
+            env={**os.environ, **NAMED_SKIP_ENVIRONMENT})
+        exit_code = completed.returncode
+        output = output_text(completed.stdout)
+    except subprocess.TimeoutExpired as expired:
+        # The contract: a timeout leaves the row open; it is not a pass.
+        output = output_text(expired.output)
+        incomplete = "timeout after {:g} s".format(timeout)
+    except OSError as error:
+        output = ""
+        incomplete = "could not start: {}".format(error)
+    elapsed_ms = (time.monotonic() - started) * 1000.0
+    log = None
+    if log_path is not None:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text(output, encoding="utf-8")
+        log = display_path(log_path)
+    return command_row(command, argv, exit_code, elapsed_ms, output,
+                       incomplete, log)
+
+
+def not_run_command(command, selected_runner, reason):
+    argv = resolve_command(command, selected_runner or "cargo")
+    return command_row(command, argv, None, 0.0, "", reason, None)
+
+
+def run_gate_commands(gate_name, commands, selected_runner, timeout=None,
+                      limit=None, log_dir=None):
+    """Run a gate's command block, recording every command in order.
+
+    Commands beyond `limit` or unavailable on this host are recorded as not
+    run with the reason, so the record keeps the contract's command count
+    and the gate reads open instead of silently shrinking.
+    """
+    rows = []
+    for index, command in enumerate(commands):
+        print("$ {}".format(command), flush=True)
+        if limit is not None and index >= limit:
+            row = not_run_command(command, selected_runner, "beyond --limit")
+        else:
+            reason = command_unavailable(command, selected_runner)
+            if reason is not None:
+                row = not_run_command(command, selected_runner, reason)
+            else:
+                log_path = (None if log_dir is None else
+                            Path(log_dir) / "{}-{}.log".format(gate_name,
+                                                               index))
+                row = run_command(command, selected_runner, timeout=timeout,
+                                  log_path=log_path)
+        rows.append(row)
+        if row["exit"] is None:
+            print("    not complete: {}".format(row["incomplete"]),
+                  flush=True)
+        else:
+            print("    exit {} in {:.0f} ms{}".format(
+                row["exit"], row["elapsed_ms"],
+                " ({} skipped)".format(row["skipped_tests"])
+                if row["skipped_tests"] else ""), flush=True)
+    return rows
 
 
 def executed_units(argv, output):
@@ -344,20 +519,51 @@ def run_evidence_complete(record):
             and record.get("environment_filters") == {})
 
 
-def gate_status(commands, run_complete):
-    """`fail` on any nonzero exit; `pass` only on complete evidence."""
-    if any(row.get("exit") != 0 for row in commands):
+def exit_code_of(row):
+    exit_code = row.get("exit")
+    return exit_code if type(exit_code) is int else None
+
+
+def gate_status(commands, run_complete, expected_skips=frozenset()):
+    """`fail` on a nonzero exit; `pass` only on complete evidence.
+
+    A command without an exit (timeout, unavailable tool, `--limit`) or with
+    a skipped test the record did not declare as an expected skip of this
+    gate leaves the gate `open`: the contract counts an unexpected ignored
+    test, a timeout and an unavailable runtime dependency as open, never as
+    a pass.
+    """
+    if any(exit_code_of(row) not in (None, 0) for row in commands):
         return "fail"
-    if run_complete and all(command_evidence_complete(row)
-                            for row in commands):
+    if (commands and run_complete
+            and all(exit_code_of(row) == 0
+                    and command_evidence_complete(row)
+                    and set(row.get("skipped_names") or ()) <= expected_skips
+                    for row in commands)):
         return "pass"
     return "open"
 
 
 def observation_recorded(observation):
     return (isinstance(observation, dict)
-            and observation.get("exit") == 0
+            and exit_code_of(observation) == 0
             and command_evidence_complete(observation))
+
+
+def declared_skips(expected_skips, gate_name):
+    return frozenset(
+        skip.get("test") for skip in expected_skips or []
+        if isinstance(skip, dict) and skip.get("gate") == gate_name)
+
+
+def unlisted_skips(gates, expected_skips):
+    """Skipped test names a gate observed but the record did not declare
+    as an expected skip of that same gate."""
+    return sorted({
+        name for gate in gates
+        for row in gate.get("commands") or []
+        for name in row.get("skipped_names") or []
+        if name not in declared_skips(expected_skips, gate.get("name"))})
 
 
 def open_rows(gates, platform_runs):
@@ -389,19 +595,14 @@ def build_record(target, emulator, observation, gate_names, results,
     for name in gate_names:
         gate = GATES[name]
         commands = results[name]
-        status = gate_status(commands, run_complete)
+        status = gate_status(commands, run_complete,
+                             declared_skips(expected_skips, name))
         gates.append({
             "name": name,
             "capability": gate["capability"],
             "status": status,
             "commands": commands,
         })
-    skipped_named = {
-        name for gate in gates for row in gate["commands"]
-        for name in row["skipped_names"]}
-    unlisted = sorted(
-        name for name in skipped_named
-        if not any(skip["test"] == name for skip in expected_skips))
     platform_runs = [{
         "runner": row["runner"],
         "target": row["target"],
@@ -435,9 +636,9 @@ def build_record(target, emulator, observation, gate_names, results,
         "gates": gates,
         "platform_runs": platform_runs,
         "expected_skips": expected_skips,
-        "unlisted_skips": unlisted,
+        "unlisted_skips": unlisted_skips(gates, expected_skips),
         "closure": {
-            "status": "open" if (rows or unlisted) else "closed",
+            "status": "open" if rows else "closed",
             "open_rows": rows,
         },
     }
@@ -452,6 +653,16 @@ def write_record(record, records_dir):
         json.dumps(record, indent=2, sort_keys=False) + "\n",
         encoding="utf-8")
     return path
+
+
+def command_evidence_shaped(row):
+    """An exit with no incomplete reason, or no exit with a stated reason."""
+    exit_code = row.get("exit")
+    incomplete = row.get("incomplete")
+    if type(exit_code) is int:
+        return incomplete is None
+    return (exit_code is None and isinstance(incomplete, str)
+            and bool(incomplete.strip()))
 
 
 def validate_record(record, path):
@@ -478,14 +689,26 @@ def validate_record(record, path):
          "worktree_clean must record whether the checkout was clean")
     need(isinstance(record.get("environment_filters"), dict),
          "environment_filters must record the inherited filter variables")
+    expected_skips = record.get("expected_skips")
+    need(isinstance(expected_skips, list)
+         and all(isinstance(skip, dict) for skip in expected_skips),
+         "expected_skips must be the exact recorded list")
+    if not isinstance(expected_skips, list):
+        expected_skips = []
+    expected_skips = [skip for skip in expected_skips
+                      if isinstance(skip, dict)]
     run_complete = run_evidence_complete(record)
     gates = {gate.get("name"): gate for gate in record.get("gates") or []}
+    need(set(gates) <= set(GATES),
+         "gates {} are not in the contract".format(
+             sorted(str(name) for name in set(gates) - set(GATES))))
     for name, gate in GATES.items():
         if name not in gates:
             continue
         row = gates[name]
         commands = row.get("commands") or []
-        derived = gate_status(commands, run_complete)
+        derived = gate_status(commands, run_complete,
+                              declared_skips(expected_skips, name))
         need(row.get("status") == derived,
              "gate {} status {} contradicts its command evidence "
              "(expected {})".format(name, row.get("status"), derived))
@@ -495,29 +718,32 @@ def validate_record(record, path):
         for observed, expected in zip(commands, gate["commands"]):
             need(observed.get("command") == expected,
                  "gate {} command drifted from the contract".format(name))
-            need(isinstance(observed.get("exit"), int)
+            need(command_evidence_shaped(observed)
                  and isinstance(observed.get("elapsed_ms"), (int, float)),
                  "gate {} command lacks exit/elapsed evidence".format(name))
             need(isinstance(observed.get("skipped_tests"), int)
                  and isinstance(observed.get("skipped_names"), list),
                  "gate {} command lacks skip evidence".format(name))
-    expected_skips = record.get("expected_skips")
-    need(isinstance(expected_skips, list),
-         "expected_skips must be the exact recorded list")
-    need(isinstance(record.get("unlisted_skips"), list)
-         and not record["unlisted_skips"],
-         "recorded skipped tests missing from expected_skips: {}".format(
-             record.get("unlisted_skips")))
-    for skip in expected_skips or []:
-        gate = gates.get(skip.get("gate")) or {}
+    derived_unlisted = unlisted_skips(list(gates.values()), expected_skips)
+    need(record.get("unlisted_skips") == derived_unlisted,
+         "unlisted_skips {} contradicts the skipped tests missing from "
+         "expected_skips (expected {})".format(
+             record.get("unlisted_skips"), derived_unlisted))
+    for skip in expected_skips:
+        need(isinstance(skip.get("reason"), str) and skip["reason"].strip(),
+             "expected skip {} states no reason".format(skip.get("test")))
+        gate = gates.get(skip.get("gate"))
+        if gate is None:
+            problems.append(
+                "expected skip {} names gate {}, which this record did not "
+                "run".format(skip.get("test"), skip.get("gate")))
+            continue
         observed = {name for row in gate.get("commands") or []
                     for name in row.get("skipped_names") or []}
-        if observed:
-            need(skip.get("test") in observed,
-                 "expected skip {} was declared but not observed in {}".format(
-                     skip.get("test"), skip.get("gate")))
+        need(skip.get("test") in observed,
+             "expected skip {} was declared but not observed in {}".format(
+                 skip.get("test"), skip.get("gate")))
     runs = {row.get("target"): row for row in record.get("platform_runs") or []}
-    host = record.get("host") or {}
     for row in PLATFORM_RUNNERS:
         lane = runs.get(row["target"])
         need(lane is not None,
@@ -550,7 +776,8 @@ def validate_record(record, path):
     derived_gates = [
         {"name": name,
          "status": gate_status(gates[name].get("commands") or [],
-                               run_complete)}
+                               run_complete,
+                               declared_skips(expected_skips, name))}
         for name in GATES if name in gates]
     derived_runs = [
         {"target": row["target"],
@@ -560,8 +787,7 @@ def validate_record(record, path):
     need(closure.get("open_rows") == expected_rows,
          "closure.open_rows {} contradicts the recorded rows (expected {})"
          .format(closure.get("open_rows"), expected_rows))
-    expected_closure = "closed" if (not expected_rows
-                                  and not record.get("unlisted_skips")) else "open"
+    expected_closure = "open" if expected_rows else "closed"
     need(closure.get("status") == expected_closure,
          "closure.status {} contradicts the recorded rows (expected {})"
          .format(closure.get("status"), expected_closure))
@@ -569,9 +795,159 @@ def validate_record(record, path):
         raise ValueError("{}: {}".format(path, "; ".join(problems)))
 
 
+def lane_gate_statuses(record):
+    """Each contract gate's status in one validated lane record."""
+    statuses = {gate["name"]: gate["status"]
+                for gate in record.get("gates") or []}
+    return {name: statuses.get(name, "not run") for name in GATES}
+
+
+def own_platform_run(record):
+    """The record's row for its own lane (validation guarantees one)."""
+    return next(row for row in record["platform_runs"]
+                if isinstance(row, dict)
+                and row.get("target") == record["target"])
+
+
+def close_records(entries, commit=None):
+    """Join one validated record per lane into the release closure.
+
+    `entries` holds `(path, record, sha256)` for each record file. Rejects
+    (ValueError) an invalid record, a missing or duplicated lane, a record
+    whose host cannot execute its own lane, records at different commits or
+    at any commit other than `commit` when one is named, and records made
+    under different toolchains. A valid join returns the closure document:
+    `closed` only when every gate passes in every record that ran it, each
+    per-host gate passes on every lane, every other gate ran on some lane,
+    and every lane's own record carries its direct-execution observation.
+    """
+    problems = []
+    for path, record, _ in entries:
+        try:
+            validate_record(record, path)
+        except ValueError as error:
+            problems.append(str(error))
+    if problems:
+        raise ValueError("; ".join(problems))
+    lanes = [row["target"] for row in PLATFORM_RUNNERS]
+    by_lane = {lane: [] for lane in lanes}
+    for entry in entries:
+        by_lane[entry[1]["target"]].append(entry)
+    for lane in lanes:
+        if not by_lane[lane]:
+            problems.append("lane {} has no record".format(lane))
+        elif len(by_lane[lane]) > 1:
+            problems.append("lane {} has {} records ({}); join exactly one "
+                            "per lane".format(
+                                lane, len(by_lane[lane]),
+                                ", ".join(str(path) for path, _, _
+                                          in by_lane[lane])))
+    for path, record, _ in entries:
+        host = record["host"]
+        if not lane_host_match(record["target"],
+                               emulator=record.get("emulator"),
+                               os_name=host["os"], machine=host["machine"]):
+            problems.append(
+                "{}: host {}/{} cannot record lane {}; each lane is recorded "
+                "by its own host's record".format(
+                    path, host["os"], host["machine"], record["target"]))
+    if len({record["commit"] for _, record, _ in entries}) > 1:
+        problems.append("records mix commits: {}".format(", ".join(
+            "{} at {}".format(record["target"], record["commit"])
+            for _, record, _ in entries)))
+    if commit is not None:
+        stale = ["{} at {}".format(record["target"], record["commit"])
+                 for _, record, _ in entries if record["commit"] != commit]
+        if stale:
+            problems.append("records are stale against release commit {}: "
+                            "{}".format(commit, ", ".join(stale)))
+    toolchains = {(record["toolchain"]["channel"], record["toolchain"]["rustc"])
+                  for _, record, _ in entries}
+    if len(toolchains) > 1:
+        problems.append("records mix toolchains: {}".format(", ".join(
+            "{} on {} ({})".format(record["target"],
+                                   record["toolchain"]["channel"],
+                                   record["toolchain"]["rustc"])
+            for _, record, _ in entries)))
+    if problems:
+        raise ValueError("; ".join(problems))
+
+    records = {lane: by_lane[lane][0] for lane in lanes}
+    statuses = {lane: lane_gate_statuses(records[lane][1]) for lane in lanes}
+    rows_by_lane = {}
+    for lane in lanes:
+        # A per-host gate must pass on every lane; any other gate must pass
+        # on every lane that ran it.
+        rows = [name for name, gate in GATES.items()
+                if statuses[lane][name] != "pass"
+                and (gate.get("per_host")
+                     or statuses[lane][name] != "not run")]
+        if own_platform_run(records[lane][1]).get("status") != "recorded":
+            rows.append(lane)
+        rows_by_lane[lane] = rows
+    unrun = [name for name, gate in GATES.items()
+             if not gate.get("per_host")
+             and all(statuses[lane][name] == "not run" for lane in lanes)]
+    closed = not unrun and not any(rows_by_lane.values())
+    lane_documents = []
+    for lane in lanes:
+        path, record, digest = records[lane]
+        run = own_platform_run(record)
+        observation = run.get("observation") or {}
+        lane_documents.append({
+            "target": lane,
+            "runner": run.get("runner"),
+            "record": str(path),
+            "sha256": digest,
+            "recorded_utc": record.get("recorded_utc"),
+            "host": record["host"],
+            "emulator": record.get("emulator"),
+            "status": run.get("status"),
+            "observation": {
+                "command": observation.get("command"),
+                "exit": observation.get("exit"),
+                "elapsed_ms": observation.get("elapsed_ms"),
+            },
+            "gates_elapsed_ms": sum(
+                row.get("elapsed_ms") or 0.0
+                for gate in record.get("gates") or []
+                for row in gate.get("commands") or []),
+            "expected_skips": record["expected_skips"],
+        })
+    first = records[lanes[0]][1]
+    return {
+        "schema": CLOSURE_SCHEMA,
+        "commit": first["commit"],
+        "toolchain": {"channel": first["toolchain"]["channel"],
+                      "rustc": first["toolchain"]["rustc"]},
+        "status": "closed" if closed else "open",
+        "open_rows": rows_by_lane,
+        "unrun_gates": unrun,
+        "gates": [{
+            "name": name,
+            "per_host": bool(gate.get("per_host")),
+            "hosts": {lane: statuses[lane][name] for lane in lanes},
+        } for name, gate in GATES.items()],
+        "lanes": lane_documents,
+    }
+
+
+def load_record(path):
+    data = Path(path).read_bytes()
+    record = json.loads(data.decode("utf-8"))
+    if not isinstance(record, dict):
+        raise ValueError("{}: a release record is a JSON object".format(path))
+    return path, record, hashlib.sha256(data).hexdigest()
+
+
 def command_plan(args):
-    selected = shutil.which("mbx") or "cargo (mbx unavailable)"
-    print("runner: {}".format(selected))
+    selected = available_runner()
+    print("runner: {}".format(selected or "none (install mbx or Cargo)"))
+    lanes = host_lanes()
+    print("this host: {}/{} records {}".format(
+        platform.system().lower(), platform.machine().lower(),
+        ", ".join(lanes) if lanes
+        else "no lane directly (linux_arm64 only under --emulator)"))
     for name, gate in GATES.items():
         if args.gate and name not in args.gate:
             continue
@@ -579,7 +955,10 @@ def command_plan(args):
         print("{}{}".format(name, marker))
         print("    capability: {}".format(gate["capability"]))
         for command in gate["commands"]:
-            print("    $ {}".format(command))
+            reason = command_unavailable(command, selected)
+            print("    $ {}{}".format(
+                command, "" if reason is None
+                else "  [unavailable: {}]".format(reason)))
     print("required platform runs:")
     for row in PLATFORM_RUNNERS:
         hosts = ", ".join(
@@ -611,9 +990,19 @@ def command_run(args):
         raise ValueError(
             "--native-execution is required: a runner row is only recorded "
             "with evidence of directly executing the emitted programs")
+    if args.limit is not None and args.limit < 0:
+        raise ValueError("--limit must not be negative")
     expected_skips = [parse_expected_skip(entry)
                       for entry in args.expect_skip]
-    clean = worktree_clean()
+    undeclared = sorted({skip["gate"] for skip in expected_skips}
+                        - set(gate_names))
+    if undeclared:
+        raise ValueError("--expect-skip names gate(s) this run does not "
+                         "select: {}".format(", ".join(undeclared)))
+    selected = available_runner()
+    if selected is None:
+        raise ValueError("Install mbx (preferred) or Cargo to run gates")
+    clean = worktree_clean(excluded=[args.records_dir])
     filters = environment_filters(os.environ)
     if not clean:
         print("warning: the checkout has uncommitted changes; every gate "
@@ -621,50 +1010,78 @@ def command_run(args):
     for name, value in filters.items():
         print("warning: inherited {}={!r} filters the run; every gate stays "
               "open".format(name, value), flush=True)
-    selected = runner()
+    log_dir = args.log_dir or LOGS_DIR / "{}__{}__{}".format(
+        args.target, commit_sha()[:10],
+        datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
     results = {}
     for name in gate_names:
-        rows = []
-        for command in GATES[name]["commands"]:
-            print("$ {}".format(command), flush=True)
-            row = run_command(command, selected)
-            rows.append(row)
-            print("    exit {} in {:.0f} ms{}".format(
-                row["exit"], row["elapsed_ms"],
-                " ({} skipped)".format(row["skipped_tests"])
-                if row["skipped_tests"] else ""), flush=True)
-        results[name] = rows
+        results[name] = run_gate_commands(
+            name, GATES[name]["commands"], selected, timeout=args.timeout,
+            limit=args.limit, log_dir=log_dir)
     print("$ {}".format(args.native_execution), flush=True)
-    observation = run_command(args.native_execution, selected)
-    print("    exit {} in {:.0f} ms{}".format(
-        observation["exit"], observation["elapsed_ms"],
-        " — lane {} open (observation failed)".format(args.target)
-        if observation["exit"] != 0 else ""), flush=True)
+    observation = run_command(args.native_execution, selected,
+                              timeout=args.timeout,
+                              log_path=Path(log_dir) / "native-execution.log")
+    print("    {}{}".format(
+        "exit {} in {:.0f} ms".format(observation["exit"],
+                                      observation["elapsed_ms"])
+        if observation["exit"] is not None
+        else "not complete: {}".format(observation["incomplete"]),
+        "" if observation_recorded(observation)
+        else " — lane {} open (observation failed)".format(args.target)),
+        flush=True)
     record = build_record(args.target, args.emulator, observation, gate_names,
                           results, expected_skips, selected, clean, filters)
     path = write_record(record, args.records_dir)
-    lane = next(row for row in record["platform_runs"]
-                if row["target"] == args.target)
+    lane = own_platform_run(record)
+    print("logs: {}".format(display_path(log_dir)))
     print("record: {} (lane {})".format(path, lane["status"]))
-    print("closure: {} (open rows: {})".format(
-        record["closure"]["status"],
-        ", ".join(record["closure"]["open_rows"]) or "none"))
+    print("record closure: {} (open rows: {}); join the four lanes with "
+          "`close`".format(
+              record["closure"]["status"],
+              ", ".join(record["closure"]["open_rows"]) or "none"))
     return 0
 
 
 def command_check(args):
     for path in args.record:
-        record = json.loads(Path(path).read_text(encoding="utf-8"))
+        _, record, _ = load_record(path)
         validate_record(record, path)
         print("{}: valid ({})".format(path, record["closure"]["status"]))
     return 0
+
+
+def command_close(args):
+    if args.commit is not None and not COMMIT.match(args.commit):
+        raise ValueError("--commit must be a full lowercase sha")
+    closure = close_records([load_record(path) for path in args.record],
+                            commit=args.commit)
+    text = json.dumps(closure, indent=2) + "\n"
+    if args.output is None:
+        sys.stdout.write(text)
+    else:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(text, encoding="utf-8")
+        print("closure: {} at {} ({})".format(
+            closure["status"], closure["commit"], args.output))
+        for lane, rows in closure["open_rows"].items():
+            if rows:
+                print("    {} open: {}".format(lane, ", ".join(rows)))
+        if closure["unrun_gates"]:
+            print("    no lane ran: {}".format(
+                ", ".join(closure["unrun_gates"])))
+    # Success means a closed release; an open closure is a valid document
+    # that still fails the release.
+    return 0 if closure["status"] == "closed" else 1
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
 
-    plan = commands.add_parser("plan", help="print the gate manifest")
+    plan = commands.add_parser(
+        "plan", help="print the gate manifest, this host's lane and the "
+        "commands this host cannot run")
     plan.add_argument("--gate", action="append", default=[],
                       choices=list(GATES), metavar="GATE")
     plan.set_defaults(handler=command_plan)
@@ -686,13 +1103,36 @@ def main():
                      dest="expect_skip", metavar="GATE|TEST|REASON",
                      help="declare an expected skip, e.g. "
                      "'RC-REPOSITORY|pkg::test|irrelevant to this runner'")
+    run.add_argument("--timeout", type=float, default=None, metavar="SECONDS",
+                     help="per-command ceiling; a timed-out command leaves "
+                     "its gate open")
+    run.add_argument("--limit", type=int, default=None, metavar="COUNT",
+                     help="run at most this many commands per gate (smoke "
+                     "runs); the rest are recorded as not run and the gate "
+                     "stays open")
     run.add_argument("--records-dir", type=Path, default=RECORDS_DIR)
+    run.add_argument("--log-dir", type=Path, default=None,
+                     help="full per-command output (default: "
+                     "target/release_record/<lane>__<commit>__<utc>/)")
     run.set_defaults(handler=command_run)
 
     check = commands.add_parser(
         "check", help="validate stored record(s) against the contract")
     check.add_argument("record", nargs="+")
     check.set_defaults(handler=command_check)
+
+    close = commands.add_parser(
+        "close", help="join one record per lane into the release closure; "
+        "exits 0 only when the release is closed")
+    close.add_argument("record", nargs="+",
+                       help="one record for each of the four lanes")
+    close.add_argument("--commit", default=None,
+                       help="require every record at this commit (reject "
+                       "stale records)")
+    close.add_argument("--output", type=Path, default=None,
+                       help="write the closure document here (default: "
+                       "stdout)")
+    close.set_defaults(handler=command_close)
 
     args = parser.parse_args()
     try:
