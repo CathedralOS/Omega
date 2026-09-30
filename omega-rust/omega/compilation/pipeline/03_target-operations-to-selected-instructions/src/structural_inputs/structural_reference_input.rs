@@ -1035,7 +1035,9 @@ pub(crate) fn case_projection(
     (current == endpoint).then_some((endpoint, offset))
 }
 
-fn case_layout(
+/// Reconstruct tag, common-field and case-payload geometry without granting
+/// authority to select or access any case.
+pub(crate) fn case_layout(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<calling_conventions::ConventionalSumLayout> {
@@ -1119,6 +1121,29 @@ fn project_inner<'a>(
                 offset = offset
                     .checked_add(u32::try_from(u64::from(stride).checked_mul(position)?).ok()?)?;
                 carrier = *element;
+            }
+            (Projection::FieldName(name), StructuralTypeShape::Mixed { fields, .. }) => {
+                let (position, field) = fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .enumerate()
+                    .find(|(_, field)| field.identity == name)?;
+                let nested = match &field.field_type {
+                    StructuralFieldType::Structural(nested) => *nested,
+                    leaf => {
+                        let shape = leaf.canonical_leaf_shape()?;
+                        declarations
+                            .iter()
+                            .find(|declaration| declaration.shape == shape)?
+                            .id
+                    }
+                };
+                let field_offset = case_layout(carrier, declarations)?
+                    .common_fields
+                    .get(position)?
+                    .byte_offset;
+                carrier = nested;
+                offset = offset.checked_add(field_offset)?;
             }
             (Projection::FieldName(name), StructuralTypeShape::Record { fields }) => {
                 let mut field_offset = 0;

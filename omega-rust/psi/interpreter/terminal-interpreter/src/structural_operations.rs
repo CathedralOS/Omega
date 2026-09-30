@@ -542,17 +542,9 @@ impl TerminalExecution {
             self.program.structural_types.values(),
             result.structural_type,
         )
-        .ok_or_else(invalid)?;
-        // The walk mints a sum's first-case payload as `RecordField` leaves at
-        // the sum's own path, beside its `SumSelection`: those are payload
-        // cells, not members of a record at that path.
-        let selected_sums = leaves
-            .iter()
-            .filter_map(|leaf| match leaf {
-                terminal_semantics::ZeroedStructuralLeaf::SumSelection { path, .. } => Some(path),
-                _ => None,
-            })
-            .collect::<BTreeSet<_>>();
+        .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+            "zeroed structural storage exceeds supported leaf materialization",
+        ))?;
         let value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
@@ -592,13 +584,24 @@ impl TerminalExecution {
                         opaque_identity: value.opaque_identity,
                         path: path.clone(),
                     };
-                    let cell = if selected_sums.contains(path) {
-                        StructuralScalarRuntimeField::case_payload(parent, *field)
-                    } else {
-                        StructuralScalarRuntimeField::member(parent, *field)
-                    };
+                    let cell = StructuralScalarRuntimeField::member(parent, *field);
                     self.structural_scalar_fields
                         .insert(cell, zero(*scalar_type).ok_or_else(invalid)?);
+                }
+                terminal_semantics::ZeroedStructuralLeaf::CaseField {
+                    path,
+                    field,
+                    scalar_type,
+                    ..
+                } => {
+                    let parent = StructuralRuntimePlace {
+                        opaque_identity: value.opaque_identity,
+                        path: path.clone(),
+                    };
+                    self.structural_scalar_fields.insert(
+                        StructuralScalarRuntimeField::case_payload(parent, *field),
+                        zero(*scalar_type).ok_or_else(invalid)?,
+                    );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { path, scalar_type } => {
                     // Byte views and scalar indexing must share one backing.

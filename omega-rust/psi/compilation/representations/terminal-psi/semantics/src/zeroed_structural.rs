@@ -3,22 +3,30 @@ use semantic_vocabulary::{
     StructuralTypeId,
 };
 use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-/// Resource ceiling for the leaf walk: every leaf is at least one byte of
-/// zeroed storage, and a degenerate fixed-array extent must not balloon the
-/// worklist or the leaf vector before the descent guard can run — the bound
-/// keeps worst-case enumeration proportional to real storage.
+/// Resource ceiling for expanded cells and pending work. Shape admission does
+/// not use this ceiling: large valid types can need another materialization
+/// strategy. Aggregate visits are bounded too, including empty element shapes.
 const MAX_ZEROED_LEAVES: usize = 65_536;
 
 /// One scalar leaf cell of a zero-constructible structural type, addressed the
-/// way runtime storage keys it: a record field under its parent path, or one
-/// primitive-scalar element of a fixed array whose path ends at its index.
+/// way runtime storage keys it: a record/common field or selected case field
+/// under its parent path, or a scalar array element at its full indexed path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ZeroedStructuralLeaf {
     RecordField {
         path: Vec<StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        scalar_type: ScalarType,
+    },
+    /// A selected case's payload cell, distinct from common fields even when
+    /// both declarations use the same field identity.
+    CaseField {
+        path: Vec<StructuralPathSegment>,
+        case: StructuralCaseId,
         field: semantic_vocabulary::StructuralFieldId,
         scalar_type: ScalarType,
     },
@@ -43,6 +51,7 @@ impl ZeroedStructuralLeaf {
     pub fn path(&self) -> &[StructuralPathSegment] {
         match self {
             ZeroedStructuralLeaf::RecordField { path, .. }
+            | ZeroedStructuralLeaf::CaseField { path, .. }
             | ZeroedStructuralLeaf::ArrayScalar { path, .. }
             | ZeroedStructuralLeaf::SumSelection { path, .. } => path,
         }
@@ -52,6 +61,7 @@ impl ZeroedStructuralLeaf {
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             ZeroedStructuralLeaf::RecordField { scalar_type, .. }
+            | ZeroedStructuralLeaf::CaseField { scalar_type, .. }
             | ZeroedStructuralLeaf::ArrayScalar { scalar_type, .. }
             | ZeroedStructuralLeaf::SumSelection { scalar_type, .. } => *scalar_type,
         }
@@ -65,19 +75,105 @@ impl ZeroedStructuralLeaf {
 /// scalar: the tag's all-zero bits select that case (tag = case ordinal).
 /// Bounded integer fields must contain the carrier's zero; nested composites
 /// in sum payloads still need case-aware leaf paths. References, views, byte
-/// sequences, mixed shapes, and erased members have no universally valid zero
-/// spelling, so they reject. Unknown, cyclic, or recursive membership also
-/// rejects — the worklist bounds the walk at the module's declaration count.
+/// sequences and erased members have no universally valid zero spelling, so
+/// they reject. Mixed shapes admit common fields and their first case. The
+/// declaration graph walk rejects unknown members and actual cycles without
+/// expanding array elements or applying the leaf enumeration resource ceiling.
 pub fn zeroed_structural_shape<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> bool {
-    zeroed_structural_leaves(types, root).is_some()
+    let declarations: Vec<_> = types.collect();
+    zeroed_declaration_graph(&declarations, root)
+}
+
+fn zeroed_declaration_graph(
+    declarations: &[&StructuralTypeDeclaration],
+    root: StructuralTypeId,
+) -> bool {
+    // Declaration-indexed DFS marks distinguish a backedge from a shared
+    // child reached by several fields. Array extents do not grow this walk.
+    let mut active = vec![false; declarations.len()];
+    let mut complete = vec![false; declarations.len()];
+    let mut pending = vec![(root, false)];
+    while let Some((current, exiting)) = pending.pop() {
+        let Some(position) = declarations
+            .iter()
+            .position(|declaration| declaration.id == current)
+        else {
+            return false;
+        };
+        if exiting {
+            active[position] = false;
+            complete[position] = true;
+            continue;
+        }
+        if complete[position] {
+            continue;
+        }
+        if active[position] {
+            return false;
+        }
+        let shape = &declarations[position].shape;
+        let (fields, cases) = match shape {
+            StructuralTypeShape::PrimitiveScalar(_) => (&[][..], None),
+            StructuralTypeShape::FixedArray { element, .. } => {
+                active[position] = true;
+                pending.push((current, true));
+                pending.push((*element, false));
+                continue;
+            }
+            StructuralTypeShape::Record { fields } => (fields.as_slice(), None),
+            StructuralTypeShape::Sum { cases } => (&[][..], Some(cases)),
+            StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), Some(cases)),
+            _ => return false,
+        };
+        if let Some(cases) = cases {
+            let Some(first) = cases.first() else {
+                return false;
+            };
+            // Nested payload aggregates still need case-aware structural paths.
+            if first
+                .fields
+                .iter()
+                .any(|field| zeroed_field_scalar(field).is_none())
+            {
+                return false;
+            }
+        }
+        active[position] = true;
+        pending.push((current, true));
+        for field in fields {
+            if field.relevance.is_erased() {
+                return false;
+            }
+            if let StructuralFieldType::Structural(member) = field.field_type {
+                pending.push((member, false));
+            } else if zeroed_field_scalar(field).is_none() {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+fn zeroed_field_scalar(field: &StructuralFieldDeclaration) -> Option<ScalarType> {
+    if field.relevance.is_erased() {
+        return None;
+    }
+    match field.field_type {
+        StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(format)),
+        StructuralFieldType::Scalar(scalar_type) => Some(scalar_type),
+        StructuralFieldType::BoundedInteger(bounds) if admits_zero(bounds) => {
+            Some(ScalarType::Integer(bounds.integer_type()))
+        }
+        _ => None,
+    }
 }
 
 /// Enumerate every scalar leaf a zeroed establishment of `root` must
-/// materialize, or `None` when the shape is not zero-constructible (the same
-/// admission rule as [`zeroed_structural_shape`]). Record fields key by their
+/// materialize, or `None` when the shape is not zero-constructible or its
+/// expansion exceeds the resource ceiling. Record fields key by their
 /// parent path and field id; fixed-array elements key by the full indexed
 /// path.
 pub fn zeroed_structural_leaves<'types>(
@@ -85,7 +181,9 @@ pub fn zeroed_structural_leaves<'types>(
     root: StructuralTypeId,
 ) -> Option<Vec<ZeroedStructuralLeaf>> {
     let declarations: Vec<&StructuralTypeDeclaration> = types.collect();
-    let bound = declarations.len() + 1;
+    if !zeroed_declaration_graph(&declarations, root) {
+        return None;
+    }
     let mut leaves = Vec::new();
     // (type id, path to its runtime place root)
     let mut pending = vec![(root, Vec::new())];
@@ -94,6 +192,32 @@ pub fn zeroed_structural_leaves<'types>(
         let declaration = declarations
             .iter()
             .find(|declaration| declaration.id == current)?;
+        if !matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)) {
+            visited_cells += 1;
+            if visited_cells > MAX_ZEROED_LEAVES {
+                return None;
+            }
+        }
+        if let StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } =
+            &declaration.shape
+        {
+            for field in fields {
+                if let StructuralFieldType::Structural(member) = field.field_type {
+                    let mut member_path = path.clone();
+                    member_path.push(StructuralPathSegment::Field(field.identity.clone()));
+                    pending.push((member, member_path));
+                } else {
+                    leaves.push(ZeroedStructuralLeaf::RecordField {
+                        path: path.clone(),
+                        field: field.id,
+                        scalar_type: zeroed_field_scalar(field)?,
+                    });
+                }
+                if leaves.len().saturating_add(pending.len()) > MAX_ZEROED_LEAVES {
+                    return None;
+                }
+            }
+        }
         match &declaration.shape {
             // No payload does not mean no validity: a selected binding must be
             // established by the entry/transfer route, never by all-zero bytes.
@@ -105,16 +229,13 @@ pub fn zeroed_structural_leaves<'types>(
                 });
             }
             StructuralTypeShape::FixedArray { element, length } => {
-                visited_cells += 1;
-                // Descent bound: only Record/FixedArray visits can push work,
-                // so they alone need the declarations² recursion guard — a
-                // scalar element enumeration is declared extent, not
-                // recursion.
-                if visited_cells > bound.saturating_mul(bound).max(1024) {
-                    return None;
-                }
                 let extent = usize::try_from(*length).ok()?;
-                if pending.len().saturating_add(extent) > MAX_ZEROED_LEAVES {
+                if leaves
+                    .len()
+                    .saturating_add(pending.len())
+                    .saturating_add(extent)
+                    > MAX_ZEROED_LEAVES
+                {
                     return None;
                 }
                 for index in 0..extent {
@@ -123,11 +244,7 @@ pub fn zeroed_structural_leaves<'types>(
                     pending.push((*element, element_path));
                 }
             }
-            StructuralTypeShape::Sum { cases } => {
-                visited_cells += 1;
-                if visited_cells > bound.saturating_mul(bound).max(1024) {
-                    return None;
-                }
+            StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
                 // Zeroed storage selects the first declared case — the tag
                 // stores the case ordinal and zero names ordinal 0. Payload
                 // leaves mint for that case only; later cases carry no cells.
@@ -144,75 +261,18 @@ pub fn zeroed_structural_leaves<'types>(
                     scalar_type: tag_type,
                 });
                 for field in &first.fields {
-                    match &field.field_type {
-                        StructuralFieldType::IeeeFloat(format) if !field.relevance.is_erased() => {
-                            leaves.push(ZeroedStructuralLeaf::RecordField {
-                                path: path.clone(),
-                                field: field.id,
-                                scalar_type: ScalarType::IeeeFloat(*format),
-                            });
-                        }
-                        StructuralFieldType::Scalar(scalar_type)
-                            if !field.relevance.is_erased() =>
-                        {
-                            leaves.push(ZeroedStructuralLeaf::RecordField {
-                                path: path.clone(),
-                                field: field.id,
-                                scalar_type: *scalar_type,
-                            });
-                        }
-                        StructuralFieldType::BoundedInteger(bounds)
-                            if !field.relevance.is_erased() && admits_zero(*bounds) =>
-                        {
-                            leaves.push(ZeroedStructuralLeaf::RecordField {
-                                path: path.clone(),
-                                field: field.id,
-                                scalar_type: ScalarType::Integer(bounds.integer_type()),
-                            });
-                        }
-                        _ => return None,
+                    leaves.push(ZeroedStructuralLeaf::CaseField {
+                        path: path.clone(),
+                        case: first.id,
+                        field: field.id,
+                        scalar_type: zeroed_field_scalar(field)?,
+                    });
+                    if leaves.len().saturating_add(pending.len()) > MAX_ZEROED_LEAVES {
+                        return None;
                     }
                 }
             }
-            StructuralTypeShape::Record { fields } => {
-                visited_cells += 1;
-                if visited_cells > bound.saturating_mul(bound).max(1024) {
-                    return None;
-                }
-                for field in fields {
-                    match &field.field_type {
-                        StructuralFieldType::IeeeFloat(format) if !field.relevance.is_erased() => {
-                            leaves.push(ZeroedStructuralLeaf::RecordField {
-                                path: path.clone(),
-                                field: field.id,
-                                scalar_type: ScalarType::IeeeFloat(*format),
-                            });
-                        }
-                        StructuralFieldType::Scalar(scalar_type) => {
-                            leaves.push(ZeroedStructuralLeaf::RecordField {
-                                path: path.clone(),
-                                field: field.id,
-                                scalar_type: *scalar_type,
-                            });
-                        }
-                        StructuralFieldType::Structural(member) => {
-                            let mut member_path = path.clone();
-                            member_path.push(StructuralPathSegment::Field(field.identity.clone()));
-                            pending.push((*member, member_path));
-                        }
-                        StructuralFieldType::BoundedInteger(bounds)
-                            if !field.relevance.is_erased() && admits_zero(*bounds) =>
-                        {
-                            leaves.push(ZeroedStructuralLeaf::RecordField {
-                                path: path.clone(),
-                                field: field.id,
-                                scalar_type: ScalarType::Integer(bounds.integer_type()),
-                            });
-                        }
-                        _ => return None,
-                    }
-                }
-            }
+            StructuralTypeShape::Record { .. } => {}
             _ => return None,
         }
         if leaves.len() + pending.len() > MAX_ZEROED_LEAVES {
@@ -299,6 +359,211 @@ mod tests {
     }
 
     #[test]
+    fn huge_array_shape_admission_does_not_expand_its_elements() {
+        let scalar = declaration(2, StructuralTypeShape::PrimitiveScalar(unsigned_32()));
+        let array = declaration(
+            1,
+            StructuralTypeShape::FixedArray {
+                element: scalar.id,
+                length: u64::MAX,
+            },
+        );
+        let types = [&array, &scalar];
+        assert!(zeroed_structural_shape(types.into_iter(), array.id));
+        assert!(zeroed_structural_leaves(types.into_iter(), array.id).is_none());
+    }
+
+    #[test]
+    fn scalar_array_at_leaf_ceiling_still_materializes() {
+        let scalar = declaration(2, StructuralTypeShape::PrimitiveScalar(unsigned_32()));
+        let array = declaration(
+            1,
+            StructuralTypeShape::FixedArray {
+                element: scalar.id,
+                length: MAX_ZEROED_LEAVES as u64,
+            },
+        );
+        let types = [&array, &scalar];
+        assert!(zeroed_structural_shape(types.into_iter(), array.id));
+        assert_eq!(
+            zeroed_structural_leaves(types.into_iter(), array.id)
+                .unwrap()
+                .len(),
+            MAX_ZEROED_LEAVES
+        );
+    }
+
+    #[test]
+    fn declaration_graph_rejects_cycles_and_unknown_members() {
+        let root = StructuralTypeId::new(1).unwrap();
+        let child = StructuralTypeId::new(2).unwrap();
+        for shape in [
+            StructuralTypeShape::FixedArray {
+                element: root,
+                length: 0,
+            },
+            StructuralTypeShape::Record {
+                fields: vec![field(1, StructuralFieldType::Structural(root))],
+            },
+            StructuralTypeShape::Mixed {
+                fields: vec![field(1, StructuralFieldType::Structural(root))],
+                cases: vec![case(1, vec![])],
+            },
+            StructuralTypeShape::FixedArray {
+                element: child,
+                length: 0,
+            },
+        ] {
+            let declaration = declaration(1, shape);
+            assert!(!zeroed_structural_shape([&declaration].into_iter(), root));
+            assert!(zeroed_structural_leaves([&declaration].into_iter(), root).is_none());
+        }
+        let first = declaration(
+            1,
+            StructuralTypeShape::FixedArray {
+                element: child,
+                length: 1,
+            },
+        );
+        let second = declaration(
+            2,
+            StructuralTypeShape::Record {
+                fields: vec![field(1, StructuralFieldType::Structural(root))],
+            },
+        );
+        assert!(!zeroed_structural_shape(
+            [&first, &second].into_iter(),
+            root
+        ));
+        assert!(zeroed_structural_leaves([&first, &second].into_iter(), root).is_none());
+    }
+
+    #[test]
+    fn shared_children_and_repeated_record_elements_are_not_cycles() {
+        let child = declaration(
+            2,
+            StructuralTypeShape::Record {
+                fields: vec![field(1, StructuralFieldType::Scalar(unsigned_32()))],
+            },
+        );
+        let parent = declaration(
+            1,
+            StructuralTypeShape::Record {
+                fields: vec![
+                    field(1, StructuralFieldType::Structural(child.id)),
+                    field(2, StructuralFieldType::Structural(child.id)),
+                ],
+            },
+        );
+        assert!(zeroed_structural_shape(
+            [&parent, &child].into_iter(),
+            parent.id
+        ));
+        assert_eq!(
+            zeroed_structural_leaves([&parent, &child].into_iter(), parent.id)
+                .unwrap()
+                .len(),
+            2
+        );
+        let array = declaration(
+            3,
+            StructuralTypeShape::FixedArray {
+                element: parent.id,
+                length: 2048,
+            },
+        );
+        assert!(zeroed_structural_shape(
+            [&array, &parent, &child].into_iter(),
+            array.id
+        ));
+        assert_eq!(
+            zeroed_structural_leaves([&array, &parent, &child].into_iter(), array.id)
+                .unwrap()
+                .len(),
+            4096
+        );
+    }
+
+    #[test]
+    fn mixed_common_and_case_fields_with_identical_ids_remain_distinct() {
+        let mixed = declaration(
+            1,
+            StructuralTypeShape::Mixed {
+                fields: vec![field(3, StructuralFieldType::Scalar(unsigned_32()))],
+                cases: vec![
+                    case(
+                        7,
+                        vec![field(3, StructuralFieldType::Scalar(unsigned_32()))],
+                    ),
+                    case(
+                        8,
+                        vec![field(3, StructuralFieldType::Scalar(ScalarType::Boolean))],
+                    ),
+                ],
+            },
+        );
+        assert!(zeroed_structural_shape([&mixed].into_iter(), mixed.id));
+        let leaves = zeroed_structural_leaves([&mixed].into_iter(), mixed.id).unwrap();
+        assert_eq!(
+            leaves,
+            vec![
+                ZeroedStructuralLeaf::RecordField {
+                    path: vec![],
+                    field: StructuralFieldId::new(3).unwrap(),
+                    scalar_type: unsigned_32()
+                },
+                ZeroedStructuralLeaf::SumSelection {
+                    path: vec![],
+                    structural_type: mixed.id,
+                    case: StructuralCaseId::new(7).unwrap(),
+                    scalar_type: signed_tag()
+                },
+                ZeroedStructuralLeaf::CaseField {
+                    path: vec![],
+                    case: StructuralCaseId::new(7).unwrap(),
+                    field: StructuralFieldId::new(3).unwrap(),
+                    scalar_type: unsigned_32()
+                },
+            ]
+        );
+        assert_ne!(leaves[0], leaves[2]);
+        assert_eq!(leaves[2].path(), &[]);
+        assert_eq!(leaves[2].scalar_type(), unsigned_32());
+    }
+
+    #[test]
+    fn mixed_common_members_recurse_but_nested_case_members_still_reject() {
+        let child = declaration(2, StructuralTypeShape::PrimitiveScalar(unsigned_32()));
+        let mut mixed = declaration(
+            1,
+            StructuralTypeShape::Mixed {
+                fields: vec![field(3, StructuralFieldType::Structural(child.id))],
+                cases: vec![case(7, vec![])],
+            },
+        );
+        assert!(zeroed_structural_shape(
+            [&mixed, &child].into_iter(),
+            mixed.id
+        ));
+        let leaves = zeroed_structural_leaves([&mixed, &child].into_iter(), mixed.id).unwrap();
+        assert!(leaves.contains(&ZeroedStructuralLeaf::ArrayScalar {
+            path: vec![StructuralPathSegment::Field("f3".into())],
+            scalar_type: unsigned_32(),
+        }));
+        let StructuralTypeShape::Mixed { cases, .. } = &mut mixed.shape else {
+            panic!("mixed");
+        };
+        cases[0]
+            .fields
+            .push(field(4, StructuralFieldType::Structural(child.id)));
+        assert!(!zeroed_structural_shape(
+            [&mixed, &child].into_iter(),
+            mixed.id
+        ));
+        assert!(zeroed_structural_leaves([&mixed, &child].into_iter(), mixed.id).is_none());
+    }
+
+    #[test]
     fn bounded_integer_fields_require_zero_in_the_declared_interval() {
         for (sign, minimum, maximum, accepted) in [
             (
@@ -361,11 +626,21 @@ mod tests {
                     "{sign:?} {minimum:?}..={maximum:?}"
                 );
                 if let Some(leaves) = leaves {
-                    assert!(leaves.contains(&ZeroedStructuralLeaf::RecordField {
-                        path: vec![],
-                        field: bounded.id,
-                        scalar_type: ScalarType::Integer(integer),
-                    }));
+                    let expected = if matches!(root.shape, StructuralTypeShape::Sum { .. }) {
+                        ZeroedStructuralLeaf::CaseField {
+                            path: vec![],
+                            case: StructuralCaseId::new(7).unwrap(),
+                            field: bounded.id,
+                            scalar_type: ScalarType::Integer(integer),
+                        }
+                    } else {
+                        ZeroedStructuralLeaf::RecordField {
+                            path: vec![],
+                            field: bounded.id,
+                            scalar_type: ScalarType::Integer(integer),
+                        }
+                    };
+                    assert!(leaves.contains(&expected));
                 }
             }
         }
@@ -398,7 +673,7 @@ mod tests {
     }
 
     #[test]
-    fn sum_first_case_scalar_payloads_mint_record_field_leaves() {
+    fn sum_first_case_scalar_payloads_mint_case_field_leaves() {
         let sum = declaration(
             1,
             StructuralTypeShape::Sum {
@@ -432,13 +707,15 @@ mod tests {
                     case: StructuralCaseId::new(7).unwrap(),
                     scalar_type: signed_tag(),
                 },
-                ZeroedStructuralLeaf::RecordField {
+                ZeroedStructuralLeaf::CaseField {
                     path: vec![],
+                    case: StructuralCaseId::new(7).unwrap(),
                     field: StructuralFieldId::new(3).unwrap(),
                     scalar_type: unsigned_32(),
                 },
-                ZeroedStructuralLeaf::RecordField {
+                ZeroedStructuralLeaf::CaseField {
                     path: vec![],
+                    case: StructuralCaseId::new(7).unwrap(),
                     field: StructuralFieldId::new(4).unwrap(),
                     scalar_type: ScalarType::Boolean,
                 },
@@ -486,8 +763,12 @@ mod tests {
                     if is_erased {
                         assert!(leaves.is_none(), "erasure is not a zeroed runtime cell");
                     } else {
-                        assert!(leaves.unwrap().iter().any(|leaf| matches!(leaf,
-                            ZeroedStructuralLeaf::RecordField { scalar_type: ScalarType::IeeeFloat(found), .. } if *found == format)));
+                        assert!(
+                            leaves
+                                .unwrap()
+                                .iter()
+                                .any(|leaf| leaf.scalar_type() == ScalarType::IeeeFloat(format))
+                        );
                     }
                 }
             }
@@ -557,8 +838,9 @@ mod tests {
                     case: StructuralCaseId::new(7).unwrap(),
                     scalar_type: signed_tag(),
                 },
-                ZeroedStructuralLeaf::RecordField {
+                ZeroedStructuralLeaf::CaseField {
                     path: member_path,
+                    case: StructuralCaseId::new(7).unwrap(),
                     field: StructuralFieldId::new(3).unwrap(),
                     scalar_type: unsigned_32(),
                 },

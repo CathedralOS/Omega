@@ -263,11 +263,10 @@ impl TerminalExecution {
                 // plain-type test.
                 let plain = match operation.kind {
                     OperationKind::EstablishZeroedStructural { .. } => {
-                        terminal_semantics::zeroed_structural_leaves(
+                        terminal_semantics::zeroed_structural_shape(
                             self.program.structural_types.values(),
                             result.structural_type,
                         )
-                        .is_some()
                     }
                     _ => {
                         self.plain_record_type(result.structural_type)

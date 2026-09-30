@@ -20,6 +20,221 @@ use terminal_psi::{
 };
 
 #[test]
+fn zeroed_mixed_arrays_keep_common_and_selected_case_cells_distinct() {
+    use semantic_vocabulary::StructuralCaseId;
+    use terminal_psi::StructuralCaseDeclaration;
+
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+    ] {
+        for has_default_payload in [false, true] {
+            let (mut source, _, _) = plain_unit_fixture();
+            let scalar = |width| {
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, width).unwrap())
+            };
+            let root = StructuralTypeId::new(1).unwrap();
+            let array = StructuralTypeId::new(2).unwrap();
+            let mixed = StructuralTypeId::new(3).unwrap();
+            let nested = StructuralTypeId::new(4).unwrap();
+            let field = |identity, name: &str, field_type| StructuralFieldDeclaration {
+                id: StructuralFieldId::new(identity).unwrap(),
+                identity: name.into(),
+                relevance: BindingRelevance::Relevant,
+                field_type,
+            };
+            source.structural_types = vec![
+                StructuralTypeDeclaration {
+                    id: root,
+                    identity: "test::MixedArrayOwner".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![
+                            field(
+                                1,
+                                "prefix",
+                                StructuralFieldType::Scalar(ScalarType::Boolean),
+                            ),
+                            field(2, "items", StructuralFieldType::Structural(array)),
+                        ],
+                    },
+                },
+                StructuralTypeDeclaration {
+                    id: array,
+                    identity: "test::MixedArray".into(),
+                    shape: StructuralTypeShape::FixedArray {
+                        element: mixed,
+                        length: 2,
+                    },
+                },
+                StructuralTypeDeclaration {
+                    id: mixed,
+                    identity: "test::Mixed".into(),
+                    shape: StructuralTypeShape::Mixed {
+                        fields: vec![
+                            field(1, "common", StructuralFieldType::Scalar(scalar(32))),
+                            field(2, "nested", StructuralFieldType::Structural(nested)),
+                        ],
+                        cases: vec![
+                            StructuralCaseDeclaration {
+                                id: StructuralCaseId::new(7).unwrap(),
+                                identity: "Default".into(),
+                                // Field ids are local to the common/payload
+                                // namespace: these intentionally collide.
+                                fields: if has_default_payload {
+                                    vec![
+                                        field(
+                                            1,
+                                            "payload",
+                                            StructuralFieldType::Scalar(scalar(64)),
+                                        ),
+                                        field(
+                                            2,
+                                            "ready",
+                                            StructuralFieldType::Scalar(ScalarType::Boolean),
+                                        ),
+                                    ]
+                                } else {
+                                    Vec::new()
+                                },
+                            },
+                            StructuralCaseDeclaration {
+                                id: StructuralCaseId::new(8).unwrap(),
+                                identity: "Other".into(),
+                                fields: vec![field(
+                                    1,
+                                    "unused",
+                                    StructuralFieldType::Scalar(scalar(64)),
+                                )],
+                            },
+                        ],
+                    },
+                },
+                StructuralTypeDeclaration {
+                    id: nested,
+                    identity: "test::NestedCommon".into(),
+                    shape: StructuralTypeShape::Record {
+                        fields: vec![field(1, "value", StructuralFieldType::Scalar(scalar(16)))],
+                    },
+                },
+            ]
+            .into();
+            let place = PlaceId::new(1).unwrap();
+            source.functions[0].operations = vec![
+                AbstractOperation::EstablishZeroedStructural {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    result: StructuralOperationResult {
+                        place,
+                        structural_type: root,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: EdgeId::new(1).unwrap(),
+                    cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
+                },
+            ];
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = selection_constraints(&legal, &environment);
+            let selected = select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .expect("mixed common storage and default-case payload select");
+            validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .expect("mixed zero stores independently replay");
+            let mut stores = selected.plan().functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .filter_map(|instruction| match instruction.kind {
+                    selected_instructions::SelectedInstructionKind::Store {
+                        byte_offset,
+                        byte_size,
+                    } => Some((byte_offset, byte_size)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            stores.sort();
+            let expected = if has_default_payload {
+                vec![
+                    (0, 1),
+                    (8, 4),
+                    (12, 4),
+                    (16, 2),
+                    (24, 8),
+                    (32, 1),
+                    (40, 4),
+                    (44, 4),
+                    (48, 2),
+                    (56, 8),
+                    (64, 1),
+                ]
+            } else {
+                vec![(0, 1), (8, 4), (12, 4), (16, 2), (32, 4), (36, 4), (40, 2)]
+            };
+            assert_eq!(stores, expected);
+            for (offset, _) in stores {
+                let mut hostile = selected.plan().clone();
+                let instruction = hostile.functions[0]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.instructions)
+                    .find(|instruction| {
+                        matches!(instruction.kind,
+                        selected_instructions::SelectedInstructionKind::Store { byte_offset, .. }
+                            if byte_offset == offset)
+                    })
+                    .unwrap();
+                let selected_instructions::SelectedInstructionKind::Store { byte_offset, .. } =
+                    &mut instruction.kind
+                else {
+                    unreachable!()
+                };
+                // Tags, common fields, nested common records and selected
+                // payloads each owe their own exact byte range.
+                *byte_offset += 1;
+                assert!(
+                    validate_selected_instructions(
+                        &legal,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        hostile,
+                    )
+                    .is_err(),
+                    "changed zero-store offset {offset} must not replay"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn zeroed_empty_record_borrowed_calls_replay_the_exact_address_anchor() {
     for native in [
         target::NativeTarget::linux_x64(),
