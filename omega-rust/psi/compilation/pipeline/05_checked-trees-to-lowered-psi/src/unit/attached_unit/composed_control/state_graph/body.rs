@@ -546,10 +546,35 @@ pub(super) fn validate(
                 },
                 StatementNode::Assignment(_),
             ) => {
-                let checked_trees::CheckedStoreRoot::Parameter { position } = destination else {
-                    return unsupported(
-                        "Unit graph primitive store has no retained parameter destination",
-                    );
+                let position = match destination {
+                    checked_trees::CheckedStoreRoot::Parameter { position } => position,
+                    // A whole store to a primitive local this state already
+                    // established rejoins its authored assignment exactly as
+                    // an ordinary body's does.
+                    checked_trees::CheckedStoreRoot::Local { symbol }
+                        if path.is_empty()
+                            && state.operations[..index].iter().any(|earlier| {
+                                matches!(earlier,
+                                    CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                                        symbol: established, ..
+                                    } if established == symbol)
+                            }) =>
+                    {
+                        crate::emission::primitive_store::validate_symbol_assignment(
+                            checked,
+                            state.state,
+                            *statement_index,
+                            *symbol,
+                            path,
+                            value,
+                        )?;
+                        continue;
+                    }
+                    checked_trees::CheckedStoreRoot::Local { .. } => {
+                        return unsupported(
+                            "Unit graph primitive store has no retained parameter destination",
+                        );
+                    }
                 };
                 let destination = state
                     .structural_parameters
