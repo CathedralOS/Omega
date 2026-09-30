@@ -10,7 +10,7 @@ use super::parameters::{
 };
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
-    Operation, OperationKind, OperationResult, PlaceId, SemanticDomainId, StructuralDomainId,
+    Operation, OperationResult, PlaceId, SemanticDomainId, StructuralDomainId,
     StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration, allocate_dense,
     argument_evaluation, lookup_claim_id, lookup_domain_id, lookup_type_id,
@@ -18,6 +18,7 @@ use super::{
     lower_structural_crash_route_buckets, lower_structural_path, place_id, primitive_locals,
     terminal_scalar_type, unsupported, validate_transfer_shape,
 };
+use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
@@ -46,6 +47,28 @@ pub(super) struct PreparedCall {
     pub claim_transfers: Vec<ClaimTransfer>,
     pub requirement_obligations: Vec<ObligationId>,
     pub crash_continuations: Vec<terminal_psi::CrashRouteBucket>,
+}
+
+impl PreparedCall {
+    /// The prepared lanes as one direct call to `callee`, for `result` to
+    /// choose its Terminal operation.
+    pub(super) fn into_direct_call(
+        self,
+        callee: MachineId,
+        result: DirectCallResult,
+    ) -> DirectCall {
+        DirectCall {
+            callee,
+            arguments: self.arguments,
+            erased_arguments: self.erased_arguments,
+            erased_proof_arguments: self.erased_proof_arguments,
+            structural_arguments: self.structural_arguments,
+            claim_transfers: self.claim_transfers,
+            requirement_obligations: self.requirement_obligations,
+            crash_continuations: self.crash_continuations,
+            result,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -429,47 +452,18 @@ pub(super) fn emit_structural(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    let PreparedCall {
-        arguments,
-        erased_arguments,
-        erased_proof_arguments,
-        structural_arguments,
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-    } = prepared;
     // Scalar values and structural custody are separate operand namespaces,
-    // not different ownership rules. Keep the scalar-free encoding unchanged;
-    // mixed calls retain the same checked claim and content correspondence.
-    // `CallStructural` owns no erased lane; a proof-only actual selects the
-    // scalar-argument shape even when every runtime operand is empty.
-    let kind = if result.multiplicity == Multiplicity::Linear
-        && arguments.is_empty()
-        && erased_arguments.is_empty()
-        && erased_proof_arguments.is_empty()
-    {
-        OperationKind::CallStructural {
+    // not different ownership rules: a mixed call retains the same checked
+    // claim and content correspondence as the scalar-free encoding.
+    let kind = prepared
+        .into_direct_call(
             callee,
-            structural_arguments,
-            claim_transfers,
-            returned_claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-            selected_evidence: Vec::new(),
-        }
-    } else {
-        OperationKind::CallStructuralWithScalarArguments {
-            callee,
-            arguments,
-            erased_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-            returned_claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-        }
-    };
+            DirectCallResult::Structural {
+                multiplicity: returned.multiplicity,
+                returned_claim_transfers,
+            },
+        )
+        .into_operation_kind();
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,

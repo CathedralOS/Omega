@@ -6,10 +6,11 @@ use super::super::{
     MachineId, OperationResult, StructuralArgument, ValueDeclaration, block_id, edge_id, value_id,
 };
 use super::{
-    Block, LoweringError, OperationKind, StructuralAccess, StructuralMultiplicity,
-    StructuralParameterDeclaration, TerminalAffineCleanupAction, Terminator, complete,
+    Block, LoweringError, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    TerminalAffineCleanupAction, Terminator, complete,
 };
 use semantic_vocabulary::OperationId;
+use terminal_psi::OperationKind;
 
 #[test]
 fn parameter_completion_preserves_disjoint_temporary_and_local_cleanup() {

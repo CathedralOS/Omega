@@ -1,5 +1,6 @@
 //! Lowering dynamic sources, selection sources and dynamic call custody.
 
+use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
     DynamicCallView, DynamicLoweringLane, ForwardedHelperIds,
 };
@@ -81,34 +82,29 @@ pub(crate) fn validate_and_lower_dynamic_source(
 }
 
 /// An ordinary call into `callee`, binding the lane's scalar result or none.
+/// A lane's scalar call always takes the structural frame, even when no
+/// structural argument crosses it (a forwarded helper call passes none).
 pub(crate) fn machine_call(
     callee: semantic_vocabulary::MachineId,
     structural_arguments: Vec<StructuralArgument>,
     returns_scalar: bool,
 ) -> OperationKind {
-    if returns_scalar {
-        OperationKind::CallStructuralScalar {
-            callee,
-            arguments: Vec::new(),
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments,
-            claim_transfers: Vec::new(),
-            requirement_obligations: Vec::new(),
-            crash_continuations: Vec::new(),
-        }
-    } else {
-        OperationKind::CallUnit {
-            callee,
-            arguments: Vec::new(),
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments,
-            claim_transfers: Vec::new(),
-            requirement_obligations: Vec::new(),
-            crash_continuations: Vec::new(),
-        }
+    DirectCall {
+        callee,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments,
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+        result: if returns_scalar {
+            DirectCallResult::Scalar(ScalarCallFrame::Structural)
+        } else {
+            DirectCallResult::Unit
+        },
     }
+    .into_operation_kind()
 }
 
 /// A call through the caller's one descriptor, for the lane's result.

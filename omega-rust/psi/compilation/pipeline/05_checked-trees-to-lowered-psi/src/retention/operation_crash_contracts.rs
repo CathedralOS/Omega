@@ -38,6 +38,7 @@ use lowered_psi::{LoweredPsi, LoweredSelectedIntegerComparisonOperandOrder};
 use semantic_vocabulary::{MachineId, OperationId, ScalarTerm, ScalarType, ValueId};
 use terminal_psi::{OperationKind, TerminalMachine, TerminalOperationCrashContract};
 
+use crate::direct_calls::direct_call_parts;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::proofs::crash_routes::lower_formal_crash_routes;
@@ -430,19 +431,7 @@ fn operator_declaration(
 /// emissions — so a call here means the join itself is corrupt; the site is
 /// rejected rather than assigned a guessed positional telescope.
 fn positional_scalar_operands(kind: &OperationKind) -> Result<Vec<ValueId>, LoweringError> {
-    if matches!(
-        kind,
-        OperationKind::Call { .. }
-            | OperationKind::CallUnit { .. }
-            | OperationKind::CallStructuralScalar { .. }
-            | OperationKind::CallStructuralWithScalarArguments { .. }
-            | OperationKind::CallStructural { .. }
-            | OperationKind::CallDynamicScalar { .. }
-            | OperationKind::CallDynamicParameterScalar { .. }
-            | OperationKind::CallDynamicUnit { .. }
-            | OperationKind::CallDynamicParameterUnit { .. }
-            | OperationKind::BoundaryCall { .. }
-    ) {
+    if is_call_operation(kind) {
         return unsupported("operator crash site joins a call operation");
     }
     let mut operands = Vec::new();
@@ -455,6 +444,19 @@ fn positional_scalar_operands(kind: &OperationKind) -> Result<Vec<ValueId>, Lowe
         return unsupported("operator crash site joins an operation without scalar operands");
     }
     Ok(operands)
+}
+
+/// A direct, dynamic or boundary call.
+fn is_call_operation(kind: &OperationKind) -> bool {
+    direct_call_parts(kind).is_some()
+        || matches!(
+            kind,
+            OperationKind::CallDynamicScalar { .. }
+                | OperationKind::CallDynamicParameterScalar { .. }
+                | OperationKind::CallDynamicUnit { .. }
+                | OperationKind::CallDynamicParameterUnit { .. }
+                | OperationKind::BoundaryCall { .. }
+        )
 }
 
 fn scalar_value_type(machine: &TerminalMachine, value: ValueId) -> Option<ScalarType> {
@@ -476,9 +478,7 @@ fn scalar_value_type(machine: &TerminalMachine, value: ValueId) -> Option<Scalar
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CheckedTrees, LoweredPsi, LoweringError, OperationKind, retain_operation_crash_contracts,
-    };
+    use super::{CheckedTrees, LoweredPsi, LoweringError, retain_operation_crash_contracts};
     use crate::TerminalMachineSelection;
 
     /// A crash-qualified positional `==` use beside an ordinary machine call:
@@ -546,20 +546,7 @@ mod tests {
                     .flat_map(|block| block.operations.iter().map(|op| (machine.id, op)))
             })
             .find_map(|(machine, operation)| {
-                matches!(
-                    operation.kind,
-                    OperationKind::Call { .. }
-                        | OperationKind::CallUnit { .. }
-                        | OperationKind::CallStructuralScalar { .. }
-                        | OperationKind::CallStructuralWithScalarArguments { .. }
-                        | OperationKind::CallStructural { .. }
-                        | OperationKind::CallDynamicScalar { .. }
-                        | OperationKind::CallDynamicParameterScalar { .. }
-                        | OperationKind::CallDynamicUnit { .. }
-                        | OperationKind::CallDynamicParameterUnit { .. }
-                        | OperationKind::BoundaryCall { .. }
-                )
-                .then_some((machine, operation.id))
+                super::is_call_operation(&operation.kind).then_some((machine, operation.id))
             })
             .expect("choose emits one call operation beside the comparison");
         let occurrence = sole_occurrence(&mut lowered);

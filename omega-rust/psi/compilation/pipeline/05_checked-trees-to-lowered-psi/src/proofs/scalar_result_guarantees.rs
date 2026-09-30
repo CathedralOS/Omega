@@ -23,6 +23,7 @@ use super::ProofSearchDeclines;
 use super::nonzero_divisor_certificate::{
     produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
 };
+use crate::direct_calls::{DirectCallRole, direct_call_parts};
 use crate::lowering_error::{LoweringError, ProofSearchCapacity};
 
 #[cfg(test)]
@@ -136,11 +137,11 @@ fn demanded_callees(
             if !charge(remaining, 1) {
                 return demanded;
             }
-            if let OperationKind::Call { callee, .. }
-            | OperationKind::CallStructuralScalar { callee, .. } = operation.kind
+            if let Some(call) = direct_call_parts(&operation.kind)
+                && call.role == DirectCallRole::Scalar
                 && let Some(result) = operation.result.scalar_ref()
             {
-                calls.insert(result.id, callee);
+                calls.insert(result.id, call.callee);
             }
             if let OperationKind::StructuralScalarFieldStore {
                 destination,

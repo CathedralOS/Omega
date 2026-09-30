@@ -7,8 +7,8 @@ use super::{
     BTreeSet, Block, CheckedScalarBindingValue, CheckedScalarExpressionRole,
     CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
     CheckedTrees, CheckedUnitStructuralTypePlan, LoweredPsi, LoweringError, MachineContract,
-    MachineId, Multiplicity, Operation, OperationKind, PrimitiveType, ProofBundle, ScalarType,
-    StructuralArgument, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
+    MachineId, Multiplicity, Operation, PrimitiveType, ProofBundle, ScalarType, StructuralArgument,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration,
     TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalAffineCleanupAction, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, allocate_dense, block_id,
     boolean_decision_block_count, contains_short_circuit, contract_id, edge_id,
@@ -18,6 +18,7 @@ use super::{
     lower_unit_parameters, machine_id, operation_id, terminal_scalar_type, unsupported,
     validate_boolean_parameter_types, validate_direct_parameter_types, value_id,
 };
+use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
 use crate::emission::boolean_control::LoweredBooleanDecisionExit;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -301,7 +302,9 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
                 suspension_crossing: None,
                 id: operation_id(1),
                 result: terminal_psi::OperationResult::Scalar(call_result),
-                kind: OperationKind::CallStructuralScalar {
+                // The realization is a structural scalar-return machine; its
+                // call keeps the structural frame whatever the operand count.
+                kind: DirectCall {
                     callee: machine_id(2),
                     arguments: Vec::new(),
                     erased_arguments: Vec::new(),
@@ -310,7 +313,9 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
                     claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
-                },
+                    result: DirectCallResult::Scalar(ScalarCallFrame::Structural),
+                }
+                .into_operation_kind(),
             }],
             terminator: Terminator::Return {
                 edge: edge_id(1),
@@ -1097,10 +1102,11 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
 #[cfg(test)]
 mod trait_operator_tests {
     use super::super::CheckedScalarExpression;
-    use super::{OperationKind, machine_id};
+    use super::machine_id;
     use crate::TerminalMachineSelection;
     use crate::machine_lowering::lower_machine;
     use checked_trees::CheckedBooleanExpression;
+    use terminal_psi::OperationKind;
 
     #[test]
     fn exact_trait_operator_call_closes_into_terminal_structural_scalar_call() {

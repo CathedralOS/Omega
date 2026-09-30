@@ -18,12 +18,13 @@ use super::super::{
     structural_values,
 };
 use super::{OperationFrame, StructuralResults};
+use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
-    CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
-    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
+    CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationResult, PlaceId,
+    StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
     lookup_machine_id, lower_checked_crash_route_buckets, terminal_scalar_type, unsupported,
     value_id,
 };
@@ -302,15 +303,6 @@ impl OperationFrame<'_, '_> {
             )?;
             return self.publish_result(operation, result, declaration, *discard_result_on_return);
         }
-        let ordinary_calls::PreparedCall {
-            arguments,
-            erased_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-        } = prepared;
         let id = self.operations.allocate();
         self.record_source_call(*coordinate, None, id, *target_state)?;
         self.operations.push(Operation {
@@ -318,16 +310,9 @@ impl OperationFrame<'_, '_> {
             suspension_crossing: None,
             id,
             result: OperationResult::Unit,
-            kind: OperationKind::CallUnit {
-                callee,
-                arguments,
-                erased_arguments,
-                erased_proof_arguments,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            },
+            kind: prepared
+                .into_direct_call(callee, DirectCallResult::Unit)
+                .into_operation_kind(),
         });
         Ok(())
     }
@@ -652,10 +637,14 @@ impl OperationFrame<'_, '_> {
         let arguments = arguments.iter().map(|argument| argument.id).collect();
         let structural_arguments = &call.structural_arguments;
         let claim_transfers = call.claim_transfers();
-        let kind = if !structural_arguments.is_empty()
-            || !claim_transfers.is_empty()
-            || target.requires_structural_frame()
-        {
+        // The frame is chosen from the checked call before its operands are
+        // lowered: only a structural frame lowers structural arguments.
+        let frame = ScalarCallFrame::for_call(
+            !structural_arguments.is_empty(),
+            !claim_transfers.is_empty(),
+            target.requires_structural_frame(),
+        );
+        let (structural_arguments, claim_transfers) = if frame == ScalarCallFrame::Structural {
             if target.structural_parameters().is_empty() && !structural_arguments.is_empty() {
                 return unsupported("structural scalar call has no structural checked body");
             }
@@ -761,12 +750,8 @@ impl OperationFrame<'_, '_> {
                     target_entry_claims: target.entry_claims(),
                 }),
             )?;
-            OperationKind::CallStructuralScalar {
-                callee,
-                arguments,
-                erased_arguments,
-                erased_proof_arguments,
-                structural_arguments: lower_structural_arguments(
+            (
+                lower_structural_arguments(
                     &forwarded_arguments,
                     self.parameters,
                     self.caller.local_places,
@@ -777,26 +762,29 @@ impl OperationFrame<'_, '_> {
                     &mut selector_values,
                     Some(&mut *self.calls),
                 )?,
-                claim_transfers: emitted_claim_transfers(
+                emitted_claim_transfers(
                     &forwarded_arguments,
                     &forwarded_transfers,
                     target.structural_parameters(),
                     &self.operations.structural_values,
                     self.caller.claims.bindings(),
                 )?,
-                requirement_obligations,
-                crash_continuations,
-            }
+            )
         } else {
-            OperationKind::Call {
-                callee,
-                arguments,
-                erased_arguments,
-                erased_proof_arguments,
-                requirement_obligations,
-                crash_continuations,
-            }
+            (Vec::new(), Vec::new())
         };
+        let kind = DirectCall {
+            callee,
+            arguments,
+            erased_arguments,
+            erased_proof_arguments,
+            structural_arguments,
+            claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            result: DirectCallResult::Scalar(frame),
+        }
+        .into_operation_kind();
         self.operations.push(Operation {
             static_reach_binding: None,
             suspension_crossing: None,

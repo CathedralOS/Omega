@@ -4,6 +4,7 @@ use super::{
     emit_direct_expression, lookup_machine_id, lower_checked_crash_route_buckets, unsupported,
     validate_direct_parameter_types,
 };
+use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -187,7 +188,7 @@ pub(crate) fn emit(
                     suspension_crossing: None,
                     id,
                     result: OperationResult::Unit,
-                    kind: OperationKind::CallUnit {
+                    kind: DirectCall {
                         callee: lookup_machine_id(calls.machine_ids, call.target_machine)?,
                         arguments: arguments.iter().map(|argument| argument.id).collect(),
                         erased_arguments: Vec::new(),
@@ -199,7 +200,9 @@ pub(crate) fn emit(
                             &call.crash_routes,
                             &arguments,
                         )?,
-                    },
+                        result: DirectCallResult::Unit,
+                    }
+                    .into_operation_kind(),
                 });
             }
         }

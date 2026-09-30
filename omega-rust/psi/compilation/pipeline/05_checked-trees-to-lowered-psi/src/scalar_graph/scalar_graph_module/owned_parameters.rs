@@ -2,9 +2,8 @@
 use super::super::{
     BlockId, StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction,
 };
-use super::{
-    Block, LoweringError, OperationKind, StructuralParameterDeclaration, Terminator, unsupported,
-};
+use super::{Block, LoweringError, StructuralParameterDeclaration, Terminator, unsupported};
+use crate::direct_calls::call_structural_arguments;
 use std::collections::VecDeque;
 
 #[cfg(test)]
@@ -152,29 +151,7 @@ pub(super) fn complete(
         }
         entries[position] = live.clone();
         for operation in &blocks[position].operations {
-            let arguments = match &operation.kind {
-                OperationKind::CallUnit {
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::CallStructuralScalar {
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::CallStructural {
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::CallStructuralWithScalarArguments {
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::BoundaryCall {
-                    structural_arguments,
-                    ..
-                } => structural_arguments.as_slice(),
-                _ => &[],
-            };
+            let arguments = call_structural_arguments(&operation.kind);
             for argument in arguments.iter().filter(|argument| {
                 argument.access == StructuralAccess::Owned && affine.contains(&argument.place)
             }) {

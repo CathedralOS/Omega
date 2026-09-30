@@ -6,12 +6,13 @@ use super::super::{MachineId, StructuralParameterDeclaration, StructuralTypeDecl
 use super::admission::CallerView;
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
-    Multiplicity, Operation, OperationKind, OperationResult, ScalarType, StructuralMultiplicity,
+    Multiplicity, Operation, OperationResult, ScalarType, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     ValueDeclaration, allocate_dense, argument_evaluation, lookup_machine_id, lookup_type_id,
     lower_structural_arguments, mint_runtime_index_selectors, place_id, retain_exact_flow_call,
     terminal_scalar_type, unsupported, validate_transfer_shape,
 };
+use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use checked_trees::expression::ExpressionNode;
@@ -398,17 +399,21 @@ pub(super) fn emit(
             projected_qualifications: Vec::new(),
             claims: Vec::new(),
         }),
-        kind: OperationKind::CallStructuralWithScalarArguments {
+        kind: DirectCall {
             callee: lookup_machine_id(machine_ids, *target_machine)?,
             arguments,
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments,
             claim_transfers: Vec::new(),
-            returned_claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations,
-        },
+            result: DirectCallResult::Structural {
+                multiplicity: StructuralMultiplicity::Affine,
+                returned_claim_transfers: Vec::new(),
+            },
+        }
+        .into_operation_kind(),
     });
     Ok((
         StructuralPlaceDeclaration {
