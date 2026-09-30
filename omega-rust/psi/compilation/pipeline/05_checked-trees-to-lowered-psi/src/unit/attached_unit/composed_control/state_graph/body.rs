@@ -1272,6 +1272,14 @@ fn statement_continuations(
                 || matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                )
+                // A whole-element store into a displaced element is only the
+                // move-out/store window pair: whichever of them leads is the
+                // statement's first effect, not a continuation.
+                || matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                        | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 );
             if !may_begin {
                 return unsupported("Unit graph continuation lost its producing statement");
@@ -1362,7 +1370,7 @@ fn validate_displaced_field_replacement(
         .take_while(|operation| argument_construction(operation))
         .count();
     let roster = &roster[operand_count..];
-    let (producer, moved, place, destination, value, cleanup) = match roster {
+    let (moved, place, destination, value, cleanup, produced) = match roster {
         [
             producer,
             CheckedUnitEffectOperationPlan::MoveStructuralField {
@@ -1373,64 +1381,145 @@ fn validate_displaced_field_replacement(
                 destination, value, ..
             },
             cleanup @ ..,
-        ] => (*producer, moved, place, destination, value, cleanup),
+        ] => {
+            // The producer is the value the authored right-hand side denotes:
+            // the statement's own call, or the establishment of its rooted
+            // construction.
+            let produced = match (
+                producer,
+                checked.expression_table.expression(assignment.value),
+            ) {
+                // Any call with a kept structural result, ordinary or
+                // boundary.
+                (
+                    CheckedUnitEffectOperationPlan::Call(call),
+                    checked_trees::expression::ExpressionNode::Call(_),
+                ) if let Some(result) = call.structural_result()
+                    && call.discard_result_on_return() == Some(false)
+                    && call.coordinate.call_ordinal == 0 =>
+                {
+                    result.clone()
+                }
+                (
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                        result,
+                        value: established,
+                        discard_result_on_return: false,
+                        ..
+                    },
+                    _,
+                ) if checked
+                    .facts
+                    .values
+                    .structural_values
+                    .root_for_expression(state.state, result.statement_index, assignment.value)
+                    .is_some_and(|root| root.root == *established) =>
+                {
+                    result.clone()
+                }
+                _ => return unsupported("Unit graph field replacement has no authored producer"),
+            };
+            let value_source =
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: produced.binding_ordinal,
+                };
+            (
+                moved,
+                place,
+                destination,
+                value,
+                cleanup,
+                (
+                    produced.type_identity,
+                    produced.multiplicity,
+                    produced.statement_index,
+                    value_source,
+                ),
+            )
+        }
+        // A whole parameter moves straight into the window: no producing
+        // operation exists, the parameter itself is the value. The statement
+        // roster is only the window pair and its continuation cleanup.
+        [
+            CheckedUnitEffectOperationPlan::MoveStructuralField {
+                result: moved,
+                source: place,
+            },
+            CheckedUnitEffectOperationPlan::StoreStructuralField {
+                destination, value, ..
+            },
+            cleanup @ ..,
+        ] => {
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } = value.source
+            else {
+                return unsupported(
+                    "Unit graph field replacement is not one producer and window pair",
+                );
+            };
+            let parameter = state
+                .structural_parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph field replacement names no structural parameter",
+                ))?;
+            let authored = checked
+                .state_parameters(source)
+                .get(parameter.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph field replacement parameter position is out of range",
+                ))?;
+            // The authored right-hand side must name exactly that parameter's
+            // own symbol, and the parameter must be a plain owned carrier —
+            // borrowed or qualified parameters have their own moves.
+            let rhs_symbol = match checked.expression_table.expression(assignment.value) {
+                checked_trees::expression::ExpressionNode::Name(path) => path.head_symbol,
+                _ => symbols::SymbolHandle::invalid(),
+            };
+            if authored.symbol != rhs_symbol
+                || parameter.is_self
+                || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return unsupported(
+                    "Unit graph field replacement parameter is not the authored value",
+                );
+            }
+            (
+                moved,
+                place,
+                destination,
+                value,
+                cleanup,
+                (
+                    parameter.type_identity.clone(),
+                    parameter.multiplicity,
+                    moved.statement_index,
+                    value.source.clone(),
+                ),
+            )
+        }
         _ => {
             return unsupported("Unit graph field replacement is not one producer and window pair");
         }
     };
-    // The producer is the value the authored right-hand side denotes: the
-    // statement's own call, or the establishment of its rooted construction.
-    let produced = match (
-        producer,
-        checked.expression_table.expression(assignment.value),
-    ) {
-        // Any call with a kept structural result, ordinary or boundary.
-        (
-            CheckedUnitEffectOperationPlan::Call(call),
-            checked_trees::expression::ExpressionNode::Call(_),
-        ) if let Some(result) = call.structural_result()
-            && call.discard_result_on_return() == Some(false)
-            && call.coordinate.call_ordinal == 0 =>
-        {
-            result
-        }
-        (
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                value: established,
-                discard_result_on_return: false,
-                ..
-            },
-            _,
-        ) if checked
-            .facts
-            .values
-            .structural_values
-            .root_for_expression(state.state, result.statement_index, assignment.value)
-            .is_some_and(|root| root.root == *established) =>
-        {
-            result
-        }
-        _ => return unsupported("Unit graph field replacement has no authored producer"),
-    };
-    let identity = &produced.type_identity;
+    let (identity, multiplicity, statement_index, value_source) = produced;
     if place != destination
         || place.access != checked_trees::CheckedStructuralAccess::Owned
         || place.path.is_empty()
-        || &place.type_identity != identity
-        || &moved.type_identity != identity
-        || moved.multiplicity != produced.multiplicity
-        || moved.statement_index != produced.statement_index
+        || place.type_identity != identity
+        || moved.type_identity != identity
+        || moved.multiplicity != multiplicity
+        || moved.statement_index != statement_index
     {
         return unsupported("Unit graph field replacement window names another place or type");
     }
-    if value.source
-        != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-            binding_ordinal: produced.binding_ordinal,
-        })
+    if value.source != value_source
         || !value.path.is_empty()
         || value.access != checked_trees::CheckedStructuralAccess::Owned
-        || &value.type_identity != identity
+        || value.type_identity != identity
     {
         return unsupported("Unit graph field replacement stores another value than its call");
     }
@@ -1455,7 +1544,7 @@ fn validate_displaced_field_replacement(
                 },
             ],
         ) => {
-            coordinate.statement_index == produced.statement_index
+            coordinate.statement_index == statement_index
                 && coordinate.call_ordinal == 0
                 && affine_discards.as_slice() == std::slice::from_ref(&displaced)
         }
@@ -1464,13 +1553,38 @@ fn validate_displaced_field_replacement(
     if !disposal {
         return unsupported("Unit graph displaced field value lost its planned disposal");
     }
-    let target = crate::emission::call_source_custody::projected_receivers::store_destination(
+    let mut target = crate::emission::call_source_custody::projected_receivers::store_destination(
         checked,
         machine,
         state.state,
         Some(ordinal),
         assignment.target,
     )?;
+    // A whole-element store through a view local writes the referent's
+    // element: the checked window names `bag.nodes[i]`, not the `nodes`
+    // descriptor the receiver walk binds. Re-anchor the authored target the
+    // same way `resolve_storage_place` rebased it at check time.
+    if let Some((_, local)) = checked.state_local_declaration(source, target.root)
+        && let checked_trees::expression::ExpressionNode::Call(call) =
+            checked.expression_table.expression(local.initial_value)
+        && validation::reference_result_custody::mutable_borrowed_parts(
+            &checked.typed,
+            local.type_reference,
+        )
+        .is_some()
+    {
+        let mut referent =
+            crate::emission::call_source_custody::projected_receivers::store_destination(
+                checked,
+                machine,
+                state.state,
+                Some(ordinal),
+                call.receiver,
+            )?;
+        target.root = referent.root;
+        referent.path.append(&mut target.path);
+        target.path = referent.path;
+    }
     let root = place
         .source_parameter_index()
         .and_then(|position| checked.state_parameters(source).get(position as usize))
