@@ -68,11 +68,12 @@ pub(super) fn argument(
             destination.structural_type,
             types,
         );
+    // A `&[u8]` view over a `[u8; N]` home satisfies both lookups; the
+    // windows coincide and the byte window wins.
     let (source_byte_offset, length, stride) = match (byte_window, element_view) {
-        (Some((offset, length)), None) => (offset, length, 1),
+        (Some((offset, length)), _) => (offset, length, 1),
         (None, Some((offset, length, stride))) => (offset, length, stride),
         (None, None) => return Ok(None),
-        (Some(_), Some(_)) => return Err(LegalizationError::custody()),
     };
     let producer_site = node_site(caller, |operation| {
         matches!(operation,
