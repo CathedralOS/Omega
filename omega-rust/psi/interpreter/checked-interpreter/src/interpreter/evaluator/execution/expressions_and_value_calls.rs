@@ -281,10 +281,10 @@ impl<'program> Evaluator<'program> {
                 {
                     return Ok(assembled);
                 }
-                let value = if cast.form.is_recast() {
-                    self.eval_expression(cast.value, frame)?
+                let (value, source) = if cast.form.is_recast() {
+                    (self.eval_expression(cast.value, frame)?, None)
                 } else {
-                    self.eval_expression_with_destination(cast.value, target, frame)?
+                    self.eval_expression_with_destination_and_carrier(cast.value, target, frame)?
                 };
                 if cast.form.is_recast() {
                     if target.is_none()
@@ -303,9 +303,6 @@ impl<'program> Evaluator<'program> {
                     }
                     return self.eval_recast_to_type(value, cast.target_type);
                 }
-                let source = self
-                    .expression_type_reference(cast.value, frame)
-                    .and_then(|source| self.program.primitive_type_reference(source));
                 self.eval_cast(value, source, target, cast.domain)
             }
             ExpressionNode::Indexed(_) => {

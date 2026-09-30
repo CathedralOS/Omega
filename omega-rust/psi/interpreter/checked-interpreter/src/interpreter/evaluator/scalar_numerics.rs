@@ -226,6 +226,76 @@ pub(super) fn primitive_is_unsigned64(primitive: Option<PrimitiveType>) -> bool 
 }
 
 #[cfg(test)]
+mod integer_conversion_tests {
+    use super::{ArithmeticDomain, Evaluator, Halt, PrimitiveType, Value};
+    use typed_trees::TypedTrees;
+
+    #[test]
+    fn integer_casts_apply_policy_before_narrowing_or_changing_signedness() {
+        let program = TypedTrees::default();
+        let evaluator = Evaluator::new(&program, &[]);
+        for (source, raw, target, exact, saturated, wrapped) in [
+            (
+                PrimitiveType::Addr,
+                88,
+                PrimitiveType::I32,
+                Some(88),
+                88,
+                88,
+            ),
+            (
+                PrimitiveType::Addr,
+                2147483648,
+                PrimitiveType::I32,
+                None,
+                i32::MAX as i64,
+                i32::MIN as i64,
+            ),
+            (
+                PrimitiveType::Addr,
+                -1,
+                PrimitiveType::I64,
+                None,
+                i64::MAX,
+                -1,
+            ),
+            (
+                PrimitiveType::U64,
+                -1,
+                PrimitiveType::I64,
+                None,
+                i64::MAX,
+                -1,
+            ),
+            (PrimitiveType::U64, -1, PrimitiveType::U64, Some(-1), -1, -1),
+            (PrimitiveType::I64, -1, PrimitiveType::U64, None, 0, -1),
+            (PrimitiveType::I32, -129, PrimitiveType::I8, None, -128, 127),
+            (PrimitiveType::U16, 256, PrimitiveType::U8, None, 255, 0),
+        ] {
+            for (domain, expected) in [
+                (ArithmeticDomain::Exact, exact),
+                (ArithmeticDomain::Trapping, exact),
+                (ArithmeticDomain::Saturating, Some(saturated)),
+                (ArithmeticDomain::Wrapping, Some(wrapped)),
+            ] {
+                let result =
+                    evaluator.eval_cast(Value::Int(raw), Some(source), Some(target), domain);
+                match expected {
+                    Some(expected) => assert!(
+                        matches!(result, Ok(Value::Int(actual)) if actual == expected),
+                        "{source:?}({raw}) -> {target:?} in {domain:?}",
+                    ),
+                    None => assert!(
+                        matches!(result, Err(Halt::Trap(_))),
+                        "{source:?}({raw}) -> {target:?} in {domain:?}"
+                    ),
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
 mod undetermined_nan_tests {
     use super::{
         ArithmeticDomain, Evaluator, FloatMeaning, PrimitiveType, SemanticFloatFormat, Value,
