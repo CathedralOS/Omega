@@ -1,0 +1,32 @@
+// A call-initialized mutable local can be overwritten and reassigned from a
+// call in a multi-state machine (exit 70).
+//
+// `let mut total: i32 = echo(seed);` establishes the local from a call; the
+// state then stores a literal over it and stores a second call's result over
+// that, before the transition guard reads it. The composed body has to rejoin
+// both whole stores to the local it established rather than look for a
+// parameter destination. A lost reassignment leaves 71 and exits 71.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine echo(value: i32) -> i32 {
+    value
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut seed: i32 = 70;
+    let mut total: i32 = echo(seed);
+    let first: i32 = total;
+    total = 71;
+    total = echo(first);
+    transition first == 70 && total == 70 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
