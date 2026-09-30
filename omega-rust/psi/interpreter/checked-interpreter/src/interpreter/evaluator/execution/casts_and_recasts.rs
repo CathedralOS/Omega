@@ -13,9 +13,10 @@ impl<'program> Evaluator<'program> {
         self.program.primitive_type_reference(target_type)
     }
 
-    /// Apply an `as` cast with width/signedness semantics: int<->float conversions and
-    /// integer narrowing/widening (wrapping to the target width, sign- or zero-extending on
-    /// read per the SOURCE signedness, which the value carries as its width tag).
+    /// Apply the authored conversion policy before storing destination bits.
+    /// Integer values use an i64 payload even for u64 and the retained 64-bit
+    /// address model: source signedness must recover the mathematical value
+    /// before checking destination bounds, or a high address looks negative.
     pub(in crate::interpreter::evaluator) fn eval_cast(
         &self,
         value: Value,
@@ -53,8 +54,6 @@ impl<'program> Evaluator<'program> {
             }
             PrimitiveType::Bool => Ok(Value::Bool(value.as_bool().unwrap_or(false))),
             integer => {
-                // Int -> int reinterprets at the target width; the result
-                // keeps the target's width tag so later ops/casts wrap.
                 let raw = match value {
                     // FLOAT -> int is one of three distinct conversion
                     // operations. Wrapping has no float reading and is
@@ -94,7 +93,35 @@ impl<'program> Evaluator<'program> {
                         .as_int()
                         .ok_or_else(|| Halt::Trap("cast to integer of non-numeric".to_owned()))?,
                 };
-                Ok(Value::Int(wrap_to_width(raw, integer)))
+                if domain == ArithmeticDomain::Wrapping {
+                    return Ok(Value::Int(wrap_to_width(raw, integer)));
+                }
+                let mathematical = if source.is_some_and(is_unsigned_integer_primitive) {
+                    i128::from(raw as u64)
+                } else {
+                    i128::from(raw)
+                };
+                let format = semantic_integer_format(integer).ok_or_else(|| {
+                    Halt::Trap("integer conversion has no target format".to_owned())
+                })?;
+                let (minimum, maximum) = if format.signed {
+                    let half_range = 1_i128 << (format.bits - 1);
+                    (-half_range, half_range - 1)
+                } else {
+                    (0, (1_i128 << format.bits) - 1)
+                };
+                let converted = match domain {
+                    ArithmeticDomain::Saturating => mathematical.clamp(minimum, maximum),
+                    ArithmeticDomain::Exact | ArithmeticDomain::Trapping
+                        if mathematical < minimum || mathematical > maximum =>
+                    {
+                        return trap(format!(
+                            "integer conversion out of range in {domain:?} domain: {mathematical} for {integer:?}"
+                        ));
+                    }
+                    _ => mathematical,
+                };
+                Ok(Value::Int(wrap_to_width(converted as i64, integer)))
             }
         }
     }

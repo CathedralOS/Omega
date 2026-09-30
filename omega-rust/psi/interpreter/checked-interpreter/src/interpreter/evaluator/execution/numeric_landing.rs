@@ -73,17 +73,39 @@ impl Evaluator<'_> {
         destination: Option<PrimitiveType>,
         frame: &mut Frame,
     ) -> EvalResult<Value> {
+        self.eval_expression_with_destination_and_carrier(expression, destination, frame)
+            .map(|(value, _)| value)
+    }
+
+    /// Casts need the source carrier as well as its bits. A destination supplies
+    /// that carrier only when anonymous landing actually succeeds; typed values
+    /// retain their own signedness. Select match arms once, before recovering
+    /// their carrier, so anonymous arms use the same landing path as literals.
+    pub(in crate::interpreter::evaluator) fn eval_expression_with_destination_and_carrier(
+        &mut self,
+        expression: ExpressionHandle,
+        destination: Option<PrimitiveType>,
+        frame: &mut Frame,
+    ) -> EvalResult<(Value, Option<PrimitiveType>)> {
         if let ExpressionNode::Match(dispatch) =
             self.program.expression_table.expression(expression).clone()
         {
             self.tick()?;
             let selected = self.select_match_arm(expression, &dispatch, frame)?;
-            return self.eval_expression_with_destination(selected, destination, frame);
+            return self.eval_expression_with_destination_and_carrier(selected, destination, frame);
         }
         if let Some(value) = self.anonymous_integer_landing_value(expression, destination)? {
-            return Ok(value);
+            return Ok((value, destination));
         }
+        let source = self
+            .expression_scalar_type(expression, frame)
+            .map(|(primitive, _)| primitive)
+            .or_else(|| {
+                self.expression_type_reference(expression, frame)
+                    .and_then(|reference| self.program.primitive_type_reference(reference))
+            });
         self.eval_expression(expression, frame)
+            .map(|value| (value, source))
     }
 
     pub(in crate::interpreter::evaluator) fn anonymous_integer_landing_value(
