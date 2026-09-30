@@ -28,14 +28,19 @@ fn produce(source: &str, entry: &str) -> Result<terminal_codec::CanonicalTermina
 fn local_bound_receivers_plan_but_stop_at_named_source_custody_rules() {
     // Each body composes into a Unit plan; the receiver's source custody is
     // what this stage still refuses, and the refusal names the rule so the
-    // next repair lands against it rather than against a missing plan.
+    // next repair lands against it rather than against a missing plan. Since
+    // 632ecf27347 a linear local moves whole through the structural result-use
+    // gate like an affine one, so each linear row stops at the next source
+    // custody rule: structural construction custody has no linear-contents arm
+    // yet, and a receiver alias bound from a linear call result has no
+    // admitted call-result source.
     for (label, source, expected) in [
         (
             "whole linear local move",
             format!(
                 "{RECEIPT}machine run(issued: Receipt) -> i32 {{ let forwarded: Receipt = issued; forwarded.ack(); 0 }}"
             ),
-            "Unit structural result use is not a whole affine move or shared borrow",
+            "structural construction substituted its owner or result type",
         ),
         (
             "linear call result bound by a local",
@@ -43,7 +48,7 @@ fn local_bound_receivers_plan_but_stop_at_named_source_custody_rules() {
                 "{RECEIPT}machine issue(r: Receipt) -> Receipt {{ r }}
                  machine run(r: Receipt) -> i32 {{ let returned: Receipt = issue(r); returned.ack(); 0 }}"
             ),
-            "Unit structural result use is not a whole affine move or shared borrow",
+            "receiver alias has no explicit borrow initializer",
         ),
         (
             "affine literal local",
