@@ -402,27 +402,20 @@ the complete product bar; focused successes below do not establish that baseline
   mutation (exit 1). The latter replaced the obsolete fail fixture; restoring
   its rejection would regress mutable-record transfer.
 
-  - **Ranks through complete callers.** `CollectionLengthDistance` already
-    carries a collection-bound cursor through stage 04, stage 05 replay and
-    rank emission. `unit_state_graph/ranking.rs` verifies and interprets normal,
-    empty and already-crossed bounds, and rejects substituted collections and
-    nonadvancing cursors. `calls/runtime_value_call_statement_recursive_walk_exit`
-    builds and exits 70 on macOS ARM64; preserve both separator-count effects
-    and result 2. Connect `termination/rank_range_state_call`'s
-    count/step cycle through its subordinate state with **GENERAL-CYCLIC-EXECUTION**
-    and **TRANSITION-TAIL-CALL-TO-MACHINE**. Its hosted Build entry preserves
-    the borrowed `Main`, count → hold → step → count weak/strict cycle, and
-    result 0. On macOS ARM64, `omega run --both
-    tests/omega/pass/termination/rank_range_state_call/main.omg` reaches native
-    selection but rejects at `selection/construction/scalar_graph/structural.rs`
-    because default-initialized empty locals have no addressable home. Psi
-    retains and independently verifies rank comparisons, per-state loan transfers,
-    and mandatory arrival predicates; scoped checks pass 69/69. Finish the
-    native storage join and require native/interpreter exit 0; the old `checked`
-    golden is not execution evidence.
-    Also preserve the upstream runtime twin
-    `termination/runtime_rank_range_state_call_exit`, which carries a
-    Console-bearing context and expects result 0 (exit 70).
+  - **Ranks through provider-bearing callers.** Finish
+    `termination/runtime_rank_range_state_call_exit`: its Console-bearing
+    context still leaves `Main::count` unavailable at stage 04
+    `terminal_unit/state_graph/mod.rs`'s `state graph: natural ranks`.
+    Acceptance is `omega run --both
+    tests/omega/pass/termination/runtime_rank_range_state_call_exit/main.omg`
+    producing result 0 and authored exit 70, preserving the context and weak/strict
+    cycle. Keep **GENERAL-CYCLIC-EXECUTION** and
+    **TRANSITION-TAIL-CALL-TO-MACHINE** aligned. The empty-context
+    `termination/rank_range_state_call` and reordered-endpoint
+    `termination/runtime_named_state_remainder_endpoint_exit` both exit 0
+    natively and in the checked interpreter on macOS ARM64; preserve those
+    contracts and `calls/runtime_value_call_statement_recursive_walk_exit`'s
+    two separator effects, result 2 and native exit 70.
   - **Results and control.** `calls/runtime_dispatch_float_terminal_exit` and
     `calls/runtime_dispatch_result_enum_case_exit` (score 15) exit 70 on macOS
     ARM64. Finish receiver transfer through

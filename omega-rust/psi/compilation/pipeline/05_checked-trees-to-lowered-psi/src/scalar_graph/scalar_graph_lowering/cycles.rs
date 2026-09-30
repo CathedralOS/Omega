@@ -757,13 +757,73 @@ fn resolve_member<'a>(
         }
         _ => return unsupported("scalar loop witness lost or added an authored rank range"),
     }
-    let parameters = checked.state_parameters(source);
-    let source_position = parameters
+    let states = checked.machine_states(machine);
+    let entry = states.first().ok_or(LoweringError::Unsupported(
+        "scalar loop rank has no authored entry",
+    ))?;
+    let entry_parameter = checked
+        .state_parameters(entry)
         .iter()
-        .position(|parameter| parameter.symbol == name.symbol)
+        .find(|parameter| parameter.symbol == name.symbol && !parameter.is_self)
         .ok_or(LoweringError::Unsupported(
             "scalar loop rank names a foreign parameter",
         ))?;
+    let parameters = checked.state_parameters(source);
+    let source_position = if source.symbol == entry.symbol {
+        parameters
+            .iter()
+            .position(|parameter| parameter.symbol == name.symbol)
+    } else {
+        // A later header can rename and reorder the entry's rank subject.
+        // Rebuild the same entry-role telescope as the range judgment; neither
+        // a matching spelling nor the retained plan's index proves this join.
+        let required_roles = match custody.rank_range {
+            Some(range) => validation::ranking_range_required_symbols(
+                checked,
+                machine,
+                range,
+                validation::RankingRangeMeasure::Single(*subject),
+                validation::RankingRangePremises::RankInvariant,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "scalar loop rank lost its range endpoint roles",
+            ))?,
+            None => vec![name.symbol],
+        };
+        let mappings = validation::discover_state_entry_mappings(
+            checked,
+            machine,
+            name.symbol,
+            &required_roles,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "scalar loop rank lost its entry-role telescope",
+        ))?;
+        let state_position = states
+            .iter()
+            .position(|state| state.symbol == source.symbol)
+            .ok_or(LoweringError::Unsupported(
+                "scalar loop rank names a foreign state",
+            ))?;
+        let roles = mappings
+            .get(state_position)
+            .ok_or(LoweringError::Unsupported(
+                "scalar loop rank lost its state-role telescope",
+            ))?;
+        let mut matching = parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| !parameter.is_self)
+            .zip(roles)
+            .filter_map(|((position, _), role)| (*role == name.symbol).then_some(position));
+        match (matching.next(), matching.next()) {
+            (Some(position), None) => Some(position),
+            _ => None,
+        }
+    }
+    .ok_or(LoweringError::Unsupported(
+        "scalar loop rank lost its exact carried parameter",
+    ))?;
     let parameter = &parameters[source_position];
     if parameter.relevance.is_erased() {
         return unsupported("scalar loop rank names an erased parameter");
@@ -773,6 +833,9 @@ fn resolve_member<'a>(
         .ok_or(LoweringError::Unsupported(
             "scalar loop rank is not primitive",
         ))?;
+    if checked.primitive_type_reference(entry_parameter.type_reference) != Some(primitive) {
+        return unsupported("scalar loop rank changed its entry subject carrier");
+    }
     let scalar_position = parameters[..source_position]
         .iter()
         .filter(|parameter| {

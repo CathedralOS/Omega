@@ -47,19 +47,18 @@ pub(super) fn emit(
             structural_types,
             element_views: &element_views,
         };
-        if position == 0 {
-            if let Some(predicate) =
+        if position == 0
+            && let Some(predicate) =
                 scalar_contracts::clauses(&state.clauses, parameters, erased, invocation_views)?
-            {
-                // Preserve the one aggregate invocation slot used by scalar
-                // calls, even when several source clauses constrain entry.
-                if let Some(existing) = invocation_requires.pop() {
-                    invocation_requires.push(crate::proofs::contract_predicates::connective(
-                        existing, predicate, true,
-                    )?);
-                } else {
-                    invocation_requires.push(predicate);
-                }
+        {
+            // Preserve the one aggregate invocation slot used by scalar
+            // calls, even when several source clauses constrain entry.
+            if let Some(existing) = invocation_requires.pop() {
+                invocation_requires.push(crate::proofs::contract_predicates::connective(
+                    existing, predicate, true,
+                )?);
+            } else {
+                invocation_requires.push(predicate);
             }
         }
         if header == entry {
