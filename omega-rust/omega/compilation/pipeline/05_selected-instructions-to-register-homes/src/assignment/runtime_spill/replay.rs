@@ -2,6 +2,7 @@ use super::recovery::{
     admissible_split, analyze, assign, candidates, overlaps_pressure, transformations,
 };
 use super::{RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillStepRewrite};
+use selected_instructions::VirtualRegisterId;
 use selected_instructions_to_selected_instructions::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, SelectedProgramRef,
     rematerialize_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
@@ -25,17 +26,13 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
     let environment = source.register_environment();
     let mut failure = require_pressure(assign(environment, source.ranges(), source.legality()))?;
     let budget = source.budget_per_pass();
-    let roster = candidates(source.base().plan());
-    let mut used = Vec::new();
+    let mut used: std::collections::BTreeSet<(usize, VirtualRegisterId)> =
+        std::collections::BTreeSet::new();
     let mut current_ranges = source.ranges().clone();
     let mut current_liveness = source.liveness().clone();
     let mut prior: Option<RuntimeSpillStepRewrite> = None;
     for (step_index, step) in staged.steps.iter().enumerate() {
-        let position = roster
-            .iter()
-            .position(|candidate| *candidate == (step.function, step.register))
-            .ok_or(RuntimeSpillAllocationError::CandidateMismatch)?;
-        if used.contains(&position) {
+        if used.contains(&(step.function, step.register)) {
             return Err(RuntimeSpillAllocationError::CandidateMismatch);
         }
         if let Some(previous) = &prior {
@@ -63,17 +60,27 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
         let selected = prior
             .as_ref()
             .map_or_else(|| source.base(), |previous| previous.selected());
+        // The candidate pool rebuilds against the current plan exactly the
+        // way the producer's does: registers minted by committed steps (a
+        // split's fresh register) join it, consumed victims leave it, and
+        // the recorded victim must name a still-live member.
+        let roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan())
+            .into_iter()
+            .filter(|entry| !used.contains(entry))
+            .collect();
+        if !roster
+            .iter()
+            .any(|candidate| *candidate == (step.function, step.register))
+        {
+            return Err(RuntimeSpillAllocationError::CandidateMismatch);
+        }
         // The cost order is replayed, not trusted: the producer commits the
         // first admissible split over the still-available candidates before
         // it considers any other decision, so a recorded split must be that
         // exact candidate and every other step requires that none existed.
         let expected_split = admissible_split(
             &failure,
-            roster
-                .iter()
-                .enumerate()
-                .filter(|(index, _)| !used.contains(index))
-                .map(|(_, candidate)| candidate),
+            roster.iter(),
             &current_ranges,
             &selected,
             environment,
@@ -201,7 +208,7 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
             }
         };
         prior = Some(replayed);
-        used.push(position);
+        used.insert((step.function, step.register));
     }
     let final_rewrite = prior.ok_or(RuntimeSpillAllocationError::CandidateMismatch)?;
     let selected = final_rewrite.selected();
