@@ -408,20 +408,6 @@ the complete product bar; focused successes below do not establish that baseline
   mutation (exit 1). The latter replaced the obsolete fail fixture; restoring
   its rejection would regress mutable-record transfer.
 
-  - **Ranks through provider-bearing callers.** Finish
-    `termination/runtime_rank_range_state_call_exit`: its Console-bearing
-    context still leaves `Main::count` unavailable at stage 04
-    `terminal_unit/state_graph/mod.rs`'s `state graph: natural ranks`.
-    Acceptance is `omega run --both
-    tests/omega/pass/termination/runtime_rank_range_state_call_exit/main.omg`
-    producing result 0 and authored exit 70, preserving the context and weak/strict
-    cycle. Keep **GENERAL-CYCLIC-EXECUTION** and
-    **TRANSITION-TAIL-CALL-TO-MACHINE** aligned. The empty-context
-    `termination/rank_range_state_call` and reordered-endpoint
-    `termination/runtime_named_state_remainder_endpoint_exit` both exit 0
-    natively and in the checked interpreter on macOS ARM64; preserve those
-    contracts and `calls/runtime_value_call_statement_recursive_walk_exit`'s
-    two separator effects, result 2 and native exit 70.
   - **Results and control.** `calls/runtime_dispatch_float_terminal_exit` and
     `calls/runtime_dispatch_result_enum_case_exit` (score 15) exit 70 on macOS
     ARM64. Finish receiver transfer through

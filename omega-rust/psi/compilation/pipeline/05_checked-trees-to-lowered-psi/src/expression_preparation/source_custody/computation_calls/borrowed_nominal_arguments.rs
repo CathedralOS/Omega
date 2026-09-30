@@ -246,17 +246,11 @@ pub(super) fn validate(
     {
         return unsupported("borrowed case operand requires a non-erased nominal sum");
     }
-    // A borrowed receiver operand is verified nominally below: its referent
-    // must be the callee's own attached declaration and the authored place
-    // must be the call's actual receiver — a stronger identity check than the
-    // plain-contents closure an observed record borrow owes. Capability
-    // members of the attachment (provider bindings and the like) stay under
-    // the machine's custody on a forwarded receiver loan, matching the
-    // statement lane.
-    if checked.normalized_type_identity(reference).as_str() != argument.type_identity
-        || (!target.is_self
-            && !validation::has_plain_owned_contents_with_numeric_constraints(checked, reference))
-    {
+    // Both explicit context arguments and receivers loan existing storage.
+    // Neither copies the referent or establishes its provider fields. Rejoin
+    // its exact declaration here; the formal signature owns shape/erasure
+    // replay, and the occurrence checks below own the caller's loan authority.
+    if checked.normalized_type_identity(reference).as_str() != argument.type_identity {
         return unsupported("record operand changed its declared referent type");
     }
     if target.is_self {

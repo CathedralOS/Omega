@@ -132,12 +132,10 @@ pub(super) fn plan(
         )
         .and_then(|target_index| states.get(target_index))
         .or_else(|| {
-            // A target spelling another machine's entry
-            // names that machine's first state; its
-            // formals pair with the same authored
-            // ordinals the in-machine walk uses.
-            crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)
-                .map(|(_, entry)| entry)
+            // Free names retain the machine head, while qualified names can
+            // retain its entry child. Both supply the first state's formals;
+            // foreign interior states remain invalid call targets.
+            crate::semantic::calls::find_machine_head(program, path.symbol).map(|(_, entry)| entry)
         }) else {
             continue;
         };
