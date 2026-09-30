@@ -17,19 +17,19 @@ data Store<'ext> {
     cells: &'ext mut [u8];
 }
 
-machine Store::probe<'ext>(&mut self) -> u64 {
-    transition self.cells.len > 0 && self.names.len > 0 {
-        true -> write(self.cells)
+machine Store::probe<'ext>(store: &mut Store) -> u64 {
+    transition store.cells.len > 0 && store.names.len > 0 {
+        true -> write(store, store.cells)
         _ -> missed()
     }
 
     // Mutable field view re-borrowed into the state's `&mut` parameter.
-    state write(&mut self, cells: &'ext mut [u8]) -> u64
+    state write(store: &mut Store, cells: &'ext mut [u8]) -> u64
         requires cells.len > 0
     {
         cells[0] = 70;
-        transition self.names.len > 0 {
-            true -> share(self.names)
+        transition store.names.len > 0 {
+            true -> share(store.names)
             _ -> missed()
         }
     }

@@ -12,22 +12,22 @@ data Tally {
     target: u64;
 }
 
-machine Tally::at_least(&self, seen: u64 in Saturating) -> bool {
-    transition { _ -> (seen >= self.target) }
+machine Tally::at_least(tally: &Tally, seen: u64 in Saturating) -> bool {
+    transition { _ -> (seen >= tally.target) }
 }
 
-machine Tally::first_reaching(&self, start: u64 in Saturating) -> u64 in Saturating {
-    transition { _ -> scan(start) }
+machine Tally::first_reaching(tally: &Tally, start: u64 in Saturating) -> u64 in Saturating {
+    transition { _ -> scan(tally, start) }
 
-    state scan(&self, at: u64 in Saturating) -> u64 in Saturating {
-        transition self.at_least(at) {
+    state scan(tally: &Tally, at: u64 in Saturating) -> u64 in Saturating {
+        transition Tally::at_least(tally, at) {
             true -> (at)
-            false -> step(at)
+            false -> step(tally, at)
         }
     }
 
-    state step(&self, at: u64 in Saturating) -> u64 in Saturating {
-        transition { _ -> scan(at + 1) }
+    state step(tally: &Tally, at: u64 in Saturating) -> u64 in Saturating {
+        transition { _ -> scan(tally, at + 1) }
     }
 }
 
@@ -38,7 +38,7 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     self.tally.target = 4;
-    let found: u64 in Saturating = self.tally.first_reaching(0);
+    let found: u64 in Saturating = Tally::first_reaching(&self.tally, 0);
 
     transition found == 4 {
         true -> done()

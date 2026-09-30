@@ -3,8 +3,8 @@ use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 
-machine Main::measure(&self, bytes: &[u8]) -> u64 reaches Console {
-    self.console.write_line(bytes);
+machine Main::measure(main: &Main, bytes: &[u8]) -> u64 reaches Console {
+    main.console.write_line(bytes);
     bytes.len
 }
 
@@ -14,8 +14,8 @@ machine report(length: u64) -> u64 reaches Console {
 }
 
 machine Main::main(&mut self) reaches Console {
-    let first: u64 = self.measure("abc");
-    let second: u64 = self.measure("");
+    let first: u64 = Main::measure(&self, "abc");
+    let second: u64 = Main::measure(&self, "");
     let reported: u64 = report(first);
     transition reported == 3 {
         true -> check_empty(second)

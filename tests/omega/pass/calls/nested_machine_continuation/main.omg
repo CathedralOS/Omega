@@ -8,8 +8,8 @@ data Banner {
     console: Binding<Console>;
 }
 
-machine Banner::entry(&mut self) reaches Console {
-    self.console.write_line("nested");
+machine Banner::entry(banner: &mut Banner) reaches Console {
+    banner.console.write_line("nested");
 }
 
 data Main {
@@ -18,7 +18,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.banner.entry();
+    Banner::entry(&mut self.banner);
     self.console.write_line("continued");
     self.console.exit_process(0);
 }
