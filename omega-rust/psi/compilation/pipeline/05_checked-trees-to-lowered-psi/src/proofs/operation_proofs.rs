@@ -20,8 +20,8 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use terminal_verifier::ObligationEvidence;
 
-const PARALLEL_PROOF_THRESHOLD: usize = 16;
-const MAX_PROOF_WORKERS: usize = 8;
+pub(crate) const PARALLEL_PROOF_THRESHOLD: usize = 16;
+pub(crate) const MAX_PROOF_WORKERS: usize = 8;
 
 pub(crate) fn finalize_operation_proofs(lowered: &mut LoweredPsi) -> Result<(), LoweringError> {
     finalize_operation_proofs_inner(
