@@ -85,7 +85,7 @@ impl Builder<'_, '_> {
                 computation: self.structural_field(expression, field),
             });
         }
-        // The saved call result keeps its bits while the authored cast
+        // The saved operand keeps its bits while the authored cast
         // selects the policy for later arithmetic, including Exact erasure.
         if self.policy_cast_operand(expression).is_some()
             && let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
@@ -93,7 +93,7 @@ impl Builder<'_, '_> {
             && is_integer(primitive_type)
         {
             let domain = cast.domain;
-            let computation = self.policy_cast_boundary_call(expression, primitive_type)?;
+            let computation = self.policy_cast_value(expression, primitive_type)?;
             return Some(IntegerOperand {
                 value: parameter(0, primitive_type),
                 value_source: ExpressionHandle::invalid(),
