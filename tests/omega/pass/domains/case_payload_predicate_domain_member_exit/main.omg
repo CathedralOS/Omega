@@ -1,0 +1,37 @@
+// A case payload member under a predicate domain that is not an interval:
+// `NonZero` excludes one value from the middle of `i32`, so no bounded carrier
+// represents its membership. Construction must prove `7 != 0` and retain that
+// membership through lowering, and the dispatched payload must carry it into
+// the division, whose divisor obligation it discharges. Exit 70 = the payload
+// read back 7 and divided 490; 71 = wrong case.
+//
+// Today construction stops at `structural field store: case field type`: the
+// case constructor admits a plain domain only when it means exactly an
+// interval (`pass/structs/case_field_type_store_shapes` pins that route).
+// Terminal Psi has no field type or establishment evidence that carries a
+// general predicate membership, so admitting this member would drop the
+// evidence the division needs.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain i32::NonZero requires self != 0;
+
+data Divisor {
+    case Unset;
+    case By(amount: i32 in NonZero);
+}
+
+data Main {
+    console: Binding<Console>;
+    divisor: Divisor;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.divisor = Divisor::By { amount: 7 };
+    transition self.divisor {
+        Divisor::By { amount } -> quotient(490 / amount)
+        Divisor::Unset -> wrong_case()
+    }
+    state quotient(&mut self, value: i32) { self.console.exit_process(value); }
+    state wrong_case(&mut self) { self.console.exit_process(71); }
+}

@@ -1,56 +1,354 @@
-// `structural field store: case field type` is THREE distinct causes, not one.
-// Six corpus fixtures sit there; each of the three below omits on its own
-// against its own checking control, and a bare payload-bearing case literal
-// checks, so the phase groups unrelated things exactly as its neighbours do.
+// Case construction whose fields are more than one plain scalar payload,
+// stored into a machine field directly and through a local, then observed.
+// Each check machine covers one construction family; each failed observation
+// exits with its own code, and 70 means every one held.
 //
-// The baseline that CHECKS, so none of this is about sums or payloads:
+// Common fields beside case payloads (a mixed shape), `check_common_fields`:
+//   1-8   a named common field keeps its value and an unnamed one reads zero;
+//         the payload reads back from its overlay after the common fields; a
+//         common field stores in place without case knowledge and leaves the
+//         payload; a case replacement that names no common field zeroes them
+//         all -- valid because zero satisfies their default domain; a
+//         two-field payload reads back beside the common fields.
+//   9-10  the payload-free case, bare and with a named common field.
+// Closed-sum payload shapes, `check_closed_payloads`:
+//   11-15 scalar, payload-free, two-field and record payloads.
+// Local-mediated stores (`let v: T = T::Case { .. }; self.f = v;`),
+// `check_local_stores`:
+//   16-19 a mixed case, and closed scalar and two-field payloads.
+// An erased payload member, `check_erased_member`:
+//   20    construction supplies it from its unique nullary constructor and it
+//         takes no runtime position, so the runtime payload beside it keeps
+//         its value.
+// An interval-domained payload member (`i32 in Ten`), `check_interval_member`:
+//   21-23 construction proves the member's range obligation, directly and
+//         through a local, and the dispatched payload discharges `scale`'s
+//         requires through its domain alone.
 //
-//   data Cmd { case Dim(amount: i32); case Off; }
-//   self.c = Cmd::Dim { amount: 7 };                     checks
-//   self.c = Cmd::Off;                                   checks
-//   let v: Cmd = Cmd::Dim { amount: 7 }; self.c = v;     checks
-//   two scalar payload fields                            checks
-//   a payload field whose type is a RECORD               checks
-//
-// Cause 1 — a PREDICATE DOMAIN on a payload field.
-//   `case Dim(amount: i32 in Ten)` omits; `i32` checks; and `i32 in Wrapping`
-//   CHECKS, so an arithmetic policy is not it -- this is the predicate domain
-//   specifically. `pass/ranges/sum_payload_range_arith_narrowed_exit`.
-//   Wider than sums: the same domained member in a plain RECORD literal omits
-//   at `structural field store: record literal source`, and reaching the field
-//   through a LOCAL omits at `statement sequence: local data: structural call
-//   binding`. A domained SCALAR field stored directly checks. So the rule is
-//   that a domain-refined MEMBER cannot be supplied through a composite
-//   literal, and the three phases are three construction sites for one gap.
-//
-// Cause 2 — an `[erased]` payload field.
-//   `case Dim(amount: i32, proof [erased]: Evidence)` omits while the same
-//   case with a plain `proof: Evidence` CHECKS. One token.
-//   `pass/relevance/erased_case_payload_field_exit`.
-//
-// Cause 3 — a COMMON field declared beside the case payloads (this fixture).
-//   `data Event { consumed: bool; case Treasure(gold: i32); case Nothing; }`
-//   omits; drop the common field and the same store checks.
-//   `pass/data/runtime_mixed_shape_exit`, whose own comment calls this
-//   "a named common field next to the payload field".
-//
-// So a repair must confirm all three. Clearing any one leaves the phase
-// populated, and the label will not say which cause remains.
+// Separate causes keep their own fixtures: an out-of-range domained literal
+// (`fail/ranges/case_payload_domain_literal_out_of_range`), a payload read
+// under another case's guard (`fail/ranges/sum_payload_non_case_guard_unproven`),
+// a non-interval predicate domain on a payload member
+// (`pass/domains/case_payload_predicate_domain_member_exit`), and an
+// interval-domained plain record member
+// (`pass/domains/record_interval_domain_member_exit`).
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain i32::Ten requires 0 <= self && self <= 10;
+
+data Evidence { case Only; }
+data Point [copy] { x: i32; y: i32; }
+
 data Event {
     consumed: bool;
-    case Treasure(gold: i32);
+    bonus: i32;
     case Nothing;
+    case Treasure(gold: i32);
+    case Fight(strength: i32, speed: i32);
+}
+
+data Command {
+    case Off;
+    case Dim(amount: i32);
+    case Pair(low: i32, high: i32);
+    case Place(at: Point);
+}
+
+data Certified {
+    case Pending;
+    case Proven(value: i32, proof [erased]: Evidence);
+}
+
+data Level {
+    case Dark;
+    case Lit(amount: i32 in Ten);
 }
 
 data Main {
     console: Binding<Console>;
     event: Event;
+    command: Command;
+    certified: Certified;
+    level: Level;
 }
 
 machine Main::main(&mut self) reaches Console {
+    self.check_common_fields();
+    self.check_closed_payloads();
+    self.check_local_stores();
+    self.check_erased_member();
+    self.check_interval_member();
+    self.console.exit_process(70);
+}
+
+machine Main::check_common_fields(&mut self) reaches Console {
     self.event = Event::Treasure { consumed: true, gold: 50 };
-    self.console.exit_process(0);
+    transition self.event.consumed {
+        true -> unnamed_common_zero()
+        false -> fail(1)
+    }
+
+    state unnamed_common_zero(&mut self) {
+        transition self.event.bonus == 0 {
+            true -> payload_beside_common()
+            false -> fail(2)
+        }
+    }
+
+    state payload_beside_common(&mut self) {
+        transition self.event {
+            Event::Treasure { gold } -> treasure_gold(gold)
+            _ -> fail(3)
+        }
+    }
+
+    state treasure_gold(&mut self, gold: i32) {
+        transition gold == 50 {
+            true -> store_common()
+            false -> fail(4)
+        }
+    }
+
+    state store_common(&mut self) {
+        self.event.bonus = 9;
+        transition self.event {
+            Event::Treasure { gold } -> stored_common(gold)
+            _ -> fail(5)
+        }
+    }
+
+    state stored_common(&mut self, gold: i32) {
+        transition gold == 50 && self.event.bonus == 9 && self.event.consumed {
+            true -> replace_case()
+            false -> fail(6)
+        }
+    }
+
+    // The replacement names no common field: both read zero afterwards.
+    state replace_case(&mut self) {
+        self.event = Event::Fight { strength: 3, speed: 4 };
+        transition self.event.bonus == 0 && !self.event.consumed {
+            true -> fight_payload()
+            false -> fail(7)
+        }
+    }
+
+    state fight_payload(&mut self) {
+        transition self.event {
+            Event::Fight { strength, speed } -> fight_values(strength, speed)
+            _ -> fail(8)
+        }
+    }
+
+    state fight_values(&mut self, strength: i32, speed: i32) {
+        transition strength == 3 && speed == 4 {
+            true -> payload_free_bare()
+            false -> fail(8)
+        }
+    }
+
+    state payload_free_bare(&mut self) {
+        self.event = Event::Nothing;
+        transition self.event {
+            Event::Nothing -> payload_free_named()
+            _ -> fail(9)
+        }
+    }
+
+    state payload_free_named(&mut self) {
+        self.event = Event::Nothing { bonus: 12 };
+        transition self.event {
+            Event::Nothing -> payload_free_common(self.event.bonus)
+            _ -> fail(10)
+        }
+    }
+
+    state payload_free_common(&mut self, bonus: i32) {
+        transition bonus == 12 {
+            true -> done()
+            false -> fail(10)
+        }
+    }
+
+    state done(&mut self) {}
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+}
+
+machine Main::check_closed_payloads(&mut self) reaches Console {
+    self.command = Command::Dim { amount: 7 };
+    transition self.command {
+        Command::Dim { amount } -> scalar_value(amount)
+        _ -> fail(11)
+    }
+
+    state scalar_value(&mut self, amount: i32) {
+        transition amount == 7 {
+            true -> payload_free()
+            false -> fail(11)
+        }
+    }
+
+    state payload_free(&mut self) {
+        self.command = Command::Off;
+        transition self.command {
+            Command::Off -> multiple()
+            _ -> fail(12)
+        }
+    }
+
+    state multiple(&mut self) {
+        self.command = Command::Pair { low: 1, high: 2 };
+        transition self.command {
+            Command::Pair { low, high } -> multiple_values(low, high)
+            _ -> fail(13)
+        }
+    }
+
+    state multiple_values(&mut self, low: i32, high: i32) {
+        transition low == 1 && high == 2 {
+            true -> record()
+            false -> fail(13)
+        }
+    }
+
+    state record(&mut self) {
+        self.command = Command::Place { at: Point { x: 5, y: 6 } };
+        transition self.command {
+            Command::Place { at } -> record_values(at)
+            _ -> fail(14)
+        }
+    }
+
+    state record_values(&mut self, at: Point) {
+        transition at.x == 5 && at.y == 6 {
+            true -> done()
+            false -> fail(15)
+        }
+    }
+
+    state done(&mut self) {}
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+}
+
+machine Main::store_local_event(&mut self) {
+    let replacement: Event = Event::Treasure { consumed: true, bonus: 3, gold: 8 };
+    self.event = replacement;
+}
+
+machine Main::store_local_dim(&mut self) {
+    let dimmed: Command = Command::Dim { amount: 21 };
+    self.command = dimmed;
+}
+
+machine Main::store_local_pair(&mut self) {
+    let paired: Command = Command::Pair { low: 30, high: 40 };
+    self.command = paired;
+}
+
+machine Main::store_local_level(&mut self) {
+    let lit: Level = Level::Lit { amount: 4 };
+    self.level = lit;
+}
+
+machine Main::check_local_stores(&mut self) reaches Console {
+    self.store_local_event();
+    transition self.event {
+        Event::Treasure { gold } -> mixed_values(gold)
+        _ -> fail(16)
+    }
+
+    state mixed_values(&mut self, gold: i32) {
+        transition gold == 8 && self.event.bonus == 3 && self.event.consumed {
+            true -> closed_scalar()
+            false -> fail(17)
+        }
+    }
+
+    state closed_scalar(&mut self) {
+        self.store_local_dim();
+        transition self.command {
+            Command::Dim { amount } -> closed_value(amount)
+            _ -> fail(18)
+        }
+    }
+
+    state closed_value(&mut self, amount: i32) {
+        transition amount == 21 {
+            true -> closed_multiple()
+            false -> fail(18)
+        }
+    }
+
+    state closed_multiple(&mut self) {
+        self.store_local_pair();
+        transition self.command {
+            Command::Pair { low, high } -> multiple_values(low, high)
+            _ -> fail(19)
+        }
+    }
+
+    state multiple_values(&mut self, low: i32, high: i32) {
+        transition low == 30 && high == 40 {
+            true -> done()
+            false -> fail(19)
+        }
+    }
+
+    state done(&mut self) {}
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+}
+
+machine Main::check_erased_member(&mut self) reaches Console {
+    self.certified = Certified::Proven { value: 44 };
+    transition self.certified {
+        Certified::Proven { value, proof as _ } -> erased_value(value)
+        Certified::Pending -> fail(20)
+    }
+
+    state erased_value(&mut self, value: i32) {
+        transition value == 44 {
+            true -> done()
+            false -> fail(20)
+        }
+    }
+
+    state done(&mut self) {}
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+}
+
+machine Main::check_interval_member(&mut self) reaches Console {
+    self.level = Level::Lit { amount: 7 };
+    transition self.level {
+        Level::Lit { amount } -> scale(amount)
+        Level::Dark -> fail(21)
+    }
+
+    // `amount` reaches `scale` through its payload domain alone: no guard
+    // bounds it, so the requires is discharged by `Ten` membership.
+    state scale(&mut self, amount: i32) requires amount >= 0 && amount <= 10 {
+        let scaled: i32 = amount * 10;
+        transition scaled == 70 {
+            true -> through_local()
+            false -> fail(22)
+        }
+    }
+
+    state through_local(&mut self) {
+        self.store_local_level();
+        transition self.level {
+            Level::Lit { amount } -> local_value(amount)
+            Level::Dark -> fail(23)
+        }
+    }
+
+    state local_value(&mut self, amount: i32) {
+        transition amount == 4 {
+            true -> done()
+            false -> fail(23)
+        }
+    }
+
+    state done(&mut self) {}
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
 }

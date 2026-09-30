@@ -1537,63 +1537,57 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
   `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
-- **CASE-FIELD-TYPE-STORE-SHAPES.** Complete three independent construction
-  cases: predicate-qualified members (case payloads and plain records, directly
-  or through locals), erased payloads, and common fields beside case payloads.
-  Follow [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
+- **CASE-FIELD-TYPE-STORE-SHAPES.** Complete predicate-qualified construction
+  members: a plain record member under an interval domain, directly or through
+  a local, and any case payload or record member under a non-interval
+  predicate domain. Follow [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
   and [erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings):
-  evaluate runtime fields once in authored order; retain erased semantic evidence
-  without runtime slots; establish domains before observation. Arithmetic-policy
-  payloads and direct scalar-domain stores remain controls, not this omission.
+  evaluate runtime fields once in authored order; establish domains before
+  observation. Arithmetic-policy payloads and direct scalar-domain stores
+  remain controls, not this omission.
 
-  Common fields construct and read natively, and a mixed value dispatches on
-  its case and compares structurally: the structural constructor admits named
-  scalar common fields, stage 05 binds runtime common fields then the payload
-  with explicit zeros for unnamed ones, Terminal verification, the codec and
-  Omega check and lay out that roster, a mixed carrier's common field reads
-  without a `Case` step, and Omega stage 02 and selection take the mixed tag at
-  the carrier's offset 0 with payloads after the common fields.
-  `data/runtime_mixed_case_common_fields_exit`,
-  `data/runtime_mixed_case_payload_dispatch_exit` and
-  `traits/equatable_mixed_shape_equality_exit` exit 70 on macOS ARM64 and
-  build for linux_x86_64. Erased payload members construct natively: they take
-  no roster position anywhere and an omitted one is determined by its nullary
-  constructor, so `relevance/erased_case_payload_field_exit` exits 70. Dispatch
-  coverage ranges over a mixed value's cases only
-  (`terminal_scalar/guarded_exits.rs::tail`), and a common field stores in place
-  without a `Case` step through stage 04's `leaf_carrier`, stage 05 emission,
-  Terminal verification, the codec, Omega stages 00, 02 and 03 and
-  optimization-unit validation, so `data/runtime_mixed_shape_exit` exits 70 on
-  macOS ARM64 and builds for linux_x86_64.
-  `generics/runtime_mixed_generic_erased_sum_exit` and
-  `calls/runtime_enum_self_method_exit` keep erased evidence that a unique
-  nullary constructor determines in their receivers; stage 07 names each such
-  field in a determined-evidence receipt row, and the hosted bridge rejoins it
-  by route and carrier instead of requiring a service establishment, so both
-  exit 70 on macOS ARM64. All six `pass/` customers below now exit 70.
-  `pass/structs/case_field_type_store_shapes` runs natively with its exit-0
-  oracle; promoting it needs its corpus rows.
-  The interpreter's `EstablishStructuralCase` still
-  requires a sum and keys payload scalars by field id on the root, where mixed
-  common and payload ids collide.
-  A plain domain that means exactly an interval constructs as a bounded payload
-  whose range obligation verification proves, so
-  `ranges/sum_payload_range_arith_narrowed_exit` exits 70; any other predicate
-  domain stays outside the constructor's contents classifier. Repair retained
-  establishment through lowering; merely removing an admission guard cannot
-  supply the missing evidence.
-
-  The pending `structs/case_field_type_store_shapes` actually contains only the
-  common-field case; materialize its comment-only domain/erased controls and
-  retain payload-free, scalar/multiple/record payloads and local-mediated stores.
-  Acceptance: promote it with its Build entry and exit-0 oracle. Execute the
-  `pass/` customers to exit 70: `ranges/sum_payload_range_arith_narrowed_exit`,
+  Common fields beside case payloads, erased payload members and
+  interval-domained payload members construct, store, dispatch and read:
+  `pass/structs/case_field_type_store_shapes` exits 70 natively and on the
+  checked interpreter on macOS ARM64 (one check machine per family, failure
+  codes 1-23), as do `ranges/sum_payload_range_arith_narrowed_exit`,
   `relevance/erased_case_payload_field_exit`, `data/runtime_mixed_shape_exit`,
-  `calls/runtime_enum_self_method_exit`, `generics/runtime_mixed_generic_erased_sum_exit`
-  and `traits/equatable_mixed_shape_equality_exit`. Preserve domain rejection
-  and wrong-case negatives, erased ABI positions, common-field reads/writes,
-  valid zero omission on case replacement, all-tag dispatch and unequal-common-field
-  equality. Each cause needs its own checked and interpreter/native outcome.
+  `calls/runtime_enum_self_method_exit`,
+  `generics/runtime_mixed_generic_erased_sum_exit` and
+  `traits/equatable_mixed_shape_equality_exit`; the terminal interpreter
+  establishes mixed cases with payload cells in their own namespace.
+  `pass/domains/record_interval_domain_member_exit` stops at `structural field
+  store: record literal source` (stage 04
+  `structural_scalar_store/mod.rs::record_literal_stores`) and, through a
+  local, at `statement sequence: local data: structural call binding`: the
+  case route's `CaseConstruction` contents classifier has no record
+  counterpart. `pass/domains/case_payload_predicate_domain_member_exit`
+  (`i32 in NonZero`) stops at `structural field store: case field type`:
+  Terminal Psi's structural field vocabulary carries integer bounds but no
+  general predicate membership, and `EstablishStructuralCase`/`EstablishRecord`
+  roster entries carry only range obligations, so retaining that evidence
+  through lowering needs a trusted-surface extension (field type, roster
+  evidence, verification, codec), not an admission change.
+  Acceptance: both fixtures exit 70 natively and on the checked interpreter;
+  `fail/ranges/case_payload_domain_literal_out_of_range` and
+  `fail/ranges/sum_payload_non_case_guard_unproven` keep rejecting.
+
+- **STATE-GRAPH-LOCAL-WHOLE-STORE.** (new-scope) Inside a multi-state graph,
+  `let v: Event = Event::Treasure { consumed: true, gold: 50 }; self.event = v;`
+  stops at stage 05 `state_graph/body.rs::validate_displaced_field_replacement`
+  with "Unit graph field replacement is not one producer and window pair": its
+  whole-value arm accepts only `Parameter` sources, while the single-state
+  `field_replacement::continues_bound_value` also accepts locals. The same holds
+  for a closed sum. Pin the two-state reduction as a runtime fixture and admit
+  the local source through the shared replacement route.
+
+- **LARGE-GRAPH-PAYLOAD-READ.** (new-scope) One 25-state graph that dispatches on
+  four sums and reads their payloads fails Terminal verification of a late
+  payload read (`InvalidIntegerStructuralField { operation: 114, field: 12 }`
+  from the verifier's case-hop check in `case_hops.rs`), while each half of the
+  graph builds and exits 70. Reproduce by joining the four check machines of
+  `pass/structs/case_field_type_store_shapes` into one graph, find which fact
+  the late hop loses, and repair its transport rather than raising a budget.
 
 - **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied borrowed-slice fields and
   the remaining owned-array producers into record literals.
