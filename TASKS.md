@@ -895,19 +895,22 @@ the complete product bar; focused successes below do not establish that baseline
   nests task slots whose held payload carries `Binding<WaitWake>`. Empty slots
   need no fabricated binding, but transporting the aggregate must preserve
   routed authority and must not grant plain no-code disposal. Unpublished
-  routed-result checkpoint `985193505155` gets past this assignment but its
+  routed-result checkpoint `f0da848a3ef` gets past this assignment but its
   isolated native regression exposes a representation dependency:
   stage 05's `unit/attached_unit/catalog.rs` maps an opaque Binding field to
   runtime-relevant `Erased`, rejected by Terminal as
   `InvalidErasedStructuralField`. Preserve this independent rejection; do not
-  fabricate a provider or erase runtime custody. That prototype also exposed
-  scalar-return cleanup in `CommandDriver::verify_requested_page`.
-  The separate scalar-exit repair on base `0508a5426a27` runs
-  `omega run tests/omega/pass/borrows/runtime_affine_local_scalar_exit/main.omg`
-  with native exit 42 on macOS ARM64 after ordinary local package review;
-  the corpus interpreter agrees. Its 37 focused tests preserve exact cleanup
-  and transfer evidence for conditional and direct scalar returns. Continue
-  the routed result's custody without rewriting the application. Complete
+  fabricate a provider or erase runtime custody. With ordinary scalar-return
+  and owned case-payload edge cleanup, integration probe `615c83402e65`
+  reaches `DataTypeRefSet::push`, state 1, then refuses `unsupported tail:
+  expression followed by statements`; the unchanged application still does
+  not emit. The independent case-cleanup regression
+  `tests/omega/pass/borrows/runtime_affine_local_case_return_exit/main.omg`
+  changes from native rejection on `450a998607fb` to native/interpreter exit 42
+  on macOS ARM64. Its 38 focused cleanup/state-graph tests retain exact guard,
+  disposal and transfer checks. The Binding prototype remains unpublished;
+  continue its custody representation and ordinary statement sequencing
+  without rewriting the application. Complete
   the documented native acceptance on Linux x86-64 after emission succeeds;
   cross-target compilation on macOS does not establish execution.
   Live reads still alias captured-current

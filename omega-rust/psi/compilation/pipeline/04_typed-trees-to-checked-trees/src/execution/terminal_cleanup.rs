@@ -12,7 +12,6 @@ use language_semantics::{
 };
 use typed_trees::{
     TypedTrees,
-    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
 };
 
@@ -525,25 +524,10 @@ fn build_state_plan(
         &mut segments,
     );
     let mut edges = Vec::new();
-    // The subject a run of case-test arms dispatches on. A dispatch is a run
-    // of consecutive transitions; its `_` arm is the unguarded transition that
-    // closes the run, and it consumes the subject exactly as the tested arms
-    // do.
-    let mut dispatch_subject = None;
     for (statement_index, statement) in statements.iter().enumerate() {
         let StatementNode::Transition(transition) = statement else {
-            dispatch_subject = None;
             continue;
         };
-        let case_subject = match transition.guard {
-            TransitionGuardNode::When(guard) => case_test_subject_root(program, guard),
-            TransitionGuardNode::Always => None,
-        };
-        let consumed_subject = match transition.guard {
-            TransitionGuardNode::When(_) => case_subject,
-            TransitionGuardNode::Always => dispatch_subject,
-        };
-        dispatch_subject = case_subject;
         if transition.exit != TransitionExit::Ordinary {
             continue;
         }
@@ -587,19 +571,21 @@ fn build_state_plan(
                 continue;
             };
             if !segments.span_or_empty(event.segments).is_empty() {
-                return None;
+                // The case-payload operation materializes a fresh plain
+                // carrier before the edge retires its parent storage. It is
+                // not a transfer of the whole parent. Keep that parent in
+                // the ordinary discard roster; actual partial moves still
+                // require their separate residual-complement evidence.
+                plain_case_payload_copy(
+                    program,
+                    state,
+                    statement_index,
+                    transition,
+                    root,
+                    segments.span_or_empty(event.segments),
+                )?;
+                continue;
             }
-            transferred.insert(*position);
-        }
-        // A case dispatch on an owned parameter is the subject's own terminal
-        // consumption: the arm's guard only tests it, so the edge carries it
-        // as consumed rather than among the arm's no-code discards. That holds
-        // for the dispatch's `_` arm as well as for each tested case.
-        if let Some(root) = consumed_subject
-            && let Some((_, position)) = discard_parameters
-                .iter()
-                .find(|(candidate, _)| *candidate == root)
-        {
             transferred.insert(*position);
         }
         let trivial_affine_discard_parameter_positions = discard_parameters
@@ -634,62 +620,62 @@ fn build_state_plan(
     })
 }
 
-/// The tested subject of a case guard (`subject == Variant`), peeled to its
-/// head parameter root. `true ==` wrappings are checker artifacts, not
-/// authored shape.
-fn case_test_subject_root(
+/// Rejoin the plain whole payload the existing case-leaf operation copies.
+/// A case test alone never consumes its subject: the source move chooses the
+/// payload's next owner, while this physical route retains parent storage
+/// until the edge's ordinary cleanup. Claims, nominal drops and general
+/// projected moves cannot use that no-code retirement.
+fn plain_case_payload_copy(
     program: &TypedTrees,
-    guard: ExpressionHandle,
-) -> Option<symbols::SymbolHandle> {
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    transition: &typed_trees::statement::TableTransition,
+    root: symbols::SymbolHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<()> {
+    let TransitionGuardNode::When(guard) = transition.guard else {
         return None;
     };
-    if binary.operator != BinaryOperator::Equal {
+    let (subject, selected_case) = crate::proof::exact_outcome_case_test(program, guard)?;
+    let subject = crate::flow::contextual_canonical_place_from_expression(
+        program,
+        state.symbol,
+        statement_index,
+        subject,
+    )?;
+    if subject.root != facts::PlaceRoot::Symbol(root) || !subject.segments.is_empty() {
         return None;
     }
-    if matches!(
-        program.expression_table.expression(binary.left),
-        ExpressionNode::Boolean(true)
-    ) {
-        return case_test_subject_root(program, binary.right);
+    let [
+        facts::PlaceSegment::Case { variant },
+        facts::PlaceSegment::Field { symbol },
+    ] = segments
+    else {
+        return None;
+    };
+    if *variant != selected_case || !program.data_definitions().iter().any(|definition| {
+        program.data_members(definition).iter().any(|member| {
+            matches!(member, typed_trees::data::DataMember::Variant(variant)
+                if variant.symbol == selected_case && program.data_payload_fields(variant).iter().any(|field| field.symbol == *symbol))
+        })
+    }) {
+        return None;
     }
-    if matches!(
-        program.expression_table.expression(binary.right),
-        ExpressionNode::Boolean(true)
-    ) {
-        return case_test_subject_root(program, binary.left);
-    }
-    for (subject, candidate) in [(binary.left, binary.right), (binary.right, binary.left)] {
-        if let ExpressionNode::Name(path) = program.expression_table.expression(candidate)
-            && program.data_definitions().iter().any(|definition| {
-                program.data_members(definition).iter().any(|member| {
-                    matches!(
-                        member,
-                        typed_trees::data::DataMember::Variant(variant)
-                            if variant.symbol == path.symbol
-                    )
-                })
-            })
-        {
-            return expression_head_root(program, subject);
-        }
-    }
-    None
-}
-
-fn expression_head_root(
-    program: &TypedTrees,
-    mut expression: ExpressionHandle,
-) -> Option<symbols::SymbolHandle> {
-    loop {
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Borrow(borrow) => expression = borrow.target,
-            ExpressionNode::Cast(cast) => expression = cast.value,
-            ExpressionNode::Member(member) => expression = member.receiver,
-            ExpressionNode::Name(path) => return Some(path.head_symbol),
-            _ => return None,
-        }
-    }
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == root)?;
+    let payload = crate::flow::project_type_reference_from_segments(
+        program,
+        parameter.type_reference,
+        segments,
+    )?;
+    (matches!(
+        program.type_multiplicity(payload),
+        Multiplicity::Affine | Multiplicity::Unrestricted
+    ) && validation::has_plain_owned_contents_with_numeric_constraints(program, payload)
+        && !super::terminal_unit::types::type_graph_requires_nominal_drop(program, payload))
+    .then_some(())
 }
 
 pub(super) fn checked_whole_affine_discard_parameters(

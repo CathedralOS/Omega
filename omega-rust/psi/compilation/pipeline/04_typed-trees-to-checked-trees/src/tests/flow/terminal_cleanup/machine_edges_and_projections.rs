@@ -2,6 +2,98 @@ use super::machine_and_entry_state;
 use crate::tests::front_end::checked_program;
 
 #[test]
+fn case_payload_transfer_retains_parent_cleanup_until_the_edge() {
+    use language_semantics::{PermissionEventKind, PermissionEventSource};
+    use typed_trees::statement::{StatementNode, TransitionGuardNode};
+
+    let checked = checked_program(
+        r#"
+        data Token { value: i32; }
+        data Reply { case Missing; case Present(value: Token); }
+        machine route(response: Reply, token: Token) -> bool {
+            transition response {
+                Reply::Present { value } -> observe(token, value)
+                _ -> (false)
+            }
+            state observe(token: Token, value: Token) -> bool {
+                token.value == value.value
+            }
+        }
+        "#,
+    );
+    let (machine, state) = machine_and_entry_state(&checked, "route");
+    let rebuild = |program: &typed_trees::TypedTrees, facts: &checked_trees::CheckFacts| {
+        crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+            program, facts,
+        )
+    };
+    let plans = rebuild(&checked.typed, &checked.facts);
+    let plan = plans.for_state(machine, state).expect("owned payload edge");
+    assert_eq!(plan.edges.len(), 1);
+    assert_eq!(
+        plan.edges[0].trivial_affine_discard_parameter_positions,
+        vec![0],
+        "the copied payload leaves its parent to retire; the whole token transfers"
+    );
+
+    let definition = checked
+        .machines()
+        .iter()
+        .find(|source| source.symbol == machine)
+        .unwrap();
+    let source = &checked.machine_states(definition)[0];
+    let response = checked.state_parameters(source)[0].symbol;
+    let (drop_handle, original) = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.root == facts::PlaceRoot::Symbol(response)
+                && event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::AffineDrop
+        })
+        .expect("exact response disposal");
+    for duplicate in [false, true] {
+        let mut facts = checked.facts.clone();
+        if duplicate {
+            facts.flow.ownership.permissions.insert(original.clone());
+        } else {
+            facts.flow.ownership.permissions.get_mut(drop_handle).root = facts::PlaceRoot::Unknown;
+        }
+        assert!(
+            rebuild(&checked.typed, &facts)
+                .for_state(machine, state)
+                .is_none()
+        );
+    }
+
+    let mut unguarded = checked.typed.clone();
+    let condition = unguarded
+        .expression_table
+        .insert(typed_trees::expression::ExpressionNode::Boolean(true));
+    let transition = unguarded
+        .statement_table
+        .statements_mut(source.statement_nodes)
+        .iter_mut()
+        .find_map(|statement| match statement {
+            StatementNode::Transition(transition) => Some(transition),
+            _ => None,
+        })
+        .expect("selected case transition");
+    transition.guard = TransitionGuardNode::When(condition);
+    assert!(
+        rebuild(&unguarded, &checked.facts)
+            .for_state(machine, state)
+            .is_none(),
+        "an arbitrary true guard cannot authorize a case-qualified payload copy"
+    );
+}
+
+#[test]
 fn scalar_completion_retains_affine_local_cleanup_without_a_transfer() {
     use language_semantics::{PermissionEventKind, PermissionEventSource};
     use typed_trees::statement::{StatementNode, TransitionTargetNode};
