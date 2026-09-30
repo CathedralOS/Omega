@@ -7,9 +7,9 @@
 
 use super::super::borrowed_windows::window_aliases;
 use super::super::{
-    BTreeMap, BTreeSet, ModuleError, OperationKind, PlaceId, StructuralAccess,
-    StructuralParameterDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
-    Terminator,
+    BTreeMap, BTreeSet, CanonicalStructuralPathSegment, ModuleError, OperationKind, PlaceId,
+    StructuralAccess, StructuralParameterDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalModule, Terminator,
 };
 
 pub(crate) fn parameter_type(
@@ -47,9 +47,11 @@ pub(crate) fn owned_home<'a>(
     .then_some(result)
 }
 
-/// Whole-root origin sets are sufficient here: the transferred mutable record
-/// covers every field beneath its root, including a borrowed collection view.
-pub(crate) type BorrowedRecordOrigins = BTreeMap<PlaceId, BTreeSet<PlaceId>>;
+/// Origin sets pair each storage root with the canonical prefix the borrowed
+/// name delegates beneath it: edge arguments that forward a whole name carry
+/// an empty prefix, while a projected loan names its exact subtree.
+pub(crate) type BorrowedRecordOrigins =
+    BTreeMap<PlaceId, BTreeSet<(PlaceId, Vec<CanonicalStructuralPathSegment>)>>;
 
 pub(crate) fn aliases(
     module: &TerminalModule,
@@ -63,10 +65,7 @@ pub(crate) fn aliases(
     {
         return None;
     }
-    let mut origins: BorrowedRecordOrigins = window_aliases(module, machine)
-        .into_iter()
-        .map(|(place, sources)| (place, sources.into_iter().map(|(root, _)| root).collect()))
-        .collect();
+    let mut origins: BorrowedRecordOrigins = window_aliases(module, machine);
     // These descriptors borrow their source storage; they are not fresh owned
     // payloads. Include their origin before closing block-parameter aliases,
     // which may already name a descriptor or one of its later subslices.
@@ -78,15 +77,25 @@ pub(crate) fn aliases(
             _ => continue,
         };
         if let Some(result) = operation.result.structural() {
-            origins.entry(result.place).or_default().insert(source);
+            origins
+                .entry(result.place)
+                .or_default()
+                .insert((source, Vec::new()));
         }
     }
     loop {
         let mut expanded = origins.clone();
         for (place, sources) in &origins {
-            for source in sources {
-                if let Some(ancestors) = origins.get(source) {
-                    expanded.entry(*place).or_default().extend(ancestors);
+            for (root, prefix) in sources {
+                if let Some(ancestors) = origins.get(root) {
+                    expanded
+                        .entry(*place)
+                        .or_default()
+                        .extend(ancestors.iter().map(|(ancestor, ancestor_prefix)| {
+                            let mut composed = ancestor_prefix.clone();
+                            composed.extend_from_slice(prefix);
+                            (*ancestor, composed)
+                        }));
                 }
             }
         }
@@ -101,10 +110,16 @@ fn same_storage(aliases: &BorrowedRecordOrigins, first: PlaceId, second: PlaceId
     // Distinct machine parameters retain the disjointness their caller
     // independently proves. Intermediate aliases remain in the sets so every
     // spelled descriptor and block binding shares its original whole root.
+    // Exclusivity stays root-level: two names overlap whenever any delegated
+    // region of one shares a storage root with the other.
     match (aliases.get(&first), aliases.get(&second)) {
-        (Some(first), Some(second)) => !first.is_disjoint(second),
-        (Some(first), None) => first.contains(&second),
-        (None, Some(second)) => second.contains(&first),
+        (Some(first), Some(second)) => !first
+            .iter()
+            .map(|(root, _)| *root)
+            .collect::<BTreeSet<_>>()
+            .is_disjoint(&second.iter().map(|(root, _)| *root).collect()),
+        (Some(first), None) => first.iter().any(|(root, _)| *root == second),
+        (None, Some(second)) => second.iter().any(|(root, _)| *root == first),
         (None, None) => first == second,
     }
 }
@@ -139,6 +154,42 @@ fn usable_source(
         })
 }
 
+/// A read-only observation may still resolve through a suspended root name
+/// when the whole region it reads lies inside the subtree one live exclusive
+/// name delegates. The observation sees exactly the bytes that exclusive name
+/// governs, so exclusivity is preserved: the same root still cannot move,
+/// store, or loan the region until the loan dies or rejoins.
+fn usable_observation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    aliases: &BorrowedRecordOrigins,
+    available: &BTreeSet<PlaceId>,
+    source: PlaceId,
+    region: &[CanonicalStructuralPathSegment],
+) -> bool {
+    if usable_source(module, machine, aliases, available, source) {
+        return true;
+    }
+    if region.is_empty() {
+        return false;
+    }
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+        .any(|parameter| {
+            parameter.place != source
+                && parameter_type(module, parameter)
+                && available.contains(&parameter.place)
+                && same_storage(aliases, source, parameter.place)
+                && aliases.get(&parameter.place).is_some_and(|origins| {
+                    origins.iter().any(|(root, prefix)| {
+                        *root == source && !prefix.is_empty() && region.starts_with(prefix)
+                    })
+                })
+        })
+}
+
 pub(crate) fn validate_operation(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -163,10 +214,34 @@ pub(crate) fn validate_operation(
         validate(projection.root)?;
     }
     match &operation.kind {
-        OperationKind::BooleanStructuralField { source, .. }
-        | OperationKind::IntegerStructuralField { source, .. }
-        | OperationKind::StructuralCaseLeafCopy { source, .. }
-        | OperationKind::ElementViewLength { source }
+        OperationKind::BooleanStructuralField {
+            source,
+            path,
+            field,
+        }
+        | OperationKind::IntegerStructuralField {
+            source,
+            path,
+            field,
+        } => {
+            let mut region = path.clone();
+            region.push(CanonicalStructuralPathSegment::Field(*field));
+            if !usable_observation(module, machine, aliases, available, *source, &region) {
+                return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation: operation.id,
+                    place: *source,
+                });
+            }
+        }
+        OperationKind::StructuralCaseLeafCopy { source, path } => {
+            if !usable_observation(module, machine, aliases, available, *source, path) {
+                return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+                    operation: operation.id,
+                    place: *source,
+                });
+            }
+        }
+        OperationKind::ElementViewLength { source }
         | OperationKind::ElementViewRead { source, .. }
         | OperationKind::ElementViewSubslice { source, .. } => validate(*source)?,
         _ => {}
