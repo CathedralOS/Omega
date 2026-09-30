@@ -4,17 +4,44 @@ use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, SymbolHandle,
     target_signature, unsupported,
 };
-use checked_trees::statement::{TransitionGuardNode, TransitionTargetNode};
-/// The scalar computation walker checks membership, not preorder identity.
-/// Structural calls may be argument roots or the roots of exact projections.
-/// Scalar computations retain
-/// their own selective evaluator; this walk numbers their authored occurrences
-/// without imposing an unconditional execution schedule on their branches.
+use checked_trees::statement::{TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode};
+
+pub(super) enum AuthoredOccurrence {
+    Expression(ExpressionHandle),
+    StatementRoot,
+    TransitionTarget(TransitionTargetHandle),
+}
+
+/// The straight-line structural execution consumer accepts expression calls
+/// and its existing statement root. A conditional target has no expression
+/// or unconditional execution position in that consumer's operation sequence.
 pub(crate) fn authored_postorder(
     checked: &CheckedTrees,
     caller_state: SymbolHandle,
     statement_index: u32,
 ) -> Result<Vec<(u32, ExpressionHandle)>, LoweringError> {
+    authored_occurrences(checked, caller_state, statement_index)?
+        .into_iter()
+        .map(|(ordinal, occurrence)| match occurrence {
+            AuthoredOccurrence::Expression(expression) => Ok((ordinal, expression)),
+            AuthoredOccurrence::StatementRoot => Ok((ordinal, ExpressionHandle::invalid())),
+            AuthoredOccurrence::TransitionTarget(_) => unsupported(
+                "conditional named calls have no straight-line structural execution order",
+            ),
+        })
+        .collect()
+}
+
+/// The scalar computation walker checks membership, not preorder identity.
+/// Structural calls may be argument roots or the roots of exact projections.
+/// Scalar computations retain
+/// their own selective evaluator; this walk numbers their authored occurrences
+/// without imposing an unconditional execution schedule on their branches.
+pub(super) fn authored_occurrences(
+    checked: &CheckedTrees,
+    caller_state: SymbolHandle,
+    statement_index: u32,
+) -> Result<Vec<(u32, AuthoredOccurrence)>, LoweringError> {
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
@@ -113,10 +140,8 @@ pub(crate) fn authored_postorder(
             // machine calls are handled above. A jump to an internal state
             // invokes nothing, but its named target still holds the ordinal
             // after the guard's calls; its operands follow as direct
-            // arguments. The guarded-return route still declines named
-            // machine arms; a coordinate reaching this branch names a guard,
-            // an internal jump's operand or a `Value` arm, never a
-            // fabricated call expression.
+            // arguments. A named machine arm retains its target handle as a
+            // distinct source occurrence, since it has no call expression.
             let mut seeds = Vec::new();
             if let TransitionGuardNode::When(guard) = transition.guard {
                 seeds.push(Walk::Enter(guard, true));
@@ -141,11 +166,7 @@ pub(crate) fn authored_postorder(
                         seeds.push(Walk::InternalJump);
                         seeds.extend(operands.iter().map(|operand| Walk::Enter(*operand, true)));
                     }
-                    TransitionTargetNode::Named { .. } => {
-                        return unsupported(
-                            "nested calls in a named transition target have no authored root",
-                        );
-                    }
+                    TransitionTargetNode::Named { .. } => seeds.push(Walk::NamedTarget(target)),
                     TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
                 }
             }
@@ -168,8 +189,30 @@ pub(crate) fn authored_postorder(
             Walk::Exit(expression, ordinal) => {
                 active.pop();
                 if let Some(ordinal) = ordinal {
-                    order.push((ordinal, expression));
+                    order.push((ordinal, AuthoredOccurrence::Expression(expression)));
                 }
+                continue;
+            }
+            Walk::NamedTarget(target) => {
+                let (_, arguments) =
+                    super::named_target_arguments(checked, machine.symbol, target)?;
+                let ordinal = next_ordinal;
+                next_ordinal = next_ordinal
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "nested authored call ordinal space is exhausted",
+                    ))?;
+                pending.push(Walk::ExitNamedTarget(target, ordinal));
+                pending.extend(
+                    arguments
+                        .iter()
+                        .rev()
+                        .map(|argument| Walk::Enter(*argument, true)),
+                );
+                continue;
+            }
+            Walk::ExitNamedTarget(target, ordinal) => {
+                order.push((ordinal, AuthoredOccurrence::TransitionTarget(target)));
                 continue;
             }
             Walk::InternalJump => {
@@ -396,7 +439,7 @@ pub(crate) fn authored_postorder(
         );
     }
     if statement_root {
-        order.push((0, ExpressionHandle::invalid()));
+        order.push((0, AuthoredOccurrence::StatementRoot));
     }
     Ok(order)
 }
@@ -457,6 +500,8 @@ enum Walk {
     Enter(ExpressionHandle, bool),
     /// Leave an operand, recording its preorder ordinal when it is a call.
     Exit(ExpressionHandle, Option<u32>),
+    NamedTarget(TransitionTargetHandle),
+    ExitNamedTarget(TransitionTargetHandle, u32),
     /// A jump to one of this machine's internal states. It invokes nothing,
     /// but the call-site traversal numbers its named target between the
     /// guard's calls and its operands', so it holds one ordinal.

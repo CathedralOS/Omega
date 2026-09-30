@@ -113,23 +113,34 @@ pub(crate) fn locate_source(
         _ => false,
     };
     let (source_target, arguments, source_site) = if coordinate.call_ordinal != 0 || !direct_root {
-        let expression =
-            nested::authored_postorder(checked, caller_state, coordinate.statement_index)?
+        let occurrence =
+            nested::authored_occurrences(checked, caller_state, coordinate.statement_index)?
                 .into_iter()
-                .find_map(|(ordinal, expression)| {
-                    (ordinal == coordinate.call_ordinal).then_some(expression)
+                .find_map(|(ordinal, occurrence)| {
+                    (ordinal == coordinate.call_ordinal).then_some(occurrence)
                 })
                 .ok_or(LoweringError::Unsupported(
                     "nested call source custody has no exact authored preorder coordinate",
                 ))?;
-        super::occurrences::validate(
-            checked,
-            machine.symbol,
-            caller_state,
-            coordinate,
-            expression,
-        )?;
-        expression_call(checked, expression)?
+        match occurrence {
+            nested::AuthoredOccurrence::Expression(expression) => {
+                super::occurrences::validate(
+                    checked,
+                    machine.symbol,
+                    caller_state,
+                    coordinate,
+                    expression,
+                )?;
+                expression_call(checked, expression)?
+            }
+            nested::AuthoredOccurrence::TransitionTarget(target) => {
+                let (target, arguments) = named_target_arguments(checked, machine.symbol, target)?;
+                (target, arguments, None)
+            }
+            nested::AuthoredOccurrence::StatementRoot => {
+                return unsupported("nested call coordinate names the statement root");
+            }
+        }
     } else {
         match statement {
             StatementNode::Transition(_) if coordinate.call_ordinal == 0 => {
@@ -281,7 +292,7 @@ pub(super) fn named_terminal_arguments(
     caller_state: SymbolHandle,
     statement_index: u32,
 ) -> Result<(SymbolHandle, &[ExpressionHandle]), LoweringError> {
-    use checked_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
+    use checked_trees::statement::{TransitionExit, TransitionGuardNode};
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
@@ -299,12 +310,26 @@ pub(super) fn named_terminal_arguments(
     {
         return unsupported("named call custody requires an unconditional terminal invocation");
     }
-    let TransitionTargetNode::Named {
+    named_target_arguments(checked, machine.symbol, transition.target)
+}
+
+/// Read a selected named invocation at its exact source target. The caller's
+/// occurrence walk owns guard/target/continuation ordering independently of
+/// whether that invocation is terminal or conditional.
+fn named_target_arguments(
+    checked: &CheckedTrees,
+    caller_machine: SymbolHandle,
+    target: checked_trees::statement::TransitionTargetHandle,
+) -> Result<(SymbolHandle, &[ExpressionHandle]), LoweringError> {
+    if !checked.statement_table.transition_target_is_valid(target) {
+        return unsupported("named call custody has a stale target");
+    }
+    let checked_trees::statement::TransitionTargetNode::Named {
         path,
         arguments,
         static_machine_parameter,
         ..
-    } = checked.statement_table.transition_target(transition.target)
+    } = checked.statement_table.transition_target(target)
     else {
         return unsupported("named call custody has no named target");
     };
@@ -316,8 +341,8 @@ pub(super) fn named_terminal_arguments(
         .machine_by_symbol(path.symbol)
         .and_then(|owner| checked.typed.machine_states(owner).first())
         .map_or(path.symbol, |entry| entry.symbol);
-    let target = target_signature(checked, machine.symbol, source_target)?;
-    if target.machine == machine.symbol && path.symbol != machine.symbol {
+    let target = target_signature(checked, caller_machine, source_target)?;
+    if target.machine == caller_machine && path.symbol != caller_machine {
         return unsupported("internal state transfer is not a terminal machine invocation");
     }
     let explicit = checked.statement_table.expression_handles(*arguments);
@@ -458,6 +483,108 @@ pub(crate) fn target_signature(
 #[cfg(test)]
 mod named_terminal_tests {
     use super::*;
+
+    #[test]
+    fn guarded_named_call_replays_exact_target_and_nested_argument_coordinates() {
+        let checked = crate::front_end::checked_program(
+            r#"
+            machine first(left: u32, right: u32) -> u32 { left }
+            machine second(value: u32) -> u32 { value }
+            machine choose(value: bool) -> u32 {
+                transition value {
+                    true -> first(second(1), 2)
+                    false -> second(3)
+                }
+            }
+            "#,
+        );
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "choose")
+            .unwrap();
+        let state = checked.machine_states(machine)[0].symbol;
+        let first = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "first")
+            .unwrap();
+        let first_state = checked.machine_states(first)[0].symbol;
+        let control = &checked.facts.flow.control;
+        let flow = control
+            .states
+            .iter()
+            .map(|(_, state)| state)
+            .find(|flow| flow.state_symbol == state)
+            .unwrap();
+        let call = control
+            .calls
+            .span(flow.calls)
+            .unwrap()
+            .iter()
+            .find(|call| call.target_symbol == first_state || call.target_symbol == first.symbol)
+            .expect("captured named first call");
+        let coordinate = CheckedUnitCallCoordinate {
+            statement_index: u32::try_from(call.statement_index).unwrap(),
+            call_ordinal: u32::try_from(call.call_ordinal).unwrap(),
+        };
+        let outer = locate(
+            &checked,
+            machine.symbol,
+            state,
+            coordinate,
+            first.symbol,
+            first_state,
+        )
+        .expect("guarded named invocation");
+        assert_eq!(outer.scalar_arguments.len(), 2);
+        assert!(
+            outer.source_site.is_none(),
+            "named target has no expression identity"
+        );
+        let nested = locate_source(
+            &checked,
+            state,
+            CheckedUnitCallCoordinate {
+                call_ordinal: coordinate.call_ordinal + 1,
+                ..coordinate
+            },
+        )
+        .expect("nested operand retains the next authored ordinal");
+        assert_eq!(
+            nested.source_site,
+            Some(NominalMachineUseSite::Expression(
+                outer.scalar_arguments[0].0
+            ))
+        );
+        assert_ne!(nested.target_machine, outer.target_machine);
+        assert!(
+            locate(
+                &checked,
+                machine.symbol,
+                state,
+                coordinate,
+                nested.target_machine,
+                nested.target_state
+            )
+            .is_err()
+        );
+        assert!(
+            locate_source(
+                &checked,
+                state,
+                CheckedUnitCallCoordinate {
+                    call_ordinal: u32::MAX,
+                    ..coordinate
+                }
+            )
+            .is_err()
+        );
+        assert!(
+            nested::authored_postorder(&checked, state, coordinate.statement_index).is_err(),
+            "conditional named calls cannot fabricate an expression-only execution schedule"
+        );
+    }
 
     #[test]
     fn named_terminal_call_retains_target_and_operand_coordinates() {
