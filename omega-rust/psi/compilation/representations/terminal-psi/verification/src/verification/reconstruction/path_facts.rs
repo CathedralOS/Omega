@@ -8,8 +8,8 @@ use std::{
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::super::substitution::{
-    proposition_mentions_substituted_value, substitute_proposition_places,
-    substitute_proposition_values,
+    proposition_mentions_substituted_value, push_unique_fact, roster_equation_position,
+    roster_has_fact, substitute_proposition_places, substitute_proposition_values,
 };
 
 mod conditions;
@@ -44,21 +44,31 @@ pub(super) fn bind_successor_axioms(
         .collect::<BTreeMap<_, _>>();
     let established = axioms.clone();
     // Emit edge equalities before rewritten path facts so independently
-    // reconstructed axiom indexes are deterministic.
+    // reconstructed axiom indexes are deterministic. A roster never stores
+    // one equation in both operand orders — two swapped `parameter =
+    // argument` bindings are the same fact, and the pair would register as a
+    // cyclic definition in the denotation checker — so a binding whose
+    // symmetric twin already stands is not pushed a second time.
     for (parameter, argument) in target_block.parameters.iter().zip(arguments) {
-        axioms.push(Proposition::Equal(
-            value_term(parameter.id),
-            value_term(*argument),
-        ));
+        push_unique_fact(
+            axioms,
+            Proposition::Equal(value_term(parameter.id), value_term(*argument)),
+        );
     }
     let mut rewritten_facts = Vec::new();
     if rewrite_path_facts {
-        // The binding equalities just pushed occupy a contiguous run cited by
-        // index inside each rewrite's transport certificate; the zip pushes
-        // one per pair even when duplicate arguments collapse in the map.
-        let equality_count = target_block.parameters.len().min(arguments.len());
-        let equality_indices =
-            (established.len()..established.len() + equality_count).collect::<Vec<_>>();
+        // Each rewrite's transport certificate cites this edge's binding
+        // equalities by roster position; the symmetric-twin skip above can
+        // leave a pair without its own row, and whichever direction already
+        // stands carries the same equation.
+        let equality_indices = target_block
+            .parameters
+            .iter()
+            .zip(arguments)
+            .filter_map(|(parameter, argument)| {
+                roster_equation_position(axioms, &value_term(parameter.id), &value_term(*argument))
+            })
+            .collect::<Vec<_>>();
         // Fingerprint the roster only once some fact actually needs a
         // duplicate check; an edge whose arguments no fact mentions pays
         // nothing for the whole roster.
@@ -82,7 +92,8 @@ pub(super) fn bind_successor_axioms(
             });
             let duplicate = seen
                 .get(&fingerprint)
-                .is_some_and(|indices| indices.iter().any(|index| axioms[*index] == rewritten));
+                .is_some_and(|indices| indices.iter().any(|index| axioms[*index] == rewritten))
+                || roster_has_fact(axioms, &rewritten);
             if !duplicate {
                 let certified = transport::successor_rewrite_certified(
                     proposition_context,
@@ -167,11 +178,11 @@ pub(super) fn append_successor_fact(
         .zip(arguments)
         .map(|(parameter, argument)| (*argument, value_term(parameter.id)))
         .collect::<BTreeMap<_, _>>();
-    push_unique(axioms, proposition.clone());
+    push_unique_fact(axioms, proposition.clone());
     let rewritten = substitute_proposition_values(proposition, &substitutions);
     append_discrete_fact(axioms, proposition);
     append_discrete_fact(axioms, &rewritten);
-    if axioms.contains(&rewritten) {
+    if roster_has_fact(axioms, &rewritten) {
         return Vec::new();
     }
     // The source fact sits at its already-pushed roster position; this edge's
@@ -183,8 +194,7 @@ pub(super) fn append_successor_fact(
         .iter()
         .zip(arguments)
         .filter_map(|(parameter, argument)| {
-            let equality = Proposition::Equal(value_term(parameter.id), value_term(*argument));
-            axioms.iter().position(|axiom| axiom == &equality)
+            roster_equation_position(axioms, &value_term(parameter.id), &value_term(*argument))
         })
         .collect::<Vec<_>>();
     let certified = source_index.is_some_and(|source_index| {
@@ -258,9 +268,7 @@ fn append_discrete_fact(propositions: &mut Vec<Proposition>, proposition: &Propo
 }
 
 fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
-    if !propositions.contains(&proposition) {
-        propositions.push(proposition);
-    }
+    push_unique_fact(propositions, proposition);
 }
 
 /// Fast, non-authoritative bucketing for exact proposition deduplication.

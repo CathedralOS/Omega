@@ -112,10 +112,13 @@ impl<'a> PrimitiveSnapshots<'a> {
         if value_types.get(&value) == Some(&result.scalar_type) {
             // Both sides denote immutable scalar values. Subsequent writes
             // expire storage observations, not this captured equality.
-            axioms.push(Proposition::Equal(
-                ScalarTerm::value(result.id, result.scalar_type),
-                ScalarTerm::value(value, result.scalar_type),
-            ));
+            crate::verification::substitution::push_unique_fact(
+                axioms,
+                Proposition::Equal(
+                    ScalarTerm::value(result.id, result.scalar_type),
+                    ScalarTerm::value(value, result.scalar_type),
+                ),
+            );
         }
         Ok(())
     }

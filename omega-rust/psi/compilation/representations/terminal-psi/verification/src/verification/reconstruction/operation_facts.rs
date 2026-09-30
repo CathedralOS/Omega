@@ -549,12 +549,12 @@ pub(super) fn append_operation(
         if let Some(equation) =
             byte_extent::length_equation(module, machine, operation, &observation, context)?
         {
-            axioms.push(equation);
+            crate::verification::substitution::push_unique_fact(axioms, equation);
         }
         if let Some(equation) =
             element_extent::length_equation(module, machine, operation, &observation, context)?
         {
-            axioms.push(equation);
+            crate::verification::substitution::push_unique_fact(axioms, equation);
         }
         return Ok(());
     }

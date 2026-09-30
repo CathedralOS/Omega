@@ -12,6 +12,8 @@
 //! Only unconditional equality leaves supply substitutions. Conditional facts
 //! retain their entire connective; a hypothesis never becomes an ambient fact.
 
+use std::collections::BTreeSet;
+
 use semantic_vocabulary::{Proposition, ScalarTerm};
 
 pub(super) fn retain(
@@ -56,6 +58,21 @@ pub(super) fn retain(
         }
         capture_proposition(fact, &captures);
         keep(fact)
+    });
+    // Capturing `field = value` into `captured = value` can restate an
+    // equation the roster already carries in the opposite operand order.
+    // One equation kept in two directions reads as a cyclic definition to
+    // the denotation checker, so the earlier direction wins and the
+    // duplicate goes.
+    let mut seen = BTreeSet::new();
+    axioms.retain(|fact| match fact {
+        Proposition::Equal(left, right)
+            if matches!(left, ScalarTerm::Value { .. })
+                && matches!(right, ScalarTerm::Value { .. }) =>
+        {
+            seen.insert((left.min(right).clone(), left.max(right).clone()))
+        }
+        _ => true,
     });
 }
 

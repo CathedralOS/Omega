@@ -829,9 +829,7 @@ fn value_term(value: ValueId, value_types: &BTreeMap<ValueId, ScalarType>) -> Sc
 }
 
 fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
-    if !propositions.contains(&proposition) {
-        propositions.push(proposition);
-    }
+    super::substitution::push_unique_fact(propositions, proposition);
 }
 
 /// Requirements use the pre-call state; only guarantees may describe a
