@@ -4526,7 +4526,13 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 - **QUOTIENT-RUNTIME-REALIZATION.** Execute admitted quotient value/call
   operations under the [representative realization contract](wiki/spec/proofs/quotients.md#representative-layer-and-executable-realization).
   Start with the existing bounded correspondence forms; broader
-  **QUOTIENT-THEOREM-LIFT** generalization is not a prerequisite.
+  **QUOTIENT-THEOREM-LIFT** generalization is not a prerequisite. Follow
+  [ordinary checked-body elaboration](wiki/spec/proofs/quotients.md#execution-through-ordinary-checked-bodies):
+  preserve public operation identity and checked correspondence while lowering
+  representative calls and authored adaptations through the normal pipeline.
+  Any generated wrapper uses a stable derived identity and ordinary machine
+  machinery; correctness cannot depend on inlining. No backend-specific quotient
+  engine or executable transport-theorem witness.
 
   - Admit representable, custody-free carriers under an exact realization
     judgment. Validation's `proof_contracts/quotients/formation_collection.rs`
@@ -4541,8 +4547,10 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     do not turn those requests into ordinary runtime calls by deleting guards.
     Stage 05 retains proof-only correspondence, and the verifier's
     `validation/quotient_correspondence.rs` rejects every nonempty table with
-    `NonExecutableQuotientCorrespondence`. Replace that execution restriction
-    only with complete checked representation/operation evidence.
+    `NonExecutableQuotientCorrespondence`. Separate validated proof-only metadata
+    from runtime-relevant demand: mere presence must not reject an otherwise
+    executable module. Demanded operations still require complete checked
+    representation/operation evidence; do not merely disable validation.
   - Add separate invoking customers with observable results. The managed
     `proofs/quotient_{define,lift}_managed_compile` fixtures use recursive
     proof-only data and empty entries; their declaration-only path reaches the
@@ -4550,7 +4558,9 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     values. Keep those admission fixtures and fact-only use free of calls,
     dictionaries and fuel charges. Axiomatic operations supply no algorithm.
 
-  Acceptance: direct `define` and transport-backed `lift` execute from verified
+  Acceptance: an executable root coexists with valid undemanded proof-only
+  quotient metadata; demanding an unrealizable operation rejects. Direct
+  `define` and transport-backed `lift` execute from verified
   source-free artifacts on matching native hosts. Preserve representative ABI
   and allowed uncanonicalized constant materialization without structural
   observers or illicit representative extraction. Independently reject substituted
