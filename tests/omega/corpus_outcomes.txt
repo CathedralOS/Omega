@@ -446,6 +446,17 @@ fail/dependent/case_where_unproved_bound_rejected rejected 316ms expected @2d8ed
 	data `Interval` case `Range` literal cannot prove the case constraint: a `where`-mentioned field's value is neither a literal nor a declared-range place whose interval decides the fact -- spell a literal, or constrain the value's declared range
 fail/dependent/case_where_zero_refuted_first_case_rejected rejected 320ms expected @2d8ed253669f
 	construction of `Main` omits gated field `v`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/dependent/collection_predicate_element_store_violates_rejected rejected 102ms expected @8e99dd8cbe00+wt
+	data `Grid`'s default domain is still FALSE at state exit: the invariant window opened on `context.grid` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/dependent/collection_predicate_helper_theorem_false_rejected rejected 193ms expected @8e99dd8cbe00+wt
+	cannot prove ensures contract for exit from cell_is_set at statement 0: cells[index] >= 1
+fail/dependent/collection_predicate_requirement_unconstrained_rejected rejected 172ms expected @8e99dd8cbe00+wt
+	cannot prove requires contract for call first from Main::main: cells_valid(cells) == true (needs fact `cells_valid(cells) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/dependent/collection_predicate_uncited_sum_rejected rejected 84ms expected @8e99dd8cbe00+wt
+	exact arithmetic in machine `Main::sum` state `sum` assignment may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/dependent/collection_predicate_zero_violating_read_rejected rejected 92ms expected @8e99dd8cbe00+wt
+	reading `self.grid.board` crosses an open default-domain invariant window before data `Grid` is established: the zeroed representation is not yet a `Grid` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
+	reading `self.grid` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/dependent/data_where_call_frame_invalidates_written_valuation_rejected rejected 194ms expected @2d8ed253669f
 	write to `self.pair.left` cannot PROVE data `Pair`'s default domain: a `where`-mentioned field's value is not a literal known here (a runtime value, or a co-field last written in another state) -- restructure with literal stores in one state for now (the entailment integration and cross-state valuation transport relax this)
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `self.pair` must close first -- restore the `where` facts before this consumption point (ch11)
@@ -1436,6 +1447,9 @@ pass/dependent/case_where_common_field_window checked 288ms @2d8ed253669f
 pass/dependent/case_where_generic_type_bound_coverage checked 292ms @2d8ed253669f
 pass/dependent/case_where_match_contributes checked 288ms @2d8ed253669f
 pass/dependent/case_where_zero_decided_first_case checked 302ms @2d8ed253669f
+pass/dependent/collection_predicate_element_store_restored checked 199ms @8e99dd8cbe00+wt
+pass/dependent/collection_predicate_helper_theorem_bounds_sum checked 193ms @8e99dd8cbe00+wt
+pass/dependent/collection_predicate_zero_initialized checked 184ms @8e99dd8cbe00+wt
 pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile checked 288ms @2d8ed253669f
 pass/dependent/data_where_callee_establishes rejected 399ms @2d8ed253669f
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly

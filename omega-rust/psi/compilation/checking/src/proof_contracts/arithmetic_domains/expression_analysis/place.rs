@@ -6,8 +6,8 @@
 use super::{Analysis, ExpressionWalk, NEUTRAL};
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{is_atomic_type, primitive_range};
 use crate::proof_contracts::arithmetic_domains::{
-    ArithmeticDomain, ExpressionHandle, Interval, declared_place_type_raw, place_path,
-    range_constraint_interval,
+    ArithmeticDomain, ExpressionHandle, Interval, declared_place_type_raw, element_place_path,
+    place_path, range_constraint_interval,
 };
 use crate::value_custody::places;
 
@@ -18,22 +18,30 @@ use crate::value_custody::places;
 /// the interval is a true invariant).
 pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> Analysis {
     let program = walk.program;
+    // A literal-index element read (`self.cells[3]`) can carry a flow fact of
+    // its own, such as a cited helper theorem's element bound.
+    let element_path = element_place_path(program, expression);
+    let element_fact = element_path
+        .as_deref()
+        .and_then(|path| walk.environment.get(path));
     let Some(handle) = declared_place_type_raw(program, walk.machine, walk.state, expression)
         .or_else(|| {
-            // Only a RANGE-refined element feeds the analysis. An unranged
-            // element stays NEUTRAL (unchecked) as before -- resolving it would
-            // stamp `primitive + Exact` onto reads whose enclosing arithmetic
-            // was historically domain-neutral (`[i32; 3] in Wrapping` carries
-            // the domain on the ARRAY, so its bare-`i32` element read as Exact
-            // broke Wrapping-array canaries with spurious overflow +
-            // domain-mixing rejects).
+            // Only a RANGE-refined element, or one with a flow fact, feeds the
+            // analysis. An unranged element stays NEUTRAL (unchecked) as
+            // before -- resolving it would stamp `primitive + Exact` onto reads
+            // whose enclosing arithmetic was historically domain-neutral
+            // (`[i32; 3] in Wrapping` carries the domain on the ARRAY, so its
+            // bare-`i32` element read as Exact broke Wrapping-array canaries
+            // with spurious overflow + domain-mixing rejects).
             places::declared_indexed_projection_type_raw(
                 program,
                 walk.machine,
                 walk.state,
                 expression,
             )
-            .filter(|handle| range_constraint_interval(program, *handle).is_some())
+            .filter(|handle| {
+                range_constraint_interval(program, *handle).is_some() || element_fact.is_some()
+            })
         })
     else {
         return NEUTRAL;
@@ -58,6 +66,7 @@ pub(super) fn analyze(walk: &ExpressionWalk, expression: ExpressionHandle) -> An
     // the narrowing store uses.
     let interval = place_path(program, expression)
         .and_then(|path| walk.environment.get(&path))
+        .or(element_fact)
         .or_else(|| range_constraint_interval(program, handle))
         .map(|proven| proven.intersect(type_range))
         .unwrap_or(type_range);

@@ -966,7 +966,7 @@ fn operand_place_projection_type(
     }
 }
 
-fn builtin_type_reference(
+pub(crate) fn builtin_type_reference(
     program: &TypedTrees,
     atom: symbols::BuiltinTypeAtom,
 ) -> Option<TypeReferenceHandle> {

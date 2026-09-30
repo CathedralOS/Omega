@@ -44,7 +44,7 @@ pub(crate) fn refuse_open_windows(
     consumption_point: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for place in tracked.iter().filter(|place| place.window_open) {
+    for place in tracked.iter().filter(|place| place.any_window_open()) {
         diagnostics.push(Diagnostic::error(format!(
             "data `{}`'s default domain is still FALSE at {consumption_point}: the \
              invariant window opened on `{}` must close first -- restore the \
@@ -75,6 +75,7 @@ pub(crate) fn handle_assignment<'program>(
     value: ExpressionHandle,
     tracked: &mut Vec<TrackedPlace<'program>>,
     entry_valuations: &[PlaceValuation],
+    inherited_windows: &[InvariantWindow],
     poisoned_all: bool,
     poisoned_paths: &[String],
     born_zero: bool,
@@ -134,12 +135,32 @@ pub(crate) fn handle_assignment<'program>(
             established: !wildcard,
             born_zero: place_born_zero,
             window_open: wildcard,
+            elements: Vec::new(),
+            element_windows: Vec::new(),
             // The literal's selected case replaces the place's active case:
             // the previous case's facts lapse with its payload, and the new
             // case's facts were already proven at construction. A wildcard
             // position cannot claim a case for the whole covered region.
             active_case: if wildcard { None } else { literal.case_symbol },
         });
+        return;
+    }
+
+    // An ELEMENT store: `<place>.field[index] = value`. Facts reading the
+    // field's contents owe re-proof; nothing else changes.
+    if super::element_stores::handle_element_store(
+        program,
+        machine,
+        state,
+        target,
+        value,
+        tracked,
+        entry_valuations,
+        inherited_windows,
+        poisoned_all,
+        poisoned_paths,
+        born_zero,
+    ) {
         return;
     }
 
@@ -190,50 +211,17 @@ pub(crate) fn handle_assignment<'program>(
         }
     }
 
-    let place = if let Some(position) = tracked
-        .iter()
-        .position(|place| place.spelling == receiver_spelling)
-    {
-        &mut tracked[position]
-    } else {
-        // R2 rung 3 slice 5: seed the fresh place from its transported entry
-        // valuation unless an opaque call, or a known overlapping write,
-        // poisoned this place's view.
-        let poisoned = poisoned_all
-            || poisoned_paths.iter().any(|written| {
-                crate::machine_calls::calls::frame_paths_overlap(&receiver_spelling, written)
-            });
-        let (seeded_fields, seeded_case) = if poisoned {
-            (Vec::new(), None)
-        } else {
-            entry_valuations
-                .iter()
-                .find(|(name, _, _)| *name == receiver_spelling)
-                .map(|(_, fields, active_case)| (fields.clone(), *active_case))
-                .unwrap_or_default()
-        };
-        let self_rooted = is_self_rooted(&receiver_spelling);
-        tracked.push(TrackedPlace {
-            spelling: receiver_spelling,
-            definition,
-            fields: seeded_fields,
-            symbols: Vec::new(),
-            measures: Vec::new(),
-            // Zero-satisfying data is born established; gated data must
-            // earn it (the accepted write below does, since it re-proves
-            // the whole domain). A parameter place arrives ALREADY VALID
-            // (the caller's net enforced its domain), so it counts as
-            // established for the access gate; its VALUATION stays unknown.
-            established: !crate::value_custody::data::data_requires_establishment(
-                program, definition,
-            ) || !self_rooted,
-            born_zero: born_zero && self_rooted && !poisoned,
-            window_open: false,
-            active_case: seeded_case,
-        });
-        let last = tracked.len() - 1;
-        &mut tracked[last]
-    };
+    let position = tracked_receiver(
+        program,
+        tracked,
+        receiver_spelling,
+        definition,
+        entry_valuations,
+        poisoned_all,
+        poisoned_paths,
+        born_zero,
+    );
+    let place = &mut tracked[position];
     place.fields.retain(|(name, _)| *name != field_name);
     place.fields.push((field_name.clone(), written));
     place.symbols.retain(|(name, _)| *name != field_name);
@@ -294,10 +282,34 @@ pub(crate) fn handle_assignment<'program>(
     // close. A CASE fact is not filtered this way: its names are the
     // variant's payload bindings, which are not members of the data.
     let definition = place.definition;
+    // A collection-predicate fact over other fields is untouched by this
+    // store; its element windows are tracked separately.
+    let written_field = program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            typed_trees::data::DataMember::Field(field) if field.name.as_str() == field_name => {
+                Some(field.symbol)
+            }
+            _ => None,
+        });
     let type_facts = std::iter::once(definition.where_facts)
         .filter(|_| !store_checked)
         .flat_map(|span| program.proof_facts.span_or_empty(span))
-        .filter(|fact| fact_mentions_any_field(program, definition, fact));
+        .filter(|fact| fact_mentions_any_field(program, definition, fact))
+        .filter(|fact| {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                return true;
+            };
+            written_field.is_none_or(|written| {
+                crate::proof_contracts::collection_predicates::data_fact_applies_to_field(
+                    program,
+                    definition,
+                    *expression,
+                    written,
+                ) != Some(false)
+            })
+        });
     let case_facts = case_fact_spans
         .iter()
         .copied()
@@ -355,7 +367,7 @@ pub(crate) fn handle_assignment<'program>(
                     ) {
                         all_hold = false;
                     }
-                } else if !place.established || place.window_open {
+                } else if !place.established || place.any_window_open() {
                     // A write to another field preserves a previously true
                     // membership, but cannot manufacture a missing one.
                     all_hold = false;
@@ -380,6 +392,62 @@ pub(crate) fn handle_assignment<'program>(
     } else {
         place.window_open = true;
     }
+}
+
+/// The tracked place a store's receiver names, created on first write.
+pub(super) fn tracked_receiver<'program>(
+    program: &'program TypedTrees,
+    tracked: &mut Vec<TrackedPlace<'program>>,
+    receiver_spelling: String,
+    definition: &'program typed_trees::data::DataDefinition,
+    entry_valuations: &[PlaceValuation],
+    poisoned_all: bool,
+    poisoned_paths: &[String],
+    born_zero: bool,
+) -> usize {
+    if let Some(position) = tracked
+        .iter()
+        .position(|place| place.spelling == receiver_spelling)
+    {
+        return position;
+    }
+    // R2 rung 3 slice 5: seed the fresh place from its transported entry
+    // valuation unless an opaque call, or a known overlapping write,
+    // poisoned this place's view.
+    let poisoned = poisoned_all
+        || poisoned_paths.iter().any(|written| {
+            crate::machine_calls::calls::frame_paths_overlap(&receiver_spelling, written)
+        });
+    let (seeded_fields, seeded_case) = if poisoned {
+        (Vec::new(), None)
+    } else {
+        entry_valuations
+            .iter()
+            .find(|(name, _, _)| *name == receiver_spelling)
+            .map(|(_, fields, active_case)| (fields.clone(), *active_case))
+            .unwrap_or_default()
+    };
+    let self_rooted = is_self_rooted(&receiver_spelling);
+    tracked.push(TrackedPlace {
+        spelling: receiver_spelling,
+        definition,
+        fields: seeded_fields,
+        symbols: Vec::new(),
+        measures: Vec::new(),
+        // Zero-satisfying data is born established; gated data must
+        // earn it (the accepted write below does, since it re-proves
+        // the whole domain). A parameter place arrives ALREADY VALID
+        // (the caller's net enforced its domain), so it counts as
+        // established for the access gate; its VALUATION stays unknown.
+        established: !crate::value_custody::data::data_requires_establishment(program, definition)
+            || !self_rooted,
+        born_zero: born_zero && self_rooted && !poisoned,
+        window_open: false,
+        elements: Vec::new(),
+        element_windows: Vec::new(),
+        active_case: seeded_case,
+    });
+    tracked.len() - 1
 }
 
 /// CASE-CONSTRAINTS (ch12): the case-local `where` fact spans a field write

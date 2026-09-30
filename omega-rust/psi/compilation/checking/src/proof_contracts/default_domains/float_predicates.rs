@@ -27,8 +27,11 @@ pub fn data_float_predicate(
 /// Prove the complete expression predicate of a closed record at zero.
 /// Early callers may precede literal stamping: an anonymous endpoint takes
 /// its format only from the exact opposite field operand, with the same
-/// selected comparison authority checked afterward. This does not establish
-/// contained fields, memberships, cases or binding custody.
+/// selected comparison authority checked afterward. A fact applying a
+/// collection predicate to fields instead holds when exploring the
+/// predicate's checked body at the zeroed fields returns `true` on every
+/// path. This does not establish contained fields, memberships, cases or
+/// binding custody.
 pub fn data_predicates_admit_zero(program: &TypedTrees, definition: &DataDefinition) -> bool {
     if !definition.type_parameters.is_empty()
         || definition.where_facts.is_empty()
@@ -55,6 +58,11 @@ pub fn data_predicates_admit_zero(program: &TypedTrees, definition: &DataDefinit
                 true,
                 0,
             ) == Some(true)
+                || crate::proof_contracts::collection_predicates::data_fact_holds_at_zero(
+                    program,
+                    definition,
+                    *expression,
+                )
         })
 }
 

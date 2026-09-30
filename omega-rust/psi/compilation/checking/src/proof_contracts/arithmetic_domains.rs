@@ -29,6 +29,7 @@ mod assignments;
 mod bitwise;
 mod call_result_bounds;
 mod cast_ranges;
+mod cited_element_bounds;
 mod dependent_products;
 mod dependent_relations;
 pub(crate) mod domain_intervals;
@@ -57,6 +58,7 @@ pub(crate) use assignments::{
 };
 pub(crate) use cast_ranges::record_float_literal_assignment;
 pub(crate) use cast_ranges::validate_range_cast_at_use;
+pub(crate) use cited_element_bounds::{element_place_path, seed_cited_element_bounds};
 pub(crate) use float_arithmetic::float_source_proves_int_cast;
 pub use guard_narrowing::arrival_integer_expression_bounds;
 pub(crate) use guard_narrowing::{

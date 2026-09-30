@@ -19,8 +19,10 @@
 mod assignment_windows;
 pub(crate) mod call_summaries;
 mod data_reads;
+mod element_stores;
 mod float_predicates;
 mod place_queries;
+mod standing_requirements;
 mod state_flow;
 mod symbolic_values;
 #[cfg(test)]
@@ -28,6 +30,7 @@ mod tests;
 mod where_fact_intervals;
 
 pub use float_predicates::{data_float_predicate, data_predicates_admit_zero};
+pub use standing_requirements::standing_facts_prove_requirement;
 pub use where_fact_intervals::{case_where_field_intervals, data_where_field_intervals};
 pub(crate) use where_fact_intervals::{stored_field_where_interval, where_fact_interval};
 
@@ -473,12 +476,30 @@ struct TrackedPlace<'program> {
     /// left the facts FALSE; every consumption point (a read of the place,
     /// a call, state exit) refuses until a later write folds them true.
     window_open: bool,
+    /// Element knowledge of fixed integer array fields that element stores
+    /// in this state wrote, one set per element.
+    elements: Vec<(
+        symbols::SymbolHandle,
+        Vec<crate::proof_contracts::collection_predicates::IntegerSet>,
+    )>,
+    /// Array fields whose element stores left a fact reading their contents
+    /// unproved. Each keeps the place's window open until a later store to
+    /// that field re-proves it; field stores cannot close it.
+    element_windows: Vec<symbols::SymbolHandle>,
     /// CASE-CONSTRAINTS (ch12): the place's currently established case, when
     /// a case literal (or a transported valuation) proves it. Case-local
     /// `where` facts fold on payload writes exactly as type-wide facts fold
     /// on common-field writes; `None` means the case is unknown and a
     /// fact-mentioned payload write joins every candidate case's facts.
     active_case: Option<symbols::SymbolHandle>,
+}
+
+impl TrackedPlace<'_> {
+    /// Whether any invariant window is open on this place: one a field write
+    /// opened, or one an element store opened.
+    fn any_window_open(&self) -> bool {
+        self.window_open || !self.element_windows.is_empty()
+    }
 }
 
 /// Walk one state (write obligations + the access gate), seeded with the
@@ -576,6 +597,7 @@ fn walk_state(
                     assignment.value,
                     &mut tracked,
                     entry_valuations,
+                    &inherited_windows,
                     poisoned_all,
                     &poisoned_paths,
                     born_zero,
@@ -586,7 +608,7 @@ fn walk_state(
                 inherited_windows.retain(|(spelling, _, _)| {
                     !tracked
                         .iter()
-                        .any(|place| place.spelling == *spelling && !place.window_open)
+                        .any(|place| place.spelling == *spelling && !place.any_window_open())
                 });
             }
             // A call OBSERVES state, so it remains a hard consumption point
@@ -666,7 +688,7 @@ fn walk_state(
                     if record_crash_sites {
                         let mut open_data = tracked
                             .iter()
-                            .filter(|place| place.window_open)
+                            .filter(|place| place.any_window_open())
                             .map(|place| place.definition.symbol)
                             .chain(
                                 inherited_windows
@@ -776,7 +798,7 @@ fn walk_state(
     let mut exit_windows = inherited_windows;
     for place in tracked
         .iter()
-        .filter(|place| place.window_open && is_self_rooted(&place.spelling))
+        .filter(|place| place.any_window_open() && is_self_rooted(&place.spelling))
     {
         if !exit_windows
             .iter()

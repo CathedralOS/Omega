@@ -118,5 +118,9 @@ pub(super) fn validate(
             signature,
             value_environment,
         );
+    } else {
+        // Citation: a checked callee's proved element bounds enter the flow
+        // at the exact argument places.
+        arithmetic_domains::seed_cited_element_bounds(program, call, value_environment);
     }
 }
