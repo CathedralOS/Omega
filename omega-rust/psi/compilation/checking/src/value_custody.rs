@@ -21,6 +21,7 @@ pub(crate) mod places;
 pub(crate) mod plan_laid;
 pub(crate) mod recasts;
 pub(crate) mod record_local_disposition;
+pub(crate) mod reference_shells;
 pub(crate) mod scalar_case_constructor;
 pub(crate) mod scalar_representation_range;
 pub(crate) mod storage_contents;

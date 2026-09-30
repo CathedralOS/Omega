@@ -1161,81 +1161,52 @@ pub fn parts(
     Some((*referee, CheckedStructuralAccess::MutableBorrow))
 }
 
-/// The referee beneath any `&mut T` carrier, with constraint shells peeled as
-/// `parts` peels them. Unlike `parts` this does not require a primitive
-/// referent: a `&mut Record` names storage in the caller's frame just as a
-/// `&mut u8` does. Callers that need the primitive-only reference-result
-/// shape keep using `parts`.
+/// The referee beneath any `&mut T` carrier, with constraint shells peeled.
+/// Unlike `parts` this does not require a primitive referent: a
+/// `&mut Record` names storage in the caller's frame just as a `&mut u8`
+/// does. Callers that need the primitive-only reference-result shape keep
+/// using `parts`.
 pub fn mutable_borrowed_parts(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    let mut reference = reference;
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } => {
-                return (*access == language_semantics::ReferenceAccess::Mutable)
-                    .then_some((*referee, CheckedStructuralAccess::MutableBorrow));
-            }
-            _ => return None,
-        }
-    }
+    crate::reference_shell(program, reference)
+        .filter(|shell| shell.access == language_semantics::ReferenceAccess::Mutable)
+        .map(|shell| (shell.referee, CheckedStructuralAccess::MutableBorrow))
 }
 
 /// The named referee beneath a `&'a V` shared-borrowed view, with constraint
-/// shells peeled exactly as `parts` spells its carrier. The referent's
-/// storage lives in the caller's frame like `parts`' loan — it just cannot be
-/// written through.
+/// shells peeled. The referent's storage lives in the caller's frame like
+/// `parts`' loan — it just cannot be written through. The referee must be
+/// spelled as a `Named` type: this is the shared reference-result shape.
 pub fn shared_borrowed_parts(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    let mut reference = reference;
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } => {
-                return (*access == language_semantics::ReferenceAccess::Shared
-                    && matches!(
-                        program.type_reference_table.type_reference(*referee),
-                        TypeReferenceNode::Named { .. }
-                    ))
-                .then_some((*referee, CheckedStructuralAccess::SharedBorrow));
-            }
-            _ => return None,
-        }
-    }
+    crate::reference_shell(program, reference)
+        .filter(|shell| {
+            shell.access == language_semantics::ReferenceAccess::Shared
+                && matches!(
+                    program.type_reference_table.type_reference(shell.referee),
+                    TypeReferenceNode::Named { .. }
+                )
+        })
+        .map(|shell| (shell.referee, CheckedStructuralAccess::SharedBorrow))
 }
 
 /// The referee beneath any `& T` place-loan carrier, with constraint shells
-/// peeled as `shared_borrowed_parts` peels them but without that
-/// classifier's named-referent restriction. A `&[u8; 48]` loan names the
-/// array's storage in the caller's frame just as a `&u32` does — the same
-/// coverage `mutable_borrowed_parts` gives the exclusive side. Callers that
-/// need the shared reference-result shape keep using
-/// `shared_borrowed_parts`.
+/// peeled but without `shared_borrowed_parts`' named-referent restriction. A
+/// `&[u8; 48]` loan names the array's storage in the caller's frame just as
+/// a `&u32` does — the same coverage `mutable_borrowed_parts` gives the
+/// exclusive side. Callers that need the shared reference-result shape keep
+/// using `shared_borrowed_parts`.
 pub fn shared_place_borrowed_parts(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
-    let mut reference = reference;
-    loop {
-        match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } => {
-                return (*access == language_semantics::ReferenceAccess::Shared)
-                    .then_some((*referee, CheckedStructuralAccess::SharedBorrow));
-            }
-            _ => return None,
-        }
-    }
+    crate::reference_shell(program, reference)
+        .filter(|shell| shell.access == language_semantics::ReferenceAccess::Shared)
+        .map(|shell| (shell.referee, CheckedStructuralAccess::SharedBorrow))
 }
 
 /// Source reference use multiplicity does not encode the lifetime obligation
