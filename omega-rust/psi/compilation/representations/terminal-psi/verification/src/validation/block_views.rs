@@ -153,15 +153,18 @@ pub(super) fn validate_successor(
     }
     let mut exclusive = BTreeSet::new();
     for (argument, expected) in arguments.iter().zip(&target.structural_parameters) {
-        // A machine parameter's place dominates every block, so it needs no
-        // `available` row — the same exemption the projected owned argument
-        // below records for its root.
+        // A projected loan's machine-parameter root dominates every block, so
+        // it needs no `available` row — the same exemption the projected owned
+        // argument below records for its root. A whole-view argument transfers
+        // the name itself: once an edge has moved it, `available` no longer
+        // holds it, and a machine parameter gets no exemption to move it again.
         if expected.access == StructuralAccess::MutableBorrow
             && ((!available.contains(&argument.place)
-                && !machine
-                    .structural_parameters
-                    .iter()
-                    .any(|parameter| parameter.place == argument.place))
+                && (argument.path.is_empty()
+                    || !machine
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == argument.place)))
                 || !exclusive.insert(argument.place))
         {
             return Err(ModuleError::InvalidStructuralSuccessorArgument {
