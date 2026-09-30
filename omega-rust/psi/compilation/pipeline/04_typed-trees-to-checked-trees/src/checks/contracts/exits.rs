@@ -19,7 +19,8 @@
 //! contexts prove it or another exit prover does: result domains
 //! (`result_domains`), scalar returns (`scalars`), content preservation,
 //! integer embeddings, float meaning reflexivity, integral parameter
-//! reflexivity, transparent propositions, or an authorized domain
+//! reflexivity, transparent propositions, collection-predicate premises of a
+//! parameter-preserving helper theorem, or an authorized domain
 //! establishment route. A proved loop header invariant (`cyclic_headers`)
 //! also satisfies it. A fact nothing proves is reported with the entry
 //! parameters that lack an origin.
@@ -62,6 +63,25 @@ fn direct_result_float_meaning_reflexivity_proves_exit(
         .proof
         .direct_result_float_meaning_reflexivity(machine_symbol, expression)
         .is_some()
+}
+
+/// A helper theorem over collections: the machine's own `requires`,
+/// including collection-predicate premises explored through the predicate's
+/// checked body, prove the `ensures` expression at an exit that cannot have
+/// changed any parameter.
+fn collection_premises_prove_exit(
+    program: &typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    fact: &facts::Fact,
+) -> bool {
+    let facts::FactPayload::ContractBooleanExpression { expression, .. } = fact.payload else {
+        return false;
+    };
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == state_flow.machine_symbol)
+        .is_some_and(|machine| validation::premises_prove_expression(program, machine, expression))
 }
 
 pub(super) fn check_exit_ensures(
@@ -217,6 +237,7 @@ pub(super) fn check_exit_ensures(
                         || super::entailment::transparent_proposition_proves_exit(
                             program, entailment, state_flow, fact,
                         )
+                        || collection_premises_prove_exit(program, state_flow, fact)
                         || (authorized_route && route_predicates_satisfied)))
                 // A re-entered parameter has no exact origin, so every route
                 // above is vetoed; a proved header invariant is the guarantee

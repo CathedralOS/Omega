@@ -187,6 +187,7 @@ fn poisoned_boot_places_do_not_resurrect_zero_cofields() {
             assignment.value,
             &mut tracked,
             &[],
+            &[],
             poisoned_all,
             &poisoned_paths,
             true,
@@ -233,6 +234,8 @@ fn wildcard_field_invalidation_keeps_an_unknown_tombstone() {
         established: true,
         born_zero: true,
         window_open: false,
+        elements: Vec::new(),
+        element_windows: Vec::new(),
         active_case: None,
     }];
     let mut diagnostics = Vec::new();
@@ -243,6 +246,7 @@ fn wildcard_field_invalidation_keeps_an_unknown_tombstone() {
         assignment.target,
         assignment.value,
         &mut tracked,
+        &[],
         &[],
         false,
         &[],

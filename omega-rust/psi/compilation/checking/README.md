@@ -68,6 +68,23 @@ type. Unknown operands and exhausted work budgets provide no fact. Format and
 contract recognition are shared with checked application binding; portable
 contract-obligation retention and certificate production remain separate work.
 
+[Collection predicates](src/proof_contracts/collection_predicates.rs) give
+[collection invariants](../../../../wiki/spec/language/dependent_values.md#collection-invariants)
+their checked consequences by exploring the predicate machine's own body:
+each array element and scalar argument is a value set that a comparison the
+current sets leave open splits, and paths reaching the same state join.
+Zero initialization decides the predicate at zeroed fields; an element store
+re-decides every fact reading its field from the facts standing before the
+store plus the written value, opening a window otherwise; a helper theorem's
+`ensures` holds when every fork of its evaluation under the premises'
+consequences is true. A citation of such a theorem bounds the exact cited
+element in the caller's arithmetic, and a callee requirement that restates a
+standing `where` fact at the argument's field is discharged by that fact.
+The explored fragment is transitions over builtin comparisons, connectives,
+literals, parameters, in-bounds element reads and Exact index steps; anything
+else stands down, and a complete exploration within its work budget is its
+own termination witness for the exact arguments.
+
 The [proof pass corpus](../../../../tests/omega/pass/proofs) and
 [false twins](../../../../tests/omega/fail/proofs) test this fragment;
 [math_proofs](../../../../samples/cli/proofs/math_proofs) is a readable example.

@@ -15,6 +15,58 @@ use super::{incoming_guard_proves_requires, transition_guard_proves_boolean_requ
 #[cfg(test)]
 mod tests;
 
+/// A collection-predicate requirement over a field of the caller's argument
+/// place is the same fact the place's data states in `where`; it stands at
+/// every call because calls are consumption points for invariant windows.
+fn standing_domain_fact_proves_requirement(
+    program: &TypedTrees,
+    state_flow: &FlowStateFact,
+    call_flow: &FlowCallFact,
+    expression: ExpressionHandle,
+) -> bool {
+    let Some(caller) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+        return false;
+    };
+    let Some(caller_state) = program
+        .machine_states(caller)
+        .iter()
+        .find(|state| state.symbol == state_flow.state_symbol)
+    else {
+        return false;
+    };
+    let Some(call_site) = crate::semantic::calls::find_call_site(
+        program,
+        state_flow.machine_symbol,
+        state_flow.state_symbol,
+        call_flow.statement_index,
+        call_flow.call_ordinal,
+    ) else {
+        return false;
+    };
+    let Some(parameters) =
+        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
+    else {
+        return false;
+    };
+    let Some(callee) =
+        crate::lookup::machine_by_symbol(program, call_flow.target_symbol).or_else(|| {
+            crate::semantic::calls::find_machine_by_entry_state(program, call_flow.target_symbol)
+                .map(|(machine, _)| machine)
+        })
+    else {
+        return false;
+    };
+    validation::standing_facts_prove_requirement(
+        program,
+        caller,
+        caller_state,
+        callee.symbol,
+        parameters,
+        crate::semantic::calls::call_site_argument_expressions(program, &call_site),
+        expression,
+    )
+}
+
 pub(super) fn proves(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -91,7 +143,8 @@ pub(super) fn proves(
             call_flow,
             expression,
             call_frames,
-        );
+        )
+        || standing_domain_fact_proves_requirement(program, state_flow, call_flow, expression);
     if proven {
         return true;
     }

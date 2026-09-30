@@ -34,6 +34,7 @@ pub use proof_contracts::arithmetic_domains::domain_intervals::{
     declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,
     exact_declared_domain_interval,
 };
+pub use proof_contracts::collection_predicates::premises_prove_expression;
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,
 };
@@ -161,7 +162,7 @@ pub use machine_calls::result_overloads::{
 };
 pub use proof_contracts::default_domains::{
     OpenInvariantCrashSite, build_open_invariant_crash_sites, data_float_predicate,
-    data_predicates_admit_zero,
+    data_predicates_admit_zero, standing_facts_prove_requirement,
 };
 pub use proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract;
 pub use proof_contracts::float_projection_bindings::semantic_values::exact_toolchain_float_format_const;

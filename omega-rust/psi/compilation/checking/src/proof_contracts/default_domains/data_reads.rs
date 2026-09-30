@@ -169,7 +169,7 @@ fn scan_expression_use(
         };
         if let Some(place) = tracked
             .iter()
-            .find(|place| place.window_open && overlaps_consumed_value(&place.spelling))
+            .find(|place| place.any_window_open() && overlaps_consumed_value(&place.spelling))
         {
             diagnostics.push(Diagnostic::error(format!(
                 "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
@@ -342,7 +342,8 @@ fn scan_expression_use(
                 program.expression_table.expression(inner.target)
                 && let Some(receiver_spelling) = self_place_spelling(program, member.receiver)
                 && let Some(place) = tracked.iter().find(|place| {
-                    place_spelling_covers(&place.spelling, &receiver_spelling) && place.window_open
+                    place_spelling_covers(&place.spelling, &receiver_spelling)
+                        && place.any_window_open()
                 })
             {
                 validate_data_read(
@@ -578,10 +579,9 @@ fn validate_data_read(
     }
     // Any covering place with an open window polices the read -- a wildcard
     // place's window still covers a closed concrete sibling it subsumes.
-    if tracked
-        .iter()
-        .any(|place| place_spelling_covers(&place.spelling, receiver_spelling) && place.window_open)
-    {
+    if tracked.iter().any(|place| {
+        place_spelling_covers(&place.spelling, receiver_spelling) && place.any_window_open()
+    }) {
         diagnostics.push(Diagnostic::error(format!(
             "reading `{receiver_spelling}.{member_name}` inside an OPEN invariant window: \
              a prior write left data `{}`'s default domain FALSE -- restore the facts \
