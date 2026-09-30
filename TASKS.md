@@ -4878,8 +4878,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   [existing roles](omega-rust/omega/packages/compilation-inputs/semantic_bindings.md)
   for Console, host services and target-correct physical entries.
 
-  Prioritize executable host/objc and
-  `run/nested_mut_alias_assignment_return` customers, then proof/fail
+  Prioritize executable host/objc customers, then proof/fail
   consumers and nested member imports such as the interrupt/secondary-processor
   canaries' std calling contracts. Preserve intended execution and diagnostics,
   including malformed build fixtures. Build and product imports require their
