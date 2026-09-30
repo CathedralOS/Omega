@@ -551,6 +551,16 @@ fn resolve_source(
                     ))?
                     .symbol;
             }
+            // A spelled recast or borrow is not the projected source itself:
+            // the receiver is the borrowed place's own source. Walk through
+            // the `as` wrapper and the `&` to the place they re-view; the
+            // loan's own ledger proves the access it established.
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                cursor = cast.value;
+            }
+            ExpressionNode::Borrow(borrow) => {
+                cursor = borrow.target;
+            }
             _ => {
                 return unsupported(
                     "projected receiver is not a content-independent parameter place",
