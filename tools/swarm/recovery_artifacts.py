@@ -94,6 +94,10 @@ def verify(path, expected=None):
                         or total > MAX_BYTES or len(payloads) >= MAX_FILES + 1):
                     raise RecoveryError("invalid or oversized artifact members")
                 payloads[name] = archive.extractfile(member).read()
+            # tarfile stops at the first end marker. Validate the entire tail:
+            # a second archive must never hide unchecked members from this reader.
+            if len(expanded) - archive.offset < 1024 or any(expanded[archive.offset:]):
+                raise RecoveryError("non-padding content after tar end marker")
         manifest = json.loads(payloads.pop("manifest.json"))
         if (manifest.get("schema") != 1 or not manifest.get("base")
                 or not manifest.get("checkpoint") or not manifest.get("files")

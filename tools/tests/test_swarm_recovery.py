@@ -4,6 +4,7 @@
 import copy
 from datetime import datetime, timedelta, timezone
 import io
+import gzip
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -234,12 +236,12 @@ s.Store(sys.argv[2]).update(1,lambda r:r.update(crash_marker=True))
     def artifact(self):
         (self.root / "candidate.patch").write_bytes(b"incomplete patch\n")
         return artifacts.pack(self.root, ["candidate.patch"], self.root / "recovery.tar.gz",
-                              "a" * 40, recovery.fingerprint(self.record()["lanes"]["atomic"]["checkpoint"]))
+                              "a" * 40, recovery.checkpoint_identity(self.record(), "atomic"))
 
     def test_confirmed_backup_is_exact_and_becomes_stale_with_checkpoint(self):
         artifact = self.artifact()
         self.update(lambda r: recovery.backup(r, "atomic", artifact))
-        self.assertFalse(recovery.protected(self.record()["lanes"]["atomic"]))
+        self.assertFalse(recovery.protected(self.record(), "atomic"))
         self.update(lambda r: recovery.intent(r, "atomic", "upload-1", "mutation"))
         receipt = dict(status="succeeded", operation="upload-1", route="fake-approved-route",
                        file_id="saved-identity", version=0, sha256=artifact["sha256"], bytes=artifact["bytes"])
@@ -247,9 +249,9 @@ s.Store(sys.argv[2]).update(1,lambda r:r.update(crash_marker=True))
         with self.assertRaises(RecoveryError):
             self.update(lambda r: recovery.backup(r, "atomic", artifact, invalid))
         self.update(lambda r: recovery.backup(r, "atomic", artifact, receipt))
-        self.assertTrue(recovery.protected(self.record()["lanes"]["atomic"]))
+        self.assertTrue(recovery.protected(self.record(), "atomic"))
         self.update(lambda r: recovery.checkpoint(r, "atomic", dict(status="incomplete", summary="new edits")))
-        self.assertFalse(recovery.protected(self.record()["lanes"]["atomic"]))
+        self.assertFalse(recovery.protected(self.record(), "atomic"))
 
     def test_corrupt_and_truncated_archive_are_not_backups(self):
         artifact = self.artifact()
@@ -323,6 +325,145 @@ s.Store(sys.argv[2]).update(1,lambda r:r.update(crash_marker=True))
         second = subprocess.run(args, capture_output=True, text=True, timeout=10)
         self.assertEqual(second.returncode, 1)
         self.assertIn("already recorded", second.stdout)
+
+    def run_args(self, store, name, operation, kind="read", code="pass", timeout="5"):
+        return [sys.executable, str(ROOT / "tools/swarm/recovery.py"), "--state", str(store.path),
+                "--revision", str(store.load()["revision"]), "run", "--lane", name,
+                "--operation", operation, "--kind", kind, "--timeout", timeout,
+                "--cwd", str(self.root), "--", sys.executable, "-c", code]
+
+    def test_concurrent_lane_update_does_not_lose_build_completion(self):
+        self.update(lambda r: recovery.register(r, lane("peer")))
+        code = "from pathlib import Path; import time; Path('ready').touch(); " + \
+               "exec(\"while not Path('go').exists(): time.sleep(0.01)\"); Path('once').write_text('ran')"
+        process = subprocess.Popen(self.run_args(self.store, "atomic", "build-1", "build", code),
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.monotonic() + 5
+            while not (self.root / "ready").exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue((self.root / "ready").exists())
+            self.update(lambda r: recovery.checkpoint(r, "peer", dict(status="blocked", summary="peer progress")))
+            (self.root / "go").touch()
+            stdout, stderr = process.communicate(timeout=10)
+            self.assertEqual(process.returncode, 0, stdout + stderr)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
+        op = self.record()["lanes"]["atomic"]["operations"]["build-1"]
+        self.assertEqual((op["exit"], op["outcome"], op["local_result"]), (0, "succeeded", "exited"))
+        self.assertIsInstance(op["pid"], int)
+        self.assertIsNotNone(self.record()["build_slot"])
+        revision = self.record()["revision"]
+        recovery.complete(self.store, "atomic", "build-1")
+        self.assertEqual(self.record()["revision"], revision)
+        self.adapter.effects["build-1"] = dict(process="stopped", children_stopped=True, evidence="fake exact process tree")
+        self.update(lambda r: recovery.reconcile(r, self.adapter.observe(r)))
+        self.assertIsNone(self.record()["build_slot"])
+        self.update(lambda r: recovery.intent(r, "atomic", "build-2", "build"))
+
+    def test_durable_completion_survives_merge_failure_and_refuses_changed_identity(self):
+        self.update(lambda r: recovery.intent(r, "atomic", "read-1", "read"))
+        identity = recovery.execution_identity(self.record(), "atomic", "read-1")
+        _, path = recovery.execution_paths(self.store, identity)
+        atomic_json(path, dict(schema=1, identity=identity,
+                    result=dict(result="exited", exit=7, process="stopped", pid=123)))
+        with mock.patch.object(self.store, "update_guarded", side_effect=RecoveryError("busy")):
+            with self.assertRaises(RecoveryError):
+                recovery.complete(self.store, "atomic", "read-1")
+        self.assertTrue(path.is_file())
+        recovery.complete(self.store, "atomic", "read-1")
+        self.assertEqual(self.record()["lanes"]["atomic"]["operations"]["read-1"]["exit"], 7)
+        envelope = json.loads(path.read_text()); envelope["identity"]["generation"] = "another"
+        atomic_json(path, envelope)
+        with self.assertRaises(RecoveryError):
+            recovery.complete(self.store, "atomic", "read-1")
+
+    def test_timeout_without_exit_resolves_only_local_quiescence(self):
+        for kind in ("build", "mutation"):
+            with self.subTest(kind=kind):
+                op = kind + "-timeout"
+                result = subprocess.run(self.run_args(self.store, "atomic", op, kind,
+                                                     "import time; time.sleep(20)", "0.05"),
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stdout)
+                self.adapter.effects[op] = dict(process="stopped", children_stopped=True, evidence="exact stopped tree")
+                self.update(lambda r: recovery.reconcile(r, self.adapter.observe(r)))
+                value = self.record()["lanes"]["atomic"]["operations"][op]
+                self.assertIsNone(value["exit"])
+                self.assertEqual(value["outcome"], "unknown" if kind == "mutation" else "stopped_unknown_result")
+                if kind == "mutation":
+                    with self.assertRaises(RecoveryError):
+                        self.update(lambda r: recovery.intent(r, "atomic", "no-retry", "mutation"))
+                else:
+                    self.assertIsNone(self.record()["build_slot"])
+                    retry = subprocess.run(self.run_args(self.store, "atomic", "intentional-new-build", "build"),
+                                           capture_output=True, text=True, timeout=10)
+                    self.assertEqual(retry.returncode, 0, retry.stdout)
+                    self.adapter.effects["intentional-new-build"] = dict(
+                        process="stopped", children_stopped=True, evidence="new exact stopped tree")
+                    self.update(lambda r: recovery.reconcile(r, self.adapter.observe(r)))
+
+    def test_log_and_result_namespaces_cover_lane_and_ledger(self):
+        self.update(lambda r: recovery.register(r, lane("peer")))
+        second = Store(self.root / "second.json"); second.initialize("host-b", "boot-b")
+        second.update(0, lambda r: recovery.register(r, lane()))
+        paths = []
+        for store, name in ((self.store, "atomic"), (self.store, "peer"), (second, "atomic")):
+            result = subprocess.run(self.run_args(store, name, "inspect-1"), capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stdout)
+            identity = recovery.execution_identity(store.load(), name, "inspect-1")
+            log, receipt = recovery.execution_paths(store, identity)
+            self.assertTrue(log.exists() and receipt.exists()); paths.append(log)
+        self.assertEqual(len(set(paths)), 3)
+
+    def test_known_pre_dispatch_failures_are_not_uncertain_effects(self):
+        log = self.root / "exists.log"; log.touch()
+        with mock.patch.object(recovery.subprocess, "Popen") as launch:
+            result = recovery.bounded_command(["never"], self.root, log, 1)
+            launch.assert_not_called()
+        self.assertEqual(result["result"], "not_started")
+        result = recovery.bounded_command([str(self.root / "absent-executable")], self.root,
+                                           self.root / "new.log", 1)
+        self.update(lambda r: recovery.intent(r, "atomic", "never-started", "mutation"))
+        identity = recovery.execution_identity(self.record(), "atomic", "never-started")
+        _, path = recovery.execution_paths(self.store, identity)
+        atomic_json(path, dict(schema=1, identity=identity, result=result))
+        recovery.complete(self.store, "atomic", "never-started")
+        self.assertEqual(self.record()["lanes"]["atomic"]["operations"]["never-started"]["outcome"], "not_started")
+        self.update(lambda r: recovery.intent(r, "atomic", "new-attempt", "mutation"))
+
+    def test_backup_cannot_revive_by_omitting_head_or_cross_lanes(self):
+        original = copy.deepcopy(self.record()["lanes"]["atomic"]["checkpoint"])
+        artifact = self.artifact()
+        self.update(lambda r: recovery.intent(r, "atomic", "upload", "mutation"))
+        receipt = dict(operation="upload", status="succeeded", file_id="fake", version=0,
+                       route="fake", sha256=artifact["sha256"], bytes=artifact["bytes"])
+        self.update(lambda r: recovery.backup(r, "atomic", artifact, receipt))
+        self.assertTrue(recovery.protected(self.record(), "atomic"))
+        self.update(lambda r: recovery.register(r, lane("peer")))
+        with self.assertRaises(RecoveryError):
+            self.update(lambda r: recovery.backup(r, "peer", artifact))
+        self.update(lambda r: recovery.checkpoint(r, "atomic", dict(status="incomplete", summary="new", head="c" * 40)))
+        self.update(lambda r: recovery.checkpoint(r, "atomic", original))
+        self.assertEqual(self.record()["lanes"]["atomic"]["head"], "c" * 40)
+        self.assertFalse(recovery.protected(self.record(), "atomic"))
+        with self.assertRaises(RecoveryError):
+            self.update(lambda r: recovery.backup(r, "atomic", artifact, receipt))
+
+    def test_concatenated_tar_and_nonpadding_trailing_content_rejected(self):
+        self.artifact()
+        path = self.root / "recovery.tar.gz"
+        valid = gzip.decompress(path.read_bytes())
+        tail = io.BytesIO()
+        with tarfile.open(fileobj=tail, mode="w") as tar:
+            info = tarfile.TarInfo("../unsafe"); info.size = 1; tar.addfile(info, io.BytesIO(b"x"))
+        for suffix in (tail.getvalue(), b"unchecked bytes"):
+            path.write_bytes(gzip.compress(valid + suffix))
+            with self.assertRaises(RecoveryError): artifacts.verify(path)
+        path.write_bytes(gzip.compress(valid + bytes(1024)))
+        artifacts.verify(path)
 
     def test_fill_ledger_uses_atomic_writer(self):
         import fill

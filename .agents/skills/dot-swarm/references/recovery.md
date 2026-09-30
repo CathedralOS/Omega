@@ -12,6 +12,9 @@ No documented keep-alive control is available here. Do not create busy loops.
 bounded command wrapper and read-only decision planner. Python 3.9+ and Git are
 the existing prerequisites; use `python` instead of `python3` on Windows when
 appropriate. OS file locks release on process exit on Linux, macOS and Windows.
+Ledger schema 2 binds execution and checkpoint identities. Earlier schema-1
+review ledgers are refused, never silently upgraded or reset; preserve them and
+reconcile their observations explicitly before registering new work.
 An interrupted write leaves the previous or next complete revision, never a
 partially written record. Temporary files are not committed state. Filesystem
 or machine destruction still requires an independently confirmed backup.
@@ -67,7 +70,11 @@ Checkpoint before long commands, blocked waits, or any remote mutation. Record
 commands/exits, unrun gates, patch hash, residuals and exact base in the checkpoint;
 `status` is `incomplete`, `blocked` or `validated`, never inferred from agent exit.
 After legitimate source progress include new `head` and `reviewed_main` values
-from Git. No recovery command rebases or upgrades validation evidence.
+from Git. Each checkpoint call increments its lane's checkpoint revision. Backup
+identity always includes the lane's canonical HEAD/base, executor/generation,
+lane/assignment and that revision, even when the input omits `head`. Repeating
+old summary text cannot revive an old backup. No recovery command rebases or
+upgrades validation evidence.
 
 ```sh
 python3 tools/swarm/recovery.py --state build/swarm/recovery/host-a.json --revision 1 checkpoint --lane atomic --input build/swarm/checkpoint.json
@@ -111,8 +118,23 @@ For a local command, use the same journal with an explicit wall-clock limit:
 python3 tools/swarm/recovery.py --state build/swarm/recovery/host-a.json --revision 4 run --lane atomic --operation claim-status-1 --kind read --timeout 45 --cwd /executor-local/Omega -- python3 tools/claims.py status
 ```
 
-`run` executes once without a shell, records intent before starting, and retains a
-local `<operation>.log`. It never stores argv or environment in the journal.
+`run` executes once without a shell and records intent before starting. Logs and
+durable results live under `<state filename>.executions/<identity hash>/`, bound
+to that ledger, executor/generation, lane/assignment, worker and unique execution
+ID. Duplicate operation names in other lanes or ledgers cannot collide. It never
+stores argv or environment in the journal.
+The result is atomically saved before merging into the ledger. The merge checks
+the exact execution identity under the lock, so an unrelated lane update cannot
+discard the exit/PID/result. If the merge is interrupted or busy, replay only the
+saved evidence (no `--revision`; this is an identity-guarded merge):
+
+```sh
+python3 tools/swarm/recovery.py --state build/swarm/recovery/host-a.json complete --lane atomic --operation claim-status-1
+```
+
+`complete` never executes the command. Repeating it is idempotent. Missing,
+conflicting or mismatched evidence stops for reconciliation. A process crash
+before the result was saved can still lose the exit; never invent it.
 Nonzero/timeout results are not automatically retried. Mutation exits still need
 remote read-only reconciliation. The wrapper bounds its client, **not** the remote
 operation. A zero wrapper exit means the result was recorded: inspect the
@@ -121,7 +143,12 @@ On interruption POSIX signals its own process group; Windows stops
 its own parent. Detached descendants remain possible: no timeout releases a
 build slot. For builds use `--kind build`; the slot stays reserved until a fresh
 observation proves the matching operation and children stopped. An agent-turn
-interrupt alone does not do that. Do not run `fill.py recover --execute` based
+interrupt alone does not do that. When fresh exact-operation evidence proves a
+local read/build and its children stopped but no exit survived, reconciliation
+records `stopped_unknown_result`: terminal, never a pass. A deliberate new intent
+may then start another attempt. Remote mutations remain `unknown` until their
+effect is reconciled. A log-open/process-creation failure before dispatch is
+`not_started`, not an uncertain started process. Do not run `fill.py recover --execute` based
 only on its old `dead` ledger flag; perform this reconciliation first.
 
 After a resolved `not_applied` result, a retry still requires the existing
@@ -141,7 +168,8 @@ python3 tools/swarm/recovery.py --state build/swarm/recovery/host-a.json --revis
 ```
 
 This exclusively creates a bounded archive with a member manifest and verifies
-every member checksum, byte count, base and checkpoint identity. It records
+every member checksum, byte count, base and canonical checkpoint identity;
+non-padding content after the tar end marker is rejected. It records
 `local-only`, not a backup success. A failed/interrupted pack is invalid; inspect
 and choose a fresh destination rather than overwriting a potentially saved file.
 
