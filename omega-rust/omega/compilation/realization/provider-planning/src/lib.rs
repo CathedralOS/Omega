@@ -66,11 +66,10 @@ pub use provider_planning::{
     SelectedProviderPlanBinding, SelectedProviderPlanWithProvenance,
     SelectedProviderReviewProvenance, SelectedTargetMachineOrigin,
     bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter,
-    extract_external_binding_rows, extract_native_external_binding_rows,
-    satisfied_requirement_identity, satisfies_plan_name, select_derived_provider_plans,
-    select_provider_plans, selected_provider_plan_facts,
+    satisfies_plan_name, select_derived_provider_plans, selected_provider_plan_facts,
     selected_provider_plan_facts_with_independent_components, selected_requirement_checked_adapter,
-    selected_requirement_plan, selected_use_plan, settle_external_binding_rows,
-    validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
-    validate_selected_synchronous_invocation_cycles,
+    selected_requirement_plan, selected_use_plan, validate_derived_provider_plan_candidates,
+};
+pub(crate) use provider_planning::{
+    extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,
 };

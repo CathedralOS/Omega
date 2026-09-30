@@ -1,7 +1,4 @@
-use super::{
-    extract_external_binding_rows, extract_native_external_binding_rows,
-    selected_source_boundary_entry_plan, settle_external_binding_rows,
-};
+use super::{extract_native_external_binding_rows, selected_source_boundary_entry_plan};
 use crate::ProviderPlanDerivation;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use calling_conventions::{
@@ -13,7 +10,6 @@ use effects::provider_plan::{
     EvaluatedForeignImport, ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod,
     ServiceSchema,
 };
-use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::name::Identifier;
@@ -233,105 +229,83 @@ fn add_import_row(fixture: &mut Fixture) -> EvaluatedForeignImport {
 }
 
 #[test]
-fn checked_surface_settlement_retains_exact_rows_and_preserves_equal_arc_identity() {
+fn native_extraction_retains_the_exact_selected_import_row() {
     let mut fixture = fixture(false);
-    add_import_row(&mut fixture);
-    let expected = extract_external_binding_rows(
-        None,
-        target::NativeTarget::host(),
-        &fixture.plans,
-        &fixture.realizations,
-        &fixture.typed,
-        &[],
-    )
-    .expect("pre-settlement reference projection");
-    let mut retained = Arc::from([]);
+    let evaluated = add_import_row(&mut fixture);
 
-    settle_external_binding_rows(
-        &mut retained,
-        &fixture.typed,
+    let rows = extract_native_external_binding_rows(
         None,
         target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
+        &fixture.typed,
         &[],
     )
-    .expect("checked-retained typed projection");
-    assert_eq!(retained.as_ref(), expected.as_slice());
+    .expect("selected import row projects");
 
-    let first = Arc::clone(&retained);
-    settle_external_binding_rows(
-        &mut retained,
-        &fixture.typed,
-        None,
-        target::NativeTarget::host(),
-        &fixture.plans,
-        &fixture.realizations,
-        &[],
-    )
-    .expect("identical settlement is a no-op");
-    assert!(Arc::ptr_eq(&first, &retained));
+    let [row] = rows.as_slice() else {
+        panic!("one selected import row")
+    };
+    assert_eq!(row.target_name, "windows_x86_64");
+    assert_eq!(row.trait_name, SCHEMA_NAME);
+    assert_eq!(row.method, METHOD_NAME);
+    assert_eq!(row.requirement_identity, fixture.requirement_identity);
+    assert_eq!(row.table_type, "RetainedProvider");
+    assert!(matches!(
+        &row.binding,
+        calling_conventions::ExternalBindingKind::Import { locator }
+            if locator == evaluated.locator()
+    ));
+    assert!(row.boundary_entry_plan.is_some());
 }
 
 #[test]
-fn empty_settlement_preserves_arc_identity() {
-    let fixture = fixture(false);
-    let mut retained = Arc::from([]);
-    let initial = Arc::clone(&retained);
+fn native_extraction_skips_rows_without_an_import_or_syscall() {
+    let mut fixture = fixture(false);
+    fixture.plans[0].rows.push(ProviderPlanRow {
+        method: METHOD_NAME.to_owned(),
+        requirement_identity: fixture.requirement_identity.clone(),
+        requirement_lifetime_partition: Vec::new(),
+        binding: ProviderBinding::CompilerIntrinsic {
+            machine: "Provider::enter".to_owned(),
+        },
+    });
 
-    settle_external_binding_rows(
-        &mut retained,
-        &fixture.typed,
+    let rows = extract_native_external_binding_rows(
         None,
         target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
+        &fixture.typed,
         &[],
     )
-    .expect("empty selected binding projection");
+    .expect("a compiler intrinsic keeps its specialized lowering");
 
-    assert!(Arc::ptr_eq(&initial, &retained));
-    assert!(retained.is_empty());
+    assert!(rows.is_empty());
 }
 
 #[test]
-fn rejected_settlement_preserves_prior_arc_identity_and_contents() {
+fn native_extraction_rejects_a_duplicated_exact_schema_method() {
     let mut fixture = fixture(false);
     add_import_row(&mut fixture);
-    let mut retained = Arc::from([]);
-    settle_external_binding_rows(
-        &mut retained,
-        &fixture.typed,
-        None,
-        target::NativeTarget::host(),
-        &fixture.plans,
-        &fixture.realizations,
-        &[],
-    )
-    .expect("initial exact settlement");
-    let accepted = Arc::clone(&retained);
-    let retained_contents = retained.to_vec();
-
     let duplicate = fixture.plans[0].schema.methods[0].clone();
     fixture.plans[0].schema.methods.push(duplicate);
-    let diagnostics = settle_external_binding_rows(
-        &mut retained,
-        &fixture.typed,
+
+    let diagnostics = extract_native_external_binding_rows(
         None,
         target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
+        &fixture.typed,
         &[],
     )
-    .expect_err("duplicate exact schema method must reject before publication");
+    .expect_err("duplicate exact schema method must reject");
 
     assert!(
         diagnostics
             .iter()
             .any(|diagnostic| diagnostic.message.contains("binds 2 exact schema methods"))
     );
-    assert!(Arc::ptr_eq(&accepted, &retained));
-    assert_eq!(retained.as_ref(), retained_contents);
 }
 
 #[test]
@@ -374,7 +348,7 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
         panic!("one top-level external provider plan")
     };
 
-    let rows = extract_external_binding_rows(
+    let rows = extract_native_external_binding_rows(
         Some("linux_x86_64"),
         target::NativeTarget::linux_x64(),
         std::slice::from_ref(plan),
@@ -402,18 +376,6 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
         "the requirement's semantic `self` carrier and ordinary value parameter both cross the external ABI",
     );
     assert!(entry.call.result.is_none());
-    assert_eq!(
-        extract_native_external_binding_rows(
-            Some("linux_x86_64"),
-            target::NativeTarget::linux_x64(),
-            std::slice::from_ref(plan),
-            &[],
-            &typed,
-            &[],
-        )
-        .expect("native syscall handoff preserves the same top-level carrier ABI"),
-        rows,
-    );
 }
 
 #[test]

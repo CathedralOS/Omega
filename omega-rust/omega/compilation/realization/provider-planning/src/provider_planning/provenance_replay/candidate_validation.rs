@@ -24,7 +24,7 @@ use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, S
 /// only then may checked-adapter reach be compared with its public ceiling.
 /// Independent operational refinement is validated by the machine-conformance
 /// checker that produced the candidate.
-pub fn validate_provider_plan_candidates(
+pub(crate) fn validate_provider_plan_candidates(
     context: ProviderPlanningContext<'_>,
     plans: &[effects::provider_plan::ProviderPlan],
 ) -> Vec<diagnostics::Diagnostic> {

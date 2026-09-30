@@ -36,10 +36,7 @@ pub use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
-pub use external_binding_rows::{
-    extract_external_binding_rows, extract_native_external_binding_rows,
-    settle_external_binding_rows,
-};
+pub(crate) use external_binding_rows::extract_native_external_binding_rows;
 #[cfg(feature = "installed-writer")]
 pub use installed_writer::{
     AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,
@@ -56,11 +53,13 @@ pub use installed_writer::{
 pub use operator_provider_evidence::{selected_requirement_plan, selected_use_plan};
 #[cfg(test)]
 pub(crate) use provenance_replay::exact_checked_adapter_invocations;
+#[cfg(test)]
+pub(crate) use provenance_replay::validate_provider_plan_candidates;
 pub use provenance_replay::{
     DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter,
-    satisfied_requirement_identity, satisfies_plan_name, selected_requirement_checked_adapter,
-    validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
+    satisfies_plan_name, selected_requirement_checked_adapter,
+    validate_derived_provider_plan_candidates,
 };
 pub use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{
@@ -68,7 +67,7 @@ pub use selection_provenance::{
     SelectedProviderReviewProvenance, selected_provider_plan_facts,
     selected_provider_plan_facts_with_independent_components,
 };
-pub use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
+pub(crate) use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
 use effects::provider_grants::AuthoredRootGrant;
 use effects::provider_grants::resolve_selected_provider_grants;
@@ -139,21 +138,8 @@ pub fn bind_selected_provider_plan_facts(
 /// slot. An explicit build-root declaration wins over the selected target
 /// package's ordinary default declaration. Without either, a unique covering
 /// candidate supplies the declaration-era default. Rows are never selected
-/// individually and partial candidates never combine.
-pub fn select_provider_plans(
-    plans: &[effects::provider_plan::ProviderPlan],
-    selected_target: target::NativeTarget,
-    defaults: &[crate::ProviderSelection],
-    requested: &[crate::ProviderSelection],
-) -> Result<Vec<ProviderPlan>, Vec<diagnostics::Diagnostic>> {
-    select_provider_plan_indices(plans, selected_target, defaults, requested).map(|selected| {
-        selected
-            .into_iter()
-            .map(|selected| plans[selected.candidate].clone())
-            .collect()
-    })
-}
-
+/// individually and partial candidates never combine. Each selected plan keeps
+/// its derivation provenance and the authority that selected it.
 pub fn select_derived_provider_plans(
     derived: &[DerivedProviderPlan],
     selected_target: target::NativeTarget,

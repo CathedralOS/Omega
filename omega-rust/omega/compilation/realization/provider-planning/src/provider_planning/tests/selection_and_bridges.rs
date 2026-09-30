@@ -1,13 +1,11 @@
 use super::{
     CheckedInvocationDrift, SelectedInvocationDrift, append_admitted_fact,
     bind_selected_provider_plan_facts_for_test, boundary_trait, checked_invocation_fixture,
-    push_boundary_requirement, selected_plan_names, selection_plan, set_exact_requirement,
+    push_boundary_requirement, select_provider_plans, selected_plan_names, selection_plan,
+    set_exact_requirement,
 };
 use crate::provider_planning::exact_checked_adapter_invocations;
-use crate::{
-    bind_selected_provider_plan_facts, select_provider_plans,
-    validate_selected_synchronous_invocation_cycles,
-};
+use crate::{bind_selected_provider_plan_facts, validate_selected_synchronous_invocation_cycles};
 #[cfg(feature = "installed-writer")]
 use crate::{selected_external_root_provider_plan, selected_external_root_provider_plan_id};
 use effects::provider_grants::{ProviderGrantSelectorKind, resolve_selected_provider_grants};

@@ -19,16 +19,16 @@ pub(crate) use adapter_conformance::{
     exact_authored_invocations, exact_checked_adapter_invocations, exact_row_for_schema_method,
 };
 pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
+pub use candidate_validation::validate_derived_provider_plan_candidates;
 pub(crate) use candidate_validation::validate_derived_provider_plan_provenance;
-pub use candidate_validation::{
-    validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
-};
+#[cfg(test)]
+pub(crate) use candidate_validation::validate_provider_plan_candidates;
 #[cfg(feature = "installed-writer")]
 pub(crate) use requirement_identities::same_semantic_name;
+pub use requirement_identities::satisfies_plan_name;
 pub(crate) use requirement_identities::{
     exact_satisfied_requirement_identity, satisfied_row_requirement,
 };
-pub use requirement_identities::{satisfied_requirement_identity, satisfies_plan_name};
 pub(crate) use specialization_rows::derive_selected_requirement_specializations;
 
 use super::ProviderPlan;
