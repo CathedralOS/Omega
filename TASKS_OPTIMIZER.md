@@ -263,35 +263,42 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   does not close them. Keep earlier source/lowering refusals with their owning
   task while carrying this customer through native replay.
 
-- **JOIN-INVARIANT-REWRITE-TRANSPORT.** (new-scope) Preserve useful scalar
-  rewrites when retained join invariants name the values being rewritten, or
-  expose a deliberate refusal through an observable optimization decision.
+- **JOIN-INVARIANT-REWRITE-TRANSPORT.** Let useful scalar rewrites survive
+  when retained join invariants name the values being rewritten.
   Owners: stage 05's `proofs/scalar_block_invariants/joins.rs`, stage 06's
   `copy_propagation` and `dead_scalar_elimination`, and their independent
   Terminal rewrite validators.
 
-  Literal joins no longer create invariants in machines with no reconstructed
-  obligation: `joins::candidates` gates the interval proposal on a machine-owned
-  question. The remaining case is a proof-bearing machine. In
-  `preterminal_optimization.rs`,
-  `consumed_literal_join_keeps_the_invariant_and_refuses_rewrites` combines a
-  runtime-index obligation with constant-return arms and asserts both passes
-  leave the complete module unchanged. Both passes now record the refusal as a
-  `PsiRewriteRefusal` on `PsiOptimizationStageResult::refusals()` (07a2bd6072;
-  `ChangedProofQuestion`/`ProposalLeftProofContextDangling`, producer-side only
-  — not encoded in the canonical execution record), and
-  `unconsumed_literal_join_rewrites_without_refusal` is the no-obligation
-  control. Missing: the verifier-side proof-context transport that would let
-  the rewrites survive, and surfacing `refusals()` past terminal-production
-  into compiler reports. This preserves correctness and is an optimization
-  limitation, not a blocker to ordinary native execution.
+  The refusal half is done. Both passes record a `PsiRewriteRefusal` on
+  `PsiOptimizationStageResult::refusals()`, terminal production projects those
+  onto `optimization_core::WithheldRewrite` in the shared
+  `OptimizationReasonCode` vocabulary, `CompileReport::withheld_rewrites()`
+  carries them out of both the Terminal and native routes, and the CLI names
+  the exact rule and reason. `driver/tests/withheld_rewrite_reporting.rs`
+  compiles a consumed-join customer and asserts both passes reach the report,
+  with a selection-without-an-invariant control; the stage-level
+  `consumed_literal_join_keeps_the_invariant_and_refuses_rewrites` and
+  `unconsumed_literal_join_rewrites_without_refusal` remain the pass-local
+  controls. The record stays producer-side: it is not encoded in the canonical
+  execution record and the published module is identical either way.
 
-  Acceptance: a source/corpus customer with a consumed join invariant either
-  retains the selected rewrites through independently checked proof-context
-  transport, or reports the deliberate refusal. Cover the no-obligation control
-  and both passes. Preserve exact proof questions, value/ranking identities and
-  rejection of forged context changes; changing arm constants to avoid the
-  invariant does not test the missing behavior.
+  Remaining: the verifier-side proof-context transport that would let the
+  rewrites survive instead of being withheld. A retained invariant must be
+  able to move with the rewrite under independent checking, so the validator
+  reconstructs the same proof question from the proposal rather than a
+  different one. This is an optimization limitation, not a blocker to ordinary
+  native execution.
+
+  Acceptance: a consumed-join customer retains the selected rewrites through
+  independently checked proof-context transport, and the withheld-rewrite
+  report for it goes empty. Preserve exact proof questions, value/ranking
+  identities and rejection of forged context changes; changing arm constants
+  to avoid the invariant does not test the missing behavior.
+
+  The driver fixture also records a separate native-emission gap worth its own
+  customer: its shape reaches Terminal but fails image emission with
+  `shared function contains an unaccounted operation`, with or without the
+  dead scalar, so it is a driver fixture rather than a corpus one.
 
 - **GENERAL-LICM.** Extend invariant motion beyond the current operation
   and custody restrictions and authenticated shared-source preheader. Owner:

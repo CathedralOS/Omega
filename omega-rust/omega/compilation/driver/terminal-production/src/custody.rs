@@ -36,11 +36,23 @@ pub struct ProducedTerminalArtifact<C> {
         Vec<LoweredSelectedIeeeFloatComparisonOccurrence>,
     pub(super) selected_integer_comparison_occurrences:
         Vec<LoweredSelectedIntegerComparisonOccurrence>,
+    /// Rewrites a selected pass proposed and then withheld. Empty when every
+    /// pass either rewrote or found nothing; the published artifact is the
+    /// same either way.
+    pub(super) withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
 }
 
 impl<C> ProducedTerminalArtifact<C> {
     pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
         &self.artifact
+    }
+
+    /// The rewrites selected passes proposed and withheld, with the reason
+    /// each validator gave. A pass that found nothing to rewrite records
+    /// nothing here, so an empty slice and a withheld proposal stay
+    /// distinguishable in the report.
+    pub fn withheld_rewrites(&self) -> &[optimization_core::WithheldRewrite] {
+        &self.withheld_rewrites
     }
 
     /// The checked `ProgramEntry` receipt, present exactly when the request

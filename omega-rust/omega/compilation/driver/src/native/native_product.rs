@@ -27,8 +27,11 @@ pub fn produce_native_report(
         rollback.effective(),
     )?;
     let post_terminal = rollback.effective().project_post_terminal();
+    // The same Psi passes ran here, so a native product explains its
+    // withheld rewrites exactly as a Terminal product does.
+    let withheld_rewrites = terminal.withheld_rewrites;
     let artifact = crate::native::realize_retained_native_artifact(
-        terminal,
+        terminal.artifact,
         compilation_products::RetainedNativeRealizationRequest {
             profile: &request.terminal_admission_profile,
             optimization_selections: post_terminal.selections(),
@@ -42,11 +45,13 @@ pub fn produce_native_report(
         },
     )
     .map_err(|(_, diagnostics)| diagnostics)?;
-    checked.native_report(
-        request.root_path,
-        artifact,
-        rollback.into_receipt(),
-        production_subject,
-        request.terminal_admission_profile,
-    )
+    checked
+        .native_report(
+            request.root_path,
+            artifact,
+            rollback.into_receipt(),
+            production_subject,
+            request.terminal_admission_profile,
+        )
+        .map(|report| report.with_withheld_rewrites(withheld_rewrites))
 }

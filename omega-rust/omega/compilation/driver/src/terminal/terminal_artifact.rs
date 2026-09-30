@@ -67,14 +67,16 @@ pub fn produce_terminal_report(
     )?;
     let production_subject = checked.production_subject()?;
     let rollback = rollback.settle(&checked.build().config.settings.optimizations);
-    let artifact = produce_retained_terminal_artifact(&mut checked, profile, rollback.effective())?;
-    checked.terminal_report(
-        root_path,
-        artifact,
-        production_subject,
-        rollback.into_receipt(),
-        profile.clone(),
-    )
+    let produced = produce_retained_terminal_artifact(&mut checked, profile, rollback.effective())?;
+    checked
+        .terminal_report(
+            root_path,
+            produced.artifact,
+            production_subject,
+            rollback.into_receipt(),
+            profile.clone(),
+        )
+        .map(|report| report.with_withheld_rewrites(produced.withheld_rewrites))
 }
 
 /// Produce one verified retained Terminal product from the complete checked
@@ -84,11 +86,21 @@ pub fn produce_terminal_report(
 /// semantic and proof sections under the request admission profile, and binds
 /// the target-owned native-realization proposal. It does not assemble a
 /// compiler report or enter native realization.
+/// The retained product and the pass decisions that explain it.
+///
+/// The decisions are producer-side explanation, so they ride beside the
+/// canonical artifact rather than on it: the artifact is the same bytes
+/// whether a pass withheld a rewrite or found none.
+pub(crate) struct ProducedRetainedTerminal {
+    pub(crate) artifact: compilation_products::RetainedTerminalArtifact,
+    pub(crate) withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
+}
+
 pub(crate) fn produce_retained_terminal_artifact(
     checked: &mut CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     selections: &optimization_core::OptimizationSelections,
-) -> Result<compilation_products::RetainedTerminalArtifact, Vec<Diagnostic>> {
+) -> Result<ProducedRetainedTerminal, Vec<Diagnostic>> {
     let selected_program_entry = checked.admit_terminal_production()?;
     let entry_machine_symbol = selected_program_entry.source_signature().machine_symbol();
     let source_signature_identity = selected_program_entry.source_signature().identity().bytes();
@@ -138,6 +150,8 @@ pub(crate) fn produce_retained_terminal_artifact(
         produced.unoptimized(),
         entry_machine_symbol,
     )?;
+    // Read before `into_parts` consumes the production result.
+    let withheld_rewrites = produced.withheld_rewrites().to_vec();
     let (
         artifact,
         _,
@@ -175,10 +189,15 @@ pub(crate) fn produce_retained_terminal_artifact(
         });
     *checked.timings_mut() = stage_timings;
     let native_realization_proposal = native_realization_proposal?;
-    compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
+    let artifact =
+        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
+            artifact,
+            callback_placements,
+            native_realization_proposal,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+    Ok(ProducedRetainedTerminal {
         artifact,
-        callback_placements,
-        native_realization_proposal,
-    )
-    .map_err(|message| vec![Diagnostic::error(message)])
+        withheld_rewrites,
+    })
 }
