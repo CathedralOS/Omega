@@ -88,7 +88,7 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
     store.operation = AbstractOperation::WriteOnlyPrimitiveStore {
         path: Vec::new(),
         psi_operation: id(954, OperationId::new),
-        destination: input,
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(input),
         value: AbstractResult {
             value: id(3, ValueId::new),
             scalar_type: scalar,

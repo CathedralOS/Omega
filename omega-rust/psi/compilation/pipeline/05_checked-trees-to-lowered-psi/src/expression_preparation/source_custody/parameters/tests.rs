@@ -8,6 +8,61 @@ use checked_trees::{
 };
 use language_semantics::{Multiplicity, SemanticDomainId};
 
+#[test]
+fn borrowed_array_parameter_reconstructs_its_element_type_and_length() {
+    for access in ["&", "&mut"] {
+        let mut checked = crate::front_end::checked_program(&format!(
+            "machine inspect(values: {access} [i32; 2]) {{}}"
+        ));
+        let machine = &checked.machines()[0];
+        let state = &checked.machine_states(machine)[0];
+        let parameter = checked.state_parameters(state)[0].clone();
+        let retained = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine.symbol)
+            .expect("borrowed array signature")
+            .structural_parameters[0]
+            .clone();
+        checked.facts.flow.terminal_scalar_graphs.structural_types = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_types
+            .clone();
+        validate_structural_parameter(&checked, &parameter, 0, &retained)
+            .expect("borrowed fixed array matches its source");
+        for mutation in 0..2 {
+            let mut changed = checked.clone();
+            let shape = changed
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .structural_types
+                .iter_mut()
+                .find(|shape| shape.identity == retained.type_identity)
+                .expect("array catalog entry");
+            let CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                length,
+            } = &mut shape.shape
+            else {
+                panic!("array shape");
+            };
+            if mutation == 0 {
+                *length = 3;
+            } else {
+                *element_type_identity = "u64".into();
+            }
+            assert!(
+                validate_structural_parameter(&changed, &parameter, 0, &retained).is_err(),
+                "a substituted length or element carrier rejects"
+            );
+        }
+    }
+}
+
 fn fixture(
     mutable: bool,
 ) -> (

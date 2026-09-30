@@ -43,7 +43,7 @@ fn primitive_writes_invalidate_only_potentially_overlapping_projections() {
         written.as_slice(),
         [S::Field(_), S::RuntimeIndex { .. }]
     ));
-    let root = destination.place;
+    let root = destination.place();
     let field = written[0].clone();
     let other_runtime = S::RuntimeIndex {
         index: id(991, semantic_vocabulary::ValueId::new),

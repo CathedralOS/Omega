@@ -78,7 +78,9 @@ pub(crate) fn primitive_local_call_plan() -> AbstractOperationPlan {
         AbstractOperation::WriteOnlyPrimitiveStore {
             path: Vec::new(),
             psi_operation: id(75, OperationId::new),
-            destination: parameter.clone(),
+            destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
+                parameter.clone(),
+            ),
             value,
         },
         AbstractOperation::ReturnUnit {

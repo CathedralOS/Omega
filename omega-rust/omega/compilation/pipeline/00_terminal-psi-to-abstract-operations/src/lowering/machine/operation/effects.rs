@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use abstract_operations::{AbstractOperation, AbstractResult};
+use abstract_operations::{AbstractOperation, AbstractResult, StructuralScalarStoreDestination};
 use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind, StructuralTypeDeclaration, TerminalMachine};
 
@@ -42,39 +42,52 @@ pub(super) fn lower(
                 });
             }
             let invalid = || LoweringError::InvalidWriteOnlyPrimitiveStore(operation.id);
-            let Some(destination) =
+            // A projected write into an owned array retains its actual
+            // producer. It must not acquire a fictitious entry parameter
+            // merely to share the store's addressing and leaf checks.
+            let destination =
                 super::primitive_storage::parameter(machine, structural_types, destination)
                     .cloned()
-            else {
-                return Err(invalid());
-            };
+                    .map(StructuralScalarStoreDestination::Parameter)
+                    .or_else(|| {
+                        (!path.is_empty())
+                            .then(|| {
+                                super::structural_scalar_fields::owned_store_destination(
+                                    machine,
+                                    destination,
+                                )
+                            })
+                            .flatten()
+                    })
+                    .ok_or_else(invalid)?;
             let Some(scalar_type) = value_types.get(&value).copied() else {
                 return Err(invalid());
             };
-            let valid_destination = matches!(
-                destination.access,
-                terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            ) && (destination.multiplicity
+            let valid_destination = destination.parameter().is_none_or(|parameter| {
+                matches!(
+                    parameter.access,
+                    terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                ) && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+            }) && (destination.multiplicity()
                 == terminal_psi::StructuralMultiplicity::Unrestricted
                 || (!path.is_empty()
-                    && destination.multiplicity == terminal_psi::StructuralMultiplicity::Affine))
-                && destination.qualifications.is_empty()
-                && destination.projected_qualifications.is_empty()
+                    && destination.multiplicity() == terminal_psi::StructuralMultiplicity::Affine))
                 && machine
                     .entry_claims
                     .iter()
-                    .all(|claim| claim.input != destination.place)
+                    .all(|claim| claim.input != destination.place())
                 && machine
                     .content_entry_claims
                     .iter()
-                    .all(|claim| claim.input.root != destination.place);
+                    .all(|claim| claim.input.root != destination.place());
             if !valid_destination {
                 return Err(invalid());
             }
             if super::primitive_projection::leaf_type(
                 structural_types,
-                destination.structural_type,
+                destination.structural_type(),
                 &path,
                 |index| value_types.get(&index).copied(),
             ) != Some(scalar_type)

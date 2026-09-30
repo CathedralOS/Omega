@@ -69,7 +69,7 @@ pub(crate) fn unit() -> PsiOptimizationUnit {
     .expect("valid unit")
 }
 
-pub(super) fn write_only_store_plan(store_before_value: bool) -> AbstractOperationPlan {
+pub(crate) fn write_only_store_plan(store_before_value: bool) -> AbstractOperationPlan {
     let machine = id(51, MachineId::new);
     let block = id(52, BlockId::new);
     let value = id(53, ValueId::new);
@@ -96,7 +96,9 @@ pub(super) fn write_only_store_plan(store_before_value: bool) -> AbstractOperati
     let store = AbstractOperation::WriteOnlyPrimitiveStore {
         path: Vec::new(),
         psi_operation: id(57, OperationId::new),
-        destination: destination.clone(),
+        destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
+            destination.clone(),
+        ),
         value: AbstractResult { value, scalar_type },
     };
     let mut operations = if store_before_value {

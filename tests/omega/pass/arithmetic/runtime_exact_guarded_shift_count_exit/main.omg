@@ -4,25 +4,27 @@
 // validity and value overflow are independent obligations; both hold.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main where 0 <= value, value <= 1 { console: Binding<Console>; count: u32; value: u32; result: u32; }
-machine Main::main(&mut self) reaches Console
+data Operands where 0 <= value, value <= 1 { count: u32; value: u32; result: u32; }
+data Main { console: Binding<Console>; }
+machine Main::main(context: &mut Main) reaches Console
 {
-    self.count = 5;
-    self.value = 1;
-    transition self.count < 32 {
-        true -> shift()
-        _ -> bad()
+    let mut operands: Operands;
+    operands.count = 5;
+    operands.value = 1;
+    transition operands.count < 32 {
+        true -> shift(context, &mut operands)
+        _ -> bad(context)
     }
-    state shift(&mut self)
+    state shift(context: &mut Main, operands: &mut Operands)
     {
-        self.result = self.value << self.count;
-        transition self.result == 32 {
-            true -> good()
-            _ -> bad()
+        operands.result = operands.value << operands.count;
+        transition operands.result == 32 {
+            true -> good(context)
+            _ -> bad(context)
         }
     }
-    state good(&mut self)
-    { self.console.exit_process(70); }
-    state bad(&mut self)
-    { self.console.exit_process(71); }
+    state good(context: &mut Main)
+    { context.console.exit_process(70); }
+    state bad(context: &mut Main)
+    { context.console.exit_process(71); }
 }

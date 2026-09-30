@@ -282,7 +282,10 @@ fn validate_structural_parameter(
         || retained.multiplicity != Multiplicity::Unrestricted
         || !retained.qualifications.is_empty()
         || retained.fused_service_erasure.is_some()
-        || !matches!(referee_node, TypeReferenceNode::Named { .. })
+        || !matches!(
+            referee_node,
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
+        )
         || retained.type_identity != checked.normalized_type_identity(*referee).into_string()
     {
         return unsupported("scalar graph reference differs from its authored signature");
@@ -296,9 +299,9 @@ fn validate_structural_parameter(
         {
             return unsupported("scalar graph record reference has unsupported source custody");
         }
-        // Borrowing changes access, not the declared record or its nested
-        // fields. Reconstruct the catalog by the same source-type replay used
-        // for slice elements before admitting its borrowed parameter carrier.
+        // Borrowing changes access, not the declared record or fixed array.
+        // Reconstruct fields, element types and lengths by the same source-type
+        // replay used for slice elements before admitting its borrowed carrier.
         owned_types::validate_referent_type(checked, *referee, &retained.type_identity)?;
         if !checked
             .facts
@@ -311,10 +314,11 @@ fn validate_structural_parameter(
                     && matches!(
                         shape.shape,
                         checked_trees::CheckedUnitStructuralTypeShape::Record { .. }
+                            | checked_trees::CheckedUnitStructuralTypeShape::FixedArray { .. }
                     )
             })
         {
-            return unsupported("scalar graph borrowed record differs from its source shape");
+            return unsupported("scalar graph borrowed aggregate differs from its source shape");
         }
         return Ok(());
     }

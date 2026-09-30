@@ -71,9 +71,7 @@ pub(super) fn validate(
                 return Err(replay.invalid());
             }
             (
-                abstract_operations::StructuralScalarStoreDestination::Parameter(
-                    destination.clone(),
-                ),
+                destination.clone(),
                 value,
                 *byte_offset,
                 *byte_size,

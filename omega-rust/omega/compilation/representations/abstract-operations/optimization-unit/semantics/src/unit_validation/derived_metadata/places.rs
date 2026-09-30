@@ -159,7 +159,7 @@ pub(crate) fn validate_operation_places(
         O::EstablishReference { source, .. } => require(source.place, known)?,
         O::ReleaseReference { source, .. } => require(*source, known)?,
         O::WriteOnlyPrimitiveStore { destination, .. } => {
-            require(destination.place, known)?;
+            require(destination.place(), known)?;
         }
         O::StructuralScalarFieldStore { destination, .. } => {
             require(destination.place(), known)?;

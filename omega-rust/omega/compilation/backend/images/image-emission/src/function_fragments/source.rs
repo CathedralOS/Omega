@@ -459,7 +459,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     if operation.runtime_indices().is_empty() {
                         selected.memory_accesses.iter().any(|access| {
                             access.origin == selected_instructions::SelectedMemoryAccessOrigin::Operation(*psi_operation)
-                                && access.place == destination.place
+                                && access.place == destination.place()
                                 && access.role == selected_instructions::SelectedMemoryAccessRole::WritePlace
                         })
                     } else {

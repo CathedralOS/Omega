@@ -87,7 +87,7 @@ fn mixed_incoming_primitive_references_and_local_reject_swapped_output_pointers(
                     path: Vec::new(),
                     indices: Vec::new(),
                     byte_offset: 0,
-                    destination: declaration,
+                    destination: declaration.into(),
                     value: abstract_operations::AbstractResult {
                         value: ValueId::new(if position == 0 { 4 } else { 3 }).unwrap(),
                         scalar_type: scalar,

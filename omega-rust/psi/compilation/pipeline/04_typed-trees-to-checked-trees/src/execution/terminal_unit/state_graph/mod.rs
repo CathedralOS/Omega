@@ -1976,7 +1976,12 @@ fn successor_bindings(
                 .iter()
                 .position(|parameter| parameter.position as usize == source_position)?;
             let source = &source_structural[source_index];
-            if source.type_identity != target.type_identity || source.access != target.access {
+            // A state edge transfers the same loan into its successor. It may
+            // restrict exclusive access to observation, never restore mutation.
+            let access_matches = source.access == target.access
+                || (source.access == CheckedStructuralAccess::MutableBorrow
+                    && target.access == CheckedStructuralAccess::SharedBorrow);
+            if source.type_identity != target.type_identity || !access_matches {
                 return None;
             }
             Some(CheckedStructuralControlTransferPlan {

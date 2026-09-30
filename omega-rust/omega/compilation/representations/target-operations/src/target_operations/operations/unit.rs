@@ -16,9 +16,8 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, CrashRouteBucket, ProviderCandidateConformance,
-    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    TerminalAffineCleanupAction,
+    StructuralArgument, StructuralOperationResult, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
 };
 
 /// Exact semantic origin retained beside ordinary native call transport.
@@ -287,7 +286,7 @@ pub enum TargetUnitOperation {
     /// obligation proving it inside the array.
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,
-        destination: StructuralParameterDeclaration,
+        destination: abstract_operations::StructuralScalarStoreDestination,
         path: Vec<StructuralPathSegment>,
         destination_type: StructuralTypeDeclaration,
         destination_storage: crate::TargetStructuralArgumentSource,

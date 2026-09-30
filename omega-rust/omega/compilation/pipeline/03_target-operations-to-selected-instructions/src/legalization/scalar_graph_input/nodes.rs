@@ -622,6 +622,9 @@ pub(super) fn validate(
         }
         if let AbstractOperation::StructuralScalarFieldStore {
             destination, value, ..
+        }
+        | AbstractOperation::WriteOnlyPrimitiveStore {
+            destination, value, ..
         } = &node.operation
         {
             let declared = match destination {
@@ -648,30 +651,6 @@ pub(super) fn validate(
             if result.is_some()
                 || !node.definitions.is_empty()
                 || !declared
-                || value_type(optimized, value.value) != Some(value.scalar_type)
-                || scalar_shape(value.scalar_type).is_none()
-            {
-                return Err(LegalizationError::custody());
-            }
-            continue;
-        }
-        if let AbstractOperation::WriteOnlyPrimitiveStore {
-            destination, value, ..
-        } = &node.operation
-        {
-            if result.is_some()
-                || !node.definitions.is_empty()
-                || !(optimized.structural_parameters.contains(destination)
-                    || destination.access == terminal_psi::StructuralAccess::MutableBorrow
-                        && optimized
-                            .blocks
-                            .iter()
-                            .any(|block| block.structural_parameters.contains(destination)))
-                || !matches!(
-                    destination.access,
-                    terminal_psi::StructuralAccess::MutableBorrow
-                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                )
                 || value_type(optimized, value.value) != Some(value.scalar_type)
                 || scalar_shape(value.scalar_type).is_none()
             {

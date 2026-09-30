@@ -631,10 +631,29 @@ pub(super) fn validate(
                         )?;
                         continue;
                     }
+                    checked_trees::CheckedStoreRoot::Local { symbol } if !path.is_empty() => {
+                        // Projected primitive stores use the same established
+                        // structural locals as ordinary bodies. Rejoin the
+                        // earlier declaration and exact assignment here;
+                        // emission still requires its live owned storage.
+                        crate::emission::structural_scalar_store_source::local_destination(
+                            checked,
+                            source,
+                            *statement_index,
+                            *symbol,
+                        )?;
+                        crate::emission::primitive_store::validate_symbol_assignment(
+                            checked,
+                            state.state,
+                            *statement_index,
+                            *symbol,
+                            path,
+                            value,
+                        )?;
+                        continue;
+                    }
                     checked_trees::CheckedStoreRoot::Local { .. } => {
-                        return unsupported(
-                            "Unit graph primitive store has no retained parameter destination",
-                        );
+                        return unsupported("Unit graph primitive store has no established local");
                     }
                 };
                 let destination = state
@@ -1400,13 +1419,10 @@ fn exclusive_borrowed_whole_parameter(
     let Some(position) = place.source_parameter_index() else {
         return false;
     };
-    state
-        .structural_parameters
-        .iter()
-        .any(|parameter| {
-            parameter.position == position
-                && parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-        })
+    state.structural_parameters.iter().any(|parameter| {
+        parameter.position == position
+            && parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+    })
 }
 
 /// A structural construction authored as one of its statement's call

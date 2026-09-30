@@ -39,7 +39,12 @@ fn fixture_with_scalar(
     let function = &mut source.functions[0];
     function.structural_parameters[0].access = access;
     for operation in &mut function.operations {
-        if let AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } = operation {
+        if let AbstractOperation::WriteOnlyPrimitiveStore {
+            destination:
+                abstract_operations::StructuralScalarStoreDestination::Parameter(destination),
+            ..
+        } = operation
+        {
             destination.access = access;
         }
     }
@@ -260,7 +265,10 @@ fn scalar_primitive_store_target_rejects_source_and_return_substitutions() {
                 "access" | "referent" | "placement" | "block storage" | "source value"
                 | "source type" => {
                     let TargetUnitOperation::WriteOnlyPrimitiveStore {
-                        destination,
+                        destination:
+                            abstract_operations::StructuralScalarStoreDestination::Parameter(
+                                destination,
+                            ),
                         destination_type,
                         destination_storage,
                         source: stored,

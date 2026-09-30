@@ -122,7 +122,9 @@ pub(super) fn write_only_store_plan() -> AbstractOperationPlan {
                 AbstractOperation::WriteOnlyPrimitiveStore {
                     path: Vec::new(),
                     psi_operation: id(75, OperationId::new),
-                    destination,
+                    destination: abstract_operations::StructuralScalarStoreDestination::Parameter(
+                        destination,
+                    ),
                     value: AbstractResult { value, scalar_type },
                 },
                 AbstractOperation::ReturnUnit {
