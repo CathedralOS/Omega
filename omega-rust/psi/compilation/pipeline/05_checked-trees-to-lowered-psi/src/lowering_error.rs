@@ -89,11 +89,13 @@ pub enum LoweringError {
     /// declined during this finalization's optional inference — the
     /// publication contract's `Incomplete` outcome, a bounded search that
     /// refused, rather than the ordinary `OperationProofUnavailable`
-    /// rejection that asserts nothing was left to find. `obligation` names
-    /// the unproved site; the refusal still prevents `checked` publication
+    /// rejection that asserts nothing was left to find. `requested` is the
+    /// declined draw's total demand on `capacity` and `obligation` names the
+    /// unproved site; the refusal still prevents `checked` publication
     /// exactly as any other lowering error does.
     ProofSearchCapacityExhausted {
         capacity: ProofSearchCapacity,
+        requested: u64,
         obligation: ObligationId,
     },
     InvalidUnitMachinePlan {
@@ -187,19 +189,36 @@ impl LoweringError {
         }
     }
 
-    /// The named capacity and unproved obligation when this refusal is a
-    /// proof-search capacity exhaustion — the `Incomplete` outcome class a
-    /// compiler-request publication maps — and absent when the refusal is an
-    /// ordinary rejection.
-    pub fn incomplete_capacity(&self) -> Option<(ProofSearchCapacity, ObligationId)> {
+    /// The named capacity, declined demand and unproved obligation when this
+    /// refusal is a proof-search capacity exhaustion — the `Incomplete`
+    /// outcome class a compiler-request publication maps — and absent when
+    /// the refusal is an ordinary rejection.
+    pub fn incomplete_capacity(&self) -> Option<ProofSearchExhaustion> {
         match self {
             Self::ProofSearchCapacityExhausted {
                 capacity,
+                requested,
                 obligation,
-            } => Some((*capacity, *obligation)),
+            } => Some(ProofSearchExhaustion {
+                capacity: *capacity,
+                requested: *requested,
+                obligation: *obligation,
+            }),
             _ => None,
         }
     }
+}
+
+/// The accounted facts of one proof-search capacity refusal: the scalar
+/// resource that declined, the total demand of the draw it declined (past
+/// `capacity.limit()`, saturating at the identity space's `u64::MAX`), and
+/// the obligation left unproved — the compiler request's `Incomplete`
+/// resource, requested amount and internal-row coordinate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProofSearchExhaustion {
+    pub capacity: ProofSearchCapacity,
+    pub requested: u64,
+    pub obligation: ObligationId,
 }
 
 impl std::fmt::Display for LoweringError {

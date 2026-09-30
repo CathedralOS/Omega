@@ -590,12 +590,14 @@ fn an_exhausted_roster_round_budget_declines_inference_without_rejecting() {
         "the declined rounds are accounted",
     );
     // The ledger names the capacity so an obligation left unmet reports the
-    // `Incomplete` refusal rather than a disproof of the module.
+    // `Incomplete` refusal rather than a disproof of the module. A declined
+    // round is a unit draw: its demand is one past the 128-round provision.
     let unmet = semantic_vocabulary::ObligationId::new(u64::MAX - 1).unwrap();
     assert_eq!(
         declines.unproved_obligation_error(unmet),
         crate::lowering_error::LoweringError::ProofSearchCapacityExhausted {
             capacity: crate::lowering_error::ProofSearchCapacity::ScalarInvariantRosterRounds,
+            requested: 129,
             obligation: unmet,
         },
     );
@@ -609,4 +611,35 @@ fn an_exhausted_roster_round_budget_declines_inference_without_rejecting() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("the module still verifies");
+}
+
+/// The ledger publishes the first decline of each capacity with that draw's
+/// total demand: a refused bulk expansion reports the pool it had already
+/// drawn plus the whole refused amount, and a later unit refusal of the same
+/// capacity does not overwrite it.
+#[test]
+fn the_decline_ledger_keeps_each_capacitys_first_declined_demand() {
+    use crate::lowering_error::{LoweringError, ProofSearchCapacity};
+
+    let unmet = semantic_vocabulary::ObligationId::new(7).unwrap();
+    let mut declines = crate::proofs::ProofSearchDeclines::default();
+    assert_eq!(
+        declines.unproved_obligation_error(unmet),
+        LoweringError::OperationProofUnavailable(unmet),
+    );
+    declines.record_demand(ProofSearchCapacity::ScalarInvariantCandidateWork, 16_390);
+    declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
+    declines.record(ProofSearchCapacity::ScalarInvariantRosterRounds);
+    let refusal = declines.unproved_obligation_error(unmet);
+    assert_eq!(
+        refusal,
+        LoweringError::ProofSearchCapacityExhausted {
+            capacity: ProofSearchCapacity::ScalarInvariantCandidateWork,
+            requested: 16_390,
+            obligation: unmet,
+        },
+    );
+    let exhaustion = refusal.incomplete_capacity().unwrap();
+    assert!(exhaustion.requested > exhaustion.capacity.limit());
+    assert_eq!(exhaustion.obligation, unmet);
 }

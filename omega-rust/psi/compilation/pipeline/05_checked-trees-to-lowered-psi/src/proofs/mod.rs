@@ -95,28 +95,43 @@ mod scalar_result_guarantees;
 /// obligation which later proves unmet reports the named capacity — the
 /// publication contract's `Incomplete` outcome — instead of the ordinary
 /// unavailable-proof rejection.
+///
+/// Each retained mention carries the declined draw's total demand on its
+/// capacity — the pool already consumed plus the refused amount — so the
+/// published `(limit, requested)` pair compares like quantities and always
+/// shows the demand past the provision, as the compiler request's
+/// scalar-resource rows require.
 #[derive(Debug, Default)]
 pub(crate) struct ProofSearchDeclines {
-    capacities: Vec<ProofSearchCapacity>,
+    declines: Vec<(ProofSearchCapacity, u64)>,
 }
 
 impl ProofSearchDeclines {
     fn extend(&mut self, later: Self) {
-        for capacity in later.capacities {
-            if !self.capacities.contains(&capacity) {
-                self.capacities.push(capacity);
-            }
+        for (capacity, requested) in later.declines {
+            self.retain_first(capacity, requested);
         }
     }
 
-    /// Account one refusal of `capacity`: the process-wide exhaustion
-    /// aggregate ticks once per refusal, and the ledger retains the first
-    /// mention of each named capacity.
-    pub(crate) fn record(&mut self, capacity: ProofSearchCapacity) {
-        proof_timing::count_budget_exhaustion();
-        if !self.capacities.contains(&capacity) {
-            self.capacities.push(capacity);
+    fn retain_first(&mut self, capacity: ProofSearchCapacity, requested: u64) {
+        if !self.declines.iter().any(|(named, _)| *named == capacity) {
+            self.declines.push((capacity, requested));
         }
+    }
+
+    /// Account one refused unit draw from `capacity`, whose total demand is
+    /// one past the provisioned limit: the process-wide exhaustion aggregate
+    /// ticks once per refusal, and the ledger retains the first mention of
+    /// each named capacity.
+    pub(crate) fn record(&mut self, capacity: ProofSearchCapacity) {
+        self.record_demand(capacity, capacity.limit().saturating_add(1));
+    }
+
+    /// Account one refused draw whose total demand on `capacity` — the pool
+    /// already consumed plus the refused amount — is `requested`.
+    pub(crate) fn record_demand(&mut self, capacity: ProofSearchCapacity, requested: u64) {
+        proof_timing::count_budget_exhaustion();
+        self.retain_first(capacity, requested);
     }
 
     /// The refusal an unproved obligation reports: the earliest recorded
@@ -129,9 +144,10 @@ impl ProofSearchDeclines {
     /// genuinely unprovable or simply beyond the provisioned search, so the
     /// outcome must not read as a disproof of the module.
     pub(crate) fn unproved_obligation_error(&self, obligation: ObligationId) -> LoweringError {
-        match self.capacities.first() {
-            Some(&capacity) => LoweringError::ProofSearchCapacityExhausted {
+        match self.declines.first() {
+            Some(&(capacity, requested)) => LoweringError::ProofSearchCapacityExhausted {
                 capacity,
+                requested,
                 obligation,
             },
             None => LoweringError::OperationProofUnavailable(obligation),

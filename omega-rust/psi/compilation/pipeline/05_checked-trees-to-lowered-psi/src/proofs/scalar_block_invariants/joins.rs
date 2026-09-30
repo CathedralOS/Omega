@@ -185,9 +185,14 @@ pub(super) fn candidates(
                 if let Proposition::Conjunction(members) = imported[cursor] {
                     if members.len() > *remaining {
                         // The expansion cannot afford this conjunct: the
-                        // capacity declined, not merely the candidate.
+                        // capacity declined, not merely the candidate. The
+                        // declined demand is the pool already drawn plus the
+                        // whole expansion.
+                        let capacity =
+                            crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork;
+                        let consumed = capacity.limit().saturating_sub(*remaining as u64);
                         declines
-                            .record(crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork);
+                            .record_demand(capacity, consumed.saturating_add(members.len() as u64));
                         return candidates;
                     }
                     imported.extend(members);

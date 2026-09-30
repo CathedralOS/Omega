@@ -2,7 +2,7 @@
 
 use checked_trees::CheckedTrees;
 use checked_trees_to_lowered_psi::{
-    LoweringError, ProofSearchCapacity, TerminalMachineSelection, lower_machine,
+    LoweringError, ProofSearchExhaustion, TerminalMachineSelection, lower_machine,
     select_terminal_machine,
 };
 use lowered_psi::LoweredPsi;
@@ -10,7 +10,6 @@ use lowered_psi_to_lowered_psi::{
     PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
 };
 use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
-use semantic_vocabulary::ObligationId;
 
 use crate::custody::{
     CallbackCustodyTerminalArtifactProductionError, ProducedTerminalArtifact,
@@ -204,14 +203,14 @@ impl TerminalArtifactProductionError {
         if let Some(report) = self.unimplemented_report() {
             return report.to_owned();
         }
-        if let Some((capacity, obligation)) = self.incomplete_capacity() {
+        if let Some(exhaustion) = self.incomplete_capacity() {
             return format!(
                 "incomplete: terminal-artifact production stopped at the private \
                  `{}` proof-search capacity (provision {}) with obligation {} \
                  unproved; the module is not shown invalid",
-                capacity.resource_name(),
-                capacity.limit(),
-                obligation,
+                exhaustion.capacity.resource_name(),
+                exhaustion.capacity.limit(),
+                exhaustion.obligation,
             );
         }
         format!("terminal-artifact production failed: {self}")
@@ -226,10 +225,10 @@ impl TerminalArtifactProductionError {
         }
     }
 
-    /// The named capacity and unproved obligation when the refusal is a
-    /// proof-search capacity exhaustion — the publication contract's
-    /// `Incomplete` outcome rather than a defect of the program.
-    pub fn incomplete_capacity(&self) -> Option<(ProofSearchCapacity, ObligationId)> {
+    /// The named capacity, declined demand and unproved obligation when the
+    /// refusal is a proof-search capacity exhaustion — the publication
+    /// contract's `Incomplete` outcome rather than a defect of the program.
+    pub fn incomplete_capacity(&self) -> Option<ProofSearchExhaustion> {
         match self {
             Self::Lowering(error) => error.incomplete_capacity(),
             _ => None,
@@ -306,23 +305,30 @@ mod tests {
     }
 
     /// A proof-search capacity refusal reports the `Incomplete` outcome
-    /// class — the named capacity and unproved obligation — while an
-    /// ordinary unavailable-proof rejection reports neither.
+    /// class — the named capacity, declined demand and unproved obligation —
+    /// while an ordinary unavailable-proof rejection reports none of them.
     #[test]
     fn a_capacity_refusal_reports_incomplete_and_a_rejection_does_not() {
-        use checked_trees_to_lowered_psi::{LoweringError, ProofSearchCapacity};
+        use checked_trees_to_lowered_psi::{
+            LoweringError, ProofSearchCapacity, ProofSearchExhaustion,
+        };
         use semantic_vocabulary::ObligationId;
 
         let obligation = ObligationId::new(41).unwrap();
         let refusal = crate::terminal_production::TerminalArtifactProductionError::Lowering(
             LoweringError::ProofSearchCapacityExhausted {
                 capacity: ProofSearchCapacity::ScalarInvariantRosterRounds,
+                requested: 129,
                 obligation,
             },
         );
         assert_eq!(
             refusal.incomplete_capacity(),
-            Some((ProofSearchCapacity::ScalarInvariantRosterRounds, obligation)),
+            Some(ProofSearchExhaustion {
+                capacity: ProofSearchCapacity::ScalarInvariantRosterRounds,
+                requested: 129,
+                obligation,
+            }),
         );
         assert!(refusal.unimplemented_report().is_none());
         assert_eq!(
