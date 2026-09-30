@@ -773,6 +773,13 @@ fn fragment_durable_home_offsets(
                     )
                     .find(|(operation, _)| *operation == requirement.defining_operation)
                     .map(|(_, instruction)| instruction)
+                    .or_else(|| {
+                        scalar_observation_producer(
+                            function,
+                            requirement.defining_operation,
+                            requirement.source_value,
+                        )
+                    })
                 else {
                     continue;
                 };
@@ -824,6 +831,17 @@ fn fragment_scalar_call_result_producer(
         (None, Some(record)) if foreign.next().is_none() => {
             (record.instruction, Some(record.call.result_home.as_ref()))
         }
+        (None, None) => {
+            // Observation-produced homes live outside the call rosters: a
+            // field, byte, or membership read defines the value in its own
+            // instruction. The roster tail still re-proves the result origin.
+            let Some(producer) =
+                scalar_observation_producer(function, home.defining_operation, home.source_value)
+            else {
+                return false;
+            };
+            (producer, None)
+        }
         _ => return false,
     };
     if let Some(recorded) = result_home
@@ -851,4 +869,40 @@ fn fragment_scalar_call_result_producer(
                     })
             })
     })
+}
+
+/// The non-call instruction producing a scalar-home value: a field or
+/// primitive read, byte observation, or membership check whose provenance
+/// claims the home's defining operation and whose result register is the
+/// home's source value. Exactly one such instruction may exist — reads staged
+/// over several instructions still define the value exactly once.
+fn scalar_observation_producer(
+    function: &selected_instructions::SelectedFunction,
+    operation: semantic_vocabulary::OperationId,
+    source_value: semantic_vocabulary::ValueId,
+) -> Option<selected_instructions::SelectedInstructionId> {
+    let mut producers = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|instruction| {
+            instruction.provenance.operations.contains(&operation)
+                && instruction.operands.iter().any(|operand| {
+                    function
+                        .virtual_registers
+                        .get(operand.virtual_register.0 as usize)
+                        .is_some_and(|register| {
+                            register.origin
+                                == selected_instructions::VirtualRegisterOrigin::InstructionResult {
+                                    instruction: instruction.id,
+                                    source_value,
+                                }
+                        })
+                })
+        });
+    let producer = producers.next()?;
+    if producers.next().is_some() {
+        return None;
+    }
+    Some(producer.id)
 }
