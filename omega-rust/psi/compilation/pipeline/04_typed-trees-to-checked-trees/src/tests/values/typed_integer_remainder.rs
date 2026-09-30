@@ -173,16 +173,75 @@ fn typed_float_const_arguments_cannot_implicitly_land_as_integers() {
     }
 }
 
+/// Resolve with a source map, as a build does. Source-free resolution mints
+/// field symbols without declaration spans, so it cannot identify a closed
+/// instance's field copy (`Buffer<2>::count`) with its template's
+/// (`Buffer::count`) and refuses any retained field fact of a generic instance.
+fn typed_with_sources(source: &str) -> typed_trees::TypedTrees {
+    let mut sources = source::SourceMap::default();
+    let source_id = sources
+        .add(
+            std::path::PathBuf::from("tests/main.omg"),
+            source.to_owned(),
+        )
+        .source_id;
+    crate::tests::front_end::typed_program_from_source_map_with_generic_data(
+        sources,
+        &[(source_id, source)],
+    )
+}
+
+/// A default-domain fact outside the zero folder's fragment is construction
+/// debt, not an early refusal (bbef94c08bb). Deferring a template's fact still
+/// cannot admit it on the concrete record: the closed instance and the plain
+/// record both retain the fact and stay zero-gated, a borrowed value is read
+/// under its caller's establishment, and a literal must prove the fact.
 #[test]
 fn template_deferral_does_not_admit_unsupported_concrete_field_facts() {
-    for source in [
-        "data Buffer<const N: u64> where count / 2 <= N, { count: u64; }
-         machine run(value: &Buffer<2>) -> u64 { value.count }",
-        "data Buffer where count / 2 <= 2, { count: u64; }
-         machine run(value: &Buffer) -> u64 { value.count }",
+    for (declaration, concrete) in [
+        (
+            "data Buffer<const N: u64> where count / 2 <= N, { count: u64; }",
+            "Buffer<2>",
+        ),
+        (
+            "data Buffer where count / 2 <= 2, { count: u64; }",
+            "Buffer",
+        ),
     ] {
-        let errors = check(source)
-            .expect_err("concrete zero classification still rejects unsupported facts");
-        assert!(errors.contains("zero-foldable fragment"), "{errors}");
+        let source =
+            format!("{declaration}\nmachine run(value: &{concrete}) -> u64 {{ value.count }}");
+        let typed = typed_with_sources(&source);
+        let definition = typed
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == concrete)
+            .unwrap_or_else(|| panic!("{source}: concrete record `{concrete}`"));
+        assert!(
+            definition.zero_gated,
+            "{source}: an unsupported fact cannot admit zero construction"
+        );
+        assert_eq!(
+            typed
+                .proof_facts
+                .span_or_empty(definition.where_facts)
+                .len(),
+            1,
+            "{source}: the concrete record retains its unsupported fact"
+        );
+        lower_typed_trees(typed, &CheckingRequest::settled())
+            .unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
+
+        let literal = format!(
+            "{declaration}\nmachine run() -> u64 {{ let value: {concrete} = Buffer {{ count: 9 }}; value.count }}"
+        );
+        let errors = lower_typed_trees(typed_with_sources(&literal), &CheckingRequest::settled())
+            .map(|_| ())
+            .expect_err("a literal violating the retained fact cannot establish it");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("cannot prove the default domain")),
+            "{literal}: {errors:?}"
+        );
     }
 }
