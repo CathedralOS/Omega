@@ -3,26 +3,25 @@
 // domain on which the operator is happening... lhs domain governs, rhs
 // doesn't matter"): a Wrapping lhs shifted by an EXACT count resolves with
 // the LHS's domain -- previously the mixed-domain check rejected
-// `wrapped << self.k` outright. Legs: << and >> with a runtime Exact count.
+// `wrapped << count` outright. Legs: << and >> with a runtime Exact count.
 // Wrapping counts are masked by the language operand width on every target.
 // exits: 71 = << wrong; 72 = >> wrong; 73/74 = masked 32/64 leg wrong.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main { console: Binding<Console>; k: u32; }
-machine Main::main(&mut self) {
-    self.k = 3;
-    Main::build(&mut self);
+data Main { console: Binding<Console>; }
+machine Main::main(context: &mut Main) {
+    Main::build(context, 3);
 }
-machine Main::build(main: &mut Main) reaches Console {
+machine Main::build(main: &mut Main, count: u32) reaches Console {
     let a: u32 in Wrapping = (1 as u32 in Wrapping);
-    let r: u32 in Wrapping = a << main.k;
+    let r: u32 in Wrapping = a << count;
     transition r == 8 {
-        true -> leg2(main)
+        true -> leg2(main, count)
         _ -> wrong_shl(main)
     }
-    state leg2(main: &mut Main) {
+    state leg2(main: &mut Main, count: u32) {
         let b: u32 in Wrapping = (64 as u32 in Wrapping);
-        let s: u32 in Wrapping = b >> main.k;
+        let s: u32 in Wrapping = b >> count;
         transition s == 8 {
             true -> atwidth32(main)
             _ -> wrong_shr(main)
