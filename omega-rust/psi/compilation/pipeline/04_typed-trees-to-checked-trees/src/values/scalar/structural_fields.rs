@@ -467,10 +467,11 @@ pub(super) fn view_local_root(
         return None;
     };
     // Either borrowed view family resolves the same `ViewLocal` root: reads
-    // through an exclusive `&mut [T]` loan re-view the lent element exactly
-    // as the shared sibling's reads observe the shared place. The root
-    // records no access side; the producing establishment's custody decides
-    // whether the read composes with concurrent uses.
+    // through an exclusive `&mut [T]`/`&mut R` loan re-view the lent
+    // element exactly as the shared sibling's reads observe the shared
+    // place. The root records no access side; the producing
+    // establishment's custody decides whether the read composes with
+    // concurrent uses.
     (!local.is_mutable
         && (crate::execution::terminal_unit::types::borrowed_slice_view(
             program,
@@ -480,7 +481,11 @@ pub(super) fn view_local_root(
             local.type_reference,
             &[],
         )
-        .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Mutable)))
+        .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Mutable)
+            || crate::execution::terminal_unit::types::mutable_borrowed_view(
+                program,
+                local.type_reference,
+            )))
     .then_some((path.symbol, local.type_reference))
 }
 
