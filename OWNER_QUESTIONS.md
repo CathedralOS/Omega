@@ -6,52 +6,6 @@ and deliberately deferred research live in `TASKS.md`. Questions are numbered
 consecutively; pruning or adding one requires updating every repository
 reference in the same change.
 
-## Q: how do toolchain-settled providers express marshalled syscalls?
-
-`ProviderBinding::Syscall { number }` is the only realization channel a
-toolchain-settled provider row can carry, and it admits only integer-class
-parameters — every bundled host service that carries a path or slice
-(`Filesystem::open`, `open_at`, `read_at`, `canonicalize`, `read_dir`,
-`TimeHost` clock names) resolves to zero provider rows at terminal-authority
-review, so no program reaching those hosts can produce a native product.
-This is the current wall on the headless Squalr run (`tools/native_probe_resume.md`
-in the Squalr repo) and on every FilesystemHost/TimeHost customer.
-
-The syscall route cannot grow the vocabulary inside itself: `evaluate_syscall`
-admits only ≤8-byte integer-class args into the six syscall registers, has no
-slice→pointer extraction, no NUL-terminated path scratch, no injected
-constants (e.g. AT_FDCWD), and no −errno decode; toolchain-settled provenance
-requires `row_realizations` all-invalid, so a settled row can never name a
-realization machine; `canonicalize` has no Linux syscall at all (realpath is
-a libc composite); and a checked adapter authored in the library would
-circularly need the requirement it adapts.
-
-Two honest settlement forms were identified; the choice is owner-level
-because it changes the provider contract surface:
-
-(a) a new `ProviderBinding` variant carrying a marshalling descriptor —
-    per-argument `scalar | slice-ptr | path-NUL | injected-const`, result
-    errno-decode — consumed by an extended `evaluate_syscall` that
-    synthesizes scratch space and the call prologue. Backend-contained, but
-    adds codec, identity and review surface.
-
-(b) toolchain-synthesized checked adapter machines admitted as
-    `CheckedAdapter` settlement rows — requires a synthesized-body pipeline
-    that does not exist today, relaxed adapter admission (the exact-adapter
-    gate currently requires `target.is_none()` plus matching package
-    identity, while toolchain plans mint `None`), and settlement/dispatch/
-    replay learning the new row kind.
-
-Either route spans provider-planning, calling-conventions, admission
-settlements, review-evidence replay, and adapter-rows dispatch — a
-multi-crate contract change, not a leaf-table extension.
-
-Evidence: bisection on Omega main `df0288f59fd` + bundle `71254d80532`
-(call_plan_evaluation.rs:1045 integer-class admission;
-provider_settlement.rs:265 all-invalid assertion;
-settlements/source_imports.rs Import/Syscall-only admission;
-exact_checked_adapter identity requirements).
-
 Question numbers are mutable queue positions, not permanent decision identities.
 Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
@@ -174,3 +128,52 @@ teardown, matching "installation may retain one linear provider value".
 - Require stateful services to pass their state through requirement
   parameters. It moves provider-private state into the portable contract that
   every consumer spells.
+
+### Q2 - What is the platform coverage contract of the raw filesystem service?
+
+Named decision: `filesystem-host-platform-coverage`.
+
+**Customer:** `omega run samples/cli/systems/file_journal/main.omg` must
+create, write, inspect, read, rename and remove a real file, then exit 7.
+At `96b196739593` on macOS ARM64 it exits 200 during fresh package review:
+both `Main::fs` and `Main::files::host` lack a selected Fused `FilesystemHost`
+provider. No filesystem operation executes. The canonical fallback in
+`provider-planning/src/provider_settlement/canonical_filesystem_host.rs`
+supplies only limited Linux x86-64 rows; the target `filesystem_impl.omg`
+files implement wrappers, not this missing boundary provider.
+
+**Contracts checked:**
+
+- [Provider selection](wiki/spec/build/provider_selection.md#derivation-and-retained-evidence)
+  requires a selected plan to cover its complete schema. Ordinary selection
+  enforces this through `selection_provenance.rs` and `ProviderPlan::covers_schema`.
+- [Toolchain-selected checked implementations](wiki/spec/build/provider_selection.md#toolchain-selected-checked-implementations)
+  already permits ordinary reviewed checked providers. The macOS `TimeHost`
+  provider implements this route; marshaling is not restricted to a new
+  syscall descriptor or synthesized compiler body. Those alternatives in the
+  former question were therefore not an outstanding owner choice.
+- [The raw filesystem contract](source/library/std/filesystem_host.omg)
+  puts POSIX and expressly Windows-only operations in one unconditional
+  trait. `find_next` returns zero for enumeration completion; `close_handle`
+  consumes a Windows HANDLE, not a POSIX descriptor. There is no specified
+  target-applicability rule or uniform Unsupported outcome for these members.
+- [Foreign storage](wiki/spec/build/foreign_storage.md) and
+  [boundary shapes](wiki/spec/build/boundary_shapes.md) already govern checked
+  path staging, pointer/count transport and authorized inbound views. Missing
+  implementation of those contracts remains engineering work.
+
+**Decision needed:** should the raw service have separate platform-specific
+schemas behind the portable `Filesystem` wrapper, or should the language gain
+target-applicable requirements within one schema? Alternatively, keeping one
+total schema needs explicit semantics for otherwise inapplicable operations.
+
+**Recommendation:** separate raw platform schemas, retaining the portable
+wrapper as the application API. Each provider then covers its entire honest
+schema through ordinary checked adapters and exact foreign bindings. This
+changes the public raw boundary and its consumer identities, so it is not a
+silent implementation rewrite.
+
+Do not weaken full coverage, alias Windows handles to descriptors, or insert
+constant failure/end-of-enumeration rows to select a partial provider. The
+existing partial toolchain syscall fallback is not evidence that an ordinary
+partial checked provider satisfies the complete service contract.
