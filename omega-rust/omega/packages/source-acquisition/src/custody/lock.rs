@@ -10,13 +10,8 @@ use super::tree::{CacheCustodyKind, cache_custody_invalid, verify_cache_custody_
 use crate::SourceResolveError;
 use crate::limits::PROCESS_POLL_INTERVAL;
 use crate::tree::filesystem::{io_error, open_absolute_directory_nofollow};
-use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
-#[cfg(unix)]
-use cap_std::fs::OpenOptionsExt as CapabilityOpenOptionsExt;
-use cap_std::fs::{
-    Dir as CapabilityDirectory, Metadata as CapabilityMetadata,
-    OpenOptions as CapabilityOpenOptions,
-};
+use cap_std::fs::{Dir as CapabilityDirectory, Metadata as CapabilityMetadata};
+use platform_custody::lock_file::open_or_create_lock_file;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -51,42 +46,7 @@ impl CacheEntryLock {
             .try_clone()
             .map_err(|error| io_error(parent_path, error))?;
         verify_retained_cache_parent_path(kind, parent_path, &parent)?;
-        let mut options = CapabilityOpenOptions::new();
-        options
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .follow(FollowSymlinks::No);
-        #[cfg(unix)]
-        options.mode(0o600);
-        let capability_file = parent.open_with(lock_name, &options).map_err(|error| {
-            cache_custody_invalid(
-                kind,
-                &path,
-                format!("could not open cache lock without following links: {error}"),
-            )
-        })?;
-        let handle_metadata = capability_file
-            .metadata()
-            .map_err(|error| io_error(&path, error))?;
-        let path_metadata = parent
-            .symlink_metadata(lock_name)
-            .map_err(|error| io_error(&path, error))?;
-        if !handle_metadata.is_file()
-            || path_metadata.file_type().is_symlink()
-            || !path_metadata.is_file()
-            || !same_capability_file_identity(&handle_metadata, &path_metadata)
-        {
-            return Err(cache_custody_invalid(
-                kind,
-                &path,
-                "cache lock is not a stable regular file beneath its retained parent",
-            ));
-        }
-        verify_capability_cache_node_owner_and_mode(kind, &path, &path_metadata)?;
-        let file = capability_file.into_std();
-        verify_macos_open_cache_extended_acl_custody(kind, &path, &file)?;
+        let file = open_verified_cache_lock(kind, &path, &parent, lock_name)?;
         Ok((file, parent, lock_name.to_os_string()))
     }
 
@@ -102,42 +62,7 @@ impl CacheEntryLock {
         let parent = open_absolute_directory_nofollow(parent_path)
             .map_err(|error| cache_custody_invalid(kind, parent_path, error.to_string()))?;
         let lock_name = direct_cache_child_name(kind, parent_path, path)?.to_os_string();
-        let mut options = CapabilityOpenOptions::new();
-        options
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .follow(FollowSymlinks::No);
-        #[cfg(unix)]
-        options.mode(0o600);
-        let capability_file = parent.open_with(&lock_name, &options).map_err(|error| {
-            cache_custody_invalid(
-                kind,
-                path,
-                format!("could not open cache lock without following links: {error}"),
-            )
-        })?;
-        let handle_metadata = capability_file
-            .metadata()
-            .map_err(|error| io_error(path, error))?;
-        let path_metadata = parent
-            .symlink_metadata(&lock_name)
-            .map_err(|error| io_error(path, error))?;
-        if !handle_metadata.is_file()
-            || path_metadata.file_type().is_symlink()
-            || !path_metadata.is_file()
-            || !same_capability_file_identity(&handle_metadata, &path_metadata)
-        {
-            return Err(cache_custody_invalid(
-                kind,
-                path,
-                "cache lock is not a stable regular file beneath its retained parent",
-            ));
-        }
-        verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
-        let file = capability_file.into_std();
-        verify_macos_open_cache_extended_acl_custody(kind, path, &file)?;
+        let file = open_verified_cache_lock(kind, path, &parent, &lock_name)?;
         Ok((file, parent, lock_name))
     }
 
@@ -342,6 +267,52 @@ impl CacheEntryLock {
             &self.file,
         )
     }
+}
+
+/// Open or create the lock file beneath its retained parent, then prove the
+/// open handle is the regular, private file the parent currently names.
+///
+/// Several compiler processes routinely reach one cold cache key together, so
+/// creation must tolerate losing the race to create the lock file.
+/// `open_or_create_lock_file` creates exclusively and reopens an existing file
+/// instead of issuing one open-or-create, which on macOS fails the losing
+/// contender with `ENOENT` (see its documentation). Neither open follows a
+/// final symbolic link, and every identity, owner, mode, and ACL check below
+/// still applies to whichever contender created the file.
+fn open_verified_cache_lock(
+    kind: CacheCustodyKind,
+    path: &Path,
+    parent: &CapabilityDirectory,
+    lock_name: &OsStr,
+) -> Result<File, SourceResolveError> {
+    let capability_file = open_or_create_lock_file(parent, lock_name).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not open cache lock without following links: {error}"),
+        )
+    })?;
+    let handle_metadata = capability_file
+        .metadata()
+        .map_err(|error| io_error(path, error))?;
+    let path_metadata = parent
+        .symlink_metadata(lock_name)
+        .map_err(|error| io_error(path, error))?;
+    if !handle_metadata.is_file()
+        || path_metadata.file_type().is_symlink()
+        || !path_metadata.is_file()
+        || !same_capability_file_identity(&handle_metadata, &path_metadata)
+    {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache lock is not a stable regular file beneath its retained parent",
+        ));
+    }
+    verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
+    let file = capability_file.into_std();
+    verify_macos_open_cache_extended_acl_custody(kind, path, &file)?;
+    Ok(file)
 }
 
 fn local_snapshot_lock_timed_out(path: &Path, timeout: Duration) -> SourceResolveError {

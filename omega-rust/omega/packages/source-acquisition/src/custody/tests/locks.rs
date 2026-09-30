@@ -1,6 +1,6 @@
 use super::{
-    CacheCustodyKind, CacheEntryLock, SourceResolveError, temp_root,
-    verify_cache_lock_path_identity, verify_cache_lock_path_identity_for_test,
+    CacheCustodyKind, CacheEntryLock, SourceResolveError, open_absolute_directory_nofollow,
+    temp_root, verify_cache_lock_path_identity, verify_cache_lock_path_identity_for_test,
 };
 #[cfg(unix)]
 use super::{GitExecutor, cache_invalid, reconcile_git_cache_operation_result};
@@ -72,6 +72,55 @@ fn cache_lock_identity_rejects_a_replaced_parent_path() {
         file.unlock().expect("unlock retained cache entry");
         let _ = std::fs::remove_dir_all(&root);
     }
+}
+
+/// Parallel compiler runs that share one cold snapshot key all reach its lock
+/// file before any of them has created it. Every contender must open the one
+/// file the winner created; a lost creation race is contention, not a custody
+/// failure.
+#[test]
+fn contended_cold_cache_lock_creation_admits_every_acquirer() {
+    const CONTENDERS: usize = 8;
+    const COLD_KEYS: usize = 32;
+    let root = temp_root("cache-lock-creation-race");
+    std::fs::create_dir_all(&root).expect("create cache lock parent");
+    let parent = open_absolute_directory_nofollow(&root).expect("retain cache lock parent");
+
+    let mut failures = Vec::new();
+    for key in 0..COLD_KEYS {
+        let lock_name = std::ffi::OsString::from(format!("source-{key}.lock"));
+        let start = std::sync::Barrier::new(CONTENDERS);
+        std::thread::scope(|scope| {
+            let contenders = (0..CONTENDERS)
+                .map(|_| {
+                    scope.spawn(|| {
+                        start.wait();
+                        CacheEntryLock::acquire_local_from_parent(
+                            &root,
+                            &parent,
+                            &lock_name,
+                            std::time::Duration::from_secs(30),
+                        )
+                        .map(drop)
+                    })
+                })
+                .collect::<Vec<_>>();
+            for contender in contenders {
+                if let Err(error) = contender.join().expect("contender finished") {
+                    failures.push((key, error));
+                }
+            }
+        });
+    }
+    let _ = std::fs::remove_dir_all(&root);
+
+    assert!(
+        failures.is_empty(),
+        "{} of {} contended cold-key acquisitions failed; first: {:?}",
+        failures.len(),
+        CONTENDERS * COLD_KEYS,
+        failures.first()
+    );
 }
 
 #[cfg(unix)]
