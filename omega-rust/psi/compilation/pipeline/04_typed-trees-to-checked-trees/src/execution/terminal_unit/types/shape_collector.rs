@@ -1,5 +1,10 @@
 //! The structural type catalog a Unit plan family publishes, collected from the
 //! types its signatures, locals, and results name.
+//!
+//! Collection describes storage, not permission to copy, construct, or discard
+//! it. Nominal array elements use the same member plans as standalone data,
+//! including provider receipts and stored reference shells. Their multiplicity
+//! and cleanup remain obligations of the operations that use that storage.
 
 use super::*;
 
@@ -230,36 +235,41 @@ impl<'program> ShapeCollector<'program> {
                     == Multiplicity::Unrestricted)
     }
 
-    /// A closed, copyable, checked-shape data declaration whose every stored
+    /// A checked-shape data declaration whose every stored
     /// member is material: a record of fields, a pure sum of cases, or a
     /// mixed declaration of both, with no erased field or payload field.
     /// Each member type still shapes itself through `add_type`; this only
     /// decides that the declaration is an ordinary owned array element. The
     /// three kinds share one Terminal vocabulary (`Record`, `Sum`, `Mixed`
-    /// beneath `FixedArray`), so a copy sum with payload cases is as much an
-    /// element as a copy record.
-    fn is_unrestricted_material_data(&self, type_reference: TypeReferenceHandle) -> bool {
-        let TypeReferenceNode::Named { symbol, .. } = self
+    /// beneath `FixedArray`). Multiplicity is not a layout distinction: an
+    /// affine service-bearing payload needs its exact member shape too.
+    /// `add_type` resolves generic arguments and rejects unrepresentable members;
+    /// this predicate grants neither trivial disposal nor construction authority.
+    fn is_material_data(&self, type_reference: TypeReferenceHandle) -> bool {
+        let symbol = match self
             .program
             .type_reference_table
             .type_reference(type_reference)
-        else {
-            return false;
+        {
+            TypeReferenceNode::Named { symbol, .. }
+            | TypeReferenceNode::Generic {
+                base_symbol: symbol,
+                ..
+            } => *symbol,
+            _ => return false,
         };
         self.program
             .data_definitions()
             .iter()
-            .find(|data| data.symbol == *symbol)
+            .find(|data| data.symbol == symbol)
             .is_some_and(|data| {
                 let members = self.program.data_members(data);
                 data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
                     && data.lifetime_parameters.is_empty()
-                    && self.program.data_type_parameters(data).is_empty()
                     && data.quotient.is_none()
                     && (data.where_facts.is_empty()
                         || validation::data_where_field_intervals(self.program, data).is_some())
                     && !data.zero_gated
-                    && data.properties.multiplicity == Multiplicity::Unrestricted
                     && matches!(
                         typed_trees::data::DataDefinition::shape_kind_from_members(members),
                         DataShapeKind::Record | DataShapeKind::Enum | DataShapeKind::Mixed
@@ -273,29 +283,6 @@ impl<'program> ShapeCollector<'program> {
                             .all(|field| !field.relevance.is_erased()),
                     })
             })
-    }
-
-    fn is_literal_array_of_unrestricted_primitive(
-        &self,
-        mut type_reference: TypeReferenceHandle,
-    ) -> bool {
-        for _ in 0..self.program.type_reference_table.type_reference_count() {
-            let TypeReferenceNode::FixedArray {
-                element_type,
-                length: typed_trees::types::FixedArrayLength::Literal(_),
-            } = self
-                .program
-                .type_reference_table
-                .type_reference(type_reference)
-            else {
-                return false;
-            };
-            if self.is_unrestricted_nonatomic_primitive(*element_type) {
-                return true;
-            }
-            type_reference = *element_type;
-        }
-        false
     }
 
     /// A reference type whose shell loans its referent: `parts`' `&mut
@@ -565,10 +552,16 @@ impl<'program> ShapeCollector<'program> {
                 && !type_graph_requires_nominal_drop(self.program, type_reference);
             let unrestricted_primitive_element =
                 self.is_unrestricted_nonatomic_primitive(*element_type);
-            let unrestricted_material_data_element =
-                self.is_unrestricted_material_data(*element_type);
-            let unrestricted_nested_primitive_array_element =
-                self.is_literal_array_of_unrestricted_primitive(*element_type);
+            let material_data_element = self.is_material_data(*element_type);
+            // The recursive collector validates the inner array's own extent
+            // and element shell. Looking through it here to demand primitive
+            // leaves duplicates collection and rejects valid aggregate nesting.
+            let nested_array_element = matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(*element_type),
+                TypeReferenceNode::FixedArray { .. }
+            );
             // Domain membership is carried separately at each indexed place.
             // Peel only constraints for this owned-carrier classification;
             // a reference still cannot become an owned linear element.
@@ -596,12 +589,12 @@ impl<'program> ShapeCollector<'program> {
                             .type_reference(element_carrier),
                         TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
                     ) && !unrestricted_primitive_element
-                        && !unrestricted_nested_primitive_array_element)
+                        && !nested_array_element)
                         || (crate::checks::type_multiplicity(self.program, *element_type)
                             != Multiplicity::Linear
                             && !unrestricted_primitive_element
-                            && !unrestricted_material_data_element
-                            && !unrestricted_nested_primitive_array_element)))
+                            && !material_data_element
+                            && !nested_array_element)))
                 || !self.in_progress.insert(identity.clone())
             {
                 return None;
@@ -842,6 +835,11 @@ impl<'program> ShapeCollector<'program> {
         owner_identity: &str,
         stated_bounds: Option<(Option<i64>, Option<i64>)>,
     ) -> Option<CheckedUnitStructuralFieldPlan> {
+        // Classify the actual member before choosing its storage route. A
+        // formal T instantiated with a reference or Binding must retain that
+        // shell, not reach add_type's referent-oriented fallback as plain T.
+        let field_type_reference =
+            substituted_formal_type(self.program, field.type_reference, substitutions);
         let field_type = if field.relevance.is_erased() {
             CheckedUnitStructuralFieldType::Erased {
                 type_identity: self
@@ -849,33 +847,12 @@ impl<'program> ShapeCollector<'program> {
                     .type_identity(TypeIdentityRequest {
                         binders,
                         substitutions,
-                        ..TypeIdentityRequest::ordinary(field.type_reference)
+                        ..TypeIdentityRequest::ordinary(field_type_reference)
                     })
                     .into_string(),
             }
-        } else if crate::execution::terminal_unit::reference_results::parts(
-            self.program,
-            field.type_reference,
-        )
-        .is_some()
-        {
-            CheckedUnitStructuralFieldType::Structural {
-                type_identity: self.add_reference_type(field.type_reference, binders)?,
-            }
-        } else if borrowed_named_view(self.program, field.type_reference) {
-            // A `&'a V` member keeps its reference shell in the declared field
-            // type exactly as the shared-borrow argument plan names it —
-            // peeling to the named referent would mint a different identity
-            // than the `&`-rooted value the literal's field produces.
-            CheckedUnitStructuralFieldType::Structural {
-                type_identity: self.add_view_type(
-                    field.type_reference,
-                    binders,
-                    language_semantics::ReferenceAccess::Shared,
-                )?,
-            }
         } else if let Some((fused_service_erasure, provider_node)) =
-            provider_backed_field(self.program, field.type_reference)
+            provider_backed_field(self.program, field_type_reference)
         {
             let provider_type_identity = self
                 .program
@@ -895,11 +872,11 @@ impl<'program> ShapeCollector<'program> {
                 },
             }
         } else if let Some(carrier) =
-            byte_sequence_carrier(self.program, field.type_reference, substitutions)
+            byte_sequence_carrier(self.program, field_type_reference, substitutions)
         {
             let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
                 self.program,
-                field.type_reference,
+                field_type_reference,
             );
             let mut predicates =
                 language_semantics::byte_predicates::ByteSequencePredicateSet::EMPTY;
@@ -914,17 +891,38 @@ impl<'program> ShapeCollector<'program> {
                     predicates,
                 }
             }
+        } else if is_reference(self.program, field_type_reference)
+            && element_view_shell(self.program, field_type_reference, substitutions).is_none()
+        {
+            // Provider and sequence fields have their own carriers above or
+            // in add_type. Every other stored loan needs an exact Reference
+            // shape: an unsupported access must fail here, never fall through
+            // to add_type and turn borrowed storage into inline owned data.
+            structural_access_for_type_reference(self.program, field_type_reference)?;
+            let shell = validation::reference_shell(self.program, field_type_reference)?;
+            if matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(shell.referee),
+                TypeReferenceNode::Constrained { .. }
+            ) {
+                // Reference shapes have no referent qualification slot.
+                return None;
+            }
+            CheckedUnitStructuralFieldType::Structural {
+                type_identity: self.add_reference_type(field_type_reference, binders)?,
+            }
         } else {
-            match scalar_type(self.program, field.type_reference, substitutions) {
+            match scalar_type(self.program, field_type_reference, substitutions) {
                 Some(primitive) => scalar_fields::retain_scalar_field(
                     self.program,
-                    field.type_reference,
+                    field_type_reference,
                     substitutions,
                     primitive,
                     stated_bounds,
                 )?,
                 None => {
-                    let nested = self.add_type(field.type_reference, binders, substitutions)?;
+                    let nested = self.add_type(field_type_reference, binders, substitutions)?;
                     if nested == owner_identity {
                         return None;
                     }
@@ -1127,4 +1125,104 @@ pub(super) fn provider_backed_field(
         .iter()
         .any(|definition| definition.symbol == provider_symbol && definition.is_boundary)
         .then_some((None, unwrapped))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tests::front_end::typed_program_with_core_service;
+
+    fn carrier_field(program: &TypedTrees) -> TypeReferenceHandle {
+        let carrier = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == "Carrier")
+            .expect("carrier");
+        let [DataMember::Field(field)] = program.data_members(carrier) else {
+            panic!("one carrier field");
+        };
+        field.type_reference
+    }
+
+    #[test]
+    fn array_shapes_do_not_erase_unrepresented_element_shells() {
+        for member in [
+            "[&mut u64; 2]",
+            "[u64 [0..=7]; 2]",
+            "[[&mut u64; 2]; 3]",
+            "[Token; 0]",
+            "[Wrapper<&write u64>; 2]",
+            "[Wrapper<&mut &mut u64>; 2]",
+            "[Wrapper<&mut u64 [0..=7]>; 2]",
+        ] {
+            let program = typed_program_with_core_service(&format!(
+                "data Token {{ value: u64; }} data Wrapper<T> {{ value: T; }} data Carrier {{ values: {member}; }}"
+            ));
+            assert!(
+                ShapeCollector::new(&program)
+                    .add_type(carrier_field(&program), &[], &[])
+                    .is_none(),
+                "{member} has no faithful array element representation"
+            );
+        }
+    }
+
+    #[test]
+    fn provider_array_shape_does_not_grant_partial_affine_disposal() {
+        let program = typed_program_with_core_service(
+            r#"
+            pub boundary trait Host { machine exit(code: i32); }
+            data Task { host: Binding<Host>; }
+            data Slot { case Empty; case Held(task: Task); }
+            data Carrier { values: [Slot; 2]; }
+        "#,
+        );
+        let reference = carrier_field(&program);
+        let mut collector = ShapeCollector::new(&program);
+        assert!(collector.add_type(reference, &[], &[]).is_some());
+        assert!(
+            collector.add_partial_affine_type(reference, &[]).is_none(),
+            "a layout cannot authorize disposal of provider-bearing contents"
+        );
+    }
+
+    #[test]
+    fn generic_array_members_retain_substituted_reference_shells() {
+        for referee in ["u64", "Token"] {
+            let program = typed_program_with_core_service(&format!(
+                "data Token {{ value: u64; }} data Wrapper<T> {{ value: T; }} data Carrier {{ values: [Wrapper<&mut {referee}>; 2]; }}",
+            ));
+            let mut collector = ShapeCollector::new(&program);
+            let identity = collector
+                .add_type(carrier_field(&program), &[], &[])
+                .expect("array layout");
+            let CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                ..
+            } = &collector.types[&identity].shape
+            else {
+                panic!("array");
+            };
+            let CheckedUnitStructuralTypeShape::Record { fields } =
+                &collector.types[element_type_identity].shape
+            else {
+                panic!("wrapper record");
+            };
+            let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                &fields[0].field_type
+            else {
+                panic!("stored reference");
+            };
+            assert!(
+                matches!(
+                    collector.types[type_identity].shape,
+                    CheckedUnitStructuralTypeShape::Reference {
+                        access: CheckedStructuralAccess::MutableBorrow,
+                        ..
+                    }
+                ),
+                "a substituted reference must not become inline referent storage"
+            );
+        }
+    }
 }
