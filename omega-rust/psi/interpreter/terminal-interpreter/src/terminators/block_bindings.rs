@@ -548,12 +548,18 @@ impl TerminalExecution {
                     operation.id == producer
                         && match operation.kind {
                             terminal_psi::OperationKind::EstablishScalarCase { .. } => scalar_case,
-                            terminal_psi::OperationKind::EstablishRecord { .. }
                             // Leaf copies publish fresh record storage, just
-                            // like construction. The exact producer, type and
-                            // multiplicity checks below still govern transfer.
-                            | terminal_psi::OperationKind::StructuralLeafCopy { .. }
-                            | terminal_psi::OperationKind::StructuralCaseLeafCopy { .. } => !scalar_case,
+                            // like construction; a whole copy of a scalar
+                            // case publishes a fresh scalar case instead. The
+                            // exact producer, type and multiplicity checks
+                            // below still govern transfer.
+                            terminal_psi::OperationKind::StructuralLeafCopy {
+                                ref path, ..
+                            } => !scalar_case || path.is_empty(),
+                            terminal_psi::OperationKind::EstablishRecord { .. }
+                            | terminal_psi::OperationKind::StructuralCaseLeafCopy { .. } => {
+                                !scalar_case
+                            }
                             terminal_psi::OperationKind::CallStructural { .. }
                             | terminal_psi::OperationKind::CallStructuralWithScalarArguments {
                                 ..

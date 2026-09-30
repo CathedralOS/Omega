@@ -213,3 +213,61 @@ fn copied_operand_rejects_a_substituted_source_path() {
     )
     .expect_err("independent source replay rejects an exchanged copy path");
 }
+
+/// A whole `[copy]` case local passed to an unrestricted scalar call is
+/// snapshotted into a fresh scalar case before the call. The interpreter keeps
+/// that snapshot in scalar-case storage, and the callee binds the snapshot,
+/// whose producer is the copy rather than the local's construction.
+#[test]
+fn copied_case_local_operand_executes_from_its_snapshot() {
+    let checked = crate::front_end::checked_program(
+        "data Choice [copy] { case Some(value: u8); case Empty; }
+         machine answer(choice: Choice, fallback: u8) -> u8 {
+             transition choice { Choice::Some { value } -> (value) Choice::Empty -> (fallback) }
+         }
+         machine selected(value: u8) -> u8 {
+             let choice: Choice = Choice::Some { value: value };
+             answer(choice, 9u8)
+         }",
+    );
+    let artifact =
+        TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("selected"))
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("the copied case operand lowers")
+            .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    assert!(
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                &operation.kind,
+                terminal_psi::OperationKind::StructuralLeafCopy { path, .. } if path.is_empty()
+            )),
+        "the case operand is a whole copy"
+    );
+    let byte = |value: u8| terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type: semantic_vocabulary::IntegerType::new(
+            semantic_vocabulary::IntegerSign::Unsigned,
+            8,
+        )
+        .unwrap(),
+        value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(value)),
+    };
+    for value in [0u8, 42] {
+        assert_eq!(
+            terminal_interpreter::interpret_terminal_artifact(
+                artifact.semantic_bytes(),
+                artifact.proof_bytes(),
+                &proof_admission::AdmissionProfile::default(),
+                &[byte(value)],
+            )
+            .expect("the snapshot is an ordinary scalar-case actual"),
+            terminal_interpreter::TerminalExecutionResult::Scalar(byte(value))
+        );
+    }
+}
