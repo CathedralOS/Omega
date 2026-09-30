@@ -976,7 +976,7 @@ impl Context<'_> {
         }
     }
 
-    /// `carrier == "literal"` on a bounded owned byte field has no scalar
+    /// `carrier == "literal"` on a byte field or shared view local has no scalar
     /// operand pair, so checking decomposes it into the live-length comparison
     /// folded with one indexed-read equality per literal byte
     /// (typed-trees-to-checked-trees `bounded_carrier_literal_equality`). The
@@ -1008,7 +1008,7 @@ impl Context<'_> {
             else {
                 continue;
             };
-            let Some((position, path)) = self.carrier_parameter_place(carrier) else {
+            let Some((root, path)) = self.carrier_literal_place(carrier) else {
                 continue;
             };
             if conjuncts.len() != bytes.len() + 1 {
@@ -1021,9 +1021,9 @@ impl Context<'_> {
                 || !matches!(
                     left.as_ref(),
                     Scalar::StructuralParameterByteLength {
-                        root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
+                        root: retained_root,
                         path: retained,
-                    } if *parameter_position == position && paths_match(retained, &path)
+                    } if *retained_root == root && paths_match(retained, &path)
                 )
                 || !matches!(
                     right.as_ref(),
@@ -1050,13 +1050,13 @@ impl Context<'_> {
                         && matches!(
                             left.as_ref(),
                             Scalar::StructuralParameterIndexedRead {
-                                root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
+                                root: retained_root,
                                 path: retained,
                                 index: retained_index,
                                 inner_indexes,
                                 element_path,
                                 primitive_type,
-                            } if *parameter_position == position
+                            } if *retained_root == root
                                 && inner_indexes.is_empty()
                                 && element_path.is_empty()
                                 && paths_match(retained, &path)
@@ -1228,6 +1228,78 @@ impl Context<'_> {
             }
         }
         false
+    }
+
+    /// Local equality names the earlier authored binding, not any other view
+    /// with equal bytes or the same type. Its establishment independently
+    /// rejoins the initializer and loan; this replay checks every observation
+    /// in the literal fold reads that exact shared byte carrier.
+    fn carrier_literal_place(
+        &self,
+        source: ExpressionHandle,
+    ) -> Option<(
+        checked_trees::CheckedStorageRoot,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    )> {
+        if let Some((position, path)) = self.carrier_parameter_place(source) {
+            return Some((
+                checked_trees::CheckedStorageRoot::Parameter { index: position },
+                path,
+            ));
+        }
+        let ExpressionNode::Name(name) = self.checked.expression_table.expression(source) else {
+            return None;
+        };
+        if !name.symbol.is_valid()
+            || name.symbol != name.head_symbol
+            || self
+                .checked
+                .expression_table
+                .name_path_members(name.members)
+                .len()
+                != 1
+        {
+            return None;
+        }
+        let (_, state) = super::authored_state(self.checked, self.state).ok()?;
+        if self
+            .checked
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.symbol == name.symbol)
+        {
+            return None;
+        }
+        let mut locals = self
+            .checked
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .take(usize::try_from(self.statement).ok()?)
+            .filter_map(|statement| match statement {
+                checked_trees::statement::StatementNode::LocalData(local)
+                    if local.symbol == name.symbol =>
+                {
+                    Some(local)
+                }
+                _ => None,
+            });
+        let local = locals.next()?;
+        if locals.next().is_some() || local.is_mutable || !local.initial_value.is_valid() {
+            return None;
+        }
+        let view = validation::slice_view_shell(&self.checked.typed, local.type_reference, &[])?;
+        if view.access != language_semantics::ReferenceAccess::Shared
+            || self.checked.primitive_type_reference(view.element) != Some(PrimitiveType::U8)
+        {
+            return None;
+        }
+        Some((
+            checked_trees::CheckedStorageRoot::ViewLocal {
+                symbol: name.symbol,
+            },
+            Vec::new(),
+        ))
     }
 
     fn carrier_parameter_place(
