@@ -66,14 +66,14 @@ fn suspension_call_plan_round_trips_canonically_and_rejects_prior_format() {
     module.suspension_call_plans = vec![plan];
 
     let bytes = encode_module(&module).expect("suspension plan encodes");
-    assert_eq!(&bytes[8..10], 109_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], 110_u16.to_le_bytes());
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_eq!(
         encode_module(&decode_module(&bytes).unwrap()),
         Ok(bytes.clone())
     );
 
-    for previous_format in [73_u16, 108_u16] {
+    for previous_format in [73_u16, 109_u16] {
         let mut stale = bytes.clone();
         stale[8..10].copy_from_slice(&previous_format.to_le_bytes());
         assert_eq!(
@@ -185,7 +185,7 @@ fn natural_ranking_round_trips_exact_semantic_rows_and_rejects_malformed_coverag
     };
     module.machines[0].ranked_scc = Some(TerminalRankedScc::Natural(vec![cycle.clone()]));
     let bytes = encode_module(&module).expect("natural ranking representation encodes");
-    assert_eq!(&bytes[8..12], &[109, 0, 113, 0]);
+    assert_eq!(&bytes[8..12], &[110, 0, 114, 0]);
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_ne!(semantic_fingerprint(&module).unwrap(), unranked_identity);
     let mut stale = bytes;
