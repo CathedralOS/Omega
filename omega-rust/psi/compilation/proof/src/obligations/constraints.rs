@@ -53,6 +53,12 @@ pub(crate) fn expression_constraints(
                 return constraints;
             }
 
+            if let Some(constraints) =
+                derived_float_operator_constraints(program, machine, state, call)
+            {
+                return constraints;
+            }
+
             if let Some(return_type) = call_expression_return_type(program, machine, state, call) {
                 return collect_constraints_in_state(program, machine, state, return_type);
             }
@@ -375,6 +381,55 @@ fn derived_builtin_call_constraints(
         "range" => derived_range_call_constraints(program, machine, state, call),
         _ => None,
     }
+}
+
+/// A call typed as a primitive `Float::<op>` operator composes its operands
+/// under the same saturation, range and finiteness rules as a scalar `Binary`
+/// node — the sealed operator declaration binds IEEE meaning to the spelling,
+/// so `primitive_float_binary_semantics` is the admission test rather than a
+/// name match. User `-`/`+` overloads and non-primitive `Float::` members are
+/// out: their results are not bound to IEEE operand closure. Comparison
+/// operators are excluded by the caller-visible restriction to arithmetic
+/// operations, since they return `bool` and no numeric closure applies.
+fn derived_float_operator_constraints(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<ConstraintBuffer> {
+    // Leaf-name gate mirrors `derived_builtin_call_constraints`: only calls
+    // spelled like a `Float::<op>` leaf pay the declaration resolution; the
+    // name alone admits nothing — `primitive_float_binary_semantics` still
+    // re-validates the sealed namespace, spelling and parameters.
+    if !matches!(
+        call.target.as_str(),
+        "add" | "subtract" | "multiply" | "divide"
+    ) {
+        return None;
+    }
+    let owner = program.machine_holding_state(call.target_symbol)?;
+    if !matches!(
+        owner.spelling,
+        Some(language_core::operator_spelling::OperatorSpelling::Add)
+            | Some(language_core::operator_spelling::OperatorSpelling::Subtract)
+            | Some(language_core::operator_spelling::OperatorSpelling::Multiply)
+            | Some(language_core::operator_spelling::OperatorSpelling::Divide)
+    ) {
+        return None;
+    }
+    let operator = typed_trees::operator::declaration_by_symbol(program, owner.symbol)?;
+    let (operation, _format) =
+        typed_trees::operator::primitive_float_binary_semantics(program, operator)?;
+    let [left, right] = program.expression_table.expression_handles(call.arguments) else {
+        return None;
+    };
+    let left_constraints = expression_constraints(program, machine, state, *left);
+    let right_constraints = expression_constraints(program, machine, state, *right);
+    Some(derived_binary_constraints(
+        operation,
+        &left_constraints,
+        &right_constraints,
+    ))
 }
 
 fn derived_extrema_call_constraints(
