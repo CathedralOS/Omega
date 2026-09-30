@@ -94,14 +94,12 @@ build authority, and artifact verification remain separate obligations.
   and `slice_maximum` (9) run with native/interpreter agreement. Direct scalar
   element reads from local arrays retain the original home after a borrowed
   writer (`pass/calls/local_array_direct_read_exit`, native exit 70 on macOS
-  ARM64). Remaining structural-argument refusals: a shared projection of a
-  local (`&dash.engine`) stops at Psi stage 04 `call operation: projected
-  operand support` until `ordinary_projected_call_is_supported`
-  (`calls/argument_paths.rs`) admits `SharedBorrow` in its result-binding arm;
-  the argument, claim-transfer, stage 05 and Terminal checks already admit it.
-  For Unit, scalar and record results alike, a fixed-index loan of a local's
-  record-array element (`&mut board.tallies[1]`) stops at stage 05 `Unit
-  structural result argument has invalid checked custody`; for scalar and
+  ARM64). A shared projection of a local (`&dash.engine`) lends into Unit and
+  scalar-result callees (`pass/calls/local_projected_field_shared_argument_exit`).
+  Remaining structural-argument refusals: for Unit, scalar and record results
+  alike, a fixed-index loan of a local's record-array element
+  (`&mut board.tallies[1]`) stops at stage 05 `Unit structural result
+  argument has invalid checked custody`; for scalar and
   record results, a callee that forwards its `&mut` parameter across states
   stops at Terminal `OwnedStructuralPlaceNotLiveAtOperation`. A static
   `generic_counters` plans its
