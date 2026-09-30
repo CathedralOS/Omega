@@ -2,9 +2,10 @@ use compiler::CheckedCompileRequest;
 use compiler::compile_to_checked;
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 use package_evidence::encoding::{
-    PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PackageReviewCanonicalRowRecoveryLimits,
-    decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
-    encode_package_review_canonical_row,
+    PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PackagePolicyRecoveryLimits,
+    PackageReviewCanonicalRowRecoveryLimits, decode_package_review_canonical_row,
+    decode_package_review_canonical_row_with_limits, encode_package_review_canonical_row,
+    recover_package_review_projection,
 };
 use package_evidence::project_checked_package_review;
 use package_evidence::record::{
@@ -95,6 +96,61 @@ pub machine invoke_leaf()
         review.target(),
         review.canonical_rows().expect("fixture canonical rows"),
     ))
+}
+
+/// A package declaring a top-level `boundary requirement` projects its
+/// callable with the `top_level_requirement` supply. Bounded projection
+/// recovery must decode that supply, or the persistent review cache misses
+/// every record of such a package and recompiles it on each invocation.
+#[test]
+fn top_level_requirement_callable_recovers_from_canonical_review_bytes() {
+    let Some(target_name) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Waiter { }
+pub boundary trait Pacing { machine pace(milliseconds: u32) reaches Pacing; }
+boundary requirement Waiter::wait(timeout_milliseconds: i32)
+reaches
+    Pacing;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
+"#,
+    );
+    let inputs = PackageCompilationInputs::new_package(
+        package_identity(),
+        vec![PackageSourceBinding::new(
+            package_identity(),
+            "review_fixture",
+            package.0.clone(),
+        )],
+        Vec::new(),
+    )
+    .expect("single-package graph");
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target_name))
+    })
+    .expect("top-level requirement fixture should check");
+    let review = project_checked_package_review(&checked).expect("fixture review should close");
+    let bytes = review
+        .canonical_review_bytes()
+        .expect("fixture review bytes");
+    let rows = review.canonical_rows().expect("fixture canonical rows");
+    let recovered =
+        recover_package_review_projection(&bytes, &rows, PackagePolicyRecoveryLimits::default())
+            .expect("a top-level requirement callable recovers");
+    assert_eq!(
+        recovered
+            .canonical_review_bytes()
+            .expect("recovered review bytes"),
+        bytes
+    );
 }
 
 #[test]
