@@ -329,93 +329,93 @@ pub machine Verify::feed(verify: &mut Verify, b: u8) {
 // bytes is a hard `ok` failure (truncation rejects at the outer check, not
 // here — rd_bad only fires when a decoder overruns the declared extent).
 
-machine Verify::rd(&mut self) {
-    transition self.src == 0 && self.rq < 8192 && self.rq < self.req_n {
-        true -> rd_req()
-        _ -> rd_plan_g()
+machine Verify::rd(verify: &mut Verify) {
+    transition verify.src == 0 && verify.rq < 8192 && verify.rq < verify.req_n {
+        true -> rd_req(verify)
+        _ -> rd_plan_g(verify)
     }
 
-    state rd_plan_g(&mut self) {
-        transition self.src == 1 && self.pq < 16384 && self.pq < self.plan_n {
-            true -> rd_plan()
-            _ -> rd_meta_g()
+    state rd_plan_g(verify: &mut Verify) {
+        transition verify.src == 1 && verify.pq < 16384 && verify.pq < verify.plan_n {
+            true -> rd_plan(verify)
+            _ -> rd_meta_g(verify)
         }
     }
-    state rd_meta_g(&mut self) {
-        transition self.src == 2 && self.mq < 8192 && self.mq < self.meta_n {
-            true -> rd_meta()
-            _ -> rd_bad()
+    state rd_meta_g(verify: &mut Verify) {
+        transition verify.src == 2 && verify.mq < 8192 && verify.mq < verify.meta_n {
+            true -> rd_meta(verify)
+            _ -> rd_bad(verify)
         }
     }
-    state rd_req(&mut self) {
-        self.b8 = self.req[self.rq];
-        self.rq = self.rq + 1;
-        transition { _ -> rd_done() }
+    state rd_req(verify: &mut Verify) {
+        verify.b8 = verify.req[verify.rq];
+        verify.rq = verify.rq + 1;
+        transition { _ -> rd_done(verify) }
     }
-    state rd_plan(&mut self) {
-        self.b8 = self.plan[self.pq];
-        self.pq = self.pq + 1;
-        transition { _ -> rd_done() }
+    state rd_plan(verify: &mut Verify) {
+        verify.b8 = verify.plan[verify.pq];
+        verify.pq = verify.pq + 1;
+        transition { _ -> rd_done(verify) }
     }
-    state rd_meta(&mut self) {
-        self.b8 = self.meta[self.mq];
-        self.mq = self.mq + 1;
-        transition { _ -> rd_done() }
+    state rd_meta(verify: &mut Verify) {
+        verify.b8 = verify.meta[verify.mq];
+        verify.mq = verify.mq + 1;
+        transition { _ -> rd_done(verify) }
     }
-    state rd_bad(&mut self) {
-        self.ok = false;
-        self.errtag[0] = 114;
-        self.errtag[1] = 100;
-        self.errtag[2] = 88;
-        self.errtag[3] = 88;
-        transition { _ -> rd_done() }
+    state rd_bad(verify: &mut Verify) {
+        verify.ok = false;
+        verify.errtag[0] = 114;
+        verify.errtag[1] = 100;
+        verify.errtag[2] = 88;
+        verify.errtag[3] = 88;
+        transition { _ -> rd_done(verify) }
     }
-    state rd_done(&mut self) {
+    state rd_done(verify: &mut Verify) {
     }
 }
 
 // Little-endian u32 -> `w32`.
-machine Verify::ru32(&mut self) {
-    self.acc = 0;
-    Verify::rd(&mut self);
-    self.acc = self.acc + (self.b8 as u64 in Wrapping);
-    Verify::rd(&mut self);
-    self.acc = self.acc + ((self.b8 as u64 in Wrapping) << 8);
-    Verify::rd(&mut self);
-    self.acc = self.acc + ((self.b8 as u64 in Wrapping) << 16);
-    Verify::rd(&mut self);
-    self.acc = self.acc + ((self.b8 as u64 in Wrapping) << 24);
-    self.w32 = (self.acc as u32 in Wrapping) as u32;
+machine Verify::ru32(verify: &mut Verify) {
+    verify.acc = 0;
+    Verify::rd(verify);
+    verify.acc = verify.acc + (verify.b8 as u64 in Wrapping);
+    Verify::rd(verify);
+    verify.acc = verify.acc + ((verify.b8 as u64 in Wrapping) << 8);
+    Verify::rd(verify);
+    verify.acc = verify.acc + ((verify.b8 as u64 in Wrapping) << 16);
+    Verify::rd(verify);
+    verify.acc = verify.acc + ((verify.b8 as u64 in Wrapping) << 24);
+    verify.w32 = (verify.acc as u32 in Wrapping) as u32;
 }
 
 // 32 identity bytes -> `ident`.
-machine Verify::rdident(&mut self) {
-    self.j = 0;
-    transition { _ -> loop_s() }
-    state loop_s(&mut self) {
-        transition self.j < 32 && self.ok {
-            true -> apply()
-            _ -> done()
+machine Verify::rdident(verify: &mut Verify) {
+    verify.j = 0;
+    transition { _ -> loop_s(verify) }
+    state loop_s(verify: &mut Verify) {
+        transition verify.j < 32 && verify.ok {
+            true -> apply(verify)
+            _ -> done(verify)
         }
     }
-    state apply(&mut self) {
-        self.h0 = self.j;
-        transition self.h0 < 32 {
-            true -> wr()
-            _ -> bad()
+    state apply(verify: &mut Verify) {
+        verify.h0 = verify.j;
+        transition verify.h0 < 32 {
+            true -> wr(verify)
+            _ -> bad(verify)
         }
     }
-    state wr(&mut self) {
-        Verify::rd(&mut self);
-        self.ident[self.h0] = self.b8;
-        self.j = self.j + 1;
-        transition { _ -> loop_s() }
+    state wr(verify: &mut Verify) {
+        Verify::rd(verify);
+        verify.ident[verify.h0] = verify.b8;
+        verify.j = verify.j + 1;
+        transition { _ -> loop_s(verify) }
     }
-    state bad(&mut self) {
-        self.ok = false;
-        transition { _ -> done() }
+    state bad(verify: &mut Verify) {
+        verify.ok = false;
+        transition { _ -> done(verify) }
     }
-    state done(&mut self) {
+    state done(verify: &mut Verify) {
     }
 }
 
@@ -462,75 +462,75 @@ machine Verify::rdname(verify: &mut Verify) {
 // Resolve `strbuf`/`str_n` against the request roster into `sel`-style
 // index — `d0` receives the member index or 255 when unknown. Names are
 // canonical so roster index order is name order.
-machine Verify::resolve_name(&mut self) {
-    self.d0 = 255;
-    self.i = 0;
-    transition { _ -> loop_s() }
-    state loop_s(&mut self) {
-        transition self.i < self.n_inst && self.i < 8 && self.ok {
-            true -> len_ck()
-            _ -> done()
+machine Verify::resolve_name(verify: &mut Verify) {
+    verify.d0 = 255;
+    verify.i = 0;
+    transition { _ -> loop_s(verify) }
+    state loop_s(verify: &mut Verify) {
+        transition verify.i < verify.n_inst && verify.i < 8 && verify.ok {
+            true -> len_ck(verify)
+            _ -> done(verify)
         }
     }
-    state len_ck(&mut self) {
-        transition self.name_len[self.i] == self.str_n {
-            true -> cmp_init()
-            _ -> next()
+    state len_ck(verify: &mut Verify) {
+        transition verify.name_len[verify.i] == verify.str_n {
+            true -> cmp_init(verify)
+            _ -> next(verify)
         }
     }
-    state cmp_init(&mut self) {
-        self.j = 0;
-        self.jg = 1;
-        transition { _ -> cmp_loop() }
+    state cmp_init(verify: &mut Verify) {
+        verify.j = 0;
+        verify.jg = 1;
+        transition { _ -> cmp_loop(verify) }
     }
-    state cmp_loop(&mut self) {
-        transition self.j < self.str_n && self.j < 128 && self.jg == 1 {
-            true -> prep_c()
-            _ -> cmp_done()
+    state cmp_loop(verify: &mut Verify) {
+        transition verify.j < verify.str_n && verify.j < 128 && verify.jg == 1 {
+            true -> prep_c(verify)
+            _ -> cmp_done(verify)
         }
     }
-    state prep_c(&mut self) {
-        self.h0 = self.i * 128 + self.j;
-        self.h1 = self.j;
-        transition self.h0 < 1024 && self.h1 < 256 {
-            true -> do_c()
-            _ -> bad()
+    state prep_c(verify: &mut Verify) {
+        verify.h0 = verify.i * 128 + verify.j;
+        verify.h1 = verify.j;
+        transition verify.h0 < 1024 && verify.h1 < 256 {
+            true -> do_c(verify)
+            _ -> bad(verify)
         }
     }
-    state do_c(&mut self) {
-        self.w8 = self.names[self.h0];
-        transition self.w8 == self.strbuf[self.h1] {
-            true -> c_next()
-            _ -> c_diff()
+    state do_c(verify: &mut Verify) {
+        verify.w8 = verify.names[verify.h0];
+        transition verify.w8 == verify.strbuf[verify.h1] {
+            true -> c_next(verify)
+            _ -> c_diff(verify)
         }
     }
-    state c_diff(&mut self) {
-        self.jg = 0;
-        transition { _ -> cmp_loop() }
+    state c_diff(verify: &mut Verify) {
+        verify.jg = 0;
+        transition { _ -> cmp_loop(verify) }
     }
-    state c_next(&mut self) {
-        self.j = self.j + 1;
-        transition { _ -> cmp_loop() }
+    state c_next(verify: &mut Verify) {
+        verify.j = verify.j + 1;
+        transition { _ -> cmp_loop(verify) }
     }
-    state cmp_done(&mut self) {
-        transition self.jg == 1 {
-            true -> hit()
-            _ -> next()
+    state cmp_done(verify: &mut Verify) {
+        transition verify.jg == 1 {
+            true -> hit(verify)
+            _ -> next(verify)
         }
     }
-    state hit(&mut self) {
-        self.d0 = self.i;
-        transition { _ -> done() }
+    state hit(verify: &mut Verify) {
+        verify.d0 = verify.i;
+        transition { _ -> done(verify) }
     }
-    state next(&mut self) {
-        self.i = self.i + 1;
-        transition { _ -> loop_s() }
+    state next(verify: &mut Verify) {
+        verify.i = verify.i + 1;
+        transition { _ -> loop_s(verify) }
     }
-    state bad(&mut self) {
-        self.ok = false;
-        transition { _ -> done() }
+    state bad(verify: &mut Verify) {
+        verify.ok = false;
+        transition { _ -> done(verify) }
     }
-    state done(&mut self) {
+    state done(verify: &mut Verify) {
     }
 }
 
@@ -642,58 +642,58 @@ machine Verify::cmp_names(verify: &mut Verify, a: u64 in Wrapping, b: u64 in Wra
 // order is enforced as strictly increasing member indices — the roster is
 // name-sorted, so increasing index order is exactly the codec's
 // canonical-order and no-duplicate rule.
-machine Verify::rd_selector(&mut self) {
-    Verify::ru32(&mut self);
-    self.sel_n = self.w32 as u64 in Wrapping;
-    self.sel_mask = 0;
-    self.sel_prev = 0;
-    transition self.sel_n <= 8 && self.ok {
-        true -> init()
-        _ -> bad()
+machine Verify::rd_selector(verify: &mut Verify) {
+    Verify::ru32(verify);
+    verify.sel_n = verify.w32 as u64 in Wrapping;
+    verify.sel_mask = 0;
+    verify.sel_prev = 0;
+    transition verify.sel_n <= 8 && verify.ok {
+        true -> init(verify)
+        _ -> bad(verify)
     }
-    state init(&mut self) {
-        self.j = 0;
-        transition { _ -> loop_s() }
+    state init(verify: &mut Verify) {
+        verify.j = 0;
+        transition { _ -> loop_s(verify) }
     }
-    state loop_s(&mut self) {
-        transition self.j < self.sel_n && self.j < 8 && self.ok {
-            true -> one()
-            _ -> done()
+    state loop_s(verify: &mut Verify) {
+        transition verify.j < verify.sel_n && verify.j < 8 && verify.ok {
+            true -> one(verify)
+            _ -> done(verify)
         }
     }
-    state one(&mut self) {
-        Verify::rdname(&mut self);
-        Verify::resolve_name(&mut self);
-        transition self.d0 < 8 && self.ok {
-            true -> order_ck()
-            _ -> bad()
+    state one(verify: &mut Verify) {
+        Verify::rdname(verify);
+        Verify::resolve_name(verify);
+        transition verify.d0 < 8 && verify.ok {
+            true -> order_ck(verify)
+            _ -> bad(verify)
         }
     }
-    state order_ck(&mut self) {
-        transition self.j == 0 || self.d0 > self.sel_prev {
-            true -> record()
-            _ -> bad()
+    state order_ck(verify: &mut Verify) {
+        transition verify.j == 0 || verify.d0 > verify.sel_prev {
+            true -> record(verify)
+            _ -> bad(verify)
         }
     }
-    state record(&mut self) {
-        self.h0 = self.j;
-        transition self.h0 < 8 {
-            true -> record_w()
-            _ -> bad()
+    state record(verify: &mut Verify) {
+        verify.h0 = verify.j;
+        transition verify.h0 < 8 {
+            true -> record_w(verify)
+            _ -> bad(verify)
         }
     }
-    state record_w(&mut self) {
-        self.sel_list[self.h0] = self.d0;
-        self.sel_prev = self.d0;
-        self.sel_mask = self.sel_mask | ((1 as u64 in Wrapping) << self.d0);
-        self.j = self.j + 1;
-        transition { _ -> loop_s() }
+    state record_w(verify: &mut Verify) {
+        verify.sel_list[verify.h0] = verify.d0;
+        verify.sel_prev = verify.d0;
+        verify.sel_mask = verify.sel_mask | ((1 as u64 in Wrapping) << verify.d0);
+        verify.j = verify.j + 1;
+        transition { _ -> loop_s(verify) }
     }
-    state bad(&mut self) {
-        self.ok = false;
-        transition { _ -> done() }
+    state bad(verify: &mut Verify) {
+        verify.ok = false;
+        transition { _ -> done(verify) }
     }
-    state done(&mut self) {
+    state done(verify: &mut Verify) {
     }
 }
 
@@ -706,448 +706,448 @@ machine Verify::rd_selector(&mut self) {
 // end. Counts bound to this realization's roster scale; over-limit is a
 // LimitExceeded failure, never a satisfied verdict.
 
-machine Verify::decode_req(&mut self) {
-    self.src = 0;
-    self.rq = 0;
-    Verify::ru32(&mut self);
-    transition self.w32 == 1280332881 && self.ok {
-        true -> ver()
-        _ -> bad()
+machine Verify::decode_req(verify: &mut Verify) {
+    verify.src = 0;
+    verify.rq = 0;
+    Verify::ru32(verify);
+    transition verify.w32 == 1280332881 && verify.ok {
+        true -> ver(verify)
+        _ -> bad(verify)
     }
-    state ver(&mut self) {
-        Verify::ru32(&mut self);
-        transition self.w32 == 1 && self.ok {
-            true -> insts()
-            _ -> bad()
+    state ver(verify: &mut Verify) {
+        Verify::ru32(verify);
+        transition verify.w32 == 1 && verify.ok {
+            true -> insts(verify)
+            _ -> bad(verify)
         }
     }
-    state insts(&mut self) {
-        Verify::ru32(&mut self);
-        self.n_inst = self.w32 as u64 in Wrapping;
-        transition self.n_inst > 0 && self.n_inst <= 8 && self.ok {
-            true -> inst_init()
-            _ -> bad()
+    state insts(verify: &mut Verify) {
+        Verify::ru32(verify);
+        verify.n_inst = verify.w32 as u64 in Wrapping;
+        transition verify.n_inst > 0 && verify.n_inst <= 8 && verify.ok {
+            true -> inst_init(verify)
+            _ -> bad(verify)
         }
     }
-    state inst_init(&mut self) {
-        self.i = 0;
-        self.jg = 1;
-        transition { _ -> inst_loop() }
+    state inst_init(verify: &mut Verify) {
+        verify.i = 0;
+        verify.jg = 1;
+        transition { _ -> inst_loop(verify) }
     }
-    state inst_loop(&mut self) {
-        transition self.i < self.n_inst && self.i < 8 && self.ok {
-            true -> inst_name()
-            _ -> pols()
+    state inst_loop(verify: &mut Verify) {
+        transition verify.i < verify.n_inst && verify.i < 8 && verify.ok {
+            true -> inst_name(verify)
+            _ -> pols(verify)
         }
     }
-    state inst_name(&mut self) {
-        Verify::rdname(&mut self);
-        self.h0 = self.i;
-        transition self.h0 < 8 && self.ok {
-            true -> set_len()
-            _ -> bad()
+    state inst_name(verify: &mut Verify) {
+        Verify::rdname(verify);
+        verify.h0 = verify.i;
+        transition verify.h0 < 8 && verify.ok {
+            true -> set_len(verify)
+            _ -> bad(verify)
         }
     }
-    state set_len(&mut self) {
-        self.name_len[self.h0] = self.str_n;
-        self.k = 0;
-        transition { _ -> name_copy() }
+    state set_len(verify: &mut Verify) {
+        verify.name_len[verify.h0] = verify.str_n;
+        verify.k = 0;
+        transition { _ -> name_copy(verify) }
     }
-    state name_copy(&mut self) {
-        transition self.k < self.str_n && self.k < 128 {
-            true -> prep_nc()
-            _ -> order_ck()
+    state name_copy(verify: &mut Verify) {
+        transition verify.k < verify.str_n && verify.k < 128 {
+            true -> prep_nc(verify)
+            _ -> order_ck(verify)
         }
     }
-    state prep_nc(&mut self) {
-        self.h1 = self.i * 128 + self.k;
-        self.h2 = self.k;
-        transition self.h1 < 1024 && self.h2 < 256 {
-            true -> do_nc()
-            _ -> bad()
+    state prep_nc(verify: &mut Verify) {
+        verify.h1 = verify.i * 128 + verify.k;
+        verify.h2 = verify.k;
+        transition verify.h1 < 1024 && verify.h2 < 256 {
+            true -> do_nc(verify)
+            _ -> bad(verify)
         }
     }
-    state do_nc(&mut self) {
-        self.names[self.h1] = self.strbuf[self.h2];
-        self.k = self.k + 1;
-        transition { _ -> name_copy() }
+    state do_nc(verify: &mut Verify) {
+        verify.names[verify.h1] = verify.strbuf[verify.h2];
+        verify.k = verify.k + 1;
+        transition { _ -> name_copy(verify) }
     }
     // Canonical roster: each stored name strictly greater than its
     // predecessor — duplicates and out-of-order both reject.
-    state order_ck(&mut self) {
-        transition self.i == 0 {
-            true -> inst_subj()
-            _ -> ord_run()
+    state order_ck(verify: &mut Verify) {
+        transition verify.i == 0 {
+            true -> inst_subj(verify)
+            _ -> ord_run(verify)
         }
     }
-    state ord_run(&mut self) {
-        self.d0 = 0;
-        Verify::cmp_names(&mut self, self.i - 1, self.i);
-        transition self.d0 == 2 {
-            true -> inst_subj()
-            _ -> bad()
+    state ord_run(verify: &mut Verify) {
+        verify.d0 = 0;
+        Verify::cmp_names(verify, verify.i - 1, verify.i);
+        transition verify.d0 == 2 {
+            true -> inst_subj(verify)
+            _ -> bad(verify)
         }
     }
-    state inst_subj(&mut self) {
-        Verify::rdident(&mut self);
-        self.k = 0;
-        transition { _ -> subj_copy() }
+    state inst_subj(verify: &mut Verify) {
+        Verify::rdident(verify);
+        verify.k = 0;
+        transition { _ -> subj_copy(verify) }
     }
-    state subj_copy(&mut self) {
-        transition self.k < 32 {
-            true -> prep_sc()
-            _ -> subj_zero_ck()
+    state subj_copy(verify: &mut Verify) {
+        transition verify.k < 32 {
+            true -> prep_sc(verify)
+            _ -> subj_zero_ck(verify)
         }
     }
-    state prep_sc(&mut self) {
-        self.h1 = self.i * 32 + self.k;
-        self.h2 = self.k;
-        transition self.h1 < 256 && self.h2 < 32 {
-            true -> do_sc()
-            _ -> bad()
+    state prep_sc(verify: &mut Verify) {
+        verify.h1 = verify.i * 32 + verify.k;
+        verify.h2 = verify.k;
+        transition verify.h1 < 256 && verify.h2 < 32 {
+            true -> do_sc(verify)
+            _ -> bad(verify)
         }
     }
-    state do_sc(&mut self) {
-        self.subjects[self.h1] = self.ident[self.h2];
-        self.k = self.k + 1;
-        transition { _ -> subj_copy() }
+    state do_sc(verify: &mut Verify) {
+        verify.subjects[verify.h1] = verify.ident[verify.h2];
+        verify.k = verify.k + 1;
+        transition { _ -> subj_copy(verify) }
     }
     // The reserved zero identity is never a valid subject.
-    state subj_zero_ck(&mut self) {
-        self.k = 0;
-        self.jg = 1;
-        transition { _ -> szc_loop() }
+    state subj_zero_ck(verify: &mut Verify) {
+        verify.k = 0;
+        verify.jg = 1;
+        transition { _ -> szc_loop(verify) }
     }
-    state szc_loop(&mut self) {
-        transition self.k < 32 && self.jg == 1 {
-            true -> szc_one()
-            _ -> szc_done()
+    state szc_loop(verify: &mut Verify) {
+        transition verify.k < 32 && verify.jg == 1 {
+            true -> szc_one(verify)
+            _ -> szc_done(verify)
         }
     }
-    state szc_one(&mut self) {
-        self.h1 = self.i * 32 + self.k;
-        transition self.h1 < 256 {
-            true -> szc_rd()
-            _ -> bad()
+    state szc_one(verify: &mut Verify) {
+        verify.h1 = verify.i * 32 + verify.k;
+        transition verify.h1 < 256 {
+            true -> szc_rd(verify)
+            _ -> bad(verify)
         }
     }
-    state szc_rd(&mut self) {
-        transition self.subjects[self.h1] != 0 {
-            true -> szc_done()
-            _ -> szc_next()
+    state szc_rd(verify: &mut Verify) {
+        transition verify.subjects[verify.h1] != 0 {
+            true -> szc_done(verify)
+            _ -> szc_next(verify)
         }
     }
-    state szc_next(&mut self) {
-        self.k = self.k + 1;
-        transition { _ -> szc_loop() }
+    state szc_next(verify: &mut Verify) {
+        verify.k = verify.k + 1;
+        transition { _ -> szc_loop(verify) }
     }
-    state szc_done(&mut self) {
-        transition self.jg == 1 {
-            true -> inst_next()
-            _ -> bad()
+    state szc_done(verify: &mut Verify) {
+        transition verify.jg == 1 {
+            true -> inst_next(verify)
+            _ -> bad(verify)
         }
     }
-    state inst_next(&mut self) {
-        self.i = self.i + 1;
-        transition { _ -> inst_loop() }
+    state inst_next(verify: &mut Verify) {
+        verify.i = verify.i + 1;
+        transition { _ -> inst_loop(verify) }
     }
-    state pols(&mut self) {
-        Verify::ru32(&mut self);
-        self.n_pol = self.w32 as u64 in Wrapping;
-        transition self.n_pol <= 8 && self.ok {
-            true -> pol_init()
-            _ -> bad()
+    state pols(verify: &mut Verify) {
+        Verify::ru32(verify);
+        verify.n_pol = verify.w32 as u64 in Wrapping;
+        transition verify.n_pol <= 8 && verify.ok {
+            true -> pol_init(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_init(&mut self) {
-        self.cp = 0;
-        transition { _ -> pol_loop() }
+    state pol_init(verify: &mut Verify) {
+        verify.cp = 0;
+        transition { _ -> pol_loop(verify) }
     }
-    state pol_loop(&mut self) {
-        transition self.cp < self.n_pol && self.cp < 8 && self.ok {
-            true -> pol_tag_r()
-            _ -> verifier_r()
+    state pol_loop(verify: &mut Verify) {
+        transition verify.cp < verify.n_pol && verify.cp < 8 && verify.ok {
+            true -> pol_tag_r(verify)
+            _ -> verifier_r(verify)
         }
     }
-    state pol_tag_r(&mut self) {
-        Verify::rd(&mut self);
-        transition self.ok && self.cp < 8 {
-            true -> pol_tag_set()
-            _ -> bad()
+    state pol_tag_r(verify: &mut Verify) {
+        Verify::rd(verify);
+        transition verify.ok && verify.cp < 8 {
+            true -> pol_tag_set(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_tag_set(&mut self) {
-        self.pol_tag[self.cp] = self.b8;
-        transition self.b8 == 1 || self.b8 == 2 {
-            true -> pol_s_r()
-            _ -> bad()
+    state pol_tag_set(verify: &mut Verify) {
+        verify.pol_tag[verify.cp] = verify.b8;
+        transition verify.b8 == 1 || verify.b8 == 2 {
+            true -> pol_s_r(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_s_r(&mut self) {
-        Verify::rd_selector(&mut self);
-        transition self.ok && self.cp < 8 {
-            true -> pol_s_set()
-            _ -> bad()
+    state pol_s_r(verify: &mut Verify) {
+        Verify::rd_selector(verify);
+        transition verify.ok && verify.cp < 8 {
+            true -> pol_s_set(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_s_set(&mut self) {
-        transition self.sel_n > 0 {
-            true -> pol_s_ok()
-            _ -> bad()
+    state pol_s_set(verify: &mut Verify) {
+        transition verify.sel_n > 0 {
+            true -> pol_s_ok(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_s_ok(&mut self) {
-        self.pol_s[self.cp] = self.sel_mask;
-        self.pol_sn[self.cp] = self.sel_n;
-        self.k = 0;
-        transition { _ -> pol_s_cp() }
+    state pol_s_ok(verify: &mut Verify) {
+        verify.pol_s[verify.cp] = verify.sel_mask;
+        verify.pol_sn[verify.cp] = verify.sel_n;
+        verify.k = 0;
+        transition { _ -> pol_s_cp(verify) }
     }
-    state pol_s_cp(&mut self) {
-        transition self.k < self.sel_n && self.k < 8 {
-            true -> pol_s_cp_one()
-            _ -> pol_t_r()
+    state pol_s_cp(verify: &mut Verify) {
+        transition verify.k < verify.sel_n && verify.k < 8 {
+            true -> pol_s_cp_one(verify)
+            _ -> pol_t_r(verify)
         }
     }
-    state pol_s_cp_one(&mut self) {
-        self.h0 = self.cp * 8 + self.k;
-        self.h1 = self.k;
-        transition self.h0 < 64 && self.h1 < 8 {
-            true -> pol_s_cp_w()
-            _ -> bad()
+    state pol_s_cp_one(verify: &mut Verify) {
+        verify.h0 = verify.cp * 8 + verify.k;
+        verify.h1 = verify.k;
+        transition verify.h0 < 64 && verify.h1 < 8 {
+            true -> pol_s_cp_w(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_s_cp_w(&mut self) {
-        self.pol_slist[self.h0] = self.sel_list[self.h1];
-        self.k = self.k + 1;
-        transition { _ -> pol_s_cp() }
+    state pol_s_cp_w(verify: &mut Verify) {
+        verify.pol_slist[verify.h0] = verify.sel_list[verify.h1];
+        verify.k = verify.k + 1;
+        transition { _ -> pol_s_cp(verify) }
     }
-    state pol_t_r(&mut self) {
-        Verify::rd_selector(&mut self);
-        transition self.ok && self.cp < 8 {
-            true -> pol_t_set()
-            _ -> bad()
+    state pol_t_r(verify: &mut Verify) {
+        Verify::rd_selector(verify);
+        transition verify.ok && verify.cp < 8 {
+            true -> pol_t_set(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_t_set(&mut self) {
-        transition self.sel_n > 0 {
-            true -> pol_t_ok()
-            _ -> bad()
+    state pol_t_set(verify: &mut Verify) {
+        transition verify.sel_n > 0 {
+            true -> pol_t_ok(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_t_ok(&mut self) {
-        self.pol_t[self.cp] = self.sel_mask;
-        self.pol_tn[self.cp] = self.sel_n;
-        self.k = 0;
-        transition { _ -> pol_t_cp() }
+    state pol_t_ok(verify: &mut Verify) {
+        verify.pol_t[verify.cp] = verify.sel_mask;
+        verify.pol_tn[verify.cp] = verify.sel_n;
+        verify.k = 0;
+        transition { _ -> pol_t_cp(verify) }
     }
-    state pol_t_cp(&mut self) {
-        transition self.k < self.sel_n && self.k < 8 {
-            true -> pol_t_cp_one()
-            _ -> pol_v_r()
+    state pol_t_cp(verify: &mut Verify) {
+        transition verify.k < verify.sel_n && verify.k < 8 {
+            true -> pol_t_cp_one(verify)
+            _ -> pol_v_r(verify)
         }
     }
-    state pol_t_cp_one(&mut self) {
-        self.h0 = self.cp * 8 + self.k;
-        self.h1 = self.k;
-        transition self.h0 < 64 && self.h1 < 8 {
-            true -> pol_t_cp_w()
-            _ -> bad()
+    state pol_t_cp_one(verify: &mut Verify) {
+        verify.h0 = verify.cp * 8 + verify.k;
+        verify.h1 = verify.k;
+        transition verify.h0 < 64 && verify.h1 < 8 {
+            true -> pol_t_cp_w(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_t_cp_w(&mut self) {
-        self.pol_tlist[self.h0] = self.sel_list[self.h1];
-        self.k = self.k + 1;
-        transition { _ -> pol_t_cp() }
+    state pol_t_cp_w(verify: &mut Verify) {
+        verify.pol_tlist[verify.h0] = verify.sel_list[verify.h1];
+        verify.k = verify.k + 1;
+        transition { _ -> pol_t_cp(verify) }
     }
-    state pol_v_r(&mut self) {
-        Verify::rd_selector(&mut self);
-        transition self.ok && self.cp < 8 {
-            true -> pol_v_set()
-            _ -> bad()
+    state pol_v_r(verify: &mut Verify) {
+        Verify::rd_selector(verify);
+        transition verify.ok && verify.cp < 8 {
+            true -> pol_v_set(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_v_set(&mut self) {
-        self.pol_v[self.cp] = self.sel_mask;
-        self.pol_vn[self.cp] = self.sel_n;
-        self.k = 0;
-        transition { _ -> pol_v_cp() }
+    state pol_v_set(verify: &mut Verify) {
+        verify.pol_v[verify.cp] = verify.sel_mask;
+        verify.pol_vn[verify.cp] = verify.sel_n;
+        verify.k = 0;
+        transition { _ -> pol_v_cp(verify) }
     }
-    state pol_v_cp(&mut self) {
-        transition self.k < self.sel_n && self.k < 8 {
-            true -> pol_v_cp_one()
-            _ -> pol_arity_ck()
+    state pol_v_cp(verify: &mut Verify) {
+        transition verify.k < verify.sel_n && verify.k < 8 {
+            true -> pol_v_cp_one(verify)
+            _ -> pol_arity_ck(verify)
         }
     }
-    state pol_v_cp_one(&mut self) {
-        self.h0 = self.cp * 8 + self.k;
-        self.h1 = self.k;
-        transition self.h0 < 64 && self.h1 < 8 {
-            true -> pol_v_cp_w()
-            _ -> bad()
+    state pol_v_cp_one(verify: &mut Verify) {
+        verify.h0 = verify.cp * 8 + verify.k;
+        verify.h1 = verify.k;
+        transition verify.h0 < 64 && verify.h1 < 8 {
+            true -> pol_v_cp_w(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_v_cp_w(&mut self) {
-        self.pol_vlist[self.h0] = self.sel_list[self.h1];
-        self.k = self.k + 1;
-        transition { _ -> pol_v_cp() }
+    state pol_v_cp_w(verify: &mut Verify) {
+        verify.pol_vlist[verify.h0] = verify.sel_list[verify.h1];
+        verify.k = verify.k + 1;
+        transition { _ -> pol_v_cp(verify) }
     }
     // via arity: empty for no_route, non-empty for only_via.
-    state pol_arity_ck(&mut self) {
-        transition self.cp < 8 {
-            true -> pol_arity_rd()
-            _ -> bad()
+    state pol_arity_ck(verify: &mut Verify) {
+        transition verify.cp < 8 {
+            true -> pol_arity_rd(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_arity_rd(&mut self) {
-        transition (self.pol_tag[self.cp] == 1 && self.sel_n == 0) || (self.pol_tag[self.cp] == 2 && self.sel_n > 0) {
-            true -> pol_disj()
-            _ -> bad()
+    state pol_arity_rd(verify: &mut Verify) {
+        transition (verify.pol_tag[verify.cp] == 1 && verify.sel_n == 0) || (verify.pol_tag[verify.cp] == 2 && verify.sel_n > 0) {
+            true -> pol_disj(verify)
+            _ -> bad(verify)
         }
     }
     // sources/targets/via are pairwise disjoint.
-    state pol_disj(&mut self) {
-        transition self.cp < 8 {
-            true -> pol_disj_rd()
-            _ -> bad()
+    state pol_disj(verify: &mut Verify) {
+        transition verify.cp < 8 {
+            true -> pol_disj_rd(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_disj_rd(&mut self) {
-        self.t64 = (self.pol_s[self.cp] & self.pol_t[self.cp]) | (self.pol_s[self.cp] & self.pol_v[self.cp]) | (self.pol_t[self.cp] & self.pol_v[self.cp]);
-        transition self.t64 == 0 {
-            true -> pol_next()
-            _ -> bad()
+    state pol_disj_rd(verify: &mut Verify) {
+        verify.t64 = (verify.pol_s[verify.cp] & verify.pol_t[verify.cp]) | (verify.pol_s[verify.cp] & verify.pol_v[verify.cp]) | (verify.pol_t[verify.cp] & verify.pol_v[verify.cp]);
+        transition verify.t64 == 0 {
+            true -> pol_next(verify)
+            _ -> bad(verify)
         }
     }
-    state pol_next(&mut self) {
-        self.cp = self.cp + 1;
-        transition { _ -> pol_loop() }
+    state pol_next(verify: &mut Verify) {
+        verify.cp = verify.cp + 1;
+        transition { _ -> pol_loop(verify) }
     }
-    state verifier_r(&mut self) {
-        Verify::rdident(&mut self);
-        self.k = 0;
-        transition { _ -> ver_copy() }
+    state verifier_r(verify: &mut Verify) {
+        Verify::rdident(verify);
+        verify.k = 0;
+        transition { _ -> ver_copy(verify) }
     }
-    state ver_copy(&mut self) {
-        transition self.k < 32 {
-            true -> prep_vc()
-            _ -> transports_r()
+    state ver_copy(verify: &mut Verify) {
+        transition verify.k < 32 {
+            true -> prep_vc(verify)
+            _ -> transports_r(verify)
         }
     }
-    state prep_vc(&mut self) {
-        self.h2 = self.k;
-        transition self.h2 < 32 {
-            true -> do_vc()
-            _ -> bad()
+    state prep_vc(verify: &mut Verify) {
+        verify.h2 = verify.k;
+        transition verify.h2 < 32 {
+            true -> do_vc(verify)
+            _ -> bad(verify)
         }
     }
-    state do_vc(&mut self) {
-        self.verifier[self.h2] = self.ident[self.h2];
-        self.k = self.k + 1;
-        transition { _ -> ver_copy() }
+    state do_vc(verify: &mut Verify) {
+        verify.verifier[verify.h2] = verify.ident[verify.h2];
+        verify.k = verify.k + 1;
+        transition { _ -> ver_copy(verify) }
     }
-    state transports_r(&mut self) {
-        Verify::ru32(&mut self);
-        self.n_tr = self.w32 as u64 in Wrapping;
-        transition self.n_tr > 0 && self.n_tr <= 8 && self.ok {
-            true -> tr_init()
-            _ -> bad()
+    state transports_r(verify: &mut Verify) {
+        Verify::ru32(verify);
+        verify.n_tr = verify.w32 as u64 in Wrapping;
+        transition verify.n_tr > 0 && verify.n_tr <= 8 && verify.ok {
+            true -> tr_init(verify)
+            _ -> bad(verify)
         }
     }
-    state tr_init(&mut self) {
-        self.i = 0;
-        transition { _ -> tr_loop() }
+    state tr_init(verify: &mut Verify) {
+        verify.i = 0;
+        transition { _ -> tr_loop(verify) }
     }
-    state tr_loop(&mut self) {
-        transition self.i < self.n_tr && self.i < 8 && self.ok {
-            true -> tr_one()
-            _ -> acp_r()
+    state tr_loop(verify: &mut Verify) {
+        transition verify.i < verify.n_tr && verify.i < 8 && verify.ok {
+            true -> tr_one(verify)
+            _ -> acp_r(verify)
         }
     }
-    state tr_one(&mut self) {
-        Verify::rdident(&mut self);
-        self.k = 0;
-        transition { _ -> tr_copy() }
+    state tr_one(verify: &mut Verify) {
+        Verify::rdident(verify);
+        verify.k = 0;
+        transition { _ -> tr_copy(verify) }
     }
-    state tr_copy(&mut self) {
-        transition self.k < 32 {
-            true -> prep_tc()
-            _ -> tr_next()
+    state tr_copy(verify: &mut Verify) {
+        transition verify.k < 32 {
+            true -> prep_tc(verify)
+            _ -> tr_next(verify)
         }
     }
-    state prep_tc(&mut self) {
-        self.h1 = self.i * 32 + self.k;
-        self.h2 = self.k;
-        transition self.h1 < 256 && self.h2 < 32 {
-            true -> do_tc()
-            _ -> bad()
+    state prep_tc(verify: &mut Verify) {
+        verify.h1 = verify.i * 32 + verify.k;
+        verify.h2 = verify.k;
+        transition verify.h1 < 256 && verify.h2 < 32 {
+            true -> do_tc(verify)
+            _ -> bad(verify)
         }
     }
-    state do_tc(&mut self) {
-        self.transports[self.h1] = self.ident[self.h2];
-        self.k = self.k + 1;
-        transition { _ -> tr_copy() }
+    state do_tc(verify: &mut Verify) {
+        verify.transports[verify.h1] = verify.ident[verify.h2];
+        verify.k = verify.k + 1;
+        transition { _ -> tr_copy(verify) }
     }
-    state tr_next(&mut self) {
-        self.i = self.i + 1;
-        transition { _ -> tr_loop() }
+    state tr_next(verify: &mut Verify) {
+        verify.i = verify.i + 1;
+        transition { _ -> tr_loop(verify) }
     }
-    state acp_r(&mut self) {
-        Verify::ru32(&mut self);
-        self.n_acp = self.w32 as u64 in Wrapping;
-        transition self.n_acp <= 32 && self.ok {
-            true -> acp_init()
-            _ -> bad()
+    state acp_r(verify: &mut Verify) {
+        Verify::ru32(verify);
+        verify.n_acp = verify.w32 as u64 in Wrapping;
+        transition verify.n_acp <= 32 && verify.ok {
+            true -> acp_init(verify)
+            _ -> bad(verify)
         }
     }
-    state acp_init(&mut self) {
-        self.i = 0;
-        transition { _ -> acp_loop() }
+    state acp_init(verify: &mut Verify) {
+        verify.i = 0;
+        transition { _ -> acp_loop(verify) }
     }
-    state acp_loop(&mut self) {
-        transition self.i < self.n_acp && self.i < 32 && self.ok {
-            true -> acp_one()
-            _ -> fin()
+    state acp_loop(verify: &mut Verify) {
+        transition verify.i < verify.n_acp && verify.i < 32 && verify.ok {
+            true -> acp_one(verify)
+            _ -> fin(verify)
         }
     }
-    state acp_one(&mut self) {
-        Verify::rdident(&mut self);
-        self.k = 0;
-        transition { _ -> acp_copy() }
+    state acp_one(verify: &mut Verify) {
+        Verify::rdident(verify);
+        verify.k = 0;
+        transition { _ -> acp_copy(verify) }
     }
-    state acp_copy(&mut self) {
-        transition self.k < 32 {
-            true -> prep_ac()
-            _ -> acp_next()
+    state acp_copy(verify: &mut Verify) {
+        transition verify.k < 32 {
+            true -> prep_ac(verify)
+            _ -> acp_next(verify)
         }
     }
-    state prep_ac(&mut self) {
-        self.h1 = self.i * 32 + self.k;
-        self.h2 = self.k;
-        transition self.h1 < 1024 && self.h2 < 32 {
-            true -> do_ac()
-            _ -> bad()
+    state prep_ac(verify: &mut Verify) {
+        verify.h1 = verify.i * 32 + verify.k;
+        verify.h2 = verify.k;
+        transition verify.h1 < 1024 && verify.h2 < 32 {
+            true -> do_ac(verify)
+            _ -> bad(verify)
         }
     }
-    state do_ac(&mut self) {
-        self.accepted[self.h1] = self.ident[self.h2];
-        self.k = self.k + 1;
-        transition { _ -> acp_copy() }
+    state do_ac(verify: &mut Verify) {
+        verify.accepted[verify.h1] = verify.ident[verify.h2];
+        verify.k = verify.k + 1;
+        transition { _ -> acp_copy(verify) }
     }
-    state acp_next(&mut self) {
-        self.i = self.i + 1;
-        transition { _ -> acp_loop() }
+    state acp_next(verify: &mut Verify) {
+        verify.i = verify.i + 1;
+        transition { _ -> acp_loop(verify) }
     }
-    state fin(&mut self) {
-        transition self.rq == self.req_n && self.ok {
-            true -> done()
-            _ -> bad()
+    state fin(verify: &mut Verify) {
+        transition verify.rq == verify.req_n && verify.ok {
+            true -> done(verify)
+            _ -> bad(verify)
         }
     }
-    state bad(&mut self) {
-        self.ok = false;
-        transition { _ -> done() }
+    state bad(verify: &mut Verify) {
+        verify.ok = false;
+        transition { _ -> done(verify) }
     }
-    state done(&mut self) {
+    state done(verify: &mut Verify) {
     }
 }
 
@@ -1500,253 +1500,253 @@ machine Verify::load_r(verify: &mut Verify) {
 //   (slot,dir) strictly increasing).
 // The caller publishes what its component verifier established; the plan's
 // component record must equal it field-for-field.
-machine Verify::decode_meta(&mut self) {
-    self.src = 2;
-    self.mq = 0;
-    Verify::ru32(&mut self);
-    self.n_comp = self.w32 as u64 in Wrapping;
-    transition self.n_comp <= 8 && self.ok {
-        true -> init()
-        _ -> bad()
+machine Verify::decode_meta(verify: &mut Verify) {
+    verify.src = 2;
+    verify.mq = 0;
+    Verify::ru32(verify);
+    verify.n_comp = verify.w32 as u64 in Wrapping;
+    transition verify.n_comp <= 8 && verify.ok {
+        true -> init(verify)
+        _ -> bad(verify)
     }
-    state init(&mut self) {
-        self.i = 0;
-        transition { _ -> loop_s() }
+    state init(verify: &mut Verify) {
+        verify.i = 0;
+        transition { _ -> loop_s(verify) }
     }
-    state loop_s(&mut self) {
-        transition self.i < self.n_comp && self.i < 8 && self.ok {
-            true -> subj()
-            _ -> fin()
+    state loop_s(verify: &mut Verify) {
+        transition verify.i < verify.n_comp && verify.i < 8 && verify.ok {
+            true -> subj(verify)
+            _ -> fin(verify)
         }
     }
-    state subj(&mut self) {
-        Verify::rdident(&mut self);
-        self.k = 0;
-        transition { _ -> subj_cp() }
+    state subj(verify: &mut Verify) {
+        Verify::rdident(verify);
+        verify.k = 0;
+        transition { _ -> subj_cp(verify) }
     }
-    state subj_cp(&mut self) {
-        transition self.k < 32 {
-            true -> subj_p()
-            _ -> prof()
+    state subj_cp(verify: &mut Verify) {
+        transition verify.k < 32 {
+            true -> subj_p(verify)
+            _ -> prof(verify)
         }
     }
-    state subj_p(&mut self) {
-        self.h1 = self.i * 32 + self.k;
-        self.h2 = self.k;
-        transition self.h1 < 256 && self.h2 < 32 {
-            true -> subj_w()
-            _ -> bad()
+    state subj_p(verify: &mut Verify) {
+        verify.h1 = verify.i * 32 + verify.k;
+        verify.h2 = verify.k;
+        transition verify.h1 < 256 && verify.h2 < 32 {
+            true -> subj_w(verify)
+            _ -> bad(verify)
         }
     }
-    state subj_w(&mut self) {
-        self.c_subj[self.h1] = self.ident[self.h2];
-        self.k = self.k + 1;
-        transition { _ -> subj_cp() }
+    state subj_w(verify: &mut Verify) {
+        verify.c_subj[verify.h1] = verify.ident[verify.h2];
+        verify.k = verify.k + 1;
+        transition { _ -> subj_cp(verify) }
     }
-    state prof(&mut self) {
-        Verify::rdident(&mut self);
-        self.k = 0;
-        transition { _ -> prof_cp() }
+    state prof(verify: &mut Verify) {
+        Verify::rdident(verify);
+        verify.k = 0;
+        transition { _ -> prof_cp(verify) }
     }
-    state prof_cp(&mut self) {
-        transition self.k < 32 {
-            true -> prof_p()
-            _ -> clo()
+    state prof_cp(verify: &mut Verify) {
+        transition verify.k < 32 {
+            true -> prof_p(verify)
+            _ -> clo(verify)
         }
     }
-    state prof_p(&mut self) {
-        self.h1 = self.i * 32 + self.k;
-        self.h2 = self.k;
-        transition self.h1 < 256 && self.h2 < 32 {
-            true -> prof_w()
-            _ -> bad()
+    state prof_p(verify: &mut Verify) {
+        verify.h1 = verify.i * 32 + verify.k;
+        verify.h2 = verify.k;
+        transition verify.h1 < 256 && verify.h2 < 32 {
+            true -> prof_w(verify)
+            _ -> bad(verify)
         }
     }
-    state prof_w(&mut self) {
-        self.c_prof[self.h1] = self.ident[self.h2];
-        self.k = self.k + 1;
-        transition { _ -> prof_cp() }
+    state prof_w(verify: &mut Verify) {
+        verify.c_prof[verify.h1] = verify.ident[verify.h2];
+        verify.k = verify.k + 1;
+        transition { _ -> prof_cp(verify) }
     }
-    state clo(&mut self) {
-        Verify::rdident(&mut self);
-        self.k = 0;
-        transition { _ -> clo_cp() }
+    state clo(verify: &mut Verify) {
+        Verify::rdident(verify);
+        verify.k = 0;
+        transition { _ -> clo_cp(verify) }
     }
-    state clo_cp(&mut self) {
-        transition self.k < 32 {
-            true -> clo_p()
-            _ -> asm_n()
+    state clo_cp(verify: &mut Verify) {
+        transition verify.k < 32 {
+            true -> clo_p(verify)
+            _ -> asm_n(verify)
         }
     }
-    state clo_p(&mut self) {
-        self.h1 = self.i * 32 + self.k;
-        self.h2 = self.k;
-        transition self.h1 < 256 && self.h2 < 32 {
-            true -> clo_w()
-            _ -> bad()
+    state clo_p(verify: &mut Verify) {
+        verify.h1 = verify.i * 32 + verify.k;
+        verify.h2 = verify.k;
+        transition verify.h1 < 256 && verify.h2 < 32 {
+            true -> clo_w(verify)
+            _ -> bad(verify)
         }
     }
-    state clo_w(&mut self) {
-        self.c_clo[self.h1] = self.ident[self.h2];
-        self.k = self.k + 1;
-        transition { _ -> clo_cp() }
+    state clo_w(verify: &mut Verify) {
+        verify.c_clo[verify.h1] = verify.ident[verify.h2];
+        verify.k = verify.k + 1;
+        transition { _ -> clo_cp(verify) }
     }
-    state asm_n(&mut self) {
-        Verify::ru32(&mut self);
-        self.t64 = self.w32 as u64 in Wrapping;
-        self.h0 = self.i;
-        transition self.t64 <= 4 && self.h0 < 8 && self.ok {
-            true -> asm_set()
-            _ -> bad()
+    state asm_n(verify: &mut Verify) {
+        Verify::ru32(verify);
+        verify.t64 = verify.w32 as u64 in Wrapping;
+        verify.h0 = verify.i;
+        transition verify.t64 <= 4 && verify.h0 < 8 && verify.ok {
+            true -> asm_set(verify)
+            _ -> bad(verify)
         }
     }
-    state asm_set(&mut self) {
-        self.c_asm_n[self.h0] = self.t64;
-        self.k = 0;
-        transition { _ -> asm_loop() }
+    state asm_set(verify: &mut Verify) {
+        verify.c_asm_n[verify.h0] = verify.t64;
+        verify.k = 0;
+        transition { _ -> asm_loop(verify) }
     }
-    state asm_loop(&mut self) {
-        transition self.k < self.t64 && self.k < 4 && self.ok {
-            true -> asm_one()
-            _ -> ep_n()
+    state asm_loop(verify: &mut Verify) {
+        transition verify.k < verify.t64 && verify.k < 4 && verify.ok {
+            true -> asm_one(verify)
+            _ -> ep_n(verify)
         }
     }
-    state asm_one(&mut self) {
-        Verify::rdident(&mut self);
-        self.j = 0;
-        transition { _ -> asm_cp() }
+    state asm_one(verify: &mut Verify) {
+        Verify::rdident(verify);
+        verify.j = 0;
+        transition { _ -> asm_cp(verify) }
     }
-    state asm_cp(&mut self) {
-        transition self.j < 32 {
-            true -> asm_p()
-            _ -> asm_next()
+    state asm_cp(verify: &mut Verify) {
+        transition verify.j < 32 {
+            true -> asm_p(verify)
+            _ -> asm_next(verify)
         }
     }
-    state asm_p(&mut self) {
-        self.h1 = (self.i * 4 + self.k) * 32 + self.j;
-        self.h2 = self.j;
-        transition self.h1 < 1024 && self.h2 < 32 {
-            true -> asm_w()
-            _ -> bad()
+    state asm_p(verify: &mut Verify) {
+        verify.h1 = (verify.i * 4 + verify.k) * 32 + verify.j;
+        verify.h2 = verify.j;
+        transition verify.h1 < 1024 && verify.h2 < 32 {
+            true -> asm_w(verify)
+            _ -> bad(verify)
         }
     }
-    state asm_w(&mut self) {
-        self.c_asm[self.h1] = self.ident[self.h2];
-        self.j = self.j + 1;
-        transition { _ -> asm_cp() }
+    state asm_w(verify: &mut Verify) {
+        verify.c_asm[verify.h1] = verify.ident[verify.h2];
+        verify.j = verify.j + 1;
+        transition { _ -> asm_cp(verify) }
     }
-    state asm_next(&mut self) {
-        self.k = self.k + 1;
-        transition { _ -> asm_loop() }
+    state asm_next(verify: &mut Verify) {
+        verify.k = verify.k + 1;
+        transition { _ -> asm_loop(verify) }
     }
-    state ep_n(&mut self) {
-        Verify::ru32(&mut self);
-        self.t64 = self.w32 as u64 in Wrapping;
-        self.h0 = self.i;
-        transition self.t64 <= 8 && self.h0 < 8 && self.ok {
-            true -> ep_set()
-            _ -> bad()
+    state ep_n(verify: &mut Verify) {
+        Verify::ru32(verify);
+        verify.t64 = verify.w32 as u64 in Wrapping;
+        verify.h0 = verify.i;
+        transition verify.t64 <= 8 && verify.h0 < 8 && verify.ok {
+            true -> ep_set(verify)
+            _ -> bad(verify)
         }
     }
-    state ep_set(&mut self) {
-        self.c_ep_n[self.h0] = self.t64;
-        self.k = 0;
-        self.jd = 0;
-        transition { _ -> ep_loop() }
+    state ep_set(verify: &mut Verify) {
+        verify.c_ep_n[verify.h0] = verify.t64;
+        verify.k = 0;
+        verify.jd = 0;
+        transition { _ -> ep_loop(verify) }
     }
-    state ep_loop(&mut self) {
-        transition self.k < self.t64 && self.k < 8 && self.ok {
-            true -> ep_slot()
-            _ -> next()
+    state ep_loop(verify: &mut Verify) {
+        transition verify.k < verify.t64 && verify.k < 8 && verify.ok {
+            true -> ep_slot(verify)
+            _ -> next(verify)
         }
     }
-    state ep_slot(&mut self) {
-        Verify::ru32(&mut self);
-        self.h1 = self.i * 8 + self.k;
-        transition self.h1 < 64 && self.ok {
-            true -> ep_slot_w()
-            _ -> bad()
+    state ep_slot(verify: &mut Verify) {
+        Verify::ru32(verify);
+        verify.h1 = verify.i * 8 + verify.k;
+        transition verify.h1 < 64 && verify.ok {
+            true -> ep_slot_w(verify)
+            _ -> bad(verify)
         }
     }
-    state ep_slot_w(&mut self) {
-        self.c_ep_slot[self.h1] = self.w32 as u64 in Wrapping;
-        transition { _ -> ep_dir() }
+    state ep_slot_w(verify: &mut Verify) {
+        verify.c_ep_slot[verify.h1] = verify.w32 as u64 in Wrapping;
+        transition { _ -> ep_dir(verify) }
     }
-    state ep_dir(&mut self) {
-        Verify::rd(&mut self);
-        transition self.ok && self.h1 < 64 {
-            true -> ep_dir_ck()
-            _ -> bad()
+    state ep_dir(verify: &mut Verify) {
+        Verify::rd(verify);
+        transition verify.ok && verify.h1 < 64 {
+            true -> ep_dir_ck(verify)
+            _ -> bad(verify)
         }
     }
-    state ep_dir_ck(&mut self) {
-        transition self.b8 == 0 || self.b8 == 1 {
-            true -> ep_dir_w()
-            _ -> bad()
+    state ep_dir_ck(verify: &mut Verify) {
+        transition verify.b8 == 0 || verify.b8 == 1 {
+            true -> ep_dir_w(verify)
+            _ -> bad(verify)
         }
     }
-    state ep_dir_w(&mut self) {
-        self.c_ep_dir[self.h1] = self.b8;
+    state ep_dir_w(verify: &mut Verify) {
+        verify.c_ep_dir[verify.h1] = verify.b8;
         // Canonical (slot,direction) order: packed key must strictly increase.
-        self.je = self.c_ep_slot[self.h1] * 2 + (self.b8 as u64 in Wrapping);
-        transition self.k == 0 || self.je > self.jd {
-            true -> ep_ord()
-            _ -> bad()
+        verify.je = verify.c_ep_slot[verify.h1] * 2 + (verify.b8 as u64 in Wrapping);
+        transition verify.k == 0 || verify.je > verify.jd {
+            true -> ep_ord(verify)
+            _ -> bad(verify)
         }
     }
-    state ep_ord(&mut self) {
-        self.jd = self.je;
-        transition { _ -> ep_contract() }
+    state ep_ord(verify: &mut Verify) {
+        verify.jd = verify.je;
+        transition { _ -> ep_contract(verify) }
     }
-    state ep_contract(&mut self) {
-        Verify::rdident(&mut self);
-        self.j = 0;
-        transition { _ -> ep_cp() }
+    state ep_contract(verify: &mut Verify) {
+        Verify::rdident(verify);
+        verify.j = 0;
+        transition { _ -> ep_cp(verify) }
     }
-    state ep_cp(&mut self) {
-        transition self.j < 32 {
-            true -> ep_p()
-            _ -> ep_next()
+    state ep_cp(verify: &mut Verify) {
+        transition verify.j < 32 {
+            true -> ep_p(verify)
+            _ -> ep_next(verify)
         }
     }
-    state ep_p(&mut self) {
-        self.h2 = self.j;
-        transition self.h1 < 64 && self.h2 < 32 {
-            true -> ep_p2()
-            _ -> bad()
+    state ep_p(verify: &mut Verify) {
+        verify.h2 = verify.j;
+        transition verify.h1 < 64 && verify.h2 < 32 {
+            true -> ep_p2(verify)
+            _ -> bad(verify)
         }
     }
-    state ep_p2(&mut self) {
-        self.h3 = self.h1 * 32 + self.h2;
-        transition self.h3 < 2048 {
-            true -> ep_w()
-            _ -> bad()
+    state ep_p2(verify: &mut Verify) {
+        verify.h3 = verify.h1 * 32 + verify.h2;
+        transition verify.h3 < 2048 {
+            true -> ep_w(verify)
+            _ -> bad(verify)
         }
     }
-    state ep_w(&mut self) {
-        self.c_ep_contract[self.h3] = self.ident[self.h2];
-        self.j = self.j + 1;
-        transition { _ -> ep_cp() }
+    state ep_w(verify: &mut Verify) {
+        verify.c_ep_contract[verify.h3] = verify.ident[verify.h2];
+        verify.j = verify.j + 1;
+        transition { _ -> ep_cp(verify) }
     }
-    state ep_next(&mut self) {
-        self.k = self.k + 1;
-        transition { _ -> ep_loop() }
+    state ep_next(verify: &mut Verify) {
+        verify.k = verify.k + 1;
+        transition { _ -> ep_loop(verify) }
     }
-    state next(&mut self) {
-        self.i = self.i + 1;
-        transition { _ -> loop_s() }
+    state next(verify: &mut Verify) {
+        verify.i = verify.i + 1;
+        transition { _ -> loop_s(verify) }
     }
-    state fin(&mut self) {
-        transition self.mq == self.meta_n && self.ok {
-            true -> done()
-            _ -> bad()
+    state fin(verify: &mut Verify) {
+        transition verify.mq == verify.meta_n && verify.ok {
+            true -> done(verify)
+            _ -> bad(verify)
         }
     }
-    state bad(&mut self) {
-        self.ok = false;
-        transition { _ -> done() }
+    state bad(verify: &mut Verify) {
+        verify.ok = false;
+        transition { _ -> done(verify) }
     }
-    state done(&mut self) {
+    state done(verify: &mut Verify) {
     }
 }
 
@@ -4314,96 +4314,96 @@ machine Verify::closed_ck(verify: &mut Verify) {
 // replay + certificate checks. Any stage short-circuits into `fin`,
 // which maps a bare decode failure to verdict 2 when the stage itself
 // did not name a code.
-pub machine Verify::verify(&mut self) {
-    self.ok = true;
-    self.verdict = 0;
-    transition { _ -> req() }
+pub machine Verify::verify(verify: &mut Verify) {
+    verify.ok = true;
+    verify.verdict = 0;
+    transition { _ -> req(verify) }
 
-    state req(&mut self) {
-        Verify::decode_req(&mut self);
-        transition self.ok {
-            true -> plan()
-            _ -> fin()
+    state req(verify: &mut Verify) {
+        Verify::decode_req(verify);
+        transition verify.ok {
+            true -> plan(verify)
+            _ -> fin(verify)
         }
     }
-    state plan(&mut self) {
-        Verify::decode_plan(&mut self);
-        transition self.ok {
-            true -> meta()
-            _ -> fin()
+    state plan(verify: &mut Verify) {
+        Verify::decode_plan(verify);
+        transition verify.ok {
+            true -> meta(verify)
+            _ -> fin(verify)
         }
     }
-    state meta(&mut self) {
-        Verify::decode_meta(&mut self);
-        transition self.ok {
-            true -> commit()
-            _ -> fin()
+    state meta(verify: &mut Verify) {
+        Verify::decode_meta(verify);
+        transition verify.ok {
+            true -> commit(verify)
+            _ -> fin(verify)
         }
     }
-    state commit(&mut self) {
-        Verify::check_commitment(&mut self);
-        transition self.ok {
-            true -> roster()
-            _ -> fin()
+    state commit(verify: &mut Verify) {
+        Verify::check_commitment(verify);
+        transition verify.ok {
+            true -> roster(verify)
+            _ -> fin(verify)
         }
     }
-    state roster(&mut self) {
-        Verify::check_roster(&mut self);
-        transition self.ok {
-            true -> adm()
-            _ -> fin()
+    state roster(verify: &mut Verify) {
+        Verify::check_roster(verify);
+        transition verify.ok {
+            true -> adm(verify)
+            _ -> fin(verify)
         }
     }
-    state adm(&mut self) {
-        Verify::check_admissions(&mut self);
-        transition self.ok {
-            true -> asum()
-            _ -> fin()
+    state adm(verify: &mut Verify) {
+        Verify::check_admissions(verify);
+        transition verify.ok {
+            true -> asum(verify)
+            _ -> fin(verify)
         }
     }
-    state asum(&mut self) {
-        Verify::check_assumptions(&mut self);
-        transition self.ok {
-            true -> bind()
-            _ -> fin()
+    state asum(verify: &mut Verify) {
+        Verify::check_assumptions(verify);
+        transition verify.ok {
+            true -> bind(verify)
+            _ -> fin(verify)
         }
     }
-    state bind(&mut self) {
-        self.check_bindings();
-        transition self.ok {
-            true -> cov()
-            _ -> fin()
+    state bind(verify: &mut Verify) {
+        verify.check_bindings();
+        transition verify.ok {
+            true -> cov(verify)
+            _ -> fin(verify)
         }
     }
-    state cov(&mut self) {
-        self.check_coverage();
-        transition self.ok {
-            true -> replay()
-            _ -> fin()
+    state cov(verify: &mut Verify) {
+        verify.check_coverage();
+        transition verify.ok {
+            true -> replay(verify)
+            _ -> fin(verify)
         }
     }
-    state replay(&mut self) {
-        self.check_policies();
-        transition self.ok {
-            true -> pass()
-            _ -> fin()
+    state replay(verify: &mut Verify) {
+        verify.check_policies();
+        transition verify.ok {
+            true -> pass(verify)
+            _ -> fin(verify)
         }
     }
-    state pass(&mut self) {
-        self.verdict = 1;
-        transition { _ -> fin() }
+    state pass(verify: &mut Verify) {
+        verify.verdict = 1;
+        transition { _ -> fin(verify) }
     }
-    state fin(&mut self) {
-        transition self.verdict == 0 {
-            true -> malformed()
-            _ -> done()
+    state fin(verify: &mut Verify) {
+        transition verify.verdict == 0 {
+            true -> malformed(verify)
+            _ -> done(verify)
         }
     }
-    state malformed(&mut self) {
-        self.verdict = 2;
-        transition { _ -> done() }
+    state malformed(verify: &mut Verify) {
+        verify.verdict = 2;
+        transition { _ -> done(verify) }
     }
-    state done(&mut self) {
+    state done(verify: &mut Verify) {
     }
 }
 
