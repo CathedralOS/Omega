@@ -89,7 +89,9 @@ pub fn x86_64_machine_effect_catalog(
                 }
                 if semantic == MachineSemanticKind::HostedReadByte {
                     return Ok(
-                        crate::selected_form_encoding::hosted_read_byte::declaration(constraint),
+                        crate::selected_form_encoding::hosted_read_byte::declaration(
+                            target, constraint,
+                        ),
                     );
                 }
                 if matches!(
@@ -105,7 +107,9 @@ pub fn x86_64_machine_effect_catalog(
                 }
                 if semantic == MachineSemanticKind::HostedWriteByteI32 {
                     return Ok(
-                        crate::selected_form_encoding::hosted_write_byte::declaration(constraint),
+                        crate::selected_form_encoding::hosted_write_byte::declaration(
+                            target, constraint,
+                        ),
                     );
                 }
                 if semantic == MachineSemanticKind::NormalizedForeignCall {
@@ -233,10 +237,12 @@ pub(crate) fn x86_64_selected_abi(
     target: NativeTarget,
 ) -> Result<X86_64SelectedAbi, X86_64MachineEffectCatalogValidationError> {
     match (target.architecture, target.object_format) {
-        (Architecture::X86_64, ObjectFormat::Elf) => Ok(X86_64SelectedAbi::SystemV),
+        // Intel macOS C calls follow the same System V AMD64 roster as Linux.
+        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
+            Ok(X86_64SelectedAbi::SystemV)
+        }
         (Architecture::X86_64, ObjectFormat::Coff) => Ok(X86_64SelectedAbi::Microsoft),
-        (Architecture::X86_64, ObjectFormat::MachO)
-        | (Architecture::Aarch64, ObjectFormat::Elf)
+        (Architecture::Aarch64, ObjectFormat::Elf)
         | (Architecture::Aarch64, ObjectFormat::MachO)
         | (Architecture::Aarch64, ObjectFormat::Coff) => {
             Err(X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi)
@@ -291,11 +297,11 @@ fn selected_keys(
                 crate::register_model::x86_64_microsoft_aggregate_return_keys()
             }
         },
-        hosted_read_byte: (target == NativeTarget::linux_x64())
+        hosted_read_byte: crate::hosted_syscall_target(target)
             .then_some(crate::X86_64_HOSTED_READ_BYTE),
-        hosted_exit_process_i32: (target == NativeTarget::linux_x64())
+        hosted_exit_process_i32: crate::hosted_syscall_target(target)
             .then_some(crate::X86_64_HOSTED_EXIT_PROCESS_I32),
-        hosted_write_byte_i32: (target == NativeTarget::linux_x64())
+        hosted_write_byte_i32: crate::hosted_syscall_target(target)
             .then_some(crate::X86_64_HOSTED_WRITE_BYTE_I32),
         load64: Some(crate::X86_64_LOAD64),
         load8: Some(crate::X86_64_LOAD8),

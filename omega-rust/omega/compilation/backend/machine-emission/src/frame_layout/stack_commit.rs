@@ -20,18 +20,18 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 /// Resolve one declared (architecture, object-format) pair to the stack-commit
 /// granule its frame allocator guarantees, in bytes.
 ///
-/// Declared rows are x86-64 with ELF or COFF and AArch64 with ELF at 4 KiB,
-/// plus (Aarch64, Mach-O) at 16 KiB — the same four pairs the ABI preservation
-/// matrix admits. (Aarch64, COFF) and (x86-64, Mach-O) are undeclared and
-/// answer `None`.
+/// Declared rows are x86-64 with ELF, COFF or Mach-O and AArch64 with ELF at
+/// 4 KiB (Intel macOS uses 4 KiB pages), plus (Aarch64, Mach-O) at 16 KiB —
+/// the same five pairs the ABI preservation matrix admits. (Aarch64, COFF) is
+/// undeclared and answers `None`.
 pub(super) const fn stack_commit_granule_bytes(target: NativeTarget) -> Option<u64> {
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf)
         | (Architecture::X86_64, ObjectFormat::Coff)
+        | (Architecture::X86_64, ObjectFormat::MachO)
         | (Architecture::Aarch64, ObjectFormat::Elf) => Some(4_096),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(16_384),
-        (Architecture::X86_64, ObjectFormat::MachO)
-        | (Architecture::Aarch64, ObjectFormat::Coff) => None,
+        (Architecture::Aarch64, ObjectFormat::Coff) => None,
     }
 }
 
@@ -48,6 +48,7 @@ mod tests {
             (NativeTarget::uefi_x64(), 4_096),
             (NativeTarget::linux_arm64(), 4_096),
             (NativeTarget::macos_arm64(), 16_384),
+            (NativeTarget::macos_x64(), 4_096),
         ] {
             assert_eq!(
                 stack_commit_granule_bytes(target),
@@ -59,17 +60,10 @@ mod tests {
 
     #[test]
     fn stack_commit_matrix_fails_closed_on_undeclared_pairs() {
-        for target in [
-            NativeTarget {
-                object_format: ObjectFormat::MachO,
-                ..NativeTarget::linux_x64()
-            },
-            NativeTarget {
-                object_format: ObjectFormat::Coff,
-                ..NativeTarget::linux_arm64()
-            },
-        ] {
-            assert_eq!(stack_commit_granule_bytes(target), None, "{target:?}");
-        }
+        let target = NativeTarget {
+            object_format: ObjectFormat::Coff,
+            ..NativeTarget::linux_arm64()
+        };
+        assert_eq!(stack_commit_granule_bytes(target), None, "{target:?}");
     }
 }

@@ -12,9 +12,9 @@
 //! plain architecture/object-format/pointer triple a realized profile maps to.
 //!
 //! Recognition is not realization: the catalog admits profiles this compiler
-//! does not realize (the bootstrap `alpha_bootstrap`, the not-yet-run
-//! `macos_x86_64` host), and `NativeTarget::from_omega_target_name` is where
-//! a demanded operation acquires — or refuses — a native shape.
+//! does not realize (the bootstrap `alpha_bootstrap`), and
+//! `NativeTarget::from_omega_target_name` is where a demanded operation
+//! acquires — or refuses — a native shape.
 
 use diagnostics::Diagnostic;
 
@@ -41,10 +41,10 @@ pub enum TargetProfile {
     MacosArm64,
     /// The macOS x86-64 host profile. Recognition catalogues the Intel-macOS
     /// host so `host()` resolves and `macos_x86_64` names a selected target.
-    /// The x86-64 Mach-O writer, the `targets/macos_x86_64` contract package
-    /// and the hosted entry bridge are implemented; a real
-    /// x86_64-apple-darwin host run is still required (tracked under
-    /// MACOS-X64-HOST-PROFILE on TASKS.md).
+    /// The x86-64 Mach-O writer, the `targets/macos_x86_64` contract package,
+    /// the hosted entry bridge and the Darwin syscall console leaves are
+    /// implemented; emitted images run under Rosetta on Apple silicon, and a
+    /// native Intel host run is tracked under MACOS-X64-HOST-PROFILE.
     MacosX64,
     WindowsX64,
     UefiX64,
@@ -163,30 +163,35 @@ impl ProgramEntryPhysicalContractPackage {
 /// selected-dispatch closes them against the bundled source through
 /// `from_target_name`, so widening this enum is the product decision.
 ///
-/// Two bundles exist under `source/library/std/targets/` but are not
-/// admitted to this hosted-syscall catalog. Windows process exit uses
-/// kernel32 `ExitProcess` through `DllImport`; that foreign realization does
-/// not admit Windows to the hosted read, write, and exit syscall mechanisms.
-/// `macos_x86_64` is authored in the inferred `boundary machine` form, but
-/// `image-emission` has no x86-64 Darwin syscall encoder and the profile's
-/// host run is still tracked under MACOS-X64-HOST-PROFILE. Source paths
-/// prove membership in this identity; they never define it.
+/// One bundle exists under `source/library/std/targets/` but is not admitted
+/// to this hosted-syscall catalog. Windows process exit uses kernel32
+/// `ExitProcess` through `DllImport`; that foreign realization does not admit
+/// Windows to the hosted read, write, and exit syscall mechanisms. Intel macOS
+/// is admitted: `isa-x86_64` owns its Unix-class Darwin syscall leaves. Source
+/// paths prove membership in this identity; they never define it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HostedIntrinsicBundle {
     LinuxArm64,
     LinuxX64,
     MacosArm64,
+    MacosX64,
 }
 
 impl HostedIntrinsicBundle {
     /// Every admitted bundle in canonical target-profile identity order.
-    pub const ALL: [Self; 3] = [Self::LinuxArm64, Self::LinuxX64, Self::MacosArm64];
+    pub const ALL: [Self; 4] = [
+        Self::LinuxArm64,
+        Self::LinuxX64,
+        Self::MacosArm64,
+        Self::MacosX64,
+    ];
 
     pub const fn target_profile(self) -> TargetProfile {
         match self {
             Self::LinuxArm64 => TargetProfile::LinuxArm64,
             Self::LinuxX64 => TargetProfile::LinuxX64,
             Self::MacosArm64 => TargetProfile::MacosArm64,
+            Self::MacosX64 => TargetProfile::MacosX64,
         }
     }
 
@@ -201,6 +206,7 @@ impl HostedIntrinsicBundle {
             Self::LinuxArm64 => "targets/linux_arm64/console_impl.omg",
             Self::LinuxX64 => "targets/linux_x86_64/console_impl.omg",
             Self::MacosArm64 => "targets/macos_arm64/console_impl.omg",
+            Self::MacosX64 => "targets/macos_x86_64/console_impl.omg",
         }
     }
 
@@ -210,6 +216,7 @@ impl HostedIntrinsicBundle {
             Self::LinuxArm64 => "targets/linux_arm64/process_exit_impl.omg",
             Self::LinuxX64 => "targets/linux_x86_64/process_exit_impl.omg",
             Self::MacosArm64 => "targets/macos_arm64/process_exit_impl.omg",
+            Self::MacosX64 => "targets/macos_x86_64/process_exit_impl.omg",
         }
     }
 
@@ -804,11 +811,7 @@ mod tests {
 
     #[test]
     fn bundled_but_unadmitted_targets_select_no_hosted_intrinsic_bundle() {
-        for unadmitted in [
-            TargetProfile::MacosX64,
-            TargetProfile::WindowsX64,
-            TargetProfile::UefiX64,
-        ] {
+        for unadmitted in [TargetProfile::WindowsX64, TargetProfile::UefiX64] {
             assert_eq!(
                 HostedIntrinsicBundle::from_target_name(unadmitted.target_name()),
                 None,

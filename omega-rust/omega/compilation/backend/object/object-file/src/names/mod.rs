@@ -335,17 +335,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "no object policy is declared")]
-    fn section_name_fails_closed_on_wrong_architecture_pair() {
-        // (x86-64, Mach-O) used to inherit "__TEXT,__text" from the MachO arm.
-        let _ = section_name(
-            NativeTarget {
-                architecture: Architecture::X86_64,
-                object_format: ObjectFormat::MachO,
-                pointer_size: 8,
-                pointer_alignment: 8,
-            },
-            SectionKind::Text,
+    fn intel_macos_spells_its_own_declared_mach_o_row() {
+        // (x86-64, Mach-O) is declared in its own matrix row rather than
+        // inheriting the AArch64 Mach-O arm; the spellings coincide.
+        assert_eq!(
+            section_name(NativeTarget::macos_x64(), SectionKind::Text),
+            "__TEXT,__text"
         );
+        assert_eq!(entry_symbol_name(NativeTarget::macos_x64()), "_main");
     }
 }

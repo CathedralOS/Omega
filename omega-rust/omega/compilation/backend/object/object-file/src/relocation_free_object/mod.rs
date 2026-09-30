@@ -254,7 +254,8 @@ pub fn validate_relocation_free_object(
         return Err(RelocationFreeObjectError::StaleObjectIdentity);
     }
     // Canonical targets are exactly the declared matrix pairs — Aarch64 with
-    // ELF or Mach-O, x86-64 with ELF or COFF — on a 64-bit pointer contract.
+    // ELF or Mach-O, x86-64 with ELF, COFF or Mach-O — on a 64-bit pointer
+    // contract.
     let Some(policy) = object_target_policy(object.target) else {
         return Err(RelocationFreeObjectError::NonCanonicalTarget);
     };
@@ -1114,31 +1115,21 @@ mod tests {
 
     #[test]
     fn object_validation_fails_closed_on_undeclared_target_pairs() {
-        // The matrix admits four of the six (architecture, object-format)
-        // pairs; (Aarch64, Coff) and (X86_64, MachO) must reject even when the
-        // section name and alignment happen to match a declared row.
-        for target in [
-            NativeTarget {
-                architecture: Architecture::Aarch64,
-                object_format: ObjectFormat::Coff,
-                pointer_size: 8,
-                pointer_alignment: 8,
-            },
-            NativeTarget {
-                architecture: Architecture::X86_64,
-                object_format: ObjectFormat::MachO,
-                pointer_size: 8,
-                pointer_alignment: 8,
-            },
-        ] {
-            let mut object = plan();
-            object.target = target;
-            object.identity = object.recomputed_identity().unwrap();
-            assert_eq!(
-                validate_relocation_free_object(&object),
-                Err(RelocationFreeObjectError::NonCanonicalTarget)
-            );
-        }
+        // The matrix admits five of the six (architecture, object-format)
+        // pairs; (Aarch64, Coff) must reject even when the section name and
+        // alignment happen to match a declared row.
+        let mut object = plan();
+        object.target = NativeTarget {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        };
+        object.identity = object.recomputed_identity().unwrap();
+        assert_eq!(
+            validate_relocation_free_object(&object),
+            Err(RelocationFreeObjectError::NonCanonicalTarget)
+        );
     }
 
     #[test]

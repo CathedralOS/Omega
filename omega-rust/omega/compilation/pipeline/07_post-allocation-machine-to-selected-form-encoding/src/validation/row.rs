@@ -97,21 +97,37 @@ pub(crate) fn validate(
                     &encoded.footprint().encoded,
                 )
             } else {
-                let encode = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. }) {
-                    isa_x86_64::validate_x86_64_selected_hosted_write_byte_form
+                let encoded = if matches!(kind, SelectedInstructionKind::HostedWriteByteI32 { .. })
+                {
+                    isa_x86_64::validate_x86_64_selected_hosted_write_byte_form(
+                        target,
+                        physical,
+                        kind,
+                        machine.alternative.key,
+                        &operand_views(machine),
+                        address.displacement,
+                        bytes,
+                    )
                 } else if matches!(kind, SelectedInstructionKind::HostedReadByte { .. }) {
-                    isa_x86_64::validate_x86_64_selected_hosted_read_byte_form
+                    isa_x86_64::validate_x86_64_selected_hosted_read_byte_form(
+                        target,
+                        physical,
+                        kind,
+                        machine.alternative.key,
+                        &operand_views(machine),
+                        address.displacement,
+                        bytes,
+                    )
                 } else {
-                    isa_x86_64::validate_x86_64_selected_memory_form
-                };
-                let encoded = encode(
-                    physical,
-                    kind,
-                    machine.alternative.key,
-                    &operand_views(machine),
-                    address.displacement,
-                    bytes,
-                )
+                    isa_x86_64::validate_x86_64_selected_memory_form(
+                        physical,
+                        kind,
+                        machine.alternative.key,
+                        &operand_views(machine),
+                        address.displacement,
+                        bytes,
+                    )
+                }
                 .map_err(OptimizedSelectedFormEncodingError::X86_64)?;
                 decoded_footprint(
                     &encoded.footprint().register_reads,

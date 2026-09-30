@@ -1,4 +1,6 @@
-use super::{validate, validate_linux_arm64, validate_windows_x86_64, validate_x86_64};
+use super::{
+    validate, validate_linux_arm64, validate_macos_x86_64, validate_windows_x86_64, validate_x86_64,
+};
 use crate::hosted_receiver::HostedReceiverPartitions;
 
 const BSS_ADDRESS: u64 = 0x1000_2000;
@@ -391,6 +393,86 @@ fn windows_bridge_instructions_reject_redirected_storage_or_entry() {
     let mut overflowing = PARTITIONS;
     overflowing.stack_byte_count = u64::MAX;
     assert!(validate_windows_x86_64(&shim, address, entry, BSS_ADDRESS, overflowing).is_err());
+}
+
+// Hand-encoded macOS x86-64 bridge: `mov [rip+scratch], rsp; lea rsp,
+// [rip+stack_top]; lea rdi, [rip+receiver]; call rel32; mov rsp,
+// [rip+scratch]; xor eax, eax; ret`. Displacements are computed independently
+// of the writer and relocation patcher.
+fn macos_x86_64_shim(
+    address: u64,
+    selected_entry: u64,
+    bss: u64,
+    partitions: HostedReceiverPartitions,
+) -> Vec<u8> {
+    let rel32 = |field: usize, target: u64| -> i32 {
+        i32::try_from(target as i128 - (address as i128 + field as i128 + 4)).unwrap()
+    };
+    let continuation = bss + partitions.saved_continuation_offset;
+    let stack_top = bss + partitions.stack_offset + partitions.stack_byte_count;
+    let receiver = bss + partitions.receiver_offset;
+    let mut bytes = vec![0x48, 0x89, 0x25];
+    bytes.extend(rel32(3, continuation).to_le_bytes());
+    bytes.extend([0x48, 0x8d, 0x25]);
+    bytes.extend(rel32(10, stack_top).to_le_bytes());
+    bytes.extend([0x48, 0x8d, 0x3d]);
+    bytes.extend(rel32(17, receiver).to_le_bytes());
+    bytes.extend([0xe8]);
+    bytes.extend(rel32(22, selected_entry).to_le_bytes());
+    bytes.extend([0x48, 0x8b, 0x25]);
+    bytes.extend(rel32(29, continuation).to_le_bytes());
+    bytes.extend([0x31, 0xc0, 0xc3]);
+    debug_assert_eq!(bytes.len(), 36);
+    bytes
+}
+
+#[test]
+fn macos_x86_64_bridge_instructions_reconstruct_storage_call_and_restore() {
+    let shim = macos_x86_64_shim(0x1000_0ff0, 0x1000_0fb0, BSS_ADDRESS, PARTITIONS);
+    validate_macos_x86_64(&shim, 0x1000_0ff0, 0x1000_0fb0, BSS_ADDRESS, PARTITIONS)
+        .expect("exact macOS x86-64 bridge bytes and resolved targets");
+    let shim = macos_x86_64_shim(0x1000_3000, 0x1000_4000, BSS_ADDRESS, PARTITIONS);
+    validate_macos_x86_64(&shim, 0x1000_3000, 0x1000_4000, BSS_ADDRESS, PARTITIONS)
+        .expect("forward call displacement");
+    // The Linux bridge exits through the kernel; it is not the dyld bridge.
+    let linux = linux_shim(0x1000_0ff0, 0x1000_0fb0, BSS_ADDRESS, PARTITIONS);
+    assert!(
+        validate_macos_x86_64(&linux, 0x1000_0ff0, 0x1000_0fb0, BSS_ADDRESS, PARTITIONS).is_err()
+    );
+}
+
+#[test]
+fn macos_x86_64_bridge_instructions_reject_every_mutated_byte_and_redirection() {
+    let address = 0x1000_0ff0;
+    let entry = 0x1000_0fb0;
+    let original = macos_x86_64_shim(address, entry, BSS_ADDRESS, PARTITIONS);
+    for bit in 0..(original.len() * 8) {
+        let mut hostile = original.clone();
+        hostile[bit / 8] ^= 1 << (bit % 8);
+        assert!(
+            validate_macos_x86_64(&hostile, address, entry, BSS_ADDRESS, PARTITIONS).is_err(),
+            "bit {bit}"
+        );
+    }
+    for length in [0, 3, 7, 21, 26, 35] {
+        assert!(
+            validate_macos_x86_64(&original[..length], address, entry, BSS_ADDRESS, PARTITIONS)
+                .is_err()
+        );
+    }
+    for mutation in 0..4 {
+        let mut partitions = PARTITIONS;
+        match mutation {
+            0 => partitions.saved_continuation_offset += 16,
+            1 => partitions.stack_offset += 16,
+            2 => partitions.stack_byte_count += 16,
+            _ => partitions.receiver_offset += 16,
+        }
+        assert!(validate_macos_x86_64(&original, address, entry, BSS_ADDRESS, partitions).is_err());
+    }
+    assert!(
+        validate_macos_x86_64(&original, address, entry + 0x40, BSS_ADDRESS, PARTITIONS).is_err()
+    );
 }
 
 // Hand-encoded Linux ARM64 bridge: adrp/add the continuation residence,

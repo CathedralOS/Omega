@@ -1343,7 +1343,7 @@ pub(crate) fn validate_image(
                 64
             };
             if !crate::hosted_unit_entry::unique_region(object, symbol, offset, shim_bytes, output)
-                || !crate::hosted_unit_entry::main_points_to(&output.bytes, offset)
+                || !crate::hosted_unit_entry::main_points_to(&output.bytes, offset, artifact.target)
             {
                 return Err(invalid());
             }
@@ -1437,6 +1437,23 @@ pub(crate) fn validate_image(
         .checked_add(offset as u64)
         .ok_or_else(invalid)?;
     match shim {
+        crate::hosted_unit_entry::EntryShim::DarwinReceiver { .. }
+            if artifact.target == target::NativeTarget::macos_x64() =>
+        {
+            let end = offset
+                .checked_add(MACOS_X86_64_RECEIVER_SHIM_BYTES)
+                .ok_or_else(invalid)?;
+            instructions::validate_macos_x86_64(
+                output
+                    .final_text_bytes
+                    .get(offset..end)
+                    .ok_or_else(invalid)?,
+                shim_address,
+                selected_entry,
+                output.final_image_layout.bss_address,
+                partitions,
+            )
+        }
         crate::hosted_unit_entry::EntryShim::DarwinReceiver { .. } => {
             let end = offset.checked_add(64).ok_or_else(invalid)?;
             instructions::validate(

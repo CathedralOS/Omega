@@ -25,7 +25,7 @@ pub(crate) fn shape_is_exact(target: NativeTarget, settlement: &BoundarySettleme
     else {
         return false;
     };
-    let byte_count = if target == NativeTarget::linux_x64() {
+    let byte_count = if target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64() {
         12
     } else if target == NativeTarget::linux_arm64() || target == NativeTarget::macos_arm64() {
         16

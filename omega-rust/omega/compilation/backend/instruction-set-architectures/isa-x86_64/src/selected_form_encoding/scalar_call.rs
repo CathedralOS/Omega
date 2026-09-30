@@ -481,10 +481,12 @@ mod tests {
 
     #[test]
     fn scalar_call_abi_matrix_resolves_declared_pairs_and_fails_closed() {
-        assert_eq!(
-            x86_64_selected_abi(NativeTarget::linux_x64()),
-            Ok(X86_64SelectedAbi::SystemV)
-        );
+        for declared_system_v in [NativeTarget::linux_x64(), NativeTarget::macos_x64()] {
+            assert_eq!(
+                x86_64_selected_abi(declared_system_v),
+                Ok(X86_64SelectedAbi::SystemV)
+            );
+        }
         for declared_coff in [NativeTarget::windows_x64(), NativeTarget::uefi_x64()] {
             assert_eq!(
                 x86_64_selected_abi(declared_coff),
@@ -493,8 +495,8 @@ mod tests {
         }
         for undeclared in [
             NativeTarget {
-                object_format: target::ObjectFormat::MachO,
-                ..NativeTarget::linux_x64()
+                object_format: target::ObjectFormat::Coff,
+                ..NativeTarget::linux_arm64()
             },
             NativeTarget::linux_arm64(),
             NativeTarget::macos_arm64(),
@@ -624,16 +626,11 @@ mod tests {
             ),
             Err(X86_64ScalarCallTemplateError::UnsupportedTarget)
         );
-        // Undeclared (architecture, object-format) pairs fail closed through
-        // the same matrix: an x86-64 Mach-O target does not inherit either
-        // declared row.
-        let undeclared_macho = NativeTarget {
-            object_format: target::ObjectFormat::MachO,
-            ..NativeTarget::linux_x64()
-        };
-        assert_eq!(
+        // Intel macOS resolves the System V row through the same matrix, so
+        // the Linux template replays unchanged; only AArch64 pairs fail closed.
+        assert!(
             validate_x86_64_selected_scalar_call_template(
-                undeclared_macho,
+                NativeTarget::macos_x64(),
                 &physical,
                 kind,
                 alternative,
@@ -641,8 +638,8 @@ mod tests {
                 &effects,
                 &[0xe8, 0, 0, 0, 0],
                 fixup,
-            ),
-            Err(X86_64ScalarCallTemplateError::UnsupportedTarget)
+            )
+            .is_ok()
         );
         assert_eq!(
             validate_x86_64_selected_scalar_call_template(

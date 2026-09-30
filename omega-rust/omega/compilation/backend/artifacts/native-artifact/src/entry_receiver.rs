@@ -91,6 +91,7 @@ pub fn admit_executable_entry_receiver(
         ));
     }
     let supported_receiver_bridge = native_target == target::NativeTarget::macos_arm64()
+        || native_target == target::NativeTarget::macos_x64()
         || native_target == target::NativeTarget::linux_x64()
         || native_target == target::NativeTarget::linux_arm64()
         || native_target == target::NativeTarget::windows_x64()

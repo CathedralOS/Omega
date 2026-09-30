@@ -15,8 +15,8 @@ pub(crate) fn decode_selected_byte_output(
     target: NativeTarget,
     bytes: &[u8],
 ) -> Option<(MachineRegister, u32)> {
-    if target == NativeTarget::linux_x64() {
-        isa_x86_64::decode_x86_64_selected_hosted_write_byte_i32(bytes)
+    if target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64() {
+        isa_x86_64::decode_x86_64_selected_hosted_write_byte_i32(target, bytes)
     } else if target == NativeTarget::linux_arm64() || target == NativeTarget::macos_arm64() {
         isa_aarch64::decode_aarch64_selected_hosted_write_byte_i32(target, bytes)
     } else {
@@ -74,9 +74,12 @@ pub(crate) fn selected_byte_output_shape_is_exact(
     else {
         return false;
     };
+    // Darwin x86-64 adds one two-byte carry branch to the Linux leaf.
     let byte_count = if target == NativeTarget::linux_x64() || target == NativeTarget::macos_arm64()
     {
         40
+    } else if target == NativeTarget::macos_x64() {
+        42
     } else if target == NativeTarget::linux_arm64() {
         36
     } else {

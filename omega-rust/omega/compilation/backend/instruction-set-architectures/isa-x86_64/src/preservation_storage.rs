@@ -37,20 +37,21 @@ pub fn x86_64_preservation_storage_catalog(
     if model.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(X86_64PreservationStorageCatalogError::PhysicalRegisterModelMismatch);
     }
-    let group_names: Vec<String> = if target == NativeTarget::linux_x64() {
-        ["rbx", "rbp", "r12", "r13", "r14", "r15"]
-            .into_iter()
-            .map(str::to_owned)
-            .collect()
-    } else if target == NativeTarget::windows_x64() {
-        ["rbx", "rsi", "rdi", "rbp", "r12", "r13", "r14", "r15"]
-            .into_iter()
-            .map(str::to_owned)
-            .chain((6..=15).map(|index| format!("xmm{index}")))
-            .collect()
-    } else {
-        return Err(X86_64PreservationStorageCatalogError::UnsupportedTarget);
-    };
+    let group_names: Vec<String> =
+        if target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64() {
+            ["rbx", "rbp", "r12", "r13", "r14", "r15"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect()
+        } else if target == NativeTarget::windows_x64() {
+            ["rbx", "rsi", "rdi", "rbp", "r12", "r13", "r14", "r15"]
+                .into_iter()
+                .map(str::to_owned)
+                .chain((6..=15).map(|index| format!("xmm{index}")))
+                .collect()
+        } else {
+            return Err(X86_64PreservationStorageCatalogError::UnsupportedTarget);
+        };
     let convention = x86_64_preservation_convention_for_target(model, target)
         .ok_or(X86_64PreservationStorageCatalogError::UnsupportedTarget)?;
     let groups = group_names
@@ -217,6 +218,13 @@ mod tests {
         assert_eq!(
             system_v.identity(),
             x86_64_preservation_storage_catalog(&model, NativeTarget::linux_x64())
+                .unwrap()
+                .identity()
+        );
+        // Intel macOS preserves exactly the System V AMD64 callee-saved set.
+        assert_eq!(
+            system_v.identity(),
+            x86_64_preservation_storage_catalog(&model, NativeTarget::macos_x64())
                 .unwrap()
                 .identity()
         );

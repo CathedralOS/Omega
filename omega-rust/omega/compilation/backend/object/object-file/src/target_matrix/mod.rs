@@ -5,10 +5,10 @@
 //! `SectionKind`, and the canonical text-section alignment from the target.
 //! Those lookups used to re-derive their answers from `object_format` (or
 //! `architecture`) alone through match arms with wildcards, so an undeclared
-//! pair such as (Aarch64, COFF) or (x86-64, Mach-O) silently inherited
-//! whichever format arm came first. The four admitted pairs are declared here
-//! once; every derivation resolves through [`object_target_policy`], and an
-//! undeclared pair answers `None` instead of a borrowed spelling.
+//! pair such as (Aarch64, COFF) silently inherited whichever format arm came
+//! first. The five admitted pairs are declared here once; every derivation
+//! resolves through [`object_target_policy`], and an undeclared pair answers
+//! `None` instead of a borrowed spelling.
 
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -29,10 +29,10 @@ pub struct ObjectTargetPolicy {
 /// Resolve one declared (architecture, object-format) pair to its object
 /// policy.
 ///
-/// Declared rows are Aarch64 with ELF or Mach-O and x86-64 with ELF or COFF —
-/// the same four pairs the relocation-free validator admits. (Aarch64, COFF)
-/// and (x86-64, Mach-O) are undeclared and return `None`; adding a supported
-/// pair extends this matrix deliberately rather than widening a wildcard.
+/// Declared rows are Aarch64 with ELF or Mach-O and x86-64 with ELF, COFF or
+/// Mach-O — the same five pairs the relocation-free validator admits.
+/// (Aarch64, COFF) is undeclared and returns `None`; adding a supported pair
+/// extends this matrix deliberately rather than widening a wildcard.
 pub fn object_target_policy(target: NativeTarget) -> Option<ObjectTargetPolicy> {
     match (target.architecture, target.object_format) {
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(ObjectTargetPolicy {
@@ -63,8 +63,14 @@ pub fn object_target_policy(target: NativeTarget) -> Option<ObjectTargetPolicy> 
             bss_section_name: ".bss",
             text_section_alignment: 1,
         }),
-        (Architecture::Aarch64, ObjectFormat::Coff)
-        | (Architecture::X86_64, ObjectFormat::MachO) => None,
+        (Architecture::X86_64, ObjectFormat::MachO) => Some(ObjectTargetPolicy {
+            entry_symbol_name: "_main",
+            text_section_name: "__TEXT,__text",
+            data_section_name: "__DATA,__data",
+            bss_section_name: "__DATA,__bss",
+            text_section_alignment: 1,
+        }),
+        (Architecture::Aarch64, ObjectFormat::Coff) => None,
     }
 }
 
@@ -107,6 +113,16 @@ mod tests {
                 },
             ),
             (
+                NativeTarget::macos_x64(),
+                ObjectTargetPolicy {
+                    entry_symbol_name: "_main",
+                    text_section_name: "__TEXT,__text",
+                    data_section_name: "__DATA,__data",
+                    bss_section_name: "__DATA,__bss",
+                    text_section_alignment: 1,
+                },
+            ),
+            (
                 NativeTarget::windows_x64(),
                 ObjectTargetPolicy {
                     entry_symbol_name: "main",
@@ -129,21 +145,12 @@ mod tests {
 
     #[test]
     fn object_target_policy_fails_closed_on_undeclared_pairs() {
-        for target in [
-            NativeTarget {
-                architecture: Architecture::Aarch64,
-                object_format: ObjectFormat::Coff,
-                pointer_size: 8,
-                pointer_alignment: 8,
-            },
-            NativeTarget {
-                architecture: Architecture::X86_64,
-                object_format: ObjectFormat::MachO,
-                pointer_size: 8,
-                pointer_alignment: 8,
-            },
-        ] {
-            assert_eq!(object_target_policy(target), None);
-        }
+        let target = NativeTarget {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        };
+        assert_eq!(object_target_policy(target), None);
     }
 }

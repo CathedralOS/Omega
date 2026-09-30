@@ -109,6 +109,7 @@ pub(in crate::legalization) fn validate(
     if declarations.next().is_some()
         || ![
             ::target::NativeTarget::linux_x64(),
+            ::target::NativeTarget::macos_x64(),
             ::target::NativeTarget::linux_arm64(),
             ::target::NativeTarget::macos_arm64(),
         ]

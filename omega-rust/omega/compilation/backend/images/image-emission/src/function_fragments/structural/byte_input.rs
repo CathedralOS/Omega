@@ -19,7 +19,7 @@ fn decoded_home(target: NativeTarget, bytes: &[u8]) -> Option<u32> {
         return None;
     }
     match target.architecture {
-        Architecture::X86_64 => isa_x86_64::decode_x86_64_selected_hosted_read_byte(bytes),
+        Architecture::X86_64 => isa_x86_64::decode_x86_64_selected_hosted_read_byte(target, bytes),
         Architecture::Aarch64 => {
             isa_aarch64::decode_aarch64_selected_hosted_read_byte(target, bytes)
         }

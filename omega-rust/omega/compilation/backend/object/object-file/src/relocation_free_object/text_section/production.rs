@@ -203,30 +203,21 @@ mod tests {
         // The declared matrix, not the final validation pass, owns this
         // rejection: an undeclared (architecture, object-format) pair must not
         // borrow a section spelling before the plan is assembled.
-        for target in [
-            NativeTarget {
-                architecture: Architecture::Aarch64,
-                object_format: ObjectFormat::Coff,
-                pointer_size: 8,
-                pointer_alignment: 8,
-            },
-            NativeTarget {
-                architecture: Architecture::X86_64,
-                object_format: ObjectFormat::MachO,
-                pointer_size: 8,
-                pointer_alignment: 8,
-            },
-        ] {
-            assert_eq!(
-                construct_relocation_free_object_from_text(
-                    &text_with_target(target),
-                    OptimizationSelectionIdentity::from_bytes([6; 32]),
-                ),
-                Err(RelocationFreeObjectFromTextError::InvalidObject(
-                    RelocationFreeObjectError::NonCanonicalTarget
-                ))
-            );
-        }
+        let target = NativeTarget {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        };
+        assert_eq!(
+            construct_relocation_free_object_from_text(
+                &text_with_target(target),
+                OptimizationSelectionIdentity::from_bytes([6; 32]),
+            ),
+            Err(RelocationFreeObjectFromTextError::InvalidObject(
+                RelocationFreeObjectError::NonCanonicalTarget
+            ))
+        );
     }
 
     #[test]
