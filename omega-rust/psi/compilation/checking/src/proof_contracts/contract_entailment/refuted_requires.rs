@@ -28,54 +28,18 @@ pub(crate) fn reject_refuted_value_call_requires(
     self_is_argument: bool,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let parameters = program
-        .state_parameters(callee_state)
-        .iter()
-        .filter(|parameter| self_is_argument || !parameter.is_self)
-        .collect::<Vec<_>>();
-    if parameters.len() != arguments.len() {
+    let Some(map) = argument_term_map(
+        program,
+        caller_machine,
+        caller_state,
+        callee_state,
+        arguments,
+        self_is_argument,
+    ) else {
         return;
-    }
+    };
 
-    let mut map = Vec::with_capacity(parameters.len());
-    for (parameter, argument) in parameters.iter().zip(arguments) {
-        let scope = Some((caller_machine, caller_state, parameter.type_reference));
-        let Some(term) = structural_term_in_scope(program, scope, *argument) else {
-            return;
-        };
-        map.push((parameter.name.as_str().to_owned(), term));
-    }
-
-    let mut caller_requires = Vec::new();
-    for contract in program.machine_contracts(caller_machine) {
-        if contract.kind == SignatureContractKind::Requires {
-            caller_requires.extend(
-                program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .iter()
-                    .filter_map(|fact| match fact {
-                        ProofFact::Expression(expression) => Some(*expression),
-                        ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
-                    }),
-            );
-        }
-    }
-    for contract in program.state_contracts(caller_state) {
-        if contract.kind == SignatureContractKind::Requires {
-            caller_requires.extend(
-                program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .iter()
-                    .filter_map(|fact| match fact {
-                        ProofFact::Expression(expression) => Some(*expression),
-                        ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
-                    }),
-            );
-        }
-    }
-    let judge = StructuralJudge::from_requires(program, caller_machine, &caller_requires);
+    let judge = caller_requires_judge(program, caller_machine, caller_state);
     if judge.hypotheses_contradictory {
         return;
     }
@@ -117,6 +81,116 @@ pub(crate) fn reject_refuted_value_call_requires(
             caller_machine.name, caller_state.name,
         )));
     }
+}
+
+/// Whether one callee `requires` expression is structurally TRUE at the
+/// concrete call operands — the positive read of the same instantiated
+/// judgment the refutation gate uses. An untermifiable argument, symbolic
+/// operand, or contradictory caller hypothesis leaves the fact for the
+/// bound, guard, and entailment channels; this only discharges what the
+/// terms themselves decide.
+pub fn instantiated_value_call_requires_proven(
+    program: &TypedTrees,
+    caller_machine: &Machine,
+    caller_state: &typed_trees::state::State,
+    callee_state: &typed_trees::state::State,
+    arguments: &[ExpressionHandle],
+    expression: ExpressionHandle,
+    self_is_argument: bool,
+) -> bool {
+    let Some(map) = argument_term_map(
+        program,
+        caller_machine,
+        caller_state,
+        callee_state,
+        arguments,
+        self_is_argument,
+    ) else {
+        return false;
+    };
+    let judge = caller_requires_judge(program, caller_machine, caller_state);
+    if judge.hypotheses_contradictory {
+        return false;
+    }
+    matches!(
+        instantiated_fact_judgment(
+            program,
+            &judge,
+            program.state_parameters(callee_state),
+            expression,
+            &map,
+        ),
+        StructuralJudgment::Proven
+    )
+}
+
+/// One term per substituted parameter, each read from the call's argument in
+/// the caller's scope. A single untermifiable argument leaves no map to judge
+/// against, so the whole call declines rather than judge a partial picture.
+fn argument_term_map(
+    program: &TypedTrees,
+    caller_machine: &Machine,
+    caller_state: &typed_trees::state::State,
+    callee_state: &typed_trees::state::State,
+    arguments: &[ExpressionHandle],
+    self_is_argument: bool,
+) -> Option<Vec<(String, StructuralTerm)>> {
+    let parameters = program
+        .state_parameters(callee_state)
+        .iter()
+        .filter(|parameter| self_is_argument || !parameter.is_self)
+        .collect::<Vec<_>>();
+    if parameters.len() != arguments.len() {
+        return None;
+    }
+
+    let mut map = Vec::with_capacity(parameters.len());
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let scope = Some((caller_machine, caller_state, parameter.type_reference));
+        let term = structural_term_in_scope(program, scope, *argument)?;
+        map.push((parameter.name.as_str().to_owned(), term));
+    }
+    Some(map)
+}
+
+/// The hypothesis judge built from the caller's own machine- and state-level
+/// `requires` facts — the same premise environment both sides of the
+/// instantiated judgment read.
+fn caller_requires_judge<'program>(
+    program: &'program TypedTrees,
+    caller_machine: &'program Machine,
+    caller_state: &'program typed_trees::state::State,
+) -> StructuralJudge<'program> {
+    let mut caller_requires = Vec::new();
+    for contract in program.machine_contracts(caller_machine) {
+        if contract.kind == SignatureContractKind::Requires {
+            caller_requires.extend(
+                program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .filter_map(|fact| match fact {
+                        ProofFact::Expression(expression) => Some(*expression),
+                        ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
+                    }),
+            );
+        }
+    }
+    for contract in program.state_contracts(caller_state) {
+        if contract.kind == SignatureContractKind::Requires {
+            caller_requires.extend(
+                program
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .filter_map(|fact| match fact {
+                        ProofFact::Expression(expression) => Some(*expression),
+                        ProofFact::Membership(_) | ProofFact::Proposition(_) => None,
+                    }),
+            );
+        }
+    }
+    StructuralJudge::from_requires(program, caller_machine, &caller_requires)
 }
 
 /// The callee's `requires` expression facts in declaration order: machine

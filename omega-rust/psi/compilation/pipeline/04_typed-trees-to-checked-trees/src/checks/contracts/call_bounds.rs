@@ -136,6 +136,21 @@ fn prove(
         caller.machine_symbol,
         caller.state_symbol,
     )?;
+    // A closed operand set decides the instantiated fact on value before
+    // bound or guard evidence runs: `6.5 > 5.0` is true at this call whether
+    // or not the caller's intervals can name it, and a decided-true requires
+    // needs no other premise.
+    if validation::instantiated_value_call_requires_proven(
+        program,
+        machine,
+        state,
+        callee_state,
+        &arguments,
+        expression,
+        false,
+    ) {
+        return Some(true);
+    }
     if guard.is_some_and(|guard| {
         guard_implication::proves(
             program,
