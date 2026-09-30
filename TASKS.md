@@ -170,17 +170,13 @@ the complete product bar; focused successes below do not establish that baseline
     policy and observation through replay and execution; coordinate
     **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS** for executable arithmetic.
 
-  - **Computed calls and state transfers.** `vending_machine` passes
-    `report(self.make_change(100, 55), 17)`: preserve the inline call and exact
-    normalized argument occurrence. **COMPOSITE-TRANSITION-ARGUMENT** owns its
-    composite-source gap (scalar value-call arguments already execute);
-    **VALUE-CALL-SUBEXPRESSION** covers the related operand position.
-    The structural result transfer vocabulary already exists. Account the
-    nested call as consumed by the normalized successor argument, include it
-    in the state's ordered operations, then emit the terminator-site operation.
-    `state_graph/mod.rs::operation_end` currently excludes Transition calls;
-    `control/call_occurrences.rs` rejects an unconsumed nested transition call.
-    Bypassing those guards without producer/consumer correspondence is unsound.
+  - **Computed calls and state transfers.** A structural call supplied directly
+    as a state argument, such as `vending_machine`'s
+    `report(main, Main::make_change(100, 55), 17)`, is an ordinary
+    `EstablishStructuralValue` performed on the selected edge; its pre-lending
+    `self` spelling exits **70**. **COMPOSITE-TRANSITION-ARGUMENT** owns the
+    composite sources that still decline; **VALUE-CALL-SUBEXPRESSION** covers
+    the related operand position.
 
     `omega run tests/omega/pass/calls/runtime_nested_case_argument_exit/main.omg`
     on macOS arm64 now clears copy/affine case-return cleanup in Psi, but
@@ -635,7 +631,8 @@ the complete product bar; focused successes below do not establish that baseline
   | `rendering/{bouncing_ball_2d,mandelbrot_zoom}` | Past **OPERATOR-BOUNDARY-CALLS**: at `e1fba057b1` on macOS ARM64 both stop at "selected ProgramEntry Binding field `Main::clock` requires a selected Fused provider for boundary `Clock`", because each declares a package-local `Clock` that nothing provides. The documented migration to `omega_language_std::clock` needs a macOS sleep leg, and `poll(NULL, 0, ms)` has no realization route: a leaf's foreign signature must equal its Omega signature, and a checked adapter over `darwin_poll` reaches `DarwinClock` outside `Clock::sleep`'s ceiling (the marshalled-syscall question in OWNER_QUESTIONS.md). Retain `pending/arithmetic/float_computation_no_route`. |
   | `rendering/bouncing_particles` | At `e5cb2fc2dbf` on macOS ARM64 it stops at "selected ProgramEntry Binding field `Main::clock` requires a selected Fused provider for boundary `Clock`": its package-local `Clock` has no provider, and std `clock` has no leg that sleeps (the marshalled-syscall question in OWNER_QUESTIONS.md). A scratch copy with the clock field and `sleep` removed stops at the private `proof_search_candidate_work` provision (16384) with Unit call obligation 2^63 + 9 unproved; `collections/entity_list`, formerly in this row, meets its oracle. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
-  | `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and **COMPOSITE-TRANSITION-ARGUMENT** own the respective operations. |
+  | `systems/wire_protocol`, `probes/value_call_in_expr` | **RECORD-LITERAL-ARRAY-FIELD** and **VALUE-CALL-SUBEXPRESSION** own the respective operations. |
+  | `systems/vending_machine` | Its transition-argument calls and `Change` delivery are complete: the pre-lending `self` spelling retains **3** sales, extra remainder **20** and exit **70** natively and interpreted. The lent `main: &mut Main` spelling stops first at `state graph: provider attachment requirements`, where `terminal_unit/providers.rs` refuses a non-self parameter carrying the attachment's provider fields and recognizes only a `self.<field>` receiver; **STATIC-MACHINE-MIGRATION** owns that route. |
   | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
   | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the remaining native customers are `windowed_calculator` on **OPERATOR-BOUNDARY-CALLS** (`F64::from_i32`); `dungeon_crawler_cli` on the `&mut` projected-field parameter path in `terminal_unit/calls` (**STATE-LOCAL-VALUE-FRONTIER**); `game_of_life`: replace retired element-range annotations with `[i32; 16]` and an ordinary state-traversing predicate in `where`, per [collection invariants](wiki/spec/language/dependent_values.md#collection-invariants). Prove zero initialization, invariant restoration after updates, and indexed consequences through checked helper theorems; implement missing proof/lowering support and preserve the sample's value constraints and output oracle. No new quantifier syntax or range-only migration domain (also CANONICALIZE-SCALAR-RANGE-CONTRACTS). |
@@ -1731,31 +1728,27 @@ crash and native exit behavior. Use affected check/native corpus slices under
   through its nested calls and transitions and exit **70**. Its historical
   slot-collision comment is not a diagnosis of the current compiler.
 
-- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish legal record literals,
-  field projections and composite call results supplied directly to internal
-  states. `successor_bindings` in `terminal_unit/state_graph/mod.rs` already
-  forwards whole parameters, retained local results, admitted subslices and
-  selected case payloads; ordinary projected roots and new argument values
-  need their own construction/transfer. Preserve exact type, access, copy/move
-  semantics and residual cleanup under [state arrivals](wiki/spec/language/state_contracts.md).
-  `tests/omega/pending/control_flow/composite_state_parameter` discards its
-  `Pair { a: 1 }`; observe the payload. Compare distinct literal, field, call
-  and local sources on unconditional and guarded edges. Retain scalar-policy
-  controls and exercise legal reference and fixed-array arguments separately.
-  Existing `tests/omega/pass/structs/{mutable_record_state_transfer,
-  mutable_array_record_state_transfer,affine_record_state_clone}` record native
-  **70** for carried borrows/local backing; they do not cover direct composite
-  arguments. Acceptance: selected operands execute once, retain their values
-  through Terminal reload and native execution, and unselected operands have
-  no effects. `samples/cli/systems/vending_machine` must deliver its `Change`
-  and exit **70**: today its `handoff` state's
-  `report(main, Main::make_change(100, 55), 17)` omits at `state graph:
-  terminator: conditional successors: parameter transfer`, and binding the
-  call to a local first moves the omission to `state graph: provider
-  attachment requirements`. Scalar value-call transition arguments already
-  execute: `pass/calls/value_call_transition_argument` pins direct, local and
-  arithmetic arguments, left-to-right call effects and arrival snapshots at
-  exit **70**.
+- **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish the composite internal
+  state arguments that selected-edge establishment does not reach. Record and
+  case literals, literals embedding calls, structural call results and `[copy]`
+  member projections of a source parameter now establish on their selected edge
+  through the state's ordinary operation emitter:
+  `tests/omega/pass/control_flow/composite_state_parameter` exits **70**
+  natively and interpreted, and its two call-bearing guarded arms run one
+  `make`. Three legal sources still stop. An edge call whose operand is one of
+  the state's own local results (`handle(copy_pair(seed))`) stops at `call
+  operation: structural arguments: parameter source`: edge value calls plan
+  against parameters only, and consuming an affine local on one edge must also
+  remove it from that edge's local cleanup. A by-value fixed array
+  (`handle([30, 40])`, or a transferred `[i32; 2]` local) stops at `jump
+  successor: parameter transfer`, and Terminal verification rejects an owned
+  scalar-array block parameter, so the carrier needs a Terminal decision first
+  (coordinate **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER**). A shared `&self.pair`
+  argument delivers, but a target state that then stores a disjoint receiver
+  field fails Terminal verification with `SharedStructuralLoanDisturbed`.
+  Acceptance: each source delivers its value natively and through Terminal
+  reload, selected operands execute once after selection, and unselected
+  operands have no effects.
 
 - **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
   fixed primitive arrays through boundary arguments and results under

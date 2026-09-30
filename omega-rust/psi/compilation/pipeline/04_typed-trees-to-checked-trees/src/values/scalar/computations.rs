@@ -819,11 +819,13 @@ pub(crate) fn build_checked_value_computation_plans(
                             program.primitive_type_reference(parameter.type_reference)
                         else {
                             // A composite argument with no named custody root —
-                            // an inline record, case, or fixed-array literal —
-                            // is a fresh construction the edge itself
-                            // establishes into the parameter. Retain its
-                            // structural value so the successor plan can name
-                            // it as an established source.
+                            // an inline record, case, or fixed-array literal,
+                            // or a call's structural result — is a fresh value
+                            // the edge itself establishes into the parameter.
+                            // Retain its structural value so the successor
+                            // plan can name it as an established source; the
+                            // builder admits a call only when its declared
+                            // result is exactly the parameter's type.
                             if !continuation
                                 && transition.exit
                                     == typed_trees::statement::TransitionExit::Ordinary
@@ -837,7 +839,7 @@ pub(crate) fn build_checked_value_computation_plans(
                                     parameter.type_reference,
                                 ) || matches!(
                                     program.expression_table.expression(*argument),
-                                    ExpressionNode::ArrayLiteral(_)
+                                    ExpressionNode::ArrayLiteral(_) | ExpressionNode::Call(_)
                                 ))
                                 && structural_values
                                     .root_for_expression(state.symbol, statement_ordinal, *argument)

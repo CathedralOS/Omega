@@ -8,10 +8,10 @@
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan,
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, ScalarCalleePlans,
-    ShapeCollector, Signature, StatementNode, SuccessorEdge, SuccessorGuard, TransitionExit,
-    TransitionGuardNode, TransitionTargetNode, TypedTrees, closed_sum, control, guard_is_boolean,
-    retained_guard, return_cleanup_is_whole, returns, successor,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, EdgeCalls,
+    ScalarCalleePlans, ShapeCollector, Signature, StatementNode, SuccessorEdge, SuccessorGuard,
+    TransitionExit, TransitionGuardNode, TransitionTargetNode, TypedTrees, closed_sum, control,
+    guard_is_boolean, retained_guard, return_cleanup_is_whole, returns, successor,
 };
 
 /// The terminator one state's authored tail plans, after its operations.
@@ -38,6 +38,10 @@ pub(super) fn build(
     let statements = program.statement_table.statements(state.statement_nodes);
     trace.phase("state graph: terminator");
     let ordinal = u32::try_from(terminator_index).ok()?;
+    let edge_calls = EdgeCalls {
+        scalar_callees,
+        entry_claims,
+    };
     let edge = |operations: &[CheckedUnitEffectOperationPlan],
                 transition,
                 edge_ordinal,
@@ -53,6 +57,7 @@ pub(super) fn build(
             transition,
             edge_ordinal,
             kind,
+            edge_calls,
             shapes,
             trace,
         )
@@ -330,6 +335,7 @@ pub(super) fn build(
                         transition,
                         edge_ordinal,
                         SuccessorEdge::Conditional,
+                        edge_calls,
                         shapes,
                         trace,
                     )

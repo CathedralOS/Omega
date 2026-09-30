@@ -12,7 +12,7 @@ use super::{
     returns,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::state_graph::{SuccessorEdge, successor_bindings};
+use crate::execution::terminal_unit::state_graph::{EdgeCalls, SuccessorEdge, successor_bindings};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
@@ -387,6 +387,10 @@ pub(super) fn build(
                         ordinal,
                         &payload_parameters,
                         SuccessorEdge::ClosedCase,
+                        EdgeCalls {
+                            scalar_callees,
+                            entry_claims,
+                        },
                         shapes,
                         trace,
                     )?;

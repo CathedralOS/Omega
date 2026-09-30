@@ -321,15 +321,28 @@ pub(super) fn validate_bindings(
             continue;
         }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
-            value,
-            calls,
+            establishment,
         } = &transfer.source
         {
-            // The authored operand is the inline construction itself: it is
-            // the one value the statement registers as rooted at that
+            // The authored operand is the inline construction or call itself:
+            // it is the one value the statement registers as rooted at that
             // expression, its declared carrier is the target's, and its kind
-            // is a construction — no custody-bearing shape (place, call,
-            // projection) may masquerade as fresh custody.
+            // is a construction or a call product — no custody-bearing shape
+            // (place, projection) may masquerade as fresh custody. The edge's
+            // establishment is an ordinary one at the transition's own
+            // coordinate, producing exactly the target's type and
+            // multiplicity, and replays as a `let` initializer's does,
+            // embedded calls included.
+            let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                value,
+                operand_source: None,
+                discard_result_on_return: false,
+                ..
+            } = establishment.as_ref()
+            else {
+                return unsupported("Unit graph established argument is not a fresh establishment");
+            };
             let argument_position = explicit_argument_position(target.position);
             let expression = arguments
                 .get(argument_position)
@@ -344,7 +357,10 @@ pub(super) fn validate_bindings(
                 return unsupported("Unit graph established argument lost its registration");
             };
             if root.root != *value
-                || !calls.is_empty()
+                || root.machine != plan.machine
+                || result.statement_index != edge.statement_ordinal
+                || result.type_identity != target.type_identity
+                || result.multiplicity != target.multiplicity
                 || transfer.target_parameter_index as usize != position
                 || target.is_self
                 || target.access != checked_trees::CheckedStructuralAccess::Owned
@@ -366,10 +382,17 @@ pub(super) fn validate_bindings(
                         | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
                         | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
                         | checked_trees::CheckedStructuralValueKind::Case { .. }
+                        | checked_trees::CheckedStructuralValueKind::Call { .. }
                 )
             {
                 return unsupported("Unit graph established argument custody drifted");
             }
+            crate::expression_preparation::source_custody::structural::validate(
+                checked,
+                plan.machine,
+                state.state,
+                establishment,
+            )?;
             continue;
         }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
@@ -588,47 +611,6 @@ pub(super) fn validate_bindings(
             {
                 return unsupported("Unit graph case-payload subject differs from its guard");
             }
-            // The subject's member path walks from its own root type; borrows
-            // and constraint ascriptions peel away to the owned data shape.
-            fn nominal_owner(
-                checked: &CheckedTrees,
-                mut reference: checked_trees::types::TypeReferenceHandle,
-            ) -> Option<&checked_trees::data::DataDefinition> {
-                loop {
-                    match checked.type_reference_table.type_reference(reference) {
-                        checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-                            reference = *referee;
-                        }
-                        checked_trees::types::TypeReferenceNode::Constrained {
-                            base_type, ..
-                        } => {
-                            reference = *base_type;
-                        }
-                        checked_trees::types::TypeReferenceNode::Named { symbol, .. } => {
-                            if let Some(data) = checked
-                                .data_definitions()
-                                .iter()
-                                .find(|data| data.symbol == *symbol)
-                            {
-                                return Some(data);
-                            }
-                            // `Self` resolves to the enclosing machine's
-                            // attachment, not the data declaration itself.
-                            return checked
-                                .machines()
-                                .iter()
-                                .find(|machine| machine.symbol == *symbol)
-                                .and_then(|machine| {
-                                    checked
-                                        .data_definitions()
-                                        .iter()
-                                        .find(|data| data.symbol == machine.attached_data_symbol)
-                                });
-                        }
-                        _ => return None,
-                    }
-                }
-            }
             let Some(mut owner) = nominal_owner(checked, reference) else {
                 return unsupported("Unit graph case-payload subject is not nominal");
             };
@@ -755,7 +737,10 @@ pub(super) fn validate_bindings(
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph projected argument missing",
                 ))?;
-            let root_symbol = match subject.source {
+            // An authored `self.field` names the receiver's own symbol, while
+            // the implicit receiver roots at the machine; either spelling
+            // names the one retained receiver parameter.
+            let (root_symbol, receiver_root, mut reference) = match subject.source {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                     parameter_index,
                 } => {
@@ -765,73 +750,83 @@ pub(super) fn validate_bindings(
                         .ok_or(LoweringError::Unsupported(
                             "Unit graph projected subject missing",
                         ))?;
+                    if retained.access == checked_trees::CheckedStructuralAccess::WriteOnlyBorrow {
+                        return unsupported("Unit graph projected subject is write-only");
+                    }
                     let parameter = source_parameters.get(retained.position as usize).ok_or(
                         LoweringError::Unsupported("Unit graph projected parameter missing"),
                     )?;
-                    if parameter.is_self {
-                        plan.machine
-                    } else {
-                        parameter.symbol
-                    }
+                    (
+                        parameter.symbol,
+                        parameter.is_self.then_some(plan.machine),
+                        parameter.type_reference,
+                    )
                 }
                 _ => return unsupported("Unit graph projected subject unsupported"),
             };
             let mut tested_root = *expression;
-            let mut member_symbols = Vec::new();
+            let mut members = Vec::new();
             while let ExpressionNode::Member(member) =
                 checked.expression_table.expression(tested_root)
             {
                 if member.case_variant.is_some() {
                     return unsupported("Unit graph projected argument has a case projection");
                 }
-                member_symbols.push(member.member_symbol);
+                members.push(member);
                 tested_root = member.receiver;
             }
-            member_symbols.reverse();
-            let field_identity = |symbol: symbols::SymbolHandle| {
-                checked.data_definitions().iter().find_map(|definition| {
-                    checked.data_members(definition).iter().find_map(|member| {
-                        let checked_trees::data::DataMember::Field(field) = member else {
+            members.reverse();
+            // Replay the member walk from the root's own declared type: each
+            // segment names one field of the data its receiver has, by symbol
+            // or — for a typed `self` receiver view — by its member name.
+            let mut path_matches = members.len() == subject.path.len();
+            for (segment, member) in subject.path.iter().zip(&members) {
+                let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
+                else {
+                    path_matches = false;
+                    break;
+                };
+                let field = nominal_owner(checked, reference).and_then(|owner| {
+                    checked.data_members(owner).iter().find_map(|candidate| {
+                        let checked_trees::data::DataMember::Field(field) = candidate else {
                             return None;
                         };
-                        (field.symbol == symbol).then(|| field.path_identity())
+                        ((field.symbol == member.member_symbol || field.name == member.member)
+                            && field.path_identity() == *identity)
+                            .then_some(field)
                     })
-                })
-            };
-            let path_matches = subject
-                .path
-                .iter()
-                .zip(&member_symbols)
-                .all(|(segment, symbol)| match segment {
-                    checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
-                        field_identity(*symbol).as_deref() == Some(identity.as_str())
-                    }
-                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_) => true,
-                    _ => false,
                 });
+                let Some(field) = field else {
+                    path_matches = false;
+                    break;
+                };
+                reference = field.type_reference;
+            }
+            // The copied leaf is the last field's declared type: an
+            // unrestricted plain-owned value of exactly the target's type.
+            let leaf_copyable = path_matches
+                && checked.normalized_type_identity(reference).as_str() == target.type_identity
+                && checked.type_multiplicity(reference) == Multiplicity::Unrestricted
+                && validation::has_plain_owned_contents_with_numeric_constraints(
+                    &checked.typed,
+                    reference,
+                );
             if transfer.target_parameter_index as usize != position
                 || !matches!(
                     checked.expression_table.expression(tested_root),
                     ExpressionNode::Name(name)
-                        if name.symbol == root_symbol
-                            && name.head_symbol == root_symbol
+                        if (name.symbol == root_symbol || Some(name.symbol) == receiver_root)
+                            && name.head_symbol == name.symbol
                             && name.members.count() == 1
                 )
-                || member_symbols.len() != subject.path.len()
                 || !path_matches
+                || !leaf_copyable
                 || subject.access != checked_trees::CheckedStructuralAccess::Owned
                 || subject.type_identity != target.type_identity
                 || target.access != checked_trees::CheckedStructuralAccess::Owned
                 || target.multiplicity != Multiplicity::Unrestricted
                 || target.is_self
                 || subject.path.is_empty()
-                || !subject.path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
-                    )
-                })
             {
                 return unsupported("Unit graph projected argument custody drifted");
             }
@@ -1368,4 +1363,45 @@ pub(super) fn return_discards(
     }
     drops.retain(|index| !consumed.contains(index));
     Ok(drops)
+}
+
+/// The data declaration a member path walks from its root type: borrows and
+/// constraint ascriptions peel away to the owned data shape, and `Self`
+/// resolves to the enclosing machine's attached data.
+fn nominal_owner(
+    checked: &CheckedTrees,
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> Option<&checked_trees::data::DataDefinition> {
+    loop {
+        match checked.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                reference = *referee;
+            }
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
+            checked_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+                if let Some(data) = checked
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == *symbol)
+                {
+                    return Some(data);
+                }
+                // `Self` resolves to the enclosing machine's
+                // attachment, not the data declaration itself.
+                return checked
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == *symbol)
+                    .and_then(|machine| {
+                        checked
+                            .data_definitions()
+                            .iter()
+                            .find(|data| data.symbol == machine.attached_data_symbol)
+                    });
+            }
+            _ => return None,
+        }
+    }
 }

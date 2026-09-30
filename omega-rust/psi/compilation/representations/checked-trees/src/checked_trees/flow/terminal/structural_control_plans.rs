@@ -337,14 +337,16 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         subject: CheckedUnitStructuralArgumentPlan,
     },
     /// A fresh composite argument with no prior custody root: an inline
-    /// record, case, or fixed-array literal supplied directly to the
-    /// successor. `value` is the checked structural construction the edge
-    /// establishes into the target parameter's storage; `calls` records any
-    /// call products the construction embeds, exactly as a `let` binding's
-    /// establishment carries them.
+    /// record, case, or fixed-array literal, or a call's structural result,
+    /// supplied directly to the successor. `establishment` is the ordinary
+    /// `EstablishStructuralValue` operation the edge performs after its
+    /// selection, at the transition's statement coordinate: the checked
+    /// value, the call products it embeds exactly as a `let` binding's
+    /// establishment carries them, and a result of the target parameter's
+    /// type. Its binding ordinal is edge-local, numbered after the source
+    /// state's own results.
     EstablishedValue {
-        value: crate::CheckedStructuralValueHandle,
-        calls: Vec<crate::CheckedStructuralValueCall>,
+        establishment: Box<crate::CheckedUnitEffectOperationPlan>,
     },
     /// An authored `&place` or `&mut place` argument loans the named subtree
     /// into the borrowed target parameter: the successor argument keeps the
