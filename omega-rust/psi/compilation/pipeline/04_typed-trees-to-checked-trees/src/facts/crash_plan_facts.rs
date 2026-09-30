@@ -347,6 +347,11 @@ fn build_structural_runtime_requirements(
         .chain(program.state_contracts(entry))
         .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
         .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        // A structural parameter's qualification restatement is carried by
+        // its declaration and proven by the caller's argument presentation.
+        .filter(|fact| {
+            !validation::restates_structural_parameter_qualification(program, entry, fact)
+        })
         .map(|fact| {
             let typed_trees::domain::ProofFact::Expression(expression) = fact else {
                 return None;

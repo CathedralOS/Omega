@@ -40,6 +40,58 @@ pub enum StateScalarContractRow {
     },
 }
 
+/// Whether one `requires` fact only restates a structural parameter's declared
+/// qualification: `text in Utf8` for `text: &[u8; 8] in Utf8`. The parameter
+/// declaration carries that membership into every lowering, and the caller's
+/// argument presentation proves it, so it is no runtime entry requirement.
+/// A scalar parameter's membership is an interval requirement and stays out.
+pub fn restates_structural_parameter_qualification(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    fact: &typed_trees::domain::ProofFact,
+) -> bool {
+    let typed_trees::domain::ProofFact::Membership(membership) = fact else {
+        return false;
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(membership.value) else {
+        return false;
+    };
+    if path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+    {
+        return false;
+    }
+    let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == path.symbol)
+    else {
+        return false;
+    };
+    let mut reference = parameter.type_reference;
+    if let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(reference)
+    {
+        reference = *referee;
+    }
+    if program.primitive_type_reference(reference).is_some() {
+        return false;
+    }
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == membership.domain_symbol)
+    else {
+        return false;
+    };
+    structural_result_qualifications(program, reference)
+        .is_ok_and(|domains| domains.contains(&domain.semantic_id))
+}
+
 /// Split a state's authored `requires` contracts into the membership rows that
 /// restate parameter domain qualifications and the scalar rows a proof lane
 /// may carry. Membership rows must still match the exact declared

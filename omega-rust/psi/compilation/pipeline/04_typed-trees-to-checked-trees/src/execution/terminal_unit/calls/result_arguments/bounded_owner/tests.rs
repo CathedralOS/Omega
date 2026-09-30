@@ -108,3 +108,78 @@ fn a_fresh_local_loan_cannot_enter_a_qualified_successor_state() {
             .is_none()
     );
 }
+
+/// `text[0]` of a loaned bounded owner is bounded by the live length, not
+/// the capacity: the read stays a runtime-indexed byte read with a literal
+/// selector instead of a fixed-index projection into the capacity.
+#[test]
+fn a_literal_index_reads_a_bounded_owner_against_its_live_length() {
+    let checked = checked(
+        r#"
+        machine first(text: &[u8; 8] in Utf8) -> u8 {
+            transition 0 < text.len {
+                true -> read(text)
+                _ -> (0)
+            }
+
+            state read(text: &[u8; 8] in Utf8) -> u8 {
+                let byte: u8 = text[0];
+                transition { _ -> (byte) }
+            }
+        }
+    "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "first")
+        .expect("reader machine");
+    let read = &checked.machine_states(machine)[1];
+    let expression = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(
+            read.symbol,
+            0,
+            checked_trees::CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+        )
+        .expect("the byte local retains its read");
+    assert!(
+        matches!(
+            expression,
+            checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+                path,
+                index,
+                ..
+            } if path.is_empty()
+                && matches!(**index, checked_trees::CheckedScalarExpression::IntegerLiteral { .. })
+        ),
+        "{expression:?}"
+    );
+}
+
+/// A single-state reader's `text in Utf8` restatement rides the parameter
+/// declaration; it is not a runtime entry requirement the body must evaluate.
+#[test]
+fn a_bounded_owner_membership_restatement_is_no_runtime_requirement() {
+    let checked = checked(
+        r#"
+        machine live_length(text: &[u8; 8] in Utf8) -> u64 {
+            transition { _ -> (text.len) }
+        }
+    "#,
+    );
+    let contract = checked
+        .facts
+        .contract_plans
+        .for_machine(machine_named(&checked, "live_length"))
+        .expect("the reader publishes a contract");
+    assert_eq!(
+        contract
+            .crash
+            .structural_runtime_requirements()
+            .map(|requirements| requirements.len()),
+        Some(0)
+    );
+}

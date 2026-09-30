@@ -49,6 +49,12 @@ pub(crate) fn validate_scalar_source(
             return unsupported("scalar entry requirement has no authored predicate");
         }
         for fact in facts {
+            // The declaration carries a structural parameter's restated
+            // qualification; it occupies no runtime requirement slot.
+            if validation::restates_structural_parameter_qualification(&checked.typed, state, fact)
+            {
+                continue;
+            }
             let ProofFact::Expression(expression) = fact else {
                 return unsupported("scalar entry requirement needs its predicate evidence owner");
             };

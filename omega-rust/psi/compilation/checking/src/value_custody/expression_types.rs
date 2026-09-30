@@ -644,9 +644,45 @@ pub fn bounded_byte_buffer_capacity(
     else {
         return None;
     };
-    let has_value_domain = program
+    if !has_value_domain(program, *constraints) {
+        return None;
+    }
+    fixed_byte_array_capacity(program, *base_type)
+}
+
+/// [`bounded_byte_buffer_capacity`] of the owner a borrow names:
+/// `&[u8; N] in D` loans a bounded owner whether the domain qualifies the
+/// referent or the reference itself. The capacity is still no live length.
+pub fn loaned_bounded_byte_buffer_capacity(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<usize> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            bounded_byte_buffer_capacity(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => match program.type_reference_table.type_reference(*base_type) {
+            TypeReferenceNode::Reference { referee, .. }
+                if has_value_domain(program, *constraints) =>
+            {
+                fixed_byte_array_capacity(program, *referee)
+            }
+            _ => bounded_byte_buffer_capacity(program, type_reference),
+        },
+        _ => None,
+    }
+}
+
+fn has_value_domain(
+    program: &TypedTrees,
+    constraints: arena::HandleSpan<TypeConstraintNode>,
+) -> bool {
+    program
         .type_reference_table
-        .constraints(*constraints)
+        .constraints(constraints)
         .iter()
         .any(|constraint| match constraint {
             TypeConstraintNode::Domain(name) => {
@@ -654,14 +690,17 @@ pub fn bounded_byte_buffer_capacity(
                     && language_semantics::CarryPermission::from_name(name.as_str()).is_none()
             }
             _ => false,
-        });
-    if !has_value_domain {
-        return None;
-    }
+        })
+}
+
+fn fixed_byte_array_capacity(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<usize> {
     let TypeReferenceNode::FixedArray {
         element_type,
         length,
-    } = program.type_reference_table.type_reference(*base_type)
+    } = program.type_reference_table.type_reference(type_reference)
     else {
         return None;
     };
