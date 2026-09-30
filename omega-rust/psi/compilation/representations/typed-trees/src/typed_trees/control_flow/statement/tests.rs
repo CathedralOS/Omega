@@ -7,6 +7,30 @@ use crate::types::{TypeReferenceNode, TypeReferenceTable};
 use symbols::SymbolHandle;
 
 #[test]
+fn transition_prefix_stops_only_at_an_authored_unconditional_arm() {
+    use super::{TableTransition, TransitionGuardNode, reachable_transition_prefix};
+    let unconditional = StatementNode::Transition(TableTransition::default());
+    let conditional = StatementNode::Transition(TableTransition {
+        guard: TransitionGuardNode::When(crate::expression::ExpressionHandle::from_arena_index(1)),
+        ..Default::default()
+    });
+    let arms = [
+        conditional.clone(),
+        unconditional.clone(),
+        conditional.clone(),
+        unconditional.clone(),
+    ];
+    assert_eq!(reachable_transition_prefix(&arms), &arms[..2]);
+    let guarded = [conditional.clone(), conditional];
+    assert_eq!(reachable_transition_prefix(&guarded), &guarded);
+    let mixed = [
+        unconditional,
+        StatementNode::Expression(crate::expression::ExpressionHandle::invalid()),
+    ];
+    assert_eq!(reachable_transition_prefix(&mixed), &mixed);
+}
+
+#[test]
 fn deep_copy_owns_nested_statement_payloads() {
     let local_symbol = SymbolHandle::from_arena_index(21);
     let target_symbol = SymbolHandle::from_arena_index(22);

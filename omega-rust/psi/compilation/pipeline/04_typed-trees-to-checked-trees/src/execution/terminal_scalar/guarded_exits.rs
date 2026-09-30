@@ -1,4 +1,4 @@
-//! Ordered scalar exits retain every authored guard and selected destination.
+//! Ordered scalar exits retain every reachable authored guard and selected destination.
 //! Coverage is separate from evaluation: a final case guard is not a wildcard.
 use super::{CheckedScalarBranchDestination, StatementNode, TransitionGuardNode, TypedTrees};
 use crate::execution::terminal_scalar::checked_branch_destination;
@@ -68,8 +68,9 @@ fn tail(
     let mut case_subject = None;
     let mut cases = Vec::new();
     let mut exact_cases = true;
-    for (index, statement) in statements.iter().enumerate().skip(prefix) {
-        let ordinal = u32::try_from(index).ok()?;
+    let tail = typed_trees::statement::reachable_transition_prefix(&statements[prefix..]);
+    for (offset, statement) in tail.iter().enumerate() {
+        let ordinal = u32::try_from(prefix.checked_add(offset)?).ok()?;
         if fallback.is_some() {
             return None;
         }

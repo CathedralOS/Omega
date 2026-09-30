@@ -293,6 +293,16 @@ the complete product bar; focused successes below do not establish that baseline
   rejection. Record/case destructuring must execute bind-all, `as _` waivers,
   literal `__` field names, renamed fields and rest opt-out, including non-place
   subjects evaluated once.
+  On `ed218c8b1f5` plus ordered-tail reachability on macOS ARM64,
+  `omega run tests/omega/pass/control_flow/ordered_unconditional_arm_exit/main.omg`
+  exits **70**, preserving guards before the first unconditional arm and
+  never evaluating later target operands. The unchanged
+  `runtime_nonplace_record_pattern_single_evaluation_exit` now reaches
+  `conditional successors: receiver transfer` (state 2, statement 0):
+  `check_values(x, y)` carries no context but jumps to states requiring
+  `&mut self`. Resolve its explicit context frontier with the
+  `terminal_unit/state_graph/mod.rs` owner, then execute the original
+  single-evaluation/value oracle; do not synthesize ambient context.
   Keep `data/record_pattern_let_exit` and
   `control_flow/{record_pattern_arm_rename_guard_exit,arm_pattern_rest_optout_exit,case_pattern_rename_waive_exit,runtime_nonplace_record_pattern_single_evaluation_exit}`.
   Case-payload transfer emission now exists in `emission/successor_edge.rs`;

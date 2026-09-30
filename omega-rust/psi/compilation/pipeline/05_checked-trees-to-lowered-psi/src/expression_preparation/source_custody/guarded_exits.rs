@@ -1,4 +1,6 @@
-//! Ordered exits are checked against the entire authored suffix. A final case
+//! Ordered exits are checked against the reachable authored suffix. Alternatives
+//! after an unconditional arm cannot execute; their source remains checked.
+//! A final case
 //! remains a guard; only an exact complement pair or exact coverage of one
 //! unchanged subject removes the need for an authored fallback.
 use super::{
@@ -31,6 +33,7 @@ pub(crate) fn validate(
     let tail = statements
         .get(prefix..)
         .ok_or(LoweringError::Unsupported("ordered scalar tail is absent"))?;
+    let tail = typed_trees::statement::reachable_transition_prefix(tail);
     if tail.len() != arms.len() + usize::from(fallback.is_some()) {
         return unsupported("ordered scalar guards omit or add an authored exit");
     }
