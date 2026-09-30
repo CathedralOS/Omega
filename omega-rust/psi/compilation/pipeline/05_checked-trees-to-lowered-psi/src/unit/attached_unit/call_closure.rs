@@ -600,6 +600,12 @@ pub(super) fn validate_unit_operation_sequence(
                     call_ordinal: 0,
                 }
             }
+            CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(store) => {
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: store.statement_index,
+                    call_ordinal: 0,
+                }
+            }
             // A byte-view write consuming its own statement's scalar call
             // result shares that call's coordinate, exactly like the indexed
             // byte store above.

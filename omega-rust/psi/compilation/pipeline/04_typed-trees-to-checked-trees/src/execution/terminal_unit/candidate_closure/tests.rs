@@ -266,6 +266,9 @@ fn retain_available_reference(
                         | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                         | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                         | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                        | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(
+                            _,
+                        )
                         | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                         | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                         | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }

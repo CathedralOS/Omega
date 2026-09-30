@@ -3,7 +3,7 @@ use symbols::SymbolHandle;
 
 use crate::{
     CheckedComposedUnitControlStatePlan, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarExpression, CheckedStructuralControlSuccessorPlan,
+    CheckedScalarCaseFieldPlan, CheckedScalarExpression, CheckedStructuralControlSuccessorPlan,
     CheckedUnitStructuralArgumentPlan, DynamicConformanceBindingFact, MachineContractCommitment,
 };
 
@@ -742,4 +742,31 @@ pub struct CheckedStructuralCaseFieldStorePlan {
     /// Whole owned place supplying the stored value; its checked type is the
     /// field's declared unrestricted sum type.
     pub value: CheckedUnitStructuralArgumentPlan,
+}
+
+/// Checked custody for one replacement of an exact sum field by an authored
+/// case literal: `place.field = Sum::Case { .. }`. No held place supplies
+/// the stored value — the store itself establishes the literal into the
+/// field's storage — so the plan retains the authored construction and its
+/// scalar operands instead of a source argument. Each operand was bound at
+/// the statement under `StructuralValueField { expression: literal, .. }`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralCaseLiteralFieldStorePlan {
+    pub statement_index: u32,
+    pub destination: CheckedStoreRoot,
+    /// Exact structural path from the destination root to the carrier;
+    /// the final sum-typed field is retained separately below.
+    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    pub field_identity: String,
+    /// The authored case literal — the namespace subject every scalar operand
+    /// bound against under `StructuralValueField`.
+    pub literal: typed_trees::expression::ExpressionHandle,
+    pub case_identity: String,
+    /// Exact type identity the windowed field pair names: the literal's
+    /// normalized type, which admission proved equals the field's declared
+    /// sum type.
+    pub type_identity: String,
+    /// Scalar operands in authored order, covering payload and named common
+    /// fields; each `field_identity` matches its terminal declaration.
+    pub fields: Vec<CheckedScalarCaseFieldPlan>,
 }

@@ -490,6 +490,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
@@ -541,6 +542,9 @@ impl OperationFrame<'_, '_> {
             }
             CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
                 self.structural_case_field_store(store)
+            }
+            CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(store) => {
+                self.structural_case_literal_field_store(store)
             }
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
                 self.establish_scalar_local(result, value)
@@ -1294,6 +1298,320 @@ impl OperationFrame<'_, '_> {
         // The moved-out leaf is `Unrestricted` by the plan's own contract, so
         // no custody action retires it: edge discards admit affine places
         // only, and an unrestricted owned place may simply be left behind.
+        self.windows.emit_store(
+            &window_place,
+            BorrowedWindowRepairValue {
+                place: copied_place,
+                structural_type: hole_type,
+            },
+            self.parameters,
+            self.structural_types.declarations(),
+            self.type_ids,
+            &mut evaluation,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+        )
+    }
+
+    /// Replace one sum field with an authored case literal: the store itself
+    /// establishes the construction. Every scalar operand evaluates in the
+    /// literal's `StructuralValueField` namespace, an unnamed common field
+    /// takes its declared zero, and the established place repairs the vacated
+    /// field through the same move/store window pair a whole-place store
+    /// emits — the hole's custody story is identical; only the producer
+    /// differs.
+    fn structural_case_literal_field_store(
+        &mut self,
+        store: &checked_trees::CheckedStructuralCaseLiteralFieldStorePlan,
+    ) -> Result<(), LoweringError> {
+        let (root_type, source) = match store.destination {
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
+                let (_, root) = self
+                    .evaluation
+                    .structural_parameters
+                    .iter()
+                    .find(|(authored, _)| *authored == position)
+                    .ok_or(LoweringError::Unsupported(
+                        "structural case literal field store names an unknown parameter",
+                    ))?;
+                (
+                    root.structural_type,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: root.position,
+                    },
+                )
+            }
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
+                let (_, root_type) =
+                    self.local_store_root(symbol, &LocalStoreRoot::CASE_FIELD_STORE)?;
+                (
+                    root_type,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    },
+                )
+            }
+        };
+        let (_, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
+            root_type,
+            &store.carrier_path,
+            &store.field_identity,
+            self.structural_types.declarations(),
+        )?;
+        let terminal_psi::StructuralFieldType::Structural(hole_type) = field.field_type else {
+            return unsupported("structural case literal field store names a non-structural field");
+        };
+        let declaration = self
+            .structural_types
+            .declarations()
+            .iter()
+            .find(|declaration| declaration.id == hole_type)
+            .ok_or(LoweringError::Unsupported(
+                "structural case literal field store type missing",
+            ))?;
+        let (common, cases) = match &declaration.shape {
+            terminal_psi::StructuralTypeShape::Sum { cases } => (Vec::new(), cases.clone()),
+            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => (
+                fields
+                    .iter()
+                    .filter(|field| {
+                        !matches!(
+                            field.field_type,
+                            terminal_psi::StructuralFieldType::Erased { .. }
+                        )
+                    })
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                cases.clone(),
+            ),
+            _ => return unsupported("case literal field store has a non-sum shape"),
+        };
+        let case = cases
+            .iter()
+            .find(|case| case.identity == store.case_identity)
+            .ok_or(LoweringError::Unsupported(
+                "case literal field store case declaration missing",
+            ))?;
+        // A mixed shape's establishment roster is its runtime common fields in
+        // declaration order, then the selected case's payload.
+        let shape_fields = common
+            .iter()
+            .chain(case.fields.iter().filter(|field| {
+                !matches!(
+                    field.field_type,
+                    terminal_psi::StructuralFieldType::Erased { .. }
+                )
+            }))
+            .cloned()
+            .collect::<Vec<_>>();
+        let Some(bindings) = &self.evaluation.scalar_bindings else {
+            return unsupported("case literal field store has no scalar operand namespace");
+        };
+        let mut initialized = Vec::new();
+        for field_plan in &store.fields {
+            let (position, target) = shape_fields
+                .iter()
+                .enumerate()
+                .find(|(_, candidate)| candidate.identity == field_plan.field_identity)
+                .ok_or(LoweringError::Unsupported(
+                    "case literal field store field identity missing",
+                ))?;
+            if !matches!(
+                target.field_type,
+                terminal_psi::StructuralFieldType::Scalar(_)
+                    | terminal_psi::StructuralFieldType::IeeeFloat(_)
+                    | terminal_psi::StructuralFieldType::BoundedInteger(_)
+            ) {
+                return unsupported("case literal operand requires a scalar carrier");
+            }
+            let expression = bindings.expression_at(
+                self.checked,
+                self.state,
+                store.statement_index,
+                CheckedScalarExpressionRole::StructuralValueField {
+                    expression: store.literal,
+                    field_ordinal: field_plan.field_ordinal,
+                },
+            )?;
+            if target.field_type.scalar_type() != Some(expression.scalar_type())
+                || crate::emission::expression_validation::direct_expression_contains_short_circuit(
+                    &expression,
+                )
+            {
+                return unsupported(
+                    "case literal operand needs an exact branch-free scalar operand",
+                );
+            }
+            crate::emission::expression_validation::validate_direct_parameter_types(
+                &expression,
+                &self
+                    .values
+                    .iter()
+                    .map(|value| value.scalar_type)
+                    .collect::<Vec<_>>(),
+            )?;
+            let value = crate::emission::operation_emission::expressions::emit_direct_expression(
+                &expression,
+                self.values,
+                self.next_value,
+                self.operations,
+            );
+            // The verifier reconstructs the declared range against the final
+            // SSA initializer; a bounded field requests that proof.
+            let range_obligation = if matches!(
+                target.field_type,
+                terminal_psi::StructuralFieldType::BoundedInteger(_)
+            ) {
+                Some(crate::terminal_identities::obligation_id(allocate_dense(
+                    &mut self.calls.next_obligation_identity,
+                )?))
+            } else {
+                None
+            };
+            initialized.push((
+                position,
+                terminal_psi::RecordFieldInitializer {
+                    field: target.id,
+                    value: terminal_psi::RecordFieldValue::Scalar {
+                        value,
+                        range_obligation,
+                    },
+                },
+            ));
+        }
+        // Case construction zero-initializes every common field the literal
+        // leaves unnamed.
+        for (position, target) in common.iter().enumerate() {
+            if initialized
+                .iter()
+                .any(|(initialized, _)| *initialized == position)
+            {
+                continue;
+            }
+            let scalar_type = target
+                .field_type
+                .scalar_type()
+                .ok_or(LoweringError::Unsupported(
+                    "an unnamed common field has no scalar zero",
+                ))?;
+            let zero = crate::emission::operation_emission::expressions::emit_scalar_leaf(
+                crate::unit::attached_unit::structural_values::record::zero_constant(scalar_type),
+                scalar_type,
+                self.next_value,
+                self.operations,
+            );
+            let range_obligation = if matches!(
+                target.field_type,
+                terminal_psi::StructuralFieldType::BoundedInteger(_)
+            ) {
+                Some(crate::terminal_identities::obligation_id(allocate_dense(
+                    &mut self.calls.next_obligation_identity,
+                )?))
+            } else {
+                None
+            };
+            initialized.push((
+                position,
+                terminal_psi::RecordFieldInitializer {
+                    field: target.id,
+                    value: terminal_psi::RecordFieldValue::Scalar {
+                        value: zero,
+                        range_obligation,
+                    },
+                },
+            ));
+        }
+        initialized.sort_by_key(|(position, _)| *position);
+        let copied_place = place_id(allocate_dense(self.next_place)?);
+        let establishment = self.operations.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: establishment,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: copied_place,
+                structural_type: hole_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishStructuralCase {
+                result_case: case.id,
+                fields: initialized.into_iter().map(|(_, field)| field).collect(),
+            },
+        });
+        self.private_places
+            .literals()
+            .push(StructuralPlaceDeclaration {
+                id: copied_place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: establishment,
+                    structural_type: hole_type,
+                },
+            });
+        let mut field_path = store.carrier_path.clone();
+        field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            store.field_identity.clone(),
+        ));
+        let window_place = CheckedUnitStructuralArgumentPlan {
+            source,
+            path: field_path,
+            type_identity: store.type_identity.clone(),
+            access: checked_trees::CheckedStructuralAccess::Owned,
+        };
+        require_parameter_window_root(self.parameters, &window_place, self.evaluation)?;
+        let mut evaluation = WindowEvaluation {
+            checked: self.checked,
+            machine: self.machine,
+            state: self.state,
+            statement_index: store.statement_index,
+            evaluation: &mut *self.evaluation,
+            source_value_count: self.source_value_count,
+            calls: &mut *self.calls,
+        };
+        let moved = self.windows.emit_move(
+            &window_place,
+            &checked_trees::CheckedUnitStructuralResultBindingPlan {
+                statement_index: store.statement_index,
+                binding_ordinal: 0,
+                type_identity: store.type_identity.clone(),
+                multiplicity: language_semantics::Multiplicity::Unrestricted,
+            },
+            self.parameters,
+            self.structural_types.declarations(),
+            self.type_ids,
+            &mut evaluation,
+            self.values,
+            self.next_place,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+        )?;
+        let move_id = self
+            .operations
+            .operations
+            .last()
+            .ok_or(LoweringError::Unsupported(
+                "structural case literal field store move emitted no operation",
+            ))?
+            .id;
+        self.private_places
+            .literals()
+            .push(StructuralPlaceDeclaration {
+                id: moved,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: move_id,
+                    structural_type: hole_type,
+                },
+            });
+        // The moved-out leaf is `Unrestricted` by the plan's own contract, so
+        // no custody action retires it.
         self.windows.emit_store(
             &window_place,
             BorrowedWindowRepairValue {

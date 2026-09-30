@@ -358,7 +358,7 @@ pub(crate) fn emit_completed(
 
 /// The declared scalar type's zero as one constant operation: the value
 /// omitted scalar members and unnamed common fields establish.
-pub(super) fn zero_constant(scalar_type: ScalarType) -> OperationKind {
+pub(crate) fn zero_constant(scalar_type: ScalarType) -> OperationKind {
     match scalar_type {
         ScalarType::Integer(integer) => OperationKind::IntegerConstant {
             value: match integer.sign() {

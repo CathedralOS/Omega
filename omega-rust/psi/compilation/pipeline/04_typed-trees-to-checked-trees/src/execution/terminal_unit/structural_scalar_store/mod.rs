@@ -21,11 +21,11 @@
 //! write frames, linear or qualified roots, reference crossings, and fields
 //! whose declared domain the stored value carries no evidence for.
 use super::{
-    CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarFieldStorePlan,
-    CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, DataMember,
-    DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, TypeReferenceNode,
-    TypedTrees,
+    CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarParameterPlan,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, DataMember, DataShapeKind, ExpressionNode, Multiplicity,
+    PrimitiveType, StatementNode, TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
@@ -493,13 +493,27 @@ fn plan_assignment(
         state,
         roots,
         &destination,
-        carrier.path,
+        carrier.path.clone(),
         field,
         field_data,
         statement_index,
         assignment,
         source,
     )
+    .or_else(|| {
+        case_literal_field_store(
+            program,
+            facts,
+            state,
+            &destination,
+            carrier.path,
+            field,
+            field_data,
+            statement_index,
+            assignment,
+            source,
+        )
+    })
     .map(|store| vec![store])
 }
 
@@ -785,19 +799,119 @@ fn case_field_store(
     ))
 }
 
+/// `place.field = Sum::Case { .. }` — the literal carries no custody root, so
+/// the store itself establishes the construction into the field's storage:
+/// the tag, every authored scalar operand at its declared carrier, and a zero
+/// for each common field the literal leaves unnamed. The destination still
+/// proves the same owned place, write-frame and static-carrier custody the
+/// whole-place store proves; only the source's shape differs — construction
+/// operands where a copy named a structural place.
+fn case_literal_field_store(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    destination: &Destination<'_>,
+    carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    field: &typed_trees::data::DataField,
+    field_data: &typed_trees::data::DataDefinition,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    source: AssignmentSource,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    if !matches!(source, AssignmentSource::Authored) {
+        return None;
+    }
+    // The store constructs in place, so the sum is the closed Unrestricted
+    // family a whole-place copy needs — minus the payload-free clause: the
+    // selected case's payload is exactly what the literal establishes.
+    if !closed_sum(field_data, program) {
+        return None;
+    }
+    let constructor = validation::structural_case_constructor(program, assignment.value)?;
+    if program.normalized_type_identity(constructor.type_reference)
+        != program.normalized_type_identity(field.type_reference)
+    {
+        return None;
+    }
+    let variant = program
+        .data_members(field_data)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Variant(variant) if variant.symbol == constructor.case => Some(variant),
+            _ => None,
+        })?;
+    let declarations = program.data_payload_fields(variant);
+    let commons = program
+        .data_members(field_data)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) => Some(field),
+            DataMember::Variant(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let mut fields = Vec::with_capacity(constructor.fields.len());
+    for (ordinal, (field_symbol, source_expression, declared)) in
+        constructor.fields.iter().enumerate()
+    {
+        // This arm admits scalar operands only; a structural operand is the
+        // nested-construction boundary the plan vocabulary does not carry.
+        let primitive_type = program.primitive_type_reference(*declared)?;
+        let identity = declarations
+            .iter()
+            .find(|declaration| declaration.symbol == *field_symbol)
+            .map(|declaration| declaration.path_identity())
+            .or_else(|| {
+                commons
+                    .iter()
+                    .find(|declaration| declaration.symbol == *field_symbol)
+                    .map(|declaration| declaration.path_identity())
+            })?;
+        let field_ordinal = u32::try_from(ordinal).ok()?;
+        let (binding, expression) = facts.values.scalar_expressions.bound_expression_at(
+            state.symbol,
+            statement_index,
+            CheckedScalarExpressionRole::StructuralValueField {
+                expression: assignment.value,
+                field_ordinal,
+            },
+        )?;
+        if binding.expression != *source_expression || binding.destination.is_valid() {
+            return None;
+        }
+        fields.push(checked_trees::CheckedScalarCaseFieldPlan {
+            field_ordinal,
+            field_identity: identity,
+            primitive_type,
+            expression: expression.clone(),
+        });
+    }
+    Some(
+        CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(
+            checked_trees::CheckedStructuralCaseLiteralFieldStorePlan {
+                statement_index,
+                destination: destination.root.destination(),
+                carrier_path,
+                field_identity: terminal_field_identity(program, field.symbol)?,
+                literal: assignment.value,
+                case_identity: variant.path_identity(),
+                type_identity: super::types::base_type_identity(
+                    program,
+                    field.type_reference,
+                    &[],
+                )?,
+                fields,
+            },
+        ),
+    )
+}
+
 /// A closed payload-free pure-sum data declaration: CheckedShape supply, no
 /// lifetimes or type parameters, no quotient or where facts, unrestricted
 /// multiplicity, and every member a payload-free case. Copying a whole owned
 /// place into such a field moves nothing, so the store needs no carrier
 /// borrow window.
 fn unrestricted_sum(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
-    data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
-        && data.lifetime_parameters.is_empty()
-        && program.data_type_parameters(data).is_empty()
-        && data.quotient.is_none()
-        && data.where_facts.is_empty()
-        && !data.zero_gated
-        && data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
+    closed_sum(data, program)
         && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Enum
         && program.data_members(data).iter().all(|member| {
@@ -806,6 +920,19 @@ fn unrestricted_sum(data: &typed_trees::data::DataDefinition, program: &TypedTre
             };
             program.data_payload_fields(variant).is_empty()
         })
+}
+
+/// The closed Unrestricted family both sum stores share: CheckedShape supply,
+/// no lifetimes or type parameters, no quotient or where facts, and no zero
+/// gate — the whole-place arm adds its payload-free Enum shape on top.
+fn closed_sum(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
+    data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
+        && data.lifetime_parameters.is_empty()
+        && program.data_type_parameters(data).is_empty()
+        && data.quotient.is_none()
+        && data.where_facts.is_empty()
+        && !data.zero_gated
+        && data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
 }
 
 /// `place = local` where `local` is a structural (non-primitive) local of the

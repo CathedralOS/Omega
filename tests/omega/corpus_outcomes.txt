@@ -1216,7 +1216,7 @@ pass/calls/runtime_dispatch_machine_array_slice_arg_exit checked 1797ms @2d8ed25
 pass/calls/runtime_dispatch_result_enum_case_exit checked 1492ms @2d8ed253669f
 pass/calls/runtime_dispatch_slice_element_terminal_exit checked 1743ms @2d8ed253669f
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 1581ms @2d8ed253669f
-pass/calls/runtime_enum_self_method_exit checked 1672ms @2d8ed253669f
+pass/calls/runtime_enum_self_method_exit built 2475ms @a86a5beaa8f
 pass/calls/runtime_explicit_discard_executes_exit checked 1529ms @2d8ed253669f
 pass/calls/runtime_guard_call_vs_call_exit checked 1576ms @2d8ed253669f
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 9012ms @2d8ed253669f
@@ -1425,7 +1425,7 @@ pass/data/runtime_data_properties_exit checked 1213ms @2d8ed253669f
 pass/data/runtime_mixed_case_common_fields_exit checked 1291ms @2d8ed253669f
 pass/data/runtime_mixed_case_payload_dispatch_exit rejected 751ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 1, statement 0)
-pass/data/runtime_mixed_shape_exit checked 1384ms @2d8ed253669f
+pass/data/runtime_mixed_shape_exit built 2420ms @a86a5beaa8f
 pass/data/runtime_proof_only_data_declared_exit checked 1252ms @2d8ed253669f
 pass/data/runtime_record_field_value_pattern_exit rejected 773ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 3)
@@ -1667,7 +1667,7 @@ pass/generics/runtime_const_data_symbolic_expression_exit checked 1300ms @2d8ed2
 pass/generics/runtime_const_data_where_fact_exit checked 1270ms @2d8ed253669f
 pass/generics/runtime_container_setter_matrix_exit checked 1388ms @2d8ed253669f
 pass/generics/runtime_generic_multiple_specializations_exit checked 1262ms @2d8ed253669f
-pass/generics/runtime_mixed_generic_erased_sum_exit checked 1307ms @2d8ed253669f
+pass/generics/runtime_mixed_generic_erased_sum_exit built 2313ms @a86a5beaa8f
 pass/generics/runtime_nested_generic_instantiations_exit checked 1285ms @2d8ed253669f
 pass/generics/runtime_value_generic_subject_exit checked 1300ms @2d8ed253669f
 pass/host/process_exit_i32_status_mapped checked 1100ms @2d8ed253669f
@@ -1864,7 +1864,7 @@ pass/providers/specialized_structural_fixed_operator_terminal_custody checked 45
 pass/providers/token_machine_family_override_exit checked 1314ms @2d8ed253669f
 pass/range/runtime_funnel_guard_agreement_exit checked 1321ms @2d8ed253669f
 pass/range/runtime_guarded_runtime_index_increment_exit checked 1308ms @2d8ed253669f
-pass/ranges/sum_payload_range_arith_narrowed_exit checked 1311ms @2d8ed253669f
+pass/ranges/sum_payload_range_arith_narrowed_exit built 2372ms @a86a5beaa8f
 pass/recast/nested_operand_view_compile checked 287ms @2d8ed253669f
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 768ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 5)
@@ -1891,7 +1891,7 @@ pass/recast/runtime_shared_domain_weakening_recast_exit checked 1205ms @2d8ed253
 pass/recast/runtime_shared_record_float_range_weakening_exit rejected 2391ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
 pass/references/runtime_shared_ref_param_guard_exit checked 1322ms @2d8ed253669f
-pass/relevance/erased_case_payload_field_exit checked 1259ms @2d8ed253669f
+pass/relevance/erased_case_payload_field_exit built 2317ms @a86a5beaa8f
 pass/relevance/erased_formal_before_borrowed_argument_exit checked 1314ms @2d8ed253669f
 pass/relevance/erased_parameter_named_transition_forward checked 298ms @2d8ed253669f
 pass/relevance/erased_parameter_proof_only checked 1239ms @2d8ed253669f
@@ -2102,7 +2102,7 @@ pass/time/runtime_time_host_virtual_exit checked 1234ms @2d8ed253669f
 pass/time/static_duration_accessors checked 7010ms @2d8ed253669f
 pass/traits/boundary_trait_effects_host_call checked 846ms @2d8ed253669f
 pass/traits/dyn_finite_family_dispatch checked 368ms @2d8ed253669f
-pass/traits/equatable_mixed_shape_equality_exit checked 5062ms @2d8ed253669f
+pass/traits/equatable_mixed_shape_equality_exit built 2514ms @a86a5beaa8f
 pass/traits/equatable_record_equality_exit checked 6146ms @2d8ed253669f
 pass/traits/equatable_string_field_equality_exit rejected 1842ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)

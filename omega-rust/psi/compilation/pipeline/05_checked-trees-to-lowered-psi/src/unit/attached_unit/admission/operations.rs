@@ -99,6 +99,7 @@ pub(super) fn validate<'a>(
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {}

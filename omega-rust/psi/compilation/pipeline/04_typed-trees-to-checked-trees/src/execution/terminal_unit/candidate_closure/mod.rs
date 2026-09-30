@@ -253,6 +253,7 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }

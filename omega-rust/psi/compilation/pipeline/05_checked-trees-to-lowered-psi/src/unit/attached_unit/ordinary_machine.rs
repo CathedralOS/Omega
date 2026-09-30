@@ -1222,6 +1222,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
             | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }

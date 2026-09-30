@@ -117,7 +117,7 @@ pub use dynamic_scalar_calls::{
     CheckedDynamicSelectionPlan, CheckedDynamicStoredDescriptorPlan, CheckedDynamicUnitCallOrigin,
     CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan, CheckedDynamicUnitHelperPlan,
     CheckedStoreRoot, CheckedStoreValue, CheckedStructuralCaseFieldStorePlan,
-    CheckedStructuralScalarFieldStorePlan,
+    CheckedStructuralCaseLiteralFieldStorePlan, CheckedStructuralScalarFieldStorePlan,
 };
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operator_operand::{FlowOperandReferent, FlowOperatorOperandFact};

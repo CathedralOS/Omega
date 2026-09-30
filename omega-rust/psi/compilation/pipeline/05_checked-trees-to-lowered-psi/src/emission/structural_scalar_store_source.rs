@@ -260,6 +260,7 @@ pub(crate) fn validate(
             matches!(
                 operation,
                 CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
             )
         }) {
             continue;
@@ -443,6 +444,7 @@ fn has_other_store(
             && !matches!(
                 operation,
                 CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
             )
     })
 }
