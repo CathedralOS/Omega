@@ -135,6 +135,11 @@ pub(super) fn validate(
                 Some("loan")
             } else if is_exclusive_loan_marker(checked, machine, state, statement, index) {
                 Some("xloan")
+            } else if !super::super::super::scalar_arrays::statement_owes_operation(
+                checked, statement,
+            ) {
+                // An erased fact-only citation plans no operation either.
+                Some("citation")
             } else {
                 None
             }

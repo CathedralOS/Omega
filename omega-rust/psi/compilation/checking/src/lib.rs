@@ -19,6 +19,9 @@ pub use machine_calls::calls::{
     result_initializer_call_is_supported, unit_result_initializer_call_is_supported,
     unit_return_call_is_supported, unit_statement_call_is_supported,
 };
+pub use machine_calls::fact_only_citations::{
+    fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
+};
 pub use machine_calls::static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,
     static_machine_template_reach_contract_bytes, validate_static_machine_call_contracts,

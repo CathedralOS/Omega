@@ -15,6 +15,7 @@ mod byte_extent;
 mod byte_pair_correspondence;
 mod byte_sequence_write;
 mod byte_write_loop;
+mod citation_erasure;
 mod composed_operand_catalogs;
 mod composed_provider_candidates;
 mod composed_receiver_scalar_calls;

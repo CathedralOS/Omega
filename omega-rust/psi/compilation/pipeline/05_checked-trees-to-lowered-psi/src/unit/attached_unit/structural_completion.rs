@@ -340,8 +340,12 @@ pub(super) fn validate(
         }
         _ => return unsupported("structural return source is not an owned whole value"),
     }
-    // Every authored statement owes an operation, except a final binding use.
+    // Every authored statement owes an operation, except a final binding use
+    // and an erased fact-only citation.
     for index in 0..statements.len() {
+        if !super::scalar_arrays::statement_owes_operation(checked, &statements[index]) {
+            continue;
+        }
         if index + 1 == statements.len()
             && expression.is_some_and(|expression| {
                 matches!(

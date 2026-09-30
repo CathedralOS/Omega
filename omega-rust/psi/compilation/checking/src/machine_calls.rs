@@ -10,6 +10,7 @@ pub(crate) mod denotational_calls;
 pub(crate) mod effect_inference;
 pub(crate) mod effects;
 pub(crate) mod fact_call_projections;
+pub(crate) mod fact_only_citations;
 pub(crate) mod invocations;
 pub(crate) mod machine_data;
 pub(crate) mod machine_parameters;

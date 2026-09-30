@@ -99,6 +99,12 @@ pub(super) fn validate(
         // The establishment consumer independently replays the Return-role
         // source binding, including its exact expression and scalar type.
         for statement_index in 0..statements.len() {
+            if !super::scalar_arrays::statement_owes_operation(
+                checked,
+                &statements[statement_index],
+            ) {
+                continue;
+            }
             if !machine.operations.iter().any(|operation| {
                 super::scalar_arrays::source_statement(operation) == Some(statement_index as u32)
             }) {
@@ -163,7 +169,12 @@ pub(super) fn validate(
         return unsupported("scalar completion call differs from its final source expression");
     }
     for statement_index in 0..statements.len() {
-        if named_return && statement_index + 1 == statements.len() {
+        if (named_return && statement_index + 1 == statements.len())
+            || !super::scalar_arrays::statement_owes_operation(
+                checked,
+                &statements[statement_index],
+            )
+        {
             continue;
         }
         if !machine.operations.iter().any(|operation| {

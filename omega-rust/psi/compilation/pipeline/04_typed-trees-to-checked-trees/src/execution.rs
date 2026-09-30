@@ -11,7 +11,10 @@
 //! cleanup plans over edges and projections, and `terminal_debug` the debug
 //! metadata plans. `guard_complement` is the one judgment both graph
 //! builders use to accept a two-guard tail without an authored fallback.
+//! `citation_erasure` retires fact-only citation calls before any of them
+//! plans, so no planner sequences a theorem that emits no runtime work.
 
+pub(crate) mod citation_erasure;
 pub(crate) mod execution_plans;
 pub(crate) mod finalize_execution;
 pub(crate) mod guard_complement;

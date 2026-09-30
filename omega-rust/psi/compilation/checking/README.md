@@ -78,9 +78,12 @@ re-decides every fact reading its field from the facts standing before the
 store plus the written value, opening a window otherwise; a helper theorem's
 `ensures` holds when every fork of its evaluation under the premises'
 consequences is true. Contract entailment records that proof rather than a
-stand-down, so package admission sees no open obligation for it. A citation of such a theorem bounds the exact cited
-element in the caller's arithmetic, and a callee requirement that restates a
-standing `where` fact at the argument's field is discharged by that fact.
+stand-down, so package admission sees no open obligation for it. A citation
+of such a theorem bounds the exact cited element in the caller's arithmetic,
+and a callee requirement that restates a standing `where` fact at the
+argument's field is discharged by that fact. Execution erases a citation of
+a theorem-only machine ([fact-only citations](src/machine_calls/fact_only_citations.rs)):
+it plans no call, so Terminal receives none of the cited conclusions.
 The explored fragment is transitions over builtin comparisons, connectives,
 literals, parameters, in-bounds element reads and Exact index steps; anything
 else stands down, and a complete exploration within its work budget is its
