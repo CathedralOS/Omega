@@ -473,6 +473,20 @@ pub(super) fn validate(
     if has_result_discard != (needs_discard && dispatch_subject.place().is_some()) {
         return unsupported("Unit case result disposal disagrees with its source multiplicity");
     }
+    // An affine parameter subject's state-exit drop is this dispatch's
+    // consumption. Edge cleanup evidence names the parameter among those
+    // dying on each case edge, and the edge rejoin takes that row as the
+    // dispatch rather than as a no-code discard.
+    let dispatched_parameter = match subject.source {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            state
+                .structural_parameters
+                .get(parameter_index as usize)
+                .filter(|parameter| parameter.multiplicity == Multiplicity::Affine)
+                .map(|parameter| parameter.position)
+        }
+        _ => None,
+    };
     let mut subject_reads = Vec::new();
     let declared = checked.data_members(declaration);
     if cases.is_empty()
@@ -752,6 +766,7 @@ pub(super) fn validate(
             successor,
             successor.statement_ordinal as usize,
             &case.payloads,
+            dispatched_parameter,
         )?;
         super::result_custody::local_discards(
             checked,

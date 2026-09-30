@@ -103,6 +103,145 @@ fn closed_case_graph_rejoins_source_and_rejects_drift() {
     }
 }
 
+/// A closed-sum dispatch on an affine owned parameter consumes it. The case
+/// test moves nothing, so each case edge's cleanup evidence names the
+/// subject among the parameters dying there; the edge rejoin takes that row
+/// as the dispatch's consumption, and the edge plan may not name it again.
+#[test]
+fn owned_parameter_dispatch_takes_its_subject_cleanup_row() {
+    let source = r#"
+        data Event { case Add(amount: i32 in Wrapping); case Bonus; }
+        data Tally [copy] { total: i32 in Wrapping; }
+        data Main { tally: Tally; }
+        machine Main::apply(main: &mut Main, event: Event) {
+            transition event {
+                Event::Add { amount } -> add(main, amount)
+                Event::Bonus -> bonus(main)
+            }
+            state add(main: &mut Main, amount: i32 in Wrapping) {
+                main.tally.total = main.tally.total + amount;
+            }
+            state bonus(main: &mut Main) { main.tally.total = main.tally.total + 10; }
+        }
+    "#;
+    fn dispatch(
+        plan: &mut CheckedComposedUnitControlMachinePlan,
+    ) -> &mut checked_trees::CheckedComposedUnitControlStatePlan {
+        plan.states
+            .iter_mut()
+            .find(|state| {
+                matches!(
+                    state.terminator,
+                    CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+                )
+            })
+            .expect("the owned subject dispatches as a closed sum")
+    }
+    let checked = crate::front_end::checked_program(source);
+    let mut plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| {
+            plan.states.iter().any(|state| {
+                matches!(
+                    state.terminator,
+                    CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+                )
+            })
+        })
+        .expect("the dispatching machine keeps its composed plan")
+        .clone();
+    admission::admit(&checked, &plan).expect("the dispatch consumes its owned subject");
+    let state = dispatch(&mut plan);
+    let dispatch_state = state.state;
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } = &state.terminator
+    else {
+        unreachable!()
+    };
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+        subject.source
+    else {
+        panic!("the subject is the owned parameter");
+    };
+    let position = state.structural_parameters[parameter_index as usize].position;
+    assert_eq!(position, 1, "`event` follows the borrowed `main`");
+    assert_eq!(cases.len(), 2);
+    let evidence = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_state(plan.machine, dispatch_state)
+        .expect("both case edges retain cleanup evidence");
+    assert_eq!(evidence.edges.len(), 2);
+    assert!(
+        evidence
+            .edges
+            .iter()
+            .all(|edge| edge.trivial_affine_discard_parameter_positions == [position]),
+        "the subject dies on every case edge and nothing else does"
+    );
+    for (mutation, refusal) in [
+        (
+            "named again",
+            "Unit graph successor discards disagree with cleanup evidence",
+        ),
+        (
+            "evidence omits",
+            "Unit case edge cleanup evidence omits its dispatched subject",
+        ),
+        (
+            "evidence adds",
+            "Unit graph successor discards disagree with cleanup evidence",
+        ),
+    ] {
+        let mut changed_plan = plan.clone();
+        let mut changed = checked.clone();
+        let rows = changed
+            .facts
+            .flow
+            .terminal_structural_control_cleanups
+            .states
+            .iter_mut()
+            .find(|row| row.machine == plan.machine && row.state == dispatch_state)
+            .unwrap();
+        match mutation {
+            "named again" => {
+                let CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } =
+                    &mut dispatch(&mut changed_plan).terminator
+                else {
+                    unreachable!()
+                };
+                let checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) =
+                    &mut cases[0].outcome
+                else {
+                    panic!("both arms name states");
+                };
+                successor
+                    .trivial_affine_discard_parameter_positions
+                    .push(position);
+            }
+            "evidence omits" => rows.edges[0]
+                .trivial_affine_discard_parameter_positions
+                .clear(),
+            "evidence adds" => rows.edges[1]
+                .trivial_affine_discard_parameter_positions
+                .push(0),
+            _ => unreachable!(),
+        }
+        let error = admission::admit(&changed, &changed_plan)
+            .err()
+            .expect("the subject is disposed exactly once, by the dispatch");
+        assert_eq!(
+            error,
+            crate::LoweringError::Unsupported(refusal),
+            "{mutation}"
+        );
+    }
+}
+
 #[test]
 fn closed_case_graph_rejects_missing_or_substituted_local_cleanup() {
     for substitute_root in [false, true] {

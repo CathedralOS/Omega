@@ -59,6 +59,7 @@ pass/borrows/borrow_guarded_window_write_and_call checked 210ms
 pass/borrows/borrow_returned_window_write_and_call checked 181ms
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
 pass/borrows/mutable_record_loan_read_in_state_arms_exit built 1383ms exit:70 @a9f373809a48+wt
+pass/borrows/runtime_affine_local_case_return_exit built 1865ms exit:42 @5b34dbe4df3d+wt
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
 pass/boundary/later_state_requirement_scalar_result_exit built 3738ms exit:70 @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 4150ms exit:70 @44d31b02f28e+wt
@@ -829,6 +830,7 @@ pass/storage/runtime_machine_owned_indexed_integer_write_exit built 683ms exit:7
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 1441ms exit:85 @fb2178def922
 pass/storage/runtime_primitive_local_literal_composition_exit built 700ms exit:70 @e75f61cc4333+wt
 pass/structs/affine_record_state_clone built 967ms exit:70
+pass/structs/affine_result_constructor built 1026ms exit:70 @5b34dbe4df3d+wt
 pass/structs/case_field_type_store_shapes built 31396ms exit:70 @8a4d4e552420+wt
 pass/structs/copied_array_field_shared_record built 642ms exit:70
 pass/structs/deep_nested_write_paths_exit built 1883ms exit:70 @fb2178def922
