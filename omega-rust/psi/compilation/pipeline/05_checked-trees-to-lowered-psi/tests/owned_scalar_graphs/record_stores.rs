@@ -92,14 +92,17 @@ fn store_cannot_resurrect_a_moved_local_from_its_declaration() {
                  second.number
              }}"
         );
-        let checked = support::check(&source);
+        // Stage 04 replays the transfer before the store, so the moved local
+        // never reaches lowering: a store strictly inside a consumed owner
+        // rejects, and only a whole assignment re-establishes it.
+        let diagnostics = crate::front_end::checked_program_result(&source)
+            .expect_err("moved source cannot regain its old home");
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(
-                &checked,
-                TerminalMachineSelection::Name("changed")
-            )
-            .is_err(),
-            "moved source cannot regain its old home: {binding}"
+            diagnostics.iter().any(|diagnostic| diagnostic.message
+                == "cannot store into `first.number` in machine `changed` state `entry` \
+                    (statement 2) after `first` was transferred or consumed at statement 1: \
+                    assign a whole value to `first` to re-establish it"),
+            "{binding}: {diagnostics:?}"
         );
     }
 }
