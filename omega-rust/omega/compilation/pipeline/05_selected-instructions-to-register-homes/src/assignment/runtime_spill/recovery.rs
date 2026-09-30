@@ -94,7 +94,7 @@ pub(super) fn analyze(
     })
 }
 
-// Keep a finite roster from the original program. A block parameter can use
+// Keep a finite roster from the current program. A block parameter can use
 // private edge-initialized storage only when the selected rewrite checks every
 // incoming path, and an entry-bound register — a scalar or structural
 // parameter, or the hidden aggregate-result destination — only while the
@@ -102,8 +102,10 @@ pub(super) fn analyze(
 // nor a home. Instruction-defined structural registers — field observations
 // and transport pointers — join by origin so a pressured structural plan can
 // spill them like any other value; admission still rejects the ones defined
-// by address-producing instructions.
-// Reloads from either recovery form never become new candidates.
+// by address-producing instructions. A committed rewrite can mint registers
+// — a split's fresh register keeps any pinned use over its own span — so the
+// pool re-derives against each step's plan; reloads from either recovery
+// form carry dedicated origins and never become new candidates.
 pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualRegisterId)> {
     plan.functions
         .iter()
@@ -467,13 +469,26 @@ fn recover_over(
     };
     let budget = source.budget_per_pass();
     let mut steps: Vec<RuntimeSpillStep> = Vec::new();
-    let mut roster = candidates(source.base().plan());
+    let mut tried: std::collections::BTreeSet<(usize, VirtualRegisterId)> =
+        std::collections::BTreeSet::new();
     let mut current_ranges = source.ranges().clone();
     let mut current_liveness = source.liveness().clone();
     loop {
         let selected = steps
             .last()
             .map_or_else(|| source.base(), |step| step.rewrite.selected());
+        // Committed rewrites mint registers the original plan never had: a
+        // split's fresh register inherits every later reference, fixed views
+        // included, so it can hold the surviving pin the failed domain
+        // overlaps. Re-derive the pool from the current plan minus every
+        // consumed victim, or that fresh interval stays unreachable and the
+        // same failure rotates through the remaining members forever.
+        // Reloads minted by spill and rematerialization carry dedicated
+        // origins and still never join.
+        let mut roster: Vec<(usize, VirtualRegisterId)> = candidates(selected.plan())
+            .into_iter()
+            .filter(|entry| !tried.contains(entry))
+            .collect();
         // The split decision comes first: one copy after a pinned definition
         // is cheaper than any regeneration or storage, and it is committed
         // whenever admitted. It replaces one live range by two disjoint ones
@@ -488,11 +503,7 @@ fn recover_over(
             budget,
         )?;
         let (function, register, rewrite) = if let Some((candidate, split)) = split {
-            let position = roster
-                .iter()
-                .position(|entry| *entry == candidate)
-                .expect("the split candidate came from the roster");
-            roster.remove(position);
+            tried.insert(candidate);
             (
                 candidate.0,
                 candidate.1,
@@ -512,6 +523,7 @@ fn recover_over(
                 break;
             };
             let (function, register) = roster.remove(position);
+            tried.insert((function, register));
             // The cost decision: regenerating one pure immediate materialization
             // per use is strictly cheaper than private storage plus reload pairs,
             // so rematerialization is attempted first. Its admission failure does
