@@ -41,10 +41,10 @@ machine delta(d: Dir) -> Vec2 {
 }
 
 // Apply one move: read the step vector into a local, fold it into the position.
-machine Main::step(&mut self, d: Dir) {
+machine Main::step(main: &mut Main, d: Dir) {
     let v: Vec2 = delta(d);
-    self.px = self.px + v.dx;
-    self.py = self.py + v.dy;
+    main.px = main.px + v.dx;
+    main.py = main.py + v.dy;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -52,11 +52,11 @@ machine Main::main(&mut self) reaches Console {
     self.px = 0;
     self.py = 0;
 
-    self.step(Dir::E);
-    self.step(Dir::E);
-    self.step(Dir::E);
-    self.step(Dir::S);
-    self.step(Dir::S);
+    Main::step(&mut self, Dir::E);
+    Main::step(&mut self, Dir::E);
+    Main::step(&mut self, Dir::E);
+    Main::step(&mut self, Dir::S);
+    Main::step(&mut self, Dir::S);
 
     transition {
         _ -> report()
