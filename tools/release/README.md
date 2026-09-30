@@ -223,7 +223,7 @@ not require the producer's Rust checkout.
 the record must contain the commit, pinned Rust toolchain, host OS and
 architecture, commands, results, elapsed time, and the exact list of expected
 skips. The tool owns the eight-gate manifest verbatim, runs a gate's command
-block on one host, and writes one `omega-release-record/1` JSON document per
+block on one host, and writes one `omega-release-record/2` JSON document per
 runner row under `records/`.
 
 The substrate records evidence; it does not certify the matrix. A failed
@@ -231,6 +231,24 @@ command is recorded as a `fail` gate, an unrun gate or runner row stays
 `open`, and the closure reads `closed` only when all eight gates pass and all
 four platform runs are recorded on the same commit. `check` re-validates a
 stored record so a hand-edited record cannot read as closed.
+
+An exit status alone does not pass a gate. A gate whose commands all exit 0
+reads `pass` only when the record also proves a complete run:
+
+- every skip the runners counted is named (`run` sets
+  `NEXTEST_STATUS_LEVEL=skip` so nextest prints the names, and reads
+  ignored doc tests from cargo's per-test lines);
+- no doc test was filtered out;
+- each nextest, doc-test, corpus-gate or sample-refresh command reports at
+  least one executed test, crate harness, fixture or sample in its summary,
+  so an interrupted run without a summary never passes;
+- the checkout was clean (`worktree_clean`) and no inherited
+  `OMEGA_CORPUS_FIXTURE_FILTER`, `OMEGA_CORPUS_SHARD`, `NEXTEST_PROFILE` or
+  `NEXTEST_RUN_IGNORED` narrowed the selection (`environment_filters`).
+
+Otherwise the gate reads `open`. `check` derives each gate status, the
+recorded lane rows and `closure.open_rows` from that stored evidence and
+rejects a record whose fields disagree with it.
 
 Requirements: Python 3.9+ and Git. Standard library only; identical under
 PowerShell on Windows and sh on macOS/Linux. Gate commands run through `mbx`

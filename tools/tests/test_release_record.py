@@ -40,6 +40,20 @@ def load_tool():
 release_record = load_tool()
 
 
+def passing_output(command):
+    """The summary each kind of gate command prints after a complete run."""
+    if "nextest" in command:
+        return "     Summary [   1.000s] 5 tests run: 5 passed, 0 skipped\n"
+    if "--doc" in command:
+        return ("test result: ok. 2 passed; 0 failed; 0 ignored; "
+                "0 measured; 0 filtered out; finished in 0.10s\n")
+    if "corpus_gate.py" in command:
+        return "corpus_gate: clean — 10 fixtures ({'checked': 10})\n"
+    if "refresh-samples" in command:
+        return "3 of 3 samples built across 4 threads\n"
+    return ""
+
+
 def minimal_command_result(command, exit_code=0):
     return {
         "command": command,
@@ -48,7 +62,7 @@ def minimal_command_result(command, exit_code=0):
         "elapsed_ms": 1.0,
         "skipped_tests": 0,
         "skipped_names": [],
-        "output_tail": "",
+        "output_tail": passing_output(command),
     }
 
 
@@ -85,6 +99,8 @@ def minimal_record():
         "host": {"os": "linux", "machine": "x86_64", "python": "3.10.0"},
         "target": "linux_x86_64",
         "emulator": None,
+        "worktree_clean": True,
+        "environment_filters": {},
         "gates": gates,
         "platform_runs": [{
             "runner": row["runner"],
@@ -251,7 +267,7 @@ class Validator(unittest.TestCase):
 
     def test_rejects_schema_drift(self):
         record = minimal_record()
-        record["schema"] = "omega-release-record/2"
+        record["schema"] = "omega-release-record/1"
         self.assert_invalid(record, "schema")
 
     def test_rejects_non_contract_command(self):
@@ -294,6 +310,81 @@ class Validator(unittest.TestCase):
         record["closure"] = {"status": "closed", "open_rows": []}
         self.assert_invalid(record, "closure")
 
+    def test_rejects_pass_over_nonzero_exit(self):
+        record = minimal_record()
+        record["gates"][0]["commands"][1]["exit"] = 101
+        self.assert_invalid(record, "RC-REPOSITORY status pass contradicts")
+
+    def test_failed_gate_is_valid_when_listed_open(self):
+        record = minimal_record()
+        record["gates"][0]["commands"][1]["exit"] = 101
+        record["gates"][0]["status"] = "fail"
+        record["closure"]["open_rows"].insert(0, "RC-REPOSITORY")
+        release_record.validate_record(record, "fixture.json")
+
+    def test_rejects_empty_open_rows_beside_open_lanes(self):
+        record = minimal_record()
+        record["closure"]["open_rows"] = []
+        self.assert_invalid(record, "open_rows")
+
+    def test_rejects_unnamed_skip_count(self):
+        record = minimal_record()
+        record["gates"][0]["commands"][3]["skipped_tests"] = 3
+        self.assert_invalid(record, "RC-REPOSITORY status pass contradicts")
+        record["gates"][0]["status"] = "open"
+        record["closure"]["open_rows"].insert(0, "RC-REPOSITORY")
+        release_record.validate_record(record, "fixture.json")
+
+    def test_rejects_empty_test_run(self):
+        record = minimal_record()
+        record["gates"][3]["commands"][0]["output_tail"] = (
+            "     Summary [   0.001s] 0 tests run: 0 passed, 0 skipped\n")
+        self.assert_invalid(record, "RC-PORTABLE-PSI status pass contradicts")
+
+    def test_rejects_interrupted_run_without_summary(self):
+        record = minimal_record()
+        record["gates"][1]["commands"][0]["output_tail"] = (
+            "corpus_runner: 400/1147 done, 11 compile(s) in flight\n")
+        self.assert_invalid(
+            record, "RC-SOURCE-SEMANTICS status pass contradicts")
+
+    def test_rejects_filtered_doc_tests(self):
+        record = minimal_record()
+        record["gates"][2]["commands"][1]["output_tail"] = (
+            "test result: ok. 2 passed; 0 failed; 0 ignored; "
+            "0 measured; 4 filtered out; finished in 0.10s\n")
+        self.assert_invalid(record, "RC-PCC-REPLAY status pass contradicts")
+
+    def test_rejects_pass_under_filtering_environment(self):
+        record = minimal_record()
+        record["environment_filters"] = {
+            "OMEGA_CORPUS_FIXTURE_FILTER": "fail/"}
+        self.assert_invalid(record, "status pass contradicts")
+        for gate in record["gates"]:
+            gate["status"] = "open"
+        record["closure"]["open_rows"] = (
+            list(release_record.GATES) + record["closure"]["open_rows"])
+        release_record.validate_record(record, "fixture.json")
+
+    def test_rejects_pass_from_a_dirty_checkout(self):
+        record = minimal_record()
+        record["worktree_clean"] = False
+        self.assert_invalid(record, "status pass contradicts")
+
+    def test_rejects_record_without_run_evidence(self):
+        record = minimal_record()
+        del record["environment_filters"]
+        self.assert_invalid(record, "environment_filters")
+
+    def test_rejects_lane_recorded_from_empty_observation(self):
+        record = minimal_record()
+        observation = record["platform_runs"][0]["observation"]
+        observation["command"] = "python3 tools/corpus_gate.py --native"
+        observation["argv"] = ["python3", "tools/corpus_gate.py", "--native"]
+        self.assert_invalid(record, "complete direct-execution observation")
+        observation["output_tail"] = passing_output(observation["command"])
+        release_record.validate_record(record, "fixture.json")
+
 
 class SkipAccounting(unittest.TestCase):
     def test_parse_expected_skip(self):
@@ -313,13 +404,74 @@ class SkipAccounting(unittest.TestCase):
                 "RC-UNKNOWN|test::x|reason")
 
     def test_run_command_counts_nextest_skips(self):
+        # The exact line shapes nextest 0.9.140 prints at `skip` level, with
+        # and without the progress counter column.
         result = release_record.run_command(
-            "python3 -c 'import sys; print(\"    SKIP [0.001s] pkg::a\"); "
-            "print(\"Summary 1 tests run: 0 passed, 1 skipped\")'",
+            "python3 -c 'print(\"        SKIP [         ] (\\u2500\\u2500\\u2500) "
+            "pkg::suite a::one\"); print(\"        SKIP [         ] "
+            "pkg::suite a::two\"); print(\"     Summary [   1.000s] 1 test "
+            "run: 1 passed, 2 skipped\")'",
             sys.executable)
         self.assertEqual(0, result["exit"])
+        self.assertEqual(2, result["skipped_tests"])
+        self.assertEqual(["pkg::suite a::one", "pkg::suite a::two"],
+                         result["skipped_names"])
+        self.assertTrue(release_record.command_evidence_complete(result))
+
+    def test_run_command_keeps_an_unnamed_skip_count(self):
+        # A summary count without per-test lines stays a count: the record
+        # then cannot pass the gate rather than inventing a name.
+        result = release_record.run_command(
+            "python3 -c 'print(\"Summary 4 tests run: 4 passed, "
+            "2 skipped\")'", sys.executable)
+        self.assertEqual(2, result["skipped_tests"])
+        self.assertEqual([], result["skipped_names"])
+        self.assertFalse(release_record.command_evidence_complete(result))
+
+    def test_run_command_names_ignored_doc_tests(self):
+        result = release_record.run_command(
+            "python3 -c 'print(\"test src/lib.rs - f (line 3) ... "
+            "ignored\"); print(\"test result: ok. 1 passed; 0 failed; "
+            "1 ignored; 0 measured; 0 filtered out\")'", sys.executable)
         self.assertEqual(1, result["skipped_tests"])
-        self.assertEqual(["pkg::a"], result["skipped_names"])
+        self.assertEqual(["src/lib.rs - f (line 3)"], result["skipped_names"])
+
+    def test_run_command_asks_nextest_to_name_skips(self):
+        result = release_record.run_command(
+            "python3 -c 'import os; "
+            "print(os.environ[\"NEXTEST_STATUS_LEVEL\"])'", sys.executable)
+        self.assertEqual("skip", result["output_tail"].strip())
+
+    def test_environment_filters_name_only_narrowing_variables(self):
+        self.assertEqual(
+            {"OMEGA_CORPUS_SHARD": "1/4"},
+            release_record.environment_filters({
+                "OMEGA_CORPUS_SHARD": "1/4",
+                "OMEGA_CORPUS_FIXTURE_FILTER": "  ",
+                "OMEGA_CORPUS_JOBS": "8",
+            }))
+
+
+class ExecutedUnits(unittest.TestCase):
+    def units(self, command, output):
+        return release_record.executed_units(
+            release_record.shlex.split(command), output)
+
+    def test_compile_only_commands_execute_nothing(self):
+        self.assertIsNone(self.units("mbx check --workspace", "Finished"))
+
+    def test_each_gate_command_kind_reports_its_units(self):
+        for name, gate in release_record.GATES.items():
+            for command in gate["commands"]:
+                expected = self.units(command, passing_output(command))
+                if passing_output(command):
+                    self.assertGreater(expected, 0, command)
+                else:
+                    self.assertIsNone(expected, command)
+
+    def test_missing_summary_reads_as_zero(self):
+        self.assertEqual(0, self.units("python tools/corpus_gate.py", ""))
+        self.assertEqual(0, self.units("mbx nextest run -p x", "error"))
 
 
 class CommittedRecords(unittest.TestCase):
