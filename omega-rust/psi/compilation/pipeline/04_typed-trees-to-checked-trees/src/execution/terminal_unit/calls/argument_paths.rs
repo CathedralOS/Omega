@@ -351,7 +351,21 @@ fn projected_argument_path_impl(
                                 *expression,
                             )
                         })
-                        .or_else(|| local_selector.and_then(|resolve| resolve(*expression)))?;
+                        .or_else(|| local_selector.and_then(|resolve| resolve(*expression)))
+                        .or_else(|| {
+                            // An immutable scalar local of the calling state
+                            // selects with its established value — the
+                            // `Local` coordinate the state's own scalar
+                            // namespace numbers. Observed paths keep their
+                            // own observation-namespace selector ahead.
+                            runtime_index_local_position(
+                                program,
+                                state_symbol,
+                                statement_index,
+                                *expression,
+                            )
+                            .map(|position| checked_trees::CheckedRuntimeIndex::Local { position })
+                        })?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     runtime_index,
                 ));
@@ -387,6 +401,10 @@ pub(crate) fn borrowed_index_segment(
     }
     let runtime_index = runtime_index_parameter_position(program, state, expression)
         .map(|position| checked_trees::CheckedRuntimeIndex::Parameter { position })
+        .or_else(|| {
+            runtime_index_local_position(program, state, statement_index, expression)
+                .map(|position| checked_trees::CheckedRuntimeIndex::Local { position })
+        })
         .or_else(|| {
             runtime_index_field_selector(program, machine, state, statement_index, expression)
         })?;
@@ -473,6 +491,65 @@ fn runtime_index_parameter_position(
         .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
         .count();
     u32::try_from(selector).ok()
+}
+
+/// The dense scalar position an immutable primitive local of the calling
+/// state names — `let at: u64 = bag.at` in `cells[at]`. The coordinate is the
+/// one `CheckedScalarExpression::Local` mints: the count of scalar-position
+/// parameters plus each earlier immutable primitive local binding in
+/// statement order. The local must bind before the loan statement, since a
+/// borrow selector's subject is the storage the capture established, and a
+/// reseatable (`let mut`) local names storage, not a bound operand.
+fn runtime_index_local_position(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<u32> {
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
+    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let (ordinal, local) = statements
+        .iter()
+        .enumerate()
+        .take(statement_index)
+        .find_map(|(ordinal, statement)| match statement {
+            StatementNode::LocalData(local) if local.symbol == name.symbol => {
+                Some((ordinal, local))
+            }
+            _ => None,
+        })?;
+    if local.is_mutable
+        || program
+            .primitive_type_reference(local.type_reference)
+            .is_none()
+    {
+        return None;
+    }
+    let scalar_parameters = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
+        .count();
+    // Value-binding locals are the immutable primitive bindings that precede
+    // the selector's own declaration; shared `&` loan locals are Reference
+    // typed and never counted.
+    let earlier_bindings = statements
+        .iter()
+        .take(ordinal)
+        .filter(|statement| match statement {
+            StatementNode::LocalData(earlier) => {
+                !earlier.is_mutable
+                    && program
+                        .primitive_type_reference(earlier.type_reference)
+                        .is_some()
+            }
+            _ => false,
+        })
+        .count();
+    u32::try_from(scalar_parameters + earlier_bindings).ok()
 }
 
 /// The checked coordinate for a runtime-index selector spelled as a field

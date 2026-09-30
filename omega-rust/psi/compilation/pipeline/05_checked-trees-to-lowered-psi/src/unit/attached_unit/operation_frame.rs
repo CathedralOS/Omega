@@ -1042,6 +1042,10 @@ impl OperationFrame<'_, '_> {
                         step,
                         crate::emission::runtime_elements::ProjectionStep::AssignmentIndex { .. }
                             | crate::emission::runtime_elements::ProjectionStep::RuntimeIndexParameter { .. }
+                            | crate::emission::runtime_elements::ProjectionStep::RuntimeIndexStructuralField(
+                                _,
+                            )
+                            | crate::emission::runtime_elements::ProjectionStep::RuntimeIndexLocal { .. }
                     )
                 });
         if runtime_index_through_view {

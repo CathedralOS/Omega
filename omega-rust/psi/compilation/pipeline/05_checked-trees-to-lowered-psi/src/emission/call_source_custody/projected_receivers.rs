@@ -321,9 +321,11 @@ fn resolve_source(
                 });
                 cursor = indexed.collection;
             }
-            // A field selector is read when this structural operand is
-            // evaluated. Replay its source coordinate here; the operand
-            // emitter owns the resulting snapshot and its bounds obligation.
+            // A runtime selector — a parameter, an immutable local, or a
+            // field read below a parameter — is evaluated when this
+            // structural operand is used. Replay its source coordinate here;
+            // the operand emitter owns the resulting snapshot and its
+            // bounds obligation.
             ExpressionNode::Indexed(indexed)
                 if !matches!(
                     checked.expression_table.expression(indexed.index),
@@ -339,7 +341,7 @@ fn resolve_source(
                         .is_some()
                 ) =>
             {
-                let selector = crate::expression_preparation::source_custody::structural_places::field_selector(
+                let selector = crate::expression_preparation::source_custody::structural_places::runtime_index_selector(
                     checked,
                     machine,
                     state,
@@ -377,9 +379,7 @@ fn resolve_source(
                 } {
                     return unsupported("projected receiver index has no literal array length");
                 }
-                path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::StructuralField(selector),
-                ));
+                path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(selector));
                 captured_segments.push(facts::PlaceSegment::Index {
                     expression: indexed.index,
                 });
