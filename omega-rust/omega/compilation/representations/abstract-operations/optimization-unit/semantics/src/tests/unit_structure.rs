@@ -418,6 +418,46 @@ fn retained_affine_authority_rejects_order_and_frontier_corruption() {
         id(365, PlaceId::new),
         id(364, PlaceId::new),
     ];
+    assert!(valid_edge_affine_transition(function, &entry, &entry, &[]));
+    assert!(!valid_edge_affine_transition(function, &entry, &exit, &[]));
+    let mut changed = entry.clone();
+    changed.owned_places[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+    assert!(!valid_edge_affine_transition(
+        function,
+        &entry,
+        &changed,
+        &[]
+    ));
+    let mut changed = entry.clone();
+    changed
+        .claims
+        .push(optimization_unit::OwnershipFrontierLiveClaim {
+            claim: id(400, semantic_vocabulary::ClaimId::new),
+            input: Some(id(363, PlaceId::new)),
+            path: Vec::new(),
+            multiplicity: Some(terminal_psi::StructuralMultiplicity::Linear),
+        });
+    assert!(!valid_edge_affine_transition(
+        function,
+        &entry,
+        &changed,
+        &[]
+    ));
+    let mut changed = entry.clone();
+    changed
+        .partial_custody
+        .push(optimization_unit::OwnershipFrontierPartialCustody {
+            place: id(364, PlaceId::new),
+            moved_paths: vec![vec![terminal_psi::StructuralPathSegment::Field(
+                "value".into(),
+            )]],
+        });
+    assert!(!valid_edge_affine_transition(
+        function,
+        &entry,
+        &changed,
+        &[]
+    ));
     assert!(valid_edge_affine_transition(
         function,
         &entry,

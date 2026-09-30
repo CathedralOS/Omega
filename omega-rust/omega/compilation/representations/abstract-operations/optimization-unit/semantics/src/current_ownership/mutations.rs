@@ -121,6 +121,12 @@ pub(super) fn apply_edge_trivial_affine_discards(
     frontier: &mut CurrentOwnership,
     discards: &[PlaceId],
 ) -> Result<(), OptimizationUnitValidationError> {
+    // An empty transaction cannot change the frontier. Eligibility ordering
+    // only constrains actual discards and otherwise needlessly rebuilds CFG
+    // dominance for each edge during every independent replay.
+    if discards.is_empty() {
+        return Ok(());
+    }
     let eligible = expected_trivial_affine_discards(function, frontier);
     let mut next = 0;
     for eligible_place in eligible {
@@ -151,4 +157,33 @@ pub(super) fn apply_edge_trivial_affine_discards(
         frontier.owned_places.remove(place);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_edge_cleanup_preserves_the_complete_frontier() {
+        let unit =
+            crate::tests::fixtures::structural_catalog::compressed_trivial_affine_return_unit();
+        let function = &unit.functions[0];
+        let types = unit
+            .structural_types
+            .iter()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
+        let mut frontier =
+            crate::current_ownership::reconstruct_entry_ownership(function, &types).unwrap();
+        let before = frontier.clone();
+        apply_edge_trivial_affine_discards(
+            function,
+            &types,
+            function.blocks[0].id,
+            &mut frontier,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(frontier, before);
+    }
 }
