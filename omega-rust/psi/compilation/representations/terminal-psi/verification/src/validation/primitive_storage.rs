@@ -83,7 +83,7 @@ pub(super) fn validate_establishment(
     scalar_type(module, result.structural_type).ok_or_else(invalid)
 }
 
-fn parameter_type(
+pub(super) fn parameter_type(
     machine: &TerminalMachine,
     place: PlaceId,
     writing: bool,
