@@ -330,7 +330,15 @@ pub(super) fn available_target(
             return None;
         }
         let mut shapes = ShapeCollector::new(program);
-        let signature = if machine.attached_data.is_none() {
+        // Same receiver pivot the mint applies: attachment storage exists
+        // only when an authored `self` parameter retains it.
+        let has_receiver = program.machine_states(machine).iter().any(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+        });
+        let signature = if !has_receiver {
             free_structural_scalar_signature(program, &mut shapes, state, &[])
                 .map(|(structural, scalar)| (None, structural, scalar))
         } else {
@@ -404,7 +412,16 @@ pub(super) fn available_target(
         }
         let mut shapes = ShapeCollector::new(program);
         let binders = machine_binders(program, machine);
-        let signature = if machine.attached_data.is_none() {
+        // The plan mints attachment storage only when some state parameter is
+        // a receiver; a receiver-free attached machine carries no attachment
+        // identity and must compare signatures through the free route.
+        let has_receiver = program.machine_states(machine).iter().any(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+        });
+        let signature = if !has_receiver {
             free_structural_scalar_signature(program, &mut shapes, state, &binders)
                 .map(|(structural, scalar)| (None, structural, scalar))
         } else {
