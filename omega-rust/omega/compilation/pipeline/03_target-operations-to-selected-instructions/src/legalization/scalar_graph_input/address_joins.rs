@@ -68,6 +68,21 @@ pub(in crate::legalization) fn call_argument(
     let (block, parameter) =
         parameter(caller, semantic.place, plan).ok_or(LegalizationError::custody())?;
     let call_block = operation_block(caller, call_operation).ok_or(LegalizationError::custody())?;
+    if let Some(window) = window_argument(
+        semantic,
+        destination,
+        block,
+        parameter,
+        call,
+        parameter_ordinal,
+        plan,
+    ) {
+        return if dominates(caller, block, call_block) {
+            window
+        } else {
+            Err(LegalizationError::custody())
+        };
+    }
     let (selected, offset, elements) =
         crate::structural_inputs::structural_reference_input::runtime_projection(
             parameter.structural_type,
@@ -123,6 +138,67 @@ pub(in crate::legalization) fn call_argument(
         },
         destination: placement.clone(),
     })
+}
+
+/// A fixed-array window of the joined referent, presented to a borrowed byte
+/// or element view exactly as an incoming parameter's field window is: the
+/// descriptor carries the backing's address and element count. `None` when
+/// the argument presents no such window.
+fn window_argument(
+    semantic: &terminal_psi::StructuralArgument,
+    destination: &StructuralParameterDeclaration,
+    block: BlockId,
+    parameter: &StructuralParameterDeclaration,
+    call: &CallPlan,
+    parameter_ordinal: usize,
+    plan: &AbstractOperationPlan,
+) -> Option<Result<target_operations::TargetStructuralArgument, LegalizationError>> {
+    let types = &plan.structural_types;
+    let (source_byte_offset, length, stride) =
+        crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
+            parameter,
+            semantic,
+            destination.structural_type,
+            types,
+        )
+        .map(|(offset, length)| (offset, length, 1))
+        .or_else(|| {
+            crate::structural_inputs::structural_reference_input::fixed_element_array_view(
+                parameter,
+                semantic,
+                destination.structural_type,
+                types,
+            )
+        })?;
+    let shape = calling_conventions::ValueShape::borrowed_reference(16, 8);
+    let Some(placement) = call.parameters.get(parameter_ordinal) else {
+        return Some(Err(LegalizationError::custody()));
+    };
+    if destination.access != semantic.access
+        || destination.multiplicity != StructuralMultiplicity::Unrestricted
+        || !destination.qualifications.is_empty()
+        || !destination.projected_qualifications.is_empty()
+        || placement.shape != shape
+    {
+        return Some(Err(LegalizationError::custody()));
+    }
+    Some(Ok(target_operations::TargetStructuralArgument {
+        place: semantic.place,
+        access: semantic.access,
+        path: semantic.path.clone(),
+        root_structural_type: parameter.structural_type,
+        structural_type: destination.structural_type,
+        shape,
+        source_byte_offset,
+        fixed_array_length: Some(length),
+        element_stride: Some(stride),
+        indices: Vec::new(),
+        source: target_operations::TargetStructuralArgumentSource::BlockParameter {
+            block,
+            place: parameter.place,
+        },
+        destination: placement.clone(),
+    }))
 }
 
 /// Replay every address-join binding on one edge leaving `source_block`.

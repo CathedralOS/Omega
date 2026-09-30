@@ -81,7 +81,9 @@ An admitted ordinary helper or boundary can receive a shared or mutable view of 
 initialized raw `FixedArray(PrimitiveScalar(u8), N)` with `N > 0`.
 The backing is either the whole borrowed
 parameter or a relevant field-only projection from it; both ends are
-unrestricted, unqualified, and claim-free. The array remains a fixed array:
+unrestricted, unqualified, and claim-free. A borrowed block parameter that
+rebinds such a loan at a state edge lends the same window as a machine
+parameter does. The array remains a fixed array:
 its borrowed extent is exactly `N`, and writes retain the
 original referent and untouched elements. A shared source supplies only shared
 access; a mutable source can lend shared or mutable access. This presentation supplies no

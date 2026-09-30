@@ -608,6 +608,24 @@ pub(in crate::legalization) fn call_argument(
             plan,
         );
     }
+    // An address join lends a projection or fixed-array window of its joined
+    // referent through the same replay scalar- and Unit-result calls use.
+    if super::address_joins::parameter(caller, argument.place, plan).is_some() {
+        return super::address_joins::call_argument(
+            argument,
+            destination,
+            call_operation,
+            caller,
+            call,
+            callee
+                .parameters
+                .len()
+                .checked_add(position)
+                .ok_or(LegalizationError::custody())?,
+            native,
+            plan,
+        );
+    }
     // Non-block byte views use the same exact literal, parameter and projected
     // fixed-array argument reconstruction as scalar- and Unit-result calls.
     if !caller.blocks.iter().any(|block| {

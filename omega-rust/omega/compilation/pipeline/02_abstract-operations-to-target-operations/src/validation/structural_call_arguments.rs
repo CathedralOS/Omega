@@ -2806,10 +2806,24 @@ impl Replay<'_> {
         let Some(root) = self.roots.get(&semantic.place) else {
             return Ok(());
         };
-        // A fixed array presents its backing from an incoming parameter or,
+        // A fixed array presents its backing from an incoming parameter, from
+        // a block parameter that rebinds such a loan at a state edge or,
         // whole, from a local home lent through this argument's own borrow.
         let local_loan = root.loan_presentation(semantic, declared);
-        let window_roots = || self.source.structural_parameters.iter().chain(&local_loan);
+        let block_root = self
+            .source
+            .block_entries
+            .iter()
+            .filter(|entry| entry.block != self.source.entry)
+            .flat_map(|entry| &entry.structural_parameters)
+            .find(|parameter| parameter.place == semantic.place);
+        let window_roots = || {
+            self.source
+                .structural_parameters
+                .iter()
+                .chain(&local_loan)
+                .chain(block_root)
+        };
         if let Some(window) = window_roots().find_map(|source| {
             terminal_semantics::fixed_byte_array_window(
                 self.declarations.iter(),

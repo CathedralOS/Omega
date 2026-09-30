@@ -1258,6 +1258,7 @@ pass/calls/runtime_value_call_terminal_exit rejected 4060ms @2d8ed253669f
 pass/calls/serviceful_borrowed_scalar_exit checked 1548ms @2d8ed253669f
 pass/calls/state_and_machine_names_exit checked 401ms @2d8ed253669f
 pass/calls/statement_call_recursive_overload_compile checked 278ms @2d8ed253669f
+pass/calls/static_state_context_field_window_exit checked 6807ms @29ae131e8c31+wt
 pass/calls/structural_mut_to_shared_argument checked 378ms @2d8ed253669f
 pass/calls/structural_self_rooted_argument checked 370ms @2d8ed253669f
 pass/calls/transition_arg_local_from_embedded_call_exit checked 1627ms @2d8ed253669f
