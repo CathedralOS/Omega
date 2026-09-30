@@ -663,6 +663,25 @@ name = "extents"
 version = "0.1.0"
 
 [[package]]
+name = "external-root-writer"
+version = "0.1.0"
+dependencies = [
+ "checked-trees",
+ "diagnostics",
+ "effects",
+ "executable-installation",
+ "external-roots",
+ "facts",
+ "language-semantics",
+ "layout-plans",
+ "post-handoff-writer-plan",
+ "program-entry-plan",
+ "provider-planning",
+ "source",
+ "symbols",
+]
+
+[[package]]
 name = "external-roots"
 version = "0.1.0"
 dependencies = [
@@ -1557,8 +1576,6 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
- "executable-installation",
- "external-roots",
  "facts",
  "flow-effects",
  "language-core",
@@ -1567,7 +1584,6 @@ dependencies = [
  "layout-plans",
  "numerics",
  "package-compilation",
- "post-handoff-writer-plan",
  "program-entry-plan",
  "representation-planning",
  "semantic-vocabulary",

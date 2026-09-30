@@ -176,7 +176,10 @@ does not load or mutate project policy files.
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
 owns provider choices and calling, component and task planning.
 [`selected-dispatch/`](omega/compilation/realization/selected-dispatch/README.md) owns selected
-execution preparation and settlement. Provider grants resolve through backend
+execution preparation and settlement.
+[`external-root-writer/`](omega/compilation/realization/external-root-writer/src/lib.rs)
+joins a selected external-root provider plan to its installed post-handoff
+entry writer; no compiler route calls it yet. Provider grants resolve through backend
 provider evidence, without depending on compiler trust-report reconstruction.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only

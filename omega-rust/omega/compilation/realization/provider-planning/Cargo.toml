@@ -8,15 +8,6 @@ version.workspace = true
 name = "provider_planning"
 path = "src/lib.rs"
 
-[features]
-default = []
-installed-writer = [
-    "dep:executable-installation",
-    "dep:external-roots",
-    "dep:post-handoff-writer-plan",
-    "program-entry-plan/installed-writer",
-]
-
 [dependencies]
 typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 syntax-trees = { path = "../../../../psi/compilation/representations/syntax-trees" }
@@ -25,11 +16,8 @@ calling-conventions = { path = "../../backend/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 component-description = { path = "../../backend/artifacts/component-description" }
 effects = { path = "../../backend/plans/provider-evidence" }
-executable-installation = { path = "../../backend/runtime/executable-installation", optional = true }
-external-roots = { path = "../../backend/runtime/external-roots", optional = true }
 layout = { path = "../../backend/layout" }
 package-compilation = { path = "../../../packages/compilation-inputs" }
-post-handoff-writer-plan = { path = "../../backend/plans/post-handoff-writer-plan", optional = true }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }
 target = { path = "../../backend/target" }

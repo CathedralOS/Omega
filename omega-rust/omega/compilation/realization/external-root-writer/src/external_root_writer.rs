@@ -1,4 +1,6 @@
-use super::{ProviderPlan, ServiceSchema, exact_checked_adapter, same_semantic_name};
+use effects::provider_plan::{ProviderPlan, ServiceSchema};
+use provider_planning::{ProviderPlanningContext, exact_checked_adapter, same_semantic_name};
+
 /// Exact selected provider-plan input consumed by external-root construction.
 ///
 /// The schema is retained beside the normalized plan identity so installation
@@ -10,7 +12,7 @@ pub struct SelectedExternalRootProviderPlan {
     pub identity: external_roots::ProviderPlanId,
     pub digest: effects::provider_plan::ProviderPlanDigest,
     pub schema: ServiceSchema,
-    pub(super) exact_plan: ProviderPlan,
+    exact_plan: ProviderPlan,
 }
 
 /// One exact selected source schema, AOT-lowered writer, installed resolver,
@@ -1285,10 +1287,7 @@ pub fn selected_external_root_entry_fact_bindings(
                 )));
             };
             let implementation = exact_checked_adapter(
-                crate::ProviderPlanningContext::new(
-                    &checked.typed,
-                    source::DependencyScope::Product,
-                ),
+                ProviderPlanningContext::new(&checked.typed, source::DependencyScope::Product),
                 plan,
                 row,
             )
@@ -1381,3 +1380,6 @@ pub fn selected_external_root_entry_fact_bindings(
     }
     Ok(bindings)
 }
+
+#[cfg(test)]
+mod tests;

@@ -21,8 +21,6 @@ pub(crate) mod selection;
 mod external_binding_rows;
 mod independent_components;
 mod installation_reach;
-#[cfg(feature = "installed-writer")]
-mod installed_writer;
 mod operator_provider_evidence;
 mod provenance_replay;
 mod receipt_binding;
@@ -37,19 +35,6 @@ pub use effects::{
     CompilerPrimitiveIntegerComparisonOperation,
 };
 pub(crate) use external_binding_rows::extract_native_external_binding_rows;
-#[cfg(feature = "installed-writer")]
-pub use installed_writer::{
-    AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,
-    BoundExternalRootWriterExecutionError, ExternalRootPostHandoffWriterBindingError,
-    SelectedExternalRootEntryFactBinding, SelectedExternalRootPostHandoffWriterPreparation,
-    SelectedExternalRootProviderPlan, SelectedExternalRootWriterPreparationError,
-    ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
-    WrittenBoundExternalRootConsumerValidationError,
-    WrittenBoundExternalRootPostHandoffWriterDestination,
-    WrittenBoundExternalRootWriterRecoveryError, bind_external_root_post_handoff_writer_invocation,
-    optional_selected_external_root_provider_plan, selected_external_root_entry_fact_bindings,
-    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
-};
 pub use operator_provider_evidence::{selected_requirement_plan, selected_use_plan};
 #[cfg(test)]
 pub(crate) use provenance_replay::exact_checked_adapter_invocations;
@@ -57,7 +42,7 @@ pub(crate) use provenance_replay::exact_checked_adapter_invocations;
 pub(crate) use provenance_replay::validate_provider_plan_candidates;
 pub use provenance_replay::{
     DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
-    SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter,
+    SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter, same_semantic_name,
     satisfies_plan_name, selected_requirement_checked_adapter,
     validate_derived_provider_plan_candidates,
 };
@@ -80,8 +65,6 @@ use crate::provider_planning::selection_provenance::select_provider_plan_indices
 use installation_reach::derive_selected_installation_reach_resolutions;
 #[cfg(test)]
 use provenance_replay::exact_canonical_provider_schema;
-#[cfg(feature = "installed-writer")]
-use provenance_replay::same_semantic_name;
 
 /// Build the exact Omega-owned selection sidecar and bind its stable receipt
 /// identities into checked semantic evidence. Provider execution and

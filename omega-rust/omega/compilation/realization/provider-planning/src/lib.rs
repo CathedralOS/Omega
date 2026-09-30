@@ -46,19 +46,6 @@ pub use provider_planning::selection::{
     CompositionMode, ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection,
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject,
 };
-#[cfg(feature = "installed-writer")]
-pub use provider_planning::{
-    AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,
-    BoundExternalRootWriterExecutionError, ExternalRootPostHandoffWriterBindingError,
-    SelectedExternalRootEntryFactBinding, SelectedExternalRootPostHandoffWriterPreparation,
-    SelectedExternalRootProviderPlan, SelectedExternalRootWriterPreparationError,
-    ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
-    WrittenBoundExternalRootConsumerValidationError,
-    WrittenBoundExternalRootPostHandoffWriterDestination,
-    WrittenBoundExternalRootWriterRecoveryError, bind_external_root_post_handoff_writer_invocation,
-    optional_selected_external_root_provider_plan, selected_external_root_entry_fact_bindings,
-    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
-};
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, DerivedProviderPlan, ProviderPlanDerivation,
@@ -66,9 +53,10 @@ pub use provider_planning::{
     SelectedProviderPlanBinding, SelectedProviderPlanWithProvenance,
     SelectedProviderReviewProvenance, SelectedTargetMachineOrigin,
     bind_selected_provider_plan_facts, derive_satisfies_plans, exact_checked_adapter,
-    satisfies_plan_name, select_derived_provider_plans, selected_provider_plan_facts,
-    selected_provider_plan_facts_with_independent_components, selected_requirement_checked_adapter,
-    selected_requirement_plan, selected_use_plan, validate_derived_provider_plan_candidates,
+    same_semantic_name, satisfies_plan_name, select_derived_provider_plans,
+    selected_provider_plan_facts, selected_provider_plan_facts_with_independent_components,
+    selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
+    validate_derived_provider_plan_candidates,
 };
 pub(crate) use provider_planning::{
     extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,

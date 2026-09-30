@@ -1,0 +1,24 @@
+[package]
+name = "external-root-writer"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "external_root_writer"
+path = "src/lib.rs"
+
+[dependencies]
+provider-planning = { path = "../provider-planning" }
+checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
+effects = { path = "../../backend/plans/provider-evidence" }
+executable-installation = { path = "../../backend/runtime/executable-installation" }
+external-roots = { path = "../../backend/runtime/external-roots" }
+post-handoff-writer-plan = { path = "../../backend/plans/post-handoff-writer-plan" }
+program-entry-plan = { path = "../../backend/plans/program-entry-plan", features = ["installed-writer"] }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+facts = { path = "../../../../psi/compilation/representations/checked-trees/facts" }
+language-semantics = { path = "../../../../psi/foundation/language-semantics" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+source = { path = "../../../../psi/foundation/source" }
+symbols = { path = "../../../../psi/foundation/symbols" }
