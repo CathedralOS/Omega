@@ -19,6 +19,7 @@
 mod assignment_windows;
 pub(crate) mod call_summaries;
 mod data_reads;
+mod float_predicates;
 mod place_queries;
 mod state_flow;
 mod symbolic_values;
@@ -26,6 +27,7 @@ mod symbolic_values;
 mod tests;
 mod where_fact_intervals;
 
+pub use float_predicates::data_float_predicate;
 pub use where_fact_intervals::{case_where_field_intervals, data_where_field_intervals};
 pub(crate) use where_fact_intervals::{stored_field_where_interval, where_fact_interval};
 
@@ -452,7 +454,7 @@ fn analyze_default_domain_writes(
 struct TrackedPlace<'program> {
     spelling: String,
     definition: &'program DataDefinition,
-    fields: Vec<(String, Option<i128>)>,
+    fields: Vec<(String, Option<symbolic_values::LiteralValue>)>,
     symbols: Vec<(String, SymbolicValue)>,
     measures: Vec<(String, Option<i128>, Option<i128>)>,
     /// R2 rung 3 slice 2: the ACCESS GATE. A `zero_gated` place starts

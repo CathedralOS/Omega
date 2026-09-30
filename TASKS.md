@@ -1620,6 +1620,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
   and all five customers execute with those oracles. A migrated unused field
   or disappearance of the old phase label alone does not close this task.
 
+  Current frontier (macOS ARM64, 2026-09-30, based on `0c82e1f8b2e`):
+  `omega run tests/omega/pass/float/finite_core_domain_range_discharge/main.omg`
+  now proves the repaired field's `Finite` transition argument, preserving its
+  transient NaN and range violation. It still exits 200 before execution:
+  ProgramEntry selection queries the conservative typed zero gate before
+  checked-tree refinement and rejects the context's all-zero image.
+  Share the exact target-neutral zero predicate judgment with that early
+  establishment query; do not remove the entry validity check. Focused proof
+  and window checks cover 22 cases; the 90-fixture `float/,dependent/` corpus
+  has no acceptance regressions or unexpectedly accepted fail fixtures.
+  Native exit 77, source-free replay, and the other four customers remain open.
+
 - **VALUE-CALL-SUBEXPRESSION.** (new-scope) Finish composing scalar machine
   results under surrounding expressions at each execution site. The builder
   in `values/scalar/computations.rs` and `computations/integers.rs` already

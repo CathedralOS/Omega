@@ -1,31 +1,31 @@
 use omega::language::core::float_operations;
 
 // F3a: `Finite` is a compiler-known core value domain, not a user-declared
-// carrier domain. A finite literal discharges it directly, while a float range
-// carries Finite implicitly into a bounded transition argument.
+// carrier domain. The data's ordinary where clause retains the ranged field's
+// finite interval while its value flows to a Finite transition parameter.
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Main {
+data Main where ranged >= 0.0 && ranged <= 1.0 {
     console: Binding<Console>;
     direct: f64 in Finite;
-    ranged: f32 [0.0..=1.0];
+    ranged: f32;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // Writes are an invariant window: transient poison and an out-of-range
     // intermediate are legal because both places are repaired before the
     // transition consumes state.
-    self.direct = 0.0f64 / 0.0;
-    self.direct = 2.5;
-    self.ranged = 2.0;
-    self.ranged = 0.5;
-    transition { _ -> accepts_range(self.ranged) }
+    main.direct = 0.0f64 / 0.0;
+    main.direct = 2.5;
+    main.ranged = 2.0;
+    main.ranged = 0.5;
+    transition { _ -> accepts_range(main, main.ranged) }
 
-    state accepts_range(value: f32 in Finite) {
-        transition value == 0.5 { true -> good() _ -> bad() }
+    state accepts_range(main: &Main, value: f32 in Finite) {
+        transition value == 0.5 { true -> good(main) _ -> bad(main) }
     }
 
-    state good(&self) { self.console.exit_process(77); }
-    state bad(&self) { self.console.exit_process(78); }
+    state good(main: &Main) { main.console.exit_process(77); }
+    state bad(main: &Main) { main.console.exit_process(78); }
 }

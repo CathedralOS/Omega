@@ -100,6 +100,100 @@ fn unresolved_template_facts_stay_gated_until_concrete_instantiation() {
     }
 }
 
+#[test]
+fn data_where_zero_classification_retains_unknown_predicates() {
+    for (carrier, fact, zero_gated) in [
+        ("u64", "value >= 0 && value <= 8", false),
+        ("u64", "value > 0", true),
+        ("u64", "value / 2 >= 0", true),
+        ("f32", "value >= 0.0 && value <= 1.0", true),
+        ("f64", "value > 0.0", true),
+        // A positive exact decimal can round to zero at the field's format.
+        // Resolution must not decide this strict comparison as a rational.
+        ("f32", "value < 1e-50", true),
+    ] {
+        let source = format!("data Sample where {fact}, {{ value: {carrier}; }}");
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize predicate");
+        let syntax = parse_syntax_trees(&tokens).expect("parse predicate");
+        let program = resolve(ResolutionRequest::new(&syntax)).expect("retain predicate");
+        let definition = program.data_definitions.iter().next().expect("sample");
+        assert_eq!(definition.zero_gated, zero_gated, "{carrier}: {fact}");
+        let [ProofFact::Expression(_)] = program.proof_facts(definition.where_facts) else {
+            panic!("resolution must retain the whole predicate: {fact}");
+        };
+    }
+}
+
+#[test]
+fn unresolved_zero_predicates_keep_exact_callable_identity() {
+    let tokens = Lexer::new(
+        "machine accepts_zero() -> bool { true } \
+         data Sample where accepts_zero(), { value: f32; }",
+    )
+    .tokenize()
+    .expect("tokenize callable predicate");
+    let syntax = parse_syntax_trees(&tokens).expect("parse callable predicate");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve callable predicate");
+    let definition = program.data_definitions.iter().next().expect("sample");
+    assert!(
+        definition.zero_gated,
+        "resolution does not execute predicates"
+    );
+    let [ProofFact::Expression(expression)] = program.proof_facts(definition.where_facts) else {
+        panic!("one retained predicate");
+    };
+    let ExpressionNode::Call(call) = program.tables.bodies.expressions.expression(*expression)
+    else {
+        panic!("retained call");
+    };
+    let machine = program.machines.iter().next().expect("predicate machine");
+    let [entry] = program
+        .tables
+        .declarations
+        .machine_state_handles
+        .span_or_empty(machine.states)
+    else {
+        panic!("one predicate entry");
+    };
+    assert_eq!(
+        call.target_symbol,
+        program
+            .tables
+            .declarations
+            .machine_states
+            .get(*entry)
+            .symbol
+    );
+}
+
+#[test]
+fn data_zero_gating_preserves_membership_and_first_case_contributions() {
+    let tokens = Lexer::new(
+        r#"
+        domain u64::Positive requires self > 0;
+        data Membership where value >= 0, value in u64::Positive, { value: u64; }
+        data FirstRejected { case First where false; case Second; }
+        data LaterRejected { case First; case Second where false; }
+        "#,
+    )
+    .tokenize()
+    .expect("tokenize independent gates");
+    let syntax = parse_syntax_trees(&tokens).expect("parse independent gates");
+    let program = resolve(ResolutionRequest::new(&syntax)).expect("resolve independent gates");
+    for (name, zero_gated) in [
+        ("Membership", true),
+        ("FirstRejected", true),
+        ("LaterRejected", false),
+    ] {
+        let definition = program
+            .data_definitions
+            .iter()
+            .find(|definition| definition.name.as_str() == name)
+            .expect("named definition");
+        assert_eq!(definition.zero_gated, zero_gated, "{name}");
+    }
+}
+
 fn assert_name_identity(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,

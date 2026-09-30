@@ -9,8 +9,8 @@ use crate::proof_contracts::default_domains::place_queries::{
 };
 use crate::proof_contracts::default_domains::state_flow::PlaceValuation;
 use crate::proof_contracts::default_domains::symbolic_values::{
-    expression_sequence_measures, expression_symbol, expression_symbolic_value,
-    fold_with_valuation, integer_literal_value,
+    LiteralValue, expression_sequence_measures, expression_symbol, expression_symbolic_value,
+    fold_with_valuation, literal_value, mentions_float,
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
@@ -98,7 +98,7 @@ pub(crate) fn handle_assignment<'program>(
             .map(|field| {
                 (
                     field.name.as_str().to_string(),
-                    integer_literal_value(program, field.value),
+                    literal_value(program, field.value),
                 )
             })
             .collect();
@@ -170,7 +170,7 @@ pub(crate) fn handle_assignment<'program>(
         return;
     }
     let field_name = member.member.as_str().to_string();
-    let written = integer_literal_value(program, value);
+    let written = literal_value(program, value);
 
     // A wildcard receiver (`self.maps[*]`) may hit any covered concrete
     // element: every tracked sibling under it loses this field's known
@@ -181,6 +181,9 @@ pub(crate) fn handle_assignment<'program>(
         for sibling in tracked.iter_mut() {
             if place_spelling_covers(&receiver_spelling, &sibling.spelling) {
                 sibling.fields.retain(|(name, _)| *name != field_name);
+                // Missing born-zero fields are known zero; an overlapping
+                // unknown write is instead an explicit unknown snapshot.
+                sibling.fields.push((field_name.clone(), None));
                 sibling.symbols.retain(|(name, _)| *name != field_name);
                 sibling.measures.retain(|(name, _, _)| *name != field_name);
             }
@@ -224,7 +227,7 @@ pub(crate) fn handle_assignment<'program>(
             established: !crate::value_custody::data::data_requires_establishment(
                 program, definition,
             ) || !self_rooted,
-            born_zero: born_zero && self_rooted,
+            born_zero: born_zero && self_rooted && !poisoned,
             window_open: false,
             active_case: seeded_case,
         });
@@ -273,7 +276,7 @@ pub(crate) fn handle_assignment<'program>(
     {
         return;
     }
-    let valuation: Vec<(&str, Option<i128>)> = place
+    let valuation: Vec<(&str, Option<LiteralValue>)> = place
         .fields
         .iter()
         .map(|(name, value)| (name.as_str(), *value))
@@ -304,6 +307,7 @@ pub(crate) fn handle_assignment<'program>(
             typed_trees::domain::ProofFact::Expression(expression) => {
                 match fold_with_valuation(
                     program,
+                    place.definition,
                     &valuation,
                     &place.symbols,
                     &place.measures,
@@ -320,7 +324,13 @@ pub(crate) fn handle_assignment<'program>(
                         // correlated fields inside one invariant window. Its
                         // stable symbol lets a later write prove equality; do
                         // not reject before that closing write arrives.
-                        if expression_symbol(program, value).is_none() {
+                        // A float computation need not be folded to permit
+                        // a temporary write: it poisons the exact field until
+                        // a later store proves the predicate again. Reads and
+                        // all other consumption points still demand closure.
+                        if expression_symbol(program, value).is_none()
+                            && !mentions_float(program, place.definition, *expression)
+                        {
                             diagnostics.push(Diagnostic::error(format!(
                                 "write to `{}.{field_name}` cannot PROVE data `{}`'s default domain: \
                                  a `where`-mentioned field's value is not a literal known here (a \

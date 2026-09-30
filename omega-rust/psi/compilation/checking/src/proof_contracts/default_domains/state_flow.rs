@@ -15,7 +15,7 @@ use typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// is active.
 pub(super) type PlaceValuation = (
     String,
-    Vec<(String, Option<i128>)>,
+    Vec<(String, Option<super::symbolic_values::LiteralValue>)>,
     Option<symbols::SymbolHandle>,
 );
 

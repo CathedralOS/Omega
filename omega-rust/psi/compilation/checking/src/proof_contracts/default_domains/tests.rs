@@ -1,7 +1,9 @@
+use super::symbolic_values::LiteralValue::Integer;
 use super::{
     Diagnostic, build_open_invariant_crash_sites, canonicalize_valuations,
     validate_default_domain_writes,
 };
+mod float_windows;
 const CYCLE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../tests/omega/pass/dependent/valuation_order_cycle/main.omg"
@@ -84,12 +86,18 @@ fn transported_open_windows_still_require_closure_or_crash_evidence() {
 fn valuation_publication_ignores_place_and_field_permutations() {
     let first = (
         "self.first".to_owned(),
-        vec![("left".to_owned(), Some(1)), ("right".to_owned(), Some(2))],
+        vec![
+            ("left".to_owned(), Some(Integer(1))),
+            ("right".to_owned(), Some(Integer(2))),
+        ],
         Some(symbols::SymbolHandle::from_arena_index(7)),
     );
     let second = (
         "self.second".to_owned(),
-        vec![("left".to_owned(), None), ("right".to_owned(), Some(4))],
+        vec![
+            ("left".to_owned(), None),
+            ("right".to_owned(), Some(Integer(4))),
+        ],
         None,
     );
     let expected = vec![first, second];

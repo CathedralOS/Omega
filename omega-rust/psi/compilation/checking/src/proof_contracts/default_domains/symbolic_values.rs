@@ -4,6 +4,108 @@ use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
+/// The transported value is its landed representation, not host arithmetic
+/// and not an integer encoding of a float interval. Bitwise equality gives
+/// the state meet a stable rule even for NaNs and signed zeros.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum LiteralValue {
+    Integer(i128),
+    Float32(u32),
+    Float64(u64),
+}
+
+impl LiteralValue {
+    pub(super) fn integer(self) -> Option<i128> {
+        match self {
+            Self::Integer(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    fn float(
+        self,
+        primitive: typed_trees::types::PrimitiveType,
+    ) -> Option<numerics::float_semantics::FloatMeaning> {
+        use numerics::float_semantics::FloatMeaning;
+        match (self, primitive) {
+            (Self::Float32(bits), typed_trees::types::PrimitiveType::F32) => {
+                Some(FloatMeaning::from_f32(f32::from_bits(bits)))
+            }
+            (Self::Float64(bits), typed_trees::types::PrimitiveType::F64) => {
+                Some(FloatMeaning::from_f64(f64::from_bits(bits)))
+            }
+            _ => None,
+        }
+    }
+}
+
+pub(super) fn literal_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<LiteralValue> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => value.text().parse().ok().map(LiteralValue::Integer),
+        ExpressionNode::Float(value) => {
+            use numerics::float_semantics::{FloatFormat, FloatSemantics};
+            Some(match value.landing()? {
+                numerics::literals::FloatFormat::F32 => LiteralValue::Float32(
+                    FloatSemantics::from_decimal(FloatFormat::BINARY32, value.text())?
+                        .to_f32()
+                        .to_bits(),
+                ),
+                numerics::literals::FloatFormat::F64 => LiteralValue::Float64(
+                    FloatSemantics::from_decimal(FloatFormat::BINARY64, value.text())?
+                        .to_f64()
+                        .to_bits(),
+                ),
+            })
+        }
+        ExpressionNode::Borrow(inner) => literal_value(program, inner.target),
+        _ => None,
+    }
+}
+
+/// Distinguish IEEE predicates before the integer symbolic shortcut sees
+/// them. In particular `value == value` is not true for an unknown float.
+pub(super) fn mentions_float(
+    program: &TypedTrees,
+    definition: &typed_trees::data::DataDefinition,
+    expression: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_) => true,
+        ExpressionNode::Name(path) => {
+            let is_float_field = |field: &typed_trees::data::DataField| {
+                field.symbol.is_valid()
+                    && field.symbol == path.symbol
+                    && matches!(
+                        program.primitive_type_reference(field.type_reference),
+                        Some(
+                            typed_trees::types::PrimitiveType::F32
+                                | typed_trees::types::PrimitiveType::F64
+                        )
+                    )
+            };
+            program
+                .data_members(definition)
+                .iter()
+                .any(|member| match member {
+                    typed_trees::data::DataMember::Field(field) => is_float_field(field),
+                    typed_trees::data::DataMember::Variant(variant) => program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .any(is_float_field),
+                })
+        }
+        ExpressionNode::Binary(binary) => {
+            mentions_float(program, definition, binary.left)
+                || mentions_float(program, definition, binary.right)
+        }
+        ExpressionNode::Unary(unary) => mentions_float(program, definition, unary.operand),
+        _ => false,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum SymbolicValue {
     Atom(symbols::SymbolHandle),
@@ -29,7 +131,8 @@ pub(super) fn integer_literal_value(
 /// (machine-owned data is born zeroed).
 pub(super) fn fold_with_valuation(
     program: &TypedTrees,
-    valuation: &[(&str, Option<i128>)],
+    definition: &typed_trees::data::DataDefinition,
+    valuation: &[(&str, Option<LiteralValue>)],
     symbols: &[(String, SymbolicValue)],
     measures: &[(String, Option<i128>, Option<i128>)],
     born_zero: bool,
@@ -44,7 +147,7 @@ pub(super) fn fold_with_valuation(
                 .last()?
                 .as_str();
             match valuation.iter().find(|(name, _)| *name == last) {
-                Some((_, value)) => *value,
+                Some((_, value)) => value.and_then(LiteralValue::integer),
                 // SOUNDNESS (slice 4): the born zero is real only in the
                 // never-re-entered boot state; elsewhere an untracked field
                 // may hold any prior value -- poison the fold.
@@ -78,6 +181,41 @@ pub(super) fn fold_with_valuation(
             }
         }
         ExpressionNode::Binary(binary) => {
+            if !matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
+                && mentions_float(program, definition, expression)
+            {
+                return super::float_predicates::data_float_predicate(
+                    program,
+                    definition,
+                    expression,
+                    &|symbol, primitive| {
+                        let field =
+                            program.data_members(definition).iter().find_map(
+                                |member| match member {
+                                    typed_trees::data::DataMember::Field(field)
+                                        if field.symbol == symbol =>
+                                    {
+                                        Some(field)
+                                    }
+                                    _ => None,
+                                },
+                            )?;
+                        match valuation
+                            .iter()
+                            .find(|(name, _)| *name == field.name.as_str())
+                        {
+                            Some((_, value)) => value.and_then(|value| value.float(primitive)),
+                            None if born_zero => {
+                                Some(numerics::float_semantics::FloatMeaning::Zero {
+                                    negative: false,
+                                })
+                            }
+                            None => None,
+                        }
+                    },
+                )
+                .map(i128::from);
+            }
             if matches!(
                 binary.operator,
                 BinaryOperator::Equal | BinaryOperator::NotEqual
@@ -90,6 +228,7 @@ pub(super) fn fold_with_valuation(
             }
             let left = fold_with_valuation(
                 program,
+                definition,
                 valuation,
                 symbols,
                 measures,
@@ -98,6 +237,7 @@ pub(super) fn fold_with_valuation(
             )?;
             let right = fold_with_valuation(
                 program,
+                definition,
                 valuation,
                 symbols,
                 measures,

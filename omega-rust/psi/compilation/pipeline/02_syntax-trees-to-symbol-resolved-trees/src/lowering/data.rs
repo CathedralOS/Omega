@@ -210,13 +210,13 @@ fn lower_data_definition_with_argument_origins(
             })
         })
         .transpose()?;
-    // R2 rung 2 slice 1 (ch12 gating): lower the default-domain facts and
-    // classify AT ZERO. Zero-satisfying facts are admitted -- the value is
-    // born established (the zero-constructible tier); they stay INERT until
-    // rung 3 wires entailment hypotheses and write obligations ATOMICALLY.
-    // A GATED type (zero violates the domain) refuses until rung 2b lands
-    // construction-mandatory fields; a fact the folder cannot evaluate at
-    // zero refuses as unsupported (v1 fence). Never a silent drop.
+    // Retain every default-domain obligation. This early integer folder can
+    // establish zero eligibility only inside its supported fragment; an
+    // unknown result requires establishment, just like a known false result.
+    // In particular, unresolved float predicates need their typed formats,
+    // literal landing and selected operations before zero can be admitted.
+    // Symbol assignment rechecks these contributions without dropping facts;
+    // later typing and proof validation still own their semantic validity.
     let type_equations = crate::preparation::generic_data::template_type_equation_offsets(
         syntax_trees,
         data_definition,
@@ -236,23 +236,7 @@ fn lower_data_definition_with_argument_origins(
                     *expression,
                 ) {
                     Some(value) if value != 0 => {}
-                    // R2 rung 2b: zero violates the domain -- the type is GATED
-                    // (admitted; its literals must PROVE the domain, and rung 3's
-                    // access gate covers zeroed storage).
-                    Some(_) => zero_gated = true,
-                    // A generic template has no concrete zero value yet.
-                    // Retain its obligation conservatively; normalization
-                    // discharges closed const facts on each instance, whose
-                    // remaining default-domain facts still pass this check.
-                    None if !type_parameters.is_empty() => zero_gated = true,
-                    None => {
-                        return Err(Diagnostic::error(format!(
-                            "data `{}`: a default-domain `where` fact is outside the v1 \
-                             zero-foldable fragment (field names, integer literals, + - *, \
-                             comparisons, && ) -- simplify the fact for now (R2)",
-                            data_definition.name.as_str()
-                        )));
-                    }
+                    Some(_) | None => zero_gated = true,
                 }
             }
             // Membership symbols and domain facts are assigned after every
