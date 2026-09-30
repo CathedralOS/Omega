@@ -964,6 +964,21 @@ fn retained_structural_result(
         })
 }
 
+/// An operand-owned construction retained beside the call that consumes it:
+/// `operand_source` names the consuming call's coordinate and formal
+/// position, so its statement is the call's — any local declared on that
+/// statement is a sibling, never this construction's binding. Such rows must
+/// not stand in for a local's unique producer.
+fn operand_owned_construction(operation: &CheckedUnitEffectOperationPlan) -> bool {
+    matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            operand_source: Some(_),
+            ..
+        }
+    )
+}
+
 /// Whether an owned whole call argument draws on a result this sequence
 /// produced earlier and the call owns. The result custody accounting counts
 /// that call as the result's one consumption with the same rule, so admitting
@@ -1539,7 +1554,9 @@ fn successor_bindings(
                     let mut matches = operations.iter().filter_map(|operation| match operation {
                         CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
-                        _ => retained_structural_result(operation),
+                        _ => (!operand_owned_construction(operation))
+                            .then(|| retained_structural_result(operation))
+                            .flatten(),
                     }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
                     if let Some(result) = matches.next() {
                         if matches.next().is_some() { return None; }
@@ -1737,10 +1754,20 @@ fn successor_bindings(
                     });
                     let result_subject = |local_index: usize| {
                         let mut matches = operations.iter().filter_map(|operation| match operation {
-                            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
-                            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
-                            _ => retained_structural_result(operation),
-                        }).filter(|result| result.statement_index == local_index as u32);
+                            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                                result,
+                                ..
+                            }
+                            | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                                result,
+                                ..
+                            } => Some(result),
+                            _ => (!operand_owned_construction(operation))
+                                .then(|| retained_structural_result(operation))
+                                .flatten(),
+                        }).filter(|result| {
+                            result.statement_index == local_index as u32
+                        });
                         let result = matches.next()?;
                         if matches.next().is_some() {
                             return None;
@@ -2294,6 +2321,9 @@ fn case_payload_transfer(
         )
     } else {
         let mut results = operations.iter().filter_map(|operation| {
+            if operand_owned_construction(operation) {
+                return None;
+            }
             let result = retained_structural_result(operation)
                 .filter(|result| result.statement_index < ordinal)?;
             let StatementNode::LocalData(local) = program
@@ -2308,7 +2338,7 @@ fn case_payload_transfer(
         let (result, local) = results.next()?;
         if results.next().is_some() {
             return None;
-        }
+        };
         (
             CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
