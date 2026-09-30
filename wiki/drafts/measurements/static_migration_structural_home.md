@@ -717,3 +717,40 @@ names a `boundary` or `trait` block also declares -- `open`, `close`, `read`,
 `write`, `create`, `remove`, `sleep` and their kin -- plus `rda_step` and
 `rda_drain`, which index `self.rda_stack[self.rda_depth - 1]` and the compiler
 accepts that rooted in a receiver and refuses rooted in a parameter.
+
+## The entry's states can name the data; the entry cannot
+
+"The hosted entry blocks the canaries and samples" was too coarse. A hosted
+`ProgramEntry` exposes no arrival parameters, so `Main::main` cannot name its
+data -- but its *states* can. The entry lends `&mut self` into them and they
+pass the binding onward, leaving `self` only on the entry machine itself.
+
+Applied to all 434 canary entries and 122 sample entries: **no**
+`ProgramEntry exposes no arrival parameters` rejection appears anywhere in
+that batch. The shape is admitted by checking. It fails one stage later, at
+lowering, with the entry's unit plan omitted at
+`state graph: provider attachment requirements`
+(`04_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph/mod.rs:616`).
+405 of 427 canary fixtures and 116 of 122 sample packages move there.
+
+So the remaining customer-side population is bounded by state-graph custody
+during lowering, not by the entry's parameter list. That site is owned:
+`zergling-z3` holds `ELEMENT-VIEW-SHARED-BORROW-LOCALS` and
+`SHARED-BORROW-RESULT-REFERENT-IDENTITY` over it.
+
+## `tests/omega/packages/build-scope-topology` did not converge
+
+720 declarations in one package-manager fixture, and the largest single item
+left. The transform reaches all of them, and
+`build_scope_topology_confinement` (3 tests) then fails on a succession of
+distinct shapes: an operation whose call site must stay attached while its
+declaration is threaded, a state expecting `&mut Self` handed a named value,
+and cross-file calls into `digest.omg`. Each rule fixed one and revealed the
+next. Not landed, and the guard it did produce is kept: an operation with any
+attached-only call site must not be threaded at all.
+
+One rule was removed rather than kept. An attempt to hoist conflicting
+arguments into typed locals emitted a replacement including its closing
+parenthesis while the pattern had consumed only up to the opening one,
+producing `Compose::dskip(compose, compose.t64)compose.t64);`. It had never
+been exercised before this package.
