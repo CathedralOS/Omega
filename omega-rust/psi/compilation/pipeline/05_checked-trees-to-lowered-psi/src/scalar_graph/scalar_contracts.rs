@@ -23,7 +23,7 @@ mod namespace;
 mod result_range;
 mod source;
 pub(crate) use result_range::with_result_range;
-pub(crate) use source::validate_guarantees;
+pub(crate) use source::{validate_guarantees, validate_post_state_guarantees};
 
 /// The requires clauses that still discharge as propositions. Each authored
 /// floating entry range occupies its requires-tail position as a `FloatRange`

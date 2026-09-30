@@ -23,7 +23,11 @@ pub(super) fn lower(
 ) -> Result<Vec<ContractClause>, LoweringError> {
     let (source, source_state) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
-    scalar_contracts::validate_guarantees(checked, source, source_state)?;
+    if result.is_some() {
+        scalar_contracts::validate_guarantees(checked, source, source_state)?;
+    } else {
+        scalar_contracts::validate_post_state_guarantees(checked, source, source_state)?;
+    }
     let contract = checked
         .facts
         .contract_plans
