@@ -260,7 +260,7 @@ pub(super) fn validate_bindings(
                     return unsupported("Unit graph local loan lost its mutable borrow");
                 };
                 if borrow.access != language_semantics::ReferenceAccess::Mutable
-                    || !local.is_mutable
+                    || (!local.is_mutable && local.initial_value.is_valid())
                     || !validation::has_plain_owned_contents_with_numeric_constraints(
                         &checked.typed,
                         local.type_reference,
