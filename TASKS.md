@@ -965,7 +965,7 @@ the complete product bar; focused successes below do not establish that baseline
   `window_demo` and `windowed_calculator` under the
   [macOS application contract](wiki/spec/build/macos_application.md).
   Reuse `native-artifact/src/package_publication.rs` for package assembly and
-  signing custody, and `compiler/src/report/compile_report.rs` for checked
+  signing custody, and `products/src/compilation_products.rs` for checked
   package/inner-executable accessors.
 
   The samples now declare nominal GUI/clock/input providers, macOS
@@ -1503,7 +1503,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `structural_scalar_store/frame.rs` now replays the complete state frame, so
   the old alternating omission labels are reproduction clues, not the cause.
 
-  Acceptance: promote `pending/calls/transition_tail_call_to_machine` with its
+  Acceptance: promote `pass/calls/transition_tail_call_to_machine` with its
   Build entry and exit-0 oracle. Materialize its comment-only controls: with
   and without a preceding store, no arguments and ordinary arguments, an
   internal-state jump, and an ordinary call followed by a jump. Run the three
@@ -1555,7 +1555,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   field in a determined-evidence receipt row, and the hosted bridge rejoins it
   by route and carrier instead of requiring a service establishment, so both
   exit 70 on macOS ARM64. All six `pass/` customers below now exit 70.
-  `pending/structs/case_field_type_store_shapes` runs natively with its exit-0
+  `pass/structs/case_field_type_store_shapes` runs natively with its exit-0
   oracle; promoting it needs its corpus rows.
   The interpreter's `EstablishStructuralCase` still
   requires a sum and keys payload scalars by field id on the root, where mixed
@@ -1636,7 +1636,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   attached generic application; the old shared phase label does not establish
   that float predicates and const constraints need the same repair.
   Migrate `tests/omega/pending/float/float_range_attached_field` and
-  `tests/omega/pending/generics/ranged_const_parameter_attached_shape`, then
+  `tests/omega/pass/generics/ranged_const_parameter_attached_shape`, then
   exercise their currently unused fields. Keep bare integer/float, integer
   `where`, `Finite`, unconstrained const, and plain/`Wrapping` element controls.
   Required customers under `tests/omega/pass/`:
@@ -1723,7 +1723,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   fallback when the exact computation root is absent. Reproduce each remaining
   site and retain its state, statement, binding and call occurrence through
   construction/emission rather than substituting a pure expression.
-  `tests/omega/pending/calls/value_call_subexpression` currently discards
+  `tests/omega/pass/calls/value_call_subexpression` currently discards
   `twelve() + 0`; make its value observable. Exercise arithmetic on either
   side, casts and both comparison operands in locals, field stores and guards,
   with bare/parenthesized-call and call-free controls, ordinary/field receivers,
@@ -2321,10 +2321,10 @@ extend that route through ordinary checked Build execution and retained outputs.
   Reuse `build-evaluation::execution::output_custody` settlement, `build-output`
   custody and compiler publication, with **BUILD-ADMISSION-CHECKPOINT** and
   `PackageCheckedContext` source/occurrence identity. The acquired-generator test
-  in `omega/tests/completed_build_outputs.rs` already exercises narrowed template
+  in `omega-rust/omega/application/cli/tests/completed_build_outputs.rs` already exercises narrowed template
   reads, exact artifact/companion output, native invocation, retries and distinct
   package/target output sets. Re-run that customer on macOS and Windows; preserve
-  `omega/tests/{build_input_inventory,package_commands/snapshot_outputs}.rs` and
+  `omega-rust/omega/application/cli/tests/{build_input_inventory,package_commands/snapshot_outputs}.rs` and
   package-manager's `suite` filter `build_named_inputs::`. The cited compiler
   snapshot/named-input test targets were removed.
 
@@ -2817,7 +2817,7 @@ completion syntax or other terminal service is a prerequisite.
 - **ASSUMED-BINDING-CONTRACTS.** (new-scope) Implement the root-only
   [`Build::assume_binding_contract<Required::operation, Supplied::operation>()`](wiki/spec/build/assumed_binding_contracts.md)
   relationship. `language-semantics::BuildOperation` has no admission for it;
-  `package-manager/review-evidence/src/record/rows.rs` has no corresponding
+  `omega-rust/omega/packages/review-evidence/src/record/` has no corresponding
   review kind. Extend existing Build/provider installation, Terminal conditional
   evidence/replay, interpreter/native call custody and package review/lock
   acceptance. Retain exact entry/exit assumptions, authorized issuer/subject
@@ -3008,7 +3008,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   installation/publication so a running guest replaces an independent subcomponent
   without returning from main. Depends on **COMPONENT-SUBSTRATE** and
   **EMBEDDING-RESOURCE-LIFETIMES**. Current
-  `omega-rust/omega/compilation/driver/src/terminal/terminal_artifact/composition_modes.rs`
+  `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/composition_modes.rs`
   rejects independent products; checked descriptions alone do not unblock this.
   Reuse the closed import/export and era/custody contracts in
   `omega-rust/omega/compilation/backend/runtime/component-publication/`; its
@@ -3616,7 +3616,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     causes. A boundary with no in-module candidate currently contributes no
     callee work; that is not a finite response guarantee. Preserve
     `InvocationBoundCallee` and component-specific `Unranked`, `UnboundedRank`
-    and `OpenCalleeSet`. `omega/src/inspection/evidence.rs` still treats the
+    and `OpenCalleeSet`. `omega-rust/omega/application/cli/src/inspection/evidence.rs` still treats the
     flat open-callee case as an error; distinguish valid unavailable bounds
     from malformed identities or broken ranking evidence.
 
@@ -4347,7 +4347,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     emit from `provider_admission/settlements/source_imports.rs`; candidate
     `semantic_bindings.rs` supplies permission proposals. Preserve their separate
     identities. Remove the broad filesystem arm in
-    `package-manager/review-evidence/src/capture/authority.rs`, dependent
+    `omega-rust/omega/packages/review-evidence/src/capture/authority.rs`, dependent
     `src/review/audit/triage/` rendering and transitional
     `standard_library_package_resolution.rs` assertions after exact replacement.
     **FILESYSTEM-RELEASE-CONTRACT** owns occurrence-bound close evidence;
@@ -4914,7 +4914,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   compilation runs `component-description::verify_component`. Preserve
   `review_publishes_the_named_component_description_for_an_independent_selection`:
   its consumer entry is empty, so it proves review, not a crossing call.
-  `compiler/src/terminal/terminal_artifact/composition_modes.rs` rejects
+  `provider-planning/src/provider_settlement/composition_modes.rs` rejects
   Independent before Terminal/native production. Replace that fence only with
   actual independent products carrying symbolic imports/exports, entry/leave
   resources and installation/replacement obligations; never silently fuse.
