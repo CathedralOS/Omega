@@ -233,6 +233,19 @@ fn validate_term_scope(
                 });
             }
         }
+        ScalarTerm::IeeeFloatField { root, path, format } => {
+            if structural_leaf_type(module, machine, *root, path)
+                .and_then(StructuralFieldType::scalar_type)
+                != Some(ScalarType::IeeeFloat(*format))
+            {
+                return Err(ModuleError::InvalidIeeeFloatFieldTerm {
+                    machine: machine.id,
+                    root: *root,
+                    path: path.clone(),
+                    format: *format,
+                });
+            }
+        }
         ScalarTerm::ViewExtent {
             root,
             path,

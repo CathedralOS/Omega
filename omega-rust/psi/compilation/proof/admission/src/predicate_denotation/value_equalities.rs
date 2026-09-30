@@ -5,12 +5,22 @@
 //! slots proves the original goal under the original premises. The equations
 //! are dependencies of this checked view, never newly introduced assumptions.
 
-use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm, ScalarType, ValueId};
+use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm, ScalarType};
 
 use super::{PredicateDenotationError, budget::Budget};
 
 pub(super) struct ValueEqualities<'input> {
-    definitions: Vec<(ValueId, &'input ScalarTerm)>,
+    definitions: Vec<(&'input ScalarTerm, &'input ScalarTerm)>,
+}
+
+pub(super) fn is_definition_subject(term: &ScalarTerm) -> bool {
+    matches!(
+        term,
+        ScalarTerm::Value { .. }
+            | ScalarTerm::IntegerField { .. }
+            | ScalarTerm::BooleanField { .. }
+            | ScalarTerm::IeeeFloatField { .. }
+    )
 }
 
 impl<'input> ValueEqualities<'input> {
@@ -19,14 +29,21 @@ impl<'input> ValueEqualities<'input> {
     ) -> Self {
         let mut definitions = Vec::new();
         for axiom in axioms {
-            let Proposition::Equal(left @ ScalarTerm::Value { id, .. }, right) = axiom else {
+            let Proposition::Equal(left, right) = axiom else {
                 continue;
             };
+            if !is_definition_subject(left) {
+                continue;
+            }
             // Either unconditional equality for a repeated value is sound.
             // Prefer its first equation; retain every original premise in its
             // original slot, including subsequent selected-polarity equations.
-            if left != right && !definitions.iter().any(|(value, _)| value == id) {
-                definitions.push((*id, right));
+            // Keep authored orientation: a read gives value -> field, a store
+            // field -> stored value. Reversing both would create cycles. Field
+            // equations are current observations supplied by reconstruction;
+            // expired observations cannot be recovered here from operation history.
+            if left != right && !definitions.iter().any(|(subject, _)| *subject == left) {
+                definitions.push((left, right));
             }
         }
         Self { definitions }
@@ -198,16 +215,19 @@ impl<'input> ValueEqualities<'input> {
         original: &ScalarTerm,
         budget: &mut Budget,
         depth: usize,
-        active: &mut Vec<ValueId>,
+        active: &mut Vec<usize>,
     ) -> Result<ScalarTerm, PredicateDenotationError> {
         budget.scalar(original, depth)?;
-        if let ScalarTerm::Value { id, .. } = original
-            && let Some((_, definition)) = self.definitions.iter().find(|(value, _)| value == id)
+        if let Some((position, (_, definition))) = self
+            .definitions
+            .iter()
+            .enumerate()
+            .find(|(_, (subject, _))| *subject == original)
         {
-            if active.contains(id) {
+            if active.contains(&position) {
                 return Err(PredicateDenotationError::CyclicValueEquality);
             }
-            active.push(*id);
+            active.push(position);
             let result = self.scalar(definition, budget, depth + 1, active)?;
             active.pop();
             return Ok(result);
@@ -271,6 +291,7 @@ impl<'input> ValueEqualities<'input> {
             ScalarTerm::Value { .. }
             | ScalarTerm::BooleanField { .. }
             | ScalarTerm::IntegerField { .. }
+            | ScalarTerm::IeeeFloatField { .. }
             | ScalarTerm::ViewExtent { .. }
             | ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }

@@ -7,6 +7,36 @@ use super::{
 use crate::ValueId;
 
 #[test]
+fn ieee_float_field_terms_retain_format_and_structural_dependencies() {
+    use crate::{
+        CanonicalStructuralPathSegment as Segment, IeeeFloatFormat, PlaceId, StructuralFieldId,
+    };
+    let root = PlaceId::new(1).unwrap();
+    let path = vec![
+        Segment::Field(StructuralFieldId::new(2).unwrap()),
+        Segment::FixedIndex(3),
+    ];
+    for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+        let term = ScalarTerm::ieee_float_field_path(root, path.clone(), format);
+        assert_eq!(term.scalar_type(), ScalarType::IeeeFloat(format));
+        assert_eq!(term.integer_value(), None);
+        assert_eq!(term.boolean_value(), None);
+        assert_eq!(term.validate(), Ok(()));
+        assert!(!term.any_value_id(|_| true));
+        let proposition = Proposition::Equal(term.clone(), term);
+        assert!(!proposition.visit_value_ids(|_| panic!("structural field has no scalar ID")));
+        assert_eq!(
+            PropositionContext::default().validate(&proposition),
+            Err(PropositionError::UnknownStructuralPlace(root))
+        );
+        assert_eq!(
+            ScalarTerm::ieee_float_field_path(root, vec![], format).validate(),
+            Err(PropositionError::EmptyIeeeFloatStructuralFieldPath)
+        );
+    }
+}
+
+#[test]
 fn ieee_literal_predicates_keep_format_order_and_nan_complements() {
     use crate::{IeeeFloatComparisonKind as Kind, IeeeFloatFormat as Format, IeeeFloatValue};
     let high = ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0x7f80_0000));

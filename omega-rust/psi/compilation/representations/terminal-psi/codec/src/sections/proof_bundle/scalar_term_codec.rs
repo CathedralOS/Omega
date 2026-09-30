@@ -2,6 +2,108 @@
 //! fields on the wire.
 
 use crate::sections::proof_bundle::ProofCodecError;
+
+#[cfg(test)]
+mod ieee_field_tests {
+    use super::*;
+    use semantic_vocabulary::{IeeeFloatFormat, PlaceId, StructuralCaseId, StructuralFieldId};
+
+    fn encode(term: &ScalarTerm) -> Vec<u8> {
+        let mut writer = Writer::default();
+        encode_scalar_term(&mut writer, term, 0, super::super::FORMAT_MARKER).unwrap();
+        writer.finish()
+    }
+
+    #[test]
+    fn ieee_float_field_wire_preserves_exact_format_root_and_path() {
+        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+            let original = ScalarTerm::ieee_float_field_path(
+                PlaceId::new(11).unwrap(),
+                vec![
+                    CanonicalStructuralPathSegment::Field(StructuralFieldId::new(12).unwrap()),
+                    CanonicalStructuralPathSegment::FixedIndex(13),
+                    CanonicalStructuralPathSegment::Case(StructuralCaseId::new(14).unwrap()),
+                ],
+                format,
+            );
+            let bytes = encode(&original);
+            assert_eq!(bytes[0], 38);
+            assert_eq!(
+                decode_scalar_term(&mut Reader::new(&bytes), 0, super::super::FORMAT_MARKER)
+                    .unwrap(),
+                original
+            );
+            for length in 0..bytes.len() {
+                assert!(
+                    decode_scalar_term(
+                        &mut Reader::new(&bytes[..length]),
+                        0,
+                        super::super::FORMAT_MARKER
+                    )
+                    .is_err()
+                );
+            }
+            let mut wrong_format = bytes.clone();
+            *wrong_format.last_mut().unwrap() = 255;
+            assert!(
+                decode_scalar_term(
+                    &mut Reader::new(&wrong_format),
+                    0,
+                    super::super::FORMAT_MARKER
+                )
+                .is_err()
+            );
+            let mut changed = original.clone();
+            let ScalarTerm::IeeeFloatField { root, path, .. } = &mut changed else {
+                unreachable!()
+            };
+            *root = PlaceId::new(21).unwrap();
+            path[0] = CanonicalStructuralPathSegment::Field(StructuralFieldId::new(22).unwrap());
+            let changed_bytes = encode(&changed);
+            assert_ne!(bytes, changed_bytes);
+            assert_eq!(
+                decode_scalar_term(
+                    &mut Reader::new(&changed_bytes),
+                    0,
+                    super::super::FORMAT_MARKER
+                )
+                .unwrap(),
+                changed
+            );
+        }
+    }
+
+    #[test]
+    fn ieee_float_field_wire_rejects_empty_paths() {
+        let term = ScalarTerm::ieee_float_field_path(
+            PlaceId::new(1).unwrap(),
+            vec![],
+            IeeeFloatFormat::Binary32,
+        );
+        assert!(
+            encode_scalar_term(
+                &mut Writer::default(),
+                &term,
+                0,
+                super::super::FORMAT_MARKER
+            )
+            .is_err()
+        );
+        let mut writer = Writer::default();
+        writer.u8(38);
+        writer.id(PlaceId::new(1).unwrap());
+        writer.u32(0);
+        writer.u8(1);
+        assert!(
+            decode_scalar_term(
+                &mut Reader::new(&writer.finish()),
+                0,
+                super::super::FORMAT_MARKER
+            )
+            .is_err()
+        );
+    }
+}
 use crate::sections::proof_bundle::proposition_codec::{
     decode_canonical_structural_field, encode_canonical_structural_field,
 };
@@ -88,6 +190,13 @@ pub(crate) fn encode_scalar_term(
         return Err(ProofCodecError::ScalarTermNestingTooDeep);
     }
     match term {
+        ScalarTerm::IeeeFloatField { root, path, format } => {
+            term.validate()
+                .map_err(ProofCodecError::MalformedProposition)?;
+            writer.u8(38);
+            encode_canonical_structural_field(writer, *root, path, "IEEE float field path")?;
+            encode_ieee_float_format(writer, *format);
+        }
         ScalarTerm::IeeeFloatLiteral(value) => {
             writer.u8(37);
             match value {
@@ -900,6 +1009,14 @@ pub(crate) fn decode_scalar_term(
             2 => semantic_vocabulary::IeeeFloatValue::Binary64(reader.u64()?),
             tag => return Err(ProofCodecError::InvalidTag("IeeeFloatValue", tag)),
         }),
+        38 => {
+            let (root, path) = decode_canonical_structural_field(reader)?;
+            let term =
+                ScalarTerm::ieee_float_field_path(root, path, decode_ieee_float_format(reader)?);
+            term.validate()
+                .map_err(ProofCodecError::MalformedProposition)?;
+            term
+        }
         tag => return Err(ProofCodecError::InvalidTag("ScalarTerm", tag)),
     })
 }

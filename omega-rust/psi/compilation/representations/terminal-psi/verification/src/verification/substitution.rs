@@ -304,6 +304,7 @@ fn substitute_scalar_term_places(
         match term {
             ScalarTerm::BooleanField { root, path }
             | ScalarTerm::IntegerField { root, path, .. }
+            | ScalarTerm::IeeeFloatField { root, path, .. }
             | ScalarTerm::ViewExtent { root, path, .. } => {
                 if let Some((replacement, prefix)) = substitutions.get(root) {
                     *root = *replacement;
@@ -732,6 +733,7 @@ pub(super) fn substitute_scalar_term_values(
             .unwrap_or_else(|| term.clone()),
         ScalarTerm::BooleanField { .. }
         | ScalarTerm::IntegerField { .. }
+        | ScalarTerm::IeeeFloatField { .. }
         | ScalarTerm::ViewExtent { .. }
         | ScalarTerm::Boolean(_)
         | ScalarTerm::Integer { .. }

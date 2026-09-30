@@ -22,6 +22,7 @@ mod boolean_polarity;
 mod byte_extent;
 mod case_hops;
 mod element_extent;
+mod float_fields;
 mod record;
 mod runtime_index;
 mod scalar_case;
@@ -343,9 +344,10 @@ pub(super) fn append_operation(
                             ScalarTerm::boolean_field_path(root, written.clone()),
                             ScalarTerm::value(*value, ScalarType::Boolean),
                         )),
-                        // Other stored scalars (IEEE formats) have no field
-                        // term in the vocabulary; the write is still valid,
-                        // it just publishes no local equation.
+                        Some(ScalarType::IeeeFloat(format)) => Some(Proposition::Equal(
+                            ScalarTerm::ieee_float_field_path(root, written.clone(), format),
+                            ScalarTerm::value(*value, ScalarType::IeeeFloat(format)),
+                        )),
                         _ => None,
                     };
                     if let Some(equation) = equation {
@@ -378,6 +380,14 @@ pub(super) fn append_operation(
             // reconstruction effect.
             return Ok(());
         }
+    }
+    // These equations describe copied bits, including NaN payloads and the
+    // sign of zero. They are not IEEE `==` facts. Stores publish only after
+    // the ordinary write invalidation above retires prior observations.
+    if let Some(equation) =
+        float_fields::primitive_equation(module, machine, operation, value_types)
+    {
+        axioms.push(equation);
     }
     if let Some(bound) = crate::validation::structural_byte_sequence_field_length_capacity_bound(
         module, machine, operation,

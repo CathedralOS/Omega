@@ -117,8 +117,8 @@ rows! {
     NORM_VALUE_EQUALITY_DENOTATION => (
         "conversion:value-equality-denotation",
         NormalizationConversion,
-        "a proposition plus an ordered roster of proved value-to-term equations",
-        "the denotation normal form under exactly those equations; mathematical constructors retain operand order through the exact fixed-integer lift, while IEEE literal substitution retains exact bits and format, preserves ordered comparison operands, and canonicalizes only symmetric equality and inequality; payload equations do not assert IEEE reflexivity, wrapping and other opaque constructors remain unchanged, and only representable closed integer literals may change carrier without changing value",
+        "a proposition plus an ordered roster of unconditional typed equations supplied as current semantic axioms or independently proved children; each definition subject is an exact Value, IntegerField, BooleanField, or IeeeFloatField term, including its full root/path and carrier or format",
+        "the denotation normal form under exactly those equations in their supplied orientation, using the first nonreflexive definition of each exact subject; active definition indexes reject cycles and the shared budget bounds traversal and expansion; no expired field observation is recovered from history and the original premise slots remain unchanged; mathematical constructors retain operand order through the exact fixed-integer lift, while IEEE substitution preserves payload bits, format, and ordered comparisons, canonicalizing only symmetric comparisons; payload identity never asserts IEEE reflexivity, opaque constructors gain no arithmetic identities, and only representable closed integer literals may change carrier without changing value",
         &["conversion:predicate-denotation"],
         &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/value_equalities.rs"), pa!( "proof/integer_math_normalization.rs")]
     );
@@ -223,8 +223,8 @@ rows! {
     SCOPE_FIELD_SNAPSHOTS => (
         "scope:field-value-snapshots",
         PremiseScope,
-        "live unconditional typed canonical field-to-SSA equalities before store or call invalidation, outside private crash reconstruction",
-        "affected scalar facts are re-expressed through one saved value per field without splitting connectives or growing the fact roster; remaining affected observations still expire",
+        "live unconditional typed canonical Boolean, integer, or IEEE field-to-SSA equalities before store or call invalidation, outside private crash reconstruction; IEEE captures require exact format and bit identity, never IEEE comparison equality",
+        "affected scalar facts, including IEEE comparisons, are re-expressed through one saved value per field without splitting connectives or growing the fact roster; remaining affected observations still expire, so old field facts cannot justify replacement bits",
         &["scope:dominance-order", "fact:structural-effect-observation"],
         &[tv!( "verification/field_snapshots.rs"), tv!( "verification/reconstruction/operation_facts.rs"), tv!( "verification/call_composition.rs")]
     );
@@ -400,9 +400,9 @@ rows! {
         "formation:proposition-context",
         SharedFormation,
         "a proposition and the value/place context it is checked under",
-        "only well-formed propositions over known values, places, and types are judged; IEEE literal operands retain exact bits and format, IEEE comparisons require one format, and only symmetric equality and inequality require canonical operand order; malformed propositions reject before any rule runs",
+        "only well-formed propositions over known values, places, and types are judged; IEEE literals retain exact bits and format, IEEE field terms rejoin a nonempty relevant canonical leaf of the same declared format, IEEE comparisons require one format, and only symmetric equality and inequality require canonical operand order; malformed propositions reject before any rule runs",
         &["formation:module-structure"],
-        &[tv!( "validation/propositions.rs"), sv!( "proposition.rs"), sv!( "proposition/scalar_terms.rs"), sv!( "proposition/propositions.rs"), sv!( "proposition/value_ids.rs")]
+        &[tv!( "validation/propositions.rs"), tv!( "validation/contracts.rs"), sv!( "proposition.rs"), sv!( "proposition/scalar_terms.rs"), sv!( "proposition/propositions.rs"), sv!( "proposition/value_ids.rs")]
     );
     FORM_OPERATION_VALIDATION => (
         "formation:operation-validation",

@@ -368,6 +368,7 @@ impl PropositionContext {
                 }
                 ScalarTerm::BooleanField { root, .. }
                 | ScalarTerm::IntegerField { root, .. }
+                | ScalarTerm::IeeeFloatField { root, .. }
                 | ScalarTerm::ViewExtent { root, .. } => {
                     if !self.structural_places.contains_key(root) {
                         return Err(PropositionError::UnknownStructuralPlace(*root));

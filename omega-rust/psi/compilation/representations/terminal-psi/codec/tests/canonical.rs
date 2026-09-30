@@ -11,6 +11,8 @@ mod boundary_crashes;
 mod bounded_integer_fields;
 #[path = "canonical/contract_fields.rs"]
 mod contract_fields;
+#[path = "canonical/float_field_facts.rs"]
+mod float_field_facts;
 #[path = "canonical/owned_integer_fields.rs"]
 mod owned_integer_fields;
 #[path = "canonical/scalar_array_arguments.rs"]

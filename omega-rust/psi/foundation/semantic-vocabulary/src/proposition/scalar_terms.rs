@@ -207,6 +207,15 @@ pub enum ScalarTerm {
         path: Vec<CanonicalStructuralPathSegment>,
         scalar_type: IntegerType,
     },
+    /// Exact IEEE interchange bits at a nonempty canonical structural path.
+    /// The verifier independently checks the relevant leaf and its format.
+    /// This observation is not FloatMeaning or an IEEE comparison: payload
+    /// identity preserves NaN payloads and distinguishes signed zeros.
+    IeeeFloatField {
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        format: IeeeFloatFormat,
+    },
     /// The live extent (element count for element views, byte count for
     /// byte views) of one borrowed view or bounded byte field below a
     /// terminal structural root. `path` is empty for a whole view and selects
@@ -401,6 +410,14 @@ impl ScalarTerm {
             path,
             scalar_type,
         }
+    }
+
+    pub fn ieee_float_field_path(
+        root: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        format: IeeeFloatFormat,
+    ) -> Self {
+        Self::IeeeFloatField { root, path, format }
     }
 
     pub fn view_extent(
@@ -960,6 +977,7 @@ impl ScalarTerm {
     pub fn scalar_type(&self) -> ScalarType {
         match self {
             Self::IeeeFloatLiteral(value) => ScalarType::IeeeFloat(value.format()),
+            Self::IeeeFloatField { format, .. } => ScalarType::IeeeFloat(*format),
             Self::Value { scalar_type, .. } => *scalar_type,
             Self::IntegerField { scalar_type, .. } | Self::ViewExtent { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)
@@ -1423,6 +1441,7 @@ impl ScalarTerm {
                 }
                 Self::BooleanField { .. }
                 | Self::IntegerField { .. }
+                | Self::IeeeFloatField { .. }
                 | Self::ViewExtent { .. }
                 | Self::Boolean(_)
                 | Self::Integer { .. }
@@ -1495,6 +1514,7 @@ impl ScalarTerm {
                     Self::Value { .. }
                     | Self::BooleanField { .. }
                     | Self::IntegerField { .. }
+                    | Self::IeeeFloatField { .. }
                     | Self::ViewExtent { .. }
                     | Self::Boolean(_)
                     | Self::Integer { .. }
@@ -1511,6 +1531,12 @@ impl ScalarTerm {
     /// legality. Never walks children — `validate` drives the traversal.
     fn validate_after_operands(&self) -> Result<(), PropositionError> {
         match self {
+            Self::IeeeFloatField { path, .. } => {
+                if path.is_empty() {
+                    return Err(PropositionError::EmptyIeeeFloatStructuralFieldPath);
+                }
+                Ok(())
+            }
             Self::Value { .. }
             | Self::BooleanField { .. }
             | Self::IntegerField { .. }

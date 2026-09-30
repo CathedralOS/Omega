@@ -98,7 +98,9 @@ pub(super) fn append(
                 ScalarTerm::integer_field_path(result.place, path, integer_type)
             }
             ScalarType::Boolean => ScalarTerm::boolean_field_path(result.place, path),
-            ScalarType::IeeeFloat(_) => continue,
+            ScalarType::IeeeFloat(format) => {
+                ScalarTerm::ieee_float_field_path(result.place, path, format)
+            }
         };
         axioms.push(Proposition::Equal(
             field,
@@ -145,6 +147,10 @@ pub(super) fn append_child_fields(
                 Some(ScalarType::Boolean) => Some((
                     ScalarTerm::boolean_field_path(destination, target),
                     ScalarTerm::boolean_field_path(source, origin),
+                )),
+                Some(ScalarType::IeeeFloat(format)) => Some((
+                    ScalarTerm::ieee_float_field_path(destination, target, format),
+                    ScalarTerm::ieee_float_field_path(source, origin, format),
                 )),
                 _ => None,
             };
