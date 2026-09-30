@@ -1,0 +1,1 @@
+cannot prove transition argument `sample.value` satisfies `finite`

@@ -105,6 +105,30 @@ fn hosted_context_rejects_shared_ambiguous_and_nonzero_storage() {
 }
 
 #[test]
+fn hosted_context_judges_float_zero_in_the_declared_format_before_checking() {
+    for (field_type, predicate, admitted) in [
+        ("f32", "value >= 0.0 && value <= 1.0", true),
+        ("f32", "value >= 1.0e-50", true),
+        ("f64", "value >= 1.0e-50", false),
+        ("f32", "value > 0.0", false),
+    ] {
+        // Product entry selection precedes checked-tree construction. Its
+        // typed input still has conservative gates and unlanded literals;
+        // source compatibility must use the same exact Psi zero judgment.
+        let program = typed(&format!(
+            "data Context where {predicate} {{ value: {field_type}; }}
+             machine run(context: &mut Context) {{}}"
+        ));
+        let result = validate_selected_program_entry_shape(&program, selected(&program));
+        assert_eq!(
+            result.is_ok(),
+            admitted,
+            "{field_type}: {predicate}: {result:?}"
+        );
+    }
+}
+
+#[test]
 fn context_source_position_is_not_a_dense_structural_ordinal() {
     let program = typed(
         "data Context { value: i32; }

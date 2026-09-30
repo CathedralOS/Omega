@@ -13,6 +13,11 @@ fn zero_refinement_uses_the_landed_format_and_complete_predicate() {
             "data Reading where {predicate} {{ value: f32; }}"
         ));
         assert!(program.data_definitions()[0].zero_gated);
+        assert_eq!(
+            validation::data_predicates_admit_zero(&program, &program.data_definitions()[0]),
+            !expected_gated,
+            "early establishment and checked refinement agree: {predicate}",
+        );
         validation::land_float_literal_destinations(&mut program);
         refine_default_domain_zero(&mut program);
         assert_eq!(

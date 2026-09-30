@@ -1,4 +1,4 @@
-use super::data_float_predicate;
+use super::{data_float_predicate, data_predicates_admit_zero};
 use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -120,6 +120,11 @@ fn float_predicates_require_sealed_comparison_custody() {
             .source_id;
         let program = crate::front_end::typed_program_from_source_map(sources, &[(source, text)]);
         assert_eq!(
+            data_predicates_admit_zero(&program, &program.data_definitions()[0]),
+            expected == Some(true),
+            "early query custody: {origin:?}/{relative}",
+        );
+        assert_eq!(
             data_float_predicate(
                 &program,
                 &program.data_definitions()[0],
@@ -130,4 +135,71 @@ fn float_predicates_require_sealed_comparison_custody() {
             "{origin:?}/{relative}"
         );
     }
+}
+
+#[test]
+fn early_zero_query_uses_only_the_exact_field_format() {
+    for (primitive, predicate, expected) in [
+        ("f32", "value >= 0.0 && value <= 1.0", true),
+        ("f32", "value >= 1e-50", true),
+        ("f64", "value >= 1e-50", false),
+        ("f32", "value > 0.0", false),
+        ("f32", "1e-50 <= value", true),
+        ("f64", "1e-50 <= value", false),
+        ("f32", "value >= 0.0f64", false),
+        ("f32", "0.0 == 0.0", false),
+        ("f32", "value >= 0.0 && false", false),
+    ] {
+        let mut program = crate::front_end::typed_program(&format!(
+            "data Reading where {predicate} {{ value: {primitive}; }}"
+        ));
+        let before = program.expression_table.clone();
+        assert_eq!(
+            data_predicates_admit_zero(&program, &program.data_definitions()[0]),
+            expected,
+            "{primitive}: {predicate}"
+        );
+        assert_eq!(
+            program.expression_table, before,
+            "pure query must not stamp literals"
+        );
+        if !predicate.starts_with("0.0") {
+            crate::land_float_literal_destinations(&mut program);
+            assert_eq!(
+                data_predicates_admit_zero(&program, &program.data_definitions()[0]),
+                expected,
+                "landed {primitive}: {predicate}"
+            );
+        }
+    }
+}
+
+#[test]
+fn early_zero_query_preserves_other_establishment_obligations() {
+    for source in [
+        "data Reading where value >= 0.0 && flag { value: f32; flag: bool; }",
+        "boundary machine >= Other::greater(left: f32, right: f32) -> bool;
+         data Reading where value >= 0.0 { value: f32; }",
+        "domain u64::Positive requires self > 0;
+         data Reading where value >= 0.0, count in u64::Positive, { value: f32; count: u64; }",
+        "data Reading where value >= 0.0 { value: f32; case First where false; case Second; }",
+    ] {
+        let program = crate::front_end::typed_program(source);
+        let reading = &program.data_definitions()[0];
+        assert!(!data_predicates_admit_zero(&program, reading), "{source}");
+        assert!(
+            crate::data_requires_establishment(&program, reading),
+            "{source}"
+        );
+    }
+    let program = crate::front_end::typed_program(
+        "data Child where count > 0 { count: u64; }
+         data Parent where value >= 0.0 { value: f32; child: Child; }",
+    );
+    let parent = &program.data_definitions()[1];
+    assert!(data_predicates_admit_zero(&program, parent));
+    assert!(
+        crate::data_requires_establishment(&program, parent),
+        "zero-valid parent predicate does not establish its gated child"
+    );
 }

@@ -1620,16 +1620,26 @@ crash and native exit behavior. Use affected check/native corpus slices under
   and all five customers execute with those oracles. A migrated unused field
   or disappearance of the old phase label alone does not close this task.
 
-  Current frontier (macOS ARM64, 2026-09-30, based on `0c82e1f8b2e`):
+  Current frontier (macOS ARM64, 2026-09-30, based on `a778e27e037`):
   `omega run tests/omega/pass/float/finite_core_domain_range_discharge/main.omg`
-  now proves the repaired field's `Finite` transition argument, preserving its
-  transient NaN and range violation. It still exits 200 before execution:
-  ProgramEntry selection queries the conservative typed zero gate before
-  checked-tree refinement and rejects the context's all-zero image.
-  Share the exact target-neutral zero predicate judgment with that early
-  establishment query; do not remove the entry validity check. Focused proof
-  and window checks cover 22 cases; the 90-fixture `float/,dependent/` corpus
-  has no acceptance regressions or unexpectedly accepted fail fixtures.
+  now proves the repaired field's `Finite` transition argument and admits the
+  zero-valid entry context, preserving the transient NaN and range violation.
+  It still exits 200 before execution at `structural field store: carrier path`
+  (state 0, statement 1). Stage 04's
+  `execution/terminal_unit/structural_scalar_store/destination.rs` admits record
+  `where` facts only when `data_where_field_intervals` retains integer bounds.
+  Carry the IEEE predicate and restoration evidence through checked/Terminal
+  planning before admitting those stores; zero eligibility is not a per-store
+  invariant proof. The destination owner was notified under
+  `STATIC-ZERO-ARRAY-FIELD-STORES`. The 92-fixture `float/,dependent/` corpus has
+  no acceptance regressions; both new unrepaired-value fixtures reject with
+  their expected diagnostics. Revalidation at `548e621739b` (based on
+  `2d8ed253669`) passes all 584 selected checking, float-proof and entry tests
+  and reproduces that corpus result. Terminal's scalar vocabulary currently
+  lacks an IEEE structural-field term for field-versus-literal predicates;
+  add it with snapshot/invalidation, store-equation and codec replay support,
+  retaining restoration obligations at consumption points rather than every
+  store. The vocabulary owner was notified under `HARD-TIER-ADDR-SUBTRACTION`.
   Native exit 77, source-free replay, and the other four customers remain open.
 
 - **VALUE-CALL-SUBEXPRESSION.** (new-scope) Finish composing scalar machine
