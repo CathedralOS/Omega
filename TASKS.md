@@ -1894,7 +1894,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
     expression-selection projection as legacy named and spelled operators;
     the interpreter rejects missing, substituted or duplicate selections.
     Native policy-result adaptation now executes on macOS ARM64 in the
-    unpublished policy-call-results candidate based on `b458fb9a0fb1`:
+    unpublished policy-call-results candidate `084016e04636` based on `6822723eb3a4`:
     `python3 tools/corpus_gate.py --native --filter
     float/float_saturating_arithmetic_exit,float/float_trapping_overflow_traps,float/float_trapping_propagated_nan_traps`
     observes **77**, **trap**, **trap**, with program sources unchanged.
@@ -1908,8 +1908,14 @@ crash and native exit behavior. Use affected check/native corpus slices under
     physical recovery and exit checking pass their focused controls. Direct
     `omega run tests/omega/pass/float/float_saturating_arithmetic_exit/main.omg`
     still returns **200** for first-use package review, not a compiler rejection;
-    no dependency acceptance was granted by this repair. Trusted-site inventory
-    integration and scoped publication checks remain before landing.
+    no dependency acceptance was granted by this repair. Twenty focused Terminal
+    verifier/codec/interpreter controls pass after this rebase. Trusted-site
+    integration needs two new registrations and twelve digest updates
+    (`STATIC-LOCAL-ZERO-TRUST-DIGEST` owns the shared inventory). The source-replay
+    rerun also needs `DUNGEON-STAGE05-TEST-COMPILE`'s missing `FusedServiceBinding`
+    arm in `tests/crash_member_source/fenced_and_float_equality.rs`; this candidate
+    does not change that existing test. Finish those integrations and scoped
+    publication checks before landing.
     A `let` after a call-result field store keeps its own value and source:
     source roles key it by its authored local ordinal
     (`TypedTrees::immutable_scalar_locals_before`), while its plan keeps the
