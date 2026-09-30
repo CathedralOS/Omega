@@ -461,6 +461,18 @@ fn record_loan_subject(
     // path walked to is the carrier, not the type the member read names.
     let mut terminal = declaration.id;
     let mut byte_overlay = None;
+    // The referee's authored type names the machine itself under the same
+    // remap the captured root already applied.
+    let referee_identity = match checked.type_reference_table.type_reference(*referee) {
+        TypeReferenceNode::Named {
+            symbol: named_symbol,
+            ..
+        } if *named_symbol == source_machine.symbol => format!(
+            "named(name({}))",
+            checked.symbols.name(source_machine.attached_data_symbol)
+        ),
+        _ => checked.normalized_type_identity(*referee).into_string(),
+    };
     if let Some((index, length)) = tail
         && matches!(
             &declaration.shape,
@@ -469,18 +481,6 @@ fn record_loan_subject(
                     && integer.bits() == 8
         )
     {
-        // The referee's authored type names the machine itself under the
-        // same remap the captured root already applied.
-        let referee_identity = match checked.type_reference_table.type_reference(*referee) {
-            TypeReferenceNode::Named {
-                symbol: named_symbol,
-                ..
-            } if *named_symbol == source_machine.symbol => format!(
-                "named(name({}))",
-                checked.symbols.name(source_machine.attached_data_symbol)
-            ),
-            _ => checked.normalized_type_identity(*referee).into_string(),
-        };
         if let Some(overlay) = types.iter().find(|candidate| {
             candidate.identity == referee_identity
                 && matches!(candidate.shape, StructuralTypeShape::Record { .. })
@@ -493,6 +493,28 @@ fn record_loan_subject(
             terminal = overlay.id;
             byte_overlay = Some(overlay.id);
         }
+    }
+    // `&buf[i] as &T` through a runtime selector names the same overlay: the
+    // admission obligations prove `i + layout.size <= length`, so there is
+    // no literal index to replay — the arm keys on the walked `u8` element
+    // and the referee's record identity alone.
+    if byte_overlay.is_none()
+        && tail.is_none()
+        && runtime_index.is_some()
+        && matches!(
+            &declaration.shape,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                    && integer.bits() == 8
+        )
+        && let Some(overlay) = types.iter().find(|candidate| {
+            candidate.identity == referee_identity
+                && matches!(candidate.shape, StructuralTypeShape::Record { .. })
+        })
+        && terminal_semantics::byte_carrier_scalar_layout(types.iter(), overlay.id).is_some()
+    {
+        terminal = overlay.id;
+        byte_overlay = Some(overlay.id);
     }
     // Segments below the runtime index walk inside the selected element;
     // they leave both path vocabularies so the emitted read can splice the
