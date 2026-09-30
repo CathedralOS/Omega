@@ -29,99 +29,99 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
     // O_WRONLY | O_CREAT. /dev/null already exists, so this exercises the
     // four-argument openat adapter without leaving a filesystem artifact.
     self.fd = self.fs.open_create("/dev/null", 65, 438);
-    transition self.fd >= 0 { true -> write_null() _ -> fail_open_create() }
-    state write_null(&mut self) {
-        self.count = self.fs.write(self.fd, "omega-linux\n");
-        self.rc = self.fs.close(self.fd);
-        transition self.count == 12 && self.rc == 0 {
-            true -> open_hostname()
-            false -> fail_write()
+    transition self.fd >= 0 { true -> write_null(&mut self) _ -> fail_open_create(&mut self) }
+    state write_null(main: &mut Main) {
+        main.count = main.fs.write(main.fd, "omega-linux\n");
+        main.rc = main.fs.close(main.fd);
+        transition main.count == 12 && main.rc == 0 {
+            true -> open_hostname(main)
+            false -> fail_write(main)
         }
     }
-    state open_hostname(&mut self) {
-        self.fd = self.fs.open("/etc/hostname", 0);
-        transition self.fd >= 0 { true -> stat_hostname() _ -> fail_open() }
+    state open_hostname(main: &mut Main) {
+        main.fd = main.fs.open("/etc/hostname", 0);
+        transition main.fd >= 0 { true -> stat_hostname(main) _ -> fail_open(main) }
     }
-    state stat_hostname(&mut self) {
-        self.rc = self.fs.read_file_metadata(self.fd, &mut self.metadata);
-        transition self.rc == 0 { true -> read_hostname() _ -> fail_stat() }
+    state stat_hostname(main: &mut Main) {
+        main.rc = main.fs.read_file_metadata(main.fd, &mut main.metadata);
+        transition main.rc == 0 { true -> read_hostname(main) _ -> fail_stat(main) }
     }
-    state read_hostname(&mut self) {
-        self.capacity = 64;
-        self.count = self.fs.read(self.fd, &mut self.buffer, self.capacity);
-        self.rc = self.fs.close(self.fd);
-        transition self.count > 0 && self.rc == 0 {
-            true -> open_directory()
-            false -> fail_read()
+    state read_hostname(main: &mut Main) {
+        main.capacity = 64;
+        main.count = main.fs.read(main.fd, &mut main.buffer, main.capacity);
+        main.rc = main.fs.close(main.fd);
+        transition main.count > 0 && main.rc == 0 {
+            true -> open_directory(main)
+            false -> fail_read(main)
         }
     }
-    state open_directory(&mut self) {
-        self.fd = self.fs.open("/tmp", 0);
-        self.position = 0;
-        transition self.fd >= 0 { true -> read_directory() _ -> fail_read_dir() }
+    state open_directory(main: &mut Main) {
+        main.fd = main.fs.open("/tmp", 0);
+        main.position = 0;
+        transition main.fd >= 0 { true -> read_directory(main) _ -> fail_read_dir(main) }
     }
-    state read_directory(&mut self) {
-        self.count = self.fs.read_dir(self.fd, &mut self.buffer, 512, &mut self.position);
-        self.rc = self.fs.close(self.fd);
-        transition self.count >= 0 && self.rc == 0 { true -> classify_missing() _ -> fail_read_dir() }
+    state read_directory(main: &mut Main) {
+        main.count = main.fs.read_dir(main.fd, &mut main.buffer, 512, &mut main.position);
+        main.rc = main.fs.close(main.fd);
+        transition main.count >= 0 && main.rc == 0 { true -> classify_missing(main) _ -> fail_read_dir(main) }
     }
-    state classify_missing(&mut self) {
+    state classify_missing(main: &mut Main) {
         let options: OpenOptions = OpenOptions { read: true };
-        let result: OpenResult = Filesystem::open_with(&mut self.semantic_fs, "/omega_definitely_absent_linux", options);
+        let result: OpenResult = Filesystem::open_with(&mut main.semantic_fs, "/omega_definitely_absent_linux", options);
         transition result {
-            OpenResult::Error { kind } -> check_missing(kind)
-            _ -> fail_error_kind()
+            OpenResult::Error { kind } -> check_missing(main, kind)
+            _ -> fail_error_kind(main)
         }
     }
-    state check_missing(kind: ErrorKind) {
-        transition kind { ErrorKind::NotFound -> classify_bad_fd() _ -> fail_error_kind() }
+    state check_missing(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> classify_bad_fd(main) _ -> fail_error_kind(main) }
     }
-    state classify_bad_fd(&mut self) {
-        let result: IoResult = self.semantic_fs.read(File { fd: -1 }, &mut self.buffer, 1);
+    state classify_bad_fd(main: &mut Main) {
+        let result: IoResult = main.semantic_fs.read(File { fd: -1 }, &mut main.buffer, 1);
         transition result {
-            IoResult::Error { kind } -> check_bad_fd(kind)
-            _ -> fail_error_kind()
+            IoResult::Error { kind } -> check_bad_fd(main, kind)
+            _ -> fail_error_kind(main)
         }
     }
-    state check_bad_fd(kind: ErrorKind) {
-        transition kind { ErrorKind::BadDescriptor -> remove_missing() _ -> fail_error_kind() }
+    state check_bad_fd(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::BadDescriptor -> remove_missing(main) _ -> fail_error_kind(main) }
     }
-    state remove_missing(&mut self) {
-        let result: UnitResult = self.semantic_fs.remove("/omega_definitely_absent_linux");
+    state remove_missing(main: &mut Main) {
+        let result: UnitResult = main.semantic_fs.remove("/omega_definitely_absent_linux");
         transition result {
-            UnitResult::Error { kind } -> check_remove_missing(kind)
-            _ -> fail_error_kind()
+            UnitResult::Error { kind } -> check_remove_missing(main, kind)
+            _ -> fail_error_kind(main)
         }
     }
-    state check_remove_missing(kind: ErrorKind) {
-        transition kind { ErrorKind::NotFound -> read_missing_directory() _ -> fail_error_kind() }
+    state check_remove_missing(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> read_missing_directory(main) _ -> fail_error_kind(main) }
     }
-    state read_missing_directory(&mut self) {
-        let result: DirEntryResult = Filesystem::read_dir_nth(&mut self.semantic_fs, "/omega_definitely_absent_linux", 0);
+    state read_missing_directory(main: &mut Main) {
+        let result: DirEntryResult = Filesystem::read_dir_nth(&mut main.semantic_fs, "/omega_definitely_absent_linux", 0);
         transition result {
-            DirEntryResult::Error { kind } -> check_directory_missing(kind)
-            _ -> fail_error_kind()
+            DirEntryResult::Error { kind } -> check_directory_missing(main, kind)
+            _ -> fail_error_kind(main)
         }
     }
-    state check_directory_missing(kind: ErrorKind) {
-        transition kind { ErrorKind::NotFound -> remove_missing_tree() _ -> fail_error_kind() }
+    state check_directory_missing(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> remove_missing_tree(main) _ -> fail_error_kind(main) }
     }
-    state remove_missing_tree(&mut self) {
-        let result: UnitResult = self.semantic_fs.remove_dir_all("/omega_definitely_absent_linux");
+    state remove_missing_tree(main: &mut Main) {
+        let result: UnitResult = main.semantic_fs.remove_dir_all("/omega_definitely_absent_linux");
         transition result {
-            UnitResult::Error { kind } -> check_tree_missing(kind)
-            _ -> fail_error_kind()
+            UnitResult::Error { kind } -> check_tree_missing(main, kind)
+            _ -> fail_error_kind(main)
         }
     }
-    state check_tree_missing(kind: ErrorKind) {
-        transition kind { ErrorKind::NotFound -> good() _ -> fail_error_kind() }
+    state check_tree_missing(main: &mut Main, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> good(main) _ -> fail_error_kind(main) }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail_open_create(&mut self) { self.console.exit_process(1); }
-    state fail_write(&mut self) { self.console.exit_process(2); }
-    state fail_open(&mut self) { self.console.exit_process(3); }
-    state fail_read(&mut self) { self.console.exit_process(4); }
-    state fail_stat(&mut self) { self.console.exit_process(5); }
-    state fail_read_dir(&mut self) { self.console.exit_process(6); }
-    state fail_error_kind(&mut self) { self.console.exit_process(7); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state fail_open_create(main: &mut Main) { main.console.exit_process(1); }
+    state fail_write(main: &mut Main) { main.console.exit_process(2); }
+    state fail_open(main: &mut Main) { main.console.exit_process(3); }
+    state fail_read(main: &mut Main) { main.console.exit_process(4); }
+    state fail_stat(main: &mut Main) { main.console.exit_process(5); }
+    state fail_read_dir(main: &mut Main) { main.console.exit_process(6); }
+    state fail_error_kind(main: &mut Main) { main.console.exit_process(7); }
 }
