@@ -123,6 +123,11 @@ fn resolve_discard_callee(
             .find(|entry| entry.symbol == machine.symbol)
             .map(|entry| (entry.transitive_may_suspend, entry.transitive_may_block))?;
 
+        // A call carries its callee's effective reach, the modular summary
+        // every caller consumes. A bodyless top-level `boundary requirement`
+        // infers nothing from a body, yet its published ceiling (for example
+        // `reaches Clock`) makes each call observable, so the inferred row
+        // alone would misreport it as pure.
         return Some(DiscardCallee {
             has_service_reach: service_reaches
                 .for_machine(machine.symbol)
@@ -130,6 +135,7 @@ fn resolve_discard_callee(
                     !service_reaches
                         .services(summary.inferred_transitive)
                         .is_empty()
+                        || !service_reaches.services(summary.effective).is_empty()
                 }),
             may_suspend: operational_may.0,
             may_block: operational_may.1,
@@ -179,3 +185,6 @@ fn signature_discard_callee(
             .any(|parameter| parameter.is_mutable),
     }
 }
+
+#[cfg(test)]
+mod tests;
