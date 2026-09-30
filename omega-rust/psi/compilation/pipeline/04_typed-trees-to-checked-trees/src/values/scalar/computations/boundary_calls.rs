@@ -10,6 +10,11 @@
 //! evaluation schedule of `wiki/spec/language/expressions.md`: ordered,
 //! single invocation, and no invocation on a skipped short-circuit path.
 //!
+//! Mutable primitive storage consumes a computed value, not a separate call
+//! result binding. Its initializer and whole-place assignments therefore keep
+//! the boundary application as a computation even when it is the entire RHS.
+//! Reads of the old storage complete before the same ordinary store replaces it.
+//!
 //! Only receiver-free signatures whose every formal is an owned scalar
 //! qualify: such an application carries no structural argument, claim or
 //! completion receipt, so Terminal lowering can emit it as one `BoundaryCall`
@@ -35,10 +40,31 @@ impl Builder<'_, '_> {
         role: CheckedScalarExpressionRole,
         expression: ExpressionHandle,
     ) -> bool {
+        // Whole primitive stores use the same computation owner as calls nested
+        // inside their RHS. Field stores retain their statement result operation;
+        // confusing these owners either drops the call or evaluates it twice.
+        if role == CheckedScalarExpressionRole::StorageInitializer {
+            return false;
+        }
+        if role == CheckedScalarExpressionRole::AssignmentValue
+            && crate::semantic::calls::find_state_in_machine(
+                self.program, self.machine, self.state,
+            )
+            .and_then(|state| {
+                self.program.statement_table.statements(state.statement_nodes)
+                    .get(self.statement_index)
+            })
+            .is_some_and(|statement| {
+                matches!(statement, typed_trees::statement::StatementNode::Assignment(assignment)
+                    if matches!(self.program.expression_table.expression(assignment.target),
+                        ExpressionNode::Name(_)))
+            })
+        {
+            return false;
+        }
         matches!(
             role,
             CheckedScalarExpressionRole::LocalInitializer { .. }
-                | CheckedScalarExpressionRole::StorageInitializer
                 | CheckedScalarExpressionRole::AssignmentValue
                 | CheckedScalarExpressionRole::Return
                 | CheckedScalarExpressionRole::ContinuationReturn

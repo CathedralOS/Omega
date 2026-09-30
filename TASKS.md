@@ -1798,12 +1798,16 @@ crash and native exit behavior. Use affected check/native corpus slices under
     `pass/float/local_after_float_call_store_exit`,
     `pass/calls/local_after_call_result_store_exit` and
     `float/named_provider_min_max_sqrt_exit` exit **70** on macOS ARM64.
-    `float/named_provider_fused_multiply_add_exit` currently stops at its mutable
-    local's nested boundary initializer. `StorageInitializer` retains only pure
-    expressions; composed states do not establish primitive local storage through
-    the shared `OperationFrame`. **STATE-LOCAL-VALUE-FRONTIER** owns that missing
-    operation sequencing and independently replayed storage custody. Keep the
-    authored mutable local; changing it to an immutable binding does not close it.
+    Mutable scalar storage retains boundary applications through the same
+    computation roots as ordinary calls, including nested operands. On macOS
+    ARM64, `omega run tests/omega/pass/float/named_provider_fused_multiply_add_exit/main.omg`
+    exits **70** without changing its authored mutable local. Remaining composed
+    local assignments: `calls/runtime_std_math_sin_cos_exit` and
+    `calls/runtime_value_call_terminal_exit` stop at stage 05's
+    `unit/attached_unit/composed_control/state_graph/body.rs` with
+    `Unit graph primitive store has no retained parameter destination`.
+    **STATE-LOCAL-VALUE-FRONTIER** owns joining those stores to their local
+    storage and independently replaying their assignment custody.
     The native FMA dependency is executable on macOS ARM64: `omega run
     tests/omega/pass/float/runtime_named_fma_sequence_exit/main.omg` exits **70**,
     distinguishing fused/unfused cancellation in both formats and reusing a

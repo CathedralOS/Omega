@@ -19,6 +19,134 @@ const SOURCE: &str = "data Root { first: f64; second: f64; }
         self.second = a * (b + a);
     }";
 
+#[test]
+fn boundary_applications_feed_mutable_scalar_storage_in_source_order() {
+    let checked = checked(
+        "data Root {}
+        pub boundary machine + Float::add(left: f64, right: f64) -> f64;
+        pub boundary machine * Float::multiply(left: f64, right: f64) -> f64;
+        machine consume(value: f64) {}
+        machine Root::enter(left: f64, right: f64) {
+            let mut value: f64 = left * right + left;
+            value = value * right;
+            transition { _ -> finish(value) }
+            state finish(value: f64) { consume(value); }
+        }",
+    );
+    let symbol = machine_named(&checked, "Root::enter");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == symbol)
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let computations = &checked.facts.values.scalar_computations;
+    for (ordinal, role) in [
+        (0, CheckedScalarExpressionRole::StorageInitializer),
+        (1, CheckedScalarExpressionRole::AssignmentValue),
+    ] {
+        let root = computations
+            .root_at(state.symbol, ordinal, role)
+            .expect("each scalar storage write owns its computation");
+        let CheckedScalarComputationKind::BoundaryCall { source_call, .. } =
+            computations.nodes.get(root.root).kind
+        else {
+            panic!("the storage computation evaluates its boundary application");
+        };
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .control
+                .calls
+                .get(source_call)
+                .statement_index,
+            ordinal as usize
+        );
+    }
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(symbol)
+            .is_some(),
+        "{:?}",
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(symbol)
+    );
+    let initializer = computations
+        .root_at(
+            state.symbol,
+            0,
+            CheckedScalarExpressionRole::StorageInitializer,
+        )
+        .unwrap()
+        .root;
+    let assignment = computations
+        .root_at(
+            state.symbol,
+            1,
+            CheckedScalarExpressionRole::AssignmentValue,
+        )
+        .unwrap()
+        .root;
+    let CheckedScalarComputationKind::BoundaryCall {
+        arguments,
+        source_call,
+        ..
+    } = computations.nodes.get(initializer).kind
+    else {
+        panic!("initializer call");
+    };
+    let product = computations.operands.span(arguments).unwrap()[0];
+    assert!(matches!(
+        computations.nodes.get(product).kind,
+        CheckedScalarComputationKind::BoundaryCall {
+            call_ordinal: 1,
+            ..
+        }
+    ));
+    for corruption in 0..3 {
+        let mut corrupted = checked.clone();
+        let node = corrupted
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(assignment);
+        match corruption {
+            0 => {
+                let CheckedScalarComputationKind::BoundaryCall {
+                    source_call: retained,
+                    ..
+                } = &mut node.kind
+                else {
+                    panic!("assignment call");
+                };
+                *retained = source_call;
+            }
+            1 => node.authored_root = arena::Handle::invalid(),
+            _ => node.primitive_type = typed_trees::types::PrimitiveType::F32,
+        }
+        let plans = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+            &corrupted.typed,
+            &corrupted.facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &corrupted.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &corrupted.facts.flow.terminal_structural_scalar_returns,
+            },
+        );
+        assert!(
+            plans.composed_for_machine(symbol).is_none(),
+            "substituted occurrence, expression, or carrier must reject: {corruption}"
+        );
+    }
+}
+
 fn argument_root(
     checked: &checked_trees::CheckedTrees,
     statement: u32,
