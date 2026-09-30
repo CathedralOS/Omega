@@ -239,7 +239,23 @@ pub(super) fn structural_term_in_scope(
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             match members {
-                [single] => Some(StructuralTerm::Variable(single.as_str().to_owned())),
+                [single] => {
+                    // Provenance: an immutable state local's term is its
+                    // declared initial value. A mutable local may have been
+                    // reassigned before this use, so it stays an opaque
+                    // variable rather than inherit a stale value.
+                    if let Some((_, state, _)) = scope
+                        && path.symbol.is_valid()
+                        && let Some((_, local)) =
+                            program.state_local_declaration(state, path.symbol)
+                        && !local.is_mutable
+                        && let Some(term) =
+                            structural_term_in_scope(program, scope, local.initial_value)
+                    {
+                        return Some(term);
+                    }
+                    Some(StructuralTerm::Variable(single.as_str().to_owned()))
+                }
                 [_, _, ..] if case_classifier(program, expression).is_some() => {
                     case_value_term(program, expression)
                 }
