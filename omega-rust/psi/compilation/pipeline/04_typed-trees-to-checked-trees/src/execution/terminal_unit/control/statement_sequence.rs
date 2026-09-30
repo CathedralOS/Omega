@@ -929,7 +929,14 @@ pub(in crate::execution::terminal_unit) fn build(
         let completes_machine = matches!(statement, StatementNode::Expression(expression)
             if !is_unit(program, state.return_type)
                 && (!matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_))
-                    || index.checked_add(1) == Some(statements.len())));
+                    || index.checked_add(1) == Some(statements.len())))
+            // An unconditional named machine invocation in tail position
+            // completes a value body the same way: its own result forwards as
+            // the machine's result.
+            || (matches!(statement, StatementNode::Transition(_))
+                && !is_unit(program, state.return_type)
+                && call_occurrences::terminal_named_call(program, machine, state, index)
+                    .is_some());
         let mut structural_result = None;
         // A store whose source is this statement's own call is appended after
         // that call operation, in ordinary evaluation order.
@@ -1110,7 +1117,30 @@ pub(in crate::execution::terminal_unit) fn build(
             StatementNode::Transition(_)
                 if call_occurrences::terminal_named_call(program, machine, state, index).is_some() =>
             {
-                None
+                if let Some(primitive_type) =
+                    program.primitive_type_reference(state.return_type)
+                {
+                    let result = CheckedUnitScalarResultBindingPlan {
+                        statement_index,
+                        binding_ordinal: u32::try_from(scalar_count).ok()?,
+                        primitive_type,
+                    };
+                    scalar_count = scalar_count.checked_add(1)?;
+                    returned_scalar_call = Some(result);
+                    Some(result)
+                } else if !is_unit(program, state.return_type) {
+                    let mut result = checked_structural_result_type(
+                        program,
+                        shapes,
+                        state.return_type,
+                        &binders,
+                    )?;
+                    result.statement_index = statement_index;
+                    structural_result = Some((result, None));
+                    None
+                } else {
+                    None
+                }
             }
             _ => return None,
         };

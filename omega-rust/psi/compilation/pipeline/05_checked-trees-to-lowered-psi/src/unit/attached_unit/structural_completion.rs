@@ -147,11 +147,15 @@ pub(super) fn validate(
     // A `&` result returned at a tail transition mints through the
     // transition's exit arm, not a tail expression statement — the
     // completion value exists only for ordinary structural results.
+    // A completing transition carries no tail expression: its own call is
+    // the completion coordinate, so `expression` stays empty for that shape
+    // and the result-source arms below read the call's statement index.
     let expression = match statements.last() {
         Some(StatementNode::Expression(expression)) => Some(*expression),
         Some(StatementNode::Transition(_)) if whole_reference => {
             validation::reference_result_custody::tail_return_expression(&checked.typed, state)
         }
+        Some(StatementNode::Transition(_)) => None,
         _ => return unsupported("structural result source has no completion value"),
     };
     if validation::reference_result_custody::is_reference_record(&checked.typed, state.return_type)
@@ -229,30 +233,37 @@ pub(super) fn validate(
                 {
                     return unsupported("returned structural producer is ambiguous or changed");
                 }
-                let Some(expression) = expression else {
-                    return unsupported("structural result source has no completion value");
-                };
-                if let ExpressionNode::Name(path) =
-                    checked.typed.expression_table.expression(expression)
-                {
-                    let Some(StatementNode::LocalData(local)) =
-                        statements.get(binding.statement_index as usize)
-                    else {
-                        return unsupported("returned structural binding has no declaration");
-                    };
-                    if path.symbol != local.symbol
-                        || path.head_symbol != local.symbol
-                        || checked
-                            .typed
-                            .expression_table
-                            .name_path_members(path.members)
-                            .len()
-                            != 1
+                if let Some(expression) = expression {
+                    if let ExpressionNode::Name(path) =
+                        checked.typed.expression_table.expression(expression)
                     {
-                        return unsupported("returned structural binding differs from source");
+                        let Some(StatementNode::LocalData(local)) =
+                            statements.get(binding.statement_index as usize)
+                        else {
+                            return unsupported("returned structural binding has no declaration");
+                        };
+                        if path.symbol != local.symbol
+                            || path.head_symbol != local.symbol
+                            || checked
+                                .typed
+                                .expression_table
+                                .name_path_members(path.members)
+                                .len()
+                                != 1
+                        {
+                            return unsupported("returned structural binding differs from source");
+                        }
+                    } else if binding.statement_index as usize + 1 != statements.len() {
+                        return unsupported("returned constructor differs from source");
                     }
-                } else if binding.statement_index as usize + 1 != statements.len() {
-                    return unsupported("returned constructor differs from source");
+                } else if binding.statement_index as usize + 1 != statements.len()
+                    || !matches!(statements.last(), Some(StatementNode::Transition(_)))
+                {
+                    // A completing transition's call is itself the completion
+                    // coordinate: the body has no tail expression, and 04 mints
+                    // the result on the transition statement's own call. Any
+                    // other completion without an expression names no value.
+                    return unsupported("structural result source has no completion value");
                 }
             }
         }

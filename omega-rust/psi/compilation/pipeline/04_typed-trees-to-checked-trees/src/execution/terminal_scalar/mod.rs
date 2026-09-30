@@ -67,7 +67,13 @@ pub(crate) fn build_checked_terminal_machine_selections(
                             machine,
                             call_frames,
                         )
-                        .is_none_or(|components| components.is_empty()))
+                        .is_none_or(|components| components.is_empty())
+                        && crate::checks::termination::proven_state_natural_ranks_with_call_frames(
+                            program,
+                            machine,
+                            call_frames,
+                        )
+                        .is_none())
                     || machine.suspends
                     || machine.blocks
                     || !machine.supply_mode.is_checked_body()
