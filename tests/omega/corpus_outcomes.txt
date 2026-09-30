@@ -1759,6 +1759,7 @@ pass/modules/qualified_declarations checked 290ms @2d8ed253669f
 pass/modules/rational_boolean_indices checked 339ms @2d8ed253669f
 pass/modules/repeated_exact_declaration_selection_compile checked 284ms @2d8ed253669f
 pass/modules/runtime_qualified_static_mutation_exit checked 601ms @e0a76f438a35+wt
+pass/modules/same_name_requirement_field_calls_exit checked 1547ms @90e2c919eb74+wt
 pass/modules/use_imports_sibling_trait checked 282ms @2d8ed253669f
 pass/objc/gui_provider_substitution checked 343ms @2d8ed253669f
 pass/objc/native_gui_loop checked 1557ms @2d8ed253669f

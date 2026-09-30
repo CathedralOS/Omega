@@ -42,12 +42,9 @@ fn build_contained_machine_topology(
 
     for machine in program.machines() {
         let mut fields = HandleSpan::empty();
-        if let Some(attached_data) = machine.attached_data.as_ref()
-            && let Some(definition) = program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name == *attached_data)
-        {
+        // The machine's exact attachment, not the first same-spelled record:
+        // a sibling module's twin would record its fields for this machine.
+        if let Some(definition) = program.attached_data_definition(machine) {
             for member in program.data_members(definition) {
                 let typed_trees::data::DataMember::Field(field) = member else {
                     continue;
@@ -99,3 +96,6 @@ fn build_contained_machine_topology(
 
     (machine_topologies, contained_fields, contained_targets)
 }
+
+#[cfg(test)]
+mod tests;

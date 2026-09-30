@@ -16,6 +16,9 @@ use crate::execution::terminal_unit::{
     SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, strips_erased_parameter,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Which attachment storage a qualified machine's signature retains.
 ///
 /// A carrier qualification names the semantic owner and contributes no
@@ -463,11 +466,9 @@ fn structural_scalar_signature_with_storage(
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
     trace.phase("state graph: state signature: parameter signature: attached data shape");
-    let attached_name = machine.attached_data.as_ref()?;
-    let attached = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name == *attached_name)?;
+    // An owned `self` carries the multiplicity of the machine's exact
+    // attachment, not of the first record sharing its spelling.
+    let attached = program.attached_data_definition(machine)?;
     let attachment_type_identity = if storage.retains(program, machine) {
         Some(shapes.add_attached_application(machine, binders)?)
     } else {
