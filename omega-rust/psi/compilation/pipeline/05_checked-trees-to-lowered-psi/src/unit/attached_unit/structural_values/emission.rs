@@ -1446,6 +1446,13 @@ impl Emission<'_, '_, '_> {
                 {
                     Some(element)
                 }
+                // A byte-sequence view's element is always the `u8` scalar:
+                // the carrier keeps no element field, so the view op's stride
+                // resolves through the primitive row directly.
+                StructuralTypeShape::ByteSequence(_) if declaration.id == self.structural_type => {
+                    crate::terminal_identities::lookup_type_id(self.type_ids, "named(name(u8))")
+                        .ok()
+                }
                 _ => None,
             })
             .ok_or(LoweringError::Unsupported(match loan {

@@ -32,11 +32,20 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
-        let view = crate::execution::terminal_unit::types::element_view_shell(
-            self.program,
-            expected,
-            &[],
-        )?;
+        let view =
+            crate::execution::terminal_unit::types::element_view_shell(self.program, expected, &[])
+                .or_else(|| {
+                    matches!(
+                        crate::execution::terminal_unit::types::byte_sequence_carrier(
+                            self.program,
+                            expected,
+                            &[],
+                        ),
+                        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+                    )
+                    .then(|| validation::slice_view_shell(self.program, expected, &[]))
+                    .flatten()
+                })?;
         let state = crate::semantic::calls::find_state(self.program, self.state)?;
         let StatementNode::LocalData(local) = self
             .program
@@ -97,7 +106,22 @@ impl Builder<'_, '_> {
             self.state,
             &mut place,
         );
-        if !canonical_place_is_borrowable(&place) {
+        // A byte view's lent window is a `FixedRange` segment — the range is
+        // the view's own extent, so the borrowable walk admits it beside the
+        // static leaf segments for byte carriers only.
+        let borrowable = canonical_place_is_borrowable(&place)
+            || (self.program.primitive_type_reference(view.element)
+                == Some(typed_trees::types::PrimitiveType::U8)
+                && matches!(place.root, facts::PlaceRoot::Symbol(_))
+                && place.segments.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        facts::PlaceSegment::Field { .. }
+                            | facts::PlaceSegment::FixedIndex { .. }
+                            | facts::PlaceSegment::FixedRange { .. }
+                    )
+                }));
+        if !borrowable {
             return None;
         }
         let facts::PlaceRoot::Symbol(symbol) = place.root else {
@@ -126,17 +150,57 @@ impl Builder<'_, '_> {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
             }
         };
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
-            self.program,
-            self.state,
-            self.statement_index,
-            &place,
-        )?;
+        // A byte view's window (`self.source[0..2]`) ends its loan place in a
+        // `FixedRange`; the window's own type mints no row, so the path mints
+        // against the container and the segment reattaches as
+        // `FixedByteRange` after the literal-extent bound check.
+        let (window, container_place) = match place.segments.last() {
+            Some(facts::PlaceSegment::FixedRange { start, end })
+                if self.program.primitive_type_reference(view.element)
+                    == Some(typed_trees::types::PrimitiveType::U8) =>
+            {
+                (
+                    Some((*start, *end)),
+                    crate::flow::CanonicalPlace {
+                        root: place.root,
+                        segments: place.segments[..place.segments.len() - 1].to_vec(),
+                    },
+                )
+            }
+            _ => (None, place.clone()),
+        };
+        let Some((projected, mut path)) =
+            crate::execution::terminal_unit::calls::projected_argument_path(
+                self.program,
+                self.state,
+                self.statement_index,
+                &container_place,
+            )
+        else {
+            return None;
+        };
+        if let Some((start, end)) = window {
+            let Some(()) = crate::execution::terminal_unit::calls::fixed_byte_range_within_extent(
+                self.program,
+                projected,
+                start,
+                end,
+            ) else {
+                return None;
+            };
+            path.push(
+                checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange {
+                    start: u64::try_from(start).ok()?,
+                    end: u64::try_from(end).ok()?,
+                },
+            );
+        }
         // The lent place must hold the very elements this view carries; an
         // equal-sized or same-named collection supplies no view custody.
-        if self
-            .program
-            .normalized_type_identity(lent_collection_element(self.program, projected)?)
+        let Some(lent) = lent_collection_element(self.program, projected) else {
+            return None;
+        };
+        if self.program.normalized_type_identity(lent)
             != self.program.normalized_type_identity(view.element)
         {
             return None;

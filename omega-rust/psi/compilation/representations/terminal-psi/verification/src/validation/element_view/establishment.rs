@@ -1,9 +1,9 @@
 //! Immutable element-view establishment over a contiguous structural collection.
 
 use crate::validation::{
-    BTreeSet, ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralFieldType,
-    StructuralMultiplicity, StructuralPathSegment, StructuralPlaceKind, StructuralTypeId,
-    StructuralTypeShape, TerminalMachine, TerminalModule,
+    BTreeSet, IntegerSign, IntegerType, ModuleError, OperationKind, PlaceId, ScalarType,
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
 /// The structural type reached by a structural argument's path: each `Field`
@@ -33,6 +33,13 @@ pub(in crate::validation) fn path_end_type(
             (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {
                 *referent
             }
+            // A byte window keeps its fixed-array backing's element type: the
+            // view minted here reads `u8` elements out of the container the
+            // path names, and the segment's own contract bounds it.
+            (
+                StructuralPathSegment::FixedByteRange { start, end },
+                StructuralTypeShape::FixedArray { length, .. },
+            ) if start <= end && end <= length => current,
             _ => return None,
         };
     }
@@ -116,12 +123,29 @@ pub(in crate::validation) fn validate_establishment(
     }
     if !module.structural_types.iter().any(|declaration| {
         declaration.id == result.structural_type
-            && matches!(
-                declaration.shape,
+            && match &declaration.shape {
                 StructuralTypeShape::ElementView {
                     element: result_element,
-                } if result_element == element
-            )
+                } => *result_element == element,
+                // A `&[u8]` byte view is this same establishment over `u8`
+                // elements; its carrier keeps no element field, so the op's
+                // minted element must itself resolve to the `u8` scalar row.
+                StructuralTypeShape::ByteSequence(_) => {
+                    declaration.shape.is_borrowed_byte_view()
+                        && module.structural_types.iter().any(|element_declaration| {
+                            element_declaration.id == element
+                                && matches!(
+                                    element_declaration.shape,
+                                    StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                                        ref integer
+                                    )) if *integer
+                                        == IntegerType::new(IntegerSign::Unsigned, 8)
+                                            .expect("u8 is valid")
+                                )
+                        })
+                }
+                _ => false,
+            }
     }) {
         return Err(invalid());
     }

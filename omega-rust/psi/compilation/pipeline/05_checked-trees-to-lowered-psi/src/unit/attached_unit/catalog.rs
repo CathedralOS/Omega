@@ -459,9 +459,9 @@ pub(crate) fn lower_unit_structural_type_roots(
         ] {
             select_from(roster.iter(), identity, &mut selected)?;
         }
-        selected.ok_or(LoweringError::Unsupported(
-            "Unit closure references a missing structural type",
-        ))
+        selected.ok_or_else(|| {
+            LoweringError::Unsupported("Unit closure references a missing structural type")
+        })
     }
 
     fn collect<'a>(
@@ -489,7 +489,18 @@ pub(crate) fn lower_unit_structural_type_roots(
                 collect(checked, plans, referent_identity, active, selected)?;
             }
             CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
-            CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+            CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
+                // A borrowed `&[u8]` view's element is always the `u8`
+                // scalar, spelled through an `ElementView`-family op — the
+                // carrier keeps no element field, so its element row is
+                // collected here like a `BorrowedSliceView`'s.
+                if matches!(
+                    carrier,
+                    checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+                ) {
+                    collect(checked, plans, "named(name(u8))", active, selected)?;
+                }
+            }
             // A borrowed `&[T]` view is the runtime-length descriptor over an
             // element type that must itself reach the catalog.
             CheckedUnitStructuralTypeShape::BorrowedSliceView {

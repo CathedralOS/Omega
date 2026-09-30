@@ -347,9 +347,30 @@ pub(super) fn match_input(
         } = &node.operation
             && (!unit.structural_types.iter().any(|declaration| {
                 declaration.id == result.structural_type
-                    && matches!(declaration.shape,
-                        terminal_psi::StructuralTypeShape::ElementView { element: declared }
-                            if declared == *element)
+                    && match &declaration.shape {
+                        terminal_psi::StructuralTypeShape::ElementView { element: declared } => {
+                            declared == element
+                        }
+                        // A `&[u8]` result declares its view over the `u8`
+                        // element instead of an `ElementView` shell.
+                        terminal_psi::StructuralTypeShape::ByteSequence(_) => {
+                            declaration.shape.is_borrowed_byte_view()
+                                && unit.structural_types.iter().any(|element_declaration| {
+                                    element_declaration.id == *element
+                                        && matches!(
+                                            element_declaration.shape,
+                                            terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                                                semantic_vocabulary::ScalarType::Integer(integer)
+                                            ) if Ok(integer)
+                                                == semantic_vocabulary::IntegerType::new(
+                                                    semantic_vocabulary::IntegerSign::Unsigned,
+                                                    8,
+                                                )
+                                        )
+                                })
+                        }
+                        _ => false,
+                    }
             }) || !plan
                 .structural_types
                 .iter()

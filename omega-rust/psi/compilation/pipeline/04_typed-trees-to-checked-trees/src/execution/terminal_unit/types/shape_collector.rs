@@ -403,6 +403,43 @@ impl<'program> ShapeCollector<'program> {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     ) -> Option<String> {
         if let Some(carrier) = byte_sequence_carrier(self.program, type_reference, substitutions) {
+            // A `&[u8]` view spells its element through the `ElementView`
+            // op family the way `&[T]` spells it through
+            // `element_type_identity`; the byte carrier keeps no element
+            // field, so the `u8` plan registers here alongside the view.
+            if matches!(
+                carrier,
+                checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+            ) {
+                let mut referee = type_reference;
+                loop {
+                    match self.program.type_reference_table.type_reference(referee) {
+                        TypeReferenceNode::Reference { referee: inner, .. }
+                        | TypeReferenceNode::Constrained {
+                            base_type: inner, ..
+                        } => referee = *inner,
+                        TypeReferenceNode::Named { symbol, .. } => {
+                            let Some((_, replacement)) = substitutions
+                                .iter()
+                                .rev()
+                                .find(|(parameter, _)| parameter == symbol)
+                            else {
+                                break;
+                            };
+                            if *replacement == referee {
+                                break;
+                            }
+                            referee = *replacement;
+                        }
+                        _ => break,
+                    }
+                }
+                if let TypeReferenceNode::Slice { element_type } =
+                    self.program.type_reference_table.type_reference(referee)
+                {
+                    let _ = self.add_type(*element_type, binders, substitutions)?;
+                }
+            }
             let identity =
                 byte_sequence_type_identity(self.program, type_reference, binders, substitutions)?;
             let plan = CheckedUnitStructuralTypePlan {

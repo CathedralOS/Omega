@@ -359,7 +359,10 @@ fn element_view_result_place(
         && result.claims.is_empty()
         && module.structural_types.iter().any(|row| {
             row.id == result.structural_type
-                && matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                && (matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                    // A `&[u8]` view is the same establishment over `u8`
+                    // elements; the byte carrier keeps no element field.
+                    || row.shape.is_borrowed_byte_view())
         }) && machine.structural_places.iter().any(|row| {
         row.id == result.place
             && matches!(row.kind, StructuralPlaceKind::OperationResult { producer, structural_type }

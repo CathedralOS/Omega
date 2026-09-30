@@ -545,42 +545,83 @@ pub(crate) fn fixed_element_array_view(
                 )))
         || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
-        || argument
-            .path
-            .iter()
-            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
     {
         return None;
     }
-    let StructuralTypeShape::ElementView {
-        element: view_element,
-    } = &declarations
+    // A `&[u8]` view ends its path in a `FixedByteRange` window over the
+    // fixed byte array the field prefix names; the window start is a byte
+    // offset and its width replaces the array length in the descriptor.
+    let (field_path, byte_window) = match argument.path.last() {
+        Some(StructuralPathSegment::FixedByteRange { start, end }) => (
+            &argument.path[..argument.path.len() - 1],
+            Some((*start, *end)),
+        ),
+        _ => (&argument.path[..], None),
+    };
+    if field_path
+        .iter()
+        .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+    {
+        return None;
+    }
+    let view_element = match &declarations
         .iter()
         .find(|declaration| declaration.id == view_type)?
         .shape
-    else {
-        return None;
+    {
+        StructuralTypeShape::ElementView {
+            element: view_element,
+        } => Some(*view_element),
+        shape if shape.is_borrowed_byte_view() => None,
+        _ => return None,
     };
-    let (tip, offset) = project(source.structural_type, &argument.path, declarations)?;
-    let StructuralTypeShape::FixedArray { element, length } = &declarations
+    let (tip, offset) = project(source.structural_type, field_path, declarations)?;
+    let array = declarations
         .iter()
-        .find(|declaration| declaration.id == tip)?
-        .shape
-    else {
+        .find(|declaration| declaration.id == tip)?;
+    let StructuralTypeShape::FixedArray { element, length } = &array.shape else {
         return None;
     };
-    if element != view_element || *length == 0 {
+    match view_element {
+        Some(view_element) if element == &view_element => {}
+        // The borrowed byte view requires the array's `u8` element exactly.
+        None if matches!(
+            declarations
+                .iter()
+                .find(|declaration| declaration.id == *element)
+                .map(|declaration| &declaration.shape),
+            Some(StructuralTypeShape::PrimitiveScalar(
+                semantic_vocabulary::ScalarType::Integer(integer)
+            )) if Ok(*integer)
+                == semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+        ) => {}
+        _ => return None,
+    }
+    if *length == 0 {
         return None;
     }
     let element_stride = align(
         shape(*element, declarations)?.byte_size,
         shape(*element, declarations)?.alignment,
     )?;
-    let end = u64::from(offset).checked_add(length.checked_mul(u64::from(element_stride))?)?;
+    let (window_offset, element_count) = match byte_window {
+        Some((start, end)) if start <= end && end <= *length => {
+            let byte_offset = start.checked_mul(u64::from(element_stride))?;
+            (u32::try_from(byte_offset).ok()?, end - start)
+        }
+        Some(_) => return None,
+        None => (0, *length),
+    };
+    let offset = offset.checked_add(window_offset)?;
+    let end =
+        u64::from(offset).checked_add(element_count.checked_mul(u64::from(element_stride))?)?;
     if end > u64::from(shape(source.structural_type, declarations)?.byte_size) {
         return None;
     }
-    Some((offset, *length, element_stride))
+    Some((offset, element_count, element_stride))
 }
 
 /// Reconstruct a borrowed view presented from a bounded inline byte field.

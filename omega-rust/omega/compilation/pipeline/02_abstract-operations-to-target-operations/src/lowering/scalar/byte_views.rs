@@ -6,7 +6,7 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{
-    IntegerSign, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+    IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use std::collections::BTreeMap;
 use target_operations::TargetByteView;
@@ -430,6 +430,46 @@ pub(in crate::lowering) fn view_for_place(
         { return Err(invalid()); }
         return Ok(TargetByteView::Literal {
             psi_operation: *psi_operation, place, structural_type: structural_type.id,
+        });
+    }
+    // An established `&[u8]` view stages the same immutable {base, extent}
+    // descriptor a byte literal does — read it through the literal arm.
+    if let Some((psi_operation, structural_type)) =
+        function.operations.iter().find_map(|operation| {
+            let AbstractOperation::EstablishElementView {
+                psi_operation,
+                result,
+                destination,
+                element,
+                ..
+            } = operation
+            else {
+                return None;
+            };
+            (*destination == place
+                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+                && structural_types
+                    .get(&result.structural_type)
+                    .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+                && structural_types.get(element).is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(ref integer))
+                            if *integer
+                                == IntegerType::new(IntegerSign::Unsigned, 8)
+                                    .expect("u8 is a valid integer type")
+                    )
+                }))
+            .then_some((*psi_operation, result.structural_type))
+        })
+    {
+        return Ok(TargetByteView::Literal {
+            psi_operation,
+            place,
+            structural_type,
         });
     }
     if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
