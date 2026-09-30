@@ -46,6 +46,36 @@ pub(in crate::execution::terminal_unit) fn window_place(
     place: &CanonicalPlace,
     target: ExpressionHandle,
 ) -> Option<(u32, Vec<CheckedUnitStructuralPathSegment>)> {
+    window_place_admitting(
+        program,
+        facts,
+        machine,
+        state,
+        statements,
+        statement_index,
+        structural_parameters,
+        place,
+        target,
+        false,
+    )
+}
+
+/// `window_place` admitting a whole-root store target: replacing the
+/// referent of an exclusive borrowed parameter is a legitimate
+/// `StoreStructuralField` destination (`path` empty), while a whole-root
+/// move-out still opens no pinned window.
+pub(in crate::execution::terminal_unit) fn window_place_admitting(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statements: &[StatementNode],
+    statement_index: usize,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    place: &CanonicalPlace,
+    target: ExpressionHandle,
+    admit_whole_root: bool,
+) -> Option<(u32, Vec<CheckedUnitStructuralPathSegment>)> {
     let PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -84,7 +114,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
     {
         return None;
     }
-    if segments.is_empty() {
+    if segments.is_empty() && !admit_whole_root {
         return None;
     }
     let selectors = segments
@@ -430,7 +460,7 @@ impl OpenWindows {
                 index: usize::try_from(*element).ok()?,
             });
         }
-        let (position, path) = window_place(
+        let (position, path) = window_place_admitting(
             program,
             facts,
             machine,
@@ -440,6 +470,7 @@ impl OpenWindows {
             structural_parameters,
             &destination_place,
             assignment.target,
+            true,
         )?;
         let needs_displacement = !self.open.remove(&(position, path.clone()));
         let place = CheckedUnitStructuralArgumentPlan {
