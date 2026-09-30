@@ -6,6 +6,95 @@ use terminal_production::{
     TerminalProductionCustody, TerminalProductionRequest, TerminalProductionTimings,
 };
 
+const MUTABLE_LOCAL_WITNESS: &str = r#"
+    data Settings [copy] { count: u32; }
+    machine make() -> Settings { Settings { count: 1 } }
+    machine set(settings: &mut Settings, count: u32) { settings.count = count; }
+    machine capture(output: &mut u32, settings: Settings) { output = settings.count; }
+    machine run(output: &mut u32) {
+        let mut settings: Settings = make();
+        set(&mut settings, 17);
+        capture(output, settings);
+        set(&mut settings, 25);
+        capture(output, settings);
+    }
+"#;
+
+#[test]
+fn copied_local_operand_rejects_initializer_and_other_snapshot_substitution() {
+    let checked = crate::front_end::checked_program(MUTABLE_LOCAL_WITNESS);
+    let artifact = TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("run"))
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        ))
+        .expect("each mutable-local read retains copy custody")
+        .into_artifact();
+    terminal_verifier::verify_module(
+        &terminal_codec::decode_module(artifact.semantic_bytes()).expect("decode module"),
+        &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).expect("decode proof"),
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("reloaded snapshots retain independently verified copy custody");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .expect("authored caller")
+        .symbol;
+    let operations = &checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("caller operations")
+        .operations;
+    let initializer = operations
+        .iter()
+        .filter_map(|operation| operation.call())
+        .find_map(|call| call.structural_result())
+        .expect("named local initializer")
+        .binding_ordinal;
+    let copies = operations
+        .iter()
+        .filter_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                operand_source:
+                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
+                ..
+            } => Some(result.binding_ordinal),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(copies.len(), 2, "separate snapshots around mutation");
+    for substituted in [initializer, copies[0]] {
+        let mut changed = crate::front_end::checked_program(MUTABLE_LOCAL_WITNESS);
+        let argument = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == machine)
+            .expect("caller plan")
+            .operations
+            .iter_mut()
+            .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+            .flat_map(|call| &mut call.structural_arguments)
+            .find(|argument| argument.source_structural_result_binding_ordinal() == Some(copies[1]))
+            .expect("second copied operand");
+        argument.source =
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: substituted,
+            };
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("run"),
+        )
+        .expect_err("equal types and shared backing storage cannot substitute the exact read");
+    }
+}
+
 const WITNESS: &str = r#"
     data SourceId [copy] { value: u32; }
     data Source { id: SourceId; length: u32; }

@@ -1851,6 +1851,20 @@ fn validate_operand_producers(
     expression: Option<checked_trees::expression::ExpressionHandle>,
     binding_ordinal: Option<u32>,
 ) -> Result<(), LoweringError> {
+    // An operand-owned construction (including a copy) produces a fresh value;
+    // the local it reads is storage, not that value's producer. Rejoin the
+    // construction's exact authored occurrence below, rather than also joining
+    // the backing local's initializer. The roster still checks every candidate:
+    // substituting the initializer or another call's snapshot must reject.
+    let operand_has_own_producer = binding_ordinal
+        .map(|ordinal| producer(caller.operations, ordinal))
+        .transpose()?
+        .is_some_and(|producer| {
+            matches!(
+                producer.construction_source,
+                Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+            )
+        });
     for candidate in caller.operations {
         if let CheckedUnitEffectOperationPlan::EstablishScalarArray {
             source:
@@ -2123,21 +2137,23 @@ fn validate_operand_producers(
                     "Unit structural result producer disagrees with its authored local",
                 );
             }
-            match expression.map(|expression| {
-                super::super::parameters::source_path(
-                    checked,
-                    source_machine,
-                    Some(
-                        crate::expression_preparation::source_custody::authored_state(
-                            checked,
-                            caller.state,
-                        )?
-                        .1,
-                    ),
-                    local.type_reference,
-                    expression,
-                )
-            }) {
+            match expression
+                .filter(|_| !operand_has_own_producer)
+                .map(|expression| {
+                    super::super::parameters::source_path(
+                        checked,
+                        source_machine,
+                        Some(
+                            crate::expression_preparation::source_custody::authored_state(
+                                checked,
+                                caller.state,
+                            )?
+                            .1,
+                        ),
+                        local.type_reference,
+                        expression,
+                    )
+                }) {
                 Some(Ok((root, path, access))) if root == local.symbol => {
                     // A borrowed-view local can only ever be lent shared;
                     // its authored access names the view's only custody.
@@ -2169,7 +2185,8 @@ fn validate_operand_producers(
             else {
                 return unsupported("anonymous producer has no expression-owned source");
             };
-            let matches = producer_coordinate.statement_index == coordinate.statement_index
+            let matches = !operand_has_own_producer
+                && producer_coordinate.statement_index == coordinate.statement_index
                 && expression.and_then(|expression| expression_producer(checked, expression))
                     == Some(source_expression);
             if matches {

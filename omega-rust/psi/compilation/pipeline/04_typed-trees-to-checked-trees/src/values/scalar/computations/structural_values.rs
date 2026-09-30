@@ -793,13 +793,6 @@ impl Builder<'_, '_> {
                     expected,
                 )?,
             }
-        } else if matches!(
-            self.program.expression_table.expression(expression),
-            ExpressionNode::Name(_)
-        ) && validation::scalar_case_constructor(self.program, expression).is_none()
-            && let Some(argument) = self.owned_record_place(expression, expected)
-        {
-            CheckedStructuralValueKind::Place(argument)
         } else if let Some(view) = self.slice_view_place(expression, expected) {
             // A view's authored producer is spelled as a call but establishes
             // no call result: it lends storage that already exists. Classify
@@ -838,6 +831,17 @@ impl Builder<'_, '_> {
             copy
         } else if let Some(copied) = self.copied_place(expression, expected) {
             copied
+        } else if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Name(_)
+        ) && validation::scalar_case_constructor(self.program, expression).is_none()
+            && let Some(argument) = self.owned_record_place(expression, expected)
+        {
+            // Reading unrestricted storage snapshots its current contents at
+            // this evaluation point. Try the copy routes before whole-place
+            // custody: a mutable copyable local also has an owned shape, but
+            // its original producer is not the value of a later read.
+            CheckedStructuralValueKind::Place(argument)
         } else if let Some(projection) =
             self.projected_selection_place(expression, expected, values, pure)
         {
