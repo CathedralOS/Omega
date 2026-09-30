@@ -1,0 +1,38 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Node {
+    value: i32;
+    tag: i32;
+}
+
+data Bag {
+    nodes: [Node; 4];
+}
+
+data Probe {
+    seed: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    probe: Probe;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let bag: Bag;
+    bag.nodes[2].value = 7;
+    self.probe.scan(&mut bag);
+    transition true {
+        true -> good()
+        _ -> good()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(181);
+    }
+}
+
+machine Probe::scan(&self, bag: &mut Bag) {
+    let slots: &[Node] = bag.nodes.as_slice();
+}

@@ -105,41 +105,17 @@ impl Builder<'_, '_> {
         };
         // The root's dense structural position is its signature ordinal when
         // the name resolves to a carried parameter; anything else is an
-        // operation-sequence local keyed by symbol. The two views count that
-        // ordinal differently. The shared view counts the non-const,
-        // non-erased, non-primitive parameters, exactly as the shared `&T`
-        // borrow classifies its own root. The exclusive view settles the dense
+        // operation-sequence local keyed by symbol. Both views settle the dense
         // index only when no borrowed `self` precedes the root — that receiver
         // joins the namespace only when the signature retains it, a decision
         // this emission cannot see — so `dense_structural_parameter_index` may
         // decline and the root then keys itself by symbol, which every roster
         // family matches directly.
-        let parameter_index = if access == CheckedStructuralAccess::SharedBorrow {
-            match self
-                .authored_parameters
-                .iter()
-                .filter(|parameter| {
-                    !parameter.is_const
-                        && !parameter.relevance.is_erased()
-                        && self
-                            .program
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                })
-                .enumerate()
-                .find(|(_, parameter)| parameter.symbol == symbol)
-            {
-                Some((index, _)) => Some(u32::try_from(index).ok()?),
-                None => None,
-            }
-        } else {
-            self.authored_parameters
-                .iter()
-                .position(|parameter| parameter.symbol == symbol)
-                .and_then(|authored_position| {
-                    self.dense_structural_parameter_index(authored_position)
-                })
-        };
+        let parameter_index = self
+            .authored_parameters
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)
+            .and_then(|authored_position| self.dense_structural_parameter_index(authored_position));
         let source = match parameter_index {
             Some(parameter_index) => {
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
