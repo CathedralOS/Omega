@@ -2074,3 +2074,4 @@ run/borrows/shared_record_loan_member_read checked 4336ms
 run/borrows/shared_runtime_index_borrow checked 1040ms
 run/contained_health_loop_command_branch checked 302ms
 run/nested_mut_alias_assignment_return checked 339ms
+pass/calls/owned_state_parameter_call_exit checked 491ms @4ecfdc78f8c7+wt

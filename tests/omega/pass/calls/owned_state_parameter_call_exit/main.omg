@@ -1,0 +1,16 @@
+// An owned record arriving through a state edge is the next call's actual
+// value, not an alias of the record's earlier establishing operation.
+use omega_language_std::console;
+
+data Amount [copy] { value: i32; }
+
+machine consume(amount: Amount) -> i32 { amount.value }
+
+machine main() reaches Console {
+    let amount: Amount = Amount { value: 70 };
+    transition { _ -> arrived(amount) }
+    state arrived(amount: Amount) {
+        let observed: i32 = consume(amount);
+        Console::exit_process(observed);
+    }
+}

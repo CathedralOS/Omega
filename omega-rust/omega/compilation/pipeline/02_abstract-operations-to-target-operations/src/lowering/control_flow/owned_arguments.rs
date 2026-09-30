@@ -43,7 +43,8 @@ pub(super) fn argument(
     let (source, root_structural_type, source_byte_offset) = if let Some(home) =
         live.structural_homes.get(&argument.place)
     {
-        if home.multiplicity() != declaration.multiplicity
+        if home.access() != StructuralAccess::Owned
+            || home.multiplicity() != declaration.multiplicity
             || home.has_claims()
             || home.qualifications() != declaration.qualifications.as_slice()
             || home.projected_qualifications() != declaration.projected_qualifications.as_slice()
@@ -77,13 +78,25 @@ pub(super) fn argument(
             }
             offset
         };
-        (
-            target_operations::TargetStructuralArgumentSource::StructuralHome {
-                psi_operation: home.operation_result().ok_or_else(invalid)?.0,
+        // A state arrival owns its destination home, not an incoming
+        // operation's home. Preserve that identity through calls just as
+        // through reads and loans; independent source replay checks both
+        // coordinates against the caller's block declaration.
+        let source = match &home.origin {
+            target_operations::TargetStructuralHomeOrigin::OperationResult {
+                operation, ..
+            } => target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: *operation,
             },
-            home.structural_type(),
-            offset,
-        )
+            target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                block,
+                declaration,
+            } => target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block: *block,
+                place: declaration.place,
+            },
+        };
+        (source, home.structural_type(), offset)
     } else if let Some((establishment, structural_type)) =
         live.trivial_affine_locals.get(&argument.place)
     {

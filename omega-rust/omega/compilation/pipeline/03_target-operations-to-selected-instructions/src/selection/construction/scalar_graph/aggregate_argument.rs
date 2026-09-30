@@ -27,6 +27,9 @@ pub(super) fn argument(
                 place,
             })
         }
+        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+            Some(LocalStorageSlotId::StructuralBlockParameter { block, place })
+        }
         target_operations::TargetStructuralArgumentSource::Placement(_) => None,
         _ => return Err(SelectedInstructionError::custody()),
     };

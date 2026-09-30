@@ -1,4 +1,4 @@
-//! Rejoin owned aggregate actuals to exact incoming backing or a produced home.
+//! Rejoin owned aggregate actuals to exact incoming, produced or block-owned backing.
 use super::{
     CallSignature, LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
     StructuralAccess, evaluate_call_plan,
@@ -106,6 +106,41 @@ pub(super) fn validate_owned_arguments(
                     || !result.claims.is_empty()
                     || !result.projected_qualifications.is_empty()
                     || (!semantic.path.is_empty() && !result.qualifications.is_empty())
+                {
+                    return None;
+                }
+            }
+            target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
+                let mut parameters = source.blocks.iter().flat_map(|owner| {
+                    owner
+                        .structural_parameters
+                        .iter()
+                        .filter(move |parameter| parameter.place == place)
+                        .map(move |parameter| (owner.id, parameter))
+                });
+                let (owner, parameter) = parameters.next()?;
+                if parameters.next().is_some()
+                    || block != owner
+                    || block == source.entry_block
+                    || place != semantic.place
+                    || parameter.access != StructuralAccess::Owned
+                    || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+                    || parameter.structural_type != target.root_structural_type
+                    || !parameter.projected_qualifications.is_empty()
+                    || (!semantic.path.is_empty() && !parameter.qualifications.is_empty())
+                    || !source
+                        .structural
+                        .as_ref()?
+                        .structural_places
+                        .iter()
+                        .any(|declaration| {
+                            declaration.id == place
+                                && declaration.kind
+                                    == semantic_vocabulary::StructuralPlaceKind::BlockParameter {
+                                        block,
+                                        position: parameter.position,
+                                    }
+                        })
                 {
                     return None;
                 }

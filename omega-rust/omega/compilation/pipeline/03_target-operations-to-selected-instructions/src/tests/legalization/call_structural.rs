@@ -11,6 +11,195 @@ use abstract_operations::AbstractStructuralCallResult;
 use target_operations::TargetUnitOperation;
 
 #[test]
+fn owned_block_arguments_replay_destination_storage_across_call_abis() {
+    use abstract_operations::{AbstractBlockEntry, AbstractOperation, AbstractStructuralBinding};
+    use semantic_vocabulary::{BlockId, EdgeId, PlaceId};
+    use target_operations::TargetStructuralArgumentSource;
+
+    for length in [2, 3] {
+        for native in [
+            target::NativeTarget::linux_x64(),
+            target::NativeTarget::linux_arm64(),
+            target::NativeTarget::macos_arm64(),
+            target::NativeTarget::windows_x64(),
+        ] {
+            let (mut source, _, original_unit) = fixture(native, Vec::new());
+            let mut declarations = source.structural_types.to_vec();
+            let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) =
+                declarations[0].shape
+            else {
+                panic!("scalar field type")
+            };
+            declarations[1].identity = "test::Payload".into();
+            declarations[1].shape = terminal_psi::StructuralTypeShape::Record {
+                fields: (0..length)
+                    .map(|ordinal| terminal_psi::StructuralFieldDeclaration {
+                        id: semantic_vocabulary::StructuralFieldId::new(ordinal + 1).unwrap(),
+                        identity: format!("word{ordinal}"),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: terminal_psi::StructuralFieldType::Scalar(scalar_type),
+                    })
+                    .collect(),
+            };
+            source.structural_types = declarations.into();
+            let mut parameter = source.functions[1].structural_parameters[0].clone();
+            parameter.place = PlaceId::new(13).unwrap();
+            let destination_block = BlockId::new(3).unwrap();
+            let caller = &mut source.functions[0];
+            let AbstractOperation::EstablishScalarArray { result, .. } = &caller.operations[1]
+            else {
+                panic!("array establishment")
+            };
+            // Two and three fields exercise register and indirect call ABIs
+            // without changing the block-owned storage contract.
+            caller.operations[1] = AbstractOperation::EstablishZeroedStructural {
+                psi_operation: semantic_vocabulary::OperationId::new(11).unwrap(),
+                result: result.clone(),
+            };
+            let AbstractOperation::CallStructural {
+                structural_arguments,
+                ..
+            } = &mut caller.operations[2]
+            else {
+                panic!("call")
+            };
+            let incoming = structural_arguments[0].clone();
+            structural_arguments[0].place = parameter.place;
+            caller.operations.insert(
+                2,
+                AbstractOperation::Jump {
+                    psi_edge: EdgeId::new(3).unwrap(),
+                    target: destination_block,
+                    bindings: Vec::new(),
+                    structural_bindings: vec![AbstractStructuralBinding {
+                        parameter: parameter.place,
+                        argument: incoming,
+                    }],
+                    trivial_affine_discards: Vec::new(),
+                    residual_affine_discards: Vec::new(),
+                },
+            );
+            caller.block_entries.push(AbstractBlockEntry {
+                block: destination_block,
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter.clone()],
+                operation_offset: 3,
+            });
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                original_unit.fuel_schedule,
+            )
+            .unwrap();
+            for (function, original) in unit.functions.iter_mut().zip(&original_unit.functions) {
+                function.verified_contract = original.verified_contract.clone();
+            }
+            unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+                .expect("owned arrival fixture has valid source custody");
+            let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+            validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = selection_constraints(&legal, &environment);
+            let selected = select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+            let mut substituted = selected.plan().clone();
+            let address = substituted.functions[0].blocks.iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|instruction| matches!(instruction.kind,
+                    selected_instructions::SelectedInstructionKind::FrameAddress {
+                        slot: selected_instructions::FrameStorageSlotId::Local(
+                            selected_instructions::LocalStorageSlotId::StructuralBlockParameter { .. }
+                        ), ..
+                    }))
+                .expect("call addresses its block-owned home");
+            address.kind = selected_instructions::SelectedInstructionKind::FrameAddress {
+                slot: selected_instructions::FrameStorageSlotId::Local(
+                    selected_instructions::LocalStorageSlotId::Structural {
+                        operation: semantic_vocabulary::OperationId::new(11).unwrap(),
+                        place: PlaceId::new(11).unwrap(),
+                    },
+                ),
+                byte_offset: 0,
+            };
+            assert!(
+                validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    substituted,
+                )
+                .is_err(),
+                "an incoming home cannot replace the destination home"
+            );
+            for mutation in 0..4 {
+                let mut changed = target.clone();
+                let argument = changed.functions[0]
+                    .graph
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find_map(|operation| match operation {
+                        TargetUnitOperation::Call { arguments, .. } => arguments.first_mut(),
+                        _ => None,
+                    })
+                    .unwrap();
+                assert_eq!(
+                    argument.source,
+                    TargetStructuralArgumentSource::BlockParameter {
+                        block: destination_block,
+                        place: parameter.place,
+                    }
+                );
+                match mutation {
+                    0 => {
+                        argument.source = TargetStructuralArgumentSource::BlockParameter {
+                            block: BlockId::new(1).unwrap(),
+                            place: parameter.place,
+                        }
+                    }
+                    1 => {
+                        argument.source = TargetStructuralArgumentSource::BlockParameter {
+                            block: destination_block,
+                            place: PlaceId::new(11).unwrap(),
+                        }
+                    }
+                    2 => {
+                        argument.source = TargetStructuralArgumentSource::StructuralHome {
+                            psi_operation: semantic_vocabulary::OperationId::new(11).unwrap(),
+                        }
+                    }
+                    _ => argument.source_byte_offset = 8,
+                }
+                assert!(
+                    legalize_target_operations(&changed, &source, &unit).is_err(),
+                    "{native:?}, length {length}, source mutation {mutation}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn owned_record_payload_arguments_replay_root_relative_offsets() {
     use abstract_operations::AbstractOperation;
     use semantic_vocabulary::{OperationId, PlaceId, StructuralFieldId, StructuralTypeId};

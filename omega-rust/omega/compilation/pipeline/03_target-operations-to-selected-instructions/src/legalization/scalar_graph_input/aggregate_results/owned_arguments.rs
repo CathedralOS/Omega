@@ -1,4 +1,4 @@
-//! Owned aggregate actuals rejoin their exact incoming storage or dominating producer.
+//! Owned aggregate actuals rejoin incoming, operation-established or block-owned storage.
 //! The receiver role changes neither owned transport nor the required source
 //! identity, multiplicity, qualification, and dominance checks.
 use crate::LegalizationError;
@@ -49,6 +49,17 @@ pub(super) fn reconstruct(
     if shape != value_shape {
         return Err(LegalizationError::custody());
     }
+    let mut block_parameters = caller.blocks.iter().flat_map(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .filter(move |parameter| parameter.place == argument.place)
+            .map(move |parameter| (block.id, parameter))
+    });
+    let block_parameter = block_parameters.next();
+    if block_parameters.next().is_some() {
+        return Err(LegalizationError::custody());
+    }
     let (source, root_structural_type, source_byte_offset) = if let Some(parameter) = caller
         .structural_parameters
         .iter()
@@ -88,6 +99,45 @@ pub(super) fn reconstruct(
             parameter.structural_type,
             0,
         )
+    } else if let Some((block, parameter)) = block_parameter {
+        // The edge has already established this destination's owned storage.
+        // Its declaration and dominance, not any predecessor operation ID,
+        // establish the call's source. Reconstruct the projection from types
+        // under the same rules as an operation-established home.
+        let call_site = call_site(caller, call_operation, argument)?;
+        if block == caller.entry
+            || parameter.access != destination.access
+            || argument.access != parameter.access
+            || parameter.multiplicity != destination.multiplicity
+            || parameter.qualifications != destination.qualifications
+            || !parameter.projected_qualifications.is_empty()
+            || !target::control_flow::sources::dominates(caller, block, call_site.0)
+            || !caller.structural_places.iter().any(|place| {
+                place.id == parameter.place
+                    && place.kind
+                        == StructuralPlaceKind::BlockParameter {
+                            block,
+                            position: parameter.position,
+                        }
+            })
+        {
+            return Err(LegalizationError::custody());
+        }
+        let offset = owned_projection(
+            parameter.structural_type,
+            &parameter.qualifications,
+            destination.structural_type,
+            argument,
+            plan,
+        )?;
+        (
+            target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block,
+                place: parameter.place,
+            },
+            parameter.structural_type,
+            offset,
+        )
     } else if let Some((producer, structural_type, producer_site)) =
         trivial_affine_local(caller, argument.place)
     {
@@ -119,30 +169,13 @@ pub(super) fn reconstruct(
         {
             return Err(LegalizationError::custody());
         }
-        // Reconstruct the selected extent from source declarations, never
-        // from the producer's retained byte offset. Root qualifications do
-        // not establish qualifications on a moved child.
-        let offset = if argument.path.is_empty() {
-            if result.structural_type != destination.structural_type {
-                return Err(LegalizationError::custody());
-            }
-            0
-        } else {
-            let (selected, offset, indices) =
-                crate::structural_inputs::structural_reference_input::runtime_projection(
-                    result.structural_type,
-                    &argument.path,
-                    &plan.structural_types,
-                )
-                .ok_or(LegalizationError::custody())?;
-            if !result.qualifications.is_empty()
-                || selected != destination.structural_type
-                || !indices.is_empty()
-            {
-                return Err(LegalizationError::custody());
-            }
-            offset
-        };
+        let offset = owned_projection(
+            result.structural_type,
+            &result.qualifications,
+            destination.structural_type,
+            argument,
+            plan,
+        )?;
         let producer_site = node_site(caller, |operation| {
             matches!(operation,
                 AbstractOperation::EstablishScalarArray { psi_operation, result: actual, .. }
@@ -202,6 +235,33 @@ pub(super) fn reconstruct(
     })
 }
 
+/// Reconstruct the selected extent from source declarations, never a retained
+/// byte offset. A root qualification cannot become a moved child's qualification.
+fn owned_projection(
+    root: semantic_vocabulary::StructuralTypeId,
+    qualifications: &[semantic_vocabulary::StructuralDomainId],
+    destination: semantic_vocabulary::StructuralTypeId,
+    argument: &terminal_psi::StructuralArgument,
+    plan: &AbstractOperationPlan,
+) -> Result<u32, LegalizationError> {
+    if argument.path.is_empty() {
+        return (root == destination)
+            .then_some(0)
+            .ok_or(LegalizationError::custody());
+    }
+    let (selected, offset, indices) =
+        crate::structural_inputs::structural_reference_input::runtime_projection(
+            root,
+            &argument.path,
+            &plan.structural_types,
+        )
+        .ok_or(LegalizationError::custody())?;
+    if !qualifications.is_empty() || selected != destination || !indices.is_empty() {
+        return Err(LegalizationError::custody());
+    }
+    Ok(offset)
+}
+
 /// The block and position of the one node `matches` selects.
 pub(in crate::legalization::scalar_graph_input) fn node_site(
     caller: &PsiOptimizationFunction,
@@ -226,7 +286,20 @@ pub(in crate::legalization::scalar_graph_input) fn precedes(
     call_operation: semantic_vocabulary::OperationId,
     argument: &terminal_psi::StructuralArgument,
 ) -> Result<bool, LegalizationError> {
-    let call_site = node_site(caller, |operation| match operation {
+    let call_site = call_site(caller, call_operation, argument)?;
+    Ok(if producer_site.0 == call_site.0 {
+        producer_site.1 < call_site.1
+    } else {
+        target::control_flow::sources::dominates(caller, producer_site.0, call_site.0)
+    })
+}
+
+fn call_site(
+    caller: &PsiOptimizationFunction,
+    call_operation: semantic_vocabulary::OperationId,
+    argument: &terminal_psi::StructuralArgument,
+) -> Result<(semantic_vocabulary::BlockId, usize), LegalizationError> {
+    node_site(caller, |operation| match operation {
         AbstractOperation::CallStructural {
             psi_operation,
             structural_arguments,
@@ -239,12 +312,7 @@ pub(in crate::legalization::scalar_graph_input) fn precedes(
         } => *psi_operation == call_operation && structural_arguments.contains(argument),
         _ => false,
     })
-    .ok_or(LegalizationError::custody())?;
-    Ok(if producer_site.0 == call_site.0 {
-        producer_site.1 < call_site.1
-    } else {
-        target::control_flow::sources::dominates(caller, producer_site.0, call_site.0)
-    })
+    .ok_or(LegalizationError::custody())
 }
 
 /// The one `EstablishTrivialAffineLocal` minting `place`: its operation,

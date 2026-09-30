@@ -51,6 +51,73 @@ pub(super) fn source_plan(source: &str) -> abstract_operations::AbstractOperatio
 }
 
 #[test]
+fn owned_state_argument_retains_destination_storage_and_rejects_substitution() {
+    let source = source_plan(
+        r#"
+            data Amount [copy] { value: i32; }
+            machine consume(amount: Amount) -> i32 { amount.value }
+            data Main {}
+            machine Main::run() -> i32 {
+                let amount: Amount = Amount { value: 70 };
+                transition { _ -> arrived(amount) }
+                state arrived(amount: Amount) -> i32 { consume(amount) }
+            }
+        "#,
+    );
+    for native in [
+        NativeTarget::macos_arm64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("owned state argument lowers from its destination home");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let argument = target
+            .functions
+            .iter()
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call { arguments, .. } => arguments.first(),
+                _ => None,
+            })
+            .expect("owned call argument");
+        assert!(matches!(argument.source,
+            target_operations::TargetStructuralArgumentSource::BlockParameter { place, .. }
+            if place == argument.place));
+        for mutation in 0..5 {
+            let changed = mutate_call_arguments(&target, |argument| {
+                let target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block,
+                    place,
+                } = &mut argument.source
+                else {
+                    panic!("state destination home");
+                };
+                match mutation {
+                    0 => *block = BlockId::new(999_999).unwrap(),
+                    1 => *place = PlaceId::new(999_999).unwrap(),
+                    2 => {
+                        argument.source =
+                            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                                psi_operation: OperationId::new(999_999).unwrap(),
+                            }
+                    }
+                    3 => argument.source_byte_offset += 1,
+                    _ => argument.access = StructuralAccess::SharedBorrow,
+                }
+            });
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "{native:?}: substituted state argument {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn borrowed_scalar_call_preserves_verified_requirement_obligations() {
     borrowed_call_requirement_custody(true);
 }
