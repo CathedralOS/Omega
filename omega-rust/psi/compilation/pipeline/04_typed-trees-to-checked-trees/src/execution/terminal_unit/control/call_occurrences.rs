@@ -23,7 +23,7 @@ pub(super) fn terminal_named_call(
 ) -> Option<SymbolHandle> {
     use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
     let statements = program.statement_table.statements(state.statement_nodes);
-    if !is_unit(program, state.return_type) || statement_index.checked_add(1)? != statements.len() {
+    if statement_index.checked_add(1)? != statements.len() {
         return None;
     }
     let StatementNode::Transition(transition) = statements.get(statement_index)? else {
@@ -35,6 +35,16 @@ pub(super) fn terminal_named_call(
         || !program
             .statement_table
             .transition_target_is_valid(transition.target)
+    {
+        return None;
+    }
+    // A paired `Always` arm is the fallthrough of a guarded tail, not an
+    // unconditional completion: its arm keeps its guard context on the
+    // conditional-successor routes rather than sequencing as the body's
+    // completing call.
+    if statements[..statement_index]
+        .iter()
+        .any(|statement| matches!(statement, StatementNode::Transition(_)))
     {
         return None;
     }
@@ -59,7 +69,9 @@ pub(super) fn terminal_named_call(
         }
         target
     };
-    is_unit(program, target.return_type).then_some(target.symbol)
+    (program.normalized_type_identity(target.return_type)
+        == program.normalized_type_identity(state.return_type))
+    .then_some(target.symbol)
 }
 
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(
@@ -724,7 +736,22 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         .expression_handles(authored.arguments),
                 )
             }
-            _ => return None,
+            // A machine or state name in a non-completing transition target is
+            // an invocation the edge routes own — a state-graph jump, a
+            // conditional successor, or a guarded arm — not a call the linear
+            // statement sequence emits. Skip it rather than decline: the
+            // terminator's own coverage decides whether the target plans.
+            StatementNode::Transition(transition)
+                if matches!(
+                    program.statement_table.transition_target(transition.target),
+                    typed_trees::statement::TransitionTargetNode::Named { .. }
+                ) =>
+            {
+                continue;
+            }
+            _ => {
+                return None;
+            }
         };
         trace.phase("outer calls: target agreement");
         trace.statement(u32::try_from(call.statement_index).ok());

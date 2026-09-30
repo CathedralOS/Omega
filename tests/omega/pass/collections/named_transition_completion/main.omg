@@ -1,0 +1,50 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8]::Name requires no_nul(self);
+
+data Main {
+    console: Binding<Console>;
+}
+
+data Score {
+    value: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let rc: Score = Main::walk(&mut self, "ab", 0);
+    let rc2: Score = Main::tail("z");
+    transition rc.value == rc2.value {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(181); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::walk(main: &mut Main, name: &[u8], i: u64) -> Score
+terminates by (i, name.len) -> Nat::BoundedDistance;
+{
+    let step: Score = Main::step(name, i);
+    transition i < name.len {
+        true -> walk(main, name, i + 1)
+        false -> leaf(main, name)
+    }
+
+    state leaf(main: &mut Main, name: &[u8]) -> Score {
+        Main::finish(name)
+    }
+}
+
+machine Main::tail(name: &[u8]) -> Score {
+    transition { _ -> Main::finish(name) }
+}
+
+machine Main::step(name: &[u8], i: u64) -> Score {
+    Score { value: 0 }
+}
+
+machine Main::finish(name: &[u8]) -> Score {
+    Score { value: 7 }
+}

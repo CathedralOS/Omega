@@ -325,18 +325,34 @@ pub(super) fn structural_sequence_length(
                 path,
             });
         }
+        // A domain constraint (`&[u8] in Path`) wraps the reference or its
+        // referent without changing where the extent lives: peel those shells
+        // on both sides before identifying the view.
+        let mut parameter_kind = parameter_type;
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(parameter_kind)
+        {
+            parameter_kind = *base_type;
+        }
         let TypeReferenceNode::Reference {
             referee,
             access: language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable,
             ..
-        } = program.type_reference_table.type_reference(parameter_type)
+        } = program.type_reference_table.type_reference(parameter_kind)
         else {
             return None;
         };
         // Any element family keeps a runtime extent on its view descriptor:
         // byte views count bytes, element views count elements, record
         // elements included.
-        let TypeReferenceNode::Slice { .. } = program.type_reference_table.type_reference(*referee)
+        let mut referee_kind = *referee;
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(referee_kind)
+        {
+            referee_kind = *base_type;
+        }
+        let TypeReferenceNode::Slice { .. } =
+            program.type_reference_table.type_reference(referee_kind)
         else {
             return None;
         };

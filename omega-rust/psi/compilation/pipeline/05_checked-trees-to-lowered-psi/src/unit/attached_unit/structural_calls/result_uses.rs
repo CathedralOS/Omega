@@ -1894,6 +1894,20 @@ fn validate_operand_producers(
             }
             continue;
         }
+        // A completing transition mints its result on its own terminal
+        // statement; no operand inside the body can follow it. Its custody is
+        // rejoined by the completion and source-custody validators instead.
+        if producer_coordinate.call_ordinal == 0
+            && matches!(
+                statements.get(result.statement_index as usize),
+                Some(StatementNode::Transition(_))
+            )
+        {
+            if binding_ordinal == Some(result.binding_ordinal) {
+                return unsupported("completing transition result cannot supply a later operand");
+            }
+            continue;
+        }
         let names_result = if producer_coordinate.call_ordinal == 0 {
             let Some(StatementNode::LocalData(local)) =
                 statements.get(result.statement_index as usize)

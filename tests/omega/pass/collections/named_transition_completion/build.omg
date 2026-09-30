@@ -1,0 +1,12 @@
+// Named machine calls complete a value body two ways: a state's tail
+// expression call (`leaf`) and an unconditional `_ -> Named` transition
+// (`tail`). A terminates-by machine stays callable from an ordinary body.
+
+machine build(builder: &mut Build) {
+    builder.application("named_transition_completion");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
