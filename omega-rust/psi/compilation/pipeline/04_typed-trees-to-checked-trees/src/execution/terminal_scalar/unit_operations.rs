@@ -1,6 +1,9 @@
 //! Complete ordered effects after the source graph and ownership ledger exist.
 //! Record values keep their exact value roots and edge-owned disposal; scalar
 //! observations do not turn the record into a scalar binding or move its owner.
+//! Every projected store must rejoin this inventory. If the scalar lane cannot
+//! carry one, decline its graph and leave the complete body to ordinary effect
+//! lowering; omitting the store would publish an incomplete statement prefix.
 
 use checked_trees::{CheckFacts, CheckedUnitCallResult, CheckedUnitEffectOperationPlan};
 use typed_trees::{TypedTrees, statement::StatementNode};
@@ -52,8 +55,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                         .filter(|(_, statement)| {
                             matches!(statement, StatementNode::Call(_))
                                 || matches!(statement, StatementNode::Assignment(assignment)
-                                    if matches!(program.expression_table.expression(assignment.target),
-                                        typed_trees::expression::ExpressionNode::Member(_)))
+                                    if super::assignment_has_projected_target(program, assignment))
                                 || matches!(statement, StatementNode::LocalData(local)
                                 if program.primitive_type_reference(local.type_reference).is_none()
                                     && !local.name.as_str().starts_with("__arm_destructure#"))

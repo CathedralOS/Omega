@@ -853,6 +853,20 @@ pub(super) fn checked_binding_prefix(
     checked_statement_bindings(program, state, computations, false)
 }
 
+/// A projected assignment belongs to the structural effect inventory, not
+/// the scalar binding inventory. Both collectors must use the same rule:
+/// otherwise a store can disappear between them while its graph stays eligible.
+fn assignment_has_projected_target(
+    program: &TypedTrees,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> bool {
+    matches!(
+        program.expression_table.expression(assignment.target),
+        typed_trees::expression::ExpressionNode::Member(_)
+            | typed_trees::expression::ExpressionNode::Indexed(_)
+    )
+}
+
 fn checked_statement_bindings(
     program: &TypedTrees,
     state: &typed_trees::state::State,
@@ -876,9 +890,7 @@ fn checked_statement_bindings(
             .enumerate()
             .filter(|(_, statement)| !matches!(statement, StatementNode::Call(_))
                 && !(unit_calls && matches!(statement, StatementNode::Assignment(assignment)
-                    if matches!(program.expression_table.expression(assignment.target),
-                        typed_trees::expression::ExpressionNode::Member(_)
-                            | typed_trees::expression::ExpressionNode::Indexed(_))))
+                    if assignment_has_projected_target(program, assignment)))
                 && !(unit_calls && matches!(statement, StatementNode::LocalData(local)
                     if program.primitive_type_reference(local.type_reference).is_none())))
             .map(|(statement_index, statement)| {
