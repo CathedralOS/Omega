@@ -158,9 +158,22 @@ pub(super) fn validate_shape(
             .structural_types
             .iter()
             .filter(|plan| plan.identity == identity.as_str());
-        let plan = matches
-            .next()
-            .ok_or(LoweringError::Unsupported("array source shape is absent"))?;
+        let plan = match matches.next() {
+            Some(plan) => plan,
+            None => {
+                // A scalar qualification is a value-domain shell, not a
+                // storage carrier: an element spelled `i32 in Saturating`
+                // stores under the bare carrier's shape, so walk through the
+                // shell the way custody checks do.
+                match validation::unwrapped_type_reference(&checked.typed, reference) {
+                    Some(carrier) if carrier != reference => {
+                        reference = carrier;
+                        continue;
+                    }
+                    _ => return unsupported("array source shape is absent"),
+                }
+            }
+        };
         if matches.next().is_some() {
             return unsupported("array source shape identity is duplicated");
         }
@@ -178,11 +191,25 @@ pub(super) fn validate_shape(
                     length: actual_length,
                 },
             ) if u64::try_from(*length).ok() == Some(*actual_length)
-                && checked
+                && (checked
                     .typed
                     .normalized_type_identity(*element_type)
                     .as_str()
-                    == element_type_identity =>
+                    == element_type_identity
+                    || (matches!(
+                        checked
+                            .typed
+                            .type_reference_table
+                            .type_reference(*element_type),
+                        checked_trees::types::TypeReferenceNode::Constrained { .. }
+                    ) && validation::unwrapped_type_reference(
+                        &checked.typed,
+                        *element_type,
+                    )
+                    .is_some_and(|carrier| {
+                        checked.typed.normalized_type_identity(carrier).as_str()
+                            == element_type_identity
+                    }))) =>
             {
                 reference = *element_type
             }
