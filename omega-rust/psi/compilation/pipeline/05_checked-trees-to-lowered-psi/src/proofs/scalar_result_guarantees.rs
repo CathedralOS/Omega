@@ -155,9 +155,60 @@ fn demanded_callees(
         if calls.is_empty() {
             continue;
         }
-        for site in original.obligations().iter().filter(|site| {
-            site.owner.machine() == machine.id && !supplied.contains(&site.obligation.id)
-        }) {
+        // A machine's site axiom rosters accumulate along its flow: a deeper
+        // obligation's roster extends an earlier one's verbatim. Indexing
+        // every roster independently rescans the shared prefix once per
+        // site — quadratic on entry-scale machines whose rosters grow to
+        // tens of thousands of equations. Cover the rosters by prefix
+        // chains instead: one index built over a chain's longest roster
+        // serves every shorter member through its own length bound, and a
+        // roster that shares no prefix simply forms a singleton chain.
+        // Construction walks the reconstruction's already materialized
+        // rosters, so it is bookkeeping rather than candidate search and
+        // stays uncharged; the pool keeps charging every bounded visit,
+        // store match, forwarded build, and denotation check below.
+        let sites = original
+            .obligations()
+            .iter()
+            .filter(|site| {
+                site.owner.machine() == machine.id && !supplied.contains(&site.obligation.id)
+            })
+            .collect::<Vec<_>>();
+        let mut order = (0..sites.len()).collect::<Vec<_>>();
+        order.sort_by_key(|&index| std::cmp::Reverse(sites[index].semantic_axioms.len()));
+        let mut chain_heads: Vec<usize> = Vec::new();
+        let mut site_chain = vec![0usize; sites.len()];
+        for index in order {
+            match chain_heads.iter().position(|&head| {
+                sites[head]
+                    .semantic_axioms
+                    .starts_with(&sites[index].semantic_axioms)
+            }) {
+                Some(chain) => site_chain[index] = chain,
+                None => {
+                    site_chain[index] = chain_heads.len();
+                    chain_heads.push(index);
+                }
+            }
+        }
+        let chain_indexes = chain_heads
+            .iter()
+            .map(|&head| AxiomDefinitions::collect(&sites[head].semantic_axioms))
+            .collect::<Vec<_>>();
+        // Forwarded edges answer a demanded site, not the whole machine:
+        // build them once per machine only when a site actually needs them.
+        let mut forwarded_definitions: BTreeMap<ValueId, Vec<&Proposition>> = BTreeMap::new();
+        if !sites.is_empty() {
+            let Some(forwarded) = forwarded_equations(machine, remaining, forwarded) else {
+                return demanded;
+            };
+            for equation in forwarded {
+                if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation {
+                    forwarded_definitions.entry(*id).or_default().push(equation);
+                }
+            }
+        }
+        for (site_index, site) in sites.iter().enumerate() {
             let mut pending = Vec::new();
             if site
                 .obligation
@@ -167,84 +218,8 @@ fn demanded_callees(
             {
                 return demanded;
             }
-            // Each reconstructed equation stays in this site's exact context.
-            // Index it once rather than rescan the whole roster per dependency.
-            let mut definitions: BTreeMap<ValueId, Vec<&Proposition>> = BTreeMap::new();
-            let mut field_definitions: BTreeMap<&ScalarTerm, Vec<&Proposition>> = BTreeMap::new();
-            let mut field_dependencies = BTreeMap::new();
-            for equation in &site.semantic_axioms {
-                if !charge(remaining, 1) {
-                    return demanded;
-                }
-                if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation {
-                    definitions.entry(*id).or_default().push(equation);
-                } else if let Proposition::Equal(
-                    field @ (ScalarTerm::IntegerField { .. } | ScalarTerm::BooleanField { .. }),
-                    _,
-                ) = equation
-                {
-                    field_definitions.entry(field).or_default().push(equation);
-                }
-            }
-            // Two complementary cases of the same observation shape share
-            // one axiom pass. A surviving exact store bridges a demanded
-            // field read to a call result — reconstruction owns mutation
-            // invalidation; matching the complete field term preserves root,
-            // path and carrier identity, and this selects a proof candidate,
-            // never establishes a field fact. Without that store, a join
-            // discarded the branch equation: the store table supplies
-            // possible dependencies instead — matching root and leaf field
-            // conservatively includes stores through different intermediate
-            // projections, none of which become axioms.
-            for equation in &site.semantic_axioms {
-                if !charge(remaining, 1) {
-                    return demanded;
-                }
-                let Proposition::Equal(ScalarTerm::Value { id, .. }, observed) = equation
-                else {
-                    continue;
-                };
-                if let Some(stores) = field_definitions.get(observed) {
-                    if !charge(remaining, stores.len()) {
-                        return demanded;
-                    }
-                    definitions.entry(*id).or_default().extend(stores);
-                    continue;
-                }
-                let (root, path) = match observed {
-                    ScalarTerm::IntegerField { root, path, .. }
-                    | ScalarTerm::BooleanField { root, path } => (root, path),
-                    _ => continue,
-                };
-                let Some(semantic_vocabulary::CanonicalStructuralPathSegment::Field(field)) =
-                    path.last()
-                else {
-                    continue;
-                };
-                if !charge(remaining, stores.len()) {
-                    return demanded;
-                }
-                for (destination, stored_field, value) in &stores {
-                    if destination == root && stored_field == field {
-                        // Attach the dependency only when this observation is
-                        // demanded, rather than selecting every scalar callee.
-                        field_dependencies
-                            .entry(*id)
-                            .or_insert_with(Vec::new)
-                            .push(*value);
-                    }
-                }
-            }
-            // Forwarded edges answer a demanded site, not the whole machine:
-            // build them once per machine only when a site actually needs them.
-            let Some(forwarded) = forwarded_equations(machine, remaining, forwarded) else {
-                return demanded;
-            };
-            for equation in forwarded {
-                if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation {
-                    definitions.entry(*id).or_default().push(equation);
-                }
-            }
+            let definitions = &chain_indexes[site_chain[site_index]];
+            let bound = site.semantic_axioms.len();
             let mut visited = BTreeSet::new();
             while let Some(value) = pending.pop() {
                 if !charge(remaining, 1) {
@@ -257,14 +232,67 @@ fn demanded_callees(
                     demanded.insert(*callee);
                     continue;
                 }
-                pending.extend(
-                    field_dependencies
-                        .get(&value)
-                        .into_iter()
-                        .flatten()
-                        .copied(),
-                );
-                for equation in definitions.get(&value).into_iter().flatten() {
+                for equation in definitions.definitions_within(value, bound) {
+                    // A surviving exact store bridges a demanded field read
+                    // to a call result — reconstruction owns mutation
+                    // invalidation; matching the complete field term
+                    // preserves root, path and carrier identity, and this
+                    // selects a proof candidate, never establishes a field
+                    // fact. Without that store, a join discarded the branch
+                    // equation: the store table supplies possible
+                    // dependencies instead — matching root and leaf field
+                    // conservatively includes stores through different
+                    // intermediate projections, none of which become axioms.
+                    if let Proposition::Equal(_, observed) = equation {
+                        let mut bridged = definitions
+                            .field_definitions_within(observed, bound)
+                            .peekable();
+                        if bridged.peek().is_some() {
+                            for equation in bridged {
+                                if equation
+                                    .visit_value_ids_bounded(remaining, |dependency| {
+                                        if dependency != value {
+                                            pending.push(dependency);
+                                        }
+                                    })
+                                    .is_none()
+                                {
+                                    return demanded;
+                                }
+                            }
+                        } else if let Some((root, path)) = match observed {
+                            ScalarTerm::IntegerField { root, path, .. }
+                            | ScalarTerm::BooleanField { root, path } => Some((root, path)),
+                            _ => None,
+                        } && let Some(
+                            semantic_vocabulary::CanonicalStructuralPathSegment::Field(field),
+                        ) = path.last()
+                        {
+                            if !charge(remaining, stores.len()) {
+                                return demanded;
+                            }
+                            for (destination, stored_field, value) in &stores {
+                                if destination == root && stored_field == field {
+                                    // Attach the dependency only when this
+                                    // observation is demanded, rather than
+                                    // selecting every scalar callee.
+                                    pending.push(*value);
+                                }
+                            }
+                        }
+                    }
+                    if equation
+                        .visit_value_ids_bounded(remaining, |dependency| {
+                            if dependency != value {
+                                pending.push(dependency);
+                            }
+                        })
+                        .is_none()
+                    {
+                        return demanded;
+                    }
+                }
+                for equation in forwarded_definitions.get(&value).into_iter().flatten() {
                     if equation
                         .visit_value_ids_bounded(remaining, |dependency| {
                             if dependency != value {
@@ -280,6 +308,73 @@ fn demanded_callees(
         }
     }
     demanded
+}
+
+/// Position-tagged definition index over one axiom roster. A chain of
+/// prefix-consistent site rosters shares one build: a member consults it
+/// through its own roster length, so only equations it actually carries
+/// are visible.
+struct AxiomDefinitions<'a> {
+    definitions: BTreeMap<ValueId, Vec<(usize, &'a Proposition)>>,
+    field_definitions: BTreeMap<&'a ScalarTerm, Vec<(usize, &'a Proposition)>>,
+}
+
+impl<'a> AxiomDefinitions<'a> {
+    fn collect(axioms: &'a [Proposition]) -> Self {
+        let mut index = Self {
+            definitions: BTreeMap::new(),
+            field_definitions: BTreeMap::new(),
+        };
+        for (position, equation) in axioms.iter().enumerate() {
+            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation {
+                index
+                    .definitions
+                    .entry(*id)
+                    .or_default()
+                    .push((position, equation));
+            } else if let Proposition::Equal(
+                field @ (ScalarTerm::IntegerField { .. } | ScalarTerm::BooleanField { .. }),
+                _,
+            ) = equation
+            {
+                index
+                    .field_definitions
+                    .entry(field)
+                    .or_default()
+                    .push((position, equation));
+            }
+        }
+        index
+    }
+
+    /// The equations defining `value` inside the first `bound` roster
+    /// positions — exactly a member site's own axioms when its roster is a
+    /// prefix of the indexed one.
+    fn definitions_within(
+        &self,
+        value: ValueId,
+        bound: usize,
+    ) -> impl Iterator<Item = &'a Proposition> + '_ {
+        self.definitions
+            .get(&value)
+            .into_iter()
+            .flatten()
+            .take_while(move |&(position, _)| *position < bound)
+            .map(|&(_, equation)| equation)
+    }
+
+    fn field_definitions_within(
+        &self,
+        field: &ScalarTerm,
+        bound: usize,
+    ) -> impl Iterator<Item = &'a Proposition> + '_ {
+        self.field_definitions
+            .get(field)
+            .into_iter()
+            .flatten()
+            .take_while(move |&(position, _)| *position < bound)
+            .map(|&(_, equation)| equation)
+    }
 }
 
 fn charge(remaining: &mut usize, count: usize) -> bool {
