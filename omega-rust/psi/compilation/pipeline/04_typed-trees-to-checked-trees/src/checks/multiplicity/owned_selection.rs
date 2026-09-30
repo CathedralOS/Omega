@@ -1428,46 +1428,15 @@ fn statement_expressions(
     program: &typed_trees::TypedTrees,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
-    let roots = match statement {
-        StatementNode::LocalData(local) => vec![local.initial_value],
-        StatementNode::Expression(expression) => vec![*expression],
-        StatementNode::Assignment(assignment) => vec![assignment.target, assignment.value],
-        StatementNode::Call(call) => program
-            .expression_table
-            .expression_handles(call.arguments)
-            .to_vec(),
-        StatementNode::RootBinding(binding) => {
-            let mut roots = vec![binding.receiver];
-            if binding.implementation_operand.is_valid() {
-                roots.push(binding.implementation_operand);
-            }
-            roots
-        }
-        StatementNode::AssemblyFact(fact) => vec![fact.expression],
-        StatementNode::Transition(transition) => {
-            let mut roots = Vec::new();
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                roots.push(guard);
-            }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
-                match program.statement_table.transition_target(target) {
-                    typed_trees::statement::TransitionTargetNode::Value(value) => {
-                        roots.push(*value)
-                    }
-                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => roots
-                        .extend_from_slice(program.expression_table.expression_handles(*arguments)),
-                    _ => {}
-                }
-            }
-            roots
-        }
-    };
-    roots
+    program
+        .statement_table
+        .expression_roots(statement)
         .into_iter()
-        .flat_map(|root| expression_nodes(program, root))
+        .filter(|(role, root)| {
+            *role != typed_trees::statement::StatementRootRole::BindingImplementation
+                || root.is_valid()
+        })
+        .flat_map(|(_, root)| expression_nodes(program, root))
         .collect()
 }
 

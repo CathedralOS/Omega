@@ -366,41 +366,19 @@ fn statement_expression_roots(
     program: &TypedTrees,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
-    match statement {
-        StatementNode::RootBinding(_) | StatementNode::AssemblyFact(_) => Vec::new(),
-        StatementNode::Call(call) => program
-            .statement_table
-            .expression_handles(call.arguments)
-            .to_vec(),
-        StatementNode::Assignment(assignment) => vec![assignment.target, assignment.value],
-        StatementNode::LocalData(local_data) => vec![local_data.initial_value],
-        StatementNode::Expression(expression) => vec![*expression],
-        StatementNode::Transition(transition) => {
-            let mut roots = Vec::new();
-            if let TransitionGuardNode::When(guard) = transition.guard {
-                roots.push(guard);
-            }
-            for target_handle in [transition.target, transition.continuation] {
-                if !target_handle.is_valid() {
-                    continue;
-                }
-                match program.statement_table.transition_target(target_handle) {
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        roots.extend(
-                            program
-                                .statement_table
-                                .expression_handles(*arguments)
-                                .iter()
-                                .copied(),
-                        );
-                    }
-                    TransitionTargetNode::Value(expression) => roots.push(*expression),
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
-                }
-            }
-            roots
-        }
-    }
+    use typed_trees::statement::StatementRootRole as Role;
+    program
+        .statement_table
+        .expression_roots(statement)
+        .into_iter()
+        .filter(|(role, _)| {
+            !matches!(
+                role,
+                Role::BindingReceiver | Role::BindingImplementation | Role::AssemblyFact
+            )
+        })
+        .map(|(_, root)| root)
+        .collect()
 }
 
 /// Collect the ARGUMENT spans of every self-entry call in this tree.

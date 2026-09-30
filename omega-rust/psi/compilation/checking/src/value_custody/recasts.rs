@@ -73,7 +73,7 @@ pub(crate) use representation_types::{exact_primitive_type, exact_scalar_represe
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
 use qualification::{judge_qualification_cast, judge_statement_qualification_casts};
@@ -295,53 +295,17 @@ fn statement_expression_roots(
     statement: &StatementNode,
     roots: &mut Vec<ExpressionHandle>,
 ) {
-    match statement {
-        StatementNode::RootBinding(binding) => {
-            roots.push(binding.receiver);
-            roots.push(binding.implementation_operand);
-        }
-        StatementNode::AssemblyFact(_) => {}
-        StatementNode::Assignment(assignment) => {
-            roots.push(assignment.target);
-            roots.push(assignment.value);
-        }
-        StatementNode::Call(call) => {
-            roots.extend(
-                program
-                    .statement_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .copied(),
-            );
-        }
-        StatementNode::Expression(expression) => roots.push(*expression),
-        StatementNode::LocalData(local) => {
-            if local.initial_value.is_valid() {
-                roots.push(local.initial_value);
-            }
-        }
-        StatementNode::Transition(transition) => {
-            if let TransitionGuardNode::When(guard) = transition.guard {
-                roots.push(guard);
-            }
-            for target in [transition.target, transition.continuation] {
-                if !program.statement_table.transition_target_is_valid(target) {
-                    continue;
-                }
-                match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        roots.extend(
-                            program
-                                .statement_table
-                                .expression_handles(*arguments)
-                                .iter()
-                                .copied(),
-                        );
-                    }
-                    TransitionTargetNode::Value(value) => roots.push(*value),
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
-                }
-            }
-        }
-    }
+    use typed_trees::statement::StatementRootRole as Role;
+    roots.extend(
+        program
+            .statement_table
+            .expression_roots(statement)
+            .into_iter()
+            .filter(|(role, root)| match role {
+                Role::AssemblyFact => false,
+                Role::LocalInitializer => root.is_valid(),
+                _ => true,
+            })
+            .map(|(_, root)| root),
+    );
 }

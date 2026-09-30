@@ -14,9 +14,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{
-    StatementNode, TableAssignment, TransitionGuardNode, TransitionTargetNode,
-};
+use typed_trees::statement::{StatementNode, TableAssignment};
 
 mod checked_atomic_resident;
 mod placement_custody;
@@ -401,43 +399,18 @@ fn statement_expression_roots(
     program: &TypedTrees,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
-    match statement {
-        StatementNode::RootBinding(binding) => [binding.receiver, binding.implementation_operand]
-            .into_iter()
-            .filter(|expression| expression.is_valid())
-            .collect(),
-        StatementNode::AssemblyFact(fact) => vec![fact.expression],
-        StatementNode::Assignment(assignment) => vec![assignment.value],
-        StatementNode::Call(call) => program
-            .statement_table
-            .expression_handles(call.arguments)
-            .to_vec(),
-        StatementNode::Expression(expression) => vec![*expression],
-        StatementNode::LocalData(local) => vec![local.initial_value],
-        StatementNode::Transition(transition) => {
-            let mut roots = Vec::new();
-            if let TransitionGuardNode::When(guard) = transition.guard {
-                roots.push(guard);
-            }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
-                match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Named { arguments, .. } => roots.extend(
-                        program
-                            .statement_table
-                            .expression_handles(*arguments)
-                            .iter()
-                            .copied(),
-                    ),
-                    TransitionTargetNode::Value(value) => roots.push(*value),
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
-                }
-            }
-            roots
-        }
-    }
+    use typed_trees::statement::StatementRootRole as Role;
+    program
+        .statement_table
+        .expression_roots(statement)
+        .into_iter()
+        .filter(|(role, root)| match role {
+            Role::AssignmentTarget => false,
+            Role::BindingReceiver | Role::BindingImplementation => root.is_valid(),
+            _ => true,
+        })
+        .map(|(_, root)| root)
+        .collect()
 }
 
 #[cfg(test)]

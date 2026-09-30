@@ -31,7 +31,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableCall, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::statement::{StatementNode, TableCall};
 
 /// Shared conservative call-frame resolver. A complete result is the set of
 /// caller-visible places the call may write; `None` is deliberately opaque and
@@ -867,52 +867,17 @@ pub(crate) fn statement_value_expression_roots(
     program: &TypedTrees,
     statement: &StatementNode,
 ) -> Vec<ExpressionHandle> {
-    let mut roots = Vec::new();
-    match statement {
-        StatementNode::RootBinding(binding) => {
-            roots.extend(
-                [binding.receiver, binding.implementation_operand]
-                    .into_iter()
-                    .filter(|expression| expression.is_valid()),
-            );
-        }
-        StatementNode::AssemblyFact(fact) => roots.push(fact.expression),
-        StatementNode::Assignment(assignment) => {
-            roots.push(assignment.target);
-            roots.push(assignment.value);
-        }
-        StatementNode::Call(call) => roots.extend(
-            program
-                .statement_table
-                .expression_handles(call.arguments)
-                .iter()
-                .copied(),
-        ),
-        StatementNode::Expression(expression) => roots.push(*expression),
-        StatementNode::LocalData(local) => roots.push(local.initial_value),
-        StatementNode::Transition(transition) => {
-            if let TransitionGuardNode::When(guard) = transition.guard {
-                roots.push(guard);
-            }
-            for target in [transition.target, transition.continuation] {
-                if !target.is_valid() {
-                    continue;
-                }
-                match program.statement_table.transition_target(target) {
-                    TransitionTargetNode::Named { arguments, .. } => roots.extend(
-                        program
-                            .statement_table
-                            .expression_handles(*arguments)
-                            .iter()
-                            .copied(),
-                    ),
-                    TransitionTargetNode::Value(value) => roots.push(*value),
-                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
-                }
-            }
-        }
-    }
-    roots
+    use typed_trees::statement::StatementRootRole as Role;
+    program
+        .statement_table
+        .expression_roots(statement)
+        .into_iter()
+        .filter(|(role, root)| match role {
+            Role::BindingReceiver | Role::BindingImplementation => root.is_valid(),
+            _ => true,
+        })
+        .map(|(_, root)| root)
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
