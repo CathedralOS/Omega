@@ -31,37 +31,37 @@ windows_x86_64 machine StatLayout::plan(&mut self, schema: Schema) -> Plan {
     Plan { entries: entries, entry_count: 14, size_fixed: 144, size_is_dynamic: false, align: 8 }
 }
 
-windows_x86_64 machine Filesystem::encode_open_options(&mut self) {
-    self.open_writable = (self.open_options.write as i32) | (self.open_options.append as i32);
-    self.open_readable = self.open_options.read as i32;
-    self.open_creating = (self.open_options.create as i32) | (self.open_options.create_new as i32);
-    self.open_flags = ((self.open_writable & (self.open_readable ^ 1))
-        | ((self.open_writable & self.open_readable) << 1)
-        | ((self.open_options.append as i32) << 3)
-        | (self.open_creating << 8)
-        | ((self.open_options.truncate as i32) << 9)
-        | ((self.open_options.create_new as i32) << 10)
+windows_x86_64 machine Filesystem::encode_open_options(filesystem: &mut Filesystem) {
+    filesystem.open_writable = (filesystem.open_options.write as i32) | (filesystem.open_options.append as i32);
+    filesystem.open_readable = filesystem.open_options.read as i32;
+    filesystem.open_creating = (filesystem.open_options.create as i32) | (filesystem.open_options.create_new as i32);
+    filesystem.open_flags = ((filesystem.open_writable & (filesystem.open_readable ^ 1))
+        | ((filesystem.open_writable & filesystem.open_readable) << 1)
+        | ((filesystem.open_options.append as i32) << 3)
+        | (filesystem.open_creating << 8)
+        | ((filesystem.open_options.truncate as i32) << 9)
+        | ((filesystem.open_options.create_new as i32) << 10)
         | 32768);
 }
 
 // MSVCRT operations report -1 and retain detail in thread-local errno. Map its
 // EWOULDBLOCK value (140) onto the common portable classifier's canonical 35.
-windows_x86_64 machine Filesystem::native_error_code_i32(&mut self, result: i32) -> i32
+windows_x86_64 machine Filesystem::native_error_code_i32(filesystem: &mut Filesystem, result: i32) -> i32
 reaches FilesystemHost
 {
-    self.err_code = self.host.errno();
-    transition self.err_code == 140 { true -> would_block() _ -> other() }
-    state would_block(&mut self) -> i32 { 35 }
-    state other(&mut self) -> i32 { self.err_code }
+    filesystem.err_code = filesystem.host.errno();
+    transition filesystem.err_code == 140 { true -> would_block(filesystem) _ -> other(filesystem) }
+    state would_block(filesystem: &mut Filesystem) -> i32 { 35 }
+    state other(filesystem: &mut Filesystem) -> i32 { filesystem.err_code }
 }
 
-windows_x86_64 machine Filesystem::native_error_code_i64(&mut self, result: i64) -> i32
+windows_x86_64 machine Filesystem::native_error_code_i64(filesystem: &mut Filesystem, result: i64) -> i32
 reaches FilesystemHost
 {
-    self.err_code = self.host.errno();
-    transition self.err_code == 140 { true -> would_block() _ -> other() }
-    state would_block(&mut self) -> i32 { 35 }
-    state other(&mut self) -> i32 { self.err_code }
+    filesystem.err_code = filesystem.host.errno();
+    transition filesystem.err_code == 140 { true -> would_block(filesystem) _ -> other(filesystem) }
+    state would_block(filesystem: &mut Filesystem) -> i32 { 35 }
+    state other(filesystem: &mut Filesystem) -> i32 { filesystem.err_code }
 }
 
 pub windows_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult
@@ -71,11 +71,11 @@ invokes
     FilesystemHost;
 {
     self.open_options = options;
-    self.encode_open_options();
+    Filesystem::encode_open_options(&mut self);
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = Filesystem::last_error(&mut self); OpenResult::Error { kind: kind } }
 }
 //
 // THE WINDOWS PARADIGM: no dirfd exists -- directory listing is HANDLE
@@ -118,7 +118,7 @@ invokes
     self.w_scan_hit = 0;
     self.w_scan_done = 0;
     self.w_scan_pending = 0;
-    self.w_path_copy(path, 0);
+    Filesystem::w_path_copy(&mut self, path, 0);
     transition path.len < 509 { true -> rd_seal(path) _ -> rd_err(path) }
     // `path` is threaded through every state (mostly unused) so the
     // shared-param domain grant re-establishes `path in Path` after the copy
@@ -126,16 +126,16 @@ invokes
     // (`w_path_len = path.len` lives in the ENTRY: a slice-length write into
     // a field does not lower from a dispatched arm state.)
     state rd_seal(&mut self, path: &[u8] in Path) -> IoResult {
-        self.w_seal_pattern(0);
+        Filesystem::w_seal_pattern(&mut self, 0);
         transition self.w_help_rc == 0 { true -> rd_open(path) _ -> rd_err(path) }
     }
     state rd_open(&mut self, path: &[u8] in Path) -> IoResult {
-        self.w_find_open(self.w_pat_len);
+        Filesystem::w_find_open(&mut self, self.w_pat_len);
         transition self.w_find >= 0 { true -> rd_scan(path) _ -> rd_nf(path) }
     }
     state rd_scan(&mut self, path: &[u8] in Path) -> IoResult {
         self.w_scan_pending = 1;
-        self.rda_rc = self.w_scan_drain(4096);
+        self.rda_rc = Filesystem::w_scan_drain(&mut self, 4096);
         self.rda_close_rc = self.host.find_close(self.w_find);
         transition self.rda_rc == 0 { true -> rd_ok(path) _ -> rd_err(path) }
     }
@@ -148,7 +148,7 @@ invokes
         IoResult::Error { kind: kind }
     }
     state rd_err(&mut self, path: &[u8] in Path) -> IoResult {
-        let kind: ErrorKind = self.last_error();
+        let kind: ErrorKind = Filesystem::last_error(&mut self);
         IoResult::Error { kind: kind }
     }
 }
@@ -157,46 +157,46 @@ invokes
 // subdirs, files }`). The same scan core tallies dirs (attribute bit 0x10)
 // vs files (everything else) while it counts; dots are skipped by NAME, so
 // no posix-style "subtract the two dot records" correction exists here.
-windows_x86_64 machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult
+windows_x86_64 machine Filesystem::read_dir_stats(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult
 reaches FilesystemHost
 {
-    self.w_scan_count = 0;
-    self.w_scan_dirs = 0;
-    self.w_scan_files = 0;
-    self.w_scan_target = 4294967295;
-    self.w_scan_hit = 0;
-    self.w_scan_done = 0;
-    self.w_scan_pending = 0;
-    self.w_path_copy(path, 0);
-    transition path.len < 509 { true -> rds_seal(path) _ -> rds_err(path) }
+    filesystem.w_scan_count = 0;
+    filesystem.w_scan_dirs = 0;
+    filesystem.w_scan_files = 0;
+    filesystem.w_scan_target = 4294967295;
+    filesystem.w_scan_hit = 0;
+    filesystem.w_scan_done = 0;
+    filesystem.w_scan_pending = 0;
+    Filesystem::w_path_copy(filesystem, path, 0);
+    transition path.len < 509 { true -> rds_seal(filesystem, path) _ -> rds_err(filesystem, path) }
     // `path` threading: the posix impl's shared-param domain-grant note.
-    state rds_seal(&mut self, path: &[u8] in Path) -> DirStatsResult {
-        self.w_seal_pattern(0);
-        transition self.w_help_rc == 0 { true -> rds_open(path) _ -> rds_err(path) }
+    state rds_seal(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult {
+        Filesystem::w_seal_pattern(filesystem, 0);
+        transition filesystem.w_help_rc == 0 { true -> rds_open(filesystem, path) _ -> rds_err(filesystem, path) }
     }
-    state rds_open(&mut self, path: &[u8] in Path) -> DirStatsResult {
-        self.w_find_open(self.w_pat_len);
-        transition self.w_find >= 0 { true -> rds_scan(path) _ -> rds_nf(path) }
+    state rds_open(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult {
+        Filesystem::w_find_open(filesystem, filesystem.w_pat_len);
+        transition filesystem.w_find >= 0 { true -> rds_scan(filesystem, path) _ -> rds_nf(filesystem, path) }
     }
-    state rds_scan(&mut self, path: &[u8] in Path) -> DirStatsResult {
-        self.w_scan_pending = 1;
-        self.rda_rc = self.w_scan_drain(4096);
-        self.rda_close_rc = self.host.find_close(self.w_find);
-        transition self.rda_rc == 0 { true -> rds_ok(path) _ -> rds_err(path) }
+    state rds_scan(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult {
+        filesystem.w_scan_pending = 1;
+        filesystem.rda_rc = Filesystem::w_scan_drain(filesystem, 4096);
+        filesystem.rda_close_rc = filesystem.host.find_close(filesystem.w_find);
+        transition filesystem.rda_rc == 0 { true -> rds_ok(filesystem, path) _ -> rds_err(filesystem, path) }
     }
-    state rds_ok(&mut self, path: &[u8] in Path) -> DirStatsResult {
+    state rds_ok(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult {
         DirStatsResult::Ok { stats: DirStats {
-            entries: self.w_scan_count as u64,
-            subdirs: self.w_scan_dirs as u64,
-            files: self.w_scan_files as u64,
+            entries: filesystem.w_scan_count as u64,
+            subdirs: filesystem.w_scan_dirs as u64,
+            files: filesystem.w_scan_files as u64,
         } }
     }
-    state rds_nf(&mut self, path: &[u8] in Path) -> DirStatsResult {
+    state rds_nf(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult {
         let kind: ErrorKind = ErrorKind::NotFound;
         DirStatsResult::Error { kind: kind }
     }
-    state rds_err(&mut self, path: &[u8] in Path) -> DirStatsResult {
-        let kind: ErrorKind = self.last_error();
+    state rds_err(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirStatsResult {
+        let kind: ErrorKind = Filesystem::last_error(filesystem);
         DirStatsResult::Error { kind: kind }
     }
 }
@@ -219,20 +219,20 @@ invokes
     self.w_hit_kind = 0;
     self.w_scan_done = 0;
     self.w_scan_pending = 0;
-    self.w_path_copy(path, 0);
+    Filesystem::w_path_copy(&mut self, path, 0);
     transition path.len < 509 { true -> rdn_seal(path) _ -> rdn_err(path) }
     // `path` threading: the posix impl's shared-param domain-grant note.
     state rdn_seal(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        self.w_seal_pattern(0);
+        Filesystem::w_seal_pattern(&mut self, 0);
         transition self.w_help_rc == 0 { true -> rdn_open(path) _ -> rdn_err(path) }
     }
     state rdn_open(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        self.w_find_open(self.w_pat_len);
+        Filesystem::w_find_open(&mut self, self.w_pat_len);
         transition self.w_find >= 0 { true -> rdn_scan(path) _ -> rdn_nf(path) }
     }
     state rdn_scan(&mut self, path: &[u8] in Path) -> DirEntryResult {
         self.w_scan_pending = 1;
-        self.rda_rc = self.w_scan_drain(4096);
+        self.rda_rc = Filesystem::w_scan_drain(&mut self, 4096);
         self.rda_close_rc = self.host.find_close(self.w_find);
         transition self.rda_rc == 0 { true -> rdn_check(path) _ -> rdn_err(path) }
     }
@@ -270,7 +270,7 @@ invokes
         DirEntryResult::Error { kind: kind }
     }
     state rdn_err(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        let kind: ErrorKind = self.last_error();
+        let kind: ErrorKind = Filesystem::last_error(&mut self);
         DirEntryResult::Error { kind: kind }
     }
 }
@@ -282,9 +282,9 @@ invokes
 // nothing in the windows walk calls this -- it exists because the posix
 // targets share the name (the contract's shared-name rule) and a portable
 // caller reaching it on windows deserves a result, not a resolution hole.
-windows_x86_64 machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: u64) -> DirEntryResult {
-    transition { _ -> rdef_no() }
-    state rdef_no(&mut self) -> DirEntryResult {
+windows_x86_64 machine Filesystem::read_dir_entry_fd(filesystem: &mut Filesystem, dfd: i32, n: u64) -> DirEntryResult {
+    transition { _ -> rdef_no(filesystem) }
+    state rdef_no(filesystem: &mut Filesystem) -> DirEntryResult {
         let kind: ErrorKind = ErrorKind::Other;
         DirEntryResult::Error { kind: kind }
     }
@@ -304,10 +304,10 @@ reaches
 invokes
     FilesystemHost;
 {
-    self.w_path_copy(path, 0);
+    Filesystem::w_path_copy(&mut self, path, 0);
     transition path.len < 509 { true -> rda_init(path) _ -> rda_err(path) }
     state rda_init(&mut self, path: &[u8] in Path) -> UnitResult {
-        self.w_restore_nul(0);
+        Filesystem::w_restore_nul(&mut self, 0);
         self.rda_depth = 1;
         transition self.w_help_rc == 0 { true -> rda_seed(path) _ -> rda_err(path) }
     }
@@ -327,7 +327,7 @@ invokes
     // re-establishes `path in Path` here after the drain value-call's
     // conservative invalidation (the posix impl's exact note).
     state rda_err(&mut self, path: &[u8] in Path) -> UnitResult {
-        let kind: ErrorKind = self.last_error();
+        let kind: ErrorKind = Filesystem::last_error(&mut self);
         UnitResult::Error { kind: kind }
     }
 }
@@ -372,12 +372,12 @@ reaches FilesystemHost
     // overwrites w_path's NUL with "/*"; restore the invariant right after
     // the open (the pattern bytes are consumed by the call itself).
     state rds_seal(&mut self) {
-        self.w_seal_pattern(0);
+        Filesystem::w_seal_pattern(&mut self, 0);
         transition self.w_help_rc == 0 { true -> rds_open() _ -> rds_fail() }
     }
     state rds_open(&mut self) {
-        self.w_find_open(self.w_pat_len);
-        self.w_restore_nul(0);
+        Filesystem::w_find_open(&mut self, self.w_pat_len);
+        Filesystem::w_restore_nul(&mut self, 0);
         transition self.w_find >= 0 { true -> rds_c1() _ -> rds_fail() }
     }
 
@@ -440,7 +440,7 @@ reaches FilesystemHost
         self.rda_verdict = 0;
     }
     state rds_rmcur(&mut self) {
-        self.w_remove_dir_at(self.w_path_len);
+        Filesystem::w_remove_dir_at(&mut self, self.w_path_len);
         transition self.rda_rc == 0 { true -> rds_ascend() _ -> rds_fail() }
     }
     state rds_ascend(&mut self) {
@@ -465,7 +465,7 @@ reaches FilesystemHost
     // kind, close the enumeration BEFORE mutating the tree, then join the
     // child's full path and remove-or-descend.
     state rds_entry(&mut self) {
-        self.w_capture_name(0);
+        Filesystem::w_capture_name(&mut self, 0);
         self.w_attr = self.find_buf[0];
         transition { _ -> rds_close() }
     }
@@ -525,7 +525,7 @@ reaches FilesystemHost
     // FILE child: remove by full joined path, then truncate back to the
     // current directory (restore the NUL at w_path_len).
     state rds_unlink(&mut self) {
-        self.w_remove_file_at(self.w_child_len);
+        Filesystem::w_remove_file_at(&mut self, self.w_child_len);
         transition self.rda_rc == 0 { true -> rds_untrunc() _ -> rds_fail() }
     }
     state rds_untrunc(&mut self) {
@@ -563,13 +563,13 @@ reaches FilesystemHost
 // paths before any use). STATEMENT-CALLED, like every helper below: their
 // effects live in guarded arm states, which the value-call fence rejects --
 // the fence's own prescription is statement call + field result.
-windows_x86_64 machine Filesystem::w_path_copy(&mut self, path: &[u8] in Path, i: u64)
+windows_x86_64 machine Filesystem::w_path_copy(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64)
 terminates by (i, path.len) -> Nat::BoundedDistance;
 {
-    self.w_path_put(path, i);
+    Filesystem::w_path_put(filesystem, path, i);
     transition i < path.len {
-        true -> w_path_copy(path, i + 1)
-        false -> wpc_done(i)
+        true -> w_path_copy(filesystem, path, i + 1)
+        false -> wpc_done(filesystem, i)
     }
     // At termination `i == path.len`: store it as w_path_len. `i` is a u64
     // PARAMETER (a param->field write lowers), NOT the slice's `.len` (a
@@ -577,59 +577,59 @@ terminates by (i, path.len) -> Nat::BoundedDistance;
     // field RMW accumulator, which on re-invocation read a stale
     // static-folded zero and undercounted (the chained-RMW-static-fold face;
     // it silently corrupted every SECOND dir-walk in a process).
-    state wpc_done(&mut self, i: u64) { self.w_path_len = i as u64 in Wrapping; }
+    state wpc_done(filesystem: &mut Filesystem, i: u64) { filesystem.w_path_len = i as u64 in Wrapping; }
 }
 
 // One byte of the path copy. Both facts (in the slice, in the buffer) ride
 // ONE incoming conjunct so the reads/writes are dominated in their own
 // transition (facts do not travel across hops).
-windows_x86_64 machine Filesystem::w_path_put(&mut self, path: &[u8] in Path, i: u64) {
+windows_x86_64 machine Filesystem::w_path_put(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64) {
     transition i < path.len && i < 509 {
-        true -> wpp_go(path, i)
-        _ -> wpp_skip()
+        true -> wpp_go(filesystem, path, i)
+        _ -> wpp_skip(filesystem)
     }
-    state wpp_go(&mut self, path: &[u8] in Path, i: u64) {
-        self.mkall_byte = path[i];
-        self.w_path[i] = self.mkall_byte;
+    state wpp_go(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64) {
+        filesystem.mkall_byte = path[i];
+        filesystem.w_path[i] = filesystem.mkall_byte;
     }
-    state wpp_skip(&mut self) { self.copy_rc = 0; }
+    state wpp_skip(filesystem: &mut Filesystem) { filesystem.copy_rc = 0; }
 }
 
 // Overwrite w_path's terminator with the find pattern tail: '/' at
 // w_path_len, '*' after it, NUL after that; w_pat_len = w_path_len + 2.
 // w_help_rc = 0, or -1 when the path leaves no room (>= 509).
-windows_x86_64 machine Filesystem::w_seal_pattern(&mut self, step: u64) {
-    transition self.w_path_len < 509 { true -> wsp_slash() _ -> wsp_bad() }
-    state wsp_slash(&mut self) {
-        transition self.w_path_len < 512 { true -> wsp_slash_go() _ -> wsp_bad() }
+windows_x86_64 machine Filesystem::w_seal_pattern(filesystem: &mut Filesystem, step: u64) {
+    transition filesystem.w_path_len < 509 { true -> wsp_slash(filesystem) _ -> wsp_bad(filesystem) }
+    state wsp_slash(filesystem: &mut Filesystem) {
+        transition filesystem.w_path_len < 512 { true -> wsp_slash_go(filesystem) _ -> wsp_bad(filesystem) }
     }
-    state wsp_slash_go(&mut self) {
-        self.w_path[self.w_path_len] = 47;
-        self.rd_ridx = self.w_path_len + 1;
-        transition self.rd_ridx < 512 { true -> wsp_star_go() _ -> wsp_bad() }
+    state wsp_slash_go(filesystem: &mut Filesystem) {
+        filesystem.w_path[filesystem.w_path_len] = 47;
+        filesystem.rd_ridx = filesystem.w_path_len + 1;
+        transition filesystem.rd_ridx < 512 { true -> wsp_star_go(filesystem) _ -> wsp_bad(filesystem) }
     }
-    state wsp_star_go(&mut self) {
-        self.w_path[self.rd_ridx] = 42;
-        self.rd_ridx = self.w_path_len + 2;
-        transition self.rd_ridx < 512 { true -> wsp_nul_go() _ -> wsp_bad() }
+    state wsp_star_go(filesystem: &mut Filesystem) {
+        filesystem.w_path[filesystem.rd_ridx] = 42;
+        filesystem.rd_ridx = filesystem.w_path_len + 2;
+        transition filesystem.rd_ridx < 512 { true -> wsp_nul_go(filesystem) _ -> wsp_bad(filesystem) }
     }
-    state wsp_nul_go(&mut self) {
-        self.w_path[self.rd_ridx] = 0;
-        self.w_pat_len = self.w_path_len + 2;
-        self.w_help_rc = 0;
+    state wsp_nul_go(filesystem: &mut Filesystem) {
+        filesystem.w_path[filesystem.rd_ridx] = 0;
+        filesystem.w_pat_len = filesystem.w_path_len + 2;
+        filesystem.w_help_rc = 0;
     }
-    state wsp_bad(&mut self) { self.w_help_rc = 0 - 1; }
+    state wsp_bad(filesystem: &mut Filesystem) { filesystem.w_help_rc = 0 - 1; }
 }
 
 // Restore the NUL terminator at w_path_len (after a pattern seal or a
 // child-path truncation). w_help_rc = 0, or -1 out of bounds.
-windows_x86_64 machine Filesystem::w_restore_nul(&mut self, step: u64) {
-    transition self.w_path_len < 512 { true -> wrn_go() _ -> wrn_bad() }
-    state wrn_go(&mut self) {
-        self.w_path[self.w_path_len] = 0;
-        self.w_help_rc = 0;
+windows_x86_64 machine Filesystem::w_restore_nul(filesystem: &mut Filesystem, step: u64) {
+    transition filesystem.w_path_len < 512 { true -> wrn_go(filesystem) _ -> wrn_bad(filesystem) }
+    state wrn_go(filesystem: &mut Filesystem) {
+        filesystem.w_path[filesystem.w_path_len] = 0;
+        filesystem.w_help_rc = 0;
     }
-    state wrn_bad(&mut self) { self.w_help_rc = 0 - 1; }
+    state wrn_bad(filesystem: &mut Filesystem) { filesystem.w_help_rc = 0 - 1; }
 }
 
 // The guarded find_first on w_path[0..k] -- the host call lives in a guarded
@@ -637,157 +637,157 @@ windows_x86_64 machine Filesystem::w_restore_nul(&mut self, step: u64) {
 // base pointer is a valid C string because the seal NUL-terminated the
 // pattern. Result rides `w_find` (-1 on out-of-bounds, matching
 // INVALID_HANDLE_VALUE).
-windows_x86_64 machine Filesystem::w_find_open(&mut self, k: u64 in Wrapping)
+windows_x86_64 machine Filesystem::w_find_open(filesystem: &mut Filesystem, k: u64 in Wrapping)
 reaches FilesystemHost
 {
-    transition k < 512 { true -> wfo_go(k) _ -> wfo_bad() }
-    state wfo_go(&mut self, k: u64 in Wrapping) {
-        self.w_find = self.host.find_first(self.w_path[0..k], &mut self.find_buf);
+    transition k < 512 { true -> wfo_go(filesystem, k) _ -> wfo_bad(filesystem) }
+    state wfo_go(filesystem: &mut Filesystem, k: u64 in Wrapping) {
+        filesystem.w_find = filesystem.host.find_first(filesystem.w_path[0..k], &mut filesystem.find_buf);
     }
-    state wfo_bad(&mut self) { self.w_find = 0 - 1; }
+    state wfo_bad(filesystem: &mut Filesystem) { filesystem.w_find = 0 - 1; }
 }
 
 // Guarded remove of the FILE at w_path[0..k] (the joined child path;
 // NUL-terminated at k). Result rides `rda_rc`.
-windows_x86_64 machine Filesystem::w_remove_file_at(&mut self, k: u64 in Wrapping)
+windows_x86_64 machine Filesystem::w_remove_file_at(filesystem: &mut Filesystem, k: u64 in Wrapping)
 reaches FilesystemHost
 {
-    transition k < 512 { true -> wrf_go(k) _ -> wrf_bad() }
-    state wrf_go(&mut self, k: u64 in Wrapping) {
-        self.rda_rc = self.host.remove_name(self.w_path[0..k]);
+    transition k < 512 { true -> wrf_go(filesystem, k) _ -> wrf_bad(filesystem) }
+    state wrf_go(filesystem: &mut Filesystem, k: u64 in Wrapping) {
+        filesystem.rda_rc = filesystem.host.remove_name(filesystem.w_path[0..k]);
     }
-    state wrf_bad(&mut self) { self.rda_rc = 0 - 1; }
+    state wrf_bad(filesystem: &mut Filesystem) { filesystem.rda_rc = 0 - 1; }
 }
 
 // Guarded remove of the empty DIRECTORY at w_path[0..k]. Result rides
 // `rda_rc`.
-windows_x86_64 machine Filesystem::w_remove_dir_at(&mut self, k: u64 in Wrapping)
+windows_x86_64 machine Filesystem::w_remove_dir_at(filesystem: &mut Filesystem, k: u64 in Wrapping)
 reaches FilesystemHost
 {
-    transition k < 512 { true -> wrd_go(k) _ -> wrd_bad() }
-    state wrd_go(&mut self, k: u64 in Wrapping) {
-        self.rda_rc = self.host.remove_dir_name(self.w_path[0..k]);
+    transition k < 512 { true -> wrd_go(filesystem, k) _ -> wrd_bad(filesystem) }
+    state wrd_go(filesystem: &mut Filesystem, k: u64 in Wrapping) {
+        filesystem.rda_rc = filesystem.host.remove_dir_name(filesystem.w_path[0..k]);
     }
-    state wrd_bad(&mut self) { self.rda_rc = 0 - 1; }
+    state wrd_bad(filesystem: &mut Filesystem) { filesystem.rda_rc = 0 - 1; }
 }
 
 // Copy the current find record's name (NUL-terminated at find_buf[44..])
 // into entry_name, NUL-truncating at 255 bytes; seals entry_name with its
 // own NUL and records w_entry_len. The rdef_copy/rdef_nul state-cycle shape.
-windows_x86_64 machine Filesystem::w_capture_name(&mut self, step: u64) {
-    self.rd_j = 0;
-    transition { _ -> wcn_loop() }
-    state wcn_loop(&mut self) {
-        self.rd_ridx = 44 + self.rd_j;
-        transition self.rd_ridx < 320 { true -> wcn_read() _ -> wcn_seal() }
+windows_x86_64 machine Filesystem::w_capture_name(filesystem: &mut Filesystem, step: u64) {
+    filesystem.rd_j = 0;
+    transition { _ -> wcn_loop(filesystem) }
+    state wcn_loop(filesystem: &mut Filesystem) {
+        filesystem.rd_ridx = 44 + filesystem.rd_j;
+        transition filesystem.rd_ridx < 320 { true -> wcn_read(filesystem) _ -> wcn_seal(filesystem) }
     }
-    state wcn_read(&mut self) {
-        self.rd_nb = self.find_buf[self.rd_ridx];
-        transition self.rd_nb == 0 { true -> wcn_seal() _ -> wcn_put() }
+    state wcn_read(filesystem: &mut Filesystem) {
+        filesystem.rd_nb = filesystem.find_buf[filesystem.rd_ridx];
+        transition filesystem.rd_nb == 0 { true -> wcn_seal(filesystem) _ -> wcn_put(filesystem) }
     }
-    state wcn_put(&mut self) {
-        transition self.rd_j < 255 { true -> wcn_put_go() _ -> wcn_seal() }
+    state wcn_put(filesystem: &mut Filesystem) {
+        transition filesystem.rd_j < 255 { true -> wcn_put_go(filesystem) _ -> wcn_seal(filesystem) }
     }
-    state wcn_put_go(&mut self) {
-        self.entry_name[self.rd_j] = self.rd_nb;
-        self.rd_j = self.rd_j + 1;
-        transition { _ -> wcn_loop() }
+    state wcn_put_go(filesystem: &mut Filesystem) {
+        filesystem.entry_name[filesystem.rd_j] = filesystem.rd_nb;
+        filesystem.rd_j = filesystem.rd_j + 1;
+        transition { _ -> wcn_loop(filesystem) }
     }
-    state wcn_seal(&mut self) {
-        transition self.rd_j < 256 { true -> wcn_seal_go() _ -> wcn_done() }
+    state wcn_seal(filesystem: &mut Filesystem) {
+        transition filesystem.rd_j < 256 { true -> wcn_seal_go(filesystem) _ -> wcn_done(filesystem) }
     }
-    state wcn_seal_go(&mut self) {
-        self.entry_name[self.rd_j] = 0;
-        self.w_entry_len = self.rd_j;
-        transition { _ -> wcn_done() }
+    state wcn_seal_go(filesystem: &mut Filesystem) {
+        filesystem.entry_name[filesystem.rd_j] = 0;
+        filesystem.w_entry_len = filesystem.rd_j;
+        transition { _ -> wcn_done(filesystem) }
     }
-    state wcn_done(&mut self) { self.copy_rc = 0; }
+    state wcn_done(filesystem: &mut Filesystem) { filesystem.copy_rc = 0; }
 }
 
 // The fueled scan loop -- rda_drain's exact shape over w_scan_step (full
 // fuel, no-op once done; verdict protocol). Returns 0 clean / -1 error.
-windows_x86_64 machine Filesystem::w_scan_drain(&mut self, fuel: u64)
+windows_x86_64 machine Filesystem::w_scan_drain(filesystem: &mut Filesystem, fuel: u64)
 terminates by fuel;
 -> i32
 {
-    self.w_scan_step(0);
-    transition fuel > 0 { true -> w_scan_drain(fuel - 1) false -> wsd_settle() }
-    state wsd_settle(&mut self) -> i32 {
-        transition self.w_scan_verdict == 0 { true -> wsd_done() _ -> wsd_fail() }
+    Filesystem::w_scan_step(filesystem, 0);
+    transition fuel > 0 { true -> w_scan_drain(filesystem, fuel - 1) false -> wsd_settle(filesystem) }
+    state wsd_settle(filesystem: &mut Filesystem) -> i32 {
+        transition filesystem.w_scan_verdict == 0 { true -> wsd_done(filesystem) _ -> wsd_fail(filesystem) }
     }
-    state wsd_done(&mut self) -> i32 { 0 }
-    state wsd_fail(&mut self) -> i32 { 0 - 1 }
+    state wsd_done(filesystem: &mut Filesystem) -> i32 { 0 }
+    state wsd_fail(filesystem: &mut Filesystem) -> i32 { 0 - 1 }
 }
 
 // ONE scan step: consume the pending find_first record or pull the next one;
 // skip dots by NAME; tally non-dot records (dirs by the attribute bit 0x10);
 // capture the target-indexed record's name + kind. Sets `w_scan_verdict`
 // (1 continue / 0 done). The `step` param is the uniform call shape; unused.
-windows_x86_64 machine Filesystem::w_scan_step(&mut self, step: u64)
+windows_x86_64 machine Filesystem::w_scan_step(filesystem: &mut Filesystem, step: u64)
 reaches FilesystemHost
 {
-    transition self.w_scan_done == 1 { true -> ws_idle() _ -> ws_fetch() }
-    state ws_idle(&mut self) { self.w_scan_verdict = 0; }
+    transition filesystem.w_scan_done == 1 { true -> ws_idle(filesystem) _ -> ws_fetch(filesystem) }
+    state ws_idle(filesystem: &mut Filesystem) { filesystem.w_scan_verdict = 0; }
 
-    state ws_fetch(&mut self) {
-        transition self.w_scan_pending == 1 { true -> ws_first() _ -> ws_next() }
+    state ws_fetch(filesystem: &mut Filesystem) {
+        transition filesystem.w_scan_pending == 1 { true -> ws_first(filesystem) _ -> ws_next(filesystem) }
     }
-    state ws_first(&mut self) {
-        self.w_scan_pending = 0;
-        transition { _ -> ws_classify() }
+    state ws_first(filesystem: &mut Filesystem) {
+        filesystem.w_scan_pending = 0;
+        transition { _ -> ws_classify(filesystem) }
     }
-    state ws_next(&mut self) {
-        self.w_next_rc = self.host.find_next(self.w_find, &mut self.find_buf);
-        transition self.w_next_rc == 1 { true -> ws_classify() _ -> ws_end() }
+    state ws_next(filesystem: &mut Filesystem) {
+        filesystem.w_next_rc = filesystem.host.find_next(filesystem.w_find, &mut filesystem.find_buf);
+        transition filesystem.w_next_rc == 1 { true -> ws_classify(filesystem) _ -> ws_end(filesystem) }
     }
-    state ws_end(&mut self) {
-        self.w_scan_done = 1;
-        self.w_scan_verdict = 0;
+    state ws_end(filesystem: &mut Filesystem) {
+        filesystem.w_scan_done = 1;
+        filesystem.w_scan_verdict = 0;
     }
 
-    state ws_classify(&mut self) {
-        self.rd_lo = self.find_buf[44];
-        self.rd_hi = self.find_buf[45];
-        self.rd_nb = self.find_buf[46];
-        transition self.rd_lo == 46 { true -> ws_dot1() _ -> ws_real() }
+    state ws_classify(filesystem: &mut Filesystem) {
+        filesystem.rd_lo = filesystem.find_buf[44];
+        filesystem.rd_hi = filesystem.find_buf[45];
+        filesystem.rd_nb = filesystem.find_buf[46];
+        transition filesystem.rd_lo == 46 { true -> ws_dot1(filesystem) _ -> ws_real(filesystem) }
     }
-    state ws_dot1(&mut self) {
-        transition self.rd_hi == 0 { true -> ws_skip() _ -> ws_dot2() }
+    state ws_dot1(filesystem: &mut Filesystem) {
+        transition filesystem.rd_hi == 0 { true -> ws_skip(filesystem) _ -> ws_dot2(filesystem) }
     }
-    state ws_dot2(&mut self) {
-        transition self.rd_hi == 46 { true -> ws_dot3() _ -> ws_real() }
+    state ws_dot2(filesystem: &mut Filesystem) {
+        transition filesystem.rd_hi == 46 { true -> ws_dot3(filesystem) _ -> ws_real(filesystem) }
     }
-    state ws_dot3(&mut self) {
-        transition self.rd_nb == 0 { true -> ws_skip() _ -> ws_real() }
+    state ws_dot3(filesystem: &mut Filesystem) {
+        transition filesystem.rd_nb == 0 { true -> ws_skip(filesystem) _ -> ws_real(filesystem) }
     }
-    state ws_skip(&mut self) { self.w_scan_verdict = 1; }
+    state ws_skip(filesystem: &mut Filesystem) { filesystem.w_scan_verdict = 1; }
 
-    state ws_real(&mut self) {
-        self.w_scan_count = self.w_scan_count + 1;
-        self.w_attr = self.find_buf[0];
-        self.rd_lou = widen_u8_to_u64(self.w_attr) as u64 in Wrapping;
-        self.rd_hiu = self.rd_lou & 16;
-        transition self.rd_hiu == 16 { true -> ws_dir() _ -> ws_file() }
+    state ws_real(filesystem: &mut Filesystem) {
+        filesystem.w_scan_count = filesystem.w_scan_count + 1;
+        filesystem.w_attr = filesystem.find_buf[0];
+        filesystem.rd_lou = widen_u8_to_u64(filesystem.w_attr) as u64 in Wrapping;
+        filesystem.rd_hiu = filesystem.rd_lou & 16;
+        transition filesystem.rd_hiu == 16 { true -> ws_dir(filesystem) _ -> ws_file(filesystem) }
     }
-    state ws_dir(&mut self) {
-        self.w_scan_dirs = self.w_scan_dirs + 1;
-        self.w_scan_kind = 1;
-        transition self.w_scan_count - 1 == self.w_scan_target { true -> ws_hit() _ -> ws_cont() }
+    state ws_dir(filesystem: &mut Filesystem) {
+        filesystem.w_scan_dirs = filesystem.w_scan_dirs + 1;
+        filesystem.w_scan_kind = 1;
+        transition filesystem.w_scan_count - 1 == filesystem.w_scan_target { true -> ws_hit(filesystem) _ -> ws_cont(filesystem) }
     }
-    state ws_file(&mut self) {
-        self.w_scan_files = self.w_scan_files + 1;
-        self.w_scan_kind = 2;
-        transition self.w_scan_count - 1 == self.w_scan_target { true -> ws_hit() _ -> ws_cont() }
+    state ws_file(filesystem: &mut Filesystem) {
+        filesystem.w_scan_files = filesystem.w_scan_files + 1;
+        filesystem.w_scan_kind = 2;
+        transition filesystem.w_scan_count - 1 == filesystem.w_scan_target { true -> ws_hit(filesystem) _ -> ws_cont(filesystem) }
     }
-    state ws_hit(&mut self) {
-        self.w_capture_name(0);
-        self.w_scan_hit = 1;
+    state ws_hit(filesystem: &mut Filesystem) {
+        Filesystem::w_capture_name(filesystem, 0);
+        filesystem.w_scan_hit = 1;
         // Latch the kind with the name: the drain keeps classifying the
         // remaining records, so w_scan_kind moves on after this hit.
-        self.w_hit_kind = self.w_scan_kind;
-        transition { _ -> ws_cont() }
+        filesystem.w_hit_kind = filesystem.w_scan_kind;
+        transition { _ -> ws_cont(filesystem) }
     }
-    state ws_cont(&mut self) { self.w_scan_verdict = 1; }
+    state ws_cont(filesystem: &mut Filesystem) { filesystem.w_scan_verdict = 1; }
 }
 
 // POSITIONED IO (the portable positioned-io contract, windows session
@@ -833,7 +833,7 @@ invokes
         let converted_count: u64 = narrow_i64_to_u64_exact(n);
         IoResult::Ok { count: converted_count }
     }
-    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = Filesystem::last_error(&mut self); IoResult::Error { kind: kind } }
 }
 
 // CANONICALIZE (the portable canonicalize contract, windows session slice
@@ -897,11 +897,11 @@ invokes
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err_open(&mut self) -> UnitResult {
         // The entry-mapped kind from the open leg's captured GetLastError.
-        let kind: ErrorKind = self.err_kind.reconstruct();
+        let kind: ErrorKind = ErrorKind::reconstruct(&self.err_kind);
         UnitResult::Error { kind: kind }
     }
     state err_resolve(&mut self) -> UnitResult {
-        let kind: ErrorKind = self.win32_error_kind.reconstruct();
+        let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind);
         UnitResult::Error { kind: kind }
     }
 }
@@ -933,7 +933,7 @@ invokes
     };
     transition rc != 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.win32_error_kind.reconstruct(); UnitResult::Error { kind: kind } }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind); UnitResult::Error { kind: kind } }
 }
 
 // FILE TIMES (windows session slice 4b wrapper): convert Unix whole seconds
@@ -943,7 +943,7 @@ invokes
 // Arithmetic is explicitly wrapping because the public carrier is the full
 // i64 Unix-seconds domain;
 // SetFileTime remains the authority on whether a resulting timestamp is valid.
-pub windows_x86_64 machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult
+pub windows_x86_64 machine Filesystem::set_times(filesystem: &mut Filesystem, file: File, accessed: i64, modified: i64) -> UnitResult
 reaches
     FilesystemHost
 invokes
@@ -957,27 +957,27 @@ invokes
     let modified_ticks: u64 in Wrapping = modified_epoch * 10000000;
     let accessed_bits: u64 = accessed_ticks as u64;
     let modified_bits: u64 = modified_ticks as u64;
-    self.access_filetime[0] = narrow_u64_to_u8_wrapping(accessed_bits);
-    self.access_filetime[1] = narrow_u64_to_u8_wrapping(accessed_bits >> 8);
-    self.access_filetime[2] = narrow_u64_to_u8_wrapping(accessed_bits >> 16);
-    self.access_filetime[3] = narrow_u64_to_u8_wrapping(accessed_bits >> 24);
-    self.access_filetime[4] = narrow_u64_to_u8_wrapping(accessed_bits >> 32);
-    self.access_filetime[5] = narrow_u64_to_u8_wrapping(accessed_bits >> 40);
-    self.access_filetime[6] = narrow_u64_to_u8_wrapping(accessed_bits >> 48);
-    self.access_filetime[7] = narrow_u64_to_u8_wrapping(accessed_bits >> 56);
-    self.modified_filetime[0] = narrow_u64_to_u8_wrapping(modified_bits);
-    self.modified_filetime[1] = narrow_u64_to_u8_wrapping(modified_bits >> 8);
-    self.modified_filetime[2] = narrow_u64_to_u8_wrapping(modified_bits >> 16);
-    self.modified_filetime[3] = narrow_u64_to_u8_wrapping(modified_bits >> 24);
-    self.modified_filetime[4] = narrow_u64_to_u8_wrapping(modified_bits >> 32);
-    self.modified_filetime[5] = narrow_u64_to_u8_wrapping(modified_bits >> 40);
-    self.modified_filetime[6] = narrow_u64_to_u8_wrapping(modified_bits >> 48);
-    self.modified_filetime[7] = narrow_u64_to_u8_wrapping(modified_bits >> 56);
-    self.file_fd = file.fd;
-    let handle: i64 = self.host.get_osfhandle(self.file_fd);
-    let rc: i32 = self.host.set_file_time(handle, 0, &self.access_filetime, &self.modified_filetime);
-    let code: i32 = self.host.get_last_error();
-    self.win32_error_kind = match code {
+    filesystem.access_filetime[0] = narrow_u64_to_u8_wrapping(accessed_bits);
+    filesystem.access_filetime[1] = narrow_u64_to_u8_wrapping(accessed_bits >> 8);
+    filesystem.access_filetime[2] = narrow_u64_to_u8_wrapping(accessed_bits >> 16);
+    filesystem.access_filetime[3] = narrow_u64_to_u8_wrapping(accessed_bits >> 24);
+    filesystem.access_filetime[4] = narrow_u64_to_u8_wrapping(accessed_bits >> 32);
+    filesystem.access_filetime[5] = narrow_u64_to_u8_wrapping(accessed_bits >> 40);
+    filesystem.access_filetime[6] = narrow_u64_to_u8_wrapping(accessed_bits >> 48);
+    filesystem.access_filetime[7] = narrow_u64_to_u8_wrapping(accessed_bits >> 56);
+    filesystem.modified_filetime[0] = narrow_u64_to_u8_wrapping(modified_bits);
+    filesystem.modified_filetime[1] = narrow_u64_to_u8_wrapping(modified_bits >> 8);
+    filesystem.modified_filetime[2] = narrow_u64_to_u8_wrapping(modified_bits >> 16);
+    filesystem.modified_filetime[3] = narrow_u64_to_u8_wrapping(modified_bits >> 24);
+    filesystem.modified_filetime[4] = narrow_u64_to_u8_wrapping(modified_bits >> 32);
+    filesystem.modified_filetime[5] = narrow_u64_to_u8_wrapping(modified_bits >> 40);
+    filesystem.modified_filetime[6] = narrow_u64_to_u8_wrapping(modified_bits >> 48);
+    filesystem.modified_filetime[7] = narrow_u64_to_u8_wrapping(modified_bits >> 56);
+    filesystem.file_fd = file.fd;
+    let handle: i64 = filesystem.host.get_osfhandle(filesystem.file_fd);
+    let rc: i32 = filesystem.host.set_file_time(handle, 0, &filesystem.access_filetime, &filesystem.modified_filetime);
+    let code: i32 = filesystem.host.get_last_error();
+    filesystem.win32_error_kind = match code {
         2 -> ErrorKind::NotFound,
         3 -> ErrorKind::NotFound,
         5 -> ErrorKind::PermissionDenied,
@@ -988,40 +988,40 @@ invokes
         183 -> ErrorKind::AlreadyExists,
         _ -> ErrorKind::Other
     };
-    transition rc != 0 { true -> ok() _ -> err() }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult {
-        let kind: ErrorKind = self.win32_error_kind.reconstruct();
+    transition rc != 0 { true -> ok(filesystem) _ -> err(filesystem) }
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state err(filesystem: &mut Filesystem) -> UnitResult {
+        let kind: ErrorKind = ErrorKind::reconstruct(&filesystem.win32_error_kind);
         UnitResult::Error { kind: kind }
     }
 }
 
-pub windows_x86_64 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult
+pub windows_x86_64 machine Filesystem::write_at(filesystem: &mut Filesystem, file: File, bytes: &[u8], offset: i64) -> IoResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let saved: i64 = self.host.seek(self.file_fd, 0, 1);
-    let moved: i64 = self.host.seek(self.file_fd, offset, 0);
-    let n: i64 = self.host.write(self.file_fd, bytes);
-    let back: i64 = self.host.seek(self.file_fd, saved, 0);
-    transition saved >= 0 { true -> wa_moved(moved, n, back) _ -> err() }
-    state wa_moved(&mut self, moved: i64, n: i64, back: i64) -> IoResult {
-        transition moved >= 0 { true -> wa_n(n, back) _ -> err() }
+    filesystem.file_fd = file.fd;
+    let saved: i64 = filesystem.host.seek(filesystem.file_fd, 0, 1);
+    let moved: i64 = filesystem.host.seek(filesystem.file_fd, offset, 0);
+    let n: i64 = filesystem.host.write(filesystem.file_fd, bytes);
+    let back: i64 = filesystem.host.seek(filesystem.file_fd, saved, 0);
+    transition saved >= 0 { true -> wa_moved(filesystem, moved, n, back) _ -> err(filesystem) }
+    state wa_moved(filesystem: &mut Filesystem, moved: i64, n: i64, back: i64) -> IoResult {
+        transition moved >= 0 { true -> wa_n(filesystem, n, back) _ -> err(filesystem) }
     }
-    state wa_n(&mut self, n: i64, back: i64) -> IoResult {
-        transition n >= 0 { true -> wa_back(n, back) _ -> err() }
+    state wa_n(filesystem: &mut Filesystem, n: i64, back: i64) -> IoResult {
+        transition n >= 0 { true -> wa_back(filesystem, n, back) _ -> err(filesystem) }
     }
-    state wa_back(&mut self, n: i64, back: i64) -> IoResult {
-        transition back >= 0 { true -> ok(n) _ -> err() }
+    state wa_back(filesystem: &mut Filesystem, n: i64, back: i64) -> IoResult {
+        transition back >= 0 { true -> ok(filesystem, n) _ -> err(filesystem) }
     }
-    state ok(&mut self, n: i64) -> IoResult {
+    state ok(filesystem: &mut Filesystem, n: i64) -> IoResult {
         let converted_count: u64 = narrow_i64_to_u64_exact(n);
         IoResult::Ok { count: converted_count }
     }
-    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+    state err(filesystem: &mut Filesystem) -> IoResult { let kind: ErrorKind = Filesystem::last_error(filesystem); IoResult::Error { kind: kind } }
 }
 
 // Whole-file advisory locks over the CRT-fd -> HANDLE bridge. LockFileEx sees
@@ -1051,7 +1051,7 @@ invokes
     };
     transition rc != 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.win32_error_kind.reconstruct(); UnitResult::Error { kind: kind } }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind); UnitResult::Error { kind: kind } }
 }
 
 pub windows_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult
@@ -1077,7 +1077,7 @@ invokes
     };
     transition rc != 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.win32_error_kind.reconstruct(); UnitResult::Error { kind: kind } }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind); UnitResult::Error { kind: kind } }
 }
 
 pub windows_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult
@@ -1105,7 +1105,7 @@ invokes
     state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
     state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
     state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.win32_error_kind.reconstruct(); TryLockResult::Error { kind: kind } }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind); TryLockResult::Error { kind: kind } }
 }
 
 pub windows_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult
@@ -1133,7 +1133,7 @@ invokes
     state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
     state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
     state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.win32_error_kind.reconstruct(); TryLockResult::Error { kind: kind } }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind); TryLockResult::Error { kind: kind } }
 }
 
 pub windows_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult

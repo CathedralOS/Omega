@@ -193,65 +193,65 @@ pub data UefiOsHandoffLegs {
 // `descriptor_size`/`descriptor_version` evidence or the required size. The
 // boundary lane owns the scalar-returning firmware call; the result lands on
 // `status` for the enclosing cycle's dispatch.
-boundary machine UefiOsHandoffLegs::acquire(&mut self)
+boundary machine UefiOsHandoffLegs::acquire(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
-    self.map_size = self.map_capacity;
-    let table_in: u64 = self.table;
-    let map_in: u64 = self.map;
-    let status_out: u64 = self.boot_services.get_memory_map(
+    uefi_os_handoff_legs.map_size = uefi_os_handoff_legs.map_capacity;
+    let table_in: u64 = uefi_os_handoff_legs.table;
+    let map_in: u64 = uefi_os_handoff_legs.map;
+    let status_out: u64 = uefi_os_handoff_legs.boot_services.get_memory_map(
         table_in,
-        &mut self.map_size,
+        &mut uefi_os_handoff_legs.map_size,
         map_in,
-        &mut self.key,
-        &mut self.descriptor_size,
-        &mut self.descriptor_version
+        &mut uefi_os_handoff_legs.key,
+        &mut uefi_os_handoff_legs.descriptor_size,
+        &mut uefi_os_handoff_legs.descriptor_version
     );
-    self.status = status_out;
+    uefi_os_handoff_legs.status = status_out;
 }
 
 // Allocate the staged replacement buffer. A rejected grow leaves the retained
 // `map`/`map_pages` storage live and untouched.
-boundary machine UefiOsHandoffLegs::grow(&mut self)
+boundary machine UefiOsHandoffLegs::grow(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
-    let table_in: u64 = self.table;
-    let pages_in: u64 = self.pages;
-    let status_out: u64 = self.boot_services.allocate_pages(
+    let table_in: u64 = uefi_os_handoff_legs.table;
+    let pages_in: u64 = uefi_os_handoff_legs.pages;
+    let status_out: u64 = uefi_os_handoff_legs.boot_services.allocate_pages(
         table_in,
         EFI_ALLOCATE_ANY_PAGES,
         EFI_LOADER_DATA,
         pages_in,
-        &mut self.next_map
+        &mut uefi_os_handoff_legs.next_map
     );
-    self.status = status_out;
+    uefi_os_handoff_legs.status = status_out;
 }
 
 // Release the superseded map storage before the grown buffer is adopted.
-boundary machine UefiOsHandoffLegs::free_map(&mut self)
+boundary machine UefiOsHandoffLegs::free_map(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
-    let table_in: u64 = self.table;
-    let map_in: u64 = self.map;
-    let map_pages_in: u64 = self.map_pages;
-    let status_out: u64 = self.boot_services.free_pages(table_in, map_in, map_pages_in);
-    self.status = status_out;
+    let table_in: u64 = uefi_os_handoff_legs.table;
+    let map_in: u64 = uefi_os_handoff_legs.map;
+    let map_pages_in: u64 = uefi_os_handoff_legs.map_pages;
+    let status_out: u64 = uefi_os_handoff_legs.boot_services.free_pages(table_in, map_in, map_pages_in);
+    uefi_os_handoff_legs.status = status_out;
 }
 
 // The successful leg transfers custody out of Boot Services entirely; a
 // rejected exit leaves the retained evidence live for the cycle's retry.
-boundary machine UefiOsHandoffLegs::attempt_exit(&mut self)
+boundary machine UefiOsHandoffLegs::attempt_exit(uefi_os_handoff_legs: &mut UefiOsHandoffLegs)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
-    let table_in: u64 = self.table;
-    let image_in: u64 = self.image;
-    let key_in: u64 = self.key;
-    let status_out: u64 = self.boot_services.exit_boot_services(table_in, image_in, key_in);
-    self.status = status_out;
+    let table_in: u64 = uefi_os_handoff_legs.table;
+    let image_in: u64 = uefi_os_handoff_legs.image;
+    let key_in: u64 = uefi_os_handoff_legs.key;
+    let status_out: u64 = uefi_os_handoff_legs.boot_services.exit_boot_services(table_in, image_in, key_in);
+    uefi_os_handoff_legs.status = status_out;
 }
 
 // The authored cycle's terminal-stage carrier: one provider per record keeps
@@ -260,18 +260,18 @@ pub data UefiOsHandoffTerminal {
     termination: Binding<UefiOsHandoffTermination>;
 }
 
-pub machine UefiOsHandoffTerminal::firmware_return(&mut self, status: u64)
+pub machine UefiOsHandoffTerminal::firmware_return(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal, status: u64)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination;
 {
-    self.termination.firmware_return(status);
+    uefi_os_handoff_terminal.termination.firmware_return(status);
 }
 
-pub machine UefiOsHandoffTerminal::transfer(&mut self)
+pub machine UefiOsHandoffTerminal::transfer(uefi_os_handoff_terminal: &mut UefiOsHandoffTerminal)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination;
 {
-    self.termination.transfer();
+    uefi_os_handoff_terminal.termination.transfer();
 }
 
 // The bound handoff cycle: the legs record performs every scalar-returning
@@ -292,46 +292,46 @@ pub data UefiOsHandoffCycle {
     exhaustion: u64;
 }
 
-machine UefiOsHandoffCycle::acquire(&mut self)
+machine UefiOsHandoffCycle::acquire(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
-    self.legs.acquire();
+    UefiOsHandoffLegs::acquire(&mut uefi_os_handoff_cycle.legs);
 }
 
-machine UefiOsHandoffCycle::grow(&mut self)
+machine UefiOsHandoffCycle::grow(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
-    self.legs.grow();
+    UefiOsHandoffLegs::grow(&mut uefi_os_handoff_cycle.legs);
 }
 
-machine UefiOsHandoffCycle::free_map(&mut self)
+machine UefiOsHandoffCycle::free_map(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
-    self.legs.free_map();
+    UefiOsHandoffLegs::free_map(&mut uefi_os_handoff_cycle.legs);
 }
 
-machine UefiOsHandoffCycle::attempt_exit(&mut self)
+machine UefiOsHandoffCycle::attempt_exit(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiBootServices
     invokes UefiBootServices;
 {
-    self.legs.attempt_exit();
+    UefiOsHandoffLegs::attempt_exit(&mut uefi_os_handoff_cycle.legs);
 }
 
-machine UefiOsHandoffCycle::firmware_return(&mut self, status: u64)
+machine UefiOsHandoffCycle::firmware_return(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle, status: u64)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination;
 {
-    self.terminal.firmware_return(status);
+    UefiOsHandoffTerminal::firmware_return(&mut uefi_os_handoff_cycle.terminal, status);
 }
 
-machine UefiOsHandoffCycle::transfer(&mut self)
+machine UefiOsHandoffCycle::transfer(uefi_os_handoff_cycle: &mut UefiOsHandoffCycle)
     reaches UefiOsHandoffTermination
     invokes UefiOsHandoffTermination;
 {
-    self.terminal.transfer();
+    UefiOsHandoffTerminal::transfer(&mut uefi_os_handoff_cycle.terminal);
 }
 
 // The authored bounded handoff cycle, the source route of
@@ -359,7 +359,7 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     }
 
     state acquire(&mut self) {
-        self.acquire();
+        UefiOsHandoffCycle::acquire(&mut self);
         transition { _ -> acquired() }
     }
 
@@ -388,7 +388,7 @@ pub machine UefiOsHandoffCycle::run(&mut self)
         let required: u64 = ((self.legs.map_size as u64 in Saturating)
             + (EFI_PAGE_BYTES - 1)) as u64;
         self.legs.pages = required / EFI_PAGE_BYTES;
-        self.grow();
+        UefiOsHandoffCycle::grow(&mut self);
         transition { _ -> release() }
     }
 
@@ -407,7 +407,7 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     }
 
     state free(&mut self) {
-        self.free_map();
+        UefiOsHandoffCycle::free_map(&mut self);
         transition { _ -> adopt() }
     }
 
@@ -422,7 +422,7 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     // A successful acquire attempted no exit yet; the freshest `key` on the
     // legs record is the snapshot the exit leg presents.
     state attempt_exit(&mut self) {
-        self.attempt_exit();
+        UefiOsHandoffCycle::attempt_exit(&mut self);
         transition { _ -> exit_rejected() }
     }
 
@@ -459,21 +459,21 @@ pub machine UefiOsHandoffCycle::run(&mut self)
     // The live leg status is not an admitted rejection: the invocation's
     // firmware return carries it with the retained custody intact.
     state reject_status(&mut self) {
-        self.firmware_return(self.legs.status);
+        UefiOsHandoffCycle::firmware_return(&mut self, self.legs.status);
         transition { _ -> reject_status() }
     }
 
     // Stale-key bound spent: the invocation's firmware return carries the
     // target-authored exhaustion status.
     state exhausted(&mut self) {
-        self.firmware_return(self.exhaustion);
+        UefiOsHandoffCycle::firmware_return(&mut self, self.exhaustion);
         transition { _ -> exhausted() }
     }
 
     // Boot Services consumed: the compiler-owned transfer enters the loaded
     // image's entry and never returns to this cycle.
     state complete(&mut self) {
-        self.transfer();
+        UefiOsHandoffCycle::transfer(&mut self);
         transition { _ -> complete() }
     }
 }
