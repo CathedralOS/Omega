@@ -553,14 +553,22 @@ fn walk_state_write_prefix_inner(
             }
             _ => None,
         };
-        if stored_origins::statement_exposes_frozen_binding(
-            program,
-            machine,
-            state,
-            statement,
-            &stored,
-            &local_alias_origins,
-        ) {
+        // A synthesized wire codec call's exclusive borrows are the codec
+        // leaf's own written-paths model: rebinding through them is a
+        // recorded write, not an untracked replacement, so the
+        // frozen-binding opacity fence does not apply to it.
+        let wire_codec_call = matches!(statement, StatementNode::Call(call)
+            if wire_codecs::is_wire_codec_call(program, call));
+        if !wire_codec_call
+            && stored_origins::statement_exposes_frozen_binding(
+                program,
+                machine,
+                state,
+                statement,
+                &stored,
+                &local_alias_origins,
+            )
+        {
             return None;
         }
         if !divergent_alias_origins.is_empty() {
@@ -971,7 +979,8 @@ fn walk_state_write_prefix_inner(
                 // parameters to instantiate; its frame is its exclusively
                 // borrowed arguments. The type-name receiver must never reach
                 // the ownership floor, which would poison it as a place.
-                let nested_writes = if wire_codecs::is_wire_codec_call(program, nested_call) {
+                let codec = wire_codecs::is_wire_codec_call(program, nested_call);
+                let nested_writes = if codec {
                     // A divergent argument is resolved rather than refused:
                     // the resolver below takes the candidate set and unions
                     // every proven referent, and keeps an unproven binding
@@ -1077,6 +1086,16 @@ fn walk_state_write_prefix_inner(
                         )
                     })
                 }?;
+                let codec_written_roots: Vec<String> = if codec {
+                    nested_writes
+                        .iter()
+                        .map(|path| split_place_root(path))
+                        .filter(|(_, suffix)| suffix.is_empty())
+                        .map(|(root, _)| root.to_string())
+                        .collect()
+                } else {
+                    Vec::new()
+                };
                 for relative in origins
                     .close_paths(nested_writes)
                     .iter()
@@ -1088,6 +1107,15 @@ fn walk_state_write_prefix_inner(
                         written.push(relative);
                     }
                 }
+                // The codec writes every exclusive-borrow target wholesale,
+                // so rows it does not re-declare are dead evidence: retire a
+                // fully written local's stored origins rather than let later
+                // statements read stale referents from them.
+                stored.retain(|local| {
+                    !codec_written_roots
+                        .iter()
+                        .any(|root| program.symbols.name(local.local_symbol) == root)
+                });
             }
             StatementNode::Transition(transition) => {
                 for target in [transition.target, transition.continuation] {
