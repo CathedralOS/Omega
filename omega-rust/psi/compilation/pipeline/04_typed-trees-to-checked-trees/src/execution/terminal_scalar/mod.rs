@@ -1073,11 +1073,10 @@ fn checked_successor(
         ) {
         program.machine_states(machine).get(target_index)?.symbol
     } else {
-        // A target spelling another machine's entry names that machine's
-        // first state outright (`-> self.pong` carries `pong`'s entry-state
-        // symbol): the same spelling the scalar call-lowering gates resolve
-        // through `find_machine_by_entry_state`.
-        crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)?
+        // A free name may retain the machine head while a qualified call
+        // names its entry child. Both denote the same exact first state;
+        // neither grants access to a foreign machine's interior states.
+        crate::semantic::calls::find_machine_head(program, path.symbol)?
             .1
             .symbol
     };

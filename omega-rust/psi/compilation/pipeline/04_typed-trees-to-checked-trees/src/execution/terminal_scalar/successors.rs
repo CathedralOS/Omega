@@ -252,11 +252,10 @@ fn arguments<'a>(
         }
         target_index
     } else {
-        // A cross-machine target spells the reached machine's entry state;
-        // `checked_successor` already retained it as the edge's target, so
-        // its owning machine must agree with the resolved destination.
-        let (entry_machine, _) =
-            crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)?;
+        // Normalize either the exact machine head or its entry child, as
+        // graph construction does. The owning machine must still agree with
+        // the retained destination; a foreign interior state is not a head.
+        let (entry_machine, _) = crate::semantic::calls::find_machine_head(program, path.symbol)?;
         if entry_machine.symbol != target_machine.symbol {
             return None;
         }

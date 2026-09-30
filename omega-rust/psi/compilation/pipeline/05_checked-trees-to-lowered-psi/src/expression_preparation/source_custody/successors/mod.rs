@@ -479,12 +479,14 @@ pub(crate) fn normalize_machine_state_target(
     if target.is_valid() && states.iter().any(|state| state.symbol == target) {
         return Ok(target);
     }
-    if target.is_valid() && target == machine.symbol {
-        // This extension owns single-state scalar loops. The sole state is
-        // independently attached to the exact machine handle, not its spelling.
-        if let [entry] = states {
-            return Ok(entry.symbol);
-        }
+    // Free names retain a machine head; qualified calls may retain its
+    // entry child instead. Normalize the exact owner to its first state,
+    // independently of its name or how many interior states it declares.
+    if target.is_valid()
+        && let Some(owner) = checked.typed.machine_by_symbol(target)
+        && let Some(entry) = checked.machine_states(owner).first()
+    {
+        return Ok(entry.symbol);
     }
     // A target spelling another machine's entry names that machine's first
     // state outright — the same spelling the scalar call gates normalize.

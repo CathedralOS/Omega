@@ -102,6 +102,28 @@ fn borrowed_provider_fields_reconstruct_exact_carrier_and_fused_receipt() {
         crate::lower_machine(&checked, crate::TerminalMachineSelection::Name(name))
             .expect("ordinary scalar helper borrows its exact provider-bearing record");
     }
+    for name in ["count", "step"] {
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .unwrap();
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(machine.symbol)
+                .is_some(),
+            "{name} source graph declined: {:?}; natural components: {:?}",
+            checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .declined_reason(machine.symbol),
+            validation::validated_runtime_natural_components(&checked)
+        );
+    }
     crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("invoke"))
         .expect("a Unit caller retains the borrowed helper's weak/strict rank cycle");
     let mut owned = SourceTypes {
