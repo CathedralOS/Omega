@@ -420,6 +420,7 @@ and physical-child evidence required by the
 
 A direct native request cannot silently discard pending component progress.
 An authority-distinct dynamic ELF request with an exact normalized interpreter
+selected by [build output configuration](configuration.md#elf-executable-loader-selection)
 retains its complete Terminal/object/selection/evidence/image relationship in a
 separate non-installable product. Producing it grants no loader-policy,
 installation, publication, or execution admission.
