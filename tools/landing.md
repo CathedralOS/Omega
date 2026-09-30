@@ -148,6 +148,29 @@ Every publisher must use this command. Direct main pushes can still bypass this
 cooperative protocol. If main advances outside the reservation, publication stops;
 release and reconcile before performing final validation again.
 
+### Provenance notes
+
+Commit messages carry no tool attribution (AGENTS.md), so after main holds the
+candidate, publish records who produced it as a git note on
+`refs/notes/provenance`: the queue owner label, the ticket, the publication
+time, and — when supplied — free-form provenance such as the agent and model:
+
+```text
+python tools/landing.py publish --claim <claim> --base <base> --candidate <sha> --provenance "agent=devin model=swe-2-medium"
+```
+
+`OMEGA_PROVENANCE` supplies the same text when `--provenance` is absent, so a
+swarm launcher can set it once per session. The note is a separate push after
+publication: it never blocks or undoes a landing, and the result's
+`provenance` field reports `recorded` or why it was not. Notes commits use a
+fixed `omega-landing` committer, since a lander's private address would be
+refused by GitHub's email-privacy check. Read them with:
+
+```text
+git fetch origin refs/notes/provenance:refs/notes/provenance
+git log --notes=provenance
+```
+
 ## Leave the queue or recover abandoned work
 
 ```text

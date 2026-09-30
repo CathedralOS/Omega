@@ -5,6 +5,11 @@ Ready worktrees enqueue, claim the head, integrate, check, and publish. Every
 queue mutation compares the prior object; publication updates main and the
 queue atomically. Only the coordination ref uses force-with-lease. Waiting is
 local and bounded. Each promoted head gets at most three minutes. See landing.md.
+
+After a publication lands, the queue owner label and any `--provenance` text
+(or `OMEGA_PROVENANCE`) are recorded as a git note on the published commit
+under refs/notes/provenance, so which agent and model produced a change can be
+evaluated without putting tool attribution in commit messages.
 """
 
 import argparse
@@ -28,6 +33,10 @@ import trusted_surface_digests
 
 CLAIM_REF = "refs/coordination/omega-landing/main"
 MAIN_REF = "refs/heads/main"
+PROVENANCE_REF = "refs/notes/provenance"
+# Notes commits carry a fixed committer: a lander's own private address would be
+# refused by GitHub's email-privacy check and lose the note.
+PROVENANCE_COMMITTER = ("-c", "user.name=omega-landing", "-c", "user.email=landing@omega.invalid")
 LEASE_SECONDS = 180
 TRUSTED_SITES = trusted_surface_digests.SITES_RS.relative_to(
     trusted_surface_digests.REPO_ROOT).as_posix()
@@ -420,6 +429,41 @@ class Landing:
             pause(failures, PUSH_FAILURE_BACKOFF_BASE,
                   PUSH_FAILURE_BACKOFF_CAP)
 
+    def record_provenance(self, candidate, lines):
+        """Attach `lines` to `candidate` on PROVENANCE_REF; returns what happened.
+
+        Runs only after main already holds the candidate, as a separate push, so
+        it can never block or undo a publication. Concurrent landers race on one
+        notes ref: lease on the value read, rebuild the note on the winner, and
+        retry a bounded number of times before reporting the note as unrecorded.
+        """
+        scratch = "refs/notes/landing-provenance-scratch"
+        text = "\n".join(lines) + "\n"
+        for attempt in range(1, PUSH_FAILURE_LIMIT + 1):
+            try:
+                remote = coordination.remote_refs(self.repository, self.push_url,
+                                                  PROVENANCE_REF).get(PROVENANCE_REF, "")
+                if remote:
+                    coordination.fetch_object(self.repository, self.push_url, remote)
+                    self.git("update-ref", scratch, remote)
+                else:
+                    self.git("update-ref", "-d", scratch, allow_failure=True)
+                self.git(*PROVENANCE_COMMITTER, "notes", "--ref", scratch, "add", "-f",
+                         "-F", "-", candidate, input_text=text)
+                updated = self.git("rev-parse", scratch).stdout
+                pushed = coordination.push_atomic(self.repository, self.push_url,
+                                                  [f"{updated}:{PROVENANCE_REF}"],
+                                                  lease=(PROVENANCE_REF, remote))
+                if not pushed.returncode:
+                    return "recorded"
+                failure = (pushed.stderr or pushed.stdout).strip()
+            except LandingError as error:
+                failure = str(error)
+            finally:
+                self.git("update-ref", "-d", scratch, allow_failure=True)
+            pause(attempt, PUSH_FAILURE_BACKOFF_BASE, PUSH_FAILURE_BACKOFF_CAP)
+        return f"not recorded: {failure[-300:]}"
+
     def back_off_after_collision(self, collisions):
         """Bounded patience for lost push races, then an honest stop."""
         if collisions >= COLLISION_LIMIT:
@@ -607,6 +651,7 @@ class Landing:
                     raise LandingError("The supplied claim is no longer active. Nothing was changed.")
                 if options.command == "publish":
                     self.publication_check(options, snapshot)
+                    owner = next((entry["owner"] for entry in entries if entry["ticket"] == options.claim), "")
                     result = {"state": "published", "candidate": options.candidate, "released_claim": options.claim}
                 else:
                     result = {"state": "released", "claim": options.claim, "action": options.command, "reason": options.reason}
@@ -625,6 +670,11 @@ class Landing:
                 if datetime.now(timezone.utc) >= utc(lease_deadline):
                     raise LandingError("The three-minute head lease expired before push. Rejoin.")
             if self.publish(snapshot["version"], updated, candidate, base):
+                if options.command == "publish":
+                    provenance = options.provenance or os.environ.get("OMEGA_PROVENANCE", "")
+                    result["provenance"] = self.record_provenance(options.candidate, [
+                        f"owner: {owner}", *([f"provenance: {provenance}"] if provenance.strip() else []),
+                        f"ticket: {options.claim}", f"published_utc: {now()}"])
                 emit(result)
                 return 0
             # Retry only metadata contention. Revalidate the active ticket and
@@ -644,7 +694,7 @@ def main(arguments=None):
                         choices=("status", "enqueue", "cancel", "claim", "publish", "release", "recover", "verify"))
     parser.add_argument("--repository", default=".")
     parser.add_argument("--remote", default="origin")
-    for name in ("owner", "ticket", "claim", "base", "candidate", "reason"):
+    for name in ("owner", "ticket", "claim", "base", "candidate", "reason", "provenance"):
         parser.add_argument("--" + name)
     parser.add_argument("--wait-seconds", type=int, default=0)
     parser.add_argument("--poll-seconds", type=int, default=10)
@@ -660,6 +710,8 @@ def main(arguments=None):
             raise LandingError("--wait-seconds applies only to claim.")
         if options.board_update and options.command != "publish":
             raise LandingError("--board-update applies only to publish.")
+        if options.provenance is not None and (options.command != "publish" or len(options.provenance) > 500):
+            raise LandingError("--provenance applies only to publish and holds at most 500 characters.")
         if options.command == "enqueue":
             if not options.owner or not options.owner.strip() or len(options.owner) > 200:
                 raise LandingError("Supply a short, recognizable --owner.")

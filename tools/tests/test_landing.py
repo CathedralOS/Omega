@@ -539,6 +539,36 @@ class LandingTests(unittest.TestCase):
         self.assertIn("expired before push", errors.getvalue())
         self.assert_remote(self.initial, claim["claim"])
 
+    def test_publish_records_owner_and_provenance_as_a_note(self):
+        first = self.claim(self.a, owner="Jarod / swarm")
+        first_candidate = self.commit(self.a, "first")
+        published = self.run_landing(self.a, "publish", "--claim", first["claim"], "--base", first["base"],
+                                     "--candidate", first_candidate,
+                                     "--provenance", "agent=devin model=swe-2-medium")
+        self.assertEqual(published["provenance"], "recorded")
+        # A second lander on another machine adds its note beside the first.
+        self.git(self.b, "pull", "--ff-only", "origin", "main")
+        second = self.claim(self.b, owner="Zac / swarm")
+        second_candidate = self.commit(self.b, "second")
+        self.assertEqual(self.publish(self.b, second, second_candidate)["provenance"], "recorded")
+        self.assert_remote(second_candidate)
+        first_note = self.git(self.remote, "notes", "--ref", "provenance", "show", first_candidate)
+        self.assertIn("owner: Jarod / swarm", first_note)
+        self.assertIn("provenance: agent=devin model=swe-2-medium", first_note)
+        second_note = self.git(self.remote, "notes", "--ref", "provenance", "show", second_candidate)
+        self.assertIn("owner: Zac / swarm", second_note)
+        self.assertNotIn("provenance:", second_note)
+        # The commit message itself stays free of tool attribution.
+        self.assertEqual(self.git(self.remote, "log", "-1", "--format=%B", first_candidate), "first")
+
+    def test_provenance_applies_only_to_publish(self):
+        self.run_landing(self.a, "enqueue", "--owner", "writer", "--provenance", "model=x", expected=1)
+        claim = self.claim(self.a)
+        candidate = self.commit(self.a, "candidate")
+        self.run_landing(self.a, "publish", "--claim", claim["claim"], "--base", claim["base"],
+                         "--candidate", candidate, "--provenance", "x" * 501, expected=1)
+        self.assert_remote(self.initial, claim["claim"])
+
     def test_invalid_arguments_are_errors_not_busy(self):
         for arguments in (("unknown-command",), ("release", "--claim", "not-an-id"),
                           ("status", "--remote", "--all")):
