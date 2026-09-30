@@ -1,0 +1,1 @@
+root binding operand is not a compiler-issued product entry description

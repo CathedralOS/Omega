@@ -1,0 +1,3 @@
+machine build(builder: &mut Build) {
+    builder.package("build_scope_entry_helper");
+}

@@ -1,0 +1,6 @@
+module configure;
+
+pub machine configure(builder: &mut Build) {
+    let entry: ProductEntryRef = builder.product.entry("launch", "windows_x86_64::ProgramEntry");
+    builder.roots.bind(windows_x86_64::ProgramEntry, entry);
+}

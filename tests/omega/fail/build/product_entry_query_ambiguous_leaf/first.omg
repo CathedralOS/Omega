@@ -1,0 +1,5 @@
+module first;
+
+pub machine launch() {
+    let marker: u8 = 11;
+}

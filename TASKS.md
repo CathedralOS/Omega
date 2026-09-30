@@ -2322,11 +2322,14 @@ extend that route through ordinary checked Build execution and retained outputs.
   attachment.
 
   Retain source controls for qualified paths, computed receivers, named lifetimes,
-  parent loans and conflicting later operands. Reject unauthorized private/sibling
-  enumeration, stale/forged descriptions, wrong scope/target/slot, swapped or
-  ambiguous declarations, description-to-callable conversion and same-build
-  generated/layout cycles. Explicitly delegated private entry descriptions remain
-  usable without enumeration authority.
+  parent loans and conflicting later operands. `fail/build/product_entry_*` and
+  `root_binding_foreign_helper_private_entry` pin private/sibling enumeration,
+  build-scope aliases, undeclared slots, unknown targets, incompatible
+  signatures, slot mismatch, ambiguous leaves and forged descriptions. Still
+  unpinned: stale descriptions, description-to-callable conversion, same-build
+  generated/layout cycles, and the positive control that an explicitly
+  delegated private entry description stays usable without enumeration
+  authority.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish coherent capture and host acceptance under the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
