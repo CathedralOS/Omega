@@ -858,14 +858,19 @@ the complete product bar; focused successes below do not establish that baseline
   that route and delegates listing to Snapshot's deletion-aware page/count APIs,
   retaining global IDs and the eight/seven-result oracle. On macOS ARM64,
   `omega update --project samples/apps/squalr/squalr-tests --target linux_x86_64`
-  now passes nested-receiver method typing but rejects the list executor's
-  `element` state: a nested scalar call in a field assignment hits the legacy
-  result fence, and its Exact increment remains unproved with an explicit
-  loop-state precondition. Coordinate ordered scalar computation storage and
-  state facts with STATE-LOCAL-VALUE-FRONTIER; keep the authored nested call.
-  The shared receiver-type repair uses nominal-owner eligibility before source
-  lookup precedence; 113 typing tests and native
-  `calls/runtime_nested_receiver_guard_exit` (exit 42) cover the repair.
+  passes nested-receiver typing and the list executor's authored nested scalar
+  call in a local field assignment. The candidate atop `75aed6405b` removes
+  duplicated member-store signature/path planning; existing checked assignment
+  computations and independent storage replay own that operation. Native
+  `calls/runtime_nested_local_field_store_exit` exits 42 and counts each call
+  once; 656 validation tests, eight replay tests, and 148 checked corpus cases
+  preserve the relevant acceptance and rejection controls.
+  Package checking now reports only the `element` state's Exact increment at
+  this frontier. Even `requires position < selected.count(); { position + 1 }`
+  fails without intervening writes: ordered arithmetic's call operand identity
+  currently accepts free primitive-input calls, not receiver calls. Repair
+  bound transport with STATE-LOCAL-VALUE-FRONTIER; do not weaken Exact arithmetic
+  or rewrite the application around the missing proof mechanism.
   Before the listing change, the restored entry checked 282 sources but native
   emission stopped at `Main::main`'s missing checked transitive machine plan
   (`state signature: parameter signature: attached data shape, state 0`).

@@ -91,10 +91,9 @@ fn unit_scalar_store_assignments_admit_nested_call_evaluation() {
 
 #[test]
 fn member_scalar_store_assignments_admit_nested_call_evaluation() {
-    // Member destinations on a borrowed structural parameter or the attached
-    // receiver sequence through the same checked structural field-store
-    // producer as a scalar source: the nested operand is an `AssignmentValue`
-    // computation evaluated exactly once before the outer call and the store.
+    // The declared scalar leaf owns the computation contract. Storage and ABI
+    // eligibility belong to checked planning, not a second signature planner
+    // here; borrowed, attached, and owned-local destinations share this rule.
     for source in [
         "data Container { flag: bool; }
          machine identity(input: bool) -> bool { input }
@@ -123,10 +122,48 @@ fn member_scalar_store_assignments_admit_nested_call_evaluation() {
          machine value(param: &mut Outer, input: bool) {
              param.inner.flag = identity(identity(input));
          }",
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine value(input: bool) -> bool {
+             let mut saved: Container = Container { flag: input };
+             saved.flag = identity(identity(input));
+             saved.flag
+         }",
+        "data Inner { flag: bool; }
+         data Outer { inner: Inner; }
+         machine identity(input: bool) -> bool { input }
+         machine value(input: bool) -> bool {
+             let saved: Outer = Outer { inner: Inner { flag: false } };
+             saved.inner.flag = identity(identity(input));
+             saved.inner.flag
+         }",
+        // A sibling's ABI availability cannot decide source assignment legality.
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine Container::value(&mut self, observer: &bool) {
+             self.flag = identity(identity(false));
+         }",
     ] {
         let diagnostics = diagnostics(source);
         assert!(diagnostics.is_empty(), "{source}: {diagnostics:?}");
     }
+}
+
+#[test]
+fn nested_member_computation_does_not_grant_write_authority() {
+    let messages = diagnostics(
+        "data Container { flag: bool; }
+         machine identity(input: bool) -> bool { input }
+         machine value(param: &Container, input: bool) {
+             param.flag = identity(identity(input));
+         }",
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("not mutable")),
+        "{messages:?}"
+    );
 }
 
 #[test]
@@ -137,28 +174,6 @@ fn unserved_assignment_destinations_keep_nested_call_realization_fence() {
              let mut saved: [bool; 1] = [input];
              saved[0] = identity(identity(input));
              input
-         }",
-        "data Container { flag: bool; }
-         machine identity(input: bool) -> bool { input }
-         machine value(input: bool) -> bool {
-             let mut saved: Container = Container { flag: input };
-             saved.flag = identity(identity(input));
-             input
-         }",
-        // A shared borrow carries no store authority, so `param.flag` stays
-        // outside the realized member-store family.
-        "data Container { flag: bool; }
-         machine identity(input: bool) -> bool { input }
-         machine value(param: &Container, input: bool) {
-             param.flag = identity(identity(input));
-         }",
-        // A shared primitive borrow sibling is unplannable in the
-        // attached/no-scalar-parameter signature variant, so the receiver
-        // member store keeps the fence rather than outrun the producer.
-        "data Container { flag: bool; }
-         machine identity(input: bool) -> bool { input }
-         machine Container::value(&mut self, observer: &bool) {
-             self.flag = identity(identity(false));
          }",
         // The leaf's declared primitive must be exactly the callee's result.
         "data Container { flag: i32; }
