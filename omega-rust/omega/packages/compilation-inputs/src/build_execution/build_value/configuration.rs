@@ -38,6 +38,71 @@ pub struct EvaluatedBuildSettings {
     /// grant and stays `freestanding`-only; `freestanding` already covers
     /// both mediated classes.
     pub privileged_services: PrivilegedServicesGrants,
+    /// Authored per-target ELF loader selections
+    /// (wiki/spec/build/configuration.md#elf-executable-loader-selection).
+    /// Each is validated when the Build is read back; realization combines
+    /// them with the selected target environment's declared default.
+    pub elf_interpreters: ElfInterpreterSelections,
+}
+
+/// Rows of the authored `Build.elf_interpreter` selection: at most one exact
+/// `PT_INTERP` pathname per ELF target profile, each already normalized.
+///
+/// An absent row keeps that target environment's declared default. A row
+/// never requests dynamic linking or makes foreign imports compatible; the
+/// image owner consumes the effective loader only for an object that retains
+/// normalized ELF imports.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ElfInterpreterSelections {
+    explicit: Vec<target::NormalizedElfInterpreterPlan>,
+}
+
+impl ElfInterpreterSelections {
+    /// The authored row for one target, when the Build selected one.
+    pub fn explicit(
+        &self,
+        target: target::TargetProfile,
+    ) -> Option<&target::NormalizedElfInterpreterPlan> {
+        self.explicit.iter().find(|plan| plan.target() == target)
+    }
+
+    /// The effective loader of one realized target: the authored row
+    /// overrides the target environment's declared default. `None` means
+    /// neither supplies one, so a dynamically linked output for this target
+    /// must reject for missing output configuration.
+    pub fn effective(
+        &self,
+        target: target::TargetProfile,
+    ) -> Option<target::NormalizedElfInterpreterPlan> {
+        self.explicit(target)
+            .cloned()
+            .or_else(|| target::declared_elf_interpreter_default(target))
+    }
+
+    /// Read the `ElfInterpreterSelection` rows keyed by canonical target
+    /// name. Empty bytes mean no authored row; every nonempty row must be an
+    /// absolute pathname without NUL bytes.
+    fn from_build_rows(rows: &[(String, BuildTimeValue)]) -> Result<Self, String> {
+        let mut explicit = Vec::new();
+        for target in target::ELF_INTERPRETER_TARGET_PROFILES {
+            let name = target.target_name();
+            let Some((_, value)) = rows.iter().find(|(row, _)| row == name) else {
+                continue;
+            };
+            let BuildTimeValue::Text(bytes) = value else {
+                return Err(format!(
+                    "Build.elf_interpreter.{name} is not bytes: {value:?}"
+                ));
+            };
+            if bytes.is_empty() {
+                continue;
+            }
+            let plan = target::normalize_elf_interpreter_plan(bytes.clone(), target)
+                .map_err(|error| format!("Build.elf_interpreter.{name} is invalid: {error}"))?;
+            explicit.push(plan);
+        }
+        Ok(Self { explicit })
+    }
 }
 
 /// The two independent optional proof-product selections retained from
@@ -83,6 +148,7 @@ impl Default for EvaluatedBuildSettings {
             x86_deployment_claim: X86DeploymentClaim::Baseline,
             pcc: PccRequests::default(),
             privileged_services: PrivilegedServicesGrants::default(),
+            elf_interpreters: ElfInterpreterSelections::default(),
         }
     }
 }
@@ -277,6 +343,20 @@ pub(crate) fn extract_build_settings(
         Err(_) => PrivilegedServicesGrants::default(),
     };
 
+    // An authored Build that predates the loader surface carries no
+    // `elf_interpreter` field; omission selects no explicit loader.
+    let elf_interpreters = match field("elf_interpreter") {
+        Ok(BuildTimeValue::Struct { fields, .. }) => {
+            ElfInterpreterSelections::from_build_rows(fields)?
+        }
+        Ok(other) => {
+            return Err(format!(
+                "Build.elf_interpreter is not an ElfInterpreterSelection struct: {other:?}"
+            ));
+        }
+        Err(_) => ElfInterpreterSelections::default(),
+    };
+
     let (optimizations, optimization_report) = optimization_admission.extract(build)?;
 
     Ok((
@@ -289,6 +369,7 @@ pub(crate) fn extract_build_settings(
             x86_deployment_claim,
             pcc,
             privileged_services,
+            elf_interpreters,
         },
         optimization_report,
     ))
@@ -530,5 +611,117 @@ mod tests {
         assert!(
             non_struct.contains("Build.privileged_services is not a PrivilegedServices struct")
         );
+    }
+
+    #[test]
+    fn elf_interpreter_rows_override_target_environment_defaults() {
+        use target::TargetProfile;
+
+        let mut typed = typed_trees::TypedTrees::default();
+        typed.push_data_definition(typed_trees::data::DataDefinition {
+            name: "Build".into(),
+            ..Default::default()
+        });
+        let extract = |selection: Option<super::BuildTimeValue>| {
+            let mut fields = vec![
+                (
+                    "subsystem".into(),
+                    super::BuildTimeValue::Case {
+                        variant: "Console".into(),
+                        payload: vec![],
+                    },
+                ),
+                ("freestanding".into(), super::BuildTimeValue::Bool(false)),
+            ];
+            if let Some(selection) = selection {
+                fields.push(("elf_interpreter".into(), selection));
+            }
+            super::extract_build_settings(
+                &super::BuildTimeValue::Struct {
+                    type_name: "Build".into(),
+                    fields,
+                },
+                super::optimization::BuildOptimizationAdmission::admit(&typed).unwrap(),
+                false,
+            )
+            .map(|(settings, _)| settings.elf_interpreters)
+        };
+        let rows = |arm64: &[u8], x86_64: &[u8]| super::BuildTimeValue::Struct {
+            type_name: "ElfInterpreterSelection".into(),
+            fields: vec![
+                (
+                    "linux_arm64".into(),
+                    super::BuildTimeValue::Text(arm64.to_vec()),
+                ),
+                (
+                    "linux_x86_64".into(),
+                    super::BuildTimeValue::Text(x86_64.to_vec()),
+                ),
+            ],
+        };
+        let path = |plan: Option<target::NormalizedElfInterpreterPlan>| {
+            plan.map(|plan| plan.interpreter_path().to_vec())
+        };
+
+        // A Build predating the field and an all-empty selection both keep
+        // every target environment's declared default.
+        for unselected in [
+            extract(None).unwrap(),
+            extract(Some(rows(b"", b""))).unwrap(),
+        ] {
+            assert_eq!(unselected, super::ElfInterpreterSelections::default());
+            assert_eq!(unselected.explicit(TargetProfile::LinuxX64), None);
+            assert_eq!(
+                path(unselected.effective(TargetProfile::LinuxX64)),
+                Some(b"/lib64/ld-linux-x86-64.so.2".to_vec())
+            );
+            assert_eq!(
+                path(unselected.effective(TargetProfile::LinuxArm64)),
+                Some(b"/lib/ld-linux-aarch64.so.1".to_vec())
+            );
+            assert_eq!(unselected.effective(TargetProfile::MacosArm64), None);
+        }
+
+        // One target's explicit row overrides only that target's default.
+        let musl = extract(Some(rows(b"", b"/lib/ld-musl-x86_64.so.1"))).unwrap();
+        let selected = musl
+            .explicit(TargetProfile::LinuxX64)
+            .expect("the authored linux_x86_64 row is retained");
+        assert_eq!(selected.target(), TargetProfile::LinuxX64);
+        assert_eq!(
+            path(musl.effective(TargetProfile::LinuxX64)),
+            Some(b"/lib/ld-musl-x86_64.so.1".to_vec())
+        );
+        assert_eq!(musl.explicit(TargetProfile::LinuxArm64), None);
+        assert_eq!(
+            path(musl.effective(TargetProfile::LinuxArm64)),
+            Some(b"/lib/ld-linux-aarch64.so.1".to_vec())
+        );
+
+        // Relative and NUL-bearing pathnames reject when the Build is read
+        // back, naming the exact target row.
+        let relative = extract(Some(rows(b"", b"lib64/ld-linux-x86-64.so.2")))
+            .expect_err("a relative interpreter pathname must reject");
+        assert!(
+            relative.contains("Build.elf_interpreter.linux_x86_64 is invalid")
+                && relative.contains("not absolute"),
+            "unexpected diagnostic: {relative}"
+        );
+        let nul = extract(Some(rows(b"/lib/ld\0-linux-aarch64.so.1", b"")))
+            .expect_err("a NUL-bearing interpreter pathname must reject");
+        assert!(
+            nul.contains("Build.elf_interpreter.linux_arm64 is invalid")
+                && nul.contains("NUL byte at offset 7"),
+            "unexpected diagnostic: {nul}"
+        );
+        let non_bytes = extract(Some(super::BuildTimeValue::Struct {
+            type_name: "ElfInterpreterSelection".into(),
+            fields: vec![("linux_x86_64".into(), super::BuildTimeValue::Int(1))],
+        }))
+        .expect_err("a non-bytes interpreter row must reject");
+        assert!(non_bytes.contains("Build.elf_interpreter.linux_x86_64 is not bytes"));
+        let non_struct = extract(Some(super::BuildTimeValue::Bool(true)))
+            .expect_err("a non-struct selection must reject");
+        assert!(non_struct.contains("Build.elf_interpreter is not an ElfInterpreterSelection"));
     }
 }

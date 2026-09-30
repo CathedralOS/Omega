@@ -138,6 +138,16 @@ pub data PrivilegedServices {
     port_io: bool;
     interrupt_table: bool;
 }
+// Build-owned ELF loader selection
+// (wiki/spec/build/configuration.md#elf-executable-loader-selection): the
+// exact `PT_INTERP` pathname one Linux target's dynamically linked output asks
+// its runtime environment to load, one row per canonical target name. Empty
+// keeps the selected target environment's declared default. A selection never
+// requests dynamic linking; static output emits no `PT_INTERP`.
+pub data ElfInterpreterSelection {
+    linux_arm64: &[u8];
+    linux_x86_64: &[u8];
+}
 pub data Build {
     x86_deployment_features: X86DeploymentFeatures;
     subsystem: Subsystem;
@@ -148,6 +158,7 @@ pub data Build {
     // validated executable leaf. It is validated separately from the
     // application name and is never inferred from the PE subsystem word.
     identifier: &[u8];
+    elf_interpreter: ElfInterpreterSelection;
     optimizations: Optimizations;
     pcc: Pcc;
     privileged_services: PrivilegedServices;
