@@ -568,10 +568,8 @@ the complete product bar; focused successes below do not establish that baseline
 - **ATOMIC-MEMORY-MODEL.** Complete atomic/fence semantics and native execution
   under [concurrency](wiki/spec/language/concurrency.md) and the
   [atomic vocabulary](omega-rust/psi/foundation/language-core/atomic_operations.md).
-  First make `atomics/runtime_atomic_{fetch_add,compare_exchange}_exit` produce
-  their authored exit 70: both stop at stage 02's
-  `lowering/control_flow/operations.rs` fallback, which has no atomic lowering.
-  Serial load/store/fetch/swap/decisive exchange already encode, independently
+  `atomics/runtime_atomic_{fetch_add,compare_exchange}_exit` exit 70 natively on
+  macOS ARM64. Serial load/store/fetch/swap/decisive exchange already encode, independently
   verify and interpret as single Terminal events (`atomic_access_events.rs`).
   Omega stage 00 retains location/orderings and coherence edges
   (`atomic_events.rs`); its unique-reaching-write restriction is not a concurrent
@@ -1363,15 +1361,15 @@ the complete product bar; focused successes below do not establish that baseline
   `core/numeric_cross_signed_conversion_surface`. Wrapping/Saturating casts and
   operation-level Trapping arithmetic exist; do not repeat those milestones.
 
-  - Support guarded Trap ceilings for Trapping primitives. A source
-    `u16 -> u8` conversion with `crashes Trap input > 255u16` rejects with
-    `TrappingIntegerCrashUncovered`; `validate_trapping_crash_sites` requires
-    `[CrashRouteGuard::Truth]`. Reconstruct the exact primitive's trap condition
-    under incoming path facts and prove coverage by the authored same-cause
-    guard; the false ceiling `input > 256u16` must reject. Preserve its operation
-    site, operands, carrier, cause and normal-only
-    result equation through observation, interpretation and native realization.
-    Coordinate **CRASH-CONTRACT**; never replace the policy or invent a Crash edge.
+  - Guarded Trap ceilings cover their Trapping primitive:
+    `core/runtime_guarded_trapping_conversion_exit` (`u16 -> u8` under
+    `crashes Trap input > 255u16`) exits 70 natively on macOS ARM64, and
+    `fail/core/guarded_trap_ceiling_wider_than_primitive_rejected` (`input >
+    256u16`) rejects with `UndischargedCrashObligations` at Terminal
+    production. Preserve the operation site, operands, carrier, cause and
+    normal-only result equation through observation, interpretation and
+    native realization. Coordinate **CRASH-CONTRACT**; never replace the
+    policy or invent a Crash edge.
   - Complete hosted acceptance for the public
     `source/library/core/numeric_conversion.omg` surface, including same-sign
     narrowing, sign changes, widening and all four policies. Only two
@@ -2598,9 +2596,10 @@ completion syntax or other terminal service is a prerequisite.
 
 - **PLACED-ACCESS-NATIVE-OPS.** Close source-to-native indexed access under
   [structural access](wiki/spec/terminal-psi/structural_access.md), preserving
-  original caller storage. Start with `collections/runtime_double_indexed_rmw_exit`
-  and `runtime_indexed_struct_field_rmw_exit`, still rejected in the committed
-  corpus snapshots; re-run them to locate the current failure. The macOS native
+  original caller storage. `collections/runtime_indexed_struct_field_rmw_exit`
+  exits 1 as authored on macOS ARM64; `runtime_double_indexed_rmw_exit` stops at
+  `statement sequence: local data: scalar local: pure initializer` (state 1,
+  statement 4). The macOS native
   snapshot already records `storage/runtime_machine_owned_indexed_integer_write_exit`
   at exit 79 and `collections/runtime_hoisted_index_write_exit` at exit 7;
   Windows records rejection. These are recorded observations, not fresh runs.

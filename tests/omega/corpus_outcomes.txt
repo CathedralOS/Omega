@@ -384,6 +384,8 @@ fail/core/extent_root_adapter_direct_call_does_not_grant rejected 564ms expected
 	cannot prove requires contract for call consume_granted from direct_adapter_call_does_not_grant: unqualified in Extent::Granted
 fail/core/extent_scope_loss rejected 865ms expected @2d8ed253669f
 	linear value `extent` reaches scope exit without being consumed or transferred
+fail/core/guarded_trap_ceiling_wider_than_primitive_rejected rejected 11829ms expected @a917987f9778+wt
+	terminal-artifact production failed: Lowering(UndischargedCrashObligations([OperationSite { machine: MachineId(2), block: BlockId(4294967297), operation: OperationId(4294967297) }]))
 fail/core/interrupt_obligation_construction_rejected rejected 316ms expected @2d8ed253669f
 	construction of `InterruptAcknowledgement` field `root` lost its exact declared owner
 	construction of `InterruptAcknowledgement` field `provider_execution` lost its exact declared owner
