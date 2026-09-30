@@ -49,10 +49,11 @@ pub(super) fn local(
     place: PlaceId,
 ) -> Option<&StructuralOperationResult> {
     let (operation, result) = owned_result(machine, place)?;
-    matches!(
-        operation.kind,
-        OperationKind::EstablishPrimitiveLocal { .. }
-    )
+    (result.multiplicity == StructuralMultiplicity::Unrestricted
+        && matches!(
+            operation.kind,
+            OperationKind::EstablishPrimitiveLocal { .. }
+        ))
     .then_some(result)
 }
 
@@ -90,7 +91,10 @@ fn owned_result(
     let result = operation.result.structural()?;
     (result.place == place
         && result.structural_type == structural_type
-        && result.multiplicity == StructuralMultiplicity::Unrestricted
+        && matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
@@ -317,6 +321,57 @@ mod tests {
                 ensures: Vec::new(),
                 outcome_specific_ensures: Vec::new(),
             },
+        }
+    }
+
+    #[test]
+    fn projected_owned_storage_retains_multiplicity_and_producer_identity() {
+        use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+        use terminal_psi::{
+            StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
+        };
+        let place = PlaceId::new(3).unwrap();
+        let structural_type = StructuralTypeId::new(4).unwrap();
+        for multiplicity in [
+            StructuralMultiplicity::Unrestricted,
+            StructuralMultiplicity::Affine,
+            StructuralMultiplicity::Linear,
+        ] {
+            let mut producer = operation(6, None);
+            producer.kind = OperationKind::EstablishZeroedStructural {};
+            producer.result = OperationResult::Structural(StructuralOperationResult {
+                place,
+                structural_type,
+                multiplicity,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            });
+            let mut source = machine(block(3, Vec::new(), vec![producer]));
+            source.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: OperationId::new(6).unwrap(),
+                    structural_type,
+                },
+            });
+            assert_eq!(
+                super::owned_result(&source, place).is_some(),
+                multiplicity != StructuralMultiplicity::Linear
+            );
+            assert!(
+                super::local(&source, place).is_none(),
+                "record storage is not a primitive local"
+            );
+            source.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+                producer: OperationId::new(7).unwrap(),
+                structural_type,
+            };
+            assert!(
+                super::owned_result(&source, place).is_none(),
+                "a mismatched producer grants no storage"
+            );
         }
     }
 

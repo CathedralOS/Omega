@@ -69,7 +69,10 @@ pub(super) fn readable(
     }
     if let Some((_, result)) = super::aggregate_result_input::home(source, place) {
         return !path.is_empty()
-            && result.multiplicity == StructuralMultiplicity::Unrestricted
+            && matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+            )
             && source.structural.as_ref().is_some_and(|signature| {
                 crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                     result.structural_type,

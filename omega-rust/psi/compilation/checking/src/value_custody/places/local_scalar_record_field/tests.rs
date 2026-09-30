@@ -150,8 +150,12 @@ fn local_field_observes_mutable_storage_and_rejects_conflicting_receiver_identit
 }
 
 #[test]
-fn local_field_does_not_erase_scalar_constraints_or_noninteger_carriers() {
-    for field_type in ["f64", "addr"] {
+fn local_field_preserves_float_carriers_and_rejects_addresses() {
+    for (field_type, expected) in [
+        ("f32", Some(super::PrimitiveType::F32)),
+        ("f64", Some(super::PrimitiveType::F64)),
+        ("addr", None),
+    ] {
         let (program, machine, state, expression) = typed_source(&format!(
             "data Record {{ payload: {field_type}; }}
              machine observe(payload: {field_type}) -> {field_type} {{
@@ -159,9 +163,11 @@ fn local_field_does_not_erase_scalar_constraints_or_noninteger_carriers() {
                  record.payload
              }}"
         ));
-        assert!(
-            local_scalar_record_field(&program, machine, state, 1, expression).is_none(),
-            "{field_type} needs its own retained scalar contract"
+        assert_eq!(
+            local_scalar_record_field(&program, machine, state, 1, expression)
+                .map(|field| field.primitive_type),
+            expected,
+            "{field_type} retains its exact supported scalar carrier"
         );
     }
 }
