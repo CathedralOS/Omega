@@ -102,6 +102,10 @@ fn decode_kind(
     allow_jump: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
+        crate::FloatResultPolicyForm::FAMILY_TAG => SelectedInstructionKind::FloatResultPolicy {
+            form: crate::FloatResultPolicyForm::from_machine_payload(cursor.byte()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        },
         crate::IeeeFloatArithmeticForm::FAMILY_TAG => {
             SelectedInstructionKind::NearestIeeeFloatArithmetic {
                 form: crate::IeeeFloatArithmeticForm::from_machine_payload(cursor.byte()?)
@@ -468,6 +472,10 @@ fn decode_alternative_for_version(
     allow_jump: bool,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     let family = match cursor.byte()? {
+        crate::FloatResultPolicyForm::FAMILY_TAG => MachineAlternativeFamily::FloatResultPolicy(
+            crate::FloatResultPolicyForm::from_machine_payload(cursor.byte()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        ),
         crate::IeeeFloatArithmeticForm::FAMILY_TAG => {
             MachineAlternativeFamily::NearestIeeeFloatArithmetic(
                 crate::IeeeFloatArithmeticForm::from_machine_payload(cursor.byte()?)
@@ -916,4 +924,53 @@ fn saturating_kind(tag: u8) -> Option<(SaturatingOperation, SaturatingCarrier)> 
             .map(move |carrier| (operation, carrier))
     })
     .find(|(operation, carrier)| saturating_family_tag(*operation, *carrier) == tag)
+}
+
+#[cfg(test)]
+mod float_result_policy_tests {
+    use super::{Cursor, decode_alternative, decode_kind};
+    use crate::{
+        FloatResultPolicyForm, MachineAlternative, MachineAlternativeApplicability,
+        MachineAlternativeKey, MachineEncodedEffects, MachineLatencyKnowledge, MachineSemanticKind,
+        MachineSizeKnowledge, SelectedInstructionKind, encode_machine_alternative_identity,
+    };
+
+    #[test]
+    fn float_result_policy_closed_payloads_decode_and_alternatives_round_trip() {
+        for form in FloatResultPolicyForm::ALL {
+            let bytes = [231, form.machine_payload()];
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(
+                decode_kind(&mut cursor, true, true, true).unwrap(),
+                SelectedInstructionKind::FloatResultPolicy { form }
+            );
+            assert_eq!(cursor.remaining(), 0);
+            let input_count = form.operand_count() as u16;
+            let alternative = MachineAlternative {
+                key: MachineAlternativeKey {
+                    family: MachineSemanticKind::FloatResultPolicy(form).into(),
+                    variant: 0,
+                },
+                applicability: MachineAlternativeApplicability::Always,
+                size: MachineSizeKnowledge::ExactBytes(32),
+                latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+                encoded: MachineEncodedEffects::fallthrough_v1(
+                    (0..input_count).collect(),
+                    vec![input_count],
+                ),
+            };
+            let mut encoded = Vec::new();
+            encode_machine_alternative_identity(&mut encoded, &alternative);
+            let mut cursor = Cursor::new(&encoded);
+            assert_eq!(decode_alternative(&mut cursor).unwrap(), alternative);
+            assert_eq!(cursor.remaining(), 0);
+            for payload in 6..=u8::MAX {
+                encoded[1] = payload;
+                assert!(decode_alternative(&mut Cursor::new(&encoded)).is_err());
+                assert!(decode_kind(&mut Cursor::new(&[231, payload]), true, true, true).is_err());
+            }
+        }
+        assert!(decode_kind(&mut Cursor::new(&[231]), true, true, true).is_err());
+        assert!(decode_alternative(&mut Cursor::new(&[231])).is_err());
+    }
 }

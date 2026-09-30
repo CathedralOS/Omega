@@ -28,6 +28,75 @@ use target::NativeTarget;
 use super::encoding::*;
 
 #[test]
+fn float_result_policy_effect_envelope_round_trips_and_rejects_stale_vocabulary() {
+    for form in crate::FloatResultPolicyForm::ALL {
+        let mut source = plan();
+        let instruction = &mut source.functions[0].blocks[0].instructions[0];
+        instruction.kind = SelectedInstructionKind::FloatResultPolicy { form };
+        instruction.trap = if form.can_trap() {
+            MachineTrapBehavior::TrappingIntegerV1
+        } else {
+            MachineTrapBehavior::NeverV1
+        };
+        instruction.barrier = if form.can_trap() {
+            MachineBarrier::ExternalEffect
+        } else {
+            MachineBarrier::None
+        };
+        let input_count = form.operand_count() as u16;
+        instruction.provenance.values = (0..=input_count)
+            .map(|operand| ValueId::new(u64::from(operand) + 3).unwrap())
+            .collect();
+        instruction.alternatives.truncate(1);
+        let alternative = &mut instruction.alternatives[0];
+        alternative.key.family = MachineAlternativeFamily::FloatResultPolicy(form);
+        alternative.encoded =
+            MachineEncodedEffects::fallthrough_v1((0..input_count).collect(), vec![input_count]);
+        alternative.encoded.implicit_unit_clobbers = instruction.unit_clobbers.clone();
+        if form.can_trap() {
+            alternative.encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
+            alternative.encoded.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
+        }
+        source.identity = pre_allocation_machine_effect_identity(&source);
+        let encoded = source.encode();
+        assert_eq!(&encoded[8..12], &29_u32.to_le_bytes());
+        assert_eq!(PreAllocationMachineEffectPlan::decode(&encoded), Ok(source));
+        for version in [28_u32, 30_u32] {
+            let mut wrong_version = encoded.clone();
+            wrong_version[8..12].copy_from_slice(&version.to_le_bytes());
+            assert_eq!(
+                PreAllocationMachineEffectPlan::decode(&wrong_version),
+                Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
+                    version
+                )),
+            );
+        }
+    }
+}
+
+#[test]
+fn float_result_policy_envelope_revision_rejects_old_kind_rows_before_payload_decode() {
+    let source = plan();
+    let mut stale = source.encode();
+    stale[8..12].copy_from_slice(&28_u32.to_le_bytes());
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&stale),
+        Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
+            28
+        )),
+    );
+    // The vocabulary fence precedes identity and payload parsing, not merely
+    // rejection of tag 231 by an older instruction decoder.
+    stale.truncate(12);
+    assert_eq!(
+        PreAllocationMachineEffectPlan::decode(&stale),
+        Err(PreAllocationMachineEffectDecodeError::UnsupportedVersion(
+            28
+        )),
+    );
+}
+
+#[test]
 fn atomic_codec_retains_operation_width_ordering_effect_and_observed_result() {
     for form in crate::AtomicForm::ALL {
         let mut source = plan();
@@ -852,7 +921,7 @@ fn jump_effects_require_the_current_wire_vocabulary() {
         MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
     source.identity = pre_allocation_machine_effect_identity(&source);
     let mut bytes = source.encode();
-    assert_eq!(&bytes[8..12], &28_u32.to_le_bytes());
+    assert_eq!(&bytes[8..12], &29_u32.to_le_bytes());
     assert_eq!(
         PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
         source
@@ -890,7 +959,7 @@ fn codec_zero_extension_round_trips_and_rejects_all_prior_versions() {
         PreAllocationMachineEffectPlan::decode(&encoded).unwrap(),
         source
     );
-    for version in 0_u32..28 {
+    for version in 0_u32..29 {
         let mut stale = encoded.clone();
         stale[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

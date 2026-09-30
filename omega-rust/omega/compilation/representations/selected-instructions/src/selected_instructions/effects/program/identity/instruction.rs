@@ -129,6 +129,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::TrappingInteger { form } => trapping_family_tag(form),
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
+        SelectedInstructionKind::FloatResultPolicy { form } => form.machine_tag(),
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -328,6 +329,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             bytes.push(form.machine_payload())
         }
+        SelectedInstructionKind::FloatResultPolicy { form } => bytes.push(form.machine_payload()),
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::TrappingInteger { .. }
@@ -450,6 +452,24 @@ mod outgoing_slot_tests {
             encode_kind(&mut encoded, copy_kind);
             legacy[1] = 3;
             assert_eq!(encoded, legacy);
+        }
+    }
+}
+
+#[cfg(test)]
+mod float_result_policy_tests {
+    use super::encode_kind;
+    use crate::{FloatResultPolicyForm, SelectedInstructionKind};
+
+    #[test]
+    fn float_result_policy_instruction_kind_pins_both_identity_bytes() {
+        for form in FloatResultPolicyForm::ALL {
+            let mut bytes = Vec::new();
+            encode_kind(
+                &mut bytes,
+                SelectedInstructionKind::FloatResultPolicy { form },
+            );
+            assert_eq!(bytes, [231, form.ordinal()]);
         }
     }
 }

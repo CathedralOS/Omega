@@ -100,6 +100,8 @@ fn keys() -> SelectedConstraintKeys {
         ieee_float_unary: Some(instruction(786)),
         ieee_float_conversion_control: Some(instruction(788)),
         ieee_float_ternary: Some(instruction(787)),
+        float_result_trapping: Some(instruction(789)),
+        float_result_saturating: Some(instruction(790)),
         add_i64: instruction(2),
         subtract_i64: instruction(4),
         multiply_i64: instruction(44),
@@ -1003,6 +1005,7 @@ fn alternative_family_tag_is_pinned_for_every_family() {
             MachineAlternativeFamily::TrappingInteger(_)
                 | MachineAlternativeFamily::AtomicAccess(_)
                 | MachineAlternativeFamily::NearestIeeeFloatArithmetic(_)
+                | MachineAlternativeFamily::FloatResultPolicy(_)
         ) {
             continue;
         }
@@ -1538,11 +1541,14 @@ fn float_forms_share_one_tag_and_pin_their_payload_ordinals() {
         .max()
         .unwrap();
     assert!(IeeeFloatArithmeticForm::FAMILY_TAG > atomic);
-    // Every other family writes no payload, so the float tag cannot be read
-    // as the prefix of another family's identity.
+    // Only the two closed IEEE families write a payload; their tags differ.
     for semantic in MachineSemanticKind::ALL {
         let float = matches!(semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(_));
-        assert_eq!(super::semantic_kind_payload(semantic).is_some(), float);
+        let policy = matches!(semantic, MachineSemanticKind::FloatResultPolicy(_));
+        assert_eq!(
+            super::semantic_kind_payload(semantic).is_some(),
+            float || policy
+        );
         assert_eq!(semantic_kind_tag(semantic) == 230, float, "{semantic:?}");
     }
     // The key identity carries the payload between tag and variant.
@@ -1556,4 +1562,64 @@ fn float_forms_share_one_tag_and_pin_their_payload_ordinals() {
         },
     );
     assert_eq!(bytes[..2], [230, 9]);
+}
+
+#[test]
+fn float_result_policy_identities_and_constraint_selection_are_exact() {
+    use crate::{FloatResultPolicyForm, FloatResultPolicyKind};
+    let mut selected_keys = keys();
+    let mut identities = Vec::new();
+    for form in FloatResultPolicyForm::ALL {
+        let semantic = MachineSemanticKind::FloatResultPolicy(form);
+        let family = MachineAlternativeFamily::from(semantic);
+        assert_eq!(semantic_kind_tag(semantic), 231);
+        assert_eq!(alternative_family_tag(family), 231);
+        assert_eq!(super::semantic_kind_payload(semantic), Some(form.ordinal()));
+        assert_eq!(
+            super::alternative_family_payload(family),
+            Some(form.ordinal())
+        );
+        let mut bytes = Vec::new();
+        encode_machine_alternative_key_identity(
+            &mut bytes,
+            MachineAlternativeKey { family, variant: 0 },
+        );
+        assert_eq!(&bytes[..2], &[231, form.ordinal()]);
+        identities.push(bytes);
+        let expected = match form.policy {
+            FloatResultPolicyKind::Trapping => selected_keys.float_result_trapping,
+            FloatResultPolicyKind::Saturating(_) => selected_keys.float_result_saturating,
+        };
+        assert_eq!(selected_keys.for_semantic(semantic), expected);
+    }
+    identities.sort();
+    identities.dedup();
+    assert_eq!(identities.len(), FloatResultPolicyForm::COUNT);
+    let extended_inventory = selected_keys.in_identity_order();
+    selected_keys.float_result_trapping = None;
+    selected_keys.float_result_saturating = None;
+    assert_eq!(
+        &extended_inventory[..extended_inventory.len() - 2],
+        selected_keys.in_identity_order()
+    );
+    for form in FloatResultPolicyForm::ALL {
+        assert_eq!(
+            selected_keys.for_semantic(MachineSemanticKind::FloatResultPolicy(form)),
+            None
+        );
+    }
+    assert!(MachineSemanticKind::ALL.is_sorted());
+    let mut trapping_only = catalog();
+    trapping_only.selected_keys.float_result_saturating = None;
+    let mut saturating_only = trapping_only.clone();
+    saturating_only.selected_keys.float_result_saturating =
+        saturating_only.selected_keys.float_result_trapping.take();
+    assert_eq!(
+        trapping_only.selected_keys.in_identity_order(),
+        saturating_only.selected_keys.in_identity_order()
+    );
+    assert_ne!(
+        machine_effect_catalog_identity(&trapping_only),
+        machine_effect_catalog_identity(&saturating_only)
+    );
 }

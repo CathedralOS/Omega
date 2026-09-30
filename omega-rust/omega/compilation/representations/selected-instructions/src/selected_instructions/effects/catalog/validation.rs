@@ -3,6 +3,8 @@ use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 #[cfg(test)]
 mod atomic_tests;
 #[cfg(test)]
+mod float_result_policy_tests;
+#[cfg(test)]
 mod tests;
 
 use super::{
@@ -17,6 +19,7 @@ use super::{
 /// Exact and Saturating conversions must not borrow that control/effect surface.
 fn has_policy_trap(semantic: MachineSemanticKind) -> bool {
     matches!(semantic, MachineSemanticKind::TrappingInteger(_))
+        || matches!(semantic, MachineSemanticKind::FloatResultPolicy(form) if form.can_trap())
         || matches!(
             semantic,
             MachineSemanticKind::NearestIeeeFloatArithmetic(crate::IeeeFloatArithmeticForm {
@@ -251,6 +254,29 @@ fn validate_encoded_effects(
     applicability: MachineAlternativeApplicability,
     encoded: &MachineEncodedEffects,
 ) -> Result<(), ()> {
+    if let MachineSemanticKind::FloatResultPolicy(form) = declaration.semantic {
+        // Policy forms consume completed payloads in semantic order, then
+        // define one result. A self-consistent but wrong-arity constraint is
+        // not evidence for the adapter's actual dependencies.
+        let input_count = form.operand_count();
+        if constraint.operands.len() != input_count + 1
+            || constraint
+                .operands
+                .iter()
+                .enumerate()
+                .any(|(position, operand)| {
+                    usize::from(operand.operand) != position
+                        || operand.access
+                            != if position < input_count {
+                                RegisterOperandAccess::Use
+                            } else {
+                                RegisterOperandAccess::Def
+                            }
+                })
+        {
+            return Err(());
+        }
+    }
     if declaration.semantic == MachineSemanticKind::Crash {
         return if constraint.operands.is_empty()
             && !constraint.implicit_uses.is_empty()

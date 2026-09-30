@@ -85,6 +85,11 @@ impl SelectedConstraintKeys {
             self.trapping_shift,
             self.trapping_convert,
         ])
+        .chain(
+            [self.float_result_trapping, self.float_result_saturating]
+                .into_iter()
+                .flatten(),
+        )
         .collect()
     }
 
@@ -120,6 +125,12 @@ impl SelectedConstraintKeys {
                     2 => self.ieee_float_arithmetic,
                     3 => self.ieee_float_ternary,
                     _ => None,
+                };
+            }
+            MachineSemanticKind::FloatResultPolicy(form) => {
+                return match form.policy {
+                    crate::FloatResultPolicyKind::Trapping => self.float_result_trapping,
+                    crate::FloatResultPolicyKind::Saturating(_) => self.float_result_saturating,
                 };
             }
             MachineSemanticKind::CopyBytes => return self.copy_bytes,
