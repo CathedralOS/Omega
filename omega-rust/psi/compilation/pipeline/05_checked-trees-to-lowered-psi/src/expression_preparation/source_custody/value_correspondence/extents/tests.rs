@@ -1,6 +1,66 @@
 use super::super::{CheckedTrees, PrimitiveType, Scalar};
 use super::{CheckedCallScalarArgument, ExpressionNode, LoweringError};
 use checked_trees::CheckedScalarExpressionRole;
+
+#[test]
+fn fixed_array_extent_replays_its_type_without_folding_live_lengths() {
+    for (source, fixed) in [
+        (
+            "data Root { values: [i32; 5]; } machine Root::inspect(&self) -> u64 { self.values.len }",
+            true,
+        ),
+        (
+            "machine inspect(values: &[i32; 5]) -> u64 { values.len }",
+            true,
+        ),
+        (
+            "machine inspect(values: &[i32]) -> u64 { values.len }",
+            false,
+        ),
+        (
+            "data Metadata [copy] { len: u64; } machine inspect(values: Metadata) -> u64 { values.len }",
+            false,
+        ),
+        (
+            "domain [u8; 5]::Utf8 requires valid_utf8(self); machine inspect(values: &[u8; 5] in Utf8) -> u64 { values.len }",
+            false,
+        ),
+    ] {
+        let checked = crate::front_end::checked_program(source);
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str().ends_with("inspect"))
+            .unwrap();
+        let state = checked.machine_states(machine)[0].symbol;
+        let (expression, _) = checked.expression_table.iter_expressions().find(|(_, expression)| {
+            matches!(expression, ExpressionNode::Member(member) if member.member.as_str() == "len")
+        }).unwrap();
+        for length in [4, 5] {
+            let literal = numerics::literals::IntegerLiteral::from_value(length).with_landing(
+                numerics::literals::IntegerLanding {
+                    landed_type: numerics::literals::LandedIntegerType::U64,
+                    domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                },
+            );
+            let retained = CheckedCallScalarArgument::Pure(Scalar::IntegerLiteral { literal });
+            assert_eq!(
+                super::super::validate(
+                    &checked,
+                    state,
+                    0,
+                    expression,
+                    PrimitiveType::U64,
+                    &retained
+                )
+                .is_ok(),
+                fixed && length == 5,
+                "only the exact type-owned extent can replace {source} with {length}",
+            );
+        }
+    }
+}
+
 #[test]
 fn eliminated_extent_preserves_collection_evaluation_bounds_and_selection() {
     // This is the existing composed-Unit scalar extent producer fixture, not
