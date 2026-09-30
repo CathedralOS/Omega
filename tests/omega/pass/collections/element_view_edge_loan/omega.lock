@@ -11,13 +11,13 @@ selected
 source
 name "element_view_edge_loan"
 lineage external-local "6485e0de25245c920006a3d47b6b4b7705980fe51b8aab8f1405c439fcf2f795" "/home/ubuntu/omega-pin/tests/omega/pass/collections/element_view_edge_loan"
-resolution external-local "ff5b0e03ed39091405eab873d26e831783afa393603c46bd4bcd935d9b3d4881"
+resolution external-local "8ed09495ce9459e2be48fc1ab5ce72a9d6359e345dd205e3ef03f59eb9a24bcd"
 packages 2
 package
 source
 name "element_view_edge_loan"
 lineage external-local "6485e0de25245c920006a3d47b6b4b7705980fe51b8aab8f1405c439fcf2f795" "/home/ubuntu/omega-pin/tests/omega/pass/collections/element_view_edge_loan"
-resolution external-local "ff5b0e03ed39091405eab873d26e831783afa393603c46bd4bcd935d9b3d4881"
+resolution external-local "8ed09495ce9459e2be48fc1ab5ce72a9d6359e345dd205e3ef03f59eb9a24bcd"
 navigation root
 authored 1
 request path "../../../../../source/library/std"
@@ -27,7 +27,7 @@ package
 source
 name "omega_language_std"
 lineage external-local "6485e0de25245c920006a3d47b6b4b7705980fe51b8aab8f1405c439fcf2f795" "/home/ubuntu/omega-pin/source/library/std"
-resolution external-local "cc327f39f07a91d6e42284c6ac96e45a619cde13bcd442fdab3d1ad6bc204687"
+resolution external-local "94076585b7a3be107af0e1a66ce71eb689db3491df19102ba19a72202bb8bf4e"
 navigation root
 authored 0
 authored-build 0
@@ -45,7 +45,7 @@ selected
 source
 name "omega_language_std"
 lineage external-local "6485e0de25245c920006a3d47b6b4b7705980fe51b8aab8f1405c439fcf2f795" "/home/ubuntu/omega-pin/source/library/std"
-resolution external-local "cc327f39f07a91d6e42284c6ac96e45a619cde13bcd442fdab3d1ad6bc204687"
+resolution external-local "94076585b7a3be107af0e1a66ce71eb689db3491df19102ba19a72202bb8bf4e"
 end
 occurrences 2
 occurrence 0 product omega.target-profile.v1:linux_x86_64 omega.target-profile.v1:linux_x86_64
@@ -1037,20 +1037,12 @@ field value {
   }
 }
 end_acceptance
-decisions 883
+decisions 263
 omega-policy-decisions 2
-source b7e61e1219dc06c607f6655ea116caedaf9b0e50b374958f631a732fee1a5e3b
-baseline none
-comparison ee6b239af2b332af156b02b7a9b83513ed5747024adb7afdf75b15d78af9a914
-decisions 8
-decision row 16d42ec056a1616faf08e9fedddd901f3dcbc8e23d08947531edb963a9c5d84b accept
-decision row 278da3b9982f064eabe4df75547a8bcd4b243e0f93821b8597f08a57ba09cf79 accept
-decision row 5302d400287e7d34ffe5135e8a1f838642a6aaeaa8aa08be03040e03e4217baf accept
-decision row 6b04c55d7c93f4565b4973681537e6b1d7cf5bb352e9b0d3e1fd03d42bbb59ae accept
-decision row 701e1ee7b9a2f4c8cf9f0117ccddcaf3ca71ca6bdc28098bd8bcde83078a4ac2 accept
-decision row ca0ec83033834188bc7eac0da69ff8cd0a03fcdbbfa458d5d6469311920ffc5f accept
-decision row dab75b99580c4f9dbcc9ff9186566acf13a98520197c3fb52a96336838dcc57b accept
-decision row dbebe84c9c92b1178c42bfdcb274316acecb108ed4ff70b819d6db0ea0ee6c16 accept
+source 8bd52646893169b967445fd66862b5c42bf43e20d64e3000dea8c5b3a1e0e068
+baseline b7e61e1219dc06c607f6655ea116caedaf9b0e50b374958f631a732fee1a5e3b
+comparison 5731e650ff5413fedc8ad9d85b77f40332611de2bdef535786fedeb958199205
+decisions 0
 end
 end_target
 end
