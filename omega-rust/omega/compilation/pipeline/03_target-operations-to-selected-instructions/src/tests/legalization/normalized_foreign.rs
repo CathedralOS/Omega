@@ -306,6 +306,104 @@ fn flat_record_fixture() -> (AbstractOperationPlan, Execution) {
     (source, Execution { plan_report: 0xA1 })
 }
 
+/// The libobjc/libSystem `const char*` lane: `Foreign::leaf(&u8) -> u64`.
+/// Unforwarded, `main(&self)` over `Words { bytes: [u8; 6] }` lends
+/// `&self.bytes[2]`; forwarded, `main(text: &u8)` lends its own loan whole.
+fn borrowed_byte_fixture(forwarded: bool) -> (AbstractOperationPlan, Execution) {
+    let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let u64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let byte_type = StructuralTypeId::new(1).unwrap();
+    let bytes_type = StructuralTypeId::new(2).unwrap();
+    let words_type = StructuralTypeId::new(3).unwrap();
+    let caller_place = PlaceId::new(1).unwrap();
+    let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
+    source.structural_types.make_mut().extend([
+        terminal_psi::StructuralTypeDeclaration {
+            id: byte_type,
+            identity: "u8".into(),
+            shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(u8_type),
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: bytes_type,
+            identity: "[u8; 6]".into(),
+            shape: terminal_psi::StructuralTypeShape::FixedArray {
+                element: byte_type,
+                length: 6,
+            },
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: words_type,
+            identity: "probe::Words".into(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: "bytes".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Structural(bytes_type),
+                }],
+            },
+        },
+    ]);
+    source.boundary_machines.push(declaration(
+        Vec::new(),
+        vec![terminal_psi::StructuralParameterDeclaration {
+            place: PlaceId::new(9).unwrap(),
+            position: 0,
+            is_self: false,
+            structural_type: byte_type,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        }],
+        terminal_psi::BoundaryMachineResult::Scalar(u64_type),
+    ));
+    let (root, path) = if forwarded {
+        (byte_type, Vec::new())
+    } else {
+        source.functions[0].attachment = Some(words_type);
+        (
+            words_type,
+            vec![
+                terminal_psi::StructuralPathSegment::Field("bytes".to_owned()),
+                terminal_psi::StructuralPathSegment::FixedIndex(2),
+            ],
+        )
+    };
+    source.functions[0]
+        .structural_parameters
+        .push(terminal_psi::StructuralParameterDeclaration {
+            place: caller_place,
+            position: 0,
+            is_self: !forwarded,
+            structural_type: root,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    source.functions[0].operations.insert(
+        0,
+        AbstractOperation::BoundaryCall {
+            psi_operation: OperationId::new(7).unwrap(),
+            result: AbstractBoundaryResult::Scalar(AbstractResult {
+                value: ValueId::new(5).unwrap(),
+                scalar_type: u64_type,
+            }),
+            boundary: BoundaryMachineId::new(1).unwrap(),
+            arguments: Vec::new(),
+            structural_arguments: vec![terminal_psi::StructuralArgument {
+                place: caller_place,
+                path,
+                access: terminal_psi::StructuralAccess::SharedBorrow,
+            }],
+            completion_claim_sources: Vec::new(),
+            completion_receipts: Vec::new(),
+        },
+    );
+    (source, Execution { plan_report: 0xA1 })
+}
+
 fn normalized_foreign_instruction(
     plan: &legalized_operations::LegalizedOperationPlan,
 ) -> &legalized_operations::LegalizedNormalizedForeignCall {
@@ -504,6 +602,60 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
                 "accepted mixed selected mutation {mutation} on {native:?}"
             );
         }
+    }
+}
+
+/// A fixed element inside the caller's borrowed receiver lends its address
+/// at the element's static offset, and a caller's own `&u8` loan forwards
+/// its pointer word whole; both replay through legalization and selection.
+#[test]
+fn borrowed_byte_elements_and_forwarded_loans_select_pointer_words() {
+    let native = NativeTarget::macos_arm64();
+    let word = calling_conventions::ValueShape::integer(8, 8);
+    for (forwarded, offset) in [(false, 2), (true, 0)] {
+        let (source, execution) = borrowed_byte_fixture(forwarded);
+        let binding = binding(
+            native,
+            calling_conventions::CallSignature {
+                parameters: vec![word],
+                result: Some(word),
+            },
+        );
+        let target = lower(&source, native, &execution, binding);
+        let unit = seed(&source);
+        let legal = legalize_target_operations(&target, &source, &unit)
+            .expect("borrowed byte argument legalizes");
+        let call = normalized_foreign_instruction(legal.plan());
+        assert_eq!(call.structural_arguments[0].source_byte_offset, offset);
+        assert_eq!(
+            call.structural_arguments[0].destination,
+            call.binding.boundary_entry_plan.call.parameters[0]
+        );
+        validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+        let mut shifted = legal.plan().clone();
+        normalized_foreign_call_mut(&mut shifted).structural_arguments[0].source_byte_offset += 1;
+        assert!(
+            validate_legalized_operations(&target, &source, &unit, shifted).is_err(),
+            "a shifted referent offset must not replay (forwarded: {forwarded})"
+        );
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
     }
 }
 

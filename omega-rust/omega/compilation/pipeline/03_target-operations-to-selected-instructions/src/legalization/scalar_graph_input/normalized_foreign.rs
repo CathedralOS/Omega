@@ -2,8 +2,8 @@
 //!
 //! `row` rejoins the exact target operation the lowering emitted for one
 //! boundary call; `structural_argument_at` independently re-derives one
-//! source-rooted borrowed flat-record argument from the boundary declaration
-//! and the evaluated entry plan. Neither helper trusts the legalized row's
+//! source-rooted borrowed argument from the boundary declaration and the
+//! evaluated entry plan. Neither helper trusts the legalized row's
 //! claims; both fail closed on missing, duplicated, or mismatched custody.
 use super::{AbstractOperationPlan, MachineId, PsiOptimizationFunction, TargetOperationPlan};
 use crate::LegalizationError;
@@ -184,11 +184,12 @@ pub(in crate::legalization) fn native_callbacks_at<'a>(
     Ok(matching)
 }
 
-/// Re-derive one source-rooted borrowed flat-record argument for the boundary
-/// declaration's `position`-th structural parameter. The evaluated plan's
-/// parameter row at that ordinal must place the referent pointer as one
-/// pointer-width word; owned transport fails closed until an aggregate ABI
-/// contract owns it.
+/// Re-derive one source-rooted borrowed argument for the boundary
+/// declaration's `position`-th structural parameter: a caller parameter's
+/// whole referent, or a record field or fixed array element inside it. The
+/// evaluated plan's parameter row at that ordinal must place the referent
+/// pointer as one pointer-width word; owned transport fails closed until an
+/// aggregate ABI contract owns it.
 pub(in crate::legalization) fn structural_argument_at(
     semantic: &terminal_psi::StructuralArgument,
     position: usize,
@@ -253,12 +254,14 @@ pub(in crate::legalization) fn structural_argument_at(
         ] => *byte_size,
         _ => return Err(LegalizationError::custody()),
     };
-    if semantic.path.is_empty()
-        || semantic
-            .path
-            .iter()
-            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
-        || usize::try_from(declaration_parameter.position).ok() != Some(position)
+    // Record fields and fixed array elements are static offsets inside the
+    // caller's referent; an empty path forwards the whole parameter's loan.
+    if semantic.path.iter().any(|segment| {
+        !matches!(
+            segment,
+            StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)
+        )
+    }) || usize::try_from(declaration_parameter.position).ok() != Some(position)
         || projected_type != declaration_parameter.structural_type
         || semantic.access != declaration_parameter.access
         || !matches!(

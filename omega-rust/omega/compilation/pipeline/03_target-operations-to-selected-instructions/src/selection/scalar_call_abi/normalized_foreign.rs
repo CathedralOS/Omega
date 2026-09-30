@@ -362,18 +362,18 @@ pub(crate) fn validate(
             &signature.structural_types,
         )
         .ok_or_else(invalid)?;
-        if argument.path.is_empty()
-            || argument
-                .path
-                .iter()
-                .any(|segment| !matches!(segment, terminal_psi::StructuralPathSegment::Field(_)))
-            || !matches!(
-                argument.access,
-                terminal_psi::StructuralAccess::SharedBorrow
-                    | terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        if argument.path.iter().any(|segment| {
+            !matches!(
+                segment,
+                terminal_psi::StructuralPathSegment::Field(_)
+                    | terminal_psi::StructuralPathSegment::FixedIndex(_)
             )
-            || argument.root_structural_type != parameter.semantic.structural_type
+        }) || !matches!(
+            argument.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) || argument.root_structural_type != parameter.semantic.structural_type
             || argument.structural_type != projected_type
             || argument.source_byte_offset != source_byte_offset
             || argument.shape

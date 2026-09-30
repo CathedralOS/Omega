@@ -1,0 +1,77 @@
+// A selected provider's checked body lends borrowed bytes to a boundary
+// requirement whose realization is a foreign leaf, libSystem's `_strlen`,
+// which reads through the pointer word a `&u8` formal lowers to. The
+// provider forwards the `&u8` loan it received unchanged, then lends a fixed
+// element inside a borrowed record, `&words.bytes[2]`. Both loans stay the
+// caller's referents across the calls. Over "hello" lent from byte 1, the
+// forwarded loan measures 4 and the element loan 3; the provider answers 70
+// only then, and Main exits 70 when it did and its bytes are unchanged,
+// 71 otherwise.
+// Expected exit: 70.
+use omega::language::core::binding;
+use omega::language::core::external_binding;
+use omega_language_std::console;
+
+pub boundary trait CText {
+    machine length(text: &u8) -> u64;
+}
+
+macos_arm64 machine c_strlen_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib",
+            symbol: "_strlen",
+        },
+    }
+}
+
+macos_arm64 machine c_strlen(text: &u8) -> u64
+    satisfies CText::length via c_strlen_binding();
+
+pub data Words {
+    bytes: [u8; 6];
+}
+
+pub boundary trait Measure {
+    machine measure(&mut self, text: &u8, words: &Words) -> i32 invokes CText;
+}
+
+data MeasureProvider {}
+
+macos_arm64 machine MeasureProvider::provider_defaults(defaults: &mut MeasureProvider) {
+    defaults.select_provider<Measure, MeasureProvider>();
+}
+
+macos_arm64 machine MeasureProvider::measure(&mut self, text: &u8, words: &Words) -> i32 satisfies Measure::measure
+reaches CText
+{
+    let forwarded: u64 = c_strlen(text);
+    let element: u64 = c_strlen(&words.bytes[2]);
+    transition forwarded == 4 && element == 3 {
+        true -> (70)
+        _ -> (71)
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+    measure: Binding<Measure>;
+    words: Words;
+    result: i32;
+}
+
+machine Main::main(&mut self) reaches Console + CText + Measure {
+    self.words.bytes[0] = 104;
+    self.words.bytes[1] = 101;
+    self.words.bytes[2] = 108;
+    self.words.bytes[3] = 108;
+    self.words.bytes[4] = 111;
+    self.words.bytes[5] = 0;
+    self.result = self.measure.measure(&self.words.bytes[1], &self.words);
+    transition self.result == 70 && self.words.bytes[1] == 101 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

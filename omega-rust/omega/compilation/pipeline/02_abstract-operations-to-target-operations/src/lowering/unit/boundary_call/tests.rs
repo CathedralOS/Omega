@@ -1374,6 +1374,159 @@ fn normalized_foreign_structural_mutations_fail_closed() {
     );
 }
 
+/// The libobjc/libSystem `const char*` shape: `Words { bytes: [u8; 6] }`
+/// behind a caller's shared receiver lends `&words.bytes[2]` as one pointer
+/// word at byte offset 2, and a caller holding its own `text: &u8` loan
+/// forwards it whole at offset 0. Both are static projections inside the
+/// caller's referent, like a record field.
+#[test]
+fn normalized_foreign_borrowed_bytes_resolve_elements_and_forwarded_loans() {
+    let boundary = BoundaryMachineId::new(281).unwrap();
+    let machine = MachineId::new(282).unwrap();
+    let words_place = PlaceId::new(283).unwrap();
+    let text_place = PlaceId::new(284).unwrap();
+    let byte = StructuralTypeId::new(285).unwrap();
+    let bytes = StructuralTypeId::new(286).unwrap();
+    let words = StructuralTypeId::new(287).unwrap();
+    let u8_scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let catalog = abstract_operations::StructuralTypeCatalog::from(vec![
+        terminal_psi::StructuralTypeDeclaration {
+            id: byte,
+            identity: "u8".into(),
+            shape: terminal_psi::StructuralTypeShape::PrimitiveScalar(u8_scalar),
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: bytes,
+            identity: "[u8; 6]".into(),
+            shape: terminal_psi::StructuralTypeShape::FixedArray {
+                element: byte,
+                length: 6,
+            },
+        },
+        terminal_psi::StructuralTypeDeclaration {
+            id: words,
+            identity: "Words".into(),
+            shape: terminal_psi::StructuralTypeShape::Record {
+                fields: vec![terminal_psi::StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(288).unwrap(),
+                    identity: "bytes".into(),
+                    relevance: terminal_psi::BindingRelevance::Relevant,
+                    field_type: terminal_psi::StructuralFieldType::Structural(bytes),
+                }],
+            },
+        },
+    ]);
+    let structural_types = StructuralTypeLookup::new(&catalog);
+    let borrowed_source =
+        |place: PlaceId, root: StructuralTypeId, byte_size: u32| TargetStructuralParameter {
+            place,
+            structural_type: root,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            projected_qualifications: Vec::new(),
+            shape: ValueShape::borrowed_reference(byte_size, 1),
+            placement: ValuePlacement {
+                shape: ValueShape::integer(8, 8),
+                locations: vec![ValueLocation::Register {
+                    register: MachineRegister::Aarch64X(20),
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                }],
+            },
+        };
+    let words_source = borrowed_source(words_place, words, 6);
+    let text_source = borrowed_source(text_place, byte, 1);
+    let parameters_by_place =
+        BTreeMap::from([(words_place, &words_source), (text_place, &text_source)]);
+    let target = NativeTarget::macos_arm64();
+    let plan = pointer_plan(target, 1);
+    let declaration = |formal: StructuralTypeId| {
+        let mut declaration = declaration(boundary, Vec::new());
+        declaration.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+        declaration.structural_parameters = vec![structural_formal(
+            0,
+            formal,
+            terminal_psi::StructuralAccess::SharedBorrow,
+        )];
+        declaration
+    };
+    let lower = |formal: StructuralTypeId, argument: terminal_psi::StructuralArgument| {
+        lower_normalized_foreign_structural_arguments(
+            boundary,
+            machine,
+            target,
+            &declaration(formal),
+            &[argument],
+            &plan,
+            &structural_types,
+            &parameters_by_place,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+            &[],
+            &[],
+        )
+    };
+    let argument = |place: PlaceId, path: Vec<terminal_psi::StructuralPathSegment>| {
+        terminal_psi::StructuralArgument {
+            place,
+            path,
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+        }
+    };
+    let element_path = vec![
+        terminal_psi::StructuralPathSegment::Field("bytes".into()),
+        terminal_psi::StructuralPathSegment::FixedIndex(2),
+    ];
+
+    let lowered = lower(byte, argument(words_place, element_path.clone()))
+        .expect("a fixed element inside a borrowed record lends its address");
+    let [element] = lowered.as_slice() else {
+        panic!("one structural argument")
+    };
+    assert_eq!(element.path, element_path);
+    assert_eq!(element.root_structural_type, words);
+    assert_eq!(element.structural_type, byte);
+    assert_eq!(element.source_byte_offset, 2);
+    assert_eq!(element.shape, ValueShape::borrowed_reference(1, 1));
+    assert_eq!(element.destination, plan.call.parameters[0]);
+
+    let lowered = lower(byte, argument(text_place, Vec::new()))
+        .expect("a caller's own `&u8` loan forwards whole");
+    let [forwarded] = lowered.as_slice() else {
+        panic!("one structural argument")
+    };
+    assert!(forwarded.path.is_empty());
+    assert_eq!(forwarded.root_structural_type, byte);
+    assert_eq!(forwarded.structural_type, byte);
+    assert_eq!(forwarded.source_byte_offset, 0);
+    assert_eq!(forwarded.destination, plan.call.parameters[0]);
+
+    // An element past the extent, an index into a record, a byte window, a
+    // projected type other than the formal's, and a whole root of another
+    // type all fail closed.
+    let past_extent = vec![
+        terminal_psi::StructuralPathSegment::Field("bytes".into()),
+        terminal_psi::StructuralPathSegment::FixedIndex(6),
+    ];
+    let record_index = vec![terminal_psi::StructuralPathSegment::FixedIndex(0)];
+    let byte_range = vec![
+        terminal_psi::StructuralPathSegment::Field("bytes".into()),
+        terminal_psi::StructuralPathSegment::FixedByteRange { start: 0, end: 2 },
+    ];
+    for (formal, rejected) in [
+        (byte, argument(words_place, past_extent)),
+        (byte, argument(words_place, record_index)),
+        (byte, argument(words_place, byte_range)),
+        (bytes, argument(words_place, element_path.clone())),
+        (byte, argument(words_place, Vec::new())),
+    ] {
+        assert!(
+            lower(formal, rejected.clone()).is_err(),
+            "{rejected:?} against {formal:?} must fail closed"
+        );
+    }
+}
+
 #[test]
 fn normalized_foreign_scalars_admit_boolean_and_ieee_float_shapes() {
     let boundary = BoundaryMachineId::new(41).unwrap();
