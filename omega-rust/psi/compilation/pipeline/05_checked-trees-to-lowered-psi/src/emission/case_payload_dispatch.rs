@@ -687,7 +687,14 @@ fn collect_direct_case_reads<'e>(
 fn boolean_reads_case_payload(expression: &LoweredBooleanReturnExpression) -> bool {
     let mut reads = Vec::new();
     case_reads(expression, &mut reads);
-    !reads.is_empty()
+    // Only a leading `Case` step needs the dispatch: its payload can enter the
+    // decision no other way. A case below a field step emits as an ordinary
+    // path-qualified read whose authority the verifier's `case_hops` judges —
+    // the dominating membership test that proved it is the same one a guard
+    // arm's conjunction carries.
+    reads
+        .iter()
+        .any(|(_, path)| matches!(path.first(), Some(CanonicalStructuralPathSegment::Case(_))))
 }
 
 /// Whether a still-deferred read below this outcome observes `case` of `source`.
@@ -849,5 +856,46 @@ mod tests {
                 "Unsupported(\"case payload observation requires an established case\")"
             );
         }
+    }
+
+    #[test]
+    fn field_subject_payload_read_plans_as_an_ordinary_test() {
+        // A payload read below a field step needs no dispatch: it emits as an
+        // ordinary path-qualified structural read whose authority `case_hops`
+        // judges against the dominating membership test. Only leading-`Case`
+        // reads require an established case.
+        let root = PlaceId::new(7).unwrap();
+        let read = LoweredBooleanReturnExpression::IntegerComparison {
+            kind: LoweredIntegerComparisonKind::Equal,
+            left: Box::new(LoweredDirectExpression::StructuralField {
+                source: root,
+                path: vec![
+                    CanonicalStructuralPathSegment::Field(StructuralFieldId::new(9).unwrap()),
+                    CanonicalStructuralPathSegment::Case(StructuralCaseId::new(1).unwrap()),
+                ],
+                field: StructuralFieldId::new(1).unwrap(),
+                scalar_type: integer(),
+            }),
+            right: Box::new(LoweredDirectExpression::IntegerLiteral {
+                value: IntegerValue::Signed(30),
+                scalar_type: integer(),
+            }),
+        };
+        let planned = plan(
+            LoweredBooleanDecision::Test {
+                condition: read,
+                when_true: Box::new(outcome(true)),
+                when_false: Box::new(outcome(false)),
+            },
+            &|_| None,
+            &mut Vec::new(),
+            &mut 100,
+            false,
+        )
+        .expect("a field-subject payload read plans without a dispatch");
+        assert!(
+            matches!(planned.decision, LoweredBooleanDecision::Test { .. }),
+            "the read keeps its ordinary test"
+        );
     }
 }
