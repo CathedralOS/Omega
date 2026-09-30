@@ -254,7 +254,7 @@ machine Sha256::compress(&mut self) {
 // Digest the staged `msg[..msg_n]` into `out32`.
 machine Sha256::digest(&mut self) {
     self.bad = false;
-    self.reset();
+    Sha256::reset(&mut self);
     self.base = 0;
     transition { _ -> chunk_check() }
 
@@ -265,8 +265,8 @@ machine Sha256::digest(&mut self) {
         }
     }
     state run_chunk(&mut self) {
-        self.stage_block();
-        self.compress();
+        Sha256::stage_block(&mut self);
+        Sha256::compress(&mut self);
         self.base = self.base + 64;
         transition { _ -> chunk_check() }
     }
@@ -392,7 +392,7 @@ machine Sha256::digest(&mut self) {
         transition { _ -> stage_first() }
     }
     state run_first(&mut self) {
-        self.compress();
+        Sha256::compress(&mut self);
         transition self.tail_n < 56 {
             true -> done()
             _ -> stage_second()
@@ -422,7 +422,7 @@ machine Sha256::digest(&mut self) {
         transition { _ -> stage_second_loop() }
     }
     state run_second(&mut self) {
-        self.compress();
+        Sha256::compress(&mut self);
         transition { _ -> done() }
     }
     state done(&mut self) {

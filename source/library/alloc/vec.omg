@@ -398,12 +398,12 @@ requires index <= 15
     store.e[index]
 }
 
-pub machine Vec::tag(&mut self) -> u64 {
-    self.rung
+pub machine Vec::tag(vec: &mut Vec) -> u64 {
+    vec.rung
 }
 
-pub machine Vec::len(&mut self) -> u64 {
-    self.len
+pub machine Vec::len(vec: &mut Vec) -> u64 {
+    vec.len
 }
 
 // Explicit backing return: the live store's elements are read back into
