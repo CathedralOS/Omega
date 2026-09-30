@@ -98,6 +98,8 @@ pub(super) fn admit(
                     value.source,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                         ..
+                    } | checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        ..
                     }
                 )
                 && value.access == CheckedStructuralAccess::Owned => {}
@@ -127,6 +129,9 @@ pub(super) fn admit(
                             call.structural_result().is_some()
                         }
                         CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => true,
+                        // A bound-value replacement's move-out produces the
+                        // displaced binding the cleanup retires.
+                        CheckedUnitEffectOperationPlan::MoveStructuralField { .. } => true,
                         _ => false,
                     })
                     .is_some_and(|producer| match producer {
@@ -134,6 +139,9 @@ pub(super) fn admit(
                         CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                             result,
                             ..
+                        }
+                        | CheckedUnitEffectOperationPlan::MoveStructuralField {
+                            result, ..
                         } => {
                             result.statement_index == coordinate.statement_index
                                 && coordinate.call_ordinal == 0

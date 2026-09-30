@@ -226,6 +226,20 @@ fn reference_source_place(
         match program.expression_table.expression(expression) {
             ExpressionNode::Borrow(borrow) => expression = borrow.target,
             ExpressionNode::Cast(cast) if cast.form.is_recast() => expression = cast.value,
+            // A collection-view local (`let v = xs.as_mut_slice()`) refers to
+            // the receiver collection's storage: writes through `v` name the
+            // same absent subtree as the receiver's own place.
+            ExpressionNode::Call(call)
+                if matches!(
+                    crate::semantic::calls::collection_view_call(program, call),
+                    Some(
+                        language_semantics::declaration_selection::CollectionViewOperation::SharedSlice
+                            | language_semantics::declaration_selection::CollectionViewOperation::MutableSlice
+                    )
+                ) =>
+            {
+                expression = call.receiver;
+            }
             _ => break,
         }
     }

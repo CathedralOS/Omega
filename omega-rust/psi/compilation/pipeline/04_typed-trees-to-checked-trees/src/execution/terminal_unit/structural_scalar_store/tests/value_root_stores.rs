@@ -2,9 +2,10 @@
 //! when its value operand is a bound local, a call result, an indexed
 //! element read, or a constructed value, and when its destination is a
 //! field path that ends in an element selection on a fixed-array member.
-//! Slice-rooted local destinations stay declined — the element write
-//! vocabulary for borrowed slice storage is a separate family; a slice
-//! parameter root instead routes to the owned-structural replacement lane.
+//! A slice-rooted local destination mints through the borrowed-window
+//! element-write vocabulary — an element view names a window into the
+//! receiver collection's storage, so the store mints the move-out/store
+//! pair against the view's referent.
 use super::checked_program;
 
 /// The omission stage a machine declines at, or `None` when every
@@ -61,14 +62,12 @@ fn field_destination_admits_indexed_element_value() {
     );
 }
 
-/// A borrowed slice root is not a window destination: `slots[at] = node`
-/// on `&mut [Node]` needs the element-write vocabulary the spec reserves
-/// (`ElementViewWrite`), not the structural field store. A parameter root
-/// still routes through the owned-structural replacement lane — an
-/// established view local names no owned place that lane can replace.
+/// `slots[at] = node` through `&mut [Node]` mints the window pair: the
+/// move-out retires the displaced element and the store books the
+/// parameter-sourced value against the receiver's storage.
 #[test]
-fn slice_rooted_destination_still_declines() {
-    let omission = omission(
+fn slice_rooted_destination_admits_parameter_value() {
+    admits(
         r#"
         data Node { tag: u64; }
         data Bag { nodes: [Node; 4]; }
@@ -81,12 +80,5 @@ fn slice_rooted_destination_still_declines() {
         }
     "#,
         "store",
-    )
-    .expect("slice-rooted store still declines");
-    // The value arm now admits the owned parameter source, so the slice
-    // destination declines one arm later than the scalar lane's own phase.
-    assert!(
-        omission.contains("call source result type"),
-        "unexpected decline phase: {omission}"
     );
 }

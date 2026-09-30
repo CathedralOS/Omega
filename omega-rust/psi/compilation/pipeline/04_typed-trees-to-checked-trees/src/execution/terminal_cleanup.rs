@@ -742,6 +742,52 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
+    // A parameter whose whole value already left mid-body — moved into a
+    // store's hole or consumed by a call — keeps no exit drop either; the
+    // transfer event is its custody, not the state's exit roster. Moves
+    // attributed to a terminator edge are different: the source param's
+    // slot still dies at state exit (its AffineDrop stays on the roster)
+    // while the edge mints the successor's fresh binding, so a
+    // statement-indexed move on a transition row, or a call-sourced move
+    // targeting a state rather than a machine, is an edge forward and
+    // stays excluded from this set.
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mid_body_move = |source: PermissionEventSource| -> bool {
+        match source {
+            PermissionEventSource::Statement { statement_index } => !matches!(
+                statements.get(statement_index),
+                Some(StatementNode::Transition(_))
+            ),
+            PermissionEventSource::Call { target_symbol, .. } => program
+                .machines()
+                .iter()
+                .any(|candidate| candidate.symbol == target_symbol),
+            _ => false,
+        }
+    };
+    let moved_roots = facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .filter_map(|(_, event)| {
+            (event.machine_symbol == machine
+                && event.state_symbol == state.symbol
+                && matches!(
+                    event.kind,
+                    PermissionEventKind::Transfer | PermissionEventKind::Consume
+                )
+                && event.access == PermissionAccess::Owned
+                && mid_body_move(event.source)
+                && facts
+                    .flow
+                    .ownership
+                    .segments
+                    .span_or_empty(event.segments)
+                    .is_empty())
+            .then_some(event.root)
+        })
+        .collect::<Vec<_>>();
     let expected_discard_parameters = parameters
         .iter()
         .enumerate()
@@ -752,6 +798,7 @@ fn checked_whole_affine_discard_parameters_excluding_results(
                     != Multiplicity::Affine
                 || entry_claim_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
                 || selection_source_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
+                || moved_roots.contains(&facts::PlaceRoot::Symbol(parameter.symbol))
             {
                 return None;
             }
