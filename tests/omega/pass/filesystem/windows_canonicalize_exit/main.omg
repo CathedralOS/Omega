@@ -51,7 +51,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console + FilesystemHost {
-    self.unit_result = self.fs.write_all("omega_wcanon_probe.txt", "canon");
+    self.unit_result = Filesystem::write_all(&mut self.fs, "omega_wcanon_probe.txt", "canon");
     transition self.unit_result { UnitResult::Ok -> resolve() _ -> bad(71) }
     state resolve(&mut self) {
         self.unit_result = self.fs.canonicalize("omega_wcanon_probe.txt", &mut self.canon);

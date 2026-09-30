@@ -25,18 +25,18 @@ data Main {
     present: bool;
 }
 machine Main::main(&mut self) reaches Console {
-    _ = self.fs.create_dir_all("omega_walk_a/b/c");
+    _ = Filesystem::create_dir_all(&mut self.fs, "omega_walk_a/b/c");
     transition true { true -> ck_created() _ -> bad(99) }
     state ck_created(&mut self) {
-        self.present = self.fs.exists("omega_walk_a/b/c");
+        self.present = Filesystem::exists(&mut self.fs, "omega_walk_a/b/c");
         transition self.present { true -> seed() _ -> bad(71) }
     }
     state seed(&mut self) {
-        self.unit_result = self.fs.write_all("omega_walk_a/b/c/f1.txt", "x");
+        self.unit_result = Filesystem::write_all(&mut self.fs, "omega_walk_a/b/c/f1.txt", "x");
         transition self.unit_result { UnitResult::Ok -> seed2() _ -> bad(72) }
     }
     state seed2(&mut self) {
-        self.unit_result = self.fs.write_all("omega_walk_a/b/c/f2.txt", "y");
+        self.unit_result = Filesystem::write_all(&mut self.fs, "omega_walk_a/b/c/f2.txt", "y");
         transition self.unit_result { UnitResult::Ok -> count() _ -> bad(72) }
     }
     state count(&mut self) {
@@ -47,7 +47,7 @@ machine Main::main(&mut self) reaches Console {
         transition count == 2 { true -> ckempty() _ -> bad(73) }
     }
     state ckempty(&mut self) {
-        self.empty_result = self.fs.read_dir_is_empty("omega_walk_a/b/c");
+        self.empty_result = Filesystem::read_dir_is_empty(&mut self.fs, "omega_walk_a/b/c");
         transition self.empty_result { EmptyResult::NonEmpty -> teardown() _ -> bad(74) }
     }
     state teardown(&mut self) {
@@ -55,7 +55,7 @@ machine Main::main(&mut self) reaches Console {
         transition true { true -> ck_gone() _ -> bad(99) }
     }
     state ck_gone(&mut self) {
-        self.present = self.fs.exists("omega_walk_a");
+        self.present = Filesystem::exists(&mut self.fs, "omega_walk_a");
         transition self.present { true -> bad(75) _ -> good() }
     }
     state good(&mut self) { self.console.exit_process(70); }
