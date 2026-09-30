@@ -1,3 +1,6 @@
+// Tuple dispatch forwards its explicit context through the selected state
+// edge. The scalar result completes the invocation and returns to the caller.
+// Expected exit: 22.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -5,36 +8,36 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::run(&mut self) -> i32 {
+machine Main::run(context: &mut Main) -> i32 {
     transition {
-        _ -> classify(false, true)
+        _ -> classify(context, false, true)
     }
 
-    state classify(left: bool, right: bool) -> i32 {
+    state classify(context: &mut Main, left: bool, right: bool) -> i32 {
         transition (left, right) {
-            (true, _) -> done_11()
-            (false, true) -> done_22()
+            (true, _) -> done_11(context)
+            (false, true) -> done_22(context)
             // The final arm is the (false, false) case, spelled `_` so the
             // dispatch provably closes (tuple-conjunction coverage is not
             // counted by the exhaustiveness pass).
-            _ -> done_33()
+            _ -> done_33(context)
         }
     }
 
-    state done_11(&mut self) -> i32 {
+    state done_11(context: &mut Main) -> i32 {
         11
     }
 
-    state done_22(&mut self) -> i32 {
+    state done_22(context: &mut Main) -> i32 {
         22
     }
 
-    state done_33(&mut self) -> i32 {
+    state done_33(context: &mut Main) -> i32 {
         33
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    let result: i32 = self.run();
-    self.console.exit_process(result);
+machine Main::main(context: &mut Main) reaches Console {
+    let result: i32 = Main::run(context);
+    context.console.exit_process(result);
 }

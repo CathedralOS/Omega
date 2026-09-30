@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 9.1, "load1_start": 9.1, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 8.64, "load1_start": 8.64, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1386,8 +1386,7 @@ pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 720ms @2d8ed
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
 pass/control_flow/runtime_tuple_case_destructure_exit rejected 779ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
-pass/control_flow/runtime_tuple_transition_exit rejected 759ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`Main::run`), which was itself omitted at local construction at `state graph: terminator: guarded jump successors: receiver transfer` (state 1, statement 0)
+pass/control_flow/runtime_tuple_transition_exit checked 649ms @350be0d2a211+wt
 pass/control_flow/scalar_loop_interior_header_exit checked 1748ms @2d8ed253669f
 pass/control_flow/self_case_payload_both_arms_exit checked 1397ms @2d8ed253669f
 pass/control_flow/structural_result_transition_tail checked 1440ms @15f38e49aac2+wt
