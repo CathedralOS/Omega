@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 7.25, "load1_start": 7.53, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.03, "load1_start": 7.03, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1733,6 +1733,7 @@ pass/modules/qualified_constants checked 283ms @2d8ed253669f
 pass/modules/qualified_declarations checked 290ms @2d8ed253669f
 pass/modules/rational_boolean_indices checked 339ms @2d8ed253669f
 pass/modules/repeated_exact_declaration_selection_compile checked 284ms @2d8ed253669f
+pass/modules/runtime_qualified_static_mutation_exit checked 601ms @e0a76f438a35+wt
 pass/modules/use_imports_sibling_trait checked 282ms @2d8ed253669f
 pass/objc/gui_provider_substitution checked 343ms @2d8ed253669f
 pass/objc/native_gui_loop checked 1557ms @2d8ed253669f

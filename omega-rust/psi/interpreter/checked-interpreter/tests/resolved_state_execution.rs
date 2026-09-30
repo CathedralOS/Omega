@@ -3,6 +3,46 @@ use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 
 #[test]
+fn qualified_user_calls_do_not_probe_build_facet_storage() {
+    for (write, read) in [("write", "read"), ("close", "open"), ("create", "resolve")] {
+        let helper = format!(
+            "module helpers;
+             pub data Counter {{}}
+             pub machine Counter::{write}(value: &mut i32) {{ value = 70; }}
+             pub machine Counter::{read}(value: &i32) -> i32 {{ value }}"
+        );
+        let caller = format!(
+            "use helpers;
+             machine main() -> i32 {{
+                 let mut value: i32 = 0;
+                 helpers::Counter::{write}(&mut value);
+                 helpers::Counter::{read}(&value)
+             }}"
+        );
+        let mut sources = source::SourceMap::default();
+        let helper_source = sources.add("helpers.omg".into(), helper.clone()).source_id;
+        let caller_source = sources.add("main.omg".into(), caller.clone()).source_id;
+        let typed = crate::front_end::typed_program_from_source_map(
+            sources,
+            &[(helper_source, &helper), (caller_source, &caller)],
+        );
+        let checked = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            &typed_trees_to_checked_trees::CheckingRequest::settled(),
+        )
+        .expect("namespace calls check");
+        let outcome = interpret_entry(
+            &checked,
+            BuildMachineEntry::Name("main"),
+            &[],
+            InterpretOptions::default(),
+        );
+        assert_eq!(outcome.error, None, "{write}/{read}");
+        assert_eq!(outcome.exit_code, 70, "{write}/{read}");
+    }
+}
+
+#[test]
 fn qualified_static_generic_calls_preserve_distinct_local_instances() {
     let mut checked = crate::front_end::checked_program_with_generic_data_result(
         "data Counter<T> { value: T; times: i32 in Wrapping; }

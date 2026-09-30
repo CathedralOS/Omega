@@ -4133,7 +4133,9 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     Interpretation or provider-body inspection cannot discharge admission.
 
   Acceptance: retain `tests/omega/pass/modules/{qualified_declarations,qualified_constants,match_constant_indices,nominal_constant_bodies,module_array_constant_indices}`
-  and the `modules/` corpus gate, then verify source-free publication/reload,
+  and `runtime_qualified_static_mutation_exit` (ordinary module-qualified mutation
+  and readback, native/interpreted exit 70), plus the `modules/` corpus gate,
+  then verify source-free publication/reload,
   independent checking and matching-host execution for the new supported forms.
   Use maintained initializer tests beside `const_initializers.rs`, stage 04's
   `tests/contracts/main.rs::predicate_domain_initializer_*`, and

@@ -62,9 +62,55 @@ pub(super) fn validate_named_conformance_call(
     false
 }
 
-/// The receiver's first member must be a declared receiver in the current
-/// state unless the path names an operator namespace; reports whether it
-/// is.
+/// Qualification selects declarations, not storage. Both retained endpoints
+/// must be namespaces: a runtime root cannot acquire namespace status from a
+/// same-spelled type at its leaf. Legacy `self` can carry a machine symbol but
+/// still names the current instance.
+pub(super) fn receiver_is_declaration_namespace(
+    scope: &CallScope<'_>,
+    receiver_members: &[typed_trees::name::Identifier],
+) -> bool {
+    !receiver_members.is_empty()
+        && !receiver_members[0].is_self_receiver()
+        && [scope.call.receiver_root_symbol, scope.call.receiver_symbol]
+            .into_iter()
+            .all(|symbol| {
+                symbol.is_valid()
+                    && matches!(
+                        scope.program.symbols.get(symbol).kind,
+                        symbols::SymbolKind::BuiltinType
+                            | symbols::SymbolKind::Data
+                            | symbols::SymbolKind::Domain
+                            | symbols::SymbolKind::Machine
+                            | symbols::SymbolKind::Module
+                            | symbols::SymbolKind::Trait
+                            | symbols::SymbolKind::ConformanceParameter
+                    )
+            })
+}
+
+pub(super) fn receiver_is_operator_namespace(
+    scope: &CallScope<'_>,
+    receiver_members: &[typed_trees::name::Identifier],
+    argument_count: usize,
+) -> bool {
+    let namespace: Vec<_> = receiver_members
+        .iter()
+        .map(|member| member.as_str())
+        .collect();
+    crate::declarations::operators::namespaces::is_named_operator_namespace(
+        scope.program,
+        &[scope.call.receiver_symbol],
+        &namespace,
+        scope.call.target_symbol,
+        scope.call.target.as_str(),
+        argument_count,
+    )
+}
+
+/// Runtime receiver roots must belong to the current state. A declaration
+/// namespace is exempt only in this call-prefix slot; modules remain invalid
+/// as runtime arguments and standalone values.
 pub(super) fn receiver_is_declared(
     scope: &CallScope<'_>,
     receiver_members: &[typed_trees::name::Identifier],
@@ -82,19 +128,9 @@ pub(super) fn receiver_is_declared(
         writable_roots,
         ..
     } = *scope;
-    let namespace: Vec<_> = receiver_members
-        .iter()
-        .map(|member| member.as_str())
-        .collect();
     if let Some(first) = receiver_members.first()
-        && !crate::declarations::operators::namespaces::is_named_operator_namespace(
-            program,
-            &[call.receiver_symbol],
-            &namespace,
-            call.target_symbol,
-            call.target.as_str(),
-            arguments.len(),
-        )
+        && !receiver_is_declaration_namespace(scope, receiver_members)
+        && !receiver_is_operator_namespace(scope, receiver_members, arguments.len())
     {
         let root = call.receiver_root_symbol;
         if !root.is_valid()
