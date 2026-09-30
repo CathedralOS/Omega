@@ -316,12 +316,66 @@ pub(in crate::validation) fn validate_integer_structural_field(
         }
         return Err(invalid());
     }
-    let parameter = readable_parameter_for(machine, source).ok_or_else(invalid)?;
-    if !matches!(
-        parameter.multiplicity,
-        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-    ) || !has_readable_structural_access(parameter.access)
-        || !has_empty_structural_custody(machine, source)
+    if let Some(parameter) = readable_parameter_for(machine, source) {
+        if !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) || !has_readable_structural_access(parameter.access)
+            || !has_empty_structural_custody(machine, source)
+        {
+            return Err(invalid());
+        }
+        let ScalarType::Integer(_) = result_type else {
+            return Err(ModuleError::IntegerStructuralFieldRequiresIntegerResult(
+                operation,
+            ));
+        };
+        if observed_scalar_field(module, parameter.structural_type, path, field)
+            != Some(result_type)
+        {
+            return Err(invalid());
+        }
+        return Ok(());
+    }
+    // A reference-established local is a readable place the same way a
+    // borrowed parameter is: `let cell: &Cell = &cells[i]` mints an
+    // `EstablishReference` result whose loan's access the argument spells,
+    // and field observation through it reads the referent's declared record.
+    let (producer, borrowed_result) = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            operation
+                .result
+                .structural()
+                .and_then(|result| (result.place == source).then_some((operation, result)))
+        })
+        .ok_or_else(invalid)?;
+    let readable = match &producer.kind {
+        OperationKind::EstablishReference { source }
+        | OperationKind::EstablishElementView { source, .. }
+        | OperationKind::EstablishMutableElementView { source, .. } => {
+            has_readable_structural_access(source.access)
+        }
+        _ => false,
+    };
+    let empty_result_custody = borrowed_result.qualifications.is_empty()
+        && borrowed_result.projected_qualifications.is_empty()
+        && machine
+            .entry_claims
+            .iter()
+            .all(|claim| claim.input != source)
+        && machine
+            .content_entry_claims
+            .iter()
+            .all(|claim| claim.input.root != source);
+    if !readable
+        || !matches!(
+            borrowed_result.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
+        || !empty_result_custody
     {
         return Err(invalid());
     }
@@ -330,7 +384,9 @@ pub(in crate::validation) fn validate_integer_structural_field(
             operation,
         ));
     };
-    if observed_scalar_field(module, parameter.structural_type, path, field) != Some(result_type) {
+    if observed_scalar_field(module, borrowed_result.structural_type, path, field)
+        != Some(result_type)
+    {
         return Err(invalid());
     }
     Ok(())

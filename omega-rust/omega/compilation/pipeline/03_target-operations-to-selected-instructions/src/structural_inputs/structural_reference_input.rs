@@ -1246,11 +1246,25 @@ pub(crate) fn field_read(
     {
         return None;
     }
-    let root = plain_record_shape(structural_type, declarations)?;
+    // An element view is a descriptor, not the observed storage: its live
+    // extent — not a root record footprint — bounds the read.
+    let descriptor_root = declarations
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .is_some_and(|declaration| {
+            matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+        });
+    let root = if descriptor_root {
+        None
+    } else {
+        Some(plain_record_shape(structural_type, declarations)?)
+    };
     if let Some(read) = mixed_common_field_read(structural_type, path, field, scalar, declarations)
     {
-        return (u64::from(read.0).checked_add(u64::from(read.1))? <= u64::from(root.byte_size))
-            .then_some(read);
+        return (root.is_none()
+            || u64::from(read.0).checked_add(u64::from(read.1))?
+                <= u64::from(root.unwrap().byte_size))
+        .then_some(read);
     }
     scalar_field_geometry(structural_type, path, field, scalar, declarations, false)
         .map(|(offset, bytes, _)| (offset, bytes))

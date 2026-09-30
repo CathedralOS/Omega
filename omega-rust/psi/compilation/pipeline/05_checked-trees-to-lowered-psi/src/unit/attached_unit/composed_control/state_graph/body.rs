@@ -97,7 +97,7 @@ pub(super) fn validate(
                 Some("record")
             } else if !closed_sum && is_arm_pattern_marker(statement) {
                 Some("arm")
-            } else if is_loan_marker(checked, statement) {
+            } else if is_loan_marker(checked, machine, source, statement, index) {
                 Some("loan")
             } else if is_exclusive_loan_marker(checked, machine, source, statement, index) {
                 Some("xloan")
@@ -913,7 +913,13 @@ fn is_record_pattern_marker(statement: &StatementNode) -> bool {
 /// the name is rejoined to the loaned place by the access's own place
 /// resolution. Reconstructed here from the authored statement rather than
 /// taken from the plan, which is what the surrounding count is checking.
-fn is_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -> bool {
+fn is_loan_marker(
+    checked: &CheckedTrees,
+    _machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    statement: &StatementNode,
+    index: usize,
+) -> bool {
     let StatementNode::LocalData(local) = statement else {
         return false;
     };
@@ -925,6 +931,23 @@ fn is_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -> bool {
     else {
         return false;
     };
+    // An element borrow minted through a view — `let cell: &Cell = &cells[i]` —
+    // plans a real establishment whose result custody the graph accounts; it
+    // is no carrier-only marker. The same exclusion the call-spelled arm makes
+    // through `root_for_expression`.
+    if checked
+        .facts
+        .values
+        .structural_values
+        .root_for_expression(
+            source.symbol,
+            u32::try_from(index).unwrap_or(u32::MAX),
+            local.initial_value,
+        )
+        .is_some()
+    {
+        return false;
+    }
     match borrow.access {
         language_core::ReferenceAccess::Mutable => {
             validation::reference_result_custody::mutable_borrowed_parts(

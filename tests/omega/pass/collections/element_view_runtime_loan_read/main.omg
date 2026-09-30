@@ -1,0 +1,50 @@
+// Shared record loan through a runtime index: `&cells[bag.at]` captures a
+// `&Cell` element whose selector is a structural field of the borrowed
+// parameter. The loan mints a runtime-indexed element read — the view's live
+// length discharges the bound.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell {
+    value: i32;
+    tag: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+    at: u64;
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+}
+
+machine pick(bag: &mut Bag)
+requires bag.at < 4
+{
+    let cells: &[Cell] = bag.cells.as_slice();
+    let cell: &Cell = &cells[bag.at];
+    let observed: i32 = cell.value;
+    bag.cells[0].value = observed;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.bag.at = 2;
+    self.bag.cells[2].value = 7;
+    self.bag.cells[2].tag = 9;
+    pick(&mut self.bag);
+
+    transition self.bag.cells[0].value == 0 {
+        true -> bad()
+        false -> good()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(182);
+    }
+}

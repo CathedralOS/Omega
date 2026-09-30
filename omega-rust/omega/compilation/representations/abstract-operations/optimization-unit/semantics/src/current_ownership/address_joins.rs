@@ -38,6 +38,8 @@ pub(super) struct AddressJoinPins {
     shared: BTreeMap<BlockId, BTreeSet<PlaceId>>,
     exclusive: BTreeMap<BlockId, BTreeSet<PlaceId>>,
     origins: BTreeMap<PlaceId, BTreeSet<PlaceId>>,
+    dominators: BTreeMap<BlockId, BTreeSet<BlockId>>,
+    readers: BTreeMap<PlaceId, BTreeSet<BlockId>>,
 }
 
 impl AddressJoinPins {
@@ -148,6 +150,20 @@ impl AddressJoinPins {
                 }
             }
         }
+        // Blocks whose operations name each place, so an edge discard can
+        // tell a loan that is still observed downstream from one whose
+        // readers all ran already. Reads through a descriptor or join name
+        // are resolved to their roots when an edge is checked.
+        let mut readers = BTreeMap::<PlaceId, BTreeSet<BlockId>>::new();
+        for block in &function.blocks {
+            for node in &block.nodes {
+                for place in crate::unit_validation::function_structure::operation_place_inputs(
+                    &node.operation,
+                ) {
+                    readers.entry(place).or_default().insert(block.id);
+                }
+            }
+        }
         // A local owner keeps its affine disposal obligation while a joined
         // mutable name holds its address. Pin every possible local origin of
         // those joins; existing mutable-name availability handles forwarding.
@@ -170,6 +186,8 @@ impl AddressJoinPins {
                 shared: pins,
                 exclusive: BTreeMap::new(),
                 origins,
+                dominators,
+                readers,
             };
         }
         // Descriptor aliases are borrowed backing, not fresh owned copies.
@@ -269,6 +287,8 @@ impl AddressJoinPins {
             shared: pins,
             exclusive,
             origins: aliases,
+            dominators,
+            readers,
         }
     }
 
@@ -420,6 +440,30 @@ impl AddressJoinPins {
         let Some(pinned) = self.shared.get(&block) else {
             return Ok(());
         };
+        // A pin covers every block the join's owner dominates, but the loan
+        // only needs the root alive while some operation can still read it.
+        // A discard (or exclusive hand-off) on this edge disturbs the loan
+        // only when a block at or below the target still names the place,
+        // a join that carries it, or a descriptor aliased to it.
+        let read_after = |place: &PlaceId| {
+            let mut names = BTreeSet::from([*place]);
+            for (name, roots) in &self.origins {
+                if roots.contains(place) {
+                    names.insert(*name);
+                }
+            }
+            names.iter().any(|name| {
+                self.readers.get(name).is_some_and(|blocks| {
+                    blocks.iter().any(|reader| {
+                        *reader == edge.target
+                            || self
+                                .dominators
+                                .get(reader)
+                                .is_some_and(|dominating| dominating.contains(&edge.target))
+                    })
+                })
+            })
+        };
         let disturbed = edge
             .structural_bindings
             .iter()
@@ -438,7 +482,7 @@ impl AddressJoinPins {
                     .iter()
                     .map(|discard| discard.place),
             )
-            .find(|place| pinned.contains(place));
+            .find(|place| pinned.contains(place) && read_after(place));
         match disturbed {
             Some(place) => Err(
                 OptimizationUnitValidationError::CurrentSharedJoinOriginDisturbed {

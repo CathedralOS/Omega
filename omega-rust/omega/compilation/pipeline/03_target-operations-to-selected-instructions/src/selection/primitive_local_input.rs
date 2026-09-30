@@ -199,6 +199,31 @@ pub(super) fn read_geometry(
                     return None;
                 }
                 parameter.structural_type
+            } else if let Some(result) = source
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find_map(|row| match &row.kind {
+                    Instruction::EstablishElementView { result, .. }
+                    | Instruction::ElementViewSubslice { result, .. } => {
+                        (result.place == argument.place).then_some(result)
+                    }
+                    _ => None,
+                })
+            {
+                // A read through an element view resolves the view's declared
+                // element geometry; either view family lends a SharedBorrow
+                // read, matching the access minted at legalization.
+                let expected_access = match result.multiplicity {
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine => {
+                        StructuralAccess::SharedBorrow
+                    }
+                    _ => return None,
+                };
+                if argument.access != expected_access || observes_byte_length {
+                    return None;
+                }
+                result.structural_type
             } else {
                 if argument.access != StructuralAccess::Owned || observes_byte_length {
                     return None;

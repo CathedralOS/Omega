@@ -10,12 +10,16 @@ use symbols::SymbolHandle;
 
 /// Walk an authored member/indexed place chain to its root name, rebuilding
 /// the retained field/fixed-index path against the same declaration and
-/// literal-bound rules the checker committed to.
+/// literal-bound rules the checker committed to. `view_root_index` admits a
+/// literal index into a slice-typed (view) collection: only a shared-borrow
+/// target may use it — the loan's own live extent is the bound, while copied
+/// and scalar-case leaves still need the literal array length's evidence.
 pub(crate) fn walk_exact_place(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
     authored: &checked_trees::state::State,
     target: ExpressionHandle,
+    view_root_index: bool,
 ) -> Result<
     (
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
@@ -136,16 +140,47 @@ pub(crate) fn walk_exact_place(
                 .ok_or(LoweringError::Unsupported(
                     "borrowed selection index has no declared collection",
                 ))?;
-                let checked_trees::types::TypeReferenceNode::FixedArray {
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
-                    ..
-                } = checked.type_reference_table.type_reference(container)
-                else {
-                    return unsupported("borrowed selection index has no literal array length");
+                // A slice-typed collection — a `&[Cell]` view root — carries no
+                // literal bound: a shared loan's own live extent discharges the
+                // index the way the runtime selector's obligation does. Copied
+                // and scalar-case leaves instead mint the literal's exact place
+                // and keep the literal array length's evidence rule.
+                let mut unwrapped = container;
+                let literal_length = loop {
+                    match checked.type_reference_table.type_reference(unwrapped) {
+                        checked_trees::types::TypeReferenceNode::Constrained {
+                            base_type, ..
+                        }
+                        | checked_trees::types::TypeReferenceNode::Reference {
+                            referee: base_type,
+                            ..
+                        } => unwrapped = *base_type,
+                        checked_trees::types::TypeReferenceNode::FixedArray {
+                            length: checked_trees::types::FixedArrayLength::Literal(length),
+                            ..
+                        } => break Some(*length),
+                        checked_trees::types::TypeReferenceNode::Slice { .. }
+                            if view_root_index =>
+                        {
+                            break None;
+                        }
+                        _ => {
+                            return unsupported(
+                                "borrowed selection index has no literal array length",
+                            );
+                        }
+                    }
+                };
+                let Some(length) = literal_length else {
+                    checked_path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                        index,
+                    ));
+                    cursor = indexed.collection;
+                    continue;
                 };
                 if usize::try_from(index)
                     .ok()
-                    .is_none_or(|index| index >= *length)
+                    .is_none_or(|index| index >= length)
                 {
                     return unsupported("borrowed selection index is out of bounds");
                 }
@@ -221,7 +256,7 @@ pub(crate) fn constant_local_index(
 /// authored position plus the field path and requires an integer leaf. A
 /// spelling that matches neither never reached the checked plan, so failing
 /// here keeps the replay honest rather than inventing a coordinate.
-fn runtime_index_selector(
+pub(crate) fn runtime_index_selector(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
     authored: &checked_trees::state::State,
@@ -308,7 +343,7 @@ pub(crate) fn field_selector(
     // rooted at an entry parameter (a `self` root names the is_self slot by
     // the machine's durable symbol). Indexed or case segments inside the
     // selector never mint a `StructuralField` coordinate.
-    let (path, root) = walk_exact_place(checked, machine, authored, expression)?;
+    let (path, root) = walk_exact_place(checked, machine, authored, expression, false)?;
     if path.is_empty() {
         return unsupported("runtime index selector names no field below its parameter");
     }

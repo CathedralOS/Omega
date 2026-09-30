@@ -65,7 +65,8 @@ pub fn is_static_projection(path: &[StructuralPathSegment]) -> bool {
 }
 
 /// The referent type an address-join argument names: `path` resolved from
-/// `root` through record fields and in-bounds fixed indexes. A scalar leaf
+/// `root` through record fields and in-bounds fixed indexes, where an element
+/// view contributes its own live extent as the index bound. A scalar leaf
 /// field resolves to the catalog's unique standalone declaration of that
 /// leaf's canonical shape, the same identity a borrowed `&u64` parameter
 /// declares. Erased fields, duplicate identities and every other segment
@@ -115,6 +116,17 @@ pub fn referent_type<'a>(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => unique(
+                &mut declarations
+                    .clone()
+                    .filter(|declaration| declaration.id == *element),
+            )?,
+            // An element view carries no literal length: the producer's live
+            // extent discharges the bound, and the path still names one
+            // element's address.
+            (
+                StructuralPathSegment::FixedIndex(_),
+                StructuralTypeShape::ElementView { element },
+            ) => unique(
                 &mut declarations
                     .clone()
                     .filter(|declaration| declaration.id == *element),

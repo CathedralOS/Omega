@@ -473,7 +473,37 @@ fn shared_loan_root(
             .filter(|_| available.contains(&argument.place))
             .map(|result| result.structural_type);
     }
-    None
+    // An element view's elements are structural storage: a projected shared
+    // loan (`&cells[i]`) roots at the view place and resolves its path into
+    // the view's element type, exactly as a record field loan roots at the
+    // record. Byte views keep the whole-view rule above — their elements
+    // carry no structural projection.
+    if let Some(result) = super::element_view::subslice::borrowed_result(machine, argument.place)
+        .filter(|_| available.contains(&argument.place))
+    {
+        return Some(result.structural_type);
+    }
+    // A mutable view lends the same projected shared loan while its exclusive
+    // loan lives: the affine result names the descriptor, and the shared
+    // observer reads beneath it for the edge's duration.
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            OperationKind::EstablishMutableElementView { .. } => {
+                operation.result.structural().filter(|result| {
+                    result.place == argument.place
+                        && result.multiplicity == StructuralMultiplicity::Affine
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && result.claims.is_empty()
+                })
+            }
+            _ => None,
+        })
+        .filter(|_| available.contains(&argument.place))
+        .map(|result| result.structural_type)
 }
 
 /// The declared type at an exclusive successor loan's root. A signature or

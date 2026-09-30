@@ -667,6 +667,9 @@ pub(super) fn retained(
             // index: the fixed-array element is the record owning the
             // observed field. The bound is rechecked against the declared
             // extent rather than trusted from the producer.
+            // An element view contributes its own live extent as the index
+            // bound; the producer's establishment already discharged it, so
+            // only the declared element joins the carrier walk.
             semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
                 if position + 1 == carrier_path.len() =>
             {
@@ -678,16 +681,18 @@ pub(super) fn retained(
                 else {
                     return false;
                 };
-                let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                    &declaration.shape
-                else {
-                    return false;
+                let element = match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+                        if index >= length {
+                            return false;
+                        }
+                        *element
+                    }
+                    terminal_psi::StructuralTypeShape::ElementView { element } => *element,
+                    _ => return false,
                 };
-                if index >= length {
-                    return false;
-                }
                 runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
-                carrier = *element;
+                carrier = element;
             }
             _ => return false,
         }
@@ -813,6 +818,50 @@ fn read_access(
         }
     }
     for operation in &function.operations {
+        // An element view's descriptor is the lending carrier: reads through
+        // its place borrow the view, so the minted access follows the view
+        // result's multiplicity rather than an owned home.
+        if let AbstractOperation::EstablishElementView { result, .. }
+        | AbstractOperation::ElementViewSubslice { result, .. } = operation
+        {
+            if result.place != place || observes_byte_length {
+                continue;
+            }
+            // An element read borrows the view's live extent however the
+            // view itself was lent: legalization spells the argument
+            // SharedBorrow for either multiplicity.
+            let view_access = match result.multiplicity {
+                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine => {
+                    StructuralAccess::SharedBorrow
+                }
+                _ => return None,
+            };
+            let retained = target
+                .graph
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|candidate| {
+                    let actual = match candidate {
+                        TargetUnitOperation::EstablishElementView { result, .. }
+                        | TargetUnitOperation::ElementViewSubslice { result, .. } => result,
+                        _ => return false,
+                    };
+                    actual == result
+                });
+            if result.multiplicity == StructuralMultiplicity::Linear
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+                || !retained
+                || access
+                    .replace((view_access, result.structural_type))
+                    .is_some()
+            {
+                return None;
+            }
+            continue;
+        }
         let (producer, result) = match operation {
             AbstractOperation::EstablishRecord {
                 psi_operation,

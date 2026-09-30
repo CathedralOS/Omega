@@ -1161,6 +1161,14 @@ pub(super) fn validate_integer_structural_field(
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::StructuralLeafCopy { .. }
                     | OperationKind::StructuralCaseLeafCopy { .. }
+                    // A loan carrier is equally a readable observation source:
+                    // `&cells[i]` mints its referent storage through the
+                    // reference establishment, and a view local reads its
+                    // element fields through the view descriptor the same way
+                    // the store arm admits it as a write destination.
+                    | OperationKind::EstablishReference { .. }
+                    | OperationKind::EstablishElementView { .. }
+                    | OperationKind::EstablishMutableElementView { .. }
             )
         })
         .filter_map(|producer| producer.result.structural())
