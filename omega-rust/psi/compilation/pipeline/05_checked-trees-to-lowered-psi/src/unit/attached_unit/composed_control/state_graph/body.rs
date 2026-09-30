@@ -1340,6 +1340,26 @@ fn own_establishment(operation: &CheckedUnitEffectOperationPlan) -> bool {
     )
 }
 
+/// A whole-root replacement writes the complete place: admitted only when
+/// the place names a parameter borrowed exclusively (`&mut`), whose entire
+/// formal is the writable window. Every other carrier still requires a
+/// nonempty field path beneath it.
+fn exclusive_borrowed_whole_parameter(
+    state: &CheckedComposedUnitControlStatePlan,
+    place: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> bool {
+    let Some(position) = place.source_parameter_index() else {
+        return false;
+    };
+    state
+        .structural_parameters
+        .iter()
+        .any(|parameter| {
+            parameter.position == position
+                && parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+        })
+}
+
 /// A structural construction authored as one of its statement's call
 /// arguments rather than bound to a local or returned.
 fn argument_construction(operation: &CheckedUnitEffectOperationPlan) -> bool {
@@ -1517,7 +1537,7 @@ fn validate_displaced_field_replacement(
     let (identity, multiplicity, statement_index, value_source) = produced;
     if place != destination
         || place.access != checked_trees::CheckedStructuralAccess::Owned
-        || place.path.is_empty()
+        || (place.path.is_empty() && !exclusive_borrowed_whole_parameter(state, place))
         || place.type_identity != identity
         || moved.type_identity != identity
         || moved.multiplicity != multiplicity
