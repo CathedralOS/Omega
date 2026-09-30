@@ -277,6 +277,9 @@ pass/data/property_carry_declared checked 171ms
 pass/data/record_pattern_let_exit built 557ms exit:70
 pass/data/runtime_case_reassignment_exit built 2477ms exit:70 @fb2178def922
 pass/data/runtime_data_properties_exit built 616ms exit:70
+pass/data/runtime_mixed_case_common_fields_exit built 10399ms exit:70 @8a4d4e552420+wt
+pass/data/runtime_mixed_case_payload_dispatch_exit rejected 7053ms @8a4d4e552420+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 1, statement 0)
 pass/data/runtime_mixed_shape_exit built 2406ms exit:70 @fb2178def922
 pass/data/runtime_proof_only_data_declared_exit built 534ms exit:70
 pass/data/runtime_record_field_value_pattern_exit rejected 466ms
@@ -314,6 +317,8 @@ pass/domains/bodyless_owner_establishment checked 181ms
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 146ms
 pass/domains/call_requires_domain_intersection_preserved checked 198ms
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 186ms
+pass/domains/case_payload_predicate_domain_member_exit rejected 4262ms @8a4d4e552420+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
 pass/domains/domain_operator_requires_discharged checked 202ms
 pass/domains/domain_operator_unproven_keeps_builtin_meaning checked 196ms
 pass/domains/domain_param_forwarded checked 218ms
@@ -323,6 +328,8 @@ pass/domains/explicit_domain_erasure checked 136ms
 pass/domains/local_alias_domain_transfer checked 148ms
 pass/domains/match_domain_patterns checked 177ms
 pass/domains/module_domain_narrow_import_spelling checked 143ms
+pass/domains/record_interval_domain_member_exit rejected 2930ms @8a4d4e552420+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
 pass/domains/refinement_chain_predicates checked 148ms
 pass/domains/refinement_chain_routed_provenance checked 167ms
 pass/domains/runtime_result_domain_machine_overload_exit rejected 455ms
@@ -808,6 +815,7 @@ pass/storage/runtime_machine_owned_indexed_integer_write_exit built 683ms exit:7
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit built 1441ms exit:85 @fb2178def922
 pass/storage/runtime_primitive_local_literal_composition_exit built 700ms exit:70 @e75f61cc4333+wt
 pass/structs/affine_record_state_clone built 967ms exit:70
+pass/structs/case_field_type_store_shapes built 31396ms exit:70 @8a4d4e552420+wt
 pass/structs/copied_array_field_shared_record built 642ms exit:70
 pass/structs/deep_nested_write_paths_exit built 1883ms exit:70 @fb2178def922
 pass/structs/mutable_array_record_state_transfer built 707ms exit:70

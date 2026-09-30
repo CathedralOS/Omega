@@ -1,0 +1,39 @@
+// A plain record member under a plain domain that means exactly an interval
+// (`level: i32 in Ten`) constructs like the case payload member that
+// `pass/structs/case_field_type_store_shapes` runs: the literal proves the
+// member's range obligation, and the bounded carrier holds the membership.
+// It is stored directly, then through a local. Exit 70 = both read back;
+// 71 = a wrong value.
+//
+// Today the direct store stops at `structural field store: record literal
+// source`, and the local-mediated one at `statement sequence: local data:
+// structural call binding`: only the case constructor classifies an
+// interval-domained member as constructible contents.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain i32::Ten requires 0 <= self && self <= 10;
+
+data Gauge { level: i32 in Ten; }
+
+data Main {
+    console: Binding<Console>;
+    gauge: Gauge;
+    spare: Gauge;
+}
+
+machine Main::fill_spare(&mut self) {
+    let filled: Gauge = Gauge { level: 3 };
+    self.spare = filled;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.gauge = Gauge { level: 7 };
+    self.fill_spare();
+    transition self.gauge.level == 7 && self.spare.level == 3 {
+        true -> passed()
+        false -> failed()
+    }
+    state passed(&mut self) { self.console.exit_process(70); }
+    state failed(&mut self) { self.console.exit_process(71); }
+}

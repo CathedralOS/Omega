@@ -868,6 +868,8 @@ fail/range/indexed_field_range_runtime_write_rejected rejected 304ms expected @2
 	data `Cell`'s default domain is still FALSE at a call: the invariant window opened on `self.cells[*]` must close first -- restore the `where` facts before this consumption point (ch11)
 	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `self.cells[*]` must close first -- restore the `where` facts before this consumption point (ch11)
 	machine `Main::main` state `main` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/ranges/case_payload_domain_literal_out_of_range rejected 81ms expected @8a4d4e552420+wt
+	construction of `Level` field `amount`: value 11 is outside its declared range `0..=10`
 fail/ranges/index_signed_guard_below_zero rejected 775ms expected @2d8ed253669f
 	cannot prove index `self.j` is non-negative (>= 0)
 fail/ranges/loop_increment_index_unbounded rejected 793ms expected @2d8ed253669f
@@ -1458,6 +1460,8 @@ pass/domains/bodyless_owner_establishment checked 299ms @2d8ed253669f
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 285ms @2d8ed253669f
 pass/domains/call_requires_domain_intersection_preserved checked 293ms @2d8ed253669f
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 293ms @2d8ed253669f
+pass/domains/case_payload_predicate_domain_member_exit rejected 803ms @8a4d4e552420+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
 pass/domains/domain_operator_requires_discharged checked 295ms @2d8ed253669f
 pass/domains/domain_operator_unproven_keeps_builtin_meaning checked 289ms @2d8ed253669f
 pass/domains/domain_param_forwarded checked 286ms @2d8ed253669f
@@ -1467,6 +1471,8 @@ pass/domains/explicit_domain_erasure checked 288ms @2d8ed253669f
 pass/domains/local_alias_domain_transfer checked 279ms @2d8ed253669f
 pass/domains/match_domain_patterns checked 305ms @2d8ed253669f
 pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
+pass/domains/record_interval_domain_member_exit rejected 8051ms @8a4d4e552420+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
 pass/domains/runtime_result_domain_machine_overload_exit rejected 1241ms @2d8ed253669f
