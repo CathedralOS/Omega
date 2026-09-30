@@ -18,8 +18,8 @@
 //! at the native boundary. Reconstruct both shapes and placements in that order.
 use super::super::scalar_shape;
 use super::{
-    AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit, TargetFunction,
-    TargetUnitOperation, ValueId,
+    AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit, TargetUnitOperation,
+    ValueId,
 };
 use crate::LegalizationError;
 use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation};
@@ -32,7 +32,6 @@ use target_operations::{
 pub(super) fn validate(
     target: &TargetUnitOperation,
     source: &abstract_operations::AbstractOperation,
-    function: &TargetFunction,
     parameters: &[TargetStructuralParameter],
     native: &TargetOperationPlan,
     optimized: &PsiOptimizationFunction,
@@ -156,7 +155,6 @@ pub(super) fn validate(
         ) => {
             if *declared != result.scalar_type
                 || super::super::value_type(optimized, result.value) != Some(result.scalar_type)
-                || function.attachment.is_none()
             {
                 return Err(LegalizationError::custody());
             }

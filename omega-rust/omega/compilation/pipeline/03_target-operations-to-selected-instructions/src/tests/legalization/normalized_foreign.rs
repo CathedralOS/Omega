@@ -848,3 +848,265 @@ fn normalized_foreign_call_mut(
     };
     call
 }
+
+/// Where the free caller in `dominated_result_fixture` places its producing
+/// relay call and its consuming leaf call.
+#[derive(Clone, Copy)]
+enum ResultPlacement {
+    /// The entry block produces; the true arm consumes. A static machine's
+    /// later state reads an earlier state's foreign result this way.
+    EntryToTrueArm,
+    /// The entry block produces; the false arm consumes.
+    EntryToFalseArm,
+    /// The true arm produces and the false arm consumes: the producer does
+    /// not dominate its use.
+    SiblingBranches,
+}
+
+/// A free (receiverless) caller branching on its Boolean parameter.
+/// `Foreign::relay(i32) -> i32` (boundary 2) produces value 8, and
+/// `Foreign::leaf(i32)` (boundary 1) consumes it in another block.
+fn dominated_result_fixture(placement: ResultPlacement) -> AbstractOperationPlan {
+    use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractSuccessor};
+    let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let block = |identity| semantic_vocabulary::BlockId::new(identity).unwrap();
+    let edge = |identity| semantic_vocabulary::EdgeId::new(identity).unwrap();
+    let argument = ValueId::new(5).unwrap();
+    let relayed = ValueId::new(8).unwrap();
+    let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
+    source.boundary_machines.push(declaration(
+        vec![i32_type],
+        Vec::new(),
+        terminal_psi::BoundaryMachineResult::Unit,
+    ));
+    source
+        .boundary_machines
+        .push(terminal_psi::BoundaryMachineDeclaration {
+            id: BoundaryMachineId::new(2).unwrap(),
+            ..declaration(
+                vec![i32_type],
+                Vec::new(),
+                terminal_psi::BoundaryMachineResult::Scalar(i32_type),
+            )
+        });
+    let constant = AbstractOperation::IntegerConstant {
+        psi_operation: OperationId::new(6).unwrap(),
+        result: argument,
+        scalar_type: i32_type,
+        value: semantic_vocabulary::IntegerValue::Signed(9),
+    };
+    let produce = AbstractOperation::BoundaryCall {
+        psi_operation: OperationId::new(7).unwrap(),
+        result: AbstractBoundaryResult::Scalar(AbstractResult {
+            value: relayed,
+            scalar_type: i32_type,
+        }),
+        boundary: BoundaryMachineId::new(2).unwrap(),
+        arguments: vec![argument],
+        structural_arguments: Vec::new(),
+        completion_claim_sources: Vec::new(),
+        completion_receipts: Vec::new(),
+    };
+    let consume = AbstractOperation::BoundaryCall {
+        psi_operation: OperationId::new(9).unwrap(),
+        result: AbstractBoundaryResult::Unit,
+        boundary: BoundaryMachineId::new(1).unwrap(),
+        arguments: vec![relayed],
+        structural_arguments: Vec::new(),
+        completion_claim_sources: Vec::new(),
+        completion_receipts: Vec::new(),
+    };
+    let successor = |identity, target| AbstractSuccessor {
+        structural_bindings: Vec::new(),
+        psi_edge: edge(identity),
+        target: block(target),
+        bindings: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let branch = AbstractOperation::Conditional {
+        condition: ValueId::new(100).unwrap(),
+        when_true: successor(10, 2),
+        when_false: successor(11, 3),
+    };
+    let finish = |identity| AbstractOperation::ReturnUnit {
+        psi_edge: edge(identity),
+        cleanup_actions: Vec::new(),
+    };
+    let (entry, true_arm, false_arm) = match placement {
+        ResultPlacement::EntryToTrueArm => (
+            vec![constant, produce, branch],
+            vec![consume, finish(12)],
+            vec![finish(13)],
+        ),
+        ResultPlacement::EntryToFalseArm => (
+            vec![constant, produce, branch],
+            vec![finish(12)],
+            vec![consume, finish(13)],
+        ),
+        ResultPlacement::SiblingBranches => (
+            vec![constant, branch],
+            vec![produce, finish(12)],
+            vec![consume, finish(13)],
+        ),
+    };
+    let function = &mut source.functions[0];
+    assert_eq!(function.attachment, None, "the caller is receiverless");
+    function.parameters = vec![AbstractParameter {
+        value: ValueId::new(100).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    }];
+    function.block_entries = [(1, 0), (2, entry.len()), (3, entry.len() + true_arm.len())]
+        .map(|(identity, offset)| AbstractBlockEntry {
+            structural_parameters: Vec::new(),
+            block: block(identity),
+            parameters: Vec::new(),
+            operation_offset: offset.try_into().unwrap(),
+        })
+        .to_vec();
+    function.operations = [entry, true_arm, false_arm].concat();
+    source
+}
+
+fn lower_relay(
+    source: &AbstractOperationPlan,
+    native: NativeTarget,
+) -> Result<TargetOperationPlan, abstract_operations_to_target_operations::LoweringError> {
+    let shape = calling_conventions::ValueShape::integer(4, 4);
+    let execution = Execution { plan_report: 0xA1 };
+    let settlements =
+        [(1, None), (2, Some(shape))].map(|(boundary, result)| AdmittedBoundarySettlement {
+            boundary: BoundaryMachineId::new(boundary).unwrap(),
+            execution: AdmittedBoundaryExecution::Provider(&execution),
+            realization: BoundarySettlementRealization::NormalizedForeignCall(binding(
+                native,
+                calling_conventions::CallSignature {
+                    parameters: vec![shape],
+                    result,
+                },
+            )),
+        });
+    abstract_operations_to_target_operations::lower_to_target_operations(
+        source,
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &settlements,
+            installation: None,
+            native_callbacks: &[],
+        },
+    )
+}
+
+/// A normalized foreign scalar result is an ordinary SSA value. A free caller
+/// keeps it without an attachment, and a later block the producer dominates
+/// consumes it as a durable home through legalization, selection and both
+/// replays on every hosted ABI.
+#[test]
+fn free_caller_foreign_result_reaches_a_dominated_block() {
+    let source = dominated_result_fixture(ResultPlacement::EntryToTrueArm);
+    let unit = seed(&source);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target = lower_relay(&source, native).expect("free caller lowers");
+        abstract_operations_to_target_operations::validate_abstract_to_target_translation(
+            &source, native, &target,
+        )
+        .expect("free caller replays");
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+        let caller = &legal.plan().scalar_functions[0];
+        assert_eq!(caller.attachment, None);
+        let calls = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter_map(|instruction| match &instruction.kind {
+                legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(
+                    call,
+                ) => Some(call),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let [relay, leaf] = calls.as_slice() else {
+            panic!("two normalized foreign calls")
+        };
+        let home = relay.result_home.expect("relay result home");
+        assert_eq!(home.source_value, ValueId::new(8).unwrap());
+        assert_eq!(
+            leaf.scalar_arguments[0].source,
+            target_operations::TargetUnitScalarArgumentSource::Home(home)
+        );
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+    }
+}
+
+/// Legalization rejoins a later block's foreign argument only to a producer
+/// that dominates it. Stage 02 refuses to lower the sibling arrangement at
+/// all, so this control transplants the true-arm lowering's own rows. Moving
+/// only the consumer to the false arm keeps the entry producer dominating it
+/// and legalizes; also moving the producer into the true arm leaves the
+/// consumer's source undominated, and legalization's independent replay
+/// refuses it.
+#[test]
+fn foreign_result_does_not_reach_a_sibling_block() {
+    let native = NativeTarget::linux_x64();
+    let sibling = dominated_result_fixture(ResultPlacement::SiblingBranches);
+    assert!(
+        lower_relay(&sibling, native).is_err(),
+        "stage 02 lowered an undominated foreign argument"
+    );
+    let lowered = lower_relay(
+        &dominated_result_fixture(ResultPlacement::EntryToTrueArm),
+        native,
+    )
+    .unwrap();
+    for (source, move_producer) in [
+        (
+            dominated_result_fixture(ResultPlacement::EntryToFalseArm),
+            false,
+        ),
+        (sibling, true),
+    ] {
+        let mut target = lowered.clone();
+        let blocks = &mut target.functions[0].graph.blocks;
+        let leaf = blocks[1].operations.pop().expect("leaf row");
+        if move_producer {
+            let relay = blocks[0].operations.pop().expect("relay row");
+            assert!(matches!(
+                relay,
+                TargetUnitOperation::NormalizedForeignCall {
+                    result_home: Some(_),
+                    ..
+                }
+            ));
+            blocks[1].operations.push(relay);
+        }
+        blocks[2].operations.push(leaf);
+        let legalized = legalize_target_operations(&target, &source, &seed(&source));
+        assert_eq!(
+            legalized.is_err(),
+            move_producer,
+            "producer moved: {move_producer}"
+        );
+    }
+}

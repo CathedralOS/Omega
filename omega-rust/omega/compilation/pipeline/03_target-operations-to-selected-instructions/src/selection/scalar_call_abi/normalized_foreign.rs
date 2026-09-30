@@ -422,7 +422,6 @@ pub(crate) fn validate(
                 || home.scalar_type != result.scalar_type
                 || scalar_shape(result.scalar_type) != Some(home.shape)
                 || placement.shape != home.shape
-                || source.attachment.is_none()
             {
                 return Err(invalid());
             }

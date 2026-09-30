@@ -130,7 +130,6 @@ pub(in crate::lowering) fn lower_boundary_call(
                 if arguments.len() != declaration.scalar_parameters.len()
                     || !completion_claim_sources.is_empty()
                     || !completion_receipts.is_empty()
-                    || (result_home.is_some() && function.attachment.is_none())
                     || foreign.boundary_entry_plan.call.policy
                         != calling_conventions::CallingPolicy::native_for_target(target)
                     || foreign.boundary_entry_plan.call.entry_control
