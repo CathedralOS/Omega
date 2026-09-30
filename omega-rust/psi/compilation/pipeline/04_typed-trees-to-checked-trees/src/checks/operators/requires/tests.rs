@@ -273,13 +273,15 @@ fn named_call_requires_cannot_give_a_copied_record_a_later_storage_guarantee() {
 fn named_call_referent_custody_has_no_snapshot_fallback() {
     // Clearing the referent custody row drops the operand onto the old
     // context-identity transport, where the dead captured context no longer
-    // discharges the clause.
+    // discharges the clause. The later operand cannot write `value` while the
+    // shared loan is held, so it establishes the newer fact through a
+    // requirement's guarantee on a second shared loan of the same referent.
     let checked = check(
         "boundary operator == Reference::equal(left: &i32, right: i32) -> bool
          requires left >= 0;
-         machine prepare(value: &mut i32) -> i32 ensures value >= 0 { value = 1; 0 }
-         machine compare(mut value: i32) -> bool {
-             Reference::equal(&value, prepare(&mut value))
+         boundary trait Probe { machine certify(value: &i32) -> i32 ensures value >= 0; }
+         machine compare(value: i32) -> bool reaches Probe {
+             Reference::equal(&value, Probe::certify(&value))
          }",
     )
     .unwrap();
