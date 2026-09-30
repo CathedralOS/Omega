@@ -659,7 +659,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `systems/wire_protocol` | **RECORD-LITERAL-ARRAY-FIELD** owns its operation. |
   | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`. |
-  | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the remaining native customers are `windowed_calculator` on **OPERATOR-BOUNDARY-CALLS** (`F64::from_i32`); `dungeon_crawler_cli` on the `&mut` projected-field parameter path in `terminal_unit/calls` (**STATE-LOCAL-VALUE-FRONTIER**); `game_of_life` declares `board`/`next` as `[i32; 16]` under `where cells_valid(&board) == true, cells_valid(&next) == true`, a sixteen-state walk per [collection invariants](wiki/spec/language/dependent_values.md#collection-invariants). Checking explores that body to admit the zeroed grid, re-prove the facts after each element store, prove the helper theorem `cell_is_bit`, and bound each cited cell for the Exact neighbor sums and checksum (`{pass,fail}/dependent/collection_predicate_*`). Native execution stops at stage 04 `structural field store: carrier path` in `Main::init_board`: `structural_scalar_store/destination.rs` admits only interval-only `where` facts. Terminal needs the predicate's checked elementwise consequence (each cell in `[0, 1]`) as call-entry requirements and `&mut` normal-return restoration on every machine reaching `Grid` (the declaration predicate roster **FLOAT-RANGE-ATTACHED-FIELD** plans), including package-review projection of fixed-index contract paths and discharge of unchanged-field restoration, then erasure of the fact-only `cell_is_bit` citations, whose predicate `requires` has no Terminal form, before that gate opens. |
+  | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the remaining native customers are `windowed_calculator` on **OPERATOR-BOUNDARY-CALLS** (`F64::from_i32`); `dungeon_crawler_cli` on borrowed `Binding<Console>` transport (**ENTRY-CONTENT-ROOTS**; frontier in **NOMINAL-FIELD-FLOW**); `game_of_life` declares `board`/`next` as `[i32; 16]` under `where cells_valid(&board) == true, cells_valid(&next) == true`, a sixteen-state walk per [collection invariants](wiki/spec/language/dependent_values.md#collection-invariants). Checking explores that body to admit the zeroed grid, re-prove the facts after each element store, prove the helper theorem `cell_is_bit`, and bound each cited cell for the Exact neighbor sums and checksum (`{pass,fail}/dependent/collection_predicate_*`). Native execution stops at stage 04 `structural field store: carrier path` in `Main::init_board`: `structural_scalar_store/destination.rs` admits only interval-only `where` facts. Terminal needs the predicate's checked elementwise consequence (each cell in `[0, 1]`) as call-entry requirements and `&mut` normal-return restoration on every machine reaching `Grid` (the declaration predicate roster **FLOAT-RANGE-ATTACHED-FIELD** plans), including package-review projection of fixed-index contract paths and discharge of unchanged-field restoration, then erasure of the fact-only `cell_is_bit` citations, whose predicate `requires` has no Terminal form, before that gate opens. |
   | Clock-bearing samples | The nine pacing providers keep their call scratch in locals, where the [static-machine contract](wiki/spec/language/machines.md#static-declarations-and-explicit-state) places invocation scratch, so none needs provider installation storage. At `13348321787` plus that migration on macOS ARM64, `bouncing_console`, `sort_visualizer`, `ripple_field`, `random_walk`, `game_of_life_glider` and `langtons_ant` meet their oracles (`sample_native_gate.py --filter`, 6/6); `random_walk` and `langtons_ant` spend 5 to 7 minutes compiling in stage 05's integer proof search. `binary_search_viz` stops after 19 minutes at the `proof_search_candidate_work` provision (16384) with obligation 35 unproved, and `cellular_automaton` is still compiling after 20 minutes. `tick_marquee` meets its oracle (exit 0, 24 `#` frames, elapsed at least 100 ms): its `tick_count` reads `darwin_clock_ns` into a local and returns the scaled count. Verify pacing and the other declared hosts once these close. |
   | Text/index/match programs | **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY** own their missing operations/facts. Retain `Utf8` and ordinary domain evidence; recognized function names or weakened invariants cannot replace it. |
 
@@ -1247,10 +1247,20 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega --check --target linux_x86_64 samples/cli/games/dungeon_crawler_cli/main.omg`
   without bypassing `RoomLookup`, `MazeBuilder` or game-state field validity.
-  The current macOS ARM64 check reaches `Game::run_game_loop`'s structural
-  argument at state 0, statement 1 (`call operation: structural arguments:
-  parameter path`). Repair that ordinary call transport and rerun the unchanged
-  sample; checking alone does not establish native execution.
+  At a9f373809a4 on macOS ARM64 the check stops at `Game::run_game_loop`
+  state 0, statement 1 (`self.view.render_title(&mut self.console)`, phase
+  `parameter path`): a `Binding<Console>` field lent to a `console: &mut
+  Console` formal. Projected `&mut` field arguments themselves run, including
+  affine records that hold a binding. `&mut Console` is a leftover of the
+  retired bare-trait carrier, and Psi checking admits any place for it; the
+  spec spelling `&mut Binding<Console>` waits on **ENTRY-CONTENT-ROOTS**'
+  borrowed-`Binding<R>` transport, after which the view helpers migrate to
+  it. Next, `render_room` stops at `caller structural result` on the by-value
+  `[copy]` `Level` (member `label: [u8; 16] in Utf8`, `calls/result_arguments`),
+  then at `&mut self.output` (`[u8; 128] in Utf8`) lent to bare `&mut [u8;
+  128]` formals, which Terminal structural access rejects; those writers must
+  declare `&mut [u8; 128] in Utf8`. Checking alone does not establish native
+  execution.
   Coordinate canonical range migration with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
   explicit policy casts with **IMPLICIT-STORE-CONVERSION**, and any `&mut Room`
   output migration with **WRITE-ONLY-BORROW**. Constrained nested `&write`
@@ -2427,6 +2437,12 @@ completion syntax or other terminal service is a prerequisite.
   - Complete borrowed `Binding<R>` transport. Psi checking's
     [carrier placement gate](omega-rust/psi/compilation/checking/src/value_custody/type_references.rs)
     still rejects references to the carrier.
+    `samples/cli/games/dungeon_crawler_cli` and
+    `text/runtime_stdin_line_buffering_exit` lend `&mut self.console` to
+    `&mut Console` formals; Psi checking does not type-check actuals against a
+    bare-boundary-trait reference formal (a `u64` place passes), so migrate
+    those formals to `Binding<R>` borrows and reject the bare-trait reference
+    spelling once borrowed transport lands.
     Make `capabilities/uses_caller_folder` lend the caller's field to
     `Librarian::archive(folder: &Binding<Folder>)`; promote
     `fail/providers/service_borrowed_parameter_rejected` when checking,
