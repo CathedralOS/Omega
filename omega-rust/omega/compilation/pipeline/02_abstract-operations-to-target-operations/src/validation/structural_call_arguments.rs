@@ -1157,6 +1157,9 @@ impl Replay<'_> {
         // names. Incoming and block parameters use the same independently
         // reconstructed source coordinates as hosted integer boundaries;
         // neither the argument row nor its matching width establishes identity.
+        // Reads and membership checks retain a bare `AbstractResult` instead of
+        // a home field; their lowering derives the requirement deterministically
+        // from that result, so the roster rebuilds it the same way here.
         let mut retained_scalar_homes = BTreeMap::new();
         for operation in self
             .target
@@ -1168,12 +1171,43 @@ impl Replay<'_> {
             let home = match operation {
                 TargetUnitOperation::IeeeFloatCompare { result_home, .. }
                 | TargetUnitOperation::NearestIeeeFloatArithmetic { result_home, .. }
-                | TargetUnitOperation::ScalarDefinition { result_home, .. } => Some(result_home),
-                TargetUnitOperation::Call { result, .. } => result.scalar_home(),
-                TargetUnitOperation::CallDynamic { result, .. } => result.scalar_home(),
-                TargetUnitOperation::NormalizedForeignCall { result_home, .. } => {
-                    result_home.as_ref()
+                | TargetUnitOperation::ScalarDefinition { result_home, .. } => Some(*result_home),
+                TargetUnitOperation::Call { result, .. } => result.scalar_home().copied(),
+                TargetUnitOperation::CallDynamic { result, .. } => result.scalar_home().copied(),
+                TargetUnitOperation::AtomicAccess { result_home, .. }
+                | TargetUnitOperation::NormalizedForeignCall { result_home, .. } => *result_home,
+                TargetUnitOperation::StructuralScalarFieldRead {
+                    psi_operation,
+                    result,
+                    ..
                 }
+                | TargetUnitOperation::StructuralByteSequenceFieldLength {
+                    psi_operation,
+                    result,
+                    ..
+                }
+                | TargetUnitOperation::StructuralByteSequenceFieldRead {
+                    psi_operation,
+                    result,
+                    ..
+                }
+                | TargetUnitOperation::PrimitiveScalarRead {
+                    psi_operation,
+                    result,
+                    ..
+                }
+                | TargetUnitOperation::StructuralCaseMembership {
+                    psi_operation,
+                    result,
+                    ..
+                } => structural_signatures::fixed_native_scalar_shape(result.scalar_type).map(
+                    |shape| TargetUnitScalarHomeRequirement {
+                        defining_operation: *psi_operation,
+                        source_value: result.value,
+                        scalar_type: result.scalar_type,
+                        shape,
+                    },
+                ),
                 _ => None,
             };
             if let Some(home) = home {
@@ -1279,7 +1313,7 @@ impl Replay<'_> {
                     home.source_value != *value
                         || home.shape != *shape
                         || home.defining_operation == psi_operation
-                        || retained_scalar_homes.get(&home.defining_operation) != Some(&home)
+                        || retained_scalar_homes.get(&home.defining_operation) != Some(home)
                 }
             };
             // Each retained parameter-destination callback claims a
