@@ -3,8 +3,8 @@
 mod profile;
 
 pub use profile::{
-    TerminalObservationSchema, TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
-    TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
+    TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalTraceBoundaryCrashSiteRow,
+    TerminalTraceCrashSiteRow, TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
     TerminalTraceOrdinaryEventRow, TerminalTraceResultKind, TerminalTraceResultSchema,
     TerminalTraceResultValue, TerminalTraceRootRow, TerminalTraceScalarSchema,
     TerminalTraceScalarValue, TerminalTraceStructuralSchema, TerminalTraceStructuralValue,

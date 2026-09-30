@@ -39,7 +39,7 @@ pub(crate) fn encode_ieee_float_value(writer: &mut Writer, value: IeeeFloatValue
     }
 }
 
-fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
+pub(crate) fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
     writer.u8(match format {
         IeeeFloatFormat::Binary32 => 1,
         IeeeFloatFormat::Binary64 => 2,
@@ -90,7 +90,9 @@ pub(crate) fn decode_ieee_float_value(
     })
 }
 
-fn decode_ieee_float_format(reader: &mut Reader<'_>) -> Result<IeeeFloatFormat, CodecError> {
+pub(crate) fn decode_ieee_float_format(
+    reader: &mut Reader<'_>,
+) -> Result<IeeeFloatFormat, CodecError> {
     Ok(match reader.u8()? {
         1 => IeeeFloatFormat::Binary32,
         2 => IeeeFloatFormat::Binary64,

@@ -2,8 +2,8 @@
 //! and the checked construction of the runtime traces they observe.
 
 use semantic_vocabulary::{
-    BlockId, BoundaryMachineId, EdgeId, IeeeFloatValue, IntegerType, IntegerValue, MachineId,
-    OperationId, ScalarType, ServiceId, StructuralDomainId, StructuralTypeId,
+    BlockId, BoundaryMachineId, EdgeId, IeeeFloatFormat, IeeeFloatValue, IntegerType, IntegerValue,
+    MachineId, OperationId, ScalarType, ServiceId, StructuralDomainId, StructuralTypeId,
 };
 
 use crate::StructuralPathQualification;
@@ -110,19 +110,29 @@ pub struct TerminalTraceBoundaryCrashSiteRow {
 ///
 /// A Trapping operation owns its crash: it has neither a terminator edge nor
 /// a boundary identity, so its coordinate is the operation itself. `cause` is
-/// fixed by the primitive (`Trap`); `primitive`, `result_type` and
-/// `operand_type` retain the exact denotation whose trap predicate decides the
-/// crash: `operand_type` is the right operand's type for binary arithmetic,
-/// the count's type for a shift, and the source type for a conversion.
+/// fixed by the primitive (`Trap`); `denotation` retains the exact trap
+/// predicate. Integer arithmetic and float result policy use the same site
+/// coordinates without inventing a boundary identity or a terminator edge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TerminalTraceOperationCrashSiteRow {
     pub machine: MachineId,
     pub block: BlockId,
     pub operation: OperationId,
     pub cause: CrashCause,
-    pub primitive: TrappingIntegerPrimitive,
-    pub result_type: IntegerType,
-    pub operand_type: IntegerType,
+    pub denotation: TerminalOperationCrashDenotation,
+}
+
+/// The semantic failure rule at one operation-owned crash site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TerminalOperationCrashDenotation {
+    Integer {
+        primitive: TrappingIntegerPrimitive,
+        result_type: IntegerType,
+        /// Right operand for binary arithmetic, count for shifts, source for casts.
+        operand_type: IntegerType,
+    },
+    /// The raw IEEE result is NaN or either infinity, including propagation.
+    FloatNonFinite { format: IeeeFloatFormat },
 }
 
 /// The closed ordinary-event classification carried by TerminalTraceV1.
@@ -766,14 +776,14 @@ mod tests {
         BlockId, BoundaryMachineId, CrashCause, CrashRouteBucket, EdgeId, IntegerType,
         IntegerValue, MachineId, OperationId, ScalarType, ServiceId, StructuralAccess,
         StructuralDomainId, StructuralMultiplicity, StructuralPathSegment, StructuralTypeId,
-        TerminalObservationSchema, TerminalPsiIdentity, TerminalTraceBoundaryCrashSiteRow,
-        TerminalTraceCrashSiteRow, TerminalTraceOperationCrashSiteRow,
-        TerminalTraceOrdinaryEventKind, TerminalTraceOrdinaryEventRow, TerminalTraceResultKind,
-        TerminalTraceResultSchema, TerminalTraceResultValue, TerminalTraceRootRow,
-        TerminalTraceScalarSchema, TerminalTraceScalarValue, TerminalTraceStructuralSchema,
-        TerminalTraceStructuralValue, TerminalTraceV1ConstructionError, TerminalTraceV1Event,
-        TerminalTraceV1Outcome, TerminalTraceV1Profile, TerminalTraceValueComparison,
-        TrappingIntegerPrimitive,
+        TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalPsiIdentity,
+        TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
+        TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
+        TerminalTraceOrdinaryEventRow, TerminalTraceResultKind, TerminalTraceResultSchema,
+        TerminalTraceResultValue, TerminalTraceRootRow, TerminalTraceScalarSchema,
+        TerminalTraceScalarValue, TerminalTraceStructuralSchema, TerminalTraceStructuralValue,
+        TerminalTraceV1ConstructionError, TerminalTraceV1Event, TerminalTraceV1Outcome,
+        TerminalTraceV1Profile, TerminalTraceValueComparison, TrappingIntegerPrimitive,
     };
     use crate::{CrashRouteGuard, SemanticFingerprint, VocabularyMarker};
     use semantic_vocabulary::IntegerSign;
@@ -884,9 +894,11 @@ mod tests {
                 block,
                 operation: id(TRAPPING_ADD, OperationId::new),
                 cause: CrashCause::Trap,
-                primitive: TrappingIntegerPrimitive::Add,
-                result_type: integer_type(IntegerSign::Unsigned, 8),
-                operand_type: integer_type(IntegerSign::Unsigned, 8),
+                denotation: TerminalOperationCrashDenotation::Integer {
+                    primitive: TrappingIntegerPrimitive::Add,
+                    result_type: integer_type(IntegerSign::Unsigned, 8),
+                    operand_type: integer_type(IntegerSign::Unsigned, 8),
+                },
             }],
             ordinary_events: vec![
                 TerminalTraceOrdinaryEventRow {

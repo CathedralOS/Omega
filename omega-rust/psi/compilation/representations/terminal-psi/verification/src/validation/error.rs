@@ -1335,6 +1335,17 @@ pub enum ModuleError {
         actual: ScalarType,
     },
     IeeeFloatFusedMultiplyAddRequiresFloatResult(OperationId),
+    FloatResultPolicyRequiresFloatResult(OperationId),
+    FloatResultPolicyOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        expected: ScalarType,
+    },
+    FloatResultPolicyCrashUncovered {
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
+    },
     IeeeFloatComparisonRequiresBooleanResult(OperationId),
     IeeeFloatComparisonOperandTypeMismatch {
         operation: OperationId,

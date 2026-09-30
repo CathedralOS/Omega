@@ -42,11 +42,14 @@ The profile binds, in closed order:
    Route guards speak the boundary's scalar-formal telescope; the call's
    simultaneous positional substitution decides them, never caller value
    identities.
-5. Operation crash sites ordered by machine, block, and operation: every
-   `TrappingInteger` operation keeps its exact cause (`Trap`, fixed by the
-   policy) and primitive denotation — the primitive, the result carrier, and
-   the operand carrier (the right operand for arithmetic, the count for a
-   shift, the source for a conversion).
+5. Operation crash sites ordered by machine, block, and operation keep the
+   exact cause (`Trap`, fixed by the policy) and a closed failure denotation.
+   For `TrappingInteger`, this is the primitive, result carrier, and operand
+   carrier (the right operand for arithmetic, count for a shift, source for a
+   conversion). A trapping `FloatResultPolicy` instead retains the raw
+   result's IEEE format: any NaN or infinity fails, including propagation.
+   Saturation has no crash row; invalid arithmetic and division by signed
+   zero retain their non-finite result rather than becoming a trap.
 6. Ordinary external-event sites ordered by machine, block, and operation,
    with event kind, exact public boundary/service identity, ordered argument
    schemas, and result schema.
@@ -61,7 +64,10 @@ length-prefixed canonical identities, and explicit row-group tags and counts,
 including an empty terminal-external group when none exists. Unknown schemas,
 vocabularies, tags, classifications, malformed ordering, duplicate coordinates,
 missing/extra sites, zero module commitments, and empty profiles reject.
-Decoding rejects trailing bytes.
+Decoding rejects trailing bytes. Within group 5, denotation tags 1–8 retain
+the integer primitive and its two carriers byte-for-byte. Tag 9 carries the
+non-finite float rule and its IEEE format. Older decoders reject the new tag
+before reading an integer carrier; no outer tag shifts the existing rows.
 
 A Trapping primitive is observed at the operation that owns it, not on a
 fabricated terminator edge or boundary identity: lowering it to a comparison,
@@ -70,10 +76,16 @@ denotation. A Terminal operation identity names one operation in one block,
 so the same source operation under a different guard is a different
 operation and a different row; that is the path condition the row keys, as
 edge identity is for group 3. The machine contract must cover the site with
-an unconditional same-cause bucket: the operation retains no incoming
-conjunction, so a guarded `Trap` ceiling rejects rather than being treated as
-covered. The interpreter reports the crash at the operation with its current
+the same cause. An unconditional bucket covers it directly; a guarded bucket
+requires independently checked coverage from pre-operation facts and the
+operation's exact failure predicate. Facts established only on normal return
+cannot discharge that failure. The interpreter reports the crash with its current
 machine-local live claims as the frontier, as for a boundary crash.
+
+A float result adapter does not replace the arithmetic call. The original
+`BoundaryCall` retains its own invocation and event identity; the adapter reads
+its already evaluated result once. Trapping belongs to the adapter, not to an
+invented crash route on the arithmetic boundary.
 
 A boundary crash is observed at its calling operation, not on a fabricated
 terminator edge: each declared route of each `BoundaryCall` produces its own

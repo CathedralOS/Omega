@@ -6,7 +6,7 @@ use semantic_vocabulary::{
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, CrashCause, OperationKind, StructuralAccess,
     TerminalMachineResult, TerminalModule, TerminalObservationSchema,
-    TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
+    TerminalOperationCrashDenotation, TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
     TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
     TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema, TerminalTraceRootRow,
     TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceV1Rows,
@@ -155,19 +155,32 @@ pub fn reconstruct_terminal_trace_v1_rows(
                             crate::validation::machine_value_types(machine)
                                 .collect::<std::collections::BTreeMap<_, _>>()
                         });
-                        let denotation =
-                            crate::validation::trapping_integer::trapping_integer_denotation(
-                                operation,
-                                value_types,
-                            )?;
+                        let denotation = match operation.kind {
+                            OperationKind::FloatResultPolicy { .. } => {
+                                TerminalOperationCrashDenotation::FloatNonFinite {
+                                    format: crate::validation::float_result_policy::format(
+                                        operation,
+                                    )?,
+                                }
+                            }
+                            _ => {
+                                let integer = crate::validation::trapping_integer::trapping_integer_denotation(
+                                    operation,
+                                    value_types,
+                                )?;
+                                TerminalOperationCrashDenotation::Integer {
+                                    primitive: integer.primitive,
+                                    result_type: integer.result_type,
+                                    operand_type: integer.operand_type,
+                                }
+                            }
+                        };
                         operation_crash_sites.push(TerminalTraceOperationCrashSiteRow {
                             machine: machine.id,
                             block: block.id,
                             operation: operation.id,
-                            cause: crate::validation::trapping_integer::TRAPPING_INTEGER_CAUSE,
-                            primitive: denotation.primitive,
-                            result_type: denotation.result_type,
-                            operand_type: denotation.operand_type,
+                            cause: CrashCause::Trap,
+                            denotation,
                         });
                     }
                     TerminalTraceV1OperationClassification::BoundaryCall => {
@@ -308,6 +321,13 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         OperationKind::PortWrite { .. } => TerminalTraceV1OperationClassification::PortWrite,
         OperationKind::TrappingInteger { .. } => {
             TerminalTraceV1OperationClassification::TrappingPrimitive
+        }
+        OperationKind::FloatResultPolicy { policy } => {
+            if policy.can_trap() {
+                TerminalTraceV1OperationClassification::TrappingPrimitive
+            } else {
+                TerminalTraceV1OperationClassification::Internal
+            }
         }
         // An atomic event is program-internal memory traffic: the v1 profile
         // observes boundary and port effects, not memory-order events, and a
@@ -709,6 +729,188 @@ mod tests {
             classify_operation(&OperationKind::BooleanConstant { value: true }),
             TerminalTraceV1OperationClassification::Internal,
         );
+    }
+
+    fn float_policy_module(
+        format: semantic_vocabulary::IeeeFloatFormat,
+        policy: terminal_psi::FloatResultPolicy,
+    ) -> TerminalModule {
+        let mut module = module(
+            Terminator::ReturnUnit {
+                edge: id(1, EdgeId::new),
+                trivial_affine_discards: Vec::new(),
+            },
+            if policy.can_trap() {
+                vec![CrashRouteBucket {
+                    cause: CrashCause::Trap,
+                    alternatives: vec![CrashRouteGuard::Truth],
+                }]
+            } else {
+                Vec::new()
+            },
+        );
+        let declaration = |ordinal| ValueDeclaration {
+            id: id(ordinal, ValueId::new),
+            scalar_type: ScalarType::IeeeFloat(format),
+            qualifications: Default::default(),
+        };
+        module.machines[0].parameters = (1..=3).map(declaration).collect();
+        module.machines[0].blocks[0].operations = vec![Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(1, OperationId::new),
+            result: OperationResult::Scalar(declaration(4)),
+            kind: OperationKind::FloatResultPolicy { policy },
+        }];
+        module
+    }
+
+    #[test]
+    fn float_result_policy_validates_payloads_and_owns_only_its_trap_site() {
+        use semantic_vocabulary::IeeeFloatFormat;
+        use terminal_psi::{
+            FloatResultPolicy, FloatSaturationRule, TerminalOperationCrashDenotation,
+        };
+        let policies = [
+            FloatResultPolicy::Trapping {
+                raw_result: id(3, ValueId::new),
+            },
+            FloatResultPolicy::Saturating {
+                raw_result: id(3, ValueId::new),
+                left: id(1, ValueId::new),
+                right: id(2, ValueId::new),
+                rule: FloatSaturationRule::FiniteOperandOverflow,
+            },
+            FloatResultPolicy::Saturating {
+                raw_result: id(3, ValueId::new),
+                left: id(1, ValueId::new),
+                right: id(2, ValueId::new),
+                rule: FloatSaturationRule::FiniteDivisionOverflow,
+            },
+        ];
+        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+            for policy in policies {
+                let module = float_policy_module(format, policy);
+                // The result is deliberately discarded. Trapping remains an
+                // observable operation even with no later scalar consumer.
+                let rows = reconstruct_terminal_trace_v1_rows(&module).unwrap();
+                assert!(rows.crash_sites.is_empty());
+                assert!(rows.boundary_crash_sites.is_empty());
+                assert!(rows.ordinary_events.is_empty());
+                assert_eq!(
+                    rows.operation_crash_sites.len(),
+                    usize::from(policy.can_trap())
+                );
+                if policy.can_trap() {
+                    let row = rows.operation_crash_sites[0];
+                    assert_eq!(
+                        (row.machine, row.block, row.operation),
+                        (module.entry, id(1, BlockId::new), id(1, OperationId::new))
+                    );
+                    assert_eq!(row.cause, CrashCause::Trap);
+                    assert_eq!(
+                        row.denotation,
+                        TerminalOperationCrashDenotation::FloatNonFinite { format }
+                    );
+                    let mut missing_ceiling = module.clone();
+                    missing_ceiling.machines[0].contract.crash_routes.clear();
+                    assert!(matches!(
+                        crate::validate_module_representation(&missing_ceiling),
+                        Err(crate::ModuleError::FloatResultPolicyCrashUncovered { .. })
+                    ));
+                }
+                for operand in policy.operands() {
+                    let mut wrong_type = module.clone();
+                    wrong_type.machines[0].parameters[(operand.get() - 1) as usize].scalar_type =
+                        ScalarType::Boolean;
+                    assert!(
+                        matches!(crate::validate_module_representation(&wrong_type), Err(crate::ModuleError::FloatResultPolicyOperandTypeMismatch { operand: rejected, .. }) if rejected == operand)
+                    );
+
+                    let mut wrong_format = module.clone();
+                    wrong_format.machines[0].parameters[(operand.get() - 1) as usize].scalar_type =
+                        ScalarType::IeeeFloat(match format {
+                            IeeeFloatFormat::Binary32 => IeeeFloatFormat::Binary64,
+                            IeeeFloatFormat::Binary64 => IeeeFloatFormat::Binary32,
+                        });
+                    assert!(
+                        matches!(crate::validate_module_representation(&wrong_format), Err(crate::ModuleError::FloatResultPolicyOperandTypeMismatch { operand: rejected, .. }) if rejected == operand)
+                    );
+
+                    let mut undefined = module.clone();
+                    undefined.machines[0]
+                        .parameters
+                        .retain(|parameter| parameter.id != operand);
+                    assert!(crate::validate_module_representation(&undefined).is_err());
+                }
+                let mut wrong_result = module;
+                wrong_result.machines[0].blocks[0].operations[0].result =
+                    OperationResult::Scalar(ValueDeclaration {
+                        id: id(4, ValueId::new),
+                        scalar_type: ScalarType::Boolean,
+                        qualifications: Default::default(),
+                    });
+                assert!(matches!(
+                    crate::validate_module_representation(&wrong_result),
+                    Err(crate::ModuleError::FloatResultPolicyRequiresFloatResult(_))
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn float_result_policy_crash_coverage_cannot_use_its_own_normal_return() {
+        use semantic_vocabulary::{IeeeFloatFormat, Proposition, ScalarTerm};
+        use terminal_psi::{CrashPredicateTerm, FloatResultPolicy};
+        let mut module = float_policy_module(
+            IeeeFloatFormat::Binary64,
+            FloatResultPolicy::Trapping {
+                raw_result: id(3, ValueId::new),
+            },
+        );
+        let flag = id(5, ValueId::new);
+        module.machines[0].parameters.push(ValueDeclaration {
+            id: flag,
+            scalar_type: ScalarType::Boolean,
+            qualifications: Default::default(),
+        });
+        let guard = Proposition::Equal(
+            ScalarTerm::value(flag, ScalarType::Boolean),
+            ScalarTerm::Boolean(true),
+        );
+        module.machines[0].contract.crash_routes[0].alternatives =
+            vec![CrashRouteGuard::Predicate(CrashPredicateTerm::new(
+                guard.clone(),
+            ))];
+        let questions = crate::reconstruct_crash_obligations(&module).unwrap();
+        assert_eq!(questions.len(), 1);
+        let crate::CrashObligationQuestion::Site { guards, paths } = &questions[0].question else {
+            panic!("policy owns an operation crash site");
+        };
+        assert_eq!(guards, std::slice::from_ref(&guard));
+        assert_eq!(paths.len(), 1);
+        let operation = &module.machines[0].blocks[0].operations[0];
+        let failure = crate::validation::float_result_policy::failure_condition(
+            operation,
+            id(3, ValueId::new),
+        )
+        .unwrap();
+        assert!(paths[0].contains(&failure));
+        assert!(
+            !paths[0].contains(&guard),
+            "published guard is a goal, never an axiom"
+        );
+        for normal_fact in crate::validation::float_result_policy::normal_return_facts(
+            operation,
+            id(3, ValueId::new),
+        )
+        .unwrap()
+        {
+            assert!(
+                !paths[0].contains(&normal_fact),
+                "normal continuation cannot justify its own trap"
+            );
+        }
     }
 
     #[test]

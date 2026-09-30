@@ -127,7 +127,7 @@ pub(crate) fn reconstruct_validated_crash_obligations(
     for machine in &module.machines {
         for block in &machine.blocks {
             for operation in &block.operations {
-                if matches!(operation.kind, OperationKind::TrappingInteger { .. })
+                if has_intrinsic_trap(&operation.kind)
                     && !crate::validation::trapping_integer::has_unconditional_trap_ceiling(machine)
                 {
                     let owner = CrashObligationOwner::OperationSite {
@@ -211,7 +211,7 @@ pub(super) fn operation_needs_site_facts(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
 ) -> Result<bool, ModuleError> {
-    if matches!(operation.kind, OperationKind::TrappingInteger { .. }) {
+    if has_intrinsic_trap(&operation.kind) {
         return Ok(!crate::validation::trapping_integer::has_unconditional_trap_ceiling(machine));
     }
     let covered = |route: &CrashRouteBucket| {
@@ -288,6 +288,14 @@ pub(super) fn append_operation_site(
         };
         semantic_axioms.push(failure);
     }
+    if let OperationKind::FloatResultPolicy { policy } = operation.kind
+        && policy.can_trap()
+    {
+        semantic_axioms.push(crate::validation::float_result_policy::failure_condition(
+            operation,
+            policy.raw_result(),
+        )?);
+    }
     sites.push(super::ReconstructedCrashSiteFacts {
         owner: CrashObligationOwner::OperationSite {
             machine: machine.id,
@@ -297,6 +305,11 @@ pub(super) fn append_operation_site(
         semantic_axioms,
     });
     Ok(())
+}
+
+fn has_intrinsic_trap(operation: &OperationKind) -> bool {
+    matches!(operation, OperationKind::TrappingInteger { .. })
+        || matches!(operation, OperationKind::FloatResultPolicy { policy } if policy.can_trap())
 }
 
 /// The continuation roster one operation asks the caller to cover: the stored

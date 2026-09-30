@@ -7,6 +7,7 @@ use super::super::wire::{Reader, Writer};
 use super::operation_tags;
 use semantic_vocabulary::IeeeFloatComparisonOperation;
 use semantic_vocabulary::{ObligationId, ValueId};
+use terminal_psi::{FloatResultPolicy, FloatSaturationRule};
 use terminal_psi::{OperationKind, TrappingIntegerOperation};
 
 pub(super) fn encode_ieee_float_compare(
@@ -750,4 +751,116 @@ pub(super) fn decode_trapping_integer(
         tag => return Err(CodecError::InvalidTag("TrappingIntegerOperation", tag)),
     };
     Ok(OperationKind::TrappingInteger { operation })
+}
+
+/// The result format is carried by the result declaration, not repeated here.
+/// Preserve exact input order: division's right operand is its divisor.
+pub(super) fn encode_float_result_policy(writer: &mut Writer, policy: FloatResultPolicy) {
+    writer.u8(operation_tags::FLOAT_RESULT_POLICY);
+    match policy {
+        FloatResultPolicy::Trapping { raw_result } => {
+            writer.u8(1);
+            writer.id(raw_result);
+        }
+        FloatResultPolicy::Saturating {
+            raw_result,
+            left,
+            right,
+            rule,
+        } => {
+            writer.u8(match rule {
+                FloatSaturationRule::FiniteOperandOverflow => 2,
+                FloatSaturationRule::FiniteDivisionOverflow => 3,
+            });
+            writer.id(raw_result);
+            writer.id(left);
+            writer.id(right);
+        }
+    }
+}
+
+pub(super) fn decode_float_result_policy(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    let policy = match reader.u8()? {
+        1 => FloatResultPolicy::Trapping {
+            raw_result: reader.id("ValueId")?,
+        },
+        tag @ (2 | 3) => FloatResultPolicy::Saturating {
+            raw_result: reader.id("ValueId")?,
+            left: reader.id("ValueId")?,
+            right: reader.id("ValueId")?,
+            rule: if tag == 2 {
+                FloatSaturationRule::FiniteOperandOverflow
+            } else {
+                FloatSaturationRule::FiniteDivisionOverflow
+            },
+        },
+        tag => return Err(CodecError::InvalidTag("FloatResultPolicy", tag)),
+    };
+    Ok(OperationKind::FloatResultPolicy { policy })
+}
+
+#[cfg(test)]
+mod float_result_policy_tests {
+    use super::*;
+
+    #[test]
+    fn float_result_policy_wire_keeps_raw_result_and_operand_order() {
+        let value = |raw| ValueId::new(raw).unwrap();
+        for (policy, tag, operands) in [
+            (
+                FloatResultPolicy::Trapping {
+                    raw_result: value(3),
+                },
+                1,
+                vec![3_u64],
+            ),
+            (
+                FloatResultPolicy::Saturating {
+                    raw_result: value(3),
+                    left: value(1),
+                    right: value(2),
+                    rule: FloatSaturationRule::FiniteOperandOverflow,
+                },
+                2,
+                vec![3, 1, 2],
+            ),
+            (
+                FloatResultPolicy::Saturating {
+                    raw_result: value(3),
+                    left: value(1),
+                    right: value(2),
+                    rule: FloatSaturationRule::FiniteDivisionOverflow,
+                },
+                3,
+                vec![3, 1, 2],
+            ),
+        ] {
+            let mut writer = Writer::default();
+            encode_float_result_policy(&mut writer, policy);
+            let bytes = writer.finish();
+            let mut expected = vec![operation_tags::FLOAT_RESULT_POLICY, tag];
+            for operand in operands {
+                expected.extend(operand.to_le_bytes());
+            }
+            assert_eq!(bytes, expected);
+            let mut reader = Reader::new(&bytes[1..]);
+            assert_eq!(
+                decode_float_result_policy(&mut reader).unwrap(),
+                OperationKind::FloatResultPolicy { policy }
+            );
+            assert_eq!(reader.remaining(), 0);
+            assert!(
+                decode_float_result_policy(&mut Reader::new(&bytes[1..bytes.len() - 1])).is_err()
+            );
+            let mut zero_id = bytes.clone();
+            zero_id[2..10].fill(0);
+            assert!(decode_float_result_policy(&mut Reader::new(&zero_id[1..])).is_err());
+        }
+        assert!(matches!(
+            decode_float_result_policy(&mut Reader::new(&[4])),
+            Err(CodecError::InvalidTag("FloatResultPolicy", 4))
+        ));
+    }
 }

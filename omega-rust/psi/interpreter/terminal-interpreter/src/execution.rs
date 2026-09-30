@@ -707,6 +707,9 @@ impl TerminalExecution {
                     OperationKind::TrappingInteger { .. } => {
                         self.execute_trapping_integer(operation)?
                     }
+                    OperationKind::FloatResultPolicy { .. } => {
+                        self.execute_float_result_policy(operation)?
+                    }
                     OperationKind::AtomicAccess {
                         place,
                         ref path,

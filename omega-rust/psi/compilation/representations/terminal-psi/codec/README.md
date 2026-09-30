@@ -73,8 +73,13 @@ canonical profile encoding and module-bound acceptance for
 validates the module, derives its complete identity and site roster independently,
 and compares the decoded profile exactly. Revision 2
 (`omega.terminal.observation-profile.v2`) appended the operation-crash group:
-each `TrappingInteger` operation is its own `Trap` site, recorded with its
-primitive and carriers rather than a fabricated edge or boundary route.
+each trapping operation is its own `Trap` site rather than a fabricated edge
+or boundary route. Its closed denotation retains either the integer primitive
+and carriers or the non-finite float-result rule and IEEE format. Integer
+denotation tags 1–8 keep their original bytes; tag 9 adds the float rule, so
+an older decoder rejects it before consuming a carrier. Saturating float
+adapters add no crash row. The original arithmetic boundary call remains a
+separate operation with its own observation identity.
 
 The current encoder writes the terminal-external group with zero count; the
 decoder rejects a nonzero count. That is an implementation fence, not an assertion

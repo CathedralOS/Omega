@@ -134,9 +134,10 @@ pub(crate) fn build_contract_plans(
         .with_trapping_sites(trapping_sites(
             program,
             machine,
+            operators,
             scalar_expressions,
             scalar_computations,
-        ));
+        )?);
         canonical_facts.extend(encode_contract_set_canonical(
             program,
             program.machine_contracts(machine),
@@ -609,9 +610,10 @@ fn lower_float_meaning_equality_clause(
 fn trapping_sites(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
+    operators: &checked_trees::CheckedOperatorFacts,
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     scalar_computations: &checked_trees::CheckedScalarComputationPlans,
-) -> Vec<checked_trees::CrashSiteLocation> {
+) -> Result<Vec<checked_trees::CrashSiteLocation>, Vec<diagnostics::Diagnostic>> {
     let states = program
         .machine_states(machine)
         .iter()
@@ -635,7 +637,48 @@ fn trapping_sites(
                 && computation_contains_trapping_operation(scalar_computations, root.root)
         })
         .map(|root| checked_trees::CrashSiteLocation::new(root.state, root.statement_ordinal));
-    expressions.chain(computations).collect()
+    // A selected float policy adapts the result after the boundary returns;
+    // the boundary's own crash contract therefore cannot supply this site.
+    // Read exact checked selections across spelled and named requirements,
+    // not a cast's spelling or its operand storage. Selecting a future policy
+    // without executing arithmetic has no result adapter and adds no Trap.
+    // The existing summary fixed point propagates these body sites to private
+    // callers just like integer Trapping sites, without a second call graph.
+    let mut sites = expressions.chain(computations).collect::<Vec<_>>();
+    for (_, origin, _, adapter) in operators.resolved_expression_selections() {
+        if !matches!(
+            adapter,
+            checked_trees::CheckedArithmeticPolicyAdapter::FloatTrappingNonFinite { .. }
+        ) {
+            continue;
+        }
+        let checked_trees::CheckedValueOrigin::StateStatement {
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            ..
+        } = origin
+        else {
+            continue;
+        };
+        if machine_symbol != machine.symbol {
+            continue;
+        }
+        let invalid_site = || {
+            vec![diagnostics::Diagnostic::error(
+                "selected float result policy has no representable owning statement",
+            )]
+        };
+        if !states.contains(&state_symbol) {
+            return Err(invalid_site());
+        }
+        let statement = u32::try_from(statement_index).map_err(|_| invalid_site())?;
+        sites.push(checked_trees::CrashSiteLocation::new(
+            state_symbol,
+            statement,
+        ));
+    }
+    Ok(sites)
 }
 
 /// Whether evaluating one computation tree executes a Trapping primitive in
@@ -689,8 +732,9 @@ fn computation_contains_trapping_operation(
                 }
                 pending.extend(plans.operands.span_or_empty(*operands).iter().copied());
             }
-            // The application itself is a provider call, not a primitive
-            // whose policy this scan reads; only its operands can trap here.
+            // The call keeps its own provider contract. Result-policy Trap
+            // sites are collected from checked selections by trapping_sites;
+            // this computation walk still owns traps in evaluated operands.
             Kind::BoundaryCall { arguments, .. } => {
                 pending.extend(plans.operands.span_or_empty(*arguments).iter().copied());
             }

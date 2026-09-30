@@ -2,8 +2,8 @@
 
 use terminal_psi::{
     CrashCause, StructuralAccess, StructuralMultiplicity, TerminalModule,
-    TerminalObservationSchema, TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
-    TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
+    TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalTraceBoundaryCrashSiteRow,
+    TerminalTraceCrashSiteRow, TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
     TerminalTraceOrdinaryEventRow, TerminalTraceResultSchema, TerminalTraceRootRow,
     TerminalTraceScalarSchema, TerminalTraceStructuralSchema, TerminalTraceV1Profile,
     TerminalTraceValueComparison, TrappingIntegerPrimitive, VocabularyMarker,
@@ -20,7 +20,8 @@ use crate::sections::semantic_module::contract_wire::{
     decode_crash_route_bucket, encode_crash_route_bucket,
 };
 use crate::sections::semantic_module::scalar_wire::{
-    decode_integer_type, decode_scalar_type, encode_integer_type, encode_scalar_type,
+    decode_ieee_float_format, decode_integer_type, decode_scalar_type, encode_ieee_float_format,
+    encode_integer_type, encode_scalar_type,
 };
 use crate::sections::semantic_module::structural_signature_wire::{
     decode_projected_qualifications, encode_projected_qualifications,
@@ -218,9 +219,7 @@ pub fn decode_terminal_trace_v1_profile(
             block: reader.id("trace operation crash block")?,
             operation: reader.id("trace operation crash operation")?,
             cause: decode_crash_cause(&mut reader)?,
-            primitive: decode_trapping_primitive(&mut reader)?,
-            result_type: decode_integer_type(&mut reader)?,
-            operand_type: decode_integer_type(&mut reader)?,
+            denotation: decode_operation_crash_denotation(&mut reader)?,
         });
     }
 
@@ -321,9 +320,7 @@ fn encode_raw(
             CrashCause::Trap => 1,
             CrashCause::Abort => 2,
         });
-        writer.u8(encode_trapping_primitive(crash.primitive));
-        encode_integer_type(&mut writer, crash.result_type);
-        encode_integer_type(&mut writer, crash.operand_type);
+        encode_operation_crash_denotation(&mut writer, crash.denotation);
     }
 
     writer.len("trace ordinary events", profile.ordinary_events.len())?;
@@ -608,9 +605,9 @@ const fn encode_trapping_primitive(primitive: TrappingIntegerPrimitive) -> u8 {
 }
 
 fn decode_trapping_primitive(
-    reader: &mut Reader<'_>,
+    tag: u8,
 ) -> Result<TrappingIntegerPrimitive, TerminalTraceV1ProfileCodecError> {
-    Ok(match reader.u8()? {
+    Ok(match tag {
         1 => TrappingIntegerPrimitive::Add,
         2 => TrappingIntegerPrimitive::Subtract,
         3 => TrappingIntegerPrimitive::Multiply,
@@ -623,6 +620,47 @@ fn decode_trapping_primitive(
             return Err(TerminalTraceV1ProfileCodecError::InvalidTrappingPrimitive(
                 tag,
             ));
+        }
+    })
+}
+
+// Tags 1..8 retain the original integer denotation bytes. The new closed tag
+// 9 carries only an IEEE format; an older decoder rejects it before consuming
+// an integer carrier. No extra envelope changes existing integer rows.
+fn encode_operation_crash_denotation(
+    writer: &mut Writer,
+    denotation: TerminalOperationCrashDenotation,
+) {
+    match denotation {
+        TerminalOperationCrashDenotation::Integer {
+            primitive,
+            result_type,
+            operand_type,
+        } => {
+            writer.u8(encode_trapping_primitive(primitive));
+            encode_integer_type(writer, result_type);
+            encode_integer_type(writer, operand_type);
+        }
+        TerminalOperationCrashDenotation::FloatNonFinite { format } => {
+            writer.u8(9);
+            encode_ieee_float_format(writer, format);
+        }
+    }
+}
+
+fn decode_operation_crash_denotation(
+    reader: &mut Reader<'_>,
+) -> Result<TerminalOperationCrashDenotation, TerminalTraceV1ProfileCodecError> {
+    let tag = reader.u8()?;
+    Ok(if tag == 9 {
+        TerminalOperationCrashDenotation::FloatNonFinite {
+            format: decode_ieee_float_format(reader)?,
+        }
+    } else {
+        TerminalOperationCrashDenotation::Integer {
+            primitive: decode_trapping_primitive(tag)?,
+            result_type: decode_integer_type(reader)?,
+            operand_type: decode_integer_type(reader)?,
         }
     })
 }
@@ -688,19 +726,27 @@ fn validate_profile(
     for row in &profile.operation_crash_sites {
         // A Trapping primitive always commits `Trap`, over fixed carriers;
         // binary arithmetic keeps one carrier for both operands.
-        let same_carrier = matches!(
-            row.primitive,
-            TrappingIntegerPrimitive::Add
-                | TrappingIntegerPrimitive::Subtract
-                | TrappingIntegerPrimitive::Multiply
-                | TrappingIntegerPrimitive::Divide
-                | TrappingIntegerPrimitive::Remainder
-        );
-        if row.cause != CrashCause::Trap
-            || row.result_type.is_address()
-            || row.operand_type.is_address()
-            || (same_carrier && row.operand_type != row.result_type)
-        {
+        let invalid_integer = match row.denotation {
+            TerminalOperationCrashDenotation::FloatNonFinite { .. } => false,
+            TerminalOperationCrashDenotation::Integer {
+                primitive,
+                result_type,
+                operand_type,
+            } => {
+                let same_carrier = matches!(
+                    primitive,
+                    TrappingIntegerPrimitive::Add
+                        | TrappingIntegerPrimitive::Subtract
+                        | TrappingIntegerPrimitive::Multiply
+                        | TrappingIntegerPrimitive::Divide
+                        | TrappingIntegerPrimitive::Remainder
+                );
+                result_type.is_address()
+                    || operand_type.is_address()
+                    || (same_carrier && operand_type != result_type)
+            }
+        };
+        if row.cause != CrashCause::Trap || invalid_integer {
             return Err(TerminalTraceV1ProfileCodecError::InvalidOperationCrashDenotation);
         }
     }
@@ -794,11 +840,11 @@ fn validate_structural_schema(
 mod tests {
     use super::{
         BOUNDARY_CRASH_ROW_TAG, CRASH_ROW_TAG, CrashCause, DOMAIN, OPERATION_CRASH_ROW_TAG,
-        TerminalObservationSchema, TerminalTraceCrashSiteRow, TerminalTraceResultSchema,
-        TerminalTraceRootRow, TerminalTraceV1Profile, TerminalTraceV1ProfileAcceptanceError,
-        TerminalTraceV1ProfileCodecError, VocabularyMarker, accept_terminal_trace_v1_profile,
-        decode_terminal_trace_v1_profile, encode_raw, encode_terminal_trace_v1_profile,
-        reconstruct_canonical_terminal_trace_v1_profile,
+        TerminalObservationSchema, TerminalOperationCrashDenotation, TerminalTraceCrashSiteRow,
+        TerminalTraceResultSchema, TerminalTraceRootRow, TerminalTraceV1Profile,
+        TerminalTraceV1ProfileAcceptanceError, TerminalTraceV1ProfileCodecError, VocabularyMarker,
+        accept_terminal_trace_v1_profile, decode_terminal_trace_v1_profile, encode_raw,
+        encode_terminal_trace_v1_profile, reconstruct_canonical_terminal_trace_v1_profile,
     };
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId,
@@ -1096,9 +1142,11 @@ mod tests {
             block: id(12, BlockId::new),
             operation: id(operation, OperationId::new),
             cause: CrashCause::Trap,
-            primitive,
-            result_type: u8_type,
-            operand_type,
+            denotation: TerminalOperationCrashDenotation::Integer {
+                primitive,
+                result_type: u8_type,
+                operand_type,
+            },
         };
         let mut profile = direct_profile();
         profile.operation_crash_sites = vec![
@@ -1120,7 +1168,11 @@ mod tests {
             Err(TerminalTraceV1ProfileCodecError::InvalidOperationCrashDenotation),
         );
         let mut mixed = profile.clone();
-        mixed.operation_crash_sites[0].operand_type = u32_type;
+        mixed.operation_crash_sites[0].denotation = TerminalOperationCrashDenotation::Integer {
+            primitive: TrappingIntegerPrimitive::Add,
+            result_type: u8_type,
+            operand_type: u32_type,
+        };
         assert_eq!(
             encode_terminal_trace_v1_profile(&mixed),
             Err(TerminalTraceV1ProfileCodecError::InvalidOperationCrashDenotation),
@@ -1139,11 +1191,11 @@ mod tests {
         assert_eq!(bytes[group + 4], OPERATION_CRASH_ROW_TAG);
         let primitive_offset = group + 4 + 1 + 8 + 8 + 8 + 1;
         let mut unknown_primitive = bytes.clone();
-        unknown_primitive[primitive_offset] = 9;
+        unknown_primitive[primitive_offset] = 10;
         assert_eq!(
             decode_terminal_trace_v1_profile(&unknown_primitive),
             Err(TerminalTraceV1ProfileCodecError::InvalidTrappingPrimitive(
-                9
+                10
             )),
         );
         let mut wrong_tag = bytes;
@@ -1155,6 +1207,59 @@ mod tests {
                 ..
             }),
         ));
+    }
+
+    #[test]
+    fn float_result_policy_crash_denotations_are_canonical() {
+        use super::{Writer, encode_operation_crash_denotation};
+        use semantic_vocabulary::IeeeFloatFormat;
+        use terminal_psi::TerminalTraceOperationCrashSiteRow;
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let mut integer_writer = Writer::default();
+        encode_operation_crash_denotation(
+            &mut integer_writer,
+            TerminalOperationCrashDenotation::Integer {
+                primitive: terminal_psi::TrappingIntegerPrimitive::Add,
+                result_type: u8_type,
+                operand_type: u8_type,
+            },
+        );
+        assert_eq!(
+            integer_writer.finish(),
+            [1, 2, 8, 0, 2, 8, 0],
+            "existing integer row bytes are unchanged"
+        );
+        for (format, tag) in [
+            (IeeeFloatFormat::Binary32, 1),
+            (IeeeFloatFormat::Binary64, 2),
+        ] {
+            let denotation = TerminalOperationCrashDenotation::FloatNonFinite { format };
+            let mut writer = Writer::default();
+            encode_operation_crash_denotation(&mut writer, denotation);
+            assert_eq!(writer.finish(), [9, tag]);
+            let mut profile = direct_profile();
+            profile
+                .operation_crash_sites
+                .push(TerminalTraceOperationCrashSiteRow {
+                    machine: id(11, MachineId::new),
+                    block: id(12, BlockId::new),
+                    operation: id(3, OperationId::new),
+                    cause: CrashCause::Trap,
+                    denotation,
+                });
+            let encoded = encode_terminal_trace_v1_profile(&profile).unwrap();
+            assert_eq!(decode_terminal_trace_v1_profile(&encoded).unwrap(), profile);
+            profile.operation_crash_sites[0].cause = CrashCause::Abort;
+            assert_eq!(
+                encode_terminal_trace_v1_profile(&profile),
+                Err(TerminalTraceV1ProfileCodecError::InvalidOperationCrashDenotation)
+            );
+        }
+        let invalid_format = [9, 3];
+        assert!(
+            super::decode_operation_crash_denotation(&mut super::Reader::new(&invalid_format))
+                .is_err()
+        );
     }
 
     #[test]

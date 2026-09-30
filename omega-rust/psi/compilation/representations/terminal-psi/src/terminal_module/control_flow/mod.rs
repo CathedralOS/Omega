@@ -1,6 +1,7 @@
 //! Machines, blocks, operations, and successor edges.
 
 mod atomic;
+mod float_result_policy;
 mod machines;
 mod operations;
 mod ranking;
@@ -10,6 +11,7 @@ mod termination;
 mod trapping_integer;
 
 pub use atomic::{AtomicAccessEvent, AtomicReadModifyWrite, MemoryOrdering};
+pub use float_result_policy::{FloatResultPolicy, FloatSaturationRule};
 pub use machines::{Block, TerminalMachine};
 pub use operations::{
     ByteSequenceOperand, Operation, OperationKind, OperationResult, StructuralOperationResult,

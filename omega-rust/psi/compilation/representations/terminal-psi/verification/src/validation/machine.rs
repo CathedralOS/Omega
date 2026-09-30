@@ -115,6 +115,7 @@ pub(super) fn validate_machine(
         .collect::<BTreeSet<_>>();
     validate_crash_frontiers(module, machine, &context, &requires_values)?;
     super::trapping_integer::validate_trapping_crash_sites(machine)?;
+    super::float_result_policy::validate_crash_sites(machine)?;
     validate_partial_affine_cleanup_shape(module, machine, machines)?;
     validate_nominal_affine_cleanup_shape(module, machine, machines)?;
     contract_clauses::validate_contract_clauses(

@@ -676,6 +676,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::TrappingInteger { operation } => {
             scalar_operations::encode_trapping_integer(writer, operation)?
         }
+        OperationKind::FloatResultPolicy { policy } => {
+            scalar_operations::encode_float_result_policy(writer, policy);
+        }
         OperationKind::AtomicAccess {
             place,
             path,
@@ -952,6 +955,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             call_operations::decode_call_structural_with_scalar_arguments(reader)?
         }
         operation_tags::TRAPPING_INTEGER => scalar_operations::decode_trapping_integer(reader)?,
+        operation_tags::FLOAT_RESULT_POLICY => {
+            scalar_operations::decode_float_result_policy(reader)?
+        }
         operation_tags::ATOMIC_ACCESS => atomic_operations::decode_atomic_access(reader)?,
         tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
     };

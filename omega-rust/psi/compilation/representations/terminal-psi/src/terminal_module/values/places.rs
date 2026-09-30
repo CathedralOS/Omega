@@ -304,7 +304,8 @@ impl OperationKind {
             | Self::SaturatingIntegerSubtract { .. }
             | Self::WrappingIntegerMultiply { .. }
             | Self::SaturatingIntegerMultiply { .. }
-            | Self::TrappingInteger { .. } => {}
+            | Self::TrappingInteger { .. }
+            | Self::FloatResultPolicy { .. } => {}
         }
     }
 
@@ -463,7 +464,8 @@ impl OperationKind {
             | Self::SaturatingIntegerSubtract { .. }
             | Self::WrappingIntegerMultiply { .. }
             | Self::SaturatingIntegerMultiply { .. }
-            | Self::TrappingInteger { .. } => {}
+            | Self::TrappingInteger { .. }
+            | Self::FloatResultPolicy { .. } => {}
         }
         projections
     }
