@@ -20,11 +20,11 @@ data Main {
 
 machine Main::main(&mut self) reaches ByteHost {
     self.n = self.host.read(0, &mut self.control, 64);
-    transition { _ -> pump(&mut self.control) }
+    transition { _ -> pump(&mut self, &mut self.control) }
 
-    state pump(&mut self, buffer: &mut [u8])
+    state pump(main: &mut Main, buffer: &mut [u8])
         requires 64 <= buffer.len;
     {
-        self.n = self.host.read(0, buffer, 64);
+        main.n = main.host.read(0, buffer, 64);
     }
 }

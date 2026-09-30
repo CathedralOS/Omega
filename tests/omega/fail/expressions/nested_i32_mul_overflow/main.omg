@@ -46,16 +46,16 @@ machine Main::main(&mut self) {
     self.b = 100000;
     let r: i32 = (self.a * self.b) % 7;
     transition r == 3 {
-        true -> three()
-        _ -> not_three()
+        true -> three(&mut self)
+        _ -> not_three(&mut self)
     }
-    state three(&mut self) { self.console.exit_process(73); }
-    state not_three() {
+    state three(main: &mut Main) { main.console.exit_process(73); }
+    state not_three(main: &mut Main) {
         transition r == 4 {
-            true -> four()
-            _ -> other()
+            true -> four(main)
+            _ -> other(main)
         }
     }
-    state four(&mut self) { self.console.exit_process(74); }
-    state other(&mut self) { self.console.exit_process(75); }
+    state four(main: &mut Main) { main.console.exit_process(74); }
+    state other(main: &mut Main) { main.console.exit_process(75); }
 }

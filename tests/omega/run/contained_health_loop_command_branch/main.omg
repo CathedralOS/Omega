@@ -87,11 +87,11 @@ data Main {
 }
 
 machine Main::main(&mut self) -> i32 {
-    transition { _ -> running() }
+    transition { _ -> running(&mut self) }
 
 
-    state running(&mut self) {
-        Game::run(&mut self.game);
+    state running(main: &mut Main) {
+        Game::run(&mut main.game);
         transition { _ -> shutdown() }
     }
 

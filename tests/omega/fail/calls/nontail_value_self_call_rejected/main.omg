@@ -18,9 +18,9 @@ terminates by n;
 machine Main::main(&mut self) {
     let value: u64 = self.triple(1);
     transition value == 3 {
-        true -> yes()
-        false -> no()
+        true -> yes(&mut self)
+        false -> no(&mut self)
     }
-    state yes(&mut self) { self.console.exit_process(1); }
-    state no(&mut self) { self.console.exit_process(2); }
+    state yes(main: &mut Main) { main.console.exit_process(1); }
+    state no(main: &mut Main) { main.console.exit_process(2); }
 }
