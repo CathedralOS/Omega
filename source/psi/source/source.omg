@@ -25,27 +25,27 @@ pub data SourceUnit {
     last_retained: bool;
 }
 
-machine SourceUnit::clear(&mut self, id: SourceId) {
-    self.id = id;
-    self.length = 0;
-    self.last_retained = true;
+machine SourceUnit::clear(source_unit: &mut SourceUnit, id: SourceId) {
+    source_unit.id = id;
+    source_unit.length = 0;
+    source_unit.last_retained = true;
 }
 
-machine SourceUnit::append(&mut self, byte: u8) {
-    self.last_retained = false;
-    transition self.length < 65536 {
-        true -> retain(byte)
-        _ -> full()
+machine SourceUnit::append(source_unit: &mut SourceUnit, byte: u8) {
+    source_unit.last_retained = false;
+    transition source_unit.length < 65536 {
+        true -> retain(source_unit, byte)
+        _ -> full(source_unit)
     }
 
-    state retain(&mut self, byte: u8) {
-        self.bytes[self.length] = byte;
-        self.length = self.length + 1;
-        self.last_retained = true;
+    state retain(source_unit: &mut SourceUnit, byte: u8) {
+        source_unit.bytes[source_unit.length] = byte;
+        source_unit.length = source_unit.length + 1;
+        source_unit.last_retained = true;
     }
 
-    state full(&mut self) {
-        self.last_retained = false;
+    state full(source_unit: &mut SourceUnit) {
+        source_unit.last_retained = false;
     }
 }
 
@@ -54,23 +54,23 @@ machine SourceUnit::append(&mut self, byte: u8) {
 // coordinate fail token recognition instead of performing an unchecked read.
 // The forwarded coordinate is proven against the array's own length: the
 // `length` range does not transport through the retained-length comparison.
-machine SourceUnit::byte_or_nul(&self, index: u64 in Trapping) -> u8 {
-    transition index < self.length {
-        true -> retain(index)
+machine SourceUnit::byte_or_nul(source_unit: &SourceUnit, index: u64 in Trapping) -> u8 {
+    transition index < source_unit.length {
+        true -> retain(source_unit, index)
         _ -> absent()
     }
 
-    state retain(index: u64 in Trapping) {
+    state retain(source_unit: &SourceUnit, index: u64 in Trapping) {
         transition index < 65536 {
-            true -> read(index)
+            true -> read(source_unit, index)
             _ -> absent()
         }
     }
 
-    state read(&self, index: u64 in Trapping) {
+    state read(source_unit: &SourceUnit, index: u64 in Trapping) {
         // `bytes` is `[u8; 65536] in Trapping`, so the element read carries
         // the array's policy while this machine results in a plain `u8`.
-        self.bytes[index] as u8
+        source_unit.bytes[index] as u8
     }
 
     state absent() {
