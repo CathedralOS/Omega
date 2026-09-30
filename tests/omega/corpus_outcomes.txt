@@ -1670,6 +1670,7 @@ pass/host/runtime_gui_foreground_window_exit rejected 1206ms @2d8ed253669f
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
 pass/host/runtime_gui_window_lifecycle_exit rejected 1304ms @2d8ed253669f
 	selected ProgramEntry Binding field `Main::gui` requires a selected Fused provider for boundary `Gui`
+pass/host/std_clock_sleep_exit checked 1478ms @27fbba584bed
 pass/inline_asm/asm_aarch64_system_registers_compile rejected 369ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: target state, statement 0)") })
 pass/inline_asm/asm_block_jmp_state checked 381ms @2d8ed253669f

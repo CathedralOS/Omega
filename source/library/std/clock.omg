@@ -14,38 +14,29 @@
 // (`time.omg` over the canonical toolchain-settled `TimeHost` seam), so this
 // boundary carries no clock-read constants it cannot honor.
 //
-// Each selected target contributes its native sleep leaf and its provider
-// default; target filtering keeps exactly one implementation closure: kernel32
-// `Sleep` on windows, whose signature is the requirement's, and `nanosleep` on
-// both linux targets. The linux legs do not sleep yet: `nanosleep` takes a
-// `timespec*`, and nothing marshals the millisecond count into one (see the
-// linux `clock_impl.omg` files).
+// Each selected target contributes its provider closure and its provider
+// default; target filtering keeps exactly one implementation closure:
 //
-// Coverage stops at `linux_x86_64`, `linux_arm64`, and `windows_x86_64`:
+// * `windows_x86_64` binds kernel32 `Sleep`, whose signature is the
+//   requirement's, as the leaf itself.
+// * `macos_arm64` has no kernel millisecond sleep with the requirement's
+//   shape. Its `ClockNativeProvider::sleep` is an ordinary checked adapter
+//   over a std-private `poll` requirement that reaches `Clock`, realized by
+//   the libSystem `poll` import (see its `clock_impl.omg`).
+// * Both linux targets bind the kernel `nanosleep` as the leaf itself, and
+//   neither sleeps yet: an authored syscall leaf has no native boundary
+//   settlement, and `nanosleep` takes a `timespec*` that the leaf's
+//   millisecond parameter cannot supply (see the linux `clock_impl.omg`
+//   files).
 //
-// * `macos_arm64` needs `poll(NULL, 0, ms)`, whose foreign signature differs
-//   from the requirement's. A leaf's calling plan comes from its own Omega
-//   signature, and the `SleepPoll` and `uses_linux_timespec_argument`
-//   predicates in `host_operations.rs` have no caller in the native pipeline,
-//   so no binding can supply the two leading zeros. A checked adapter over
-//   the `darwin_poll` leaf is rejected: its body reaches `DarwinClock`
-//   outside `Clock::sleep`'s service ceiling, and widening that ceiling would
-//   leak a darwin service into every consumer's `reaches`. Both this and the
-//   linux gap wait on the marshalled-syscall question in OWNER_QUESTIONS.md.
-// * `macos_x86_64` is bundled but unadmitted (console's family has no
-//   implementation for it either), and freestanding `uefi_x86_64` has no
-//   hosted clock at all.
-//
-// Because the provider family does not yet cover every hosted target, this
-// module is NOT listed in `main.omg`: a partial `ClockNativeProvider` family
-// there would reject every consumer on the uncovered targets, even ones that
-// never name `Clock`. Consumers select it with an explicit
-// `use omega_language_std::clock;` — on an uncovered target the checker
-// reports the family gap and names the implemented targets. Once a darwin
-// realization leg lands, adding `use clock;` to `main.omg` joins it to the
-// ordinary portable surface.
+// `macos_x86_64` is bundled but unadmitted (console's family has no
+// implementation for it either), and freestanding `uefi_x86_64` has no hosted
+// clock at all. The provider family therefore covers exactly the targets the
+// std console family covers, and `main.omg` lists this module on the ordinary
+// portable surface. Consumers still name it with `use omega_language_std::clock;`.
 use targets::linux_x86_64::clock_impl;
 use targets::linux_arm64::clock_impl;
+use targets::macos_arm64::clock_impl;
 use targets::windows_x86_64::clock_impl;
 
 pub boundary trait Clock {
