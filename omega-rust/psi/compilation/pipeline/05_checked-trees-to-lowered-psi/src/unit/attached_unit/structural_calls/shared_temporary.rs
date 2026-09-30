@@ -1,6 +1,6 @@
 //! Rejoin a temporary owner's establishment, shared loan, and dying continuation.
 use super::super::admission::CallerView;
-use super::{CheckedTrees, LoweringError, Multiplicity, StatementNode, unsupported};
+use super::{CheckedTrees, LoweringError, Multiplicity, unsupported};
 use language_semantics::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
     PermissionProvenance,
@@ -13,23 +13,30 @@ pub(super) fn validate(
     consumer: checked_trees::CheckedUnitCallCoordinate,
     expression: checked_trees::expression::ExpressionHandle,
 ) -> Result<(), LoweringError> {
-    let (_, state) =
-        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
-    let Some(StatementNode::Call(call)) = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(consumer.statement_index as usize)
-    else {
-        return unsupported("anonymous shared result requires one authored Unit call");
-    };
-    if call.arguments.count() != 1
-        || checked
-            .statement_table
-            .expression_handles(call.arguments)
-            .len()
-            != 1
+    if producer.statement_index != consumer.statement_index
+        || producer.call_ordinal <= consumer.call_ordinal
     {
-        return unsupported("anonymous shared result requires one authored argument");
+        return unsupported("anonymous shared result has no nested producer at its consumer");
+    }
+    let produced = crate::emission::call_source_custody::authored::locate_source(
+        checked,
+        caller.state,
+        producer,
+    )?;
+    let consumed = crate::emission::call_source_custody::authored::locate_source(
+        checked,
+        caller.state,
+        consumer,
+    )?;
+    if produced.source_site != Some(checked_trees::NominalMachineUseSite::Expression(expression))
+        || consumed.boundary
+        || consumed.structural_arguments.iter().filter(|(_, argument)| {
+            matches!(checked.expression_table.expression(*argument),
+                checked_trees::expression::ExpressionNode::Borrow(borrow)
+                    if borrow.access == language_semantics::ReferenceAccess::Shared && borrow.target == expression)
+        }).count() != 1
+    {
+        return unsupported("anonymous shared result does not rejoin its authored loan operand");
     }
     let mut states = checked
         .facts
@@ -56,14 +63,6 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "anonymous shared result has a stale captured call span",
             ))?;
-    if calls
-        .iter()
-        .filter(|call| call.statement_index == consumer.statement_index as usize)
-        .count()
-        != 2
-    {
-        return unsupported("anonymous shared result has additional captured calls");
-    }
     let call_source = |coordinate: checked_trees::CheckedUnitCallCoordinate| {
         let authored = crate::emission::call_source_custody::authored::locate_source(
             checked,

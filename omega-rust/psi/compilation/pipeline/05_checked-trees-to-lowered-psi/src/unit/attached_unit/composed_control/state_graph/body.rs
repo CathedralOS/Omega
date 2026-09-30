@@ -523,12 +523,12 @@ pub(super) fn validate(
             ) => validate_displaced_field_replacement(
                 checked, machine, source, state, ordinal, assignment,
             )?,
-            // A discarded call result dies on the same authored statement as
-            // its producer; the producer's own custody rejoin already demanded
-            // this exact immediate cleanup.
+            // A result or a borrowed argument owner dies at the exact call's
+            // continuation, regardless of the statement's surface spelling.
+            // Operand custody independently rejoins this immediate cleanup.
             (
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. },
-                StatementNode::Call(_),
+                _,
             ) => {}
             (
                 CheckedUnitEffectOperationPlan::ByteSequenceWrite(write),
@@ -901,14 +901,14 @@ fn reordered_store(
     })
 }
 
-/// The binding a scalar-result state's final expression returns, if any.
 /// Whether a call keeps a structural result bound at this statement: an
 /// ordinary call, or a boundary call that completes no receipts here.
+/// Nested operands keep their own call ordinal; source custody checks that
+/// occurrence instead of requiring the statement's outermost call.
 fn kept_structural_call_at(call: &CheckedUnitCallPlan, ordinal: usize) -> bool {
     call.discard_result_on_return() == Some(false)
         && (!call.is_boundary() || call.claim_transfers().is_empty())
         && call.coordinate.statement_index as usize == ordinal
-        && call.coordinate.call_ordinal == 0
         && call
             .structural_result()
             .is_some_and(|result| result.statement_index as usize == ordinal)
@@ -1303,11 +1303,9 @@ fn statement_continuations(
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Result<Vec<bool>, LoweringError> {
     let mut current = None;
-    // Whether the current statement began with a construction nested in its
-    // own call's arguments: `f(Event::Insert { cents: 50 })` plans the
-    // construction first and the call that consumes it second, both at the
-    // one call statement. The call, and any further argument construction for
-    // it, continue that statement instead of consuming the next.
+    // Call operands execute before their consumer, whether constructed inline
+    // or returned by a nested call. All retain their exact authored statement
+    // and call coordinates; operand custody separately verifies their ordering.
     let mut began_with_argument = false;
     // Whether the current statement began with a structural establishment of
     // its own value: a whole array-literal replacement establishes every
@@ -1369,7 +1367,10 @@ fn statement_continuations(
                 return unsupported("Unit graph continuation lost its producing statement");
             }
             current = authored_statement(operation);
-            began_with_argument = argument_construction(operation);
+            began_with_argument = argument_construction(operation)
+                || operation
+                    .call()
+                    .is_some_and(|call| call.coordinate.call_ordinal != 0);
             began_with_establishment = own_establishment(operation);
             Ok(false)
         })

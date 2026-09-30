@@ -1,0 +1,19 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Item { value: i32; }
+data Main { console: Binding<Console>; total: i32; }
+
+machine make(value: i32) -> Item { Item { value: value } }
+machine Main::collect(context: &mut Main, first: &Item, second: &Item) -> bool {
+    context.total = first.value ^ second.value;
+    true
+}
+machine Main::main(context: &mut Main) reaches Console {
+    let accepted: bool = Main::collect(context, &make(17), &make(59));
+    transition accepted && context.total == 42 {
+        true -> finish(context, 42)
+        false -> finish(context, 1)
+    }
+    state finish(context: &mut Main, code: i32) { context.console.exit_process(code); }
+}

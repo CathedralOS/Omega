@@ -41,7 +41,7 @@ use crate::execution::terminal_unit::types::{
     ShapeCollector, base_type_identity, is_unit, machine_binders, parameter_qualifications,
 };
 
-use checked_trees::{CheckedUnitCallResult, CheckedUnitStructuralReturnPlan};
+use checked_trees::CheckedUnitStructuralReturnPlan;
 
 mod assignments;
 mod bounded_byte_literal;
@@ -1556,11 +1556,13 @@ fn append_call_cleanup(
     statement_index: u32,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
 ) -> Option<()> {
-    // Only an ordinary Unit call owns a normal continuation here.
+    // Argument temporaries die at the ordinary call's continuation, independently
+    // of its result type. The exact operand bindings below select their owners;
+    // boundary calls have no local continuation on which to schedule this cleanup.
     let Some(call) = operations
         .last()
         .and_then(CheckedUnitEffectOperationPlan::call)
-        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
+        .filter(|call| !call.is_boundary())
     else {
         return Some(());
     };

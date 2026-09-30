@@ -831,6 +831,9 @@ pub(crate) fn validate_usage(
             };
             let immediately_discarded = operation_index.checked_sub(1)
                 == Some(producer.operation_index)
+                // A returning consumer can retire its argument temporaries
+                // without retiring the distinct value it just returned.
+                && affine_discards.iter().any(|discard| discard.source == source)
                 && caller.operations[producer.operation_index]
                     .call()
                     .is_some_and(|call| {
@@ -859,7 +862,8 @@ pub(crate) fn validate_usage(
             let owns_continuation = operation_index
                 .checked_sub(1)
                 .and_then(|previous| caller.operations.get(previous))
-                .and_then(ordinary_unit_call)
+                .and_then(CheckedUnitEffectOperationPlan::call)
+                .filter(|call| !call.is_boundary() && call.coordinate == *coordinate)
                 .is_some_and(|call| {
                     call.structural_arguments
                         .iter()
@@ -904,8 +908,12 @@ pub(crate) fn validate_usage(
                         || producer.coordinate.statement_index != coordinate.statement_index))
                 || operation_index <= producer.operation_index
                 || if projected_paths.is_empty() {
-                    !matches!(affine_discards.as_slice(), [discard]
-                        if discard.source == source && discard.path.is_empty() && discard.type_identity == result.type_identity)
+                    let mut owned_discards = affine_discards
+                        .iter()
+                        .filter(|discard| discard.source == source);
+                    !matches!(owned_discards.next(), Some(discard)
+                        if discard.path.is_empty() && discard.type_identity == result.type_identity)
+                        || owned_discards.next().is_some()
                 } else {
                     // One continuation may carry several temporaries; this
                     // owner's rows must all be nonempty residual paths. An
@@ -1025,18 +1033,14 @@ pub(crate) fn validate_usage(
             }
             if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                 && producer.coordinate.call_ordinal != 0
-                && (producer.coordinate.call_ordinal != 1
-                    || producer.discard
-                    || coordinate.call_ordinal != 0
-                    || !ordinary_unit_call(operation).is_some_and(|call| {
-                        call.scalar_arguments.is_empty() && call.structural_arguments.len() == 1
-                    })
+                && (producer.discard
+                    || call.is_boundary()
                     || !matches!(caller.operations.get(operation_index + 1),
                         Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate: cleanup, affine_discards })
-                            if *cleanup == coordinate && affine_discards.len() == 1
-                                && affine_discards[0].source == argument.source))
+                            if *cleanup == coordinate
+                                && affine_discards.iter().filter(|discard| discard.source == argument.source).count() == 1))
             {
-                return unsupported("anonymous shared result has no dying Unit call continuation");
+                return unsupported("anonymous shared result has no exact dying call continuation");
             }
             consumed = argument.access == checked_trees::CheckedStructuralAccess::Owned;
         }
