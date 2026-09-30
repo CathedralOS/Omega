@@ -1,11 +1,14 @@
 use super::{
     TempTree, generated_bundle, generated_source, identity, three_package_generated_inputs,
 };
+use crate::PackageSourceConsumptionCommitment;
+// Only the Windows prefix leg calls the overlap scan directly.
+#[cfg(windows)]
+use crate::package_compilation::construction::append_overlapping_source_roots;
 use crate::package_compilation::{
     BTreeMap, BuildDeclarationKind, PackageCompilationInputError, PackageCompilationInputs,
     PackageDependencyBinding, PackageDependencyClosure, PackageGeneratedSourceBundle,
-    PackageSourceBinding, PackageSourceConsumptionCommitment, PathBuf,
-    append_overlapping_source_roots,
+    PackageSourceBinding, PathBuf,
 };
 use std::fs;
 
