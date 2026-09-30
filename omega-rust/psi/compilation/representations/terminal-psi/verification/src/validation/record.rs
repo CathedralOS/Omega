@@ -347,7 +347,21 @@ pub(super) fn completed_source<'a>(
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
-                    && plain_type(module, result.structural_type)
+                    && (plain_type(module, result.structural_type)
+                        // A verified copy preserves the exact owned subtree,
+                        // including bounded byte fields' live extent and
+                        // predicates. This admits completed snapshots, not
+                        // new byte-field constructors or borrowed carriers.
+                        || (result.multiplicity == StructuralMultiplicity::Unrestricted
+                            && matches!(
+                                operation.kind,
+                                OperationKind::StructuralLeafCopy { .. }
+                                    | OperationKind::StructuralCaseLeafCopy { .. }
+                            )
+                            && super::structural::result_contracts::has_plain_owned_shape(
+                                module,
+                                result.structural_type,
+                            )))
             })
         })
 }

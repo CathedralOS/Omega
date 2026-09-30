@@ -185,6 +185,16 @@ pub(crate) fn validate(
         || checked.normalized_type_identity(storage_carrier).as_str() != result.type_identity
         || expected_multiplicity != result.multiplicity
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
+            // Copying an established owned subtree retains its bounded byte
+            // predicates. The worklist below independently reconstructs the
+            // exact source path and type; constructors must still prove their
+            // own establishment and do not receive this shape admission.
+            || (matches!(plans.nodes.get(*value).kind,
+                    CheckedStructuralValueKind::CopiedStructuralPlace { .. })
+                && result.multiplicity == language_semantics::Multiplicity::Unrestricted
+                && validation::has_plain_owned_contents_with_represented_constraints(
+                    &checked.typed, carrier,
+                ))
             || validation::has_cleanup_owned_contents(&checked.typed, carrier)
             // A linear record is an owned construction too: its disposal is
             // the binding's terminal obligation, exactly as stage 04's

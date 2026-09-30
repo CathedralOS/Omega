@@ -96,7 +96,9 @@ fn copied_local_operand_rejects_initializer_and_other_snapshot_substitution() {
 }
 
 const WITNESS: &str = r#"
-    data SourceId [copy] { value: u32; }
+    domain [u8; 16]::Text requires valid_utf8(self);
+    data Label [copy] { text: [u8; 16] in Text; }
+    data SourceId [copy] { value: u32; labels: [Label; 2]; }
     data Source { id: SourceId; length: u32; }
     data Holder { source: Source; }
     data Target { seen: u32; }
@@ -174,6 +176,11 @@ fn copied_boundary_arrays_retain_authored_positions_across_receiver_erasure() {
         TerminalMachineSelection::Name("Main::main"),
     )
     .expect_err("equal array types cannot replace the exact authored operand occurrence");
+}
+
+#[test]
+fn copied_nested_byte_records_retain_owned_predicates() {
+    assert_copied_operand(WITNESS);
 }
 
 #[test]

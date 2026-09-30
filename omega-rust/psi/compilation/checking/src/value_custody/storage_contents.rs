@@ -45,6 +45,10 @@ impl ContentType {
 enum ContentsRequirement {
     PlainOwned,
     NumericOwned,
+    /// An already established owned value whose exact constrained type survives
+    /// the transfer. Bounded byte predicates describe live contents as well as
+    /// storage; accepting their shape does not prove a fresh initializer.
+    RepresentedOwned,
     /// The same no-code owned storage as `NumericOwned`, except a data
     /// declaration marked `[linear]` remains a valid carrier: linear custody
     /// keeps its own claim accounting, so a selection join only needs to know
@@ -110,6 +114,23 @@ pub fn has_plain_owned_contents_with_numeric_constraints(
     reference: TypeReferenceHandle,
 ) -> bool {
     check_contents_requirement(program, reference, &[], ContentsRequirement::NumericOwned)
+}
+
+/// Classify an owned snapshot whose consumers retain its exact represented
+/// constraints. In addition to numeric restrictions, finite byte owners may
+/// retain primitive byte predicates. This grants neither construction authority
+/// nor loans: the caller must independently rejoin the established value,
+/// complete type, and copy/transfer custody, including live byte lengths.
+pub fn has_plain_owned_contents_with_represented_constraints(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    check_contents_requirement(
+        program,
+        reference,
+        &[],
+        ContentsRequirement::RepresentedOwned,
+    )
 }
 
 /// Classify owned storage an affine caller may carry toward a consuming
@@ -423,10 +444,19 @@ fn resolve(
                         || (matches!(
                             requirement,
                             ContentsRequirement::NumericOwned
+                                | ContentsRequirement::RepresentedOwned
                                 | ContentsRequirement::StructuralConstruction
                         ) && matches!(contents, ContentType::Scalar(_))
                             && is_plain_value_domain(program, domain)
                             && crate::exact_declared_domain_interval(program, domain).is_some())
+                        || (requirement == ContentsRequirement::RepresentedOwned
+                            && matches!(&contents, ContentType::Array(element, _)
+                                if matches!(element.as_ref(), ContentType::Scalar(PrimitiveType::U8)))
+                            && is_plain_value_domain(program, domain)
+                            && domain.arguments.is_empty()
+                            && typed_trees::byte_predicates::domain_byte_predicate(
+                                program, domain.symbol,
+                            ).is_some())
                 }
                 typed_trees::types::TypeConstraintNode::Named(_) => false,
             });
