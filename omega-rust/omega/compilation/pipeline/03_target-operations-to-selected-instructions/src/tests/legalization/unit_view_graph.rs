@@ -343,15 +343,25 @@ fn an_exclusive_view_lends_through_a_block_parameter_and_a_shared_root_rejects()
 
 #[test]
 fn projected_address_join_calls_replay_exact_geometry_and_access() {
-    check_projected_address_join(StructuralAccess::SharedBorrow);
+    check_projected_address_join(StructuralAccess::SharedBorrow, false);
 }
 
 #[test]
 fn mutable_record_block_parameters_reuse_borrowed_entry_geometry() {
-    check_projected_address_join(StructuralAccess::MutableBorrow);
+    check_projected_address_join(StructuralAccess::MutableBorrow, false);
 }
 
-fn check_projected_address_join(access: StructuralAccess) {
+#[test]
+fn zeroed_local_records_lend_checked_address_joins() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        check_projected_address_join(access, true);
+    }
+}
+
+fn check_projected_address_join(access: StructuralAccess, local_home: bool) {
     let mut source = block_parameter_source(access);
     let root = source.functions[0].structural_parameters[0].structural_type;
     let element = StructuralTypeId::new(11).unwrap();
@@ -401,6 +411,37 @@ fn check_projected_address_join(access: StructuralAccess) {
     };
     structural_arguments[0].access = access;
     structural_arguments[0].path = vec![terminal_psi::StructuralPathSegment::Field("value".into())];
+
+    if local_home {
+        let caller = &mut source.functions[0];
+        let home = caller.structural_parameters.remove(0).place;
+        caller.operations.insert(
+            0,
+            AbstractOperation::EstablishZeroedStructural {
+                psi_operation: OperationId::new(9).unwrap(),
+                result: terminal_psi::StructuralOperationResult {
+                    place: home,
+                    structural_type: root,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                },
+            },
+        );
+        for entry in caller.block_entries.iter_mut().skip(1) {
+            entry.operation_offset += 1;
+        }
+        for operation in &mut caller.operations {
+            if let AbstractOperation::ReturnUnit {
+                cleanup_actions, ..
+            } = operation
+            {
+                cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(home));
+            }
+        }
+    }
 
     for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
         let target = abstract_operations_to_target_operations::lower_to_target_operations(

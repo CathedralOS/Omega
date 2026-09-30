@@ -409,6 +409,7 @@ fn operation_block(function: &PsiOptimizationFunction, operation: OperationId) -
 fn node_operation(operation: &AbstractOperation) -> Option<OperationId> {
     match operation {
         AbstractOperation::EstablishRecord { psi_operation, .. }
+        | AbstractOperation::EstablishZeroedStructural { psi_operation, .. }
         | AbstractOperation::EstablishScalarArray { psi_operation, .. }
         | AbstractOperation::EstablishCase { psi_operation, .. }
         | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }

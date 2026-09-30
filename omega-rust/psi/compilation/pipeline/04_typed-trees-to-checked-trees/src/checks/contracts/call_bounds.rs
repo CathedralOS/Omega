@@ -190,7 +190,7 @@ fn prove(
             if !super::prover::has_builtin_operators(program, &facts.operators, argument) {
                 return None;
             }
-            let (mut low, mut high) =
+            let standing =
                 immutable_capture_bounds(program, &facts.semantic, contexts, state, argument)
                     .or_else(|| {
                         validation::immutable_integer_expression_bounds(
@@ -200,7 +200,16 @@ fn prove(
                     .map(|(low, high)| (Some(low), Some(high)))
                     .or_else(|| {
                         validation::stored_integer_bounds(program, machine, state, argument)
-                    })?;
+                    });
+            let guarded = guard
+                .and_then(|guard| guarded_update_bounds(program, machine, state, argument, guard));
+            let (mut low, mut high) = match (standing, guarded) {
+                (Some((low, high)), Some((guard_low, guard_high))) => (
+                    low.into_iter().chain(guard_low).max(),
+                    high.into_iter().chain(guard_high).min(),
+                ),
+                (bounds, None) | (None, bounds) => bounds?,
+            };
             if let Some((guard_low, guard_high)) = guard.and_then(|guard| {
                 super::intervals::guard_interval_for_label(
                     program,
@@ -258,6 +267,59 @@ fn prove(
         BinaryOperator::GreaterOrEqual => left_low? >= right_high?,
         _ => return None,
     })
+}
+
+/// Narrow storage reads before transferring their bounds through arithmetic.
+/// The arithmetic owner decides the actual Exact, wrapping or saturating law;
+/// this reader does not reinterpret an update as mathematical addition. The
+/// selected-arm caller separately checks guard and operand write ordering.
+fn guarded_update_bounds(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    guard: ExpressionHandle,
+) -> Option<(Option<i64>, Option<i64>)> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            let operand = match binary.operator {
+                BinaryOperator::Add
+                    if matches!(
+                        program.expression_table.expression(binary.left),
+                        ExpressionNode::Integer(_)
+                    ) =>
+                {
+                    binary.right
+                }
+                BinaryOperator::Add | BinaryOperator::Subtract => binary.left,
+                _ => return None,
+            };
+            let (lower, upper) = guarded_update_bounds(program, machine, state, operand, guard)?;
+            validation::builtin_monotonic_integer_update_bounds(
+                program, machine, state, expression, lower, upper,
+            )
+        }
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            let (mut lower, mut upper) =
+                validation::stored_integer_bounds(program, machine, state, expression)?;
+            if let Some((guard_lower, guard_upper)) = super::intervals::guard_interval_for_label(
+                program,
+                guard,
+                &program.expression_table.display_name(expression),
+            ) {
+                // The legacy guard reader uses signed extrema for absent
+                // endpoints; neither sentinel is a finite u64 bound.
+                if let Some(bound) = guard_lower.to_i64().filter(|bound| *bound > i64::MIN) {
+                    lower = Some(lower.map_or(bound, |lower| lower.max(bound)));
+                }
+                if let Some(bound) = guard_upper.to_i64().filter(|bound| *bound < i64::MAX) {
+                    upper = Some(upper.map_or(bound, |upper| upper.min(bound)));
+                }
+            }
+            Some((lower, upper))
+        }
+        _ => None,
+    }
 }
 
 /// Read the value captured when an immutable scalar local was established.

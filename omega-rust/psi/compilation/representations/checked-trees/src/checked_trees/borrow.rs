@@ -370,6 +370,10 @@ pub struct BorrowArgumentAccessFact {
     pub root_symbol: SymbolHandle,
     pub segments: HandleSpan<facts::PlaceSegment>,
     pub kind: BorrowAccessKind,
+    /// First subsequent access in this call's roster after this observation
+    /// ends. None retains the access through invocation. Copied reads end
+    /// immediately; temporary nested-call loans end when that call returns.
+    pub end_before_access: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -29,6 +29,32 @@ pub(super) fn finish(
         .collect::<BTreeMap<_, _>>();
     for block in &mut machine.blocks {
         match &mut block.terminator {
+            // A source-state exit may have scheduled ordinary local disposal
+            // on an arm that does not lend the home. Once another arm lends it,
+            // this pass retains its storage for the entire activation and owns
+            // the one return cleanup, including the non-lending path.
+            Terminator::Jump {
+                trivial_affine_discards,
+                ..
+            } => {
+                trivial_affine_discards.retain(|place| !homes.values().any(|home| home == place));
+            }
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                for arm in [when_true, when_false] {
+                    arm.trivial_affine_discards
+                        .retain(|place| !homes.values().any(|home| home == place));
+                }
+            }
+            Terminator::StructuralCase { cases, .. } => {
+                for arm in cases {
+                    arm.trivial_affine_discards
+                        .retain(|place| !homes.values().any(|home| home == place));
+                }
+            }
             Terminator::ReturnStructural {
                 source,
                 trivial_affine_discards,

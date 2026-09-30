@@ -1,5 +1,6 @@
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, ScalarType, StructuralCaseId, StructuralTypeId,
+    BoundedIntegerType, IntegerSign, IntegerType, IntegerValue, ScalarType, StructuralCaseId,
+    StructuralTypeId,
 };
 use terminal_psi::{
     StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
@@ -60,11 +61,11 @@ impl ZeroedStructuralLeaf {
 /// Resolve whether a structural type's whole storage may begin zero: every
 /// leaf a plain primitive scalar or sum case tag, and every aggregate a
 /// record, fixed array, or admissible sum. A sum admits only when its first
-/// declared case exists and every non-erased field of that case is a plain
-/// scalar: the tag's all-zero bits select that case (tag = case ordinal),
-/// while bounded integers could exclude 0 and nested composites would need
-/// case-aware leaf paths. References, views, byte sequences, mixed shapes,
-/// bounded integers, and erased members have no universally valid zero
+/// declared case exists and every non-erased field of that case admits a zero
+/// scalar: the tag's all-zero bits select that case (tag = case ordinal).
+/// Bounded integer fields must contain the carrier's zero; nested composites
+/// in sum payloads still need case-aware leaf paths. References, views, byte
+/// sequences, mixed shapes, and erased members have no universally valid zero
 /// spelling, so they reject. Unknown, cyclic, or recursive membership also
 /// rejects — the worklist bounds the walk at the module's declaration count.
 pub fn zeroed_structural_shape<'types>(
@@ -127,9 +128,8 @@ pub fn zeroed_structural_leaves<'types>(
                 // Zeroed storage selects the first declared case — the tag
                 // stores the case ordinal and zero names ordinal 0. Payload
                 // leaves mint for that case only; later cases carry no cells.
-                // Only a first case of plain scalar fields admits: bounded
-                // integers may exclude 0 and nested composites have no
-                // case-aware leaf path segment.
+                // Only a first case of zero-valid scalar fields admits;
+                // nested composites have no case-aware leaf path segment.
                 let Some(first) = cases.first() else {
                     return None;
                 };
@@ -149,6 +149,15 @@ pub fn zeroed_structural_leaves<'types>(
                                 path: path.clone(),
                                 field: field.id,
                                 scalar_type: *scalar_type,
+                            });
+                        }
+                        StructuralFieldType::BoundedInteger(bounds)
+                            if !field.relevance.is_erased() && admits_zero(*bounds) =>
+                        {
+                            leaves.push(ZeroedStructuralLeaf::RecordField {
+                                path: path.clone(),
+                                field: field.id,
+                                scalar_type: ScalarType::Integer(bounds.integer_type()),
                             });
                         }
                         _ => return None,
@@ -174,6 +183,15 @@ pub fn zeroed_structural_leaves<'types>(
                             member_path.push(StructuralPathSegment::Field(field.identity.clone()));
                             pending.push((*member, member_path));
                         }
+                        StructuralFieldType::BoundedInteger(bounds)
+                            if !field.relevance.is_erased() && admits_zero(*bounds) =>
+                        {
+                            leaves.push(ZeroedStructuralLeaf::RecordField {
+                                path: path.clone(),
+                                field: field.id,
+                                scalar_type: ScalarType::Integer(bounds.integer_type()),
+                            });
+                        }
                         _ => return None,
                     }
                 }
@@ -185,6 +203,13 @@ pub fn zeroed_structural_leaves<'types>(
         }
     }
     Some(leaves)
+}
+
+fn admits_zero(bounds: BoundedIntegerType) -> bool {
+    bounds.contains(match bounds.integer_type().sign() {
+        IntegerSign::Signed => IntegerValue::Signed(0),
+        IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+    })
 }
 
 #[cfg(test)]
@@ -228,6 +253,79 @@ mod tests {
 
     fn signed_tag() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    }
+
+    #[test]
+    fn bounded_integer_fields_require_zero_in_the_declared_interval() {
+        for (sign, minimum, maximum, accepted) in [
+            (
+                IntegerSign::Signed,
+                IntegerValue::Signed(-3),
+                IntegerValue::Signed(0),
+                true,
+            ),
+            (
+                IntegerSign::Signed,
+                IntegerValue::Signed(0),
+                IntegerValue::Signed(0),
+                true,
+            ),
+            (
+                IntegerSign::Signed,
+                IntegerValue::Signed(-3),
+                IntegerValue::Signed(-1),
+                false,
+            ),
+            (
+                IntegerSign::Signed,
+                IntegerValue::Signed(1),
+                IntegerValue::Signed(3),
+                false,
+            ),
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(0),
+                IntegerValue::Unsigned(u64::MAX as u128),
+                true,
+            ),
+            (
+                IntegerSign::Unsigned,
+                IntegerValue::Unsigned(1),
+                IntegerValue::Unsigned(u64::MAX as u128),
+                false,
+            ),
+        ] {
+            let integer = IntegerType::new(sign, 64).unwrap();
+            let bounded = field(
+                3,
+                StructuralFieldType::BoundedInteger(
+                    BoundedIntegerType::new(integer, minimum, maximum).unwrap(),
+                ),
+            );
+            for shape in [
+                StructuralTypeShape::Record {
+                    fields: vec![bounded.clone()],
+                },
+                StructuralTypeShape::Sum {
+                    cases: vec![case(7, vec![bounded.clone()])],
+                },
+            ] {
+                let root = declaration(1, shape);
+                let leaves = zeroed_structural_leaves([&root].into_iter(), root.id);
+                assert_eq!(
+                    leaves.is_some(),
+                    accepted,
+                    "{sign:?} {minimum:?}..={maximum:?}"
+                );
+                if let Some(leaves) = leaves {
+                    assert!(leaves.contains(&ZeroedStructuralLeaf::RecordField {
+                        path: vec![],
+                        field: bounded.id,
+                        scalar_type: ScalarType::Integer(integer),
+                    }));
+                }
+            }
+        }
     }
 
     #[test]

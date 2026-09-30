@@ -74,6 +74,15 @@ pub(super) fn check_call_access_conflicts<'p>(
 
     for (index, access) in accesses.iter().enumerate() {
         for (other_index, other_access) in accesses.iter().enumerate().skip(index + 1) {
+            // A copied read or completed nested-call loan no longer observes
+            // its source when the later access begins. Earlier retained loans
+            // and the active local loans below still constrain that access.
+            if access
+                .end_before_access
+                .is_some_and(|end| end <= other_index)
+            {
+                continue;
+            }
             if recording.non_interfering(
                 program,
                 argument_operand(&facts.borrow, index, access),

@@ -209,7 +209,7 @@ fn owned_computation_rejects_synchronized_access_roster_tampering() {
         })
         .unwrap()
         .0;
-    for mutation in 0..4 {
+    for mutation in 0..6 {
         let mut flow = checked.facts.flow.clone();
         let mut borrow = checked.facts.borrow.clone();
         let mut rows = borrow
@@ -224,7 +224,9 @@ fn owned_computation_rejects_synchronized_access_roster_tampering() {
             }
             1 => rows.reverse(),
             2 => rows[1].root_symbol = rows[0].root_symbol,
-            _ => rows[1].kind = checked_trees::BorrowAccessKind::Mutable,
+            3 => rows[1].kind = checked_trees::BorrowAccessKind::Mutable,
+            4 => rows[1].end_before_access = Some(0),
+            _ => rows[1].end_before_access = Some(usize::MAX),
         }
         let accesses = borrow.argument_accesses.insert_many(rows);
         borrow.calls.get_mut(borrow_call).accesses = accesses;

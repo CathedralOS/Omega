@@ -19,7 +19,7 @@ machine inc(x: i32) -> i32
     (x + 1) + 1
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(context: &mut Main) reaches Console {
     let result: i32 = inc(40);
-    self.console.exit_process(result);
+    context.console.exit_process(result);
 }

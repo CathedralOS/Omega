@@ -662,6 +662,7 @@ pub(super) fn mutable_availability(
     if universe.is_empty() {
         return BTreeMap::new();
     }
+    let record_aliases = mutable_records::aliases(module, machine);
     let initial = machine
         .structural_parameters
         .iter()
@@ -672,28 +673,48 @@ pub(super) fn mutable_availability(
         .blocks
         .iter()
         .flat_map(|block| {
-            let successors: Vec<(BlockId, &[StructuralArgument])> = match &block.terminator {
-                Terminator::Jump {
-                    target,
-                    structural_arguments,
-                    ..
-                } => vec![(*target, structural_arguments)],
-                Terminator::Conditional {
-                    when_true,
-                    when_false,
-                    ..
-                } => vec![
-                    (when_true.target, &when_true.structural_arguments),
-                    (when_false.target, &when_false.structural_arguments),
-                ],
-                Terminator::StructuralCase { cases, .. } => {
-                    cases.iter().map(|case| (case.target, &[][..])).collect()
-                }
-                _ => Vec::new(),
-            };
+            let successors: Vec<(BlockId, &[StructuralArgument], Vec<PlaceId>)> =
+                match &block.terminator {
+                    Terminator::Jump {
+                        target,
+                        structural_arguments,
+                        trivial_affine_discards,
+                        residual_affine_discards,
+                        ..
+                    } => vec![(
+                        *target,
+                        structural_arguments,
+                        trivial_affine_discards
+                            .iter()
+                            .copied()
+                            .chain(residual_affine_discards.iter().map(|discard| discard.place))
+                            .collect(),
+                    )],
+                    Terminator::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => vec![
+                        (
+                            when_true.target,
+                            &when_true.structural_arguments,
+                            when_true.trivial_affine_discards.clone(),
+                        ),
+                        (
+                            when_false.target,
+                            &when_false.structural_arguments,
+                            when_false.trivial_affine_discards.clone(),
+                        ),
+                    ],
+                    Terminator::StructuralCase { cases, .. } => cases
+                        .iter()
+                        .map(|case| (case.target, &[][..], case.trivial_affine_discards.clone()))
+                        .collect(),
+                    _ => Vec::new(),
+                };
             successors
                 .into_iter()
-                .map(move |(target, arguments)| (block.id, target, arguments))
+                .map(move |(target, arguments, discards)| (block.id, target, arguments, discards))
         })
         .collect::<Vec<_>>();
     let mut available = machine
@@ -718,7 +739,8 @@ pub(super) fn mutable_availability(
             } else {
                 universe.clone()
             };
-            for (source, _, arguments) in edges.iter().filter(|(_, target, _)| *target == block.id)
+            for (source, _, arguments, discards) in
+                edges.iter().filter(|(_, target, _, _)| *target == block.id)
             {
                 let mut source_available = available[source].clone();
                 source_available.extend(produced_homes[source].iter().copied());
@@ -756,7 +778,7 @@ pub(super) fn mutable_availability(
                             && !transfers
                                 .iter()
                                 .any(|(argument, _)| argument.place == parameter.place)
-                            && !edges.iter().any(|(_, _, arguments)| {
+                            && !edges.iter().any(|(_, _, arguments, _)| {
                                 arguments
                                     .iter()
                                     .any(|argument| argument.place == parameter.place)
@@ -766,6 +788,18 @@ pub(super) fn mutable_availability(
                         }
                     }
                 }
+                // Disposal retires every borrowed name for the home, including
+                // dominating names an arm might otherwise reuse without a new
+                // parameter. A fresh constructor can establish storage again;
+                // an old alias cannot resurrect it at a later join.
+                incoming.retain(|place| {
+                    !discards.iter().any(|discard| {
+                        *place == *discard
+                            || record_aliases.as_ref().is_some_and(|aliases| {
+                                mutable_records::same_storage(aliases, *place, *discard)
+                            })
+                    })
+                });
                 common.retain(|place| incoming.contains(place));
             }
             if available[&block.id] != common {

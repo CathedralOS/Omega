@@ -7,6 +7,7 @@ pub(super) fn append_argument_access(
     accesses: &mut arena::HandleSpan<BorrowArgumentAccessFact>,
     access_place: BorrowAccessPlace,
     kind: BorrowAccessKind,
+    end_before_access: Option<usize>,
 ) {
     argument_accesses.append_to_span(
         accesses,
@@ -14,6 +15,7 @@ pub(super) fn append_argument_access(
             root_symbol: access_place.root_symbol,
             segments: access_segments.insert_many(access_place.segments),
             kind,
+            end_before_access,
         },
     );
 }

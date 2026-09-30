@@ -55,12 +55,79 @@ impl<'a> BorrowAccessCollection<'a> {
         access_place: BorrowAccessPlace,
         kind: BorrowAccessKind,
     ) {
+        self.append_access(access_place, kind, None);
+    }
+
+    pub(super) fn append_read_access(
+        &mut self,
+        access_place: BorrowAccessPlace,
+        expression: ExpressionHandle,
+    ) {
+        let end_before_access = self
+            .is_plain_copy(expression)
+            .then(|| self.access_count() + 1);
+        self.append_access(access_place, BorrowAccessKind::Read, end_before_access);
+    }
+
+    pub(super) fn access_count(&self) -> usize {
+        self.accesses.count() as usize
+    }
+
+    pub(super) fn retain_receiver_accesses(&mut self, first_access: usize) {
+        // A copyable receiver's storage may still back its borrowed result.
+        // Only completion of a plain-copy-returning call ends these accesses.
+        for access in self
+            .argument_accesses
+            .span_mut_or_empty(*self.accesses)
+            .iter_mut()
+            .skip(first_access)
+        {
+            access.end_before_access = None;
+        }
+    }
+
+    pub(super) fn finish_nested_call(&mut self, first_access: usize, expression: ExpressionHandle) {
+        if !self.is_plain_copy(expression) {
+            return;
+        }
+        let end_before_access = self.access_count();
+        for access in self
+            .argument_accesses
+            .span_mut_or_empty(*self.accesses)
+            .iter_mut()
+            .skip(first_access)
+        {
+            access.end_before_access.get_or_insert(end_before_access);
+        }
+    }
+
+    fn is_plain_copy(&self, expression: ExpressionHandle) -> bool {
+        crate::flow::expression_type_reference_in_state(
+            self.program,
+            self.state_symbol,
+            self.statement_index,
+            expression,
+        )
+        .is_some_and(|reference| {
+            validation::has_plain_owned_contents_with_numeric_constraints(self.program, reference)
+                && self.program.type_multiplicity(reference)
+                    == language_semantics::Multiplicity::Unrestricted
+        })
+    }
+
+    fn append_access(
+        &mut self,
+        access_place: BorrowAccessPlace,
+        kind: BorrowAccessKind,
+        end_before_access: Option<usize>,
+    ) {
         append_argument_access(
             self.access_segments,
             self.argument_accesses,
             self.accesses,
             access_place,
             kind,
+            end_before_access,
         );
     }
 }
