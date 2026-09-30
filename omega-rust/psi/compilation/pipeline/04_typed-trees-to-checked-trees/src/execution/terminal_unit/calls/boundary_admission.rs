@@ -83,8 +83,18 @@ pub(crate) fn parameter_binding_receiver_source<'program>(
         statement_index,
         &place,
     )?;
-    (typed_trees::service::exact_bound_service_requirement(program, reference) == Some(requirement)
+    // A `Binding<R>` member projected out of a parameter's record storage is
+    // the migrated service spelling (`filesystem.host.open_create`): the
+    // binding's requirement is exact at the member, and the record's own
+    // attachment carries the provider provenance the Fused receipt carried
+    // for a direct `Binding` parameter. Direct parameter bindings still need
+    // the erasure authorization -- `segments.is_empty()` already excludes
+    // them above.
+    ((typed_trees::service::exact_bound_service_requirement(program, reference)
+        == Some(requirement)
         && program.fused_service_erasure(requirement).is_some())
+        || field_type_carries_requirement(program, reference, requirement)
+        || service_record_member_carries_requirement(program, reference, requirement))
     .then_some((source, place))
 }
 
@@ -291,13 +301,16 @@ pub(crate) fn provider_attachment_receiver_matches(
     else {
         return false;
     };
-    let Some(attached_name) = machine.attached_data.as_ref() else {
+    if !machine.attached_data_symbol.is_valid() {
         return false;
-    };
+    }
+    // The symbol, not the bare name: leaf-keyed attachments collide when two
+    // modules declare same-named records (`left::Runner`/`right::Runner`), and
+    // a name match would route `self.reader` to the sibling leaf's carrier.
     let Some(attached) = program
         .data_definitions()
         .iter()
-        .find(|data| data.name == *attached_name)
+        .find(|data| data.symbol == machine.attached_data_symbol)
     else {
         return false;
     };
@@ -311,30 +324,76 @@ pub(crate) fn provider_attachment_receiver_matches(
         {
             return false;
         }
-        typed_trees::service::exact_bound_service_requirement(program, field.type_reference)
-            == Some(provider_symbol)
-            || {
-                // The provider field is spelled `&'a mut <boundary trait>`:
-                // unwrap the mutable borrow (and qualifications) to the
-                // trait symbol. A shared `&` borrow is not a provider handle.
-                let mut unwrapped = field.type_reference;
-                loop {
-                    match program.type_reference_table.type_reference(unwrapped) {
-                        TypeReferenceNode::Constrained {
-                            base_type: inner, ..
-                        } => unwrapped = *inner,
-                        TypeReferenceNode::Reference {
-                            referee: inner,
-                            access: language_core::ReferenceAccess::Mutable,
-                            ..
-                        } => unwrapped = *inner,
-                        TypeReferenceNode::Named { symbol, .. }
-                        | TypeReferenceNode::DynamicTrait { symbol, .. } => {
-                            break *symbol == provider_symbol;
-                        }
-                        _ => break false,
+        field_type_carries_requirement(program, field.type_reference, provider_symbol)
+            || service_record_member_carries_requirement(
+                program,
+                field.type_reference,
+                provider_symbol,
+            )
+    })
+}
+
+/// Whether `type_reference` presents `provider_symbol` as a direct boundary
+/// carrier: an exact `Binding<requirement>` slot, or the provider field spelled
+/// `&'a mut <boundary trait>` (unwrapping qualifications and the mutable
+/// borrow to the trait symbol; a shared `&` borrow is not a provider handle).
+fn field_type_carries_requirement(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    provider_symbol: SymbolHandle,
+) -> bool {
+    typed_trees::service::exact_bound_service_requirement(program, type_reference)
+        == Some(provider_symbol)
+        || {
+            let mut unwrapped = type_reference;
+            loop {
+                match program.type_reference_table.type_reference(unwrapped) {
+                    TypeReferenceNode::Constrained {
+                        base_type: inner, ..
+                    } => unwrapped = *inner,
+                    TypeReferenceNode::Reference {
+                        referee: inner,
+                        access: language_core::ReferenceAccess::Mutable,
+                        ..
+                    } => unwrapped = *inner,
+                    TypeReferenceNode::Named { symbol, .. }
+                    | TypeReferenceNode::DynamicTrait { symbol, .. } => {
+                        break *symbol == provider_symbol;
                     }
+                    _ => break false,
                 }
             }
+        }
+}
+
+/// The ergonomic service-record spelling: `self.fs` is a `data` record that
+/// holds the raw boundary binding as a member (`host: Binding<FilesystemHost>`)
+/// rather than being the binding itself. The `self.<field>` receiver reaches
+/// the requirement when the field's record type carries it exactly one level
+/// down; deeper nesting stays refused so a named member cannot launder an
+/// indirect boundary path past the attachment rule.
+fn service_record_member_carries_requirement(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    provider_symbol: SymbolHandle,
+) -> bool {
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    let Some(definition) = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.symbol == *symbol)
+    else {
+        return false;
+    };
+    program.data_members(definition).iter().any(|member| {
+        let DataMember::Field(field) = member else {
+            return false;
+        };
+        !field.relevance.is_erased()
+            && field_type_carries_requirement(program, field.type_reference, provider_symbol)
     })
 }
