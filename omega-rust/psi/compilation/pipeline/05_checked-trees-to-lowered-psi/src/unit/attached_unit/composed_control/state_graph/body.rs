@@ -99,7 +99,7 @@ pub(super) fn validate(
                 Some("arm")
             } else if is_loan_marker(checked, machine, state, statement, index) {
                 Some("loan")
-            } else if is_exclusive_loan_marker(checked, machine, source, statement, index) {
+            } else if is_exclusive_loan_marker(checked, machine, state, statement, index) {
                 Some("xloan")
             } else {
                 None
@@ -1017,7 +1017,7 @@ fn named_under_constraints(
 fn is_exclusive_loan_marker(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
     statement: &StatementNode,
     index: usize,
 ) -> bool {
@@ -1038,22 +1038,18 @@ fn is_exclusive_loan_marker(
             borrow.access == language_core::ReferenceAccess::Mutable
         }
         checked_trees::expression::ExpressionNode::Call(_) => {
-            // A call-spelled view opener that registered a structural value
-            // establishes the view in the structural namespace: its binding
-            // plans the `EstablishStructuralValue` the root minted, so it is
-            // not a carrier-only marker. Loan-only openers — the shape this
-            // arm was written for — still plan nothing.
-            if checked
-                .facts
-                .values
-                .structural_values
-                .root_for_expression(
-                    source.symbol,
-                    u32::try_from(index).unwrap_or(u32::MAX),
-                    local.initial_value,
-                )
-                .is_some()
-            {
+            // A call-spelled view opener whose operation claims the binding
+            // establishes the view in the structural namespace: its result
+            // custody the graph already accounts, so it is no carrier-only
+            // marker. Loan-only openers — the shape this arm was written for —
+            // still plan nothing. A call can also register a structural root
+            // for observation without planning an operation, so the test is
+            // the planned result, not the registered root.
+            if state.operations.iter().any(|operation| {
+                operation
+                    .structural_result_binding()
+                    .is_some_and(|result| result.statement_index as usize == index)
+            }) {
                 return false;
             }
             let has_call_row = checked
@@ -1063,8 +1059,8 @@ fn is_exclusive_loan_marker(
                 .states
                 .iter()
                 .map(|(_, state)| state)
-                .find(|state| {
-                    state.machine_symbol == machine && state.state_symbol == source.symbol
+                .find(|candidate| {
+                    candidate.machine_symbol == machine && candidate.state_symbol == state.state
                 })
                 .is_some_and(|state| {
                     checked
@@ -1086,7 +1082,7 @@ fn is_exclusive_loan_marker(
                 .iter()
                 .map(|(_, candidate)| candidate)
                 .find(|candidate| {
-                    candidate.machine_symbol == machine && candidate.state_symbol == source.symbol
+                    candidate.machine_symbol == machine && candidate.state_symbol == state.state
                 })
             else {
                 return false;
