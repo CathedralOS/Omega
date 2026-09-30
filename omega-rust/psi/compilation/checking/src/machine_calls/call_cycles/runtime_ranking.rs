@@ -408,17 +408,17 @@ pub(super) fn project_component(
                             return Err("a call target has no exact machine identity");
                         };
                         if callee == index {
-                            if let Some(retained) = &mut natural {
-                                if !projection::retain_internal_transfer(
+                            if let Some(retained) = &mut natural
+                                && !projection::retain_internal_transfer(
                                     program,
                                     retained,
                                     state.symbol,
                                     target_symbol,
                                     arguments,
                                     statement_ordinal,
-                                ) {
-                                    natural = None;
-                                }
+                                )
+                            {
+                                natural = None;
                             }
                             // An internal state arrival belongs to the
                             // member's own ranking judgment -- the checked

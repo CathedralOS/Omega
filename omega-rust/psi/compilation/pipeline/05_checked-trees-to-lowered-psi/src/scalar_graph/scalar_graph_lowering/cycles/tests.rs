@@ -36,6 +36,96 @@ const MUTUAL_RANK_TRANSPORT: &str = r#"
 "#;
 
 #[test]
+fn named_countdown_header_rejoins_reordered_remainder_endpoint_roles() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        machine walk(remaining: u64, cap: u64, divisor: u64)
+        requires 0 <= remaining && remaining <= 5
+            && 0 <= cap && cap <= 20 && 1 <= divisor && divisor <= 5
+        terminates by remaining in 0..(cap % divisor + 6);
+        -> u64 {
+            transition { _ -> iterate(divisor, cap, remaining) }
+            state iterate(width: u64, limit: u64, pending: u64)
+            requires 1 <= width && width <= 5
+                && 0 <= limit && limit <= 20 && 0 <= pending && pending <= 5 {
+                transition pending > 0 {
+                    true -> iterate(width - 0, limit - 0, pending - 1)
+                    false -> pending
+                }
+            }
+        }
+    "#,
+    );
+    let graph = named_graph(&checked, "walk");
+    let plan = prepare(&checked, graph, &[], &[], &mut 10)
+        .expect("the shared telescope rebinds remaining to the third header formal")
+        .expect("one named-state cycle");
+    assert!(matches!(plan.entry, ScalarLoopEntry::Prologue));
+    assert_eq!(plan.rank.unwrap().rank_scalar_parameter_index, 2);
+    let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("walk"))
+        .expect("reordered invocation-fixed remainder endpoints retain their countdown");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the independently emitted named countdown verifies");
+    for replacement in [0, 1] {
+        let mut forged = graph.clone();
+        let rank = forged.ranked_scc.as_mut().expect("countdown rank");
+        rank.rank_scalar_parameter_index = replacement;
+        for edge in &mut rank.covered_cyclic_edges {
+            let CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
+                scalar_parameter_index,
+                ..
+            } = &mut edge.guard
+            else {
+                panic!("countdown guard")
+            };
+            *scalar_parameter_index = replacement;
+            let CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
+                argument_ordinal,
+                source_scalar_parameter_index,
+                target_scalar_parameter_index,
+                ..
+            } = &mut edge.successor_argument
+            else {
+                panic!("countdown edge")
+            };
+            *argument_ordinal = replacement;
+            *source_scalar_parameter_index = replacement;
+            *target_scalar_parameter_index = replacement;
+        }
+        assert!(
+            prepare(&checked, &forged, &[], &[], &mut 10).is_err(),
+            "an endpoint cannot replace the carried subject even if every plan coordinate agrees"
+        );
+    }
+    let mut malformed = checked.clone();
+    let range = malformed
+        .ranking_expression_custody
+        .iter()
+        .find(|custody| custody.machine == graph.machine)
+        .and_then(|custody| custody.rank_range)
+        .expect("authored remainder range");
+    let ExpressionNode::Range(range) = malformed.expression_table.expression(range) else {
+        panic!("range expression")
+    };
+    let endpoint = range.end;
+    let ExpressionNode::Binary(binary) = malformed.typed.expression_table.expression_mut(endpoint)
+    else {
+        panic!("computed endpoint")
+    };
+    // The metadata renderer still calls this endpoint "value"; exact role
+    // reconstruction must reject its missing child rather than drop the range.
+    binary.left = Default::default();
+    assert!(
+        prepare(&malformed, graph, &[], &[], &mut 10).is_err(),
+        "an unreadable endpoint must not fall back to subject-only custody"
+    );
+}
+
+#[test]
 fn mixed_parallel_runtime_comparisons_do_not_lose_their_call_site_identity() {
     let checked = crate::front_end::checked_program(
         r#"
@@ -781,3 +871,4 @@ fn an_interior_header_keeps_its_owners_authored_ranking_obligation() {
         ))
     ));
 }
+use checked_trees::expression::ExpressionNode;
