@@ -104,14 +104,7 @@ fn validate_expression(
     }
     let mut arguments = Vec::new();
     let parameters = owner_parameters(program, &contract_owner);
-    let static_receiver = call.receiver.is_valid()
-        && matches!(
-            program.expression_table.expression(call.receiver),
-            ExpressionNode::Name(path) if matches!(program.symbols.get(path.symbol).kind,
-                SymbolKind::BuiltinType | SymbolKind::Data | SymbolKind::Domain
-                | SymbolKind::Machine | SymbolKind::Module | SymbolKind::Trait
-                | SymbolKind::ConformanceParameter)
-        );
+    let static_receiver = super::structural_terms::static_call_receiver(program, call);
     if call.receiver.is_valid()
         && !static_receiver
         && parameters
