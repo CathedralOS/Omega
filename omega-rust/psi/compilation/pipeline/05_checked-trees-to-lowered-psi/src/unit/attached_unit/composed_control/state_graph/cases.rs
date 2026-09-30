@@ -87,7 +87,11 @@ fn result_source<'a>(
                     "Unit case source parameter missing",
                 ))?;
             if retained.access != checked_trees::CheckedStructuralAccess::Owned
-                || retained.multiplicity != Multiplicity::Affine
+                || !matches!(
+                    retained.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                )
+                || retained.multiplicity != checked.type_multiplicity(parameter.type_reference)
                 || !retained.qualifications.is_empty()
                 || retained.type_identity != subject.type_identity
             {
@@ -112,7 +116,10 @@ fn result_source<'a>(
             ))?;
             if matching.next().is_some()
                 || result.type_identity != subject.type_identity
-                || result.multiplicity != Multiplicity::Affine
+                || !matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                )
             {
                 return unsupported("Unit case result producer duplicated or drifted");
             }
@@ -123,8 +130,10 @@ fn result_source<'a>(
             else {
                 return unsupported("Unit case result local missing");
             };
-            if local.is_mutable {
-                return unsupported("Unit case local is mutable");
+            if local.is_mutable
+                || result.multiplicity != checked.type_multiplicity(local.type_reference)
+            {
+                return unsupported("Unit case local is mutable or has mismatched multiplicity");
             }
             (
                 local.symbol,
@@ -154,8 +163,10 @@ fn result_source<'a>(
         .ok_or(LoweringError::Unsupported(
             "Unit case subject declaration absent",
         ))?;
-    if checked.type_multiplicity(reference) != Multiplicity::Affine
-        || checked.normalized_type_identity(reference).as_str() != subject.type_identity
+    if !matches!(
+        checked.type_multiplicity(reference),
+        Multiplicity::Affine | Multiplicity::Unrestricted
+    ) || checked.normalized_type_identity(reference).as_str() != subject.type_identity
         || !validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, reference)
         || checked
             .data_members(declaration)
@@ -171,7 +182,7 @@ fn result_source<'a>(
                 DataMember::Field(_) => true,
             })
     {
-        return unsupported("Unit case lacks exact plain affine sum custody");
+        return unsupported("Unit case lacks exact plain non-linear sum custody");
     }
     Ok((symbol, declaration, provenance))
 }
@@ -277,7 +288,7 @@ pub(super) fn validate_markers(
     };
     // A marker establishes available fields, not mandatory transfers. Plain
     // primitive payloads may remain unused; result_source checks that restriction
-    // independently, and validate retains the whole subject's affine disposal.
+    // independently, and validate retains any affine disposal obligation.
     // Every actual transfer still needs its exact authored destructure below.
     if cases.iter().any(|case| {
         case.payloads.iter().any(|payload| {
@@ -308,6 +319,7 @@ pub(super) fn validate(
     if state.structural_parameters.iter().enumerate().any(|(index, parameter)| {
         !(matches!(subject.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } if parameter_index as usize == index)) && (parameter.multiplicity != Multiplicity::Unrestricted || !matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
     }) { return unsupported("Unit case has unrelated owned parameter cleanup"); }
+    let needs_discard = declaration.properties.multiplicity == Multiplicity::Affine;
     let mut has_result_discard = false;
     super::result_custody::validate_disposition_roster(checked, plan.machine, source, state)?;
     for (_, event) in checked
@@ -333,7 +345,8 @@ pub(super) fn validate(
             }
             continue;
         }
-        if event.access != language_semantics::PermissionAccess::Owned
+        if !needs_discard
+            || event.access != language_semantics::PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
             || event.claim_identity != language_semantics::PermissionClaimIdentity::Unknown
             || event.provenance != expected_provenance
@@ -345,8 +358,8 @@ pub(super) fn validate(
         }
         has_result_discard = true;
     }
-    if !has_result_discard {
-        return unsupported("Unit case result has no source affine exit custody");
+    if has_result_discard != needs_discard {
+        return unsupported("Unit case result disposal disagrees with its source multiplicity");
     }
     let declared = checked.data_members(declaration);
     if cases.is_empty()

@@ -20,6 +20,7 @@ pub(super) struct PreparedCase<'a> {
 
 pub(super) struct PreparedCases<'a> {
     pub source: PlaceId,
+    pub discard_subject: bool,
     pub cases: Vec<PreparedCase<'a>>,
 }
 
@@ -51,7 +52,7 @@ pub(super) fn prepare<'a>(
         }
         _ => None,
     };
-    let (place, structural_type) = match subject.source {
+    let (place, structural_type, multiplicity) = match subject.source {
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
             let parameter =
                 parameters
@@ -60,18 +61,29 @@ pub(super) fn prepare<'a>(
                         "Unit graph case parameter missing",
                     ))?;
             if parameter.access != StructuralAccess::Owned
-                || parameter.multiplicity != StructuralMultiplicity::Affine
+                || !matches!(
+                    parameter.multiplicity,
+                    StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                )
                 || !parameter.qualifications.is_empty()
             {
                 return unsupported("Unit graph case parameter custody drifted");
             }
-            (parameter.place, parameter.structural_type)
+            (
+                parameter.place,
+                parameter.structural_type,
+                parameter.multiplicity,
+            )
         }
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
             binding_ordinal,
         } => {
             let produced = result(state, binding_ordinal, operations)?;
-            (produced.place(), produced.structural_type())
+            (
+                produced.place(),
+                produced.structural_type(),
+                produced.multiplicity(),
+            )
         }
         _ => return unsupported("Unit graph case subject source unsupported"),
     };
@@ -195,6 +207,7 @@ pub(super) fn prepare<'a>(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     Ok(Some(PreparedCases {
         source: place,
+        discard_subject: multiplicity == StructuralMultiplicity::Affine,
         cases,
     }))
 }
@@ -246,8 +259,16 @@ pub(in crate::unit::attached_unit) fn result<'a>(
     let OperationResult::Structural(produced) = &operation.result else {
         return unsupported("Unit graph call lost structural result");
     };
-    if produced.multiplicity != StructuralMultiplicity::Affine
-        || !produced.qualifications.is_empty()
+    if !matches!(
+        (produced.multiplicity, binding.multiplicity),
+        (
+            StructuralMultiplicity::Affine,
+            language_semantics::Multiplicity::Affine
+        ) | (
+            StructuralMultiplicity::Unrestricted,
+            language_semantics::Multiplicity::Unrestricted
+        )
+    ) || !produced.qualifications.is_empty()
         || !produced.projected_qualifications.is_empty()
         || !produced.claims.is_empty()
     {

@@ -239,6 +239,36 @@ fn qualified_static_binding_context_returns_a_record() {
 }
 
 #[test]
+fn explicit_context_and_case_payload_cross_state_transition() {
+    let checked = checked_binding_context(
+        "pub data ReadingResult [copy] { case Empty; case Value(total: u64); }
+         pub boundary trait Host {
+             machine read() -> ReadingResult;
+             machine write(total: u64);
+         }
+         pub data Context { host: Binding<Host>; }
+         machine run(context: &mut Context) reaches Host {
+             let result: ReadingResult = context.host.read();
+             transition result {
+                 ReadingResult::Value { total } -> report(context, total)
+                 ReadingResult::Empty -> report(context, 0)
+             }
+             state report(context: &mut Context, total: u64) {
+                 context.host.write(total);
+             }
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("explicit context and payload are ordinary state arguments");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("case payload transfer is independently verified");
+}
+
+#[test]
 fn explicit_binding_context_preserves_boundary_source_custody() {
     for projection in ["clock.host", "context.clock.host"] {
         let parameter = if projection.starts_with("context") {

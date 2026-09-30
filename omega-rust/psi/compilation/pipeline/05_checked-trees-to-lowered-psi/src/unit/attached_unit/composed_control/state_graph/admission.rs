@@ -1001,14 +1001,15 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         }
         // Domain requirements on borrowed inputs lower into the emitted
         // boundary's `requires` rows; qualified affine results mint their
-        // caller-side establishments at emission. A scalar result owns no
-        // custody: it binds the state's next scalar value.
+        // caller-side establishments at emission. Copyable structural results
+        // retain their value without acquiring an affine disposal obligation.
+        // A scalar result binds the state's next scalar value.
         if !(boundary.result.is_unit()
             || matches!(
                 &boundary.result,
                 CheckedBoundaryMachineResultPlan::Scalar(_)
                     | CheckedBoundaryMachineResultPlan::Structural {
-                        multiplicity: Multiplicity::Affine,
+                        multiplicity: Multiplicity::Affine | Multiplicity::Unrestricted,
                         ..
                     }
             ))
