@@ -237,6 +237,16 @@ pub(super) fn validate_borrowed_argument(
     let window = byte_view
         .map(|(offset, _)| offset)
         .or(element_view.map(|(offset, _, _)| offset));
+    // Descriptor geometry follows the exact destination declaration, not
+    // whether its backing arrived as a parameter, local, or control-flow join.
+    let destination_carrier = crate::structural_inputs::structural_reference_input::shape(
+        target.structural_type,
+        &signature.structural_types,
+    )?;
+    let destination_shape = ValueShape::borrowed_reference(
+        destination_carrier.byte_size,
+        destination_carrier.alignment,
+    );
     let shape = if let Some((_, joined)) = address_join {
         if !matches!(
             semantic.access,
@@ -255,7 +265,7 @@ pub(super) fn validate_borrowed_argument(
             {
                 return None;
             }
-            ValueShape::borrowed_reference(16, 8)
+            destination_shape
         } else {
             let (selected, offset, elements) =
                 crate::structural_inputs::structural_reference_input::runtime_projection(
@@ -286,7 +296,7 @@ pub(super) fn validate_borrowed_argument(
         if offset != target.source_byte_offset {
             return None;
         }
-        ValueShape::borrowed_reference(16, 8)
+        destination_shape
     } else if let Some((offset, capacity)) = byte_owner {
         if offset != target.source_byte_offset {
             return None;
@@ -296,12 +306,12 @@ pub(super) fn validate_borrowed_argument(
         if offset != target.source_byte_offset {
             return None;
         }
-        ValueShape::borrowed_reference(16, 8)
+        destination_shape
     } else if let Some((offset, _, _)) = element_view {
         if offset != target.source_byte_offset {
             return None;
         }
-        ValueShape::borrowed_reference(16, 8)
+        destination_shape
     } else if let Some((_, result, _, referent)) = local {
         if target.structural_type != result.structural_type
             || target.root_structural_type != result.structural_type
@@ -322,7 +332,7 @@ pub(super) fn validate_borrowed_argument(
     {
         exclusive_projection_shape(source, semantic, target)?
     } else {
-        ValueShape::borrowed_reference(16, 8)
+        destination_shape
     };
     let expected = evaluate_call_plan(
         source.call_plan.policy,

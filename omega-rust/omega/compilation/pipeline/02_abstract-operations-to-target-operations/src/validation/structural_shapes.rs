@@ -761,6 +761,11 @@ fn shape(
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => ValueShape::integer(16, 8),
+        // The declaration supplies the fixed extent; only its backing pointer
+        // occupies descriptor storage. Reconstruct this without producer rows.
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => {
+            ValueShape::integer(8, 8)
+        }
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
             let bytes = capacity.checked_add(8).ok_or(InvalidStructuralShape)?;
             ValueShape::integer(u32::try_from(bytes).map_err(|_| InvalidStructuralShape)?, 8)

@@ -159,20 +159,9 @@ pub(crate) fn structural_shape(
             StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
                 IeeeFloatFormat::Binary64,
             )) => Ok(ValueShape::float(8)),
-            StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-            ) => byte_sequence_shape(
-                terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                },
-                structural_type,
-            ),
-            StructuralTypeShape::ByteSequence(
-                carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-            ) => byte_sequence_shape(*carrier, structural_type),
-            StructuralTypeShape::ByteSequence(_) => Err(
-                LoweringError::UnsupportedStructuralByteSequence(structural_type),
-            ),
+            StructuralTypeShape::ByteSequence(carrier) => {
+                byte_sequence_shape(*carrier, structural_type)
+            }
             // A borrowed element view is a base+extent descriptor, the same
             // two-word carrier as `ByteSequence::BorrowedView`.
             StructuralTypeShape::ElementView { .. } => Ok(ValueShape::integer(16, 8)),

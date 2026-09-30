@@ -92,7 +92,12 @@ pub(super) fn argument(
             if *psi_operation == producer && actual == result)
     })
     .ok_or(LegalizationError::custody())?;
-    let shape = ValueShape::borrowed_reference(16, 8);
+    let carrier = crate::structural_inputs::structural_reference_input::shape(
+        destination.structural_type,
+        types,
+    )
+    .ok_or(LegalizationError::custody())?;
+    let shape = ValueShape::borrowed_reference(carrier.byte_size, carrier.alignment);
     let placement = call
         .parameters
         .get(parameter_ordinal)
