@@ -238,6 +238,7 @@ pub(crate) fn term_mentions_variable(term: &StructuralTerm, variable: &String) -
             .any(|argument| term_mentions_variable(argument, variable)),
         StructuralTerm::Opaque(_)
         | StructuralTerm::Integer(_)
+        | StructuralTerm::Float(_)
         | StructuralTerm::BoundValue(_)
         | StructuralTerm::BoundProjection { .. } => false,
     }
@@ -346,6 +347,7 @@ pub(crate) fn display_structural_term(term: &StructuralTerm) -> String {
             format!("<completed value {subject:?}>.{path}")
         }
         StructuralTerm::Integer(value) => value.to_string(),
+        StructuralTerm::Float(value) => value.text().to_owned(),
         StructuralTerm::Constructor { data, case, fields } => {
             if fields.is_empty() {
                 format!("{data}::{case}")

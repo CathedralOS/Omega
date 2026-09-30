@@ -1,0 +1,16 @@
+// A float literal closes to a determinate term just as an integer literal
+// does: `1.5` under `d > 5.0` instantiates to `1.5 > 5.0` — structurally
+// false, not merely unproven. The decimal spelling is compared by value at
+// binary64 (f32 spellings widen losslessly), and only non-NaN terms decide.
+use omega::language::std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::pick(d: f64) -> f64
+    requires d > 5.0;
+{
+    d
+}
+machine Main::main(main: &mut Main) {
+    let result: f64 = Main::pick(1.5);
+    main.console.exit_process(0);
+}

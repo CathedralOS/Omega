@@ -34,6 +34,11 @@ pub(super) enum StructuralTerm {
     },
     /// Exact literal value, independent of radix or authored spelling.
     Integer(numerics::bignum::BigInt),
+    /// A determinate float literal, carried as its exact decimal spelling.
+    /// UndeterminedNaN never termifies, so this term is never NaN from
+    /// source text; synthesized spellings are still NaN-checked where the
+    /// value is read.
+    Float(numerics::literals::FloatLiteral),
     /// Data name, case name, and complete common/payload fields (sorted by
     /// field name; empty for a fieldless value like `Nat::Zero`). Payload-carrying
     /// terms spell as parenthesized case literals in fact position
@@ -656,6 +661,7 @@ impl<'program> StructuralJudge<'program> {
                 }
                 StructuralTerm::Opaque(_)
                 | StructuralTerm::Integer(_)
+                | StructuralTerm::Float(_)
                 | StructuralTerm::BoundValue(_)
                 | StructuralTerm::BoundProjection { .. } => return term,
             }
@@ -1269,6 +1275,7 @@ impl<'program> StructuralJudge<'program> {
                         })
                     }
                     StructuralTerm::Integer(_)
+                    | StructuralTerm::Float(_)
                     | StructuralTerm::Projection { .. }
                     | StructuralTerm::ScalarBinary { .. }
                     | StructuralTerm::Application { .. }
@@ -1287,6 +1294,7 @@ impl<'program> StructuralJudge<'program> {
                 })
             }
             ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
+            ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::ZeroValue(type_reference) => {
                 super::structural_terms::zero_value_structural_term(program, *type_reference)
             }
@@ -1384,6 +1392,7 @@ impl<'program> StructuralJudge<'program> {
     ) -> StructuralTerm {
         match term {
             StructuralTerm::Integer(_)
+            | StructuralTerm::Float(_)
             | StructuralTerm::BoundValue(_)
             | StructuralTerm::BoundProjection { .. } => term.clone(),
             StructuralTerm::Projection { subject, path } => StructuralTerm::Projection {
@@ -1479,6 +1488,7 @@ impl<'program> StructuralJudge<'program> {
                             StructuralTerm::Opaque(format!("{root}.{suffix}"))
                         }
                         StructuralTerm::Integer(_)
+                        | StructuralTerm::Float(_)
                         | StructuralTerm::Application { .. }
                         | StructuralTerm::CallProjection { .. }
                         | StructuralTerm::ScalarBinary { .. }
@@ -1895,7 +1905,9 @@ impl<'program> StructuralJudge<'program> {
                         .collect::<Option<Vec<_>>>()?,
                 })
             }
-            StructuralTerm::Integer(_) | StructuralTerm::BoundValue(_) => Some(term),
+            StructuralTerm::Integer(_)
+            | StructuralTerm::Float(_)
+            | StructuralTerm::BoundValue(_) => Some(term),
             StructuralTerm::Application { .. }
             | StructuralTerm::CallProjection { .. }
             | StructuralTerm::BoundProjection { .. }
@@ -1930,6 +1942,21 @@ impl<'program> StructuralJudge<'program> {
             (StructuralTerm::Integer(_), StructuralTerm::Integer(_))
         ) {
             return StructuralJudgment::Refuted;
+        }
+        // Two float literals compare on VALUE, not spelling: the text equality
+        // above already proved identical spellings; here `0.0` and `0.00` are
+        // the same binary64 number and `0.0`/`1.5` are not. A NaN reading
+        // declines rather than decide IEEE's false-equality.
+        if let (StructuralTerm::Float(left), StructuralTerm::Float(right)) = (&left, &right) {
+            let (left, right) = (left.value_f64(), right.value_f64());
+            if left.is_nan() || right.is_nan() {
+                return StructuralJudgment::Unknown;
+            }
+            return if left == right {
+                StructuralJudgment::Proven
+            } else {
+                StructuralJudgment::Refuted
+            };
         }
         let (
             StructuralTerm::Constructor {
