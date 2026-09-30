@@ -122,6 +122,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::TrappingInteger { form } => crate::trapping_family_tag(form),
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
+        SelectedInstructionKind::FloatResultPolicy { form } => form.machine_tag(),
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -335,6 +336,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             bytes.push(form.machine_payload())
         }
+        SelectedInstructionKind::FloatResultPolicy { form } => bytes.push(form.machine_payload()),
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseOrI64
@@ -673,6 +675,69 @@ mod tests {
         SelectedInstructionProvenance,
     };
     use register_model::RegisterConstraintKey;
+
+    #[test]
+    fn float_result_policy_plan_identity_binds_format_rule_operands_and_operation() {
+        use crate::{FloatResultPolicyForm, SelectedOperand, VirtualRegisterId};
+        use register_model::{RegisterClassId, RegisterOperandAccess};
+        use semantic_vocabulary::{OperationId, ValueId};
+        let encode = |instruction: &SelectedInstruction| {
+            let mut bytes = Vec::new();
+            encode_instruction(&mut bytes, instruction);
+            bytes
+        };
+        let mut form_identities = Vec::new();
+        for form in FloatResultPolicyForm::ALL {
+            let input_count = form.operand_count();
+            let instruction = SelectedInstruction {
+                id: SelectedInstructionId(7),
+                kind: SelectedInstructionKind::FloatResultPolicy { form },
+                constraint: RegisterConstraintKey {
+                    family: register_model::RegisterConstraintFamily::Instruction,
+                    variant: 7,
+                },
+                operands: (0..=input_count)
+                    .map(|position| SelectedOperand {
+                        operand: position as u16,
+                        virtual_register: VirtualRegisterId(position as u32 + 1),
+                        access: if position < input_count {
+                            RegisterOperandAccess::Use
+                        } else {
+                            RegisterOperandAccess::Def
+                        },
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    })
+                    .collect(),
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: SelectedInstructionProvenance {
+                    operations: vec![OperationId::new(2).unwrap()],
+                    values: (0..=input_count)
+                        .map(|position| ValueId::new(position as u64 + 1).unwrap())
+                        .collect(),
+                    ..Default::default()
+                },
+            };
+            let expected = encode(&instruction);
+            form_identities.push(expected.clone());
+            for mutation in 0..3 {
+                let mut changed = instruction.clone();
+                match mutation {
+                    0 => changed.operands.swap(0, input_count),
+                    1 => changed.provenance.values.swap(0, input_count),
+                    _ => changed.provenance.operations[0] = OperationId::new(3).unwrap(),
+                }
+                assert_ne!(encode(&changed), expected, "{form:?}, mutation {mutation}");
+            }
+        }
+        form_identities.sort();
+        form_identities.dedup();
+        assert_eq!(form_identities.len(), FloatResultPolicyForm::COUNT);
+    }
 
     #[test]
     fn arithmetic_and_compare_instruction_identity_discriminants_are_distinct() {

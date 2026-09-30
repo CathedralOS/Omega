@@ -7,6 +7,10 @@
 //! feeds physical plans, whose envelope must fence this vocabulary separately.
 //! Outgoing frame tag 0 retains its exact argument bytes; tag 3 adds value copies.
 //! Earlier readers reject tag 3, so this extension does not reinterpret old data.
+//! Version 29 adds the closed FloatResultPolicy family at tag 231. Current-only
+//! framing rejects older envelopes even when their rows need no new tag. The
+//! content identity domain stays unchanged because existing row bytes retain
+//! their denotation; the envelope version is not part of that content.
 
 use optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
 
@@ -58,4 +62,4 @@ use values::{decode_constraint_key, decode_ids, decode_machine, decode_obligatio
 pub use values::{decode_target, decode_units};
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 28;
+const VERSION: u32 = 29;

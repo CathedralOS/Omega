@@ -32,6 +32,10 @@ pub enum SelectedInstructionKind {
     NearestIeeeFloatArithmetic {
         form: super::IeeeFloatArithmeticForm,
     },
+    /// Post-call adapter: raw result, or left/right/raw result, then output.
+    FloatResultPolicy {
+        form: super::FloatResultPolicyForm,
+    },
     /// Unconditional trap realizing the exact semantic Crash terminator.
     Crash,
     /// Copy exactly count bytes between disjoint valid ranges. Inputs 0/1/2

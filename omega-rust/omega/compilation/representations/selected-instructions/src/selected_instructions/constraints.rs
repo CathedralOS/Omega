@@ -61,6 +61,12 @@ pub struct SelectedConstraintKeys {
     /// control state such as x86-64 RFLAGS.
     pub ieee_float_conversion_control: Option<RegisterConstraintKey>,
     pub ieee_float_ternary: Option<RegisterConstraintKey>,
+    /// Completed raw IEEE result followed by its result definition. Target
+    /// predicates declare their actual scratch and control clobbers separately.
+    pub float_result_trapping: Option<RegisterConstraintKey>,
+    /// Original left, right, and completed raw IEEE result, then the output.
+    /// No arithmetic is repeated and no floating-control read is implied.
+    pub float_result_saturating: Option<RegisterConstraintKey>,
     pub add_i64: RegisterConstraintKey,
     pub subtract_i64: RegisterConstraintKey,
     pub multiply_i64: RegisterConstraintKey,

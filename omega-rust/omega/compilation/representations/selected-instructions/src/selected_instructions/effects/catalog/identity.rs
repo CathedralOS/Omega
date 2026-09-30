@@ -38,7 +38,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v29\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v30\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -66,6 +66,8 @@ pub fn machine_effect_catalog_identity(
         catalog.selected_keys.bits_to_float64,
         catalog.selected_keys.save_floating_control,
         catalog.selected_keys.restore_floating_control,
+        catalog.selected_keys.float_result_trapping,
+        catalog.selected_keys.float_result_saturating,
     ] {
         bytes.push(u8::from(key.is_some()));
     }
@@ -527,6 +529,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         MachineSemanticKind::TrappingInteger(form) => trapping_family_tag(form),
         MachineSemanticKind::AtomicAccess(form) => form.machine_tag(),
         MachineSemanticKind::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
+        MachineSemanticKind::FloatResultPolicy(form) => form.machine_tag(),
     }
 }
 
@@ -535,6 +538,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
 pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u8> {
     match kind {
         MachineSemanticKind::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
+        MachineSemanticKind::FloatResultPolicy(form) => Some(form.machine_payload()),
         _ => None,
     }
 }
@@ -544,6 +548,7 @@ pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u
 pub(crate) const fn alternative_family_payload(family: MachineAlternativeFamily) -> Option<u8> {
     match family {
         MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
+        MachineAlternativeFamily::FloatResultPolicy(form) => Some(form.machine_payload()),
         _ => None,
     }
 }
@@ -658,6 +663,7 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
         MachineAlternativeFamily::TrappingInteger(form) => trapping_family_tag(form),
         MachineAlternativeFamily::AtomicAccess(form) => form.machine_tag(),
         MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
+        MachineAlternativeFamily::FloatResultPolicy(form) => form.machine_tag(),
     }
 }
 

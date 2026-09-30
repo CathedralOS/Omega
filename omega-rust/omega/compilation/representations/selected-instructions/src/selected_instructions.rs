@@ -17,8 +17,10 @@
 
 mod atomic;
 pub mod calls;
+mod float_result_policy;
 mod ieee_float_arithmetic;
 pub use atomic::{AtomicForm, AtomicOperation, AtomicWidth};
+pub use float_result_policy::{FloatResultPolicyForm, FloatResultPolicyKind, FloatSaturationRule};
 pub use ieee_float_arithmetic::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
     IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,

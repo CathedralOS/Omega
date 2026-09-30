@@ -48,7 +48,7 @@ pub use selected_instructions::{
     trapping_family_tag, validate_machine_effect_catalog, values,
 };
 pub use selected_instructions::{
-    AtomicForm, AtomicOperation, AtomicWidth, IeeeFloatArithmeticForm,
-    IeeeFloatArithmeticOperation, IeeeFloatFormat, IeeeFloatIntegerCarrier,
-    IeeeFloatToIntegerDomain,
+    AtomicForm, AtomicOperation, AtomicWidth, FloatResultPolicyForm, FloatResultPolicyKind,
+    FloatSaturationRule, IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
+    IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
 };
