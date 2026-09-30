@@ -1,42 +1,101 @@
-// A value (machine) call cannot be a transition argument, at any type. Binding
-// it to a local first and passing that checks. Reduced from
-// `samples/cli/systems/vending_machine`, whose own spelling is
-// `transition self.a == 35 { true -> report(self.make_change(100, 55), 17) ... }`
-// and whose header calls the line "value calls as transition arguments".
+// Value calls as internal transition arguments, observed through the
+// delivered values and through an effect that depends on call order.
+// Reduced from `samples/cli/systems/vending_machine`, whose spelling is
+// `transition self.a == 35 { true -> report(self.make_change(100, 55), 17) }`.
 //
-//   transition { _ -> handle(amount()) }        OMITTED (this fixture)
-//   transition true { true -> handle(amount()) } OMITTED
-//   let t: i32 = amount(); handle(t)            checks
-//   handle(self.n + 1)   (arithmetic, no call)       checks
-//
-// at `state graph: terminator: jump successor: scalar arguments`. The callee
-// here returns `i32` and the parameter is `i32`, so this is NOT the composite
-// gap pinned at
-// `tests/omega/pending/control_flow/composite_state_parameter`: a scalar value
-// call omits on its own. `vending_machine` happens to hit both at once, since
-// its `report` also takes a `Change`.
-//
-// SAME FAMILY as `tests/omega/pending/calls/value_call_subexpression`: there a
-// value call omits whenever it is not the ROOT of the expression its site
-// lowers. A transition argument is one more position where a call is not the
-// root, and it declines at its own phase. Expect one answer for both; the
-// local-binding workaround is identical.
+// `amount()` is a free machine whose own state graph returns 1 (its range
+// contract admits the `+ 1` below): the direct
+// argument delivers it to `handle`, a local-binding control delivers the same
+// value, and an arithmetic control delivers `amount() + 1`. `record` appends
+// its digit to `trace` (trace * 10 + digit) and returns the digit, so two
+// calls in one argument list deliver 1 and 2 to their own parameters and
+// leave `trace` at 12 only when they run left to right; right to left would
+// leave 21. A later argument's effect must not reach an earlier argument
+// that already read the same storage: `snapshot(self.trace, self.record(3))`
+// delivers 12 then 3 and leaves `trace` at 123. Exit 70 means every value
+// arrived in order.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
+    trace: u32 in Wrapping;
 }
 
-machine amount() -> i32 {
+machine amount() -> i32
+ensures 0 <= result && result <= 1
+{
     transition { _ -> out() }
     state out() -> i32 { 1 }
 }
 
+machine Main::record(&mut self, digit: u32) -> u32
+requires digit <= 9
+ensures result <= 9
+{
+    self.trace = self.trace * 10 + (digit as u32 in Wrapping);
+    digit
+}
+
 machine Main::main(&mut self) reaches Console {
+    self.trace = 0;
     transition { _ -> handle(amount()) }
 
-    state handle(&mut self, amount: i32) {
-        self.console.exit_process(0);
+    state handle(&mut self, delivered: i32) {
+        transition delivered == 1 {
+            true -> bind_local()
+            false -> bad(71)
+        }
     }
+
+    state bind_local(&mut self) {
+        let bound: i32 = amount();
+        transition { _ -> handle_local(bound) }
+    }
+
+    state handle_local(&mut self, delivered: i32) {
+        transition delivered == 1 {
+            true -> take_arithmetic()
+            false -> bad(72)
+        }
+    }
+
+    state take_arithmetic(&mut self) {
+        transition { _ -> handle_arithmetic(amount() + 1) }
+    }
+
+    state handle_arithmetic(&mut self, delivered: i32) {
+        transition delivered == 2 {
+            true -> take_ordered()
+            false -> bad(73)
+        }
+    }
+
+    state take_ordered(&mut self) {
+        transition true {
+            true -> ordered(self.record(1), self.record(2))
+            false -> bad(74)
+        }
+    }
+
+    state ordered(&mut self, first: u32, second: u32) {
+        transition first == 1 && second == 2 && self.trace == 12 {
+            true -> take_snapshot()
+            false -> bad(75)
+        }
+    }
+
+    state take_snapshot(&mut self) {
+        transition { _ -> snapshot(self.trace, self.record(3)) }
+    }
+
+    state snapshot(&mut self, before: u32 in Wrapping, digit: u32) {
+        transition before == 12 && digit == 3 && self.trace == 123 {
+            true -> good()
+            false -> bad(76)
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
 }

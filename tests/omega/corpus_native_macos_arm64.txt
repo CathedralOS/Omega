@@ -147,7 +147,7 @@ pass/calls/value_call_as_host_arg_exit built 1832ms exit:70 @fb2178def922
 pass/calls/value_call_element_view_arg_compile checked 169ms
 pass/calls/value_call_embedded_in_binary_exit built 794ms exit:70 @3da828ba5434+wt
 pass/calls/value_call_param_effect_arm built 652ms exit:1
-pass/calls/value_call_transition_argument built 514ms @5c1d6f8344c7
+pass/calls/value_call_transition_argument built 16255ms exit:70 @f17a009cdd4b+wt
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
 pass/capabilities/acquires_through_helper_return built 301ms
 pass/capabilities/boundary_trait_multiple_effects checked 164ms
