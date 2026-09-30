@@ -5324,18 +5324,21 @@ but report the missing runtime leg explicitly; it does not close that host row.
     they do not establish Darwin coverage or every host boundary. Darwin
     imports/adapters must retain locator receipts, argument choreography
     (including clock identifiers/selectors), result transport and time
-    constants. For `time/runtime_time_elapsed_since_exit`, repair the
-    toolchain-settled path to select ordinary checked provider bodies for the
-    target's constant answers, following
-    [toolchain-selected implementations](wiki/spec/build/provider_selection.md#toolchain-selected-checked-implementations).
-    Author those bodies and satisfaction edges in reviewed toolchain/library
-    packages; retain their exact provenance through selection, package review,
-    and normal lowering. No `ProviderBinding::Constant`, constant side table,
-    or requirement-name folding exception. Verify the selected answers and
-    reject missing, mismatched, and duplicate selections; require the time
-    fixture's authored native result, with syscall marshalling/result transport
-    remaining real dependencies rather than claiming the constant fix completes
-    time support. `ProviderBinding::Import` exists and its receipt must commit
+    constants. macOS TimeHost now uses the ordinary reviewed provider in
+    `source/library/std/targets/macos_arm64/time_host_impl.omg`: checked
+    selectors, calibration and retrying blocking sleep over private libSystem
+    imports, with no constant provider kind or name-folding exemption.
+    Implementation `dfbd9bc4ec99` is verified with `omega run` on
+    `tests/omega/pass/time/runtime_time_elapsed_since_exit/main.omg` and
+    `tests/omega/pass/time/runtime_time_host_native_darwin_exit/main.omg`
+    exits 70 on macOS AArch64; the latter checks all six operations and at
+    least 30 ms of sleep. Remaining host work is Windows/Linux TimeHost
+    coverage and filesystem adapters, including real syscall marshalling and
+    result transport. Follow
+    [toolchain-selected implementations](wiki/spec/build/provider_selection.md#toolchain-selected-checked-implementations),
+    retaining exact package/schema/target/body provenance and rejecting
+    missing, mismatched and duplicate selections. `ProviderBinding::Import`
+    exists and its receipt must commit
     to the exact locator; a syscall table cannot invent import authority.
     Use the ordinary authorized binding route. Current Objective-C fixtures
     already declare public domains and their reached services; remove those
