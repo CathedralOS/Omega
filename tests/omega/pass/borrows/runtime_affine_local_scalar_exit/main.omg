@@ -1,0 +1,27 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Token { value: i32; }
+data Main { console: Binding<Console>; }
+
+machine make() -> Token { Token { value: 42 } }
+machine choose(accepted: bool) -> bool {
+    let token: Token = make();
+    transition accepted {
+        true -> observe(token)
+        false -> (false)
+    }
+    state observe(token: Token) -> bool {
+        let comparison: Token = make();
+        token.value == comparison.value
+    }
+}
+machine Main::main(context: &mut Main) reaches Console {
+    let forwarded: bool = choose(true);
+    let discarded: bool = choose(false);
+    transition forwarded && !discarded {
+        true -> finish(context, 42)
+        false -> finish(context, 1)
+    }
+    state finish(context: &mut Main, code: i32) { context.console.exit_process(code); }
+}

@@ -2,6 +2,82 @@ use super::machine_and_entry_state;
 use crate::tests::front_end::checked_program;
 
 #[test]
+fn scalar_completion_retains_affine_local_cleanup_without_a_transfer() {
+    use language_semantics::{PermissionEventKind, PermissionEventSource};
+    use typed_trees::statement::{StatementNode, TransitionTargetNode};
+
+    let checked = checked_program(
+        r#"
+        data Token { value: i32; }
+        machine make() -> Token { Token { value: 42 } }
+        machine route(accepted: bool) -> bool {
+            let token: Token = make();
+            transition accepted {
+                true -> observe(token)
+                false -> (false)
+            }
+            state observe(token: Token) -> bool { token.value == 42 }
+        }
+        "#,
+    );
+    let (machine, state) = machine_and_entry_state(&checked, "route");
+    let rebuild = |facts: &checked_trees::CheckFacts| {
+        crate::execution::terminal_cleanup::build_checked_structural_control_cleanup_plans(
+            &checked.typed,
+            facts,
+        )
+    };
+    let plans = rebuild(&checked.facts);
+    let plan = plans
+        .for_state(machine, state)
+        .expect("the returning branch retains the local for cleanup");
+    assert_eq!(
+        plan.edges.len(),
+        1,
+        "only the named successor forwards a value"
+    );
+
+    let source = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .unwrap();
+    let returning_statement = checked
+        .statement_table
+        .statements(checked.machine_states(source)[0].statement_nodes)
+        .iter()
+        .position(|statement| {
+            matches!(statement, StatementNode::Transition(transition)
+                if matches!(checked.statement_table.transition_target(transition.target),
+                    TransitionTargetNode::Value(_)))
+        })
+        .expect("scalar completion");
+    let mut forged = checked
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find(|(_, event)| {
+            event.machine_symbol == machine
+                && event.state_symbol == state
+                && event.kind == PermissionEventKind::Transfer
+        })
+        .expect("the named successor transfers the local")
+        .1
+        .clone();
+    forged.source = PermissionEventSource::Statement {
+        statement_index: returning_statement,
+    };
+    let mut changed = checked.facts.clone();
+    changed.flow.ownership.permissions.insert(forged);
+    assert!(
+        rebuild(&changed).for_state(machine, state).is_none(),
+        "a fabricated transfer cannot replace scalar-exit cleanup"
+    );
+}
+
+#[test]
 fn projected_transition_cleanup_fences_shapes_outside_the_first_checked_cohort() {
     let sources = [
         (

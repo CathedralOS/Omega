@@ -871,6 +871,9 @@ pub(super) fn state_exit_result_locals(
     let parameters = program.state_parameters(state);
     let statements = program.statement_table.statements(state.statement_nodes);
     let permissions = &facts.flow.ownership;
+    let scalar_result = program
+        .primitive_type_reference(state.return_type)
+        .is_some();
     let mut results = Vec::new();
     for (_, drop) in permissions.permissions.iter().filter(|(_, event)| {
         event.machine_symbol == machine.symbol
@@ -991,7 +994,11 @@ pub(super) fn state_exit_result_locals(
         let mut transfer_count = 0;
         for (ordinal, statement) in statements.iter().enumerate().skip(statement_index + 1) {
             let StatementNode::Transition(transition) = statement else {
-                if matches!(statement, StatementNode::Expression(expression) if !matches!(program.expression_table.expression(*expression), typed_trees::expression::ExpressionNode::Call(_)))
+                // A scalar tail observes locals but cannot return their
+                // structural ownership. Its disposal is the same as an
+                // explicit scalar transition target below.
+                let scalar_tail = scalar_result && ordinal + 1 == statements.len();
+                if matches!(statement, StatementNode::Expression(expression) if !scalar_tail && !matches!(program.expression_table.expression(*expression), typed_trees::expression::ExpressionNode::Call(_)))
                 {
                     return None;
                 }
@@ -1000,15 +1007,21 @@ pub(super) fn state_exit_result_locals(
             if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
                 return None;
             }
-            // A Unit completion retains the local for ordinary exit disposal;
-            // only named edges may transfer it. Count this as a real exit,
-            // keeping the exact transfer-ledger comparison below: a fabricated
+            // Unit and scalar completions retain this structural local for
+            // ordinary exit disposal; only named edges may transfer it here.
+            // Returning a structural value needs its own custody, not disposal.
+            // Count normal completion as a real exit, keeping the exact
+            // transfer-ledger comparison below: a fabricated
             // move on a returning edge must still reject the complete roster.
-            if matches!(
-                program.statement_table.transition_target(transition.target),
-                TransitionTargetNode::Terminal
-            ) && super::terminal_unit::cleanup_type_is_unit(program, state.return_type)
-            {
+            let normal_completion =
+                match program.statement_table.transition_target(transition.target) {
+                    TransitionTargetNode::Terminal => {
+                        super::terminal_unit::cleanup_type_is_unit(program, state.return_type)
+                    }
+                    TransitionTargetNode::Value(_) => scalar_result,
+                    _ => false,
+                };
+            if normal_completion {
                 edge_count += 1;
                 continue;
             }
@@ -1098,18 +1111,20 @@ pub(super) fn state_exit_result_locals(
                     && event.access == PermissionAccess::Owned
             })
             .count();
-        // A normal Unit completion retires the same exact lexical remainder
-        // without transferring it to a successor. Other zero-edge shapes do
-        // not acquire disposal authority from the absence of a transition.
-        let normal_unit_return = matches!(
+        // Unit and scalar body completions retire the exact lexical remainder
+        // without transferring it to a successor. Structural returns do not
+        // acquire disposal authority from the absence of a transition.
+        let normal_body_return = (matches!(
             program
                 .type_reference_table
                 .type_reference(state.return_type),
             typed_trees::types::TypeReferenceNode::Unit
-        ) && !statements
-            .iter()
-            .any(|statement| matches!(statement, StatementNode::Transition(_)));
-        if (edge_count == 0 && !normal_unit_return) || retained_transfers != transfer_count {
+        ) || (scalar_result
+            && matches!(statements.last(), Some(StatementNode::Expression(_)))))
+            && !statements
+                .iter()
+                .any(|statement| matches!(statement, StatementNode::Transition(_)));
+        if (edge_count == 0 && !normal_body_return) || retained_transfers != transfer_count {
             return None;
         }
         if permissions.permissions.iter().any(|(_, event)| {

@@ -884,24 +884,27 @@ the complete product bar; focused successes below do not establish that baseline
   The published array-shape repair gets past `Main::main`'s attached data shape
   without application changes. The application command remains `omega run
   --target linux_x86_64 --keep samples/apps/squalr/squalr-tests/main.omg`.
-  The temporary-loan repair on base `90e2c919eb7` gets past
-  `filters.push(&DataTypeRef::new("u8"))` without changing the application:
-  per-operand producer, permission and continuation identities replace the
-  fixed call-count and Unit-result restrictions. On macOS ARM64,
-  `python3 tools/corpus_gate.py --native --interpret --filter
-  borrows/runtime_shared_temporary_call_exit` executes native exit 42;
-  the interpreter declines. Independent rejection controls retain affine
-  move and conflicting-borrow failures. Ordinary callers retain scalar and
-  structural results independently of the dying argument owners; 23 focused
-  tests cover source identity, cleanup substitution, order and escaping loans.
-  The unchanged application command next refuses
+  Temporary call-argument cleanup now composes with ordinary caller results.
+  The unchanged application command on base `0508a5426a27` next refuses
   `SqualrEngine::init`, statement 1, at `statement sequence: assignment:
   structural call result field store`. A diagnostic probe isolates stage 04's
   `control/call_results.rs` result-shape classification: `EnginePrivilegedState`
   nests task slots whose held payload carries `Binding<WaitWake>`. Empty slots
   need no fabricated binding, but transporting the aggregate must preserve
-  routed authority and must not grant plain no-code disposal. Continue that
-  result's custody without rewriting the application. Complete
+  routed authority and must not grant plain no-code disposal. Unpublished
+  routed-result checkpoint `985193505155` gets past this assignment but its
+  isolated native regression exposes a representation dependency:
+  stage 05's `unit/attached_unit/catalog.rs` maps an opaque Binding field to
+  runtime-relevant `Erased`, rejected by Terminal as
+  `InvalidErasedStructuralField`. Preserve this independent rejection; do not
+  fabricate a provider or erase runtime custody. That prototype also exposed
+  scalar-return cleanup in `CommandDriver::verify_requested_page`.
+  The separate scalar-exit repair on base `0508a5426a27` runs
+  `omega run tests/omega/pass/borrows/runtime_affine_local_scalar_exit/main.omg`
+  with native exit 42 on macOS ARM64 after ordinary local package review;
+  the corpus interpreter agrees. Its 37 focused tests preserve exact cleanup
+  and transfer evidence for conditional and direct scalar returns. Continue
+  the routed result's custody without rewriting the application. Complete
   the documented native acceptance on Linux x86-64 after emission succeeds;
   cross-target compilation on macOS does not establish execution.
   Live reads still alias captured-current
