@@ -702,11 +702,12 @@ impl Emission<'_, '_, '_> {
                 }
                 Ok(place)
             }
-            // Terminal Psi has no owned structural-array establishment
-            // operation yet, so a fixed array of owned elements rejects here
-            // instead of losing element custody.
-            CheckedStructuralValueKind::FixedArray { .. } => {
-                unsupported("fixed array literal has no Terminal establishment")
+            CheckedStructuralValueKind::FixedArray { elements } => {
+                let place = self.fixed_array(&elements)?;
+                if let Some(continuation) = continuation {
+                    self.complete_value(place, None, continuation)?;
+                }
+                Ok(place)
             }
             CheckedStructuralValueKind::Call { .. } => {
                 let mut matching = self.operand_calls.iter().filter(|call| call.value == value);
@@ -1014,30 +1015,7 @@ impl Emission<'_, '_, '_> {
                 Ok(place)
             }
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
-                let place = place_id(allocate_dense(self.next_place)?);
-                let operation = self.operations.allocate();
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id: operation,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
-                        place,
-                        structural_type: self.structural_type,
-                        multiplicity: self.multiplicity,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        claims: Vec::new(),
-                    }),
-                    kind: OperationKind::EstablishZeroedStructural {},
-                });
-                self.temporary_places.push(StructuralPlaceDeclaration {
-                    id: place,
-                    kind: StructuralPlaceKind::OperationResult {
-                        producer: operation,
-                        structural_type: self.structural_type,
-                    },
-                });
+                let place = self.establish_zeroed()?;
                 if let Some(continuation) = continuation {
                     self.complete_value(place, None, continuation)?;
                 }
