@@ -2086,7 +2086,12 @@ crash and native exit behavior. Use affected check/native corpus slices under
   their equal Terminal bytes as proof that checking ran once. Cover differing
   runtime providers, agreeing/disagreeing const selections, errors in an
   unrealized body, and a missing required realization row without suppressing
-  the other target's outcome. Independent moves need not wait for full closure.
+  the other target's outcome. Keep the inert-sibling controls
+  `{fail,pass}/targets/single_target_internal_*`, root-local and through
+  `tests/omega/packages/paradigm-internals`: a missing called body rejects only
+  the affected realization, naming caller, callee and target, while a caller
+  scoped to its callee's own unrealized target stays exempt and executes.
+  Independent moves need not wait for full closure.
 
 - **ONE-DRIVER-PER-STAGE.** (new-scope) Close the remainder after the items
   above: `compiler.rs` runs Psi 00–07 once, then Omega 00–09 and emission per
@@ -3904,31 +3909,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   Every ordinary cross-carrier/policy store in maintained pass fixtures and samples
   must spell its required conversion. Complete diagnostic and migration evidence
   without treating checked admission or a later lowering refusal as native success.
-
-- **FILTERED-CALLEE-CALL-SITES.** Finish command-level acceptance for calls
-  whose target-scoped callee is unavailable to a realization.
-  `reject_inert_sibling_callers` in `provider-planning/src/target_machines.rs`
-  indexes machine and entry-state symbols,
-  walks statement and expression calls, and reports the caller, callee and
-  realized target. A caller scoped to the callee's own unrealized target is
-  exempt. Do not add a blanket invalid-symbol rejection or receiver-type lookup;
-  legitimate trait/provider calls can remain unresolved at earlier passes.
-
-  Remaining evidence: `fail/targets/single_target_internal_caller_rejected`
-  covers a value-call initializer and records the expected refusal.
-  `pass/targets/single_target_internal_machine_skipped` declares `demo_target`
-  and never calls its helper; it does not exercise the exemption. The two
-  previously cited target-machine unit tests are gone. Cover an ordinary
-  statement call, the value call, and a same-target caller/callee pair using a
-  real foreign profile and actual Build entries; repeat through a dependency
-  package. Assert diagnostic names and the positive program's execution, not
-  merely the presence of an unused declaration. The old UEFI handoff witness
-  is now an unscoped boundary machine and cannot establish this behavior.
-
-  Keep these controls with **PROVIDER-SELECTION-AFTER-TERMINAL** as selection
-  moves into Omega: every body remains checked and retained, and a missing
-  called body rejects only the affected realization. Retire this item when
-  the executable acceptance is accounted for.
 
 - **MATCH-SELECTIVE-LOWERING.** Complete
   [value dispatch](wiki/spec/language/patterns.md) for owned/borrowed/linear
