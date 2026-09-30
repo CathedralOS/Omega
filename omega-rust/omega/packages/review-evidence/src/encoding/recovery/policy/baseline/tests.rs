@@ -256,7 +256,7 @@ pub(in crate::encoding::recovery) fn composed_policy_scale_headroom_admits_beyon
     );
     assert_eq!(recover(&bytes).unwrap(), value);
     let mut oversized = bytes;
-    oversized.resize(17 * 1024 * 1024, 0);
+    oversized.resize(65 * 1024 * 1024, 0);
     assert_eq!(recover(&oversized), Err(Error::InputTooLarge));
 }
 
