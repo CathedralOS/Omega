@@ -26,9 +26,9 @@ pub use machine_calls::static_machine_call_contracts::{
 };
 pub use machine_calls::structural_call_custody::{
     StateScalarContractRow, reconstruct_structural_call_custody,
-    reconstruct_structural_parameter_return_claims, structural_claim_path,
-    structural_result_projected_qualifications, structural_result_qualifications,
-    structural_state_contract_scalar_predicates,
+    reconstruct_structural_parameter_return_claims, restates_structural_parameter_qualification,
+    structural_claim_path, structural_result_projected_qualifications,
+    structural_result_qualifications, structural_state_contract_scalar_predicates,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,
@@ -181,7 +181,6 @@ pub use proof_contracts::quotients::{
     extract_non_executable_quotient_correspondences_with_termination, validate_quotient_formations,
 };
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
-pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
@@ -190,6 +189,9 @@ pub use value_custody::expression_types::{
 pub use value_custody::expression_types::{
     arithmetic_result_type_reference, expression_result_type_reference,
     join_result_type_references, parameter_expression_result_type_reference,
+};
+pub use value_custody::expression_types::{
+    bounded_byte_buffer_capacity, loaned_bounded_byte_buffer_capacity,
 };
 pub use value_custody::literals::builtin_constant_array_projection_type;
 pub use value_custody::literals::declared_constant_array_type;

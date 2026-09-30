@@ -496,8 +496,9 @@ fn authored_indexed_primitive_read(
     else {
         return Ok(None);
     };
-    // A bounded byte field's element is a bounds-checked byte read whose only
-    // storage read is its selector, not a projected primitive leaf.
+    // A bounded byte field's element, or an element of a loaned bounded owner,
+    // is a bounds-checked byte read whose only storage read is its selector,
+    // not a projected primitive leaf.
     if let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression)
         && validation::declared_place_type_raw(
             &checked.typed,
@@ -505,7 +506,11 @@ fn authored_indexed_primitive_read(
             Some(state),
             indexed.collection,
         )
-        .and_then(|collection| validation::bounded_byte_buffer_capacity(&checked.typed, collection))
+        .and_then(|collection| {
+            validation::bounded_byte_buffer_capacity(&checked.typed, collection).or_else(|| {
+                validation::loaned_bounded_byte_buffer_capacity(&checked.typed, collection)
+            })
+        })
         .is_some()
     {
         return Ok(None);

@@ -961,6 +961,17 @@ pub(super) fn fixed_index_element_type(
 ) -> Option<TypeReferenceHandle> {
     loop {
         match program.type_reference_table.type_reference(reference) {
+            // A domain-qualified fixed byte array is a bounded owner: its live
+            // length, not its capacity, bounds every byte read, so a literal
+            // index selects no static element (wiki/spec/language/domains.md,
+            // "Byte containers and encoding domains"). The read stays a
+            // runtime-indexed byte read against the observed length.
+            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Constrained { .. }
+                if validation::loaned_bounded_byte_buffer_capacity(program, reference)
+                    .is_some() =>
+            {
+                return None;
+            }
             TypeReferenceNode::Reference { referee, .. }
             | TypeReferenceNode::Constrained {
                 base_type: referee, ..
