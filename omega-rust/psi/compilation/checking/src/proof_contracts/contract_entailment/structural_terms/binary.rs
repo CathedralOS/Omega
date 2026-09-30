@@ -7,9 +7,20 @@ use language_core::OperatorSpelling;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+use typed_trees::machine::Machine;
+use typed_trees::state::State;
+use typed_trees::types::TypeReferenceHandle;
 
-pub(crate) fn binary_term(
+/// Forms the congruence term for a selected builtin binary operation, with an
+/// optional declaring `(machine, state)` fallback plus the expression's
+/// expected (landed) result type. Pure literal operands carry no `Name`, so
+/// `expression_scope` cannot anchor a scope walk, and fully anonymous operands
+/// carry no resolvable result reference; callers that already know the
+/// expression's owning state and expected type pass them through instead of
+/// losing the term.
+pub(crate) fn binary_term_in_scope(
     program: &TypedTrees,
+    scope: Option<(&Machine, &State, TypeReferenceHandle)>,
     expression: ExpressionHandle,
     left: StructuralTerm,
     right: StructuralTerm,
@@ -17,32 +28,10 @@ pub(crate) fn binary_term(
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
     };
-    let symbol = expression_scope(program, expression, 0)?;
-    let mut owner = symbol;
-    let mut visited = Vec::new();
-    let (machine, state) = loop {
-        if !owner.is_valid() || visited.contains(&owner) {
-            return None;
-        }
-        visited.push(owner);
-        if let Some(selected) = program.machines().iter().find_map(|machine| {
-            program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == owner)
-                .map(|state| (machine, state))
-        }) {
-            break selected;
-        }
-        if let Some(machine) = program
-            .machines()
-            .iter()
-            .find(|machine| machine.symbol == owner)
-        {
-            break (machine, program.machine_states(machine).first()?);
-        }
-        owner = program.symbols.get(owner).parent;
-    };
+    let (machine, state) = expression_scope(program, expression, 0)
+        .and_then(|symbol| scoped_machine_state(program, symbol))
+        .or_else(|| scope.map(|(machine, state, _)| (machine, state)))?;
+    let expected = scope.map(|(_, _, expected)| expected);
     let references = [binary.left, binary.right]
         .map(|operand| crate::expression_result_type_reference(program, machine, state, operand));
     let spelling = match binary.operator {
@@ -77,15 +66,37 @@ pub(crate) fn binary_term(
     {
         return None;
     }
+    let parent_reference =
+        || crate::expression_result_type_reference(program, machine, state, expression);
     let reference = |index: usize| {
-        references[index].or_else(|| {
-            crate::value_custody::literals::has_anonymous_numeric_results(
-                program,
-                [binary.left, binary.right][index],
-            )
-            .then_some(references[1 - index])
-            .flatten()
-        })
+        references[index]
+            .or_else(|| {
+                crate::value_custody::literals::has_anonymous_numeric_results(
+                    program,
+                    [binary.left, binary.right][index],
+                )
+                .then_some(references[1 - index])
+                .flatten()
+            })
+            .or_else(|| {
+                crate::value_custody::literals::has_anonymous_numeric_results(
+                    program,
+                    [binary.left, binary.right][index],
+                )
+                .then(parent_reference)
+                .flatten()
+            })
+            .or_else(|| {
+                // Fully anonymous operand trees inherit the expression's
+                // expected (landed) type -- the same resolution integer landing
+                // applies when the operation is checked.
+                crate::value_custody::literals::has_anonymous_numeric_results(
+                    program,
+                    [binary.left, binary.right][index],
+                )
+                .then_some(expected)
+                .flatten()
+            })
     };
     let meaning = [reference(0)?, reference(1)?].map(|reference| {
         Some((
@@ -99,6 +110,38 @@ pub(crate) fn binary_term(
         left: Box::new(left),
         right: Box::new(right),
     })
+}
+
+/// Walk an anchored name's symbol upward to its declaring machine and state.
+fn scoped_machine_state<'program>(
+    program: &'program TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<(&'program Machine, &'program State)> {
+    let mut owner = symbol;
+    let mut visited = Vec::new();
+    loop {
+        if !owner.is_valid() || visited.contains(&owner) {
+            return None;
+        }
+        visited.push(owner);
+        if let Some(selected) = program.machines().iter().find_map(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == owner)
+                .map(|state| (machine, state))
+        }) {
+            return Some(selected);
+        }
+        if let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == owner)
+        {
+            return Some((machine, program.machine_states(machine).first()?));
+        }
+        owner = program.symbols.get(owner).parent;
+    }
 }
 
 fn expression_scope(

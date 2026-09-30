@@ -3,7 +3,9 @@
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
-use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
+use crate::proof_contracts::contract_entailment::structural_terms::{
+    structural_term, structural_term_in_scope,
+};
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::domain::ProofFact;
@@ -37,7 +39,8 @@ pub(crate) fn reject_refuted_value_call_requires(
 
     let mut map = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
-        let Some(term) = structural_term(program, *argument) else {
+        let scope = Some((caller_machine, caller_state, parameter.type_reference));
+        let Some(term) = structural_term_in_scope(program, scope, *argument) else {
             return;
         };
         map.push((parameter.name.as_str().to_owned(), term));

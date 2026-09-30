@@ -146,12 +146,17 @@ impl CallRequirement<'_> {
                 &mut site_judge,
             );
         }
+        let caller_state = program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == self.state);
         let parameters = program.state_parameters(self.callee);
         let substitution = parameters
             .iter()
             .zip(self.arguments)
             .map(|(parameter, argument)| {
-                let term = judge.callee_term(*argument, environment, 0)?;
+                let scope = caller_state.map(|state| (machine, state, parameter.type_reference));
+                let term = judge.callee_term_in_scope(scope, *argument, environment, 0)?;
                 Some((parameter.name.as_str().to_owned(), term))
             })
             .collect::<Option<Vec<_>>>();

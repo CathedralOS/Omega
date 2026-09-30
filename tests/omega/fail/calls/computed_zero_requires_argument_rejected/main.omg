@@ -1,0 +1,17 @@
+// A constant argument expression is folded before a callee's `requires` fact
+// is instantiated: `1 - 1` arrives as the integer 0, so `divisor != 0` is
+// structurally false at this call and is rejected like a literal 0 argument.
+// Before argument terms carried a caller scope and expected type, name-free
+// constant operands formed no term at all and this call compiled silently.
+use omega::language::std::console;
+use omega::language::core::binding;
+data Main { console: Binding<Console>; }
+machine Main::scale(value: u64, divisor: u64) -> u64
+    requires divisor != 0;
+{
+    value / divisor
+}
+machine Main::main(main: &mut Main) {
+    let result: u64 = Main::scale(10, 1 - 1);
+    main.console.exit_process(0);
+}
