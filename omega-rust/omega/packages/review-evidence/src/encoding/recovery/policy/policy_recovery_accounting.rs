@@ -70,15 +70,18 @@ impl PackagePolicyRecoveryLimits {
 
 impl Default for PackagePolicyRecoveryLimits {
     fn default() -> Self {
-        // The composed package policy is a per-package product on the same
-        // scale as the canonical review encoding (16 MiB): self-describing
-        // fields carrying full nominal identities, so size grows linearly
-        // with declaration and dependency counts. One sequence field (for
-        // example `semantic_dependencies`) legitimately carries most of the
-        // product, so the field cap matches the whole-product cap.
+        // The composed package policy is a per-package product:
+        // self-describing fields carrying full nominal identities, so size
+        // grows linearly with declaration and dependency counts. One
+        // sequence field (for example `semantic_dependencies`) legitimately
+        // carries most of the product, so the field cap matches the
+        // whole-product cap. The bound matches the retained policy
+        // aggregate the candidate pipeline already budgets (64 MiB):
+        // measured composed policies reach 17 MiB on a ~55%-ported
+        // upstream api surface, so 16 MiB was exhausted by real packages.
         Self::new(
-            16 * 1024 * 1024,
-            16 * 1024 * 1024,
+            64 * 1024 * 1024,
+            64 * 1024 * 1024,
             65_536,
             64 * 1024 * 1024,
             128,
