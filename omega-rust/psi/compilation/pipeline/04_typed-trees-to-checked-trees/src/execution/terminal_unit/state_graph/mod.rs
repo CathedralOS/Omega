@@ -1448,7 +1448,35 @@ fn successor_bindings(
         .map(|(target_index, target)| {
             if target.is_self {
                 mark(SuccessorGuard::ReceiverTransfer);
-                let source_index = source_structural.iter().position(|parameter| parameter.is_self)?;
+                let Some(source_index) = source_structural
+                    .iter()
+                    .position(|parameter| parameter.is_self)
+                else {
+                    // A source state that never declared `self` still rides
+                    // the machine's ambient receiver: the edge forwards the
+                    // entry receiver descriptor rather than a source
+                    // parameter, under the same access narrowing a carried
+                    // `self` would take.
+                    let mut receiver = signatures
+                        .first()?
+                        .0
+                        .iter()
+                        .find(|parameter| parameter.is_self)?
+                        .clone();
+                    if receiver.access == CheckedStructuralAccess::MutableBorrow
+                        && target.access == CheckedStructuralAccess::SharedBorrow
+                    {
+                        receiver.access = CheckedStructuralAccess::SharedBorrow;
+                    }
+                    if receiver != *target {
+                        return None;
+                    }
+                    return Some(CheckedStructuralControlTransferPlan {
+                        source:
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver,
+                        target_parameter_index: u32::try_from(target_index).ok()?,
+                    });
+                };
                 // The receiver keeps its invocation place, but an edge may
                 // restrict mutable access to a shared state view. Every other
                 // part of its custody remains exact; the reverse gains authority.
