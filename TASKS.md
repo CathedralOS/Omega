@@ -3316,9 +3316,20 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   storage-changing `self` transitions. Preserve establishment, every arrival's
   simultaneous substitution, and exact source/Terminal scope.
 
-  `proof_inductive_gauss_sum` and `proof_inductive_climbing_sum` have no build
-  entry or runtime oracle. Add native coverage of their authored receivers and
-  results; coordinate demonstrated execution gaps with STATE-LOCAL-VALUE-FRONTIER.
+  `proofs/runtime_inductive_{gauss_sum,climbing_sum}_exit` keep the authored
+  receivers, contracts and measures over field-read inputs and exit 70 on the
+  checked interpreter; Terminal production refuses both. Gauss: stage 04's
+  `values/scalar/result_contract.rs::integer_term` reads only Exact carriers,
+  so its Wrapping `ensures` is unrepresented and stage 05's closed-literal
+  fallback misreports "exactly one requires and one ensures clause"; without
+  the ensures, the ranked countdown leaves `wrapping_sub(n, 1) < n` under
+  `1 <= n` unproved because admission has no WrappingIntegerSubtract no-wrap
+  evidence. Climb: `terminal_scalar/ranking.rs` spells only unsigned
+  countdowns, `state_graph/mod.rs` refuses single-state scalar bodies, and the
+  ordinary sequence leaves the self call unplanned ("call count agreement");
+  a two-state restatement then lacks `requires` as header facts and a closed
+  `embed(...)` predicate reading. Coordinate execution gaps with
+  STATE-LOCAL-VALUE-FRONTIER.
 
   Reuse `ClosedIntegerRelation` normalization in
   `proof/admission/src/integer_rules/open_terms.rs`; PROOF-KERNEL-CORE and
