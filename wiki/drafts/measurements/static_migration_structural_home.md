@@ -655,3 +655,32 @@ variant group that includes the Windows implementation, the `rda_*` computed
 index the compiler accepts only rooted in a receiver, or a method-call surface
 whose callers must migrate first. The canaries and samples hold the rest and
 wait on the hosted entry.
+
+## The reborrow, and two traps in the rewrite itself
+
+The Windows implementation, and with it the whole per-target filesystem
+group (210 declarations), was blocked by a reborrow, not a language limit.
+A call already spelled `Filesystem::w_find_open(&mut self, self.w_pat_len)`
+becomes `(&mut filesystem, filesystem.w_pat_len)` once `self` is renamed, and
+`filesystem` is already a `&mut Filesystem` binding, so the borrow operator
+makes a second loan: "receives `filesystem` as both mutable and read-only".
+The fix is to pass the binding itself. The working form was three lines away
+in the same file the whole time; two earlier attempts theorised about type
+resolution and argument hoisting instead of reading it.
+
+Two traps in the tooling cost more than any language rule:
+
+**A swallowed exception looks exactly like "nothing to migrate".** An
+`UnboundLocalError` in the rewrite reported as `touched: 0`, which reads as a
+language limit. Let the rewrite crash.
+
+**An exclusivity guard must compare the receiver's whole path, not its root.**
+Keyed on the root, `self.v.open4(r, &mut self.eb)` looks like a conflict; the
+two fields are unrelated.
+
+`source/library/alloc/vec.omg` is still open and not landed: its declarations
+thread correctly, and `Pool`'s call sites in
+`pass/collections/runtime_vec_u32_growth_exit` requalify while `Vec`'s in the
+same file do not. The receiver types resolve (`Main.v` is `Vec`, `Main.pool`
+is `Pool`) and none of the guards excludes `open4`, so the cause is not yet
+isolated. 33 declarations.
