@@ -75,17 +75,39 @@ fn source_slot_matches(
     let slot = match dispatch {
         selected_instructions::SelectedCaseDispatchSource::Local { slot } => *slot,
         selected_instructions::SelectedCaseDispatchSource::Borrowed { place, .. } => {
+            let borrowed = |parameter: &StructuralParameterDeclaration| {
+                matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+            };
+            if *place != source {
+                return false;
+            }
+            if let Some(owner) = owners.next() {
+                // An edge-carried join dispatches through its destination
+                // block's retained referent pointer: exactly one block declares
+                // the place, and that declaration is a readable borrow.
+                return owners.next().is_none()
+                    && blocks
+                        .iter()
+                        .find(|block| block.block == owner)
+                        .and_then(|block| {
+                            let mut declared = block
+                                .structural_parameters
+                                .iter()
+                                .filter(|parameter| parameter.place == source);
+                            declared
+                                .next()
+                                .filter(|parameter| borrowed(parameter))
+                                .and_then(|_| declared.next().is_none().then_some(()))
+                        })
+                        .is_some();
+            }
             let mut declared = parameters
                 .iter()
                 .filter(|parameter| parameter.place == source);
-            return *place == source
-                && owners.next().is_none()
-                && declared.next().is_some_and(|parameter| {
-                    matches!(
-                        parameter.access,
-                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                    )
-                })
+            return declared.next().is_some_and(|parameter| borrowed(parameter))
                 && declared.next().is_none();
         }
     };

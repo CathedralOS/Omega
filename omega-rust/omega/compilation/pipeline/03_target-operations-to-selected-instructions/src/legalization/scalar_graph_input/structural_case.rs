@@ -149,8 +149,46 @@ pub(in crate::legalization) fn case_source(
         .structural_parameters
         .iter()
         .filter(|parameter| parameter.place == place);
+    if let Some(declaration) = parameters.next() {
+        if parameters.next().is_some()
+            || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !declaration.qualifications.is_empty()
+            || !declaration.projected_qualifications.is_empty()
+            || !function.entry_claims.is_empty()
+        {
+            return Err(LegalizationError::custody());
+        }
+        return match declaration.access {
+            terminal_psi::StructuralAccess::SharedBorrow
+            | terminal_psi::StructuralAccess::MutableBorrow => Ok(
+                legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+                    declaration: declaration.clone(),
+                },
+            ),
+            terminal_psi::StructuralAccess::Owned if !declaration.is_self => Ok(
+                legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                    declaration: declaration.clone(),
+                },
+            ),
+            _ => Err(LegalizationError::custody()),
+        };
+    }
+    // A readable borrowed block parameter joins as its referent's address: the
+    // dispatch reads through the edge-retained pointer the join minted, under
+    // the borrowed-parameter contract rather than an owned arrival's.
+    let mut parameters = function.blocks.iter().flat_map(|block| {
+        block
+            .structural_parameters
+            .iter()
+            .filter(move |parameter| parameter.place == place)
+    });
     let declaration = parameters.next().ok_or(LegalizationError::custody())?;
     if parameters.next().is_some()
+        || !matches!(
+            declaration.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        )
         || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
@@ -158,20 +196,11 @@ pub(in crate::legalization) fn case_source(
     {
         return Err(LegalizationError::custody());
     }
-    match declaration.access {
-        terminal_psi::StructuralAccess::SharedBorrow
-        | terminal_psi::StructuralAccess::MutableBorrow => Ok(
-            legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
-                declaration: declaration.clone(),
-            },
-        ),
-        terminal_psi::StructuralAccess::Owned if !declaration.is_self => Ok(
-            legalized_operations::LegalizedStructuralCaseSource::Parameter {
-                declaration: declaration.clone(),
-            },
-        ),
-        _ => Err(LegalizationError::custody()),
-    }
+    Ok(
+        legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+            declaration: declaration.clone(),
+        },
+    )
 }
 
 /// The inspected root's structural type: a live result home under the

@@ -100,6 +100,34 @@ fn case_source(
     if let Some(home) = live.structural_homes.get(&source) {
         return Ok(TargetStructuralCaseSource::Home(home.clone()));
     }
+    // An edge-carried join keeps the referent behind the destination block's
+    // retained pointer. A readable join dispatches through it exactly like a
+    // borrowed function parameter; the block's declared parameter row stands
+    // in for the prepared parameter row a function root keeps.
+    if let Some(parameter) = super::transfers::address_parameter(function, live, source) {
+        let borrowed = matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        );
+        if !borrowed
+            || parameter.multiplicity == StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+            || !function.entry_claims.is_empty()
+        {
+            return Err(invalid());
+        }
+        let layout = crate::lowering::structural_layout::structural_sum_layout(
+            parameter.structural_type,
+            structural_types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?;
+        return Ok(TargetStructuralCaseSource::BorrowedBlockParameter {
+            parameter: parameter.clone(),
+            layout: TargetStructuralHomeLayout::Sum(layout),
+        });
+    }
     let parameter = parameter_root(prepared, source).ok_or_else(invalid)?;
     let declaration = function
         .structural_parameters

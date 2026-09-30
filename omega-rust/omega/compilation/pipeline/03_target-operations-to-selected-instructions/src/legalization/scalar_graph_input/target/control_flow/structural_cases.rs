@@ -260,6 +260,40 @@ pub(super) fn matches(
         TargetStructuralCaseSource::BorrowedParameter { parameter, layout } => {
             borrowed_parameter_available(graph, optimized, plan, parameter, layout, expected_source)
         }
+        TargetStructuralCaseSource::BorrowedBlockParameter { parameter, layout } => {
+            // The block's own declared parameter row must survive optimization
+            // untouched: the dispatch replays it against the exact join
+            // declaration, with the referent's sum layout derived by type.
+            let Some(declaration) = optimized
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters)
+                .find(|declaration| declaration.place == expected_source)
+            else {
+                return false;
+            };
+            matches!(
+                declaration.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            ) && declaration.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+                && declaration.qualifications.is_empty()
+                && declaration.projected_qualifications.is_empty()
+                && parameter.place == expected_source
+                && optimized.entry_claims.is_empty()
+                && parameter.structural_type == declaration.structural_type
+                && parameter.access == declaration.access
+                && parameter.multiplicity == declaration.multiplicity
+                && parameter.projected_qualifications.is_empty()
+                && super::super::super::aggregate_results::sum_type_layout(
+                    parameter.structural_type,
+                    plan,
+                )
+                .ok()
+                .map(target_operations::TargetStructuralHomeLayout::Sum)
+                .as_ref()
+                    == Some(layout)
+        }
     };
     if !available {
         return false;
