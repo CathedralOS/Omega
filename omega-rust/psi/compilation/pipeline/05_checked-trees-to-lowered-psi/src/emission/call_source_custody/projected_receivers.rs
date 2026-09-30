@@ -8,7 +8,7 @@ use checked_trees::types::TypeReferenceNode;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use symbols::SymbolHandle;
 
-mod aliases;
+pub(crate) mod aliases;
 mod locals;
 
 pub(crate) struct ReceiverSource {

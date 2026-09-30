@@ -101,9 +101,20 @@ pub(super) fn parameter_source(
         false,
         Some((*declaration_index, true)),
     )?;
+    // A parent in this ledger sense is an earlier local that itself carries a
+    // loan: a value local is a storage root, and a loan captured on it is
+    // DirectRoot lineage, not a derived or retained-parent reborrow.
     let parent_declaration = checked
         .state_local_declaration(authored_state, captured.owner)
-        .is_some_and(|(ordinal, _)| ordinal < *declaration_index);
+        .is_some_and(|(ordinal, local)| {
+            ordinal < *declaration_index
+                && matches!(
+                    checked
+                        .type_reference_table
+                        .type_reference(local.type_reference),
+                    TypeReferenceNode::Reference { .. }
+                )
+        });
     let root_symbol = captured.root;
     let roots = checked
         .state_parameters(authored_state)
@@ -115,20 +126,51 @@ pub(super) fn parameter_source(
     // A view local is itself a loan binding, so it carries no parameter
     // row: the alias reborrows it through the state's declaration, and the
     // borrow-ledger checks below carry the custody evidence a parameter
-    // root supplies for direct places. A mutable root local could rebind
-    // the captured place, so it declines here.
-    let (root_is_self, root_is_const, root_reference) = match roots.as_slice() {
-        [root] => (root.is_self, root.is_const, root.type_reference),
+    // root supplies for direct places. A mutable reference-typed root
+    // local could rebind the captured place, so it declines here. A value
+    // local's slot is the referent itself: writing its contents never
+    // moves the place, and the ledger already suspends the root for the
+    // loan's live interval, so owned storage grants every admitted access.
+    let (root_is_self, root_is_const, root_type, root_access) = match roots.as_slice() {
+        [root] => {
+            let TypeReferenceNode::Reference {
+                referee: root_type,
+                access: root_access @ (ReferenceAccess::Mutable | ReferenceAccess::WriteOnly),
+                ..
+            } = checked
+                .type_reference_table
+                .type_reference(root.type_reference)
+            else {
+                return unsupported("receiver alias root cannot grant write-only access");
+            };
+            (root.is_self, root.is_const, *root_type, *root_access)
+        }
         [] => {
             let Some((_, local_root)) =
                 checked.state_local_declaration(authored_state, root_symbol)
             else {
                 return unsupported("receiver alias has no unique parameter root");
             };
-            if local_root.is_mutable {
-                return unsupported("receiver alias root local is mutable");
-            }
-            (false, false, local_root.type_reference)
+            let (root_type, root_access) = match checked
+                .type_reference_table
+                .type_reference(local_root.type_reference)
+            {
+                TypeReferenceNode::Reference {
+                    referee,
+                    access: root_access @ (ReferenceAccess::Mutable | ReferenceAccess::WriteOnly),
+                    ..
+                } => {
+                    if local_root.is_mutable {
+                        return unsupported("receiver alias root local is mutable");
+                    }
+                    (*referee, *root_access)
+                }
+                TypeReferenceNode::Reference { .. } => {
+                    return unsupported("receiver alias root cannot grant write-only access");
+                }
+                _ => (local_root.type_reference, ReferenceAccess::Mutable),
+            };
+            (false, false, root_type, root_access)
         }
         _ => return unsupported("receiver alias has no unique parameter root"),
     };
@@ -145,22 +187,14 @@ pub(super) fn parameter_source(
     if *local_access != initializer.access {
         return unsupported("receiver alias declaration disagrees with its initializer access");
     }
-    let TypeReferenceNode::Reference {
-        referee: root_type,
-        access: root_access @ (ReferenceAccess::Mutable | ReferenceAccess::WriteOnly),
-        ..
-    } = checked.type_reference_table.type_reference(root_reference)
-    else {
-        return unsupported("receiver alias root cannot grant write-only access");
-    };
-    if *root_access == ReferenceAccess::WriteOnly && access != BorrowAccessKind::WriteOnly {
+    if root_access == ReferenceAccess::WriteOnly && access != BorrowAccessKind::WriteOnly {
         return unsupported("receiver alias widens its root access");
     }
     // Attached self carries machine/Self identity in the typed reference. Its
     // actual referent is the independently resolved attachment, as in signatures.
     let root_type = if root_is_self {
         let TypeReferenceNode::Named { symbol, .. } =
-            checked.type_reference_table.type_reference(*root_type)
+            checked.type_reference_table.type_reference(root_type)
         else {
             return unsupported("receiver alias self has no exact nominal referent");
         };
@@ -183,10 +217,10 @@ pub(super) fn parameter_source(
         } else {
             // A projected initializer supplies its exact field/element type.
             // It does not require a separately authored whole attachment type.
-            *root_type
+            root_type
         }
     } else {
-        *root_type
+        root_type
     };
     let projected_type = if captured.path.is_empty() {
         root_type

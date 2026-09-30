@@ -98,15 +98,17 @@ pub(super) fn store_at(
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let (authored_symbol, symbol, segments) = storage_place(
+    let Some((authored_symbol, symbol, segments, authored_whole)) = storage_place(
         program,
         facts,
         machine,
         state,
         statement_index,
         assignment.target,
-    )?;
-    let path = primitive_path(
+    ) else {
+        return None;
+    };
+    let Some(path) = primitive_path(
         program,
         facts,
         machine,
@@ -114,7 +116,9 @@ pub(super) fn store_at(
         statement_index,
         assignment.target,
         &segments,
-    )?;
+    ) else {
+        return None;
+    };
     let whole = path.is_empty();
     let (destination, primitive_type) = if let Some(local) = primitive_local_before(
         program,
@@ -160,12 +164,7 @@ pub(super) fn store_at(
             program.primitive_type_reference(if whole {
                 referee
             } else {
-                validation::declared_place_type_raw(
-                    program,
-                    machine,
-                    Some(state),
-                    assignment.target,
-                )?
+                primitive_leaf_type_reference(program, machine, state, assignment.target)?
             })?,
         )
     };
@@ -206,14 +205,16 @@ pub(super) fn store_at(
             value: checked_trees::CheckedCallScalarArgument::Computation(root.root),
         });
     }
-    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
+    let Some((binding, value)) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
         CheckedScalarExpressionRole::AssignmentValue,
-    )?;
+    ) else {
+        return None;
+    };
     if binding.expression != assignment.value
         || binding.destination
-            != if whole {
+            != if authored_whole {
                 authored_symbol
             } else {
                 SymbolHandle::invalid()
@@ -251,7 +252,7 @@ pub(super) fn array_literal_stores(
         validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?,
     )?;
     let extents = closed_array_extents(program, expected)?;
-    let (_, symbol, segments) = storage_place(
+    let (_, symbol, segments, _) = storage_place(
         program,
         facts,
         machine,
@@ -377,7 +378,7 @@ fn storage_place(
     state: &typed_trees::state::State,
     statement_index: u32,
     target: typed_trees::expression::ExpressionHandle,
-) -> Option<(SymbolHandle, SymbolHandle, Vec<facts::PlaceSegment>)> {
+) -> Option<(SymbolHandle, SymbolHandle, Vec<facts::PlaceSegment>, bool)> {
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
@@ -387,6 +388,7 @@ fn storage_place(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
+    let authored_whole = place.segments.is_empty();
     Some(
         match super::super::receiver_aliases::aliases(program, facts, machine, state)
             .unwrap_or_default()
@@ -396,9 +398,21 @@ fn storage_place(
             Some(alias) => {
                 let mut segments = alias.segments.clone();
                 segments.extend_from_slice(&place.segments);
-                (symbol, alias.root, segments)
+                // The loan ledger roots a self-capture at the machine symbol,
+                // while a store destination names the authored `self`
+                // parameter: the same referent, spelled by signature.
+                let root = if alias.root == machine.symbol {
+                    program
+                        .state_parameters(state)
+                        .iter()
+                        .find(|parameter| parameter.is_self)
+                        .map(|parameter| parameter.symbol)?
+                } else {
+                    alias.root
+                };
+                (symbol, root, segments, authored_whole)
             }
-            None => (symbol, symbol, place.segments.clone()),
+            None => (symbol, symbol, place.segments.clone(), authored_whole),
         },
     )
 }
@@ -513,26 +527,7 @@ fn primitive_leaf(
     state: &typed_trees::state::State,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<PrimitiveType> {
-    let mut leaf = validation::declared_place_type_raw(program, machine, Some(state), expression)?;
-    // An arithmetic-policy shell (`i32 in Wrapping`) qualifies the element's
-    // operations, not its storage identity, so it peels here like the primitive
-    // leaf of the record-field store route. Range, named, and domain
-    // constraints carry their own write obligations and keep their own owners.
-    while let TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = program.type_reference_table.type_reference(leaf)
-    {
-        if !program
-            .type_reference_table
-            .constraints(*constraints)
-            .iter()
-            .all(|constraint| matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)))
-        {
-            break;
-        }
-        leaf = *base_type;
-    }
+    let leaf = primitive_leaf_type_reference(program, machine, state, expression)?;
     let TypeReferenceNode::Named { symbol, name } =
         program.type_reference_table.type_reference(leaf)
     else {
@@ -543,6 +538,54 @@ fn primitive_leaf(
         return None;
     }
     program.primitive_type_reference(leaf)
+}
+
+/// The type of the primitive leaf an assignment through `expression` writes.
+/// An arithmetic-policy shell (`i32 in Wrapping`) qualifies the element's
+/// operations, not its storage identity, so it peels here like the primitive
+/// leaf of the record-field store route. Range, named, and domain
+/// constraints carry their own write obligations and keep their own owners.
+/// An exclusive borrow carrier peels to its referee the same way: `borrowed`
+/// in `let borrowed: &mut u8 = &mut self.buf[i]` spells the reference type,
+/// while the store reaches the element behind it. Whether that reach is
+/// lawful is the destination resolver's call, not the leaf walker's — a
+/// carrier without validated formation keeps its own root and declines
+/// there. A shared borrow never reaches this lane.
+fn primitive_leaf_type_reference(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let mut leaf = validation::declared_place_type_raw(program, machine, Some(state), expression)?;
+    loop {
+        match program.type_reference_table.type_reference(leaf) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                if !program
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .all(|constraint| matches!(constraint, TypeConstraintNode::ArithmeticDomain(_)))
+                {
+                    break;
+                }
+                leaf = *base_type;
+            }
+            TypeReferenceNode::Reference {
+                access, referee, ..
+            } => {
+                if matches!(access, language_semantics::ReferenceAccess::Shared) {
+                    break;
+                }
+                leaf = *referee;
+            }
+            _ => break,
+        }
+    }
+    Some(leaf)
 }
 
 /// Literal path segments keep their exact source identity; fields reject an
