@@ -11,7 +11,11 @@
 //! resource.
 
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Mutex, Weak};
+
+use crate::{
+    BuildEvaluationUsage, CURRENT_EVALUATION_STEP_SCHEDULE, CURRENT_EVALUATION_USAGE_SCHEMA,
+};
 
 pub const BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION: u32 = 7;
 
@@ -130,6 +134,7 @@ struct BuildEvaluationSponsorConsumption {
     peak_live_text_bytes: u64,
     result_cells: u64,
     result_text_bytes: u64,
+    retained_consumptions: u64,
 }
 
 /// Cloneable compiler-side authority for one aggregate resource account.
@@ -139,6 +144,22 @@ struct BuildEvaluationSponsorConsumption {
 #[derive(Debug, Clone)]
 pub struct BuildEvaluationSponsor {
     account: Arc<BuildEvaluationSponsorAccount>,
+}
+
+/// One current-account policy charge for consuming an already-completed Pure Build.
+/// The producing usage remains unchanged. This receipt is not an execution,
+/// live allocation, observed peak, or reusable permission to consume again.
+#[derive(Debug, Clone)]
+pub struct BuildEvaluationConsumptionReceipt {
+    account: Weak<BuildEvaluationSponsorAccount>,
+    occurrence: u64,
+    usage: BuildEvaluationUsage,
+}
+
+impl BuildEvaluationConsumptionReceipt {
+    pub const fn producing_usage(&self) -> BuildEvaluationUsage {
+        self.usage
+    }
 }
 
 impl BuildEvaluationSponsor {
@@ -230,6 +251,107 @@ impl BuildEvaluationSponsor {
             Ok(consumed) => consumed.result_text_bytes,
             Err(poisoned) => poisoned.into_inner().result_text_bytes,
         }
+    }
+
+    /// Reserve one retained Pure occurrence under this account's current policy.
+    /// All cumulative accounts change atomically or none do. Retained invocation
+    /// peaks are eligibility bounds only: consuming a result creates no live
+    /// evaluator cells and cannot manufacture this session's observed peaks.
+    pub fn charge_retained_pure_usage(
+        &self,
+        usage: BuildEvaluationUsage,
+    ) -> Result<BuildEvaluationConsumptionReceipt, String> {
+        usage
+            .validate()
+            .map_err(|error| format!("retained Build usage is inconsistent: {error:?}"))?;
+        if usage.usage_schema_version != CURRENT_EVALUATION_USAGE_SCHEMA.schema_version()
+            || usage.step_schedule_marker != CURRENT_EVALUATION_STEP_SCHEDULE.marker()
+            || usage.filesystem_operation_attempts != 0
+        {
+            return Err("retained Pure Build usage has unsupported telemetry".to_owned());
+        }
+        let limits = self.account.limits;
+        let mut consumed = self.account.consumed.lock().map_err(|_| {
+            "build-evaluation retained-consumption account is unavailable".to_owned()
+        })?;
+        if consumed.live_cells != 0
+            || consumed.live_text_bytes != 0
+            || consumed.live_filesystem_handles != 0
+        {
+            return Err("retained Pure Build requires a quiescent evaluation account".to_owned());
+        }
+        if usage.peak_live_cells > limits.maximum_live_cells()
+            || usage.peak_live_text_bytes > limits.maximum_live_text_bytes()
+        {
+            return Err("retained Pure Build exceeds current live-resource provisions".to_owned());
+        }
+        let reserve = |current: u64, additional: u64, maximum: u64, name: &str| {
+            current
+                .checked_add(additional)
+                .filter(|total| *total <= maximum)
+                .ok_or_else(|| format!("retained Pure Build exceeds current {name} provision"))
+        };
+        let fuel_units = reserve(
+            consumed.fuel_units,
+            usage.fuel_units,
+            limits.maximum_fuel_units(),
+            "fuel",
+        )?;
+        let build_log_bytes = reserve(
+            consumed.build_log_bytes,
+            usage.build_log_bytes,
+            limits.maximum_build_log_bytes(),
+            "BuildLog",
+        )?;
+        let result_cells = reserve(
+            consumed.result_cells,
+            usage.result_cells,
+            limits.maximum_result_cells(),
+            "result-cell",
+        )?;
+        let result_text_bytes = reserve(
+            consumed.result_text_bytes,
+            usage.result_text_bytes,
+            limits.maximum_result_text_bytes(),
+            "result-Text",
+        )?;
+        let occurrence = consumed.retained_consumptions;
+        let next = occurrence
+            .checked_add(1)
+            .ok_or_else(|| "retained Build occurrence accounting overflowed".to_owned())?;
+        consumed.fuel_units = fuel_units;
+        consumed.build_log_bytes = build_log_bytes;
+        consumed.result_cells = result_cells;
+        consumed.result_text_bytes = result_text_bytes;
+        consumed.retained_consumptions = next;
+        Ok(BuildEvaluationConsumptionReceipt {
+            account: Arc::downgrade(&self.account),
+            occurrence,
+            usage,
+        })
+    }
+
+    /// Require each issued charge exactly once, in issuance order, for this
+    /// exact account. Equal limits never make a foreign receipt acceptable.
+    pub fn verify_retained_consumptions(
+        &self,
+        receipts: &[BuildEvaluationConsumptionReceipt],
+    ) -> Result<(), String> {
+        let consumed = self.account.consumed.lock().map_err(|_| {
+            "build-evaluation retained-consumption account is unavailable".to_owned()
+        })?;
+        let account = Arc::downgrade(&self.account);
+        if receipts.len() as u64 != consumed.retained_consumptions
+            || receipts.iter().enumerate().any(|(position, receipt)| {
+                !Weak::ptr_eq(&account, &receipt.account) || receipt.occurrence != position as u64
+            })
+        {
+            return Err(
+                "retained Build charges are missing, duplicated, or belong to another account"
+                    .to_owned(),
+            );
+        }
+        Ok(())
     }
 
     pub(crate) fn charge_fuel_unit(&self) -> Result<(), String> {
@@ -664,5 +786,241 @@ mod tests {
                 .expect_err("a poisoned account must fail closed"),
             "build-evaluation aggregate fuel sponsor account is unavailable"
         );
+    }
+    fn retained_usage() -> crate::BuildEvaluationUsage {
+        crate::BuildEvaluationUsage::capture(
+            crate::EvaluationUsage {
+                fuel_units: 6,
+                build_log_bytes: 3,
+                result_cells: 4,
+                result_text_bytes: 5,
+                peak_live_cells: 7,
+                peak_live_text_bytes: 8,
+                ..crate::EvaluationUsage::empty(100)
+            },
+            None,
+        )
+    }
+
+    fn retention_sponsor(fuel: u64) -> BuildEvaluationSponsor {
+        BuildEvaluationSponsor::new(
+            BuildEvaluationSponsorLimits::new(fuel, 20, 20, 20, 20, 20, 20, 20).unwrap(),
+        )
+    }
+
+    #[test]
+    fn retained_pure_charges_keep_independent_pass_budgets_and_original_usage() {
+        let usage = retained_usage();
+        let first = retention_sponsor(10);
+        let second = retention_sponsor(10);
+        let first_receipt = first.charge_retained_pure_usage(usage).unwrap();
+        let second_receipt = second.charge_retained_pure_usage(usage).unwrap();
+        assert_eq!(first_receipt.producing_usage(), usage);
+        assert_eq!(second_receipt.producing_usage(), usage);
+        for sponsor in [&first, &second] {
+            assert_eq!(sponsor.consumed_fuel_units(), 6);
+            assert_eq!(sponsor.consumed_build_log_bytes(), 3);
+            assert_eq!(sponsor.consumed_result_cells(), 4);
+            assert_eq!(sponsor.consumed_result_text_bytes(), 5);
+            assert_eq!(sponsor.live_cells(), 0);
+            assert_eq!(sponsor.peak_live_cells(), 0);
+            assert_eq!(sponsor.live_text_bytes(), 0);
+            assert_eq!(sponsor.peak_live_text_bytes(), 0);
+        }
+        first
+            .verify_retained_consumptions(&[first_receipt])
+            .unwrap();
+        second
+            .verify_retained_consumptions(&[second_receipt])
+            .unwrap();
+    }
+
+    #[test]
+    fn retained_pure_charge_is_atomic_and_reduces_later_execution_allowance() {
+        let sponsor = retention_sponsor(10);
+        for _ in 0..5 {
+            sponsor.charge_fuel_unit().unwrap();
+        }
+        assert!(
+            sponsor
+                .charge_retained_pure_usage(retained_usage())
+                .is_err()
+        );
+        assert_eq!(sponsor.consumed_fuel_units(), 5);
+        assert_eq!(sponsor.consumed_build_log_bytes(), 0);
+        assert_eq!(sponsor.consumed_result_cells(), 0);
+        sponsor.verify_retained_consumptions(&[]).unwrap();
+        let sponsor = retention_sponsor(10);
+        let receipt = sponsor
+            .charge_retained_pure_usage(retained_usage())
+            .unwrap();
+        for _ in 0..4 {
+            sponsor.charge_fuel_unit().unwrap();
+        }
+        assert!(sponsor.charge_fuel_unit().is_err());
+        assert!(
+            sponsor
+                .charge_retained_pure_usage(retained_usage())
+                .is_err()
+        );
+        assert_eq!(sponsor.consumed_fuel_units(), 10);
+        sponsor.verify_retained_consumptions(&[receipt]).unwrap();
+    }
+
+    #[test]
+    fn retained_pure_charge_rejects_every_lower_provision_without_mutation() {
+        let limits = [
+            [5, 20, 20, 20, 20, 20, 20, 20],
+            [20, 2, 20, 20, 20, 20, 20, 20],
+            [20, 20, 20, 20, 6, 20, 20, 20],
+            [20, 20, 20, 20, 20, 7, 20, 20],
+            [20, 20, 20, 20, 20, 20, 3, 20],
+            [20, 20, 20, 20, 20, 20, 20, 4],
+        ];
+        for [
+            fuel,
+            log,
+            attempts,
+            handles,
+            cells,
+            text,
+            results,
+            result_text,
+        ] in limits
+        {
+            let sponsor = BuildEvaluationSponsor::new(
+                BuildEvaluationSponsorLimits::new(
+                    fuel,
+                    log,
+                    attempts,
+                    handles,
+                    cells,
+                    text,
+                    results,
+                    result_text,
+                )
+                .unwrap(),
+            );
+            assert!(
+                sponsor
+                    .charge_retained_pure_usage(retained_usage())
+                    .is_err()
+            );
+            assert_eq!(sponsor.consumed_fuel_units(), 0);
+            assert_eq!(sponsor.consumed_build_log_bytes(), 0);
+            assert_eq!(sponsor.consumed_result_cells(), 0);
+            assert_eq!(sponsor.consumed_result_text_bytes(), 0);
+            sponsor.verify_retained_consumptions(&[]).unwrap();
+        }
+    }
+
+    #[test]
+    fn retained_pure_receipts_reject_foreign_duplicate_and_missing_occurrences() {
+        let first = retention_sponsor(20);
+        let second = retention_sponsor(20);
+        let receipt = first.charge_retained_pure_usage(retained_usage()).unwrap();
+        let other = first.charge_retained_pure_usage(retained_usage()).unwrap();
+        let foreign = second.charge_retained_pure_usage(retained_usage()).unwrap();
+        assert!(first.verify_retained_consumptions(&[]).is_err());
+        assert!(
+            first
+                .verify_retained_consumptions(&[receipt.clone(), receipt.clone()])
+                .is_err()
+        );
+        assert!(
+            first
+                .verify_retained_consumptions(&[foreign, other.clone()])
+                .is_err()
+        );
+        assert!(
+            first
+                .verify_retained_consumptions(&[other.clone(), receipt.clone()])
+                .is_err()
+        );
+        first
+            .verify_retained_consumptions(&[receipt, other])
+            .unwrap();
+    }
+
+    #[test]
+    fn retained_pure_usage_rejects_stale_filesystem_and_live_resource_states() {
+        for mutate in [
+            |usage: &mut crate::BuildEvaluationUsage| usage.usage_schema_version += 1,
+            |usage: &mut crate::BuildEvaluationUsage| usage.step_schedule_marker += 1,
+            |usage: &mut crate::BuildEvaluationUsage| usage.filesystem_operation_attempts = 1,
+            |usage: &mut crate::BuildEvaluationUsage| usage.invocation_fuel_ceiling = 0,
+        ] {
+            let sponsor = retention_sponsor(20);
+            let mut usage = retained_usage();
+            mutate(&mut usage);
+            assert!(sponsor.charge_retained_pure_usage(usage).is_err());
+            assert_eq!(sponsor.consumed_fuel_units(), 0);
+        }
+        let sponsor = retention_sponsor(20);
+        let cell = sponsor.reserve_live_cell().unwrap();
+        assert!(
+            sponsor
+                .charge_retained_pure_usage(retained_usage())
+                .is_err()
+        );
+        drop(cell);
+        let text = sponsor.reserve_live_text_bytes(1).unwrap();
+        assert!(
+            sponsor
+                .charge_retained_pure_usage(retained_usage())
+                .is_err()
+        );
+        drop(text);
+        let handle = sponsor.reserve_live_filesystem_handle().unwrap();
+        assert!(
+            sponsor
+                .charge_retained_pure_usage(retained_usage())
+                .is_err()
+        );
+        drop(handle);
+        let receipt = sponsor
+            .charge_retained_pure_usage(retained_usage())
+            .unwrap();
+        assert_eq!(sponsor.peak_live_cells(), 1);
+        assert_eq!(sponsor.peak_live_text_bytes(), 1);
+        assert_eq!(sponsor.peak_live_filesystem_handles(), 1);
+        sponsor.verify_retained_consumptions(&[receipt]).unwrap();
+    }
+    #[test]
+    fn retained_pure_cumulative_overflow_is_atomic() {
+        for mutate in [
+            |usage: &mut crate::BuildEvaluationUsage| {
+                usage.fuel_units = u64::MAX;
+                usage.invocation_fuel_ceiling = u64::MAX;
+            },
+            |usage: &mut crate::BuildEvaluationUsage| usage.build_log_bytes = u64::MAX,
+            |usage: &mut crate::BuildEvaluationUsage| usage.result_cells = u64::MAX,
+            |usage: &mut crate::BuildEvaluationUsage| usage.result_text_bytes = u64::MAX,
+        ] {
+            let sponsor = BuildEvaluationSponsor::new(
+                BuildEvaluationSponsorLimits::new(
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                    u64::MAX,
+                )
+                .unwrap(),
+            );
+            let receipt = sponsor
+                .charge_retained_pure_usage(retained_usage())
+                .unwrap();
+            let mut huge = retained_usage();
+            mutate(&mut huge);
+            assert!(sponsor.charge_retained_pure_usage(huge).is_err());
+            assert_eq!(sponsor.consumed_fuel_units(), 6);
+            assert_eq!(sponsor.consumed_build_log_bytes(), 3);
+            assert_eq!(sponsor.consumed_result_cells(), 4);
+            assert_eq!(sponsor.consumed_result_text_bytes(), 5);
+            sponsor.verify_retained_consumptions(&[receipt]).unwrap();
+        }
     }
 }

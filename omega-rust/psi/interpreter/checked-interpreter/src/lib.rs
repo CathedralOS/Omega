@@ -105,8 +105,8 @@ pub mod interpreter;
 mod value;
 
 pub use build_evaluation_sponsor::{
-    BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, BuildEvaluationSponsor,
-    BuildEvaluationSponsorLimits,
+    BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, BuildEvaluationConsumptionReceipt,
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
 };
 pub use build_evaluation_usage::{BuildEvaluationUsage, BuildEvaluationUsageError};
 pub use build_time::{BuildTimeValue, SelectedBuildTimeBinaryOperator};

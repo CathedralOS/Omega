@@ -32,6 +32,7 @@ pub struct PreparedBuild {
     pub built: BuiltTypedProgram,
     pub build_sources: BuildSourceCustody,
     pub timings: CompileTimings,
+    pub build_accounting: BuildEvaluationAccounting,
 }
 
 /// Invocation-local retention keyed by the package owner's complete Build inputs.
@@ -66,4 +67,17 @@ impl PreparedBuilds {
             self.builds.push((inputs, prepared.clone()));
         }
     }
+}
+
+/// Accounting for this request, separate from the result's historical usage.
+/// A consumed result reports a new current-account policy charge, never an
+/// interpreter execution or the producing session's observed peaks.
+#[derive(Debug, Clone, Default)]
+pub enum BuildEvaluationAccounting {
+    /// No complete accounting outcome was returned. This includes absence of
+    /// Build and early failures; it does not establish zero attempted work.
+    #[default]
+    Unreported,
+    Executed(package_compilation::BuildEvaluationUsage),
+    Consumed(build_time_evaluation::BuildEvaluationConsumptionReceipt),
 }

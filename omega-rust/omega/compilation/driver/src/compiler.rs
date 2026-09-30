@@ -57,7 +57,7 @@ fn compile_target(
     let root_path = target.options().root_path.clone();
     let build_dir = target.options().build_dir();
     let child = target.checked_execution(&build_dir);
-    let checked = check_prepared_source(&root_path, source, child, Some(builds))?.result?;
+    let checked = check_prepared_source(&root_path, source, child, Some(builds), None)?.result?;
 
     // Product ownership admits the stop and retains report companions before
     // the selected stage sequence consumes the checked compilation.

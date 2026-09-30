@@ -4,8 +4,10 @@
 //! requests join caller consent before execution. The result retains the source
 //! commitment and requested authority beside the evaluated configuration.
 
+use crate::PureBuildCompilation;
 use artifacts::compile_timings::CompileTimings;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildMachineFilesystemSponsor};
+use compilation_products::BuildEvaluationAccounting;
 use diagnostics::Diagnostic;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::{RestrictedBuildRequest, select_build_machine};
@@ -13,11 +15,13 @@ use package_compilation::{
     BuildSnapshotRequest, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
 use std::path::Path;
+use std::sync::Arc;
 use typed_trees::TypedTrees;
 
 /// Inputs to one activation. Source assembly and typing have already finished;
 /// this operation neither discovers source nor compiles generated continuations.
 pub struct BuildEvaluationRequest<'request> {
+    pub pure_build_compilation: Option<&'request PureBuildCompilation>,
     pub root_path: &'request Path,
     pub typed: &'request TypedTrees,
     pub target_machine_declarations:
@@ -40,7 +44,8 @@ pub struct BuildEvaluationRequest<'request> {
 /// Generated-source continuation and final checking consume this result. It
 /// retains the admitted source commitment, not reusable grants or a live activation.
 pub struct EvaluatedBuild {
-    pub configuration: crate::ComputedBuildConfig,
+    pub configuration: Arc<crate::ComputedBuildConfig>,
+    pub accounting: BuildEvaluationAccounting,
     pub restricted_build_requests: Vec<RestrictedBuildRequest>,
     pub base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
 }
@@ -54,6 +59,7 @@ pub fn evaluate_build(
     timings: &mut CompileTimings,
 ) -> Result<EvaluatedBuild, Vec<Diagnostic>> {
     let BuildEvaluationRequest {
+        pure_build_compilation,
         root_path,
         typed,
         target_machine_declarations,
@@ -98,7 +104,7 @@ pub fn evaluate_build(
         .transpose()?;
     let Some(selected_machine) = selected_machine else {
         return Ok(EvaluatedBuild {
-            configuration: crate::ComputedBuildConfig {
+            configuration: Arc::new(crate::ComputedBuildConfig {
                 config: crate::BuildConfig::default(),
                 optimization_report_request:
                     optimization_core::OptimizationReportRequest::Suppressed,
@@ -106,7 +112,8 @@ pub fn evaluate_build(
                 observation_summary: None,
                 selected_build_machine_symbol: None,
                 generated_sources: Vec::new(),
-            },
+            }),
+            accounting: BuildEvaluationAccounting::Unreported,
             restricted_build_requests: Vec::new(),
             base_source_consumption_commitment,
         });
@@ -130,6 +137,9 @@ pub fn evaluate_build(
         filesystem_sponsor,
         snapshot,
     )?;
+    // Admission can establish captured backing, and a consumption charge may
+    // reject before execute takes ownership. Release on every return path.
+    let _captured_scope_release = CapturedBuildScopeRelease(&filesystem_scope);
     let admitted = crate::admit_build_program(
         prepared,
         selected_machine.symbol,
@@ -144,7 +154,47 @@ pub fn evaluate_build(
             grants.admit(request)?;
         }
     }
-    let configuration = admitted.execute()?;
+    // Product bindings and target custody may differ, so neither a whole
+    // checked result nor an old grant is reusable. Fresh admission above fixes
+    // the current checked Build meaning; exact equality below permits only its
+    // completed Pure value to be consumed with a new current-account charge.
+    let inputs = admitted.pure_consumption_inputs(package_inputs, snapshot);
+    let reusable = inputs
+        .as_ref()
+        .zip(pure_build_compilation)
+        .map(|(inputs, owner)| owner.matching_configuration(inputs))
+        .transpose()?
+        .flatten();
+    let (configuration, accounting) = if let Some(configuration) = reusable {
+        let sponsor = evaluation_sponsor.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "completed Pure Build consumption requires a current evaluation sponsor",
+            )]
+        })?;
+        let usage = configuration.evaluation_usage.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "completed Pure Build is missing its producing usage",
+            )]
+        })?;
+        let receipt = sponsor
+            .charge_retained_pure_usage(usage)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        admitted
+            .filesystem_scope
+            .captured_snapshot_release()
+            .release();
+        (configuration, BuildEvaluationAccounting::Consumed(receipt))
+    } else {
+        let configuration = Arc::new(admitted.execute()?);
+        if let Some((inputs, owner)) = inputs.zip(pure_build_compilation) {
+            owner.retain_completed(inputs, Arc::clone(&configuration))?;
+        }
+        let accounting = configuration
+            .evaluation_usage
+            .map(BuildEvaluationAccounting::Executed)
+            .unwrap_or_default();
+        (configuration, accounting)
+    };
     if configuration.selected_build_machine_symbol != Some(admitted_symbol) {
         return Err(vec![Diagnostic::error(
             "build execution returned a selected symbol different from its admitted checkpoint",
@@ -153,7 +203,18 @@ pub fn evaluate_build(
     drop(restricted_build_grants);
     Ok(EvaluatedBuild {
         configuration,
+        accounting,
         restricted_build_requests,
         base_source_consumption_commitment,
     })
+}
+
+/// Admission/consumption failures do not enter execution's own cleanup owner.
+/// Keep this scope borrowed until its captured backing has been relinquished.
+struct CapturedBuildScopeRelease<'scope>(&'scope package_compilation::BuildMachineFilesystemScope);
+
+impl Drop for CapturedBuildScopeRelease<'_> {
+    fn drop(&mut self) {
+        self.0.captured_snapshot_release().release();
+    }
 }

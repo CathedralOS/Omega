@@ -31,11 +31,12 @@ use std::path::Path;
 /// Slots follow the resolver's package positions, each keyed by the entry
 /// root it was prepared for. A populated slot supplies only that package's
 /// binding-independent parse frontier to a later pass or candidate: custody
-/// verification, build execution, and checking always run again, and each
-/// child's own root-path and source-input validation rejects a checkpoint
-/// that no longer names its package's prepared sources. The store holds no
-/// checked result, binding decision, review row, or build output, so nothing
-/// verified can be replayed merely because source bytes match.
+/// verification, Build admission, and product checking always run again, and
+/// each child's root-path and source-input validation rejects a checkpoint
+/// that no longer names its prepared sources. The separate compilation-owned
+/// Pure Build store retains only completed output-free values after exact
+/// checked-program comparison and a fresh current-pass logical charge. It
+/// carries no checked product, review row, entry token, or host grant.
 ///
 /// One store belongs to one resolved closure. Callers reviewing several exact
 /// targets of the same closure share it; a differently shaped closure drops
@@ -44,6 +45,9 @@ use std::path::Path;
 #[derive(Default)]
 pub struct CandidateSourcePreparation {
     slots: Vec<Option<PreparedPackageSource>>,
+    /// Only this compilation owns these values. Package/purpose/custody remain
+    /// exact input keys; each consumer admits and pays its current-pass charge.
+    pure_build_compilation: build_evaluation::PureBuildCompilation,
     /// Fresh preparations performed through this store; witnesses that a
     /// repeated or cross-target candidate prepared each package once.
     fresh_preparations: usize,
@@ -72,6 +76,7 @@ impl CandidateSourcePreparation {
     pub fn for_closure(closure: &ResolvedPackageSourceClosure) -> Self {
         Self {
             slots: empty_slots(closure.graph().packages().len()),
+            pure_build_compilation: Default::default(),
             fresh_preparations: 0,
             collect_timings: false,
         }
@@ -89,6 +94,7 @@ impl CandidateSourcePreparation {
         let package_count = closure.graph().packages().len();
         if self.slots.len() != package_count {
             self.slots = empty_slots(package_count);
+            self.pure_build_compilation = Default::default();
         }
     }
 
@@ -197,7 +203,7 @@ pub fn compile_resolved_package_candidate_for_production(
 /// The production route retaining source preparation in the caller's store.
 /// An operation that compiles several exact targets of one resolved closure
 /// shares the store, so each package's binding-independent parse frontier is
-/// built once while custody admission, build execution, and checking still
+/// built once while custody admission, Build admission, and checking still
 /// run per target context.
 pub(crate) fn production_candidate_reusing(
     candidate: CandidateCompilation<'_, '_>,
@@ -264,7 +270,7 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
 /// The consuming check route retaining source preparation in the caller's
 /// store. An operation checking several exact targets of one resolved closure
 /// shares the store, so each package's binding-independent parse frontier is
-/// built once while custody admission, build execution, and checking still
+/// built once while custody admission, Build admission, and checking still
 /// run per target context. A consuming check supplies its accepted target's
 /// restricted-request checkpoint, so retained consent gates each projected
 /// request's own build effect inside the pass rather than at the operation's

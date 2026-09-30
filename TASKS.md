@@ -1997,20 +1997,30 @@ crash and native exit behavior. Use affected check/native corpus slices under
   compilation, observes no realized target, and produces checked rows for every
   target: providers, entry, subsystem, application intent, opaque representation,
   x86 scalar FMA provider, grants, behavior exclusions and wire demands.
-  `BuildConfig` remains largely global; target-qualified root bindings and
-  `SharedBuilds` reuse for equal package inputs do not complete this contract.
-  Finish authored rows, retain/check unrequested rows, and join CLI/package
-  execution through **SOURCE-SET-UNION**.
+  `BuildConfig` remains largely global. Finish authored rows, retain/check
+  unrequested rows, and complete shared preliminary and final product checking.
+
+  The bounded package route now consumes a completed output-free Pure Build
+  under one evaluator-private compilation owner. Fresh checked-program/fact,
+  package-purpose, capture, authority and current-pass resource admission still
+  precede consumption; filesystem, restricted, named-input and required-output
+  activations do not qualify. The cold Linux witness
+  `two_target_native_products_share_nested_source_union` emits the root's actual
+  BuildLog line once, keeps five source assemblies, publishes both target
+  artifacts, and runs the Linux artifact to exit 7. Final product checking is
+  still per target; this does not complete the acceptance below.
 
   Eliminate the duplicate preliminary whole-program check by moving its
   obligations into the owning stages. Preserve
   [admission before execution](wiki/spec/build/execution.md#admission-before-execution):
   freeze authored selections and admit the exact Build entry before effects;
   then incorporate generated source and finish product checks. The current
-  gate is `declaration_admission::validate_authored_declaration_selections_before_build`.
-  Reconcile snapshot inputs, required outputs and authority before sharing;
-  `SharedBuilds` currently keys package/generated inputs without the per-target
-  `build_snapshot`. Preserve separate package-purpose execution contexts.
+  gate is `build-evaluation/src/admission/checking.rs::prepare_checked_build`.
+  Ordinary `PreparedBuilds` reuse already includes the exact `build_snapshot`;
+  its full-input key and whole-review keys remain unchanged. The narrower Pure
+  carrier does not authorize sharing effects or output obligations. Preserve
+  separate Build/Product purposes and current-pass logical charges while
+  completing the remaining preliminary/final checking and authored-row work.
 
   Acceptance: count one Build activation and one final product check for a
   two-target request; std's six rows come from one evaluation. Reject malformed

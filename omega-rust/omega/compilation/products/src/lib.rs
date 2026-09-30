@@ -70,7 +70,9 @@ pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationCom
 pub use optimization_core::OptimizationRollbackReceipt;
 pub use package_compilation::{ProductionCompilationSubject, RetainedBuildOutputs};
 pub use pcc::{PccPublicationReceipt, verify_published_proof_pair};
-pub use prepared_build::{BuiltTypedProgram, PreparedBuild, PreparedBuilds};
+pub use prepared_build::{
+    BuildEvaluationAccounting, BuiltTypedProgram, PreparedBuild, PreparedBuilds,
+};
 pub use prepared_source::{
     PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier, TypedFrontierRetention,
 };

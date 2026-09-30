@@ -22,7 +22,7 @@ pub use checking::compile_thread::run_on_compile_thread;
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
-    RestrictedBuildGrants, compile_checked, compile_to_checked,
+    RestrictedBuildGrants, compile_checked, compile_checked_reusing_builds, compile_to_checked,
 };
 pub(crate) use checking::{check_prepared_source, prepare_checked_source};
 pub use optimization_core::{

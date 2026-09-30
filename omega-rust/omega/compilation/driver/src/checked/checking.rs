@@ -25,14 +25,31 @@ use std::path::Path;
 /// Run the owned request on the compiler stack and return its whole outcome.
 /// Early failures retain no source frontier or Build observations.
 pub fn compile_checked(request: CheckedCompileRequest) -> CheckedCompileOutcome {
+    compile_checked_with_build_owner(request, None)
+}
+
+/// Compile another consumer of this explicit compilation's completed Pure
+/// Builds. Fresh requests without this owner cannot import another invocation's
+/// results. Both entries run the same custody/admission/checking pipeline.
+pub fn compile_checked_reusing_builds(
+    request: CheckedCompileRequest,
+    owner: &build_evaluation::PureBuildCompilation,
+) -> CheckedCompileOutcome {
+    compile_checked_with_build_owner(request, Some(owner.clone()))
+}
+
+fn compile_checked_with_build_owner(
+    request: CheckedCompileRequest,
+    owner: Option<build_evaluation::PureBuildCompilation>,
+) -> CheckedCompileOutcome {
     counters::record_checked_compilation();
-    compile_thread::run_on_compile_thread(move || compile_checked_worker(request)).unwrap_or_else(
-        |diagnostics| CheckedCompileOutcome {
+    compile_thread::run_on_compile_thread(move || compile_checked_worker(request, owner))
+        .unwrap_or_else(|diagnostics| CheckedCompileOutcome {
             result: Err(diagnostics),
             prepared_source: None,
             independent_components: IndependentComponentDiscovery::default(),
-        },
-    )
+            build_accounting: Default::default(),
+        })
 }
 
 /// Psi 00-01 through package-owned source preparation, then retain the result.
@@ -112,6 +129,7 @@ pub fn compile_to_checked(
 /// failures retain completed Build observations beside the rejected outcome.
 fn compile_checked_worker(
     request: CheckedCompileRequest,
+    pure_build_compilation: Option<build_evaluation::PureBuildCompilation>,
 ) -> Result<CheckedCompileOutcome, Vec<Diagnostic>> {
     // Target admission precedes source loading, including for fresh requests.
     let selected_target_profile = request
@@ -147,7 +165,13 @@ fn compile_checked_worker(
         permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
     };
     let retained_source = request.retain_prepared_source.then(|| prepared.clone());
-    let mut outcome = check_prepared_source(&request.root_path, prepared, child, None)?;
+    let mut outcome = check_prepared_source(
+        &request.root_path,
+        prepared,
+        child,
+        None,
+        pure_build_compilation.as_ref(),
+    )?;
     if outcome.result.is_ok() {
         outcome.prepared_source = retained_source;
     }
@@ -156,13 +180,14 @@ fn compile_checked_worker(
 
 /// One source-to-checked route for product compilation and package review.
 /// A product batch may retain completed Builds by exact inputs. Sponsored review
-/// activations pass no reuse store and always execute their own Build. Failures
+/// activations admit fresh and may consume an exactly matched completed Pure Build. Failures
 /// after Build retain its discovery observations, but never a reusable source.
 pub(crate) fn check_prepared_source(
     root_path: &Path,
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     builds: Option<&mut PreparedBuilds>,
+    pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
 ) -> Result<CheckedCompileOutcome, Vec<Diagnostic>> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
@@ -178,23 +203,29 @@ pub(crate) fn check_prepared_source(
         .as_mut()
         .and_then(|(inputs, builds)| builds.begin_target(inputs));
     let prepared = match completed {
-        Some(prepared) => {
+        Some(mut prepared) => {
+            prepared.build_accounting = Default::default();
             drop(source);
             drop(child);
             prepared
         }
         None => {
             let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
-            let (built, build_sources) =
+            let (built, build_sources, build_accounting) =
                 timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
                     build_continuation::evaluate_build_and_continue(
-                        root_path, child, frontier, timings,
+                        root_path,
+                        child,
+                        frontier,
+                        timings,
+                        pure_build_compilation,
                     )
                 })?;
             let prepared = PreparedBuild {
                 built,
                 build_sources,
                 timings,
+                build_accounting,
             };
             if let Some((inputs, builds)) = reuse {
                 builds.retain_completed(inputs, &prepared);
@@ -206,6 +237,7 @@ pub(crate) fn check_prepared_source(
         built,
         build_sources,
         mut timings,
+        build_accounting,
     } = prepared;
     let independent_components = built.computed_build_config.independent_components();
     let result = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
@@ -225,6 +257,7 @@ pub(crate) fn check_prepared_source(
         prepared_source: None,
         result,
         independent_components,
+        build_accounting,
     })
 }
 

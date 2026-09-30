@@ -83,10 +83,11 @@ pub use machine_execution::build_activation::{
     admit_toolchain_build_activation, is_exact_toolchain_build_prelude_data,
 };
 pub use machine_execution::build_machines::{
-    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,
-    BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
-    BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
-    BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor, BuildMachineInvocation,
+    BuildEvaluationConsumptionReceipt, BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
+    BuildMachineEvaluationError, BuildMachineExecutionMode, BuildMachineFilesystemAccess,
+    BuildMachineFilesystemGrantRoot, BuildMachineFilesystemGrantRootIdentity,
+    BuildMachineFilesystemGrants, BuildMachineFilesystemMetadataLayout,
+    BuildMachineFilesystemSponsor, BuildMachineInvocation, CheckedBuildProgram,
     PreparedBuildMachineEntry, PreparedBuildMachineProgram, evaluate_build_machine_measured,
 };
 pub use machine_execution::selected_operators::{
