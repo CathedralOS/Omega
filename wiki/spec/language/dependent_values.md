@@ -142,6 +142,27 @@ need not survive a call unless the ordinary contract guarantees it. Zeroed or
 partially established storage still needs establishment before a readable borrow;
 a qualified machine name grants no construction or validity exception.
 
+### Collection invariants
+
+For `per-element-array-bounds`, use an ordinary pure, total, terminating
+machine over the collection as a predicate in `where` or `requires`. Its body
+walks the elements with ordinary states; collection invariants introduce no
+`forall`, `foreach`, or bracketed scalar-range type suffix.
+
+For example, a field `cells: [i32; 16]` can be constrained by
+`where cells_valid(&cells) == true;`. The ordinary machine
+`cells_valid(cells: &[i32; 16]) -> bool` recognizes precisely arrays whose
+elements are each zero or one. Its use in a proposition must meet the ordinary
+[semantic evaluation](evaluation.md) admission rules. This asserts its
+denotation, not an implicit runtime traversal on every write.
+
+Construction proves the collection predicate; mutation preserves or restores
+it under the ordinary invariant-window rules. A checked helper theorem can
+establish that a selected element is zero or one from that predicate and a
+valid index. Merely naming an arbitrary predicate does not grant the checker
+its elementwise consequences: those follow from checked reasoning about the
+machine, not a new quantifier or an unchecked decomposition rule.
+
 ## Invariant windows
 
 An invariant window is compiler-derived proof debt, not a source `relax` mode,
