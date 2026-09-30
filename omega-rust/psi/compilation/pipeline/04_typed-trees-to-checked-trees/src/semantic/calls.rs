@@ -4,6 +4,7 @@ use checked_trees::statement::StatementNode;
 use language_semantics::declaration_selection::{CollectionMeasure, CollectionViewOperation};
 use symbols::SymbolHandle;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+pub(crate) mod dispatch_subjects;
 mod lookup;
 mod traversal;
 

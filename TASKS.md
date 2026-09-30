@@ -136,14 +136,11 @@ build authority, and artifact verification remain separate obligations.
   it lends whole to static machines, whose `&[u8; N] in Utf8` loans forward
   across states and read the live length at any index, so `parse_int` exits
   150 natively on macOS ARM64 (`pass/text/local_bounded_text_{scalar,case_result}_loan_exit`).
-  `roman_numeral` still stops at stage 04 `guarded pair without exact false
-  fallback`: `transition parse_roman(&text) { .. }` dispatches on a computed
-  case subject whose guards and payload reads are per-arm copies of the call,
-  and the state graph has no single-evaluation case dispatch over a call
-  result (bound to a local first, the sample exits 70). Capturing the subject
-  in the parser is ruled out while core's proof machines (`core/nat.omg`
-  `mod`) rely on the computed-subject equation. The same gap keeps
-  `pass/control_flow/{guarded_value_transition_roster,structural_result_transition_tail}` red.
+  A case dispatch over a computed call subject evaluates the call once at its
+  first arm, so `roman_numeral` exits 70 natively as authored
+  (`pass/control_flow/runtime_computed_case_subject_single_evaluation_exit`).
+  The state graph still declines such a dispatch when the subject's operands
+  call or the subject is a boundary call.
 
 Prioritize unchanged customer programs reaching native execution over additional
 evidence carriers without an exercising program. The

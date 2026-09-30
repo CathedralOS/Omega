@@ -30,6 +30,32 @@ pub(super) fn result(
         })
 }
 
+/// Whether `result` is the computed subject of this state's closed-case
+/// dispatch: the anonymous result the dispatch's first arm mints and every
+/// case edge consumes. It names no local and has no permission rows.
+fn computed_case_subject(
+    checked: &CheckedTrees,
+    statements: &[StatementNode],
+    state: &CheckedComposedUnitControlStatePlan,
+    result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+) -> bool {
+    matches!(
+        &state.terminator,
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. }
+            if matches!(
+                subject.source,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal,
+                } if binding_ordinal == result.binding_ordinal
+            )
+    ) && crate::expression_preparation::source_custody::dispatch_subjects::evaluated_case_subject(
+        checked,
+        statements,
+        result.statement_index as usize,
+    )
+    .is_some()
+}
+
 /// Which role an authored local plays in an owned-selection receipt, if any.
 /// The destination's establishment and every source's residual death share the
 /// receipt's StateExit authority rather than ordinary Establish rows; locals
@@ -552,25 +578,31 @@ pub(super) fn local_discards(
         if cleanup_discards.contains(&result.binding_ordinal) {
             continue;
         }
-        let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
-        else {
-            return unsupported("Unit graph edge result has no authored local");
-        };
-        if edge.is_some_and(|edge| result.statement_index >= edge.statement_ordinal) {
-            return unsupported("Unit graph edge precedes local establishment");
-        }
-        validate(checked, machine, source, local, result)?;
-        if selection_role(
-            checked,
-            machine,
-            source.symbol,
-            local.symbol,
-            result.statement_index,
-        ) == Some(SelectionRole::Source)
-        {
-            // The source's own place already died at the selection join; its
-            // residual parameter is disposed by the caller's splice roster.
-            continue;
+        // The case edges that consume a computed dispatch subject leave from
+        // its own statement; the edge emitter removes it from their roster.
+        if !computed_case_subject(checked, statements, state, result) {
+            let Some(StatementNode::LocalData(local)) =
+                statements.get(result.statement_index as usize)
+            else {
+                return unsupported("Unit graph edge result has no authored local");
+            };
+            if edge.is_some_and(|edge| result.statement_index >= edge.statement_ordinal) {
+                return unsupported("Unit graph edge precedes local establishment");
+            }
+            validate(checked, machine, source, local, result)?;
+            if selection_role(
+                checked,
+                machine,
+                source.symbol,
+                local.symbol,
+                result.statement_index,
+            ) == Some(SelectionRole::Source)
+            {
+                // The source's own place already died at the selection join;
+                // its residual parameter is disposed by the caller's splice
+                // roster.
+                continue;
+            }
         }
         let transferred = edge
             .into_iter()

@@ -33,6 +33,24 @@ pub(super) fn validate(
         });
     let prefix = state.bindings.len();
     let marker_count = super::cases::validate_markers(checked, machine, source, state, end)?;
+    // A case dispatch over a computed subject evaluates its one call at the
+    // first arm's statement, ahead of the dispatch; `cases` rejoins it.
+    let case_subject_call = match &state.terminator {
+        CheckedComposedUnitControlTerminatorPlan::ClosedSum {
+            subject:
+                checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source:
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal,
+                        },
+                    ..
+                },
+            ..
+        } => super::cases::computed_subject(checked, source, state, *binding_ordinal)?
+            .map(|(_, call)| call),
+        _ => None,
+    }
+    .filter(|call| call.coordinate.statement_index as usize == end);
     let returned_scalar = returned_scalar_binding(state);
     let tail_value = usize::from(
         matches!(
@@ -115,7 +133,7 @@ pub(super) fn validate(
     let record_pattern_markers = (prefix..end).filter(|index| is_marker_at(*index)).count();
     if prefix > end
         || state.operations.len() + marker_count + record_pattern_markers
-            != end - prefix + tail_value + continued
+            != end - prefix + tail_value + continued + usize::from(case_subject_call.is_some())
     {
         return unsupported("Unit graph dropped or added a body effect");
     }
@@ -401,6 +419,20 @@ pub(super) fn validate(
                     && call.coordinate.call_ordinal == 0
                     && result.statement_index == call.coordinate.statement_index
                     && ordinal + 1 == statements.len() =>
+            {
+                crate::emission::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
+            }
+            // A computed case subject's one call occupies the first arm's
+            // statement; the case replay rejoins it to that arm's subject.
+            (CheckedUnitEffectOperationPlan::Call(call), StatementNode::Transition(_))
+                if case_subject_call.is_some_and(|subject| std::ptr::eq(subject, call))
+                    && ordinal == end =>
             {
                 crate::emission::call_source_custody::validate_operation(
                     checked,

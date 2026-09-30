@@ -112,6 +112,15 @@ pub(crate) fn locate_source(
         }
         _ => false,
     };
+    // The first arm of a closed-case dispatch over a call evaluates that call
+    // as the statement's root, the way a local initializer does.
+    let dispatch_subject =
+        crate::expression_preparation::source_custody::dispatch_subjects::evaluated_case_subject(
+            checked,
+            program.statement_table.statements(state.statement_nodes),
+            coordinate.statement_index as usize,
+        );
+    let direct_root = direct_root || dispatch_subject.is_some();
     let (source_target, arguments, source_site) = if coordinate.call_ordinal != 0 || !direct_root {
         let occurrence =
             nested::authored_occurrences(checked, caller_state, coordinate.statement_index)?
@@ -143,6 +152,16 @@ pub(crate) fn locate_source(
         }
     } else {
         match statement {
+            StatementNode::Transition(_) if let Some(subject) = dispatch_subject => {
+                super::occurrences::validate(
+                    checked,
+                    machine.symbol,
+                    caller_state,
+                    coordinate,
+                    subject,
+                )?;
+                expression_call(checked, subject)?
+            }
             StatementNode::Transition(_) if coordinate.call_ordinal == 0 => {
                 let (target, arguments) =
                     named_terminal_arguments(checked, caller_state, coordinate.statement_index)?;

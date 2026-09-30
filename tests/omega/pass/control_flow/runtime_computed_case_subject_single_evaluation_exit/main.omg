@@ -1,0 +1,63 @@
+// A computed case-dispatch subject is evaluated once, before arm selection.
+// `Main::pick` counts its calls and returns the case its argument selects.
+// Every arm's guard and the selected arm's payload read that one result, so
+// the first dispatch (first arm selected) and the second dispatch (second arm
+// selected) each add exactly one call. Native and interpreter both exit 70;
+// exit 2 or 3 exposes a repeated evaluation, 4 a wrong payload, and 71 a
+// wrong arm.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pick {
+    case First(v: i32);
+    case Second(v: i32);
+}
+
+data Main { console: Binding<Console>; calls: u32 in Wrapping; }
+
+machine Main::pick(main: &mut Main, second: bool) -> Pick {
+    main.calls = main.calls + 1;
+    transition second {
+        true -> (Pick::Second { v: 20 })
+        _ -> (Pick::First { v: 10 })
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.calls = 0;
+    transition Main::pick(&mut self, false) {
+        Pick::First { v } -> first(v)
+        Pick::Second { .. } -> wrong_arm()
+    }
+    state first(&mut self, v: i32) {
+        transition self.calls {
+            1 -> first_payload(v)
+            2 -> exit_two()
+            _ -> exit_three()
+        }
+    }
+    state first_payload(&mut self, v: i32) {
+        transition v == 10 { true -> again() _ -> wrong_payload() }
+    }
+    state again(&mut self) {
+        transition Main::pick(&mut self, true) {
+            Pick::First { .. } -> wrong_arm()
+            Pick::Second { v } -> second(v)
+        }
+    }
+    state second(&mut self, v: i32) {
+        transition self.calls {
+            2 -> second_payload(v)
+            3 -> exit_two()
+            _ -> exit_three()
+        }
+    }
+    state second_payload(&mut self, v: i32) {
+        transition v == 20 { true -> good() _ -> wrong_payload() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state exit_two(&mut self) { self.console.exit_process(2); }
+    state exit_three(&mut self) { self.console.exit_process(3); }
+    state wrong_payload(&mut self) { self.console.exit_process(4); }
+    state wrong_arm(&mut self) { self.console.exit_process(71); }
+}

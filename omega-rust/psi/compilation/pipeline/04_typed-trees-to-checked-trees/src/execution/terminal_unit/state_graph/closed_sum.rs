@@ -1,4 +1,9 @@
 //! Case terminators inspect exact owned sums and retain their disposal obligations.
+//!
+//! The dispatched sum is a parameter, an earlier immutable local, or a
+//! computed call subject. A computed subject's call is planned once at the
+//! first arm's statement; the parser's per-arm copies of it (each guard's
+//! subject and each payload read's receiver) all read that one result.
 use super::super::{
     CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     DataMember, PermissionAccess, PermissionClaimIdentity,
@@ -6,13 +11,14 @@ use super::super::{
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpressionRole,
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan, Multiplicity, PermissionEventKind,
+    CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, Multiplicity, PermissionEventKind,
     PermissionEventSource, ScalarCalleePlans, ShapeCollector, Signature, StatementNode,
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
     returns,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::state_graph::{EdgeCalls, SuccessorEdge, successor_bindings};
+use crate::semantic::calls::dispatch_subjects;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn build(
@@ -40,94 +46,133 @@ pub(super) fn build(
         return None;
     };
     let (expression, _) = crate::proof::exact_outcome_case_test(program, guard)?;
-    let place = crate::flow::contextual_canonical_place_from_expression(
+    let dispatch = match crate::flow::contextual_canonical_place_from_expression(
         program,
         state.symbol,
         transition_start,
         expression,
-    )?;
-    let facts::PlaceRoot::Symbol(result_symbol) = place.root else {
-        return None;
+    ) {
+        Some(place) => {
+            let facts::PlaceRoot::Symbol(result_symbol) = place.root else {
+                return None;
+            };
+            if !place.segments.is_empty() {
+                return None;
+            }
+            DispatchSubject::Place(result_symbol)
+        }
+        None => DispatchSubject::Computed(dispatch_subjects::evaluated_case_subject(
+            program,
+            statements,
+            transition_start,
+        )?),
     };
-    if !place.segments.is_empty() {
-        return None;
-    }
-    let (subject, type_reference, expected_provenance) = if let Some((index, parameter)) = program
-        .state_parameters(state)
-        .iter()
-        .enumerate()
-        .find(|(_, parameter)| parameter.symbol == result_symbol)
-    {
-        let (position, retained) = structural
+    let (subject, type_reference, expected_provenance) =
+        if let DispatchSubject::Computed(subject_expression) = dispatch {
+            trace.phase("state graph: terminator: case subject call");
+            trace.statement(u32::try_from(transition_start).ok());
+            let (result, type_reference) = subject_call(
+                program,
+                facts,
+                scalar_callees,
+                shapes,
+                machine,
+                state,
+                structural,
+                entry_claims,
+                operations,
+                transition_start,
+                subject_expression,
+                trace,
+            )?;
+            (
+                CheckedUnitStructuralArgumentPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    },
+                    path: Vec::new(),
+                    type_identity: result.type_identity,
+                    access: CheckedStructuralAccess::Owned,
+                },
+                type_reference,
+                language_semantics::PermissionProvenance::Unknown,
+            )
+        } else if let Some((index, parameter)) = program
+            .state_parameters(state)
             .iter()
             .enumerate()
-            .find(|(_, retained)| retained.position as usize == index)?;
-        if retained.access != CheckedStructuralAccess::Owned
-            || !matches!(
-                retained.multiplicity,
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            )
-            || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
-            || !retained.qualifications.is_empty()
+            .find(|(_, parameter)| dispatch.is_symbol(parameter.symbol))
         {
-            return None;
-        }
-        (
-            CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: u32::try_from(position).ok()?,
+            let (position, retained) = structural
+                .iter()
+                .enumerate()
+                .find(|(_, retained)| retained.position as usize == index)?;
+            if retained.access != CheckedStructuralAccess::Owned
+                || !matches!(
+                    retained.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                )
+                || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
+                || !retained.qualifications.is_empty()
+            {
+                return None;
+            }
+            (
+                CheckedUnitStructuralArgumentPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: u32::try_from(position).ok()?,
+                    },
+                    path: Vec::new(),
+                    type_identity: retained.type_identity.clone(),
+                    access: CheckedStructuralAccess::Owned,
                 },
-                path: Vec::new(),
-                type_identity: retained.type_identity.clone(),
-                access: CheckedStructuralAccess::Owned,
-            },
-            parameter.type_reference,
-            language_semantics::PermissionProvenance::Unknown,
-        )
-    } else {
-        let mut matching = operations
-            .iter()
-            .filter_map(super::retained_structural_result)
-            .filter_map(|result| {
-                let StatementNode::LocalData(local) =
-                    statements.get(result.statement_index as usize)?
-                else {
-                    return None;
-                };
-                (local.symbol == result_symbol
-                    && !local.is_mutable
-                    && result.statement_index < transition_start as u32)
-                    .then_some((result, local))
-            });
-        let (result, local) = matching.next()?;
-        if matching.next().is_some()
-            || !matches!(
-                result.multiplicity,
-                Multiplicity::Affine | Multiplicity::Unrestricted
+                parameter.type_reference,
+                language_semantics::PermissionProvenance::Unknown,
             )
-            || result.multiplicity != program.type_multiplicity(local.type_reference)
-        {
-            return None;
-        }
-        (
-            CheckedUnitStructuralArgumentPlan {
-                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: result.binding_ordinal,
+        } else {
+            let mut matching = operations
+                .iter()
+                .filter_map(super::retained_structural_result)
+                .filter_map(|result| {
+                    let StatementNode::LocalData(local) =
+                        statements.get(result.statement_index as usize)?
+                    else {
+                        return None;
+                    };
+                    (dispatch.is_symbol(local.symbol)
+                        && !local.is_mutable
+                        && result.statement_index < transition_start as u32)
+                        .then_some((result, local))
+                });
+            let (result, local) = matching.next()?;
+            if matching.next().is_some()
+                || !matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                )
+                || result.multiplicity != program.type_multiplicity(local.type_reference)
+            {
+                return None;
+            }
+            (
+                CheckedUnitStructuralArgumentPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    },
+                    path: Vec::new(),
+                    type_identity: result.type_identity.clone(),
+                    access: CheckedStructuralAccess::Owned,
                 },
-                path: Vec::new(),
-                type_identity: result.type_identity.clone(),
-                access: CheckedStructuralAccess::Owned,
-            },
-            local.type_reference,
-            language_semantics::PermissionProvenance::Established {
-                machine_symbol: machine.symbol,
-                state_symbol: state.symbol,
-                source: PermissionEventSource::Statement {
-                    statement_index: result.statement_index as usize,
+                local.type_reference,
+                language_semantics::PermissionProvenance::Established {
+                    machine_symbol: machine.symbol,
+                    state_symbol: state.symbol,
+                    source: PermissionEventSource::Statement {
+                        statement_index: result.statement_index as usize,
+                    },
                 },
-            },
-        )
-    };
+            )
+        };
     if !validation::has_plain_owned_contents_with_numeric_constraints(program, type_reference) {
         return None;
     }
@@ -161,6 +206,11 @@ pub(super) fn build(
         return None;
     }
     let marker_start = statements[..transition_start].iter().rposition(|statement| !matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#V="))).map_or(0, |index| index + 1);
+    // Destructure markers re-read a place subject. A computed subject has no
+    // place to re-read: its payload reads are the parser's copies below.
+    if matches!(dispatch, DispatchSubject::Computed(_)) && marker_start != transition_start {
+        return None;
+    }
     let mut destructures = Vec::new();
     for (index, statement) in statements[marker_start..transition_start]
         .iter()
@@ -181,10 +231,7 @@ pub(super) fn build(
             marker_start + index,
             local.initial_value,
         )?;
-        if local.is_mutable
-            || place.root != facts::PlaceRoot::Symbol(result_symbol)
-            || !place.segments.is_empty()
-        {
+        if local.is_mutable || !dispatch.is_symbol_place(&place) {
             return None;
         }
         for field in fields.split('#') {
@@ -202,6 +249,9 @@ pub(super) fn build(
     }
     let mut cases = Vec::new();
     let mut count = returns::next_result_ordinal(operations.as_slice())?;
+    // Every copy of a computed subject the dispatch reads: the guards'
+    // subjects and the payload reads' receivers.
+    let mut subject_reads = Vec::new();
     for (index, statement) in statements[transition_start..].iter().enumerate() {
         let StatementNode::Transition(transition) = statement else {
             return None;
@@ -211,17 +261,10 @@ pub(super) fn build(
             TransitionGuardNode::When(guard) => {
                 let (expression, case_symbol) =
                     crate::proof::exact_outcome_case_test(program, guard)?;
-                let place = crate::flow::contextual_canonical_place_from_expression(
-                    program,
-                    state.symbol,
-                    ordinal as usize,
-                    expression,
-                )?;
-                if place.root != facts::PlaceRoot::Symbol(result_symbol)
-                    || !place.segments.is_empty()
-                {
+                if !dispatch.names(program, state, ordinal as usize, expression) {
                     return None;
                 }
+                subject_reads.push(expression);
                 vec![
                     variants
                         .iter()
@@ -335,34 +378,20 @@ pub(super) fn build(
                             .filter(|parameter| !parameter.is_self)
                             .count();
                         let argument = *arguments.get(argument_index)?;
-                        let Some(place) = crate::flow::contextual_canonical_place_from_expression(
+                        let Some(field) = dispatch.payload_field(
                             program,
-                            state.symbol,
+                            state,
                             ordinal as usize,
                             argument,
-                        ) else {
-                            continue;
-                        };
-                        if place.root != facts::PlaceRoot::Symbol(result_symbol) {
-                            continue;
-                        }
-                        let [
-                            facts::PlaceSegment::Case { variant: selected },
-                            facts::PlaceSegment::Field { symbol },
-                        ] = place.segments.as_slice()
+                            variant,
+                            &destructures,
+                            &mut subject_reads,
+                        )?
                         else {
-                            return None;
+                            continue;
                         };
-                        if *selected != variant.symbol {
-                            return None;
-                        }
-                        let field = program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .find(|field| field.symbol == *symbol)?;
                         if program.primitive_type_reference(field.type_reference)?
                             != parameter.primitive_type
-                            || !destructures.contains(&(variant.name.as_str(), field.name.as_str()))
                         {
                             return None;
                         }
@@ -434,6 +463,19 @@ pub(super) fn build(
     if cases.len() != variants.len() {
         return None;
     }
+    if let DispatchSubject::Computed(subject_expression) = dispatch
+        && !subject_reads_are_complete(
+            program,
+            facts,
+            machine,
+            state,
+            transition_start,
+            subject_expression,
+            &subject_reads,
+        )
+    {
+        return None;
+    }
     // Destructuring makes a payload available; it does not require forwarding
     // every binding. The admitted payloads are primitive scalars, so unused
     // fields carry no separate ownership obligation. Validate their declared
@@ -455,7 +497,7 @@ pub(super) fn build(
                 && event.kind == PermissionEventKind::AffineDrop
         })
     {
-        if event.root != facts::PlaceRoot::Symbol(result_symbol) {
+        if !dispatch.is_symbol_root(event.root) {
             if program
                 .state_parameters(state)
                 .iter()
@@ -479,8 +521,263 @@ pub(super) fn build(
         }
         found = true;
     }
-    if found != needs_discard {
+    // A computed subject is an anonymous temporary: the ownership facts name
+    // no place for it, so no exit event can carry its disposal. The dispatch
+    // edge consumes it, and Terminal replays that consumption on each case.
+    if found != (needs_discard && matches!(dispatch, DispatchSubject::Place(_))) {
         return None;
     }
     Some(CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases })
+}
+
+/// The sum a closed dispatch inspects.
+#[derive(Clone, Copy)]
+enum DispatchSubject {
+    /// A parameter or an earlier immutable local, named by every arm.
+    Place(symbols::SymbolHandle),
+    /// One authored call. The parser copies the dispatch subject into every
+    /// arm's guard and payload read; each copy keeps the one authored call's
+    /// selection occurrence. The dispatch evaluates that call once, at the
+    /// first arm's statement, and every copy reads its single result
+    /// (wiki/spec/language/expressions.md, "Transition dispatch").
+    Computed(typed_trees::expression::ExpressionHandle),
+}
+
+impl DispatchSubject {
+    fn is_symbol(self, symbol: symbols::SymbolHandle) -> bool {
+        matches!(self, Self::Place(subject) if subject == symbol)
+    }
+
+    fn is_symbol_root(self, root: facts::PlaceRoot) -> bool {
+        matches!(root, facts::PlaceRoot::Symbol(symbol) if self.is_symbol(symbol))
+    }
+
+    fn is_symbol_place(self, place: &crate::flow::CanonicalPlace) -> bool {
+        self.is_symbol_root(place.root) && place.segments.is_empty()
+    }
+
+    /// Whether `expression` names this subject at `statement_index`.
+    fn names(
+        self,
+        program: &TypedTrees,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> bool {
+        match self {
+            Self::Place(_) => crate::flow::contextual_canonical_place_from_expression(
+                program,
+                state.symbol,
+                statement_index,
+                expression,
+            )
+            .is_some_and(|place| self.is_symbol_place(&place)),
+            Self::Computed(subject) => {
+                dispatch_subjects::repeats_subject(program, subject, expression)
+            }
+        }
+    }
+
+    /// The selected case's payload field `argument` reads, `Ok(None)` when
+    /// the argument does not read this subject at all, and `Err` when it
+    /// reads the subject in a way a case edge cannot transfer.
+    #[allow(clippy::too_many_arguments)]
+    fn payload_field<'program>(
+        self,
+        program: &'program TypedTrees,
+        state: &typed_trees::state::State,
+        statement_index: usize,
+        argument: typed_trees::expression::ExpressionHandle,
+        variant: &'program typed_trees::data::DataVariant,
+        destructures: &[(&str, &str)],
+        subject_reads: &mut Vec<typed_trees::expression::ExpressionHandle>,
+    ) -> Option<Option<&'program typed_trees::data::DataField>> {
+        match self {
+            Self::Place(_) => {
+                let Some(place) = crate::flow::contextual_canonical_place_from_expression(
+                    program,
+                    state.symbol,
+                    statement_index,
+                    argument,
+                ) else {
+                    return Some(None);
+                };
+                if !self.is_symbol_root(place.root) {
+                    return Some(None);
+                }
+                let [
+                    facts::PlaceSegment::Case { variant: selected },
+                    facts::PlaceSegment::Field { symbol },
+                ] = place.segments.as_slice()
+                else {
+                    return None;
+                };
+                if *selected != variant.symbol {
+                    return None;
+                }
+                let field = program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find(|field| field.symbol == *symbol)?;
+                destructures
+                    .contains(&(variant.name.as_str(), field.name.as_str()))
+                    .then_some(Some(field))
+            }
+            // The parser rewrites a bound payload name to a case-qualified
+            // member read of its own subject copy; only that spelling reads
+            // the one evaluated result.
+            Self::Computed(subject) => {
+                let ExpressionNode::Member(member) = program.expression_table.expression(argument)
+                else {
+                    return Some(None);
+                };
+                if !dispatch_subjects::repeats_subject(program, subject, member.receiver) {
+                    return Some(None);
+                }
+                if member
+                    .case_variant
+                    .as_ref()
+                    .is_none_or(|name| name.as_str() != variant.name.as_str())
+                {
+                    return None;
+                }
+                let field = program.data_payload_fields(variant).iter().find(|field| {
+                    field.name.as_str() == member.member.as_str()
+                        && (!member.member_symbol.is_valid()
+                            || member.member_symbol == field.symbol)
+                })?;
+                subject_reads.push(member.receiver);
+                Some(Some(field))
+            }
+        }
+    }
+}
+
+/// Plan the computed subject's one call at the first arm's statement. Its
+/// structural result is bound like a `let` local's, anchored at the subject
+/// expression, and consumed by the dispatch.
+#[allow(clippy::too_many_arguments)]
+fn subject_call(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
+    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+    transition_start: usize,
+    subject: typed_trees::expression::ExpressionHandle,
+    trace: &LocalConstructionTrace,
+) -> Option<(
+    checked_trees::CheckedUnitStructuralResultBindingPlan,
+    typed_trees::types::TypeReferenceHandle,
+)> {
+    let flow =
+        crate::execution::terminal_unit::types::state_flow(facts, machine.symbol, state.symbol)?;
+    let mut matching = facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(flow.calls)
+        .iter()
+        .filter(|call| {
+            call.statement_index == transition_start && call.authored_expression == subject
+        });
+    let call = matching.next()?;
+    if matching.next().is_some() {
+        return None;
+    }
+    let return_type = crate::flow::call_target_return_type(program, call.target_symbol)?;
+    let result = checked_trees::CheckedUnitStructuralResultBindingPlan {
+        statement_index: u32::try_from(transition_start).ok()?,
+        binding_ordinal: u32::try_from(returns::next_result_ordinal(operations)?).ok()?,
+        type_identity: shapes.add_type(return_type, &[], &[])?,
+        multiplicity: program.type_multiplicity(return_type),
+    };
+    // The subject may lend a named local of this state, exactly as a `let`
+    // initializer's call does.
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let locals = operations
+        .iter()
+        .filter_map(|operation| {
+            let result = operation.structural_result_binding()?;
+            let StatementNode::LocalData(local) =
+                statements.get(result.statement_index as usize)?
+            else {
+                return None;
+            };
+            local
+                .symbol
+                .is_valid()
+                .then(|| (result.clone(), facts::PlaceRoot::Symbol(local.symbol)))
+        })
+        .collect::<Vec<_>>();
+    let operation = crate::execution::terminal_unit::calls::build_call_operation(
+        program,
+        facts,
+        Some(scalar_callees),
+        machine,
+        state,
+        structural,
+        &[],
+        entry_claims,
+        call,
+        false,
+        Some(crate::execution::terminal_unit::calls::ExpectedCallValueResult::Structural(&result)),
+        &locals,
+        trace,
+    )?;
+    let mut operation = crate::execution::terminal_unit::control::bind_structural_call_result(
+        operation,
+        result.clone(),
+    )?;
+    // The dispatch, not the state's return, consumes the subject.
+    let (_, discard_result_on_return) = operation.discardable_structural_result_mut()?;
+    *discard_result_on_return = false;
+    let CheckedUnitEffectOperationPlan::Call(planned) = &operation else {
+        return None;
+    };
+    // A boundary result carries receipts this dispatch does not yet replay.
+    if planned.is_boundary()
+        || !super::operation_custody::call_custody_admitted(planned, operations)
+    {
+        return None;
+    }
+    operations.push(operation);
+    Some((result, return_type))
+}
+
+/// Every call row at the dispatch that copies the computed subject is one
+/// the dispatch reads: the planned subject itself, a later guard's subject,
+/// or a payload read's receiver. A copy in any other position would be a
+/// second evaluation the single dispatch cannot account for.
+fn subject_reads_are_complete(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    transition_start: usize,
+    subject: typed_trees::expression::ExpressionHandle,
+    subject_reads: &[typed_trees::expression::ExpressionHandle],
+) -> bool {
+    let Some(flow) =
+        crate::execution::terminal_unit::types::state_flow(facts, machine.symbol, state.symbol)
+    else {
+        return false;
+    };
+    facts
+        .flow
+        .control
+        .calls
+        .span_or_empty(flow.calls)
+        .iter()
+        .filter(|call| call.statement_index >= transition_start)
+        .filter(|call| {
+            dispatch_subjects::repeats_subject(program, subject, call.authored_expression)
+        })
+        .all(|call| {
+            call.authored_expression == subject || subject_reads.contains(&call.authored_expression)
+        })
 }
