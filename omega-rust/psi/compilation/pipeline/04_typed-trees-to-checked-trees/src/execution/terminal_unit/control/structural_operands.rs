@@ -243,7 +243,11 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { leaf, .. } => {
                 let binders = machine_binders(program, machine);
                 if crate::execution::terminal_unit::types::borrowed_named_view(program, *leaf) {
-                    let _ = shapes.add_named_view_type(*leaf, &binders)?;
+                    let _ = shapes.add_view_type(
+                        *leaf,
+                        &binders,
+                        language_semantics::ReferenceAccess::Shared,
+                    )?;
                 } else if crate::execution::terminal_unit::types::borrowed_slice_view(
                     program, *leaf,
                 ) {

@@ -52,7 +52,7 @@ pub(super) fn signature_matches(
             // owned-contents custody clause does not apply.
             // A `&mut` view result names its referee's carrier identity for
             // view/named referees and keeps the `ref-mut` shell for the
-            // primitives — `add_mutable_view_type`'s own peel — and carries
+            // primitives — the `&mut` peel of `add_view_type` — and carries
             // the affine view-loan multiplicity.
             if validation::reference_result_custody::mutable_borrowed_parts(
                 &checked.typed,
@@ -60,7 +60,7 @@ pub(super) fn signature_matches(
             )
             .is_some()
             {
-                // The result identity follows `add_mutable_view_type`'s peel:
+                // The result identity follows the `&mut` peel of `add_view_type`:
                 // view/named referees join the view or record carrier while
                 // primitive referees keep the `ref-mut` borrow shell.
                 let identity = crate::expression_preparation::source_custody::structural::mutable_view_carrier(
@@ -99,7 +99,7 @@ pub(super) fn signature_matches(
                         == Some(&result.projected_qualifications);
             }
             // A `&'a V` shared-borrow result keeps its `Reference` shell:
-            // `add_named_view_type` registers under the reference's own
+            // `add_view_type` registers under the reference's own
             // identity (the shell is the custody the plan carries) with the
             // affine view-loan multiplicity the checking side mints.
             if validation::reference_result_custody::shared_borrowed_parts(

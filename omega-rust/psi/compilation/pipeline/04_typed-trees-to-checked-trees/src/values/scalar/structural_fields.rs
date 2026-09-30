@@ -442,12 +442,12 @@ pub(super) fn view_local_root(
         && (crate::execution::terminal_unit::types::borrowed_slice_view(
             program,
             local.type_reference,
-        ) || crate::execution::terminal_unit::types::mutable_slice_view_element(
+        ) || crate::execution::terminal_unit::types::element_view_shell(
             program,
             local.type_reference,
             &[],
         )
-        .is_some()))
+        .is_some_and(|view| view.access == language_semantics::ReferenceAccess::Mutable)))
     .then_some((path.symbol, local.type_reference))
 }
 

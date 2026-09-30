@@ -146,7 +146,11 @@ fn structural_result_type(
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
             binding_ordinal: 0,
-            type_identity: shapes.add_named_view_type(result_type, binders)?,
+            type_identity: shapes.add_view_type(
+                result_type,
+                binders,
+                language_semantics::ReferenceAccess::Shared,
+            )?,
             multiplicity: Multiplicity::Affine,
         });
     }
@@ -173,7 +177,11 @@ fn structural_result_type(
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
             binding_ordinal: 0,
-            type_identity: shapes.add_mutable_view_type(result_type, binders)?,
+            type_identity: shapes.add_view_type(
+                result_type,
+                binders,
+                language_semantics::ReferenceAccess::Mutable,
+            )?,
             multiplicity: Multiplicity::Affine,
         });
     }

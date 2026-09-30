@@ -256,9 +256,10 @@ pub(in crate::execution) fn build_call_operation(
             }
             Some(ExpectedCallValueResult::Structural(expected))
                 if let Some(referee) =
-                    crate::execution::terminal_unit::types::mutable_borrowed_view_referent(
+                    crate::execution::terminal_unit::types::borrowed_view_referent(
                         program,
                         target_state.return_type,
+                        language_semantics::ReferenceAccess::Mutable,
                     ) =>
             {
                 // A `&mut R`/`&mut [T]` result is the exclusive loan the
@@ -300,7 +301,7 @@ pub(in crate::execution) fn build_call_operation(
                         );
                     // Anonymous and `let`-bound slice results mint the peeled
                     // referent identity; a `let`-bound named view keeps its
-                    // `ref(...)` shell — the custody `add_named_view_type`
+                    // `ref(...)` shell — the custody `add_view_type`
                     // registers — so both spellings name the same family.
                     let shelled = program.normalized_type_identity(target_state.return_type);
                     expected.multiplicity != Multiplicity::Affine

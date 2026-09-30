@@ -351,7 +351,11 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             {
                 shapes.add_reference_type(state.return_type, binders)?
             } else {
-                shapes.add_named_view_type(state.return_type, binders)?
+                shapes.add_view_type(
+                    state.return_type,
+                    binders,
+                    language_semantics::ReferenceAccess::Shared,
+                )?
             },
             multiplicity: Multiplicity::Affine,
         };
