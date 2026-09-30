@@ -19,6 +19,139 @@ fn frame(program: &TypedTrees) -> NormalizedWriteFrame {
 }
 
 #[test]
+fn explicit_context_boundary_calls_keep_local_scratch_out_of_the_public_frame() {
+    let program = crate::front_end::typed_program(
+        "boundary trait Sink { machine record(value: u32); }
+         data Context { sink: Sink; }
+         data Scratch { value: u32; }
+         machine inspect(context: &mut Context) {
+             let mut scratch: Scratch;
+             scratch.value = 7;
+             context.sink.record(scratch.value);
+         }",
+    );
+    // The opaque boundary receiver remains caller-visible; the local scratch
+    // record does not escape and must not appear in the public frame.
+    assert_eq!(
+        frame(&program).complete_paths(),
+        Some(["$P0.sink".to_owned()].as_slice())
+    );
+}
+
+#[test]
+fn explicit_context_boundary_frames_follow_state_transitions() {
+    let source = "pub boundary trait Sink { machine record(value: u32); }
+         data Context { sink: Binding<Sink>; }
+         data Scratch { value: u32; }
+         machine Context::inspect(context: &mut Context) {
+             let mut scratch: Scratch;
+             scratch.value = 7;
+             transition scratch.value == 7 {
+                 true -> good(&mut context)
+                 false -> bad(&mut context)
+             }
+             state good(context: &mut Context) { context.sink.record(7); }
+             state bad(context: &mut Context) { context.sink.record(0); }
+         }";
+    let binding = "pub boundary data Binding<Requirement>;";
+    let mut sources = source::SourceMap::default();
+    let binding_id = sources
+        .add_with_metadata(
+            "source/library/core/binding.omg".into(),
+            binding.to_owned(),
+            "source/library/core".into(),
+            None,
+            source::SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let source_id = sources
+        .add("tests/main.omg".into(), source.to_owned())
+        .source_id;
+    let mut program = crate::front_end::typed_program_from_source_map(
+        sources,
+        &[(binding_id, binding), (source_id, source)],
+    );
+    // Checking resolves projected endpoints before asking for write frames.
+    // This lower-layer fixture stops at typing, so retain that exact field
+    // identity explicitly rather than accepting a missing endpoint.
+    let context = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Context")
+        .unwrap();
+    let typed_trees::data::DataMember::Field(sink) = &program.data_members(context)[0] else {
+        panic!("sink field");
+    };
+    let sink = sink.symbol;
+    let blocks = program
+        .machine_states(&program.machines()[0])
+        .iter()
+        .map(|state| state.statement_nodes)
+        .collect::<Vec<_>>();
+    for statements in blocks {
+        for statement in program.statement_table.statements_mut(statements) {
+            if let StatementNode::Call(call) = statement {
+                call.receiver_symbol = sink;
+            }
+        }
+    }
+    let machine = &program.machines()[0];
+    let resolver = CallFrameResolver::new(&program).unwrap();
+    for state in program.machine_states(machine) {
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if let StatementNode::Call(call) = statement {
+                assert!(
+                    super::boundary_trait_signature(&program, machine, call).is_some(),
+                    "call: {call:?}; parameters: {:?}",
+                    program.state_parameters(state)
+                );
+            }
+        }
+    }
+    for state in program.machine_states(machine) {
+        assert_eq!(
+            resolver
+                .inferred_state_write_frame(machine, state)
+                .complete_paths(),
+            Some(["$P0.sink".to_owned()].as_slice()),
+            "{}",
+            state.name.as_str()
+        );
+    }
+    let states = program.machine_states(machine);
+    let statements = states[1].statement_nodes;
+    let foreign_root = program.state_parameters(&states[2])[0].symbol;
+    for corruption in 0..4 {
+        let mut invalid = program.clone();
+        let StatementNode::Call(call) = &mut invalid.statement_table.statements_mut(statements)[0]
+        else {
+            panic!("boundary call");
+        };
+        match corruption {
+            0 => call.receiver_root_symbol = foreign_root,
+            1 => call.receiver_root_symbol = SymbolHandle::invalid(),
+            2 => call.receiver_symbol = SymbolHandle::invalid(),
+            3 => call.target_symbol = SymbolHandle::invalid(),
+            _ => unreachable!(),
+        }
+        let StatementNode::Call(call) = &invalid.statement_table.statements(statements)[0] else {
+            panic!("boundary call");
+        };
+        assert!(super::boundary_trait_signature(&invalid, &invalid.machines()[0], call).is_none());
+        assert!(
+            !CallFrameResolver::new(&invalid)
+                .unwrap()
+                .inferred_state_write_frame(
+                    &invalid.machines()[0],
+                    &invalid.machine_states(&invalid.machines()[0])[1]
+                )
+                .is_complete(),
+            "corruption {corruption}"
+        );
+    }
+}
+
+#[test]
 fn static_boundary_scalar_arguments_do_not_invent_receiver_storage() {
     for actual in ["true", "produce()"] {
         let program = crate::front_end::typed_program(&format!(
