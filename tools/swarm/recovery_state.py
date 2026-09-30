@@ -89,7 +89,7 @@ class Store:
 
     def load(self):
         record = read_json(self.path)
-        if (not isinstance(record, dict) or record.get("schema") != 1
+        if (not isinstance(record, dict) or record.get("schema") != 2
                 or type(record.get("revision")) is not int
                 or record["revision"] < 0
                 or not isinstance(record.get("lanes"), dict)
@@ -106,7 +106,7 @@ class Store:
                 if (record["executor"], record["generation"]) != (executor, generation):
                     raise RecoveryError("store belongs to another executor/generation")
                 return record
-            record = dict(schema=1, revision=0, executor=executor,
+            record = dict(schema=2, revision=0, executor=executor,
                           generation=generation, lanes={}, build_slot=None,
                           observation=None)
             atomic_json(self.path, record)
@@ -117,12 +117,23 @@ class Store:
             record = self.load()
             if record["revision"] != revision:
                 raise RecoveryError("stale revision; reread and reconcile, do not overwrite")
-            updated = copy.deepcopy(record)
-            change(updated)
-            if updated == record:
-                return record
-            if updated.get("observation") == record.get("observation"):
-                updated["observation"] = None
-            updated["revision"] += 1
-            atomic_json(self.path, updated)
-            return updated
+            return self._commit(record, change)
+
+    def update_guarded(self, guard, change):
+        """Merge local evidence only if its exact execution identity still matches."""
+        with exclusive(str(self.path) + ".lock"):
+            record = self.load()
+            if not guard(record):
+                raise RecoveryError("execution identity changed; preserve result for reconciliation")
+            return self._commit(record, change)
+
+    def _commit(self, record, change):
+        updated = copy.deepcopy(record)
+        change(updated)
+        if updated == record:
+            return record
+        if updated.get("observation") == record.get("observation"):
+            updated["observation"] = None
+        updated["revision"] += 1
+        atomic_json(self.path, updated)
+        return updated

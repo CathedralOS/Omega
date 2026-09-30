@@ -17,8 +17,9 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
 
-from recovery_state import RecoveryError, Store, read_json
+from recovery_state import RecoveryError, Store, atomic_json, read_json
 import recovery_artifacts
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -52,13 +53,14 @@ def register(record, lane):
         if any(existing.get(key) != value for key, value in lane.items()):
             raise RecoveryError("lane already exists; preserve it and checkpoint explicitly")
         return
-    record["lanes"][lane["id"]] = dict(lane, operations={}, backup=None)
+    record["lanes"][lane["id"]] = dict(lane, operations={}, backup=None, checkpoint_revision=0)
 
 
 def checkpoint(record, lane, value):
     if value.get("status") not in {"incomplete", "validated", "blocked"} or not value.get("summary"):
         raise RecoveryError("explicit checkpoint status and summary required")
     record["lanes"][lane]["checkpoint"] = value
+    record["lanes"][lane]["checkpoint_revision"] += 1
     for key in ("head", "reviewed_main"):
         if key in value:
             record["lanes"][lane][key] = value[key]
@@ -79,15 +81,21 @@ def intent(record, lane, operation, kind):
             raise RecoveryError("executor build slot occupied or uncertain")
         record["build_slot"] = {"lane": lane, "operation": operation}
     row["operations"][operation] = dict(kind=kind, outcome="unknown", exit=None,
-                                        started_utc=coordination.now(), process="unknown")
+                                        started_utc=coordination.now(), process="unknown",
+                                        execution_id=uuid.uuid4().hex)
 
 
 def finished(record, lane, operation, result):
     row = record["lanes"][lane]["operations"][operation]
     row.update(exit=result["exit"], process=result["process"],
-               local_result=result["result"], pid=result.get("pid"))
+               local_result=result["result"], pid=result.get("pid"),
+               elapsed_seconds=result.get("elapsed_seconds"))
+    if result["result"] == "not_started":
+        row["outcome"] = "not_started"  # Known pre-dispatch failure, including mutations.
+        if record["build_slot"] == {"lane": lane, "operation": operation}:
+            record["build_slot"] = None  # No child was ever launched.
     # An exited client does not prove a remote mutation failed or succeeded.
-    if row["kind"] != "mutation" and result["process"] == "stopped":
+    elif row["kind"] != "mutation" and result["process"] == "stopped":
         row["outcome"] = "succeeded" if result["exit"] == 0 else "failed"
     # A parent exit alone cannot release a build slot; children need observation.
 
@@ -143,14 +151,23 @@ def reconcile(record, observation, now=None):
                 elif type(result.get("exit")) is int:
                     value["exit"] = result["exit"]
                     value["outcome"] = "succeeded" if result["exit"] == 0 else "failed"
+                elif value["outcome"] == "unknown":
+                    value["outcome"] = "stopped_unknown_result"
                 if record["build_slot"] == {"lane": lane["id"], "operation": operation}:
                     record["build_slot"] = None
     record["observation"] = observation
 
 
+def checkpoint_identity(record, lane):
+    row = record["lanes"][lane]
+    return dict(executor=record["executor"], generation=record["generation"],
+                lane=lane, assignment=row["assignment"], base=row["base"], head=row["head"],
+                revision=row["checkpoint_revision"], checkpoint=fingerprint(row["checkpoint"]))
+
+
 def backup(record, lane, artifact, receipt=None):
     row = record["lanes"][lane]
-    if artifact["checkpoint"] != fingerprint(row["checkpoint"]) or artifact["base"] != row["base"]:
+    if artifact["checkpoint"] != checkpoint_identity(record, lane) or artifact["base"] != row["base"]:
         raise RecoveryError("artifact does not describe this checkpoint/base")
     if receipt is not None:
         # Adapter must correlate an actual successful approved upload result with
@@ -168,10 +185,11 @@ def backup(record, lane, artifact, receipt=None):
                          status="confirmed-upload" if receipt is not None else "local-only")
 
 
-def protected(lane):
+def protected(record, lane_id):
+    lane = record["lanes"][lane_id]
     saved = lane.get("backup") or {}
     return (saved.get("status") == "confirmed-upload"
-            and saved.get("checkpoint") == fingerprint(lane["checkpoint"])
+            and saved.get("checkpoint") == checkpoint_identity(record, lane_id)
             and saved.get("base") == lane["base"])
 
 
@@ -199,7 +217,7 @@ def plan(record, observation=None, now=None):
             elif worker not in {"idle", "stopped"} or seen.get("processes_stopped") is not True:
                 action = "reconcile_processes"
             elif workspace.get("exists") is False:
-                action = "materialize_verify_backup" if protected(lane) else "preserve_missing_workspace"
+                action = "materialize_verify_backup" if protected(record, lane["id"]) else "preserve_missing_workspace"
             elif workspace.get("exists") is not True or workspace.get("head") != lane["head"]:
                 action = "review_worktree"
             elif seen.get("main") != lane["reviewed_main"]:
@@ -226,7 +244,7 @@ def plan(record, observation=None, now=None):
             action = "review_cleanup"
         rows.append(dict(lane=lane["id"], action=action, resume_intent=resume_id,
                          unknown_operations=unknown,
-                         backup="confirmed-upload" if protected(lane) else "unprotected-current-checkpoint",
+                         backup="confirmed-upload" if protected(record, lane["id"]) else "unprotected-current-checkpoint",
                          checkpoint=lane["checkpoint"]["status"],
                          cleanup="eligible-owned-landed" if cleanup else "preserve",
                          resources=dict(worktree=lane["worktree"], branch=lane["branch"],
@@ -237,6 +255,51 @@ def plan(record, observation=None, now=None):
     return dict(revision=record["revision"], executor=record["executor"], lanes=rows,
                 build_slot=record["build_slot"], executes_actions=False,
                 provider_lifecycle="provider-managed; no deletion or keep-alive capability inferred")
+
+
+def execution_identity(record, lane, operation):
+    row = record["lanes"][lane]
+    op = row["operations"][operation]
+    return dict(executor=record["executor"], generation=record["generation"], lane=lane,
+                assignment=row["assignment"], worker_handle=row["worker_handle"],
+                operation=operation, execution_id=op["execution_id"], kind=op["kind"])
+
+
+def execution_paths(store, identity):
+    # Ledger path plus exact execution identity avoids cross-ledger/lane collisions.
+    directory = store.path.parent / (store.path.name + ".executions") / fingerprint(identity)
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / "command.log", directory / "result.json"
+
+
+def complete(store, lane, operation):
+    current = store.load()
+    identity = execution_identity(current, lane, operation)
+    _, path = execution_paths(store, identity)
+    envelope = read_json(path)
+    if envelope.get("schema") != 1 or envelope.get("identity") != identity:
+        raise RecoveryError("completion identity mismatch; preserve evidence")
+    result = envelope["result"]
+    if (result.get("result") not in {"exited", "interrupted", "not_started"}
+            or result.get("process") not in {"stopped", "unknown"}
+            or (result["result"] == "exited" and type(result.get("exit")) is not int)):
+        raise RecoveryError("invalid local completion evidence")
+    proof = fingerprint(envelope)
+    def apply(record):
+        op = record["lanes"][lane]["operations"][operation]
+        if op.get("completion") == proof:
+            return
+        if op.get("completion") is not None:
+            raise RecoveryError("conflicting local completion; preserve evidence")
+        # Keep an independently reconciled terminal outcome when a delayed
+        # interrupted result supplies no verdict. Never undo observed quiescence.
+        previous = (op["outcome"], op["process"], op["exit"])
+        finished(record, lane, operation, result)
+        if result["result"] == "interrupted" and previous[1] == "stopped":
+            op["outcome"], op["process"], op["exit"] = previous
+        op["completion"] = proof
+    return store.update_guarded(
+        lambda record: execution_identity(record, lane, operation) == identity, apply)
 
 
 def bounded_command(arguments, cwd, log, timeout):
@@ -250,7 +313,11 @@ def bounded_command(arguments, cwd, log, timeout):
     if not arguments or not 0 < timeout <= 3600:
         raise RecoveryError("command needs argv and a bounded timeout (0, 3600]")
     started = time.monotonic()
-    with Path(log).open("xb") as output:
+    try:
+        output = Path(log).open("xb")
+    except OSError:
+        return dict(result="not_started", exit=None, process="stopped", pid=None)
+    with output:
         try:
             process = subprocess.Popen(arguments, cwd=cwd, stdin=subprocess.DEVNULL,
                                        stdout=output, stderr=subprocess.STDOUT,
@@ -286,6 +353,9 @@ def main(argv=None):
     init.add_argument("--executor", required=True)
     init.add_argument("--generation", required=True)
     commands.add_parser("status")
+    completion = commands.add_parser("complete")
+    completion.add_argument("--lane", required=True)
+    completion.add_argument("--operation", required=True)
     for name in ("register", "reconcile"):
         commands.add_parser(name).add_argument("--input", type=Path, required=True)
     check = commands.add_parser("checkpoint")
@@ -317,6 +387,8 @@ def main(argv=None):
             result = store.initialize(args.executor, args.generation)
         elif args.command == "status":
             result = plan(store.load())
+        elif args.command == "complete":
+            result = complete(store, args.lane, args.operation)
         else:
             if args.revision is None:
                 raise RecoveryError("--revision required; read status first")
@@ -336,15 +408,19 @@ def main(argv=None):
                     raise RecoveryError("stale revision before bundle")
                 lane = current["lanes"][args.lane]
                 artifact = recovery_artifacts.pack(args.root, args.file, args.output,
-                                                   lane["base"], fingerprint(lane["checkpoint"]))
+                                                   lane["base"], checkpoint_identity(current, args.lane))
                 result = store.update(args.revision, lambda r: backup(r, args.lane, artifact))
             else:
                 result = store.update(args.revision, lambda r: intent(r, args.lane, args.operation, args.kind))
                 if args.command == "run":
                     command = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
-                    log = args.state.parent / (args.operation + ".log")
+                    identity = execution_identity(result, args.lane, args.operation)
+                    log, result_path = execution_paths(store, identity)
                     completed = bounded_command(command, args.cwd, log, args.timeout)
-                    result = store.update(result["revision"], lambda r: finished(r, args.lane, args.operation, completed))
+                    # Persist before touching the shared ledger. Another lane may
+                    # have advanced its revision, or the merge lock may be busy.
+                    atomic_json(result_path, dict(schema=1, identity=identity, result=completed))
+                    result = complete(store, args.lane, args.operation)
         print(json.dumps(result, indent=2))
         return 0
     except (RecoveryError, OSError, KeyError, TypeError, ValueError) as error:
