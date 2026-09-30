@@ -77,7 +77,8 @@ Zero initialization decides the predicate at zeroed fields; an element store
 re-decides every fact reading its field from the facts standing before the
 store plus the written value, opening a window otherwise; a helper theorem's
 `ensures` holds when every fork of its evaluation under the premises'
-consequences is true. A citation of such a theorem bounds the exact cited
+consequences is true. Contract entailment records that proof rather than a
+stand-down, so package admission sees no open obligation for it. A citation of such a theorem bounds the exact cited
 element in the caller's arithmetic, and a callee requirement that restates a
 standing `where` fact at the argument's field is discharged by that fact.
 The explored fragment is transitions over builtin comparisons, connectives,

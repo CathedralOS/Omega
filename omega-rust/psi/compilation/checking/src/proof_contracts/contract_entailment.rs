@@ -976,6 +976,17 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                 )));
             }
             Judgment::Unknown { goal_in_language } => {
+                // A collection helper theorem: the polynomial engine cannot
+                // read an element or a predicate application, but exploring
+                // the predicate machine's own checked body under the
+                // `requires` conjuncts proves the goal on every fork. That
+                // is a proof, not a stand-down left for package admission.
+                if crate::proof_contracts::collection_predicates::premises_prove_expression(
+                    program, machine, *fact,
+                ) {
+                    proven.push(*fact);
+                    continue;
+                }
                 if goal_in_language && requires_fully_visible {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` cannot prove ensures contract proof fact `{}` from the requires contract",
