@@ -921,9 +921,14 @@ fn receiver_layout(
     else {
         return Err(invalid());
     };
+    // The checked receipt and the source signature join by exact symbol and
+    // signature identity. Their machine names are display payloads spelled
+    // by two producers -- Psi's receipt carries the module-qualified display
+    // path (`left::Runner::run`), the source signature the attached name
+    // (`Runner::run`) -- so the names differ for any module-qualified entry
+    // and bind nothing the symbol does not; they are not compared.
     if checked_entry.source_signature_identity() != source.identity().bytes()
         || checked_entry.source_machine_symbol() != source.machine_symbol()
-        || checked_entry.source_machine_name() != source.machine_name()
         || checked_entry.terminal_entry() != terminal.entry
         || checked_entry.terminal_entry() != function.machine
         || checked_entry.terminal_psi_identity()
