@@ -3,6 +3,7 @@ use super::{
     StrictArithmeticBindingValue, StrictArithmeticExpressionBinding, StrictArithmeticSymbolBinding,
     SymbolHandle, TypedTrees, proof_integer_expression, proof_nat_cast,
 };
+mod polynomial_bounds;
 pub(super) enum Judgment {
     Proven,
     /// Disproved purely by folding both sides to constants.
@@ -1903,6 +1904,7 @@ impl<'program> Engine<'program> {
             // P >= b and goal - P >= requested - b imply goal >= requested.
             // Do not recursively search combinations of stored hypotheses.
             self.prove_base_lower_bound(&polynomial.sub(stored), &bound.sub(stored_bound))
+                || self.prove_scaled_lower_bound(polynomial, bound, stored, stored_bound)
         })
     }
 
@@ -1941,7 +1943,9 @@ impl<'program> Engine<'program> {
         {
             return true;
         }
-        false
+        self.horner_interval(polynomial, 0)
+            .low
+            .is_some_and(|low| low >= *bound)
     }
 
     fn polynomial_interval(&self, polynomial: &Polynomial) -> Interval {
