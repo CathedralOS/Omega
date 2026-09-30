@@ -35,7 +35,7 @@ data Main {
 }
 
 // Returns an array index for a given key (0->0, 1->2, 2->4).
-machine Picker::pick(&mut self, key: i32) -> i32 {
+machine Picker::pick(picker: &mut Picker, key: i32) -> i32 {
     transition key == 0 {
         true -> (0)
         _ -> try1(key)
@@ -51,30 +51,30 @@ machine Picker::pick(&mut self, key: i32) -> i32 {
 
 // Read a table entry at index idx using const dispatch.
 // idx must be 0..4.
-machine Main::read_at(&mut self, idx: i32) -> i32 {
+machine Main::read_at(main: &mut Main, idx: i32) -> i32 {
     transition idx == 0 {
-        true -> (self.table[0])
-        _ -> try1(idx)
+        true -> (main.table[0])
+        _ -> try1(main, idx)
     }
 
-    state try1(&mut self, idx: i32) {
+    state try1(main: &mut Main, idx: i32) {
         transition idx == 1 {
-            true -> (self.table[1])
-            _ -> try2(idx)
+            true -> (main.table[1])
+            _ -> try2(main, idx)
         }
     }
 
-    state try2(&mut self, idx: i32) {
+    state try2(main: &mut Main, idx: i32) {
         transition idx == 2 {
-            true -> (self.table[2])
-            _ -> try3(idx)
+            true -> (main.table[2])
+            _ -> try3(main, idx)
         }
     }
 
-    state try3(&mut self, idx: i32) {
+    state try3(main: &mut Main, idx: i32) {
         transition idx == 3 {
-            true -> (self.table[3])
-            _ -> (self.table[4])
+            true -> (main.table[3])
+            _ -> (main.table[4])
         }
     }
 }
@@ -90,14 +90,14 @@ machine Main::main(&mut self) reaches Console {
 
     // Call pick() to get indices, then read_at() to look up values.
     // Both picks chain: call result drives the dispatch in read_at.
-    let idx0: i32 = self.picker.pick(0);
-    let v0: i32 = self.read_at(idx0);
+    let idx0: i32 = Picker::pick(&mut self.picker, 0);
+    let v0: i32 = Main::read_at(&mut self, idx0);
 
-    let idx2: i32 = self.picker.pick(2);
-    let v2: i32 = self.read_at(idx2);
+    let idx2: i32 = Picker::pick(&mut self.picker, 2);
+    let v2: i32 = Main::read_at(&mut self, idx2);
 
-    let idx1: i32 = self.picker.pick(1);
-    let v1: i32 = self.read_at(idx1);
+    let idx1: i32 = Picker::pick(&mut self.picker, 1);
+    let v1: i32 = Main::read_at(&mut self, idx1);
 
     // Verify idx0 == 0.
     transition idx0 == 0 {

@@ -55,13 +55,13 @@ pub data Main {
     msg: [u16; 19];
 }
 
-boundary machine Main::run(&mut self, handle: addr, table: &EfiSystemTable) -> i32
+boundary machine Main::run(main: &mut Main, handle: addr, table: &EfiSystemTable) -> i32
 invokes TextOutput;
 {
-    self.msg = utf16"Hello from Omega\r\n\0";
+    main.msg = utf16"Hello from Omega\r\n\0";
     // Project con_out through a frame local (the reference-param deref), then
     // dispatch OutputString(con_out, &msg) through the firmware's vtable.
     let con_out: addr = table.con_out;
-    self.out.output_string(con_out, &self.msg);
+    main.out.output_string(con_out, &main.msg);
     transition { _ -> (0) }
 }
