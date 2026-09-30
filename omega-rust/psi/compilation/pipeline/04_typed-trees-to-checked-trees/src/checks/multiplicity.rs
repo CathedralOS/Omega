@@ -1,5 +1,6 @@
 //!
 //! `linear_obligations.rs` establishes claims and checks moves,
+//! `consumed_owners.rs` rejects uses of an owner after its transfer,
 //! `permission_events.rs` records the events, `claim_outcomes.rs` settles
 //! which claim each outcome reaches, `linear_validation.rs` walks the
 //! statements, and `type_multiplicity.rs` answers what a type carries;
@@ -9,6 +10,7 @@
 
 mod borrowed_windows;
 mod claim_outcomes;
+mod consumed_owners;
 mod linear_obligations;
 mod linear_validation;
 mod owned_selection;

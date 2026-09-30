@@ -13,9 +13,11 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
 #[test]
 fn named_call_requires_keep_a_copied_generic_record_after_a_right_operand_write() {
     // A generic instantiation is the same detached copy: `h`'s bound snapshot
-    // for `left` predates `reset`'s write to the source storage.
+    // for `left` predates `reset`'s write to the source storage. `Holder` is
+    // `[copy]` so the operand really is a copy; an affine `h` would move into
+    // `left` and leave nothing for `&mut h` to borrow.
     check(
-        "pub data Holder<T> { value: T; other: i32; }
+        "pub data Holder<T [copy]> [copy] { value: T; other: i32; }
          boundary operator Ns::probe(left: Holder<i32>, right: i32) -> bool
          requires left.value >= 0;
          machine reset(h: &mut Holder<i32>) -> i32 { h.value = -1; 0 }
