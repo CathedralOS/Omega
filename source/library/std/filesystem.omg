@@ -807,7 +807,7 @@ invokes
 // truncates, and (2) on a source-open failure it still creates an empty `to`.
 // A faithful version (branch after the read; write only `buffer[0..n]`) lands
 // once the interpreter threads slices through states.
-pub machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
+pub machine Filesystem::copy(filesystem: &mut Filesystem, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: u64) -> IoResult
 reaches
     FilesystemHost
 invokes
@@ -816,7 +816,7 @@ invokes
     // BINARY-SAFE on windows: the selected target encoder prevents msvcrt
     // CRLF/^Z translation on both source read and destination write. The
     // destination uses the same checked create/truncate encoding as `create`.
-    self.open_options = OpenOptions {
+    filesystem.open_options = OpenOptions {
         read: false,
         write: false,
         append: false,
@@ -824,12 +824,12 @@ invokes
         create: false,
         create_new: false,
     };
-    Filesystem::encode_open_options(&mut self);
-    self.read_flags = self.open_flags;
-    let src: i32 = self.host.open(from, self.read_flags);
-    let n: i64 = self.host.read(src, buffer, cap);
-    let closed_src: i32 = self.host.close(src);
-    self.open_options = OpenOptions {
+    Filesystem::encode_open_options(filesystem);
+    filesystem.read_flags = filesystem.open_flags;
+    let src: i32 = filesystem.host.open(from, filesystem.read_flags);
+    let n: i64 = filesystem.host.read(src, buffer, cap);
+    let closed_src: i32 = filesystem.host.close(src);
+    filesystem.open_options = OpenOptions {
         read: false,
         write: true,
         append: false,
@@ -837,32 +837,32 @@ invokes
         create: true,
         create_new: false,
     };
-    Filesystem::encode_open_options(&mut self);
-    let dst: i32 = self.host.open_create(to, self.open_flags, 438);
-    let written: i64 = self.host.write(dst, buffer);
-    let truncated: i32 = self.host.set_len(dst, n);
-    let closed_dst: i32 = self.host.close(dst);
+    Filesystem::encode_open_options(filesystem);
+    let dst: i32 = filesystem.host.open_create(to, filesystem.open_flags, 438);
+    let written: i64 = filesystem.host.write(dst, buffer);
+    let truncated: i32 = filesystem.host.set_len(dst, n);
+    let closed_dst: i32 = filesystem.host.close(dst);
     // Preserve the source's permission bits (Rust `fs::copy` copies the mode).
     // `stat` the source (it exists -- we just read it) and decode st_mode's
     // permission bits (low 9, & 0o777 = 511), then `chmod` the destination.
-    let statrc: i32 = self.host.read_metadata(from, &mut self.stat_buf);
-    let stat: &StatView = &self.stat_buf[0] as &StatView;
+    let statrc: i32 = filesystem.host.read_metadata(from, &mut filesystem.stat_buf);
+    let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
     // Store the decoded permission bits in a FIELD, not a single-use `let`: an
     // elided local folds its computed initializer back into the `set_permissions`
     // argument, which the host-call marshaller rejects (a host arg must be a
     // simple place). `perm_mode` is the same field the set_permissions wrapper uses.
-    self.perm_mode = stat.value.mode & 511;
-    let chmodded: i32 = self.host.set_permissions(to, self.perm_mode);
-    transition n >= 0 { true -> ok(n) _ -> err(src, n) }
-    state ok(&mut self, n: i64) -> IoResult {
+    filesystem.perm_mode = stat.value.mode & 511;
+    let chmodded: i32 = filesystem.host.set_permissions(to, filesystem.perm_mode);
+    transition n >= 0 { true -> ok(filesystem, n) _ -> err(filesystem, src, n) }
+    state ok(filesystem: &mut Filesystem, n: i64) -> IoResult {
         let converted_count: u64 = narrow_i64_to_u64_exact(n);
         IoResult::Ok { count: converted_count }
     }
-    state err(&mut self, src: i32, n: i64) -> IoResult {
-        transition src < 0 { true -> open_err(src) _ -> read_err(n) }
+    state err(filesystem: &mut Filesystem, src: i32, n: i64) -> IoResult {
+        transition src < 0 { true -> open_err(filesystem, src) _ -> read_err(filesystem, n) }
     }
-    state open_err(&mut self, src: i32) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, src); IoResult::Error { kind: kind } }
-    state read_err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i64(&mut self, n); IoResult::Error { kind: kind } }
+    state open_err(filesystem: &mut Filesystem, src: i32) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, src); IoResult::Error { kind: kind } }
+    state read_err(filesystem: &mut Filesystem, n: i64) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
 }
 
 // Does a path exist? (Rust `Path::exists` = `metadata().is_ok()`.) Faithfully

@@ -98,44 +98,44 @@ pub data Request {
 
 // Seed a fresh backing with zero elements — the caller's minting step:
 // the store starts unheld and empty.
-pub machine Backing4::seed(&mut self) {
-    self.e[0] = 0;
-    self.e[1] = 0;
-    self.e[2] = 0;
-    self.e[3] = 0;
-    self.held = 0;
+pub machine Backing4::seed(backing4: &mut Backing4) {
+    backing4.e[0] = 0;
+    backing4.e[1] = 0;
+    backing4.e[2] = 0;
+    backing4.e[3] = 0;
+    backing4.held = 0;
 }
 
-pub machine Backing8::seed(&mut self) {
-    self.e[0] = 0;
-    self.e[1] = 0;
-    self.e[2] = 0;
-    self.e[3] = 0;
-    self.e[4] = 0;
-    self.e[5] = 0;
-    self.e[6] = 0;
-    self.e[7] = 0;
-    self.held = 0;
+pub machine Backing8::seed(backing8: &mut Backing8) {
+    backing8.e[0] = 0;
+    backing8.e[1] = 0;
+    backing8.e[2] = 0;
+    backing8.e[3] = 0;
+    backing8.e[4] = 0;
+    backing8.e[5] = 0;
+    backing8.e[6] = 0;
+    backing8.e[7] = 0;
+    backing8.held = 0;
 }
 
-pub machine Backing16::seed(&mut self) {
-    self.e[0] = 0;
-    self.e[1] = 0;
-    self.e[2] = 0;
-    self.e[3] = 0;
-    self.e[4] = 0;
-    self.e[5] = 0;
-    self.e[6] = 0;
-    self.e[7] = 0;
-    self.e[8] = 0;
-    self.e[9] = 0;
-    self.e[10] = 0;
-    self.e[11] = 0;
-    self.e[12] = 0;
-    self.e[13] = 0;
-    self.e[14] = 0;
-    self.e[15] = 0;
-    self.held = 0;
+pub machine Backing16::seed(backing16: &mut Backing16) {
+    backing16.e[0] = 0;
+    backing16.e[1] = 0;
+    backing16.e[2] = 0;
+    backing16.e[3] = 0;
+    backing16.e[4] = 0;
+    backing16.e[5] = 0;
+    backing16.e[6] = 0;
+    backing16.e[7] = 0;
+    backing16.e[8] = 0;
+    backing16.e[9] = 0;
+    backing16.e[10] = 0;
+    backing16.e[11] = 0;
+    backing16.e[12] = 0;
+    backing16.e[13] = 0;
+    backing16.e[14] = 0;
+    backing16.e[15] = 0;
+    backing16.held = 0;
 }
 
 // Fallible requests: a free slot decrements the ledger and mints the

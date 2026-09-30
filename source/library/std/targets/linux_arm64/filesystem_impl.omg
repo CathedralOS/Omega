@@ -848,15 +848,15 @@ invokes
     state failed(filesystem: &mut Filesystem, rc: i32) -> TryLockResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); TryLockResult::Error { kind: kind } }
 }
 
-pub linux_arm64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult
+pub linux_arm64 machine Filesystem::unlock(filesystem: &mut Filesystem, file: File) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 8);
-    transition rc == 0 { true -> ok() _ -> err(rc) }
+    filesystem.file_fd = file.fd;
+    let rc: i32 = filesystem.host.lock_file(filesystem.file_fd, 8);
+    transition rc == 0 { true -> ok() _ -> err(filesystem, rc) }
     state ok() -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); UnitResult::Error { kind: kind } }
+    state err(filesystem: &mut Filesystem, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }

@@ -52,13 +52,13 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     // Mint caller-supplied backing: each store starts empty and unheld.
-    self.eb.seed();
-    self.b4.seed();
-    self.b8.seed();
-    self.b16.seed();
-    self.spare16.seed();
-    self.out4.seed();
-    self.out16.seed();
+    Backing4::seed(&mut self.eb);
+    Backing4::seed(&mut self.b4);
+    Backing8::seed(&mut self.b8);
+    Backing16::seed(&mut self.b16);
+    Backing16::seed(&mut self.spare16);
+    Backing4::seed(&mut self.out4);
+    Backing16::seed(&mut self.out16);
 
     // Declare the supply to the strategy: two 4-stores (eb + b4), one
     // 8-store, one 16-store. The denied request must not touch it.

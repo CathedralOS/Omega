@@ -383,7 +383,7 @@ pub data MacosInput {
 // return the 65535 sentinel (no macOS keycode is that large), which key_state
 // gates to "not down". PURE machine: every arm state completes with a terminal
 // value, so it is legal inside a value-called callee (the effect fence).
-pub macos_arm64 machine MacosInput::map_keycode(&mut self, virtual_key: u32) -> u64 {
+pub macos_arm64 machine MacosInput::map_keycode(macos_input: &mut MacosInput, virtual_key: u32) -> u64 {
     transition virtual_key == 8 { true -> k51() _ -> t13(virtual_key) }
     state t13(virtual_key: u32) -> u64 { transition virtual_key == 13 { true -> k36() _ -> t27(virtual_key) } }
     state t27(virtual_key: u32) -> u64 { transition virtual_key == 27 { true -> k53() _ -> t37(virtual_key) } }
@@ -447,7 +447,7 @@ pub macos_arm64 machine MacosInput::map_keycode(&mut self, virtual_key: u32) -> 
 pub macos_arm64 machine MacosInput::key_state(&mut self, virtual_key: u32) -> u64
 reaches CoreGraphics
 {
-    self.keycode = self.map_keycode(virtual_key);
+    self.keycode = MacosInput::map_keycode(&mut self, virtual_key);
     self.rc = cg_event_source_key_state(1, self.keycode);
     transition self.keycode == 65535 { true -> not_down() _ -> ret() }
     state not_down() -> u64 { 0 }
