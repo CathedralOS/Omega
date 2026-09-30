@@ -618,12 +618,16 @@ fn record_literal_stores(
     let mut stores = Vec::with_capacity(fields.len());
     for (ordinal, field) in fields.iter().enumerate() {
         let declaration = exact_relevant_field(program, carrier.owner, field.field)?;
-        if !crate::facts::field_domain::domain_constraint_symbols(
+        // A member refined only by exact-interval domains is the bounded
+        // integer range the literal's RecordField computation already proved
+        // at construction: its domain membership and its byte width are the
+        // same obligation, so the member store carries nothing a plain field
+        // does not. Predicate or routed domains keep declining -- their
+        // membership needs the routed evidence the store plan cannot carry.
+        if !crate::facts::field_domain::domains_are_exact_intervals(
             program,
             declaration.type_reference,
-        )
-        .is_empty()
-        {
+        ) {
             return None;
         }
         let primitive_type = scalar_leaf(program, &destination.root, declaration)?;
