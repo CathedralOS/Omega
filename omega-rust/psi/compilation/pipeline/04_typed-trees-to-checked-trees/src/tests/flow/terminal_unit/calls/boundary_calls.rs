@@ -273,6 +273,77 @@ fn evaluated_binding_leaf_scalar_results_bind_as_boundary_results() {
     }
 }
 
+/// The libobjc/libSystem `const char*` shape: a requirement taking a shared
+/// `&u8` plans one shared-borrow structural parameter, because the borrowed
+/// byte stays the caller's referent. Before this plan existed, a provider
+/// body's leaf call was omitted as "calls boundary ..., which has no boundary
+/// plan". A shared loan of a linear referent still forms no plan.
+#[test]
+fn shared_unrestricted_references_plan_as_borrowed_boundary_parameters() {
+    let checked = checked(
+        r#"
+        boundary trait CText {
+            machine length(text: &u8) -> u64;
+            machine hold(token: &Token) -> u64;
+        }
+        data Token [linear] { value: u64; }
+        machine text_binding() -> i32 {
+            0
+        }
+        machine c_length(text: &u8) -> u64
+            satisfies CText::length via text_binding();
+        machine c_hold(token: &Token) -> u64
+            satisfies CText::hold via text_binding();
+        data Words { bytes: [u8; 6]; }
+        data Reader {}
+        machine Reader::measure(text: &u8, words: &Words) -> u64 reaches CText {
+            let forwarded: u64 = c_length(text);
+            let element: u64 = c_length(&words.bytes[2]);
+            element
+        }
+        machine Reader::inspect(token: &Token) -> u64 reaches CText {
+            let held: u64 = c_hold(token);
+            held
+        }
+        "#,
+    );
+    let length = boundary_requirement(&checked, "CText", "length");
+    let hold = boundary_requirement(&checked, "CText", "hold");
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plan = plans
+        .boundary_for_machine(length)
+        .expect("a shared `&u8` requirement retains its boundary plan");
+    assert!(plan.scalar_parameters.is_empty());
+    let [parameter] = plan.structural_parameters.as_slice() else {
+        panic!("one borrowed structural parameter")
+    };
+    assert_eq!(
+        parameter.access,
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+    );
+    assert_eq!(parameter.multiplicity, Multiplicity::Unrestricted);
+    assert!(parameter.qualifications.is_empty());
+    assert!(
+        plans.boundary_for_machine(hold).is_none(),
+        "a shared loan of a linear referent stays outside the boundary plan"
+    );
+    let measure = plans
+        .for_machine(machine_named(&checked, "Reader::measure"))
+        .expect("both leaf calls rejoin the requirement's plan");
+    assert_eq!(
+        measure
+            .operations
+            .iter()
+            .filter(|operation| matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if call.is_boundary() && call.target.machine == length
+            ))
+            .count(),
+        2
+    );
+}
+
 #[test]
 fn named_operator_results_use_declared_types_in_field_assignments() {
     for primitive in ["f32", "f64", "i32"] {

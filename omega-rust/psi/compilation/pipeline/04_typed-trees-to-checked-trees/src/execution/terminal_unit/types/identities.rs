@@ -53,6 +53,31 @@ pub(in crate::execution::terminal_unit) fn shared_plain_affine_referent(
     .then_some(*referee)
 }
 
+/// Shared references to an existing whole unrestricted carrier, such as the
+/// `&u8` a foreign `const char*` parameter lowers to, lend the caller's
+/// referent for the call's duration exactly as the affine form above does:
+/// the callee reads through the loan, and the caller keeps custody of the
+/// referent. An unrestricted referent adds no ownership question the affine
+/// one lacks; it is kept separate only because ordinary call admission
+/// consumes the affine form with its own closed-referent companion.
+/// Nested references and constrained carriers stay out.
+pub(in crate::execution::terminal_unit) fn shared_plain_unrestricted_referent(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Shared,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    (program.type_multiplicity(*referee) == Multiplicity::Unrestricted
+        && has_plain_owned_contents(program, *referee))
+    .then_some(*referee)
+}
+
 /// Exclusive references to this existing whole non-linear carrier do not own
 /// or qualify the referent either: the boundary writes back through them as an
 /// out-parameter, and custody of the referent stays with the caller. Linear
