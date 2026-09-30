@@ -1,15 +1,12 @@
 //! Deterministic control-flow edge fact reconstruction.
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    hash::{Hash, Hasher},
-};
+use std::collections::BTreeMap;
 
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::super::substitution::{
-    proposition_mentions_substituted_value, push_unique_fact, roster_equation_position,
-    roster_has_fact, substitute_proposition_places, substitute_proposition_values,
+    FactIndex, proposition_mentions_substituted_value, substitute_proposition_places,
+    substitute_proposition_values,
 };
 
 mod conditions;
@@ -42,7 +39,12 @@ pub(super) fn bind_successor_axioms(
         .zip(arguments)
         .map(|(parameter, argument)| (*argument, value_term(parameter.id)))
         .collect::<BTreeMap<_, _>>();
-    let established = axioms.clone();
+    // Facts established before this edge's own pushes live below this
+    // position; iterating positions reads them without cloning the roster.
+    let established_count = axioms.len();
+    // Fingerprint the roster once: every duplicate check and equality
+    // citation below is a bucket lookup instead of a roster scan.
+    let mut fact_index = FactIndex::new(axioms);
     // Emit edge equalities before rewritten path facts so independently
     // reconstructed axiom indexes are deterministic. A roster never stores
     // one equation in both operand orders — two swapped `parameter =
@@ -50,7 +52,7 @@ pub(super) fn bind_successor_axioms(
     // cyclic definition in the denotation checker — so a binding whose
     // symmetric twin already stands is not pushed a second time.
     for (parameter, argument) in target_block.parameters.iter().zip(arguments) {
-        push_unique_fact(
+        fact_index.push_unique(
             axioms,
             Proposition::Equal(value_term(parameter.id), value_term(*argument)),
         );
@@ -66,49 +68,34 @@ pub(super) fn bind_successor_axioms(
             .iter()
             .zip(arguments)
             .filter_map(|(parameter, argument)| {
-                roster_equation_position(axioms, &value_term(parameter.id), &value_term(*argument))
+                fact_index.equation_position(
+                    axioms,
+                    &value_term(parameter.id),
+                    &value_term(*argument),
+                )
             })
             .collect::<Vec<_>>();
-        // Fingerprint the roster only once some fact actually needs a
-        // duplicate check; an edge whose arguments no fact mentions pays
-        // nothing for the whole roster.
-        let mut seen = None::<HashMap<u64, Vec<usize>>>;
-        for (index, proposition) in established.iter().enumerate() {
-            if !proposition_mentions_substituted_value(proposition, &substitutions) {
+        for index in 0..established_count {
+            if !proposition_mentions_substituted_value(&axioms[index], &substitutions) {
                 continue;
             }
-            let rewritten = substitute_proposition_values(proposition, &substitutions);
-            let fingerprint = fact_cache_fingerprint(&rewritten);
-            let seen = seen.get_or_insert_with(|| {
-                axioms.iter().enumerate().fold(
-                    HashMap::<_, Vec<_>>::new(),
-                    |mut seen, (index, axiom)| {
-                        seen.entry(fact_cache_fingerprint(axiom))
-                            .or_default()
-                            .push(index);
-                        seen
-                    },
-                )
-            });
-            let duplicate = seen
-                .get(&fingerprint)
-                .is_some_and(|indices| indices.iter().any(|index| axioms[*index] == rewritten))
-                || roster_has_fact(axioms, &rewritten);
-            if !duplicate {
-                let certified = transport::successor_rewrite_certified(
-                    proposition_context,
-                    axioms,
-                    index,
-                    &equality_indices,
-                    &rewritten,
-                );
-                seen.entry(fingerprint).or_default().push(axioms.len());
-                axioms.push(rewritten.clone());
-                rewritten_facts.push(RewrittenSuccessorFact {
-                    proposition: rewritten,
-                    certified,
-                });
+            let rewritten = substitute_proposition_values(&axioms[index], &substitutions);
+            if fact_index.has_fact(axioms, &rewritten) {
+                continue;
             }
+            let certified = transport::successor_rewrite_certified(
+                proposition_context,
+                axioms,
+                index,
+                &equality_indices,
+                &rewritten,
+            );
+            fact_index.record(axioms.len(), &rewritten);
+            axioms.push(rewritten.clone());
+            rewritten_facts.push(RewrittenSuccessorFact {
+                proposition: rewritten,
+                certified,
+            });
         }
     }
     rewritten_facts
@@ -141,11 +128,13 @@ pub(super) fn bind_successor_structural_axioms(
     if substitutions.is_empty() {
         return Vec::new();
     }
-    let established = axioms.clone();
+    let established_count = axioms.len();
+    let mut fact_index = FactIndex::new(axioms);
     let mut rewritten_facts = Vec::new();
-    for proposition in established.iter() {
-        let rewritten = substitute_proposition_places(proposition, &substitutions);
-        if rewritten != *proposition && !axioms.contains(&rewritten) {
+    for index in 0..established_count {
+        let rewritten = substitute_proposition_places(&axioms[index], &substitutions);
+        if rewritten != axioms[index] && fact_index.position_of(axioms, &rewritten).is_none() {
+            fact_index.record(axioms.len(), &rewritten);
             axioms.push(rewritten.clone());
             rewritten_facts.push(RewrittenSuccessorFact {
                 proposition: rewritten,
@@ -178,23 +167,24 @@ pub(super) fn append_successor_fact(
         .zip(arguments)
         .map(|(parameter, argument)| (*argument, value_term(parameter.id)))
         .collect::<BTreeMap<_, _>>();
-    push_unique_fact(axioms, proposition.clone());
+    let mut fact_index = FactIndex::new(axioms);
+    fact_index.push_unique(axioms, proposition.clone());
     let rewritten = substitute_proposition_values(proposition, &substitutions);
-    append_discrete_fact(axioms, proposition);
-    append_discrete_fact(axioms, &rewritten);
-    if roster_has_fact(axioms, &rewritten) {
+    append_discrete_fact(axioms, &mut fact_index, proposition);
+    append_discrete_fact(axioms, &mut fact_index, &rewritten);
+    if fact_index.has_fact(axioms, &rewritten) {
         return Vec::new();
     }
     // The source fact sits at its already-pushed roster position; this edge's
     // binding equalities are the `parameter = argument` axioms the successor
     // binding pushed before any rewrite.
-    let source_index = axioms.iter().position(|axiom| axiom == proposition);
+    let source_index = fact_index.position_of(axioms, proposition);
     let equality_indices = target_block
         .parameters
         .iter()
         .zip(arguments)
         .filter_map(|(parameter, argument)| {
-            roster_equation_position(axioms, &value_term(parameter.id), &value_term(*argument))
+            fact_index.equation_position(axioms, &value_term(parameter.id), &value_term(*argument))
         })
         .collect::<Vec<_>>();
     let certified = source_index.is_some_and(|source_index| {
@@ -210,6 +200,7 @@ pub(super) fn append_successor_fact(
         proposition: rewritten.clone(),
         certified,
     };
+    fact_index.record(axioms.len(), &rewritten);
     axioms.push(rewritten);
     vec![fact]
 }
@@ -256,69 +247,17 @@ impl CitedRoster {
     }
 }
 
-fn append_discrete_fact(propositions: &mut Vec<Proposition>, proposition: &Proposition) {
+fn append_discrete_fact(
+    propositions: &mut Vec<Proposition>,
+    fact_index: &mut FactIndex,
+    proposition: &Proposition,
+) {
     if let Some(discrete) = discrete::strict_bound(proposition) {
-        push_unique(propositions, discrete);
+        fact_index.push_unique(propositions, discrete);
     }
     if let Some(bounds) = discrete::strict_carrier_bounds(proposition) {
         for bound in bounds {
-            push_unique(propositions, bound);
+            fact_index.push_unique(propositions, bound);
         }
-    }
-}
-
-fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
-    push_unique_fact(propositions, proposition);
-}
-
-/// Fast, non-authoritative bucketing for exact proposition deduplication.
-/// Collisions are always resolved with full proposition equality.
-fn fact_cache_fingerprint(proposition: &Proposition) -> u64 {
-    let mut hasher = FactHasher::default();
-    proposition.hash(&mut hasher);
-    hasher.finish()
-}
-
-#[derive(Default)]
-struct FactHasher(u64);
-
-impl FactHasher {
-    fn mix(&mut self, value: u64) {
-        self.0 = (self.0.rotate_left(5) ^ value).wrapping_mul(0x517c_c1b7_2722_0a95);
-    }
-}
-
-impl Hasher for FactHasher {
-    fn finish(&self) -> u64 {
-        self.0
-    }
-
-    fn write(&mut self, bytes: &[u8]) {
-        let (chunks, remainder) = bytes.as_chunks::<8>();
-        for chunk in chunks {
-            self.mix(u64::from_ne_bytes(*chunk));
-        }
-        if !remainder.is_empty() {
-            let mut tail = [0_u8; 8];
-            tail[..remainder.len()].copy_from_slice(remainder);
-            self.mix(u64::from_ne_bytes(tail) ^ (remainder.len() as u64));
-        }
-    }
-
-    fn write_u64(&mut self, value: u64) {
-        self.mix(value);
-    }
-
-    fn write_u128(&mut self, value: u128) {
-        self.mix(value as u64);
-        self.mix((value >> 64) as u64);
-    }
-
-    fn write_usize(&mut self, value: usize) {
-        self.mix(value as u64);
-    }
-
-    fn write_isize(&mut self, value: isize) {
-        self.mix(value as u64);
     }
 }
