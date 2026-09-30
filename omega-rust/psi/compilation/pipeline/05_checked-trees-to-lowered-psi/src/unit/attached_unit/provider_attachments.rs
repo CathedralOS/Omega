@@ -123,8 +123,12 @@ pub(crate) fn lower_provider_attachment_places(
                 .ok_or(LoweringError::Unsupported(
                     "provider-backed attachment requirement names an unknown field",
                 ))?;
-            if field.relevance.is_erased()
-                || !matches!(&field.field_type,
+            // A requirement-bearing fused or provider field always carries
+            // erased binding relevance here: the carrier's runtime slot lives
+            // in the specialized attachment root minted below, not in the
+            // ordinary field, so relevance no longer distinguishes an authored
+            // `[erased]` carrier. The receipt chain upstream owns that check.
+            if !matches!(&field.field_type,
                     StructuralFieldType::Erased { type_identity }
                         if type_identity == &requirement.provider_type_identity)
             {

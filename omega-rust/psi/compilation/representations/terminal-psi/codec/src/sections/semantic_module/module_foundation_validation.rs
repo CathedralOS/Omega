@@ -122,10 +122,7 @@ fn validate_provider_attachment_foundation(
             StructuralTypeShape::Record { fields } => Some(
                 fields
                     .iter()
-                    .filter(|field| {
-                        !field.relevance.is_erased()
-                            && matches!(field.field_type, StructuralFieldType::Erased { .. })
-                    })
+                    .filter(|field| matches!(field.field_type, StructuralFieldType::Erased { .. }))
                     .collect::<Vec<_>>(),
             ),
             _ => None,
