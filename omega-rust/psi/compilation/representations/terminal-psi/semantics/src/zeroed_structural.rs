@@ -142,6 +142,13 @@ pub fn zeroed_structural_leaves<'types>(
                 });
                 for field in &first.fields {
                     match &field.field_type {
+                        StructuralFieldType::IeeeFloat(format) if !field.relevance.is_erased() => {
+                            leaves.push(ZeroedStructuralLeaf::RecordField {
+                                path: path.clone(),
+                                field: field.id,
+                                scalar_type: ScalarType::IeeeFloat(*format),
+                            });
+                        }
                         StructuralFieldType::Scalar(scalar_type)
                             if !field.relevance.is_erased() =>
                         {
@@ -171,6 +178,13 @@ pub fn zeroed_structural_leaves<'types>(
                 }
                 for field in fields {
                     match &field.field_type {
+                        StructuralFieldType::IeeeFloat(format) if !field.relevance.is_erased() => {
+                            leaves.push(ZeroedStructuralLeaf::RecordField {
+                                path: path.clone(),
+                                field: field.id,
+                                scalar_type: ScalarType::IeeeFloat(*format),
+                            });
+                        }
                         StructuralFieldType::Scalar(scalar_type) => {
                             leaves.push(ZeroedStructuralLeaf::RecordField {
                                 path: path.clone(),
@@ -405,17 +419,49 @@ mod tests {
 
     #[test]
     fn sum_first_case_non_scalar_payload_rejects() {
-        for field_type in [
-            StructuralFieldType::Structural(StructuralTypeId::new(9).unwrap()),
-            StructuralFieldType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
+        let field_type = StructuralFieldType::Structural(StructuralTypeId::new(9).unwrap());
+        let sum = declaration(
+            1,
+            StructuralTypeShape::Sum {
+                cases: vec![case(7, vec![field(3, field_type)])],
+            },
+        );
+        assert!(zeroed_structural_leaves([&sum].into_iter(), sum.id).is_none());
+    }
+
+    #[test]
+    fn ieee_fields_have_positive_zero_storage_without_erased_cells() {
+        for format in [
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
         ] {
-            let sum = declaration(
-                1,
-                StructuralTypeShape::Sum {
-                    cases: vec![case(7, vec![field(3, field_type)])],
-                },
-            );
-            assert!(zeroed_structural_leaves([&sum].into_iter(), sum.id).is_none());
+            for is_sum in [false, true] {
+                for is_erased in [false, true] {
+                    let mut payload = field(3, StructuralFieldType::IeeeFloat(format));
+                    if is_erased {
+                        erased(&mut payload);
+                    }
+                    let root = declaration(
+                        1,
+                        if is_sum {
+                            StructuralTypeShape::Sum {
+                                cases: vec![case(7, vec![payload])],
+                            }
+                        } else {
+                            StructuralTypeShape::Record {
+                                fields: vec![payload],
+                            }
+                        },
+                    );
+                    let leaves = zeroed_structural_leaves([&root].into_iter(), root.id);
+                    if is_erased {
+                        assert!(leaves.is_none(), "erasure is not a zeroed runtime cell");
+                    } else {
+                        assert!(leaves.unwrap().iter().any(|leaf| matches!(leaf,
+                            ZeroedStructuralLeaf::RecordField { scalar_type: ScalarType::IeeeFloat(found), .. } if *found == format)));
+                    }
+                }
+            }
         }
     }
 

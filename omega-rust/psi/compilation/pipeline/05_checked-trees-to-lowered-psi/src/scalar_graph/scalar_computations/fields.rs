@@ -18,7 +18,9 @@ use super::{
     CheckedScalarComputationKind, CheckedTrees, LoweringError, ScalarType, storage, unsupported,
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::expressions::{
+    LoweredDirectExpression, PrimitiveReadSource,
+};
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
 use checked_trees::types::TypeReferenceNode;
@@ -42,6 +44,8 @@ pub(crate) struct Binding {
     /// a byte-carrier loan read.
     carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    /// Exact declared path for the ordinary float primitive-read operation.
+    primitive_path: Vec<terminal_psi::StructuralPathSegment>,
     /// The checked coordinate of the loan's one non-literal index segment,
     /// when the captured path selects an element by runtime value.
     runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
@@ -672,6 +676,12 @@ pub(crate) fn prepare(
                     )
                 }
             };
+            let mut primitive_path =
+                if matches!(node.primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                    carrier_path.clone()
+                } else {
+                    Vec::new()
+                };
             for segment in &subject.path {
                 let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
                 else {
@@ -693,6 +703,11 @@ pub(crate) fn prepare(
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
                     selected.id,
                 ));
+                if matches!(node.primitive_type, PrimitiveType::F32 | PrimitiveType::F64) {
+                    primitive_path.push(terminal_psi::StructuralPathSegment::Field(
+                        selected.identity.clone(),
+                    ));
+                }
                 declaration = types
                     .iter()
                     .find(|declaration| declaration.id == nested)
@@ -715,7 +730,9 @@ pub(crate) fn prepare(
                 || retained.relevance.is_erased()
                 || !matches!(
                     retained.field_type,
-                    StructuralFieldType::Scalar(_) | StructuralFieldType::BoundedInteger(_)
+                    StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::BoundedInteger(_)
+                        | StructuralFieldType::IeeeFloat(_)
                 )
                 || retained.field_type.scalar_type() != Some(scalar_type)
             {
@@ -723,6 +740,11 @@ pub(crate) fn prepare(
             }
             let bounded_leaf =
                 matches!(retained.field_type, StructuralFieldType::BoundedInteger(_));
+            if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
+                primitive_path.push(terminal_psi::StructuralPathSegment::Field(
+                    retained.identity.clone(),
+                ));
+            }
             let byte_overlay = byte_overlay
                 .map(|record| {
                     let layout =
@@ -763,6 +785,7 @@ pub(crate) fn prepare(
                 carrier,
                 element_path,
                 bounded_leaf,
+                primitive_path,
                 field: retained.id,
                 scalar_type,
             });
@@ -1009,7 +1032,11 @@ pub(super) fn observation(
             field: binding.field,
             scalar_type,
         },
-        _ => return unsupported("record read requires an integer or Boolean field"),
+        ScalarType::IeeeFloat(_) => LoweredDirectExpression::PrimitiveRead {
+            source: PrimitiveReadSource::Place(source),
+            path: binding.primitive_path.clone(),
+            scalar_type,
+        },
     })
 }
 

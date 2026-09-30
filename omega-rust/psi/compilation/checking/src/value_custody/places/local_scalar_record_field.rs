@@ -120,6 +120,8 @@ pub fn local_scalar_record_field(
             | PrimitiveType::U16
             | PrimitiveType::U32
             | PrimitiveType::U64
+            | PrimitiveType::F32
+            | PrimitiveType::F64
     ) {
         return None;
     }

@@ -724,7 +724,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/zeroed_structural.rs",
-        sha256: Some("737de045167f0bdd7b0af4ada71fbe605429767d2c51d8808dba1867d3109806"),
+        sha256: Some("2d6f9b665639a9b21f4f0e4822bc40c5ba93de50a2004ca42985a47b2a3673f3"),
         inventory_machinery: false,
     },
     ImplementationSite {

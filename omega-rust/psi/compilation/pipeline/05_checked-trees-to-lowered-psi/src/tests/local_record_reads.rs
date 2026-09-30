@@ -25,6 +25,64 @@ const SOURCE: &str = "
 ";
 
 #[test]
+fn local_float_record_reads_use_checked_primitive_paths() {
+    for carrier in ["f32", "f64"] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Leaf {{ payload: {carrier}; }}
+             data Record {{ prefix: u8; leaf: Leaf; }}
+             machine observe(payload: {carrier}) -> {carrier} {{
+                 let record: Record = Record {{ prefix: 3, leaf: Leaf {{ payload: payload }} }};
+                 record.leaf.payload
+             }}"
+        ));
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("observe"))
+            .expect("local float read lowers through its stored primitive path");
+        let profile = proof_admission::AdmissionProfile::default();
+        terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
+            .expect("independent verification of float storage and read");
+        assert!(
+            lowered
+                .semantic_module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .any(|operation| matches!(
+                    operation.kind,
+                    OperationKind::PrimitiveScalarRead { .. }
+                ))
+        );
+
+        let mut changed = checked.clone();
+        let handle = changed
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .iter()
+            .find_map(|(handle, node)| {
+                matches!(
+                    node.kind,
+                    CheckedScalarComputationKind::StructuralField { .. }
+                )
+                .then_some(handle)
+            })
+            .expect("float field computation");
+        changed
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get_mut(handle)
+            .primitive_type = PrimitiveType::U64;
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("observe")).is_err(),
+            "a float read cannot claim an integer carrier"
+        );
+    }
+}
+
+#[test]
 fn declared_record_member_writes_keep_distinct_storage_and_establishment() {
     let checked = crate::front_end::checked_program(
         "data Point { x: i32; y: i32; }

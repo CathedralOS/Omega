@@ -177,7 +177,7 @@ fn projected_local(
         (operation == producer
             && result.place == source
             && result.structural_type == structural_type
-            && result.multiplicity == StructuralMultiplicity::Unrestricted
+            && matches!(result.multiplicity, StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine)
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()).then_some(result)

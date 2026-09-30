@@ -50,6 +50,29 @@ fn local_array_reads_reconstruct_producer_and_projection() {
     )
     .expect("local array seed");
     assert_eq!(validate_psi_optimization_unit(&valid), Ok(()));
+    let mut affine = valid.clone();
+    let O::EstablishZeroedStructural { result, .. } =
+        &mut affine.functions[0].blocks[0].nodes[1].operation
+    else {
+        panic!("local array establishment");
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    let place = result.place;
+    let O::ReturnUnit {
+        cleanup_actions, ..
+    } = &mut affine.functions[0].blocks[0]
+        .nodes
+        .last_mut()
+        .unwrap()
+        .operation
+    else {
+        panic!("local array return");
+    };
+    cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+        place,
+    ));
+    refresh_function_derivatives(&mut affine, 0);
+    assert_eq!(validate_psi_optimization_unit(&affine), Ok(()));
     for mutation in 0..8 {
         let mut invalid = valid.clone();
         let function = &mut invalid.functions[0];

@@ -49,7 +49,18 @@ pub(super) fn valid_result(
     result: &StructuralOperationResult,
 ) -> bool {
     result.multiplicity == StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
+        && valid_owned_result(function, operation, result)
+}
+
+fn valid_owned_result(
+    function: &PsiOptimizationFunction,
+    operation: OperationId,
+    result: &StructuralOperationResult,
+) -> bool {
+    matches!(
+        result.multiplicity,
+        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+    ) && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
         && function.structural_places.iter().any(|place| {
@@ -110,7 +121,7 @@ pub(super) fn validate(
                     // An aggregate establishment owns the original referent.
                     // Its declaration, restrictions and complete projection
                     // remain independently checked just like a parameter's.
-                    if path.is_empty() || !valid_result(function, operation, local) {
+                    if path.is_empty() || !valid_owned_result(function, operation, local) {
                         return Err(LegalizationError::custody());
                     }
                     local.structural_type

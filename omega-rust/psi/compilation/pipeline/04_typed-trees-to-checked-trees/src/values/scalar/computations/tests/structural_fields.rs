@@ -4,7 +4,7 @@ use crate::values::scalar::computations::tests::checked_source;
 use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 
 #[test]
-fn local_record_reads_retain_boolean_and_fixed_integer_carriers() {
+fn local_record_reads_retain_primitive_carriers() {
     for (name, primitive) in [
         ("bool", PrimitiveType::Bool),
         ("u8", PrimitiveType::U8),
@@ -15,6 +15,8 @@ fn local_record_reads_retain_boolean_and_fixed_integer_carriers() {
         ("i16", PrimitiveType::I16),
         ("i32", PrimitiveType::I32),
         ("i64", PrimitiveType::I64),
+        ("f32", PrimitiveType::F32),
+        ("f64", PrimitiveType::F64),
     ] {
         let checked = checked_source(
             &format!(
