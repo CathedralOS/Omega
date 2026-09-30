@@ -388,6 +388,44 @@ fn substitute_content_term_places(
     }
 }
 
+/// The position of `left = right` in the roster under either operand order.
+/// `Equal` is symmetric, so the twin form is the same rostered fact.
+pub(crate) fn roster_equation_position(
+    axioms: &[Proposition],
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+) -> Option<usize> {
+    axioms.iter().position(|axiom| match axiom {
+        Proposition::Equal(l, r) => (l == left && r == right) || (l == right && r == left),
+        _ => false,
+    })
+}
+
+/// Whether the roster already carries this fact. For `Equal(Value, Value)`
+/// the symmetric twin also counts: the denotation checker's definition graph
+/// is directed, so a roster storing both orders of one equation reads as a
+/// cyclic pair and fails conversion outright, while semantically they are one
+/// fact. The direction already written always wins.
+pub(crate) fn roster_has_fact(axioms: &[Proposition], proposition: &Proposition) -> bool {
+    match proposition {
+        Proposition::Equal(left, right)
+            if matches!(left, ScalarTerm::Value { .. })
+                && matches!(right, ScalarTerm::Value { .. }) =>
+        {
+            roster_equation_position(axioms, left, right).is_some()
+        }
+        _ => axioms.contains(proposition),
+    }
+}
+
+/// Push `proposition` unless the roster already carries it under
+/// [`roster_has_fact`].
+pub(crate) fn push_unique_fact(axioms: &mut Vec<Proposition>, proposition: Proposition) {
+    if !roster_has_fact(axioms, &proposition) {
+        axioms.push(proposition);
+    }
+}
+
 pub(super) fn substitute_scalar_term_values(
     term: &ScalarTerm,
     substitutions: &BTreeMap<ValueId, ScalarTerm>,

@@ -197,10 +197,10 @@ pub(super) fn append_terminator(
                 .result
                 .scalar()
                 .expect("validated scalar return has a scalar machine result");
-            axioms.push(Proposition::Equal(
-                value_term(result.id),
-                value_term(*value),
-            ));
+            crate::verification::substitution::push_unique_fact(
+                &mut axioms,
+                Proposition::Equal(value_term(result.id), value_term(*value)),
+            );
             for (cleanup_position, cleanup) in
                 cleanup_actions
                     .iter()
