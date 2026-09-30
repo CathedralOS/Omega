@@ -1055,12 +1055,20 @@ fn walk_path(
                 Walked::Declared(*element)
             }
             (
-                CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
-                ),
+                CheckedUnitStructuralPathSegment::RuntimeIndex(runtime),
                 StructuralTypeShape::FixedArray { element, .. },
-            ) if !result.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) => {
-                result.push(ProjectionStep::AssignmentIndex { depth: *depth });
+            ) => {
+                // Every checked selector vocabulary walks a fixed array the
+                // same way: assignment indexes, parameter and local
+                // positions, and stored-field snapshots each name a distinct
+                // runtime element of the projection.
+                let step = super::runtime_elements::selector_step(runtime);
+                if result.contains(&step) {
+                    return unsupported(
+                        "primitive projection has an incompatible or out-of-bounds path",
+                    );
+                }
+                result.push(step);
                 Walked::Declared(*element)
             }
             (
