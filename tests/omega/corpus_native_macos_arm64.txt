@@ -358,7 +358,7 @@ pass/expressions/arithmetic_domain_wrapping_exit built 609ms exit:70
 pass/expressions/borrow_carrying_data_field_exit rejected 500ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural value: reference record loans` (state 0, statement 1)
 pass/expressions/dead_trapping_let_traps built 608ms exit:signal signal:5
-pass/expressions/declared_operator_match_result checked 190ms
+pass/expressions/declared_operator_match_result built 17618ms exit:70 @7c6892099245+wt
 pass/expressions/explicit_scalar_tag_erasure checked 170ms
 pass/expressions/indexed_qualified_call_argument checked 181ms
 pass/expressions/match_anonymous_result_landing checked 217ms

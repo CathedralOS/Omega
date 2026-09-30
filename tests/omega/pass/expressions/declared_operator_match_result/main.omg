@@ -4,6 +4,12 @@
 // 260u64, which no `u8` builtin could carry; the false arm folds to 1 without
 // invoking the operator. Nothing is searched among satisfiers: the
 // declaration owns its body, and the same declaration stays callable by name.
+// RUN CANARY (exit 70): `main` observes all three results natively and exits
+// 70 only when `select_true` and `by_name` yield 260 and `select_false`
+// yields 1; any other result exits 71.
+use omega_language_std::console;
+use omega::language::core::binding;
+
 pub data Wrapped { value: u8; }
 
 pub machine + Wrapped::add(left: &Wrapped, right: &Wrapped) -> u64 {
@@ -33,4 +39,26 @@ machine by_name() -> u64 {
     let left: Wrapped = Wrapped { value: 250u8 };
     let right: Wrapped = Wrapped { value: 10u8 };
     Wrapped::add(&left, &right)
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let selected: u64 = select_true();
+    let skipped: u64 = select_false();
+    let named: u64 = by_name();
+    transition selected == 260 && skipped == 1 && named == 260 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
 }
