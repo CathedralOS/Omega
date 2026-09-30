@@ -1563,8 +1563,8 @@ pass/expressions/runtime_numeric_cast_exit checked 4281ms @2d8ed253669f
 pass/expressions/runtime_widened_comparison_exit checked 1648ms @2d8ed253669f
 pass/expressions/scalar_match_boundary_composition_exit checked 5240ms @2d8ed253669f
 pass/filesystem/cross_linux_value_syscalls checked 17448ms @2d8ed253669f
-pass/filesystem/dir_walk_wrappers_exit rejected 9007ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::create_dir_all`), which was itself omitted at local construction at `outer calls: statement shape`
+pass/filesystem/dir_walk_wrappers_exit rejected 12855ms @f136a75fbbc
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::read_dir_is_empty`), which was itself omitted at local construction at `statement sequence: structural result: returned value` (state 3)
 pass/filesystem/native_canonicalize rejected 896ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::canonicalize),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(slice\\(named\\(name\\(u8\\)\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_close rejected 782ms @2d8ed253669f
@@ -1587,8 +1587,8 @@ pass/filesystem/native_metadata_nlink rejected 1964ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/native_read_dir_iter rejected 1340ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/filesystem/native_wrapper_write_all_result rejected 8684ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::write_all`), which was itself omitted at local construction at `call operation: boundary receiver` (state 0, statement 2)
+pass/filesystem/native_wrapper_write_all_result rejected 14883ms @f136a75fbbc
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open_create),parameters(parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,ref\(constrained\(slice\(named\(name\(u8\)\)\)\,declared-domain\(name\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\)\)\)\)\)\,parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,named\(name\(i32\)\)\)\,parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,named\(name\(i32\)\)\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/runtime_local_host_result_dispatch_exit rejected 1250ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::open),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(constrained\\(slice\\(named\\(name\\(u8\\)\\)\\)\\,declared-domain\\(name\\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\\)\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/filesystem/windows_canonicalize_exit rejected 9045ms @2d8ed253669f
@@ -1597,15 +1597,12 @@ pass/filesystem/windows_raw_breadth_exit rejected 1316ms @2d8ed253669f
 	selected ProgramEntry Binding field `Main::raw` requires a selected Fused provider for boundary `FilesystemHost`
 pass/filesystem/windows_set_file_time_exit rejected 1023ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: call result: result type` (state 0)
-pass/filesystem/windows_wrapper_results_exit rejected 9060ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::write_all`), which was itself omitted at local construction at `call operation: boundary receiver` (state 0, statement 2)
-pass/filesystem/wrapper_lock_metadata_exit rejected 502ms @2d8ed253669f
-	state `metadata` expects 2 argument(s), got 1
-	state `lock_shared` expects 2 argument(s), got 1
-	state `try_lock` expects 2 argument(s), got 1
-	state `try_lock_shared` expects 2 argument(s), got 1
-pass/filesystem/wrapper_open_with_exit rejected 481ms @2d8ed253669f
-	state `read_all` expects 4 argument(s), got 3
+pass/filesystem/windows_wrapper_results_exit rejected 15480ms @f136a75fbbc
+	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(FilesystemHost::create_dir),parameters(parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,ref\(constrained\(slice\(named\(name\(u8\)\)\)\,declared-domain\(name\(package:0202020202020202020202020202020202020202020202020202020202020202:product::[u8]::Path\)\)\)\)\)\,parameter\(self\(no\)\,mutable\(no\)\,const\(no\)\,named\(name\(i32\)\)\)),result-dispatch())` resolves to 0 selected provider rows
+pass/filesystem/wrapper_lock_metadata_exit rejected 9876ms @f136a75fbbc
+	selected ProgramEntry Binding field `Main::fs::host` requires a selected Fused provider for boundary `FilesystemHost`
+pass/filesystem/wrapper_open_with_exit rejected 9760ms @f136a75fbbc
+	terminal-artifact production failed: Lowering(Unsupported("record read carrier path left its record namespace"))
 pass/float/build_runtime_semantics_twins_windows_x64 rejected 5403ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_x86_64_baseline_float_twin_code", reason: "scalar callee has no checked executable body", omission: Some("`windows_x86_64_baseline_float_twin_code` has no admitted body (local construction stopped at outer calls: unconsumed nested call in a local initializer, statement 31)") })
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 4056ms @2d8ed253669f
