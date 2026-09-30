@@ -537,9 +537,45 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
         }
     }
 
+    // The hosted 64-bit address model rides one integer-class register slot
+    // and keeps its address carrier in the retained home; the slot does not
+    // turn the address into a count.
+    let address = IntegerType::address(64).unwrap();
+    let mut address_declaration = declaration(boundary, Vec::new());
+    address_declaration.result =
+        terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(address));
+    let address_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
+        CallingPolicy::native_for_target(NativeTarget::linux_x64()),
+        &CallSignature {
+            parameters: Vec::new(),
+            result: Some(ValueShape::integer(8, 8)),
+        },
+    )
+    .unwrap()
+    .plan()
+    .clone();
+    assert_eq!(
+        lower_normalized_foreign_scalar_result(
+            boundary,
+            &address_declaration,
+            operation,
+            Some(abstract_operations::AbstractResult {
+                value,
+                scalar_type: ScalarType::Integer(address),
+            }),
+            &address_plan,
+        ),
+        Ok(Some(TargetUnitScalarHomeRequirement {
+            defining_operation: operation,
+            source_value: value,
+            scalar_type: semantic_vocabulary::ScalarType::Integer(address),
+            shape: ValueShape::integer(8, 8),
+        }))
+    );
+
     for invalid in [
         IntegerType::new(IntegerSign::Signed, 24).unwrap(),
-        IntegerType::address(64).unwrap(),
+        IntegerType::address(128).unwrap(),
     ] {
         let mut declaration = declaration(boundary, Vec::new());
         declaration.result =

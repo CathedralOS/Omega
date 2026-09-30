@@ -203,9 +203,12 @@ pub(super) fn trapping_operands_rejoin(
 /// normalization truncates it back to the wrapped MIN. The i64 carrier's own
 /// MIN / -1 is guarded by the wrapping i64 realization, and u64 takes the
 /// unsigned division whose quotient and remainder never leave the carrier.
-/// Division by zero stays the accepted obligation in every case.
+/// Division by zero stays the accepted obligation in every case. An address
+/// shares the 64-bit integer-class transport but is not a count, so it has no
+/// wrapping division; the carrier test keeps that transport from admitting it.
 pub(super) fn supports_wrapping_division(integer: IntegerType) -> bool {
-    scalar_shape(ScalarType::Integer(integer)).is_some()
+    integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+        && scalar_shape(ScalarType::Integer(integer)).is_some()
 }
 
 /// A proof-bearing exact cast between any two fixed 8/16/32/64-bit carriers.
