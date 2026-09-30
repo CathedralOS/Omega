@@ -246,6 +246,9 @@ pub(crate) fn structural_arguments_match(
                 source.structural_type,
             )
             .is_some();
+        // A state edge rebinds a loan without removing its ability to lend a
+        // window: a block parameter presents its exact declaration as a
+        // machine parameter does.
         let fixed_array_presentation = matches!(
             projection,
             StructuralProjectionPolicy::Unit
@@ -254,6 +257,12 @@ pub(crate) fn structural_arguments_match(
         ) && (caller
             .structural_parameters
             .iter()
+            .chain(
+                caller
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters),
+            )
             .any(presents_fixed_array)
             || (array_result_loan
                 && presents_fixed_array(&terminal_psi::StructuralParameterDeclaration {

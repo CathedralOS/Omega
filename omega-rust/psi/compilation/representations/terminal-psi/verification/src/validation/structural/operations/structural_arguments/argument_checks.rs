@@ -473,33 +473,43 @@ pub(in crate::validation) fn validate_structural_argument(
     // is not a type substitution, storage grant, or permission to resize.
     // Scalar-result calls lend the same read-only or mutable window: a
     // scalar return carries no custody, so the subloan shape is identical.
+    // A state edge rebinds a loan without removing its ability to lend a
+    // window: a block parameter presents its exact declaration as a machine
+    // parameter does, and carries no entry claim of its own.
     let fixed_array_presentation = (borrowed_call
         || ordinary_call
         || source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals)
-        && caller.structural_parameters.iter().any(|actual| {
-            (terminal_semantics::fixed_byte_array_extent(
-                module.structural_types.iter(),
-                actual,
-                argument,
-                expected,
-            )
-            .is_some()
-                || terminal_semantics::fixed_element_array_extent(
+        && caller
+            .structural_parameters
+            .iter()
+            .chain(crate::validation::block_views::parameter(
+                caller,
+                argument.place,
+            ))
+            .any(|actual| {
+                (terminal_semantics::fixed_byte_array_extent(
                     module.structural_types.iter(),
                     actual,
                     argument,
                     expected,
                 )
-                .is_some())
-                && !caller
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == argument.place)
-                && !caller
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == argument.place)
-        })
+                .is_some()
+                    || terminal_semantics::fixed_element_array_extent(
+                        module.structural_types.iter(),
+                        actual,
+                        argument,
+                        expected,
+                    )
+                    .is_some())
+                    && !caller
+                        .entry_claims
+                        .iter()
+                        .any(|claim| claim.input == argument.place)
+                    && !caller
+                        .content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == argument.place)
+            })
         || (array_result_loan && {
             // Present the validated owned home through this loan for geometry
             // checking. Its actual owned access remains unchanged below.

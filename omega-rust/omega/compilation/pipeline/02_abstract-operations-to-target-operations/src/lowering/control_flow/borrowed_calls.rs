@@ -282,16 +282,7 @@ pub(super) fn address_join_argument(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (entry, parameter) = function
-        .block_entries
-        .iter()
-        .find_map(|entry| {
-            entry
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == argument.place)
-                .map(|parameter| (entry, parameter))
-        })
+    let (block, parameter) = address_join_parameter(function, argument.place)
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let (selected, referent, offset, runs) =
         crate::lowering::structural_layout::runtime_projection(
@@ -330,10 +321,74 @@ pub(super) fn address_join_argument(
         element_stride: None,
         indices,
         source: TargetStructuralArgumentSource::BlockParameter {
-            block: entry.block,
+            block,
             place: parameter.place,
         },
         destination: destination.placement.clone(),
+    })
+}
+
+/// An available address join lends a fixed-array window of its joined
+/// referent exactly as an incoming parameter's field window does: the backing
+/// keeps its real type and field path, the carried address roots it, and the
+/// presented length grants neither storage nor resize.
+pub(super) fn address_join_window_argument(
+    argument: &terminal_psi::StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &TargetStructuralParameter,
+    callee: MachineId,
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+) -> Result<TargetStructuralArgument, LoweringError> {
+    let unsupported = || LoweringError::unsupported_control_flow(function.machine);
+    let (block, parameter) = address_join_parameter(function, argument.place)
+        .filter(|_| live.address_joins.contains(&argument.place))
+        .ok_or_else(unsupported)?;
+    if !super::transfers::is_address_join(parameter, types) {
+        return Err(unsupported());
+    }
+    let mut shape_cache = BTreeMap::new();
+    let mut active = BTreeSet::new();
+    let referent = crate::lowering::structural_layout::structural_shape(
+        parameter.structural_type,
+        types,
+        &mut shape_cache,
+        &mut active,
+    )?;
+    crate::lowering::unit::roster_arguments::fixed_array_view_argument(
+        argument,
+        declaration,
+        destination.shape,
+        &destination.placement,
+        callee,
+        parameter,
+        referent.byte_size,
+        TargetStructuralArgumentSource::BlockParameter {
+            block,
+            place: parameter.place,
+        },
+        types,
+        &mut shape_cache,
+        &mut active,
+    )?
+    .ok_or_else(unsupported)
+}
+
+/// The block that binds `place` and its structural declaration.
+fn address_join_parameter(
+    function: &AbstractFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<(
+    semantic_vocabulary::BlockId,
+    &terminal_psi::StructuralParameterDeclaration,
+)> {
+    function.block_entries.iter().find_map(|entry| {
+        entry
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+            .map(|parameter| (entry.block, parameter))
     })
 }
 

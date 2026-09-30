@@ -815,30 +815,37 @@ fn validate_structural_arguments(
         }
         // The canonical form retains the real array type at both ordinary and
         // boundary calls; the shared extent check recognizes the exact loan.
-        if machine.structural_parameters.iter().any(|actual| {
-            (terminal_semantics::fixed_byte_array_extent(
-                module.structural_types.iter(),
-                actual,
-                argument,
-                expected,
-            )
-            .is_some()
-                || terminal_semantics::fixed_element_array_extent(
+        // A state edge rebinds a loan without removing its ability to lend a
+        // window, so a block parameter lends through its own declaration.
+        if machine
+            .structural_parameters
+            .iter()
+            .chain(block_parameter(machine, argument.place))
+            .any(|actual| {
+                (terminal_semantics::fixed_byte_array_extent(
                     module.structural_types.iter(),
                     actual,
                     argument,
                     expected,
                 )
-                .is_some())
-                && !machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == argument.place)
-                && !machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == argument.place)
-        }) {
+                .is_some()
+                    || terminal_semantics::fixed_element_array_extent(
+                        module.structural_types.iter(),
+                        actual,
+                        argument,
+                        expected,
+                    )
+                    .is_some())
+                    && !machine
+                        .entry_claims
+                        .iter()
+                        .any(|claim| claim.input == argument.place)
+                    && !machine
+                        .content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == argument.place)
+            })
+        {
             continue;
         }
         // Inline bounded owners have no standalone field type to resolve.
@@ -933,14 +940,9 @@ fn structural_place_type(
                     return None;
                 }
                 match declaration.kind {
-                    StructuralPlaceKind::BlockParameter { block, position } => machine
-                        .blocks
-                        .iter()
-                        .find(|candidate| candidate.id == block)?
-                        .structural_parameters
-                        .get(position as usize)
-                        .filter(|parameter| parameter.place == place)
-                        .map(|parameter| parameter.structural_type),
+                    StructuralPlaceKind::BlockParameter { .. } => {
+                        block_parameter(machine, place).map(|parameter| parameter.structural_type)
+                    }
                     StructuralPlaceKind::ByteSequenceLiteral {
                         structural_type, ..
                     }
@@ -956,6 +958,26 @@ fn structural_place_type(
                 }
             })
         })
+}
+
+/// The declaration a block parameter place binds at its block's entry.
+fn block_parameter(
+    machine: &TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<&StructuralParameterDeclaration> {
+    machine.structural_places.iter().find_map(|declaration| {
+        let StructuralPlaceKind::BlockParameter { block, position } = declaration.kind else {
+            return None;
+        };
+        (declaration.id == place).then_some(())?;
+        machine
+            .blocks
+            .iter()
+            .find(|candidate| candidate.id == block)?
+            .structural_parameters
+            .get(position as usize)
+            .filter(|parameter| parameter.place == place)
+    })
 }
 
 /// Result cleanup may reuse an existing owned operation result place, but a

@@ -179,12 +179,17 @@ pub(super) fn validate_borrowed_argument(
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         });
+    // An address join lends from its joined referent through the address
+    // its block entry loaded; it is neither a home nor a descriptor view, yet
+    // presents a fixed-array window of that referent as a parameter does.
+    let address_join = crate::selection::address_join_input::join(source, semantic.place);
     let view_root = signature
         .parameters
         .iter()
         .find(|parameter| parameter.semantic.place == semantic.place)
         .map(|parameter| &parameter.semantic)
-        .or(local_loan.as_ref());
+        .or(local_loan.as_ref())
+        .or(address_join.map(|(_, joined)| joined));
     let byte_view = view_root.and_then(|root| {
         crate::structural_inputs::structural_reference_input::fixed_byte_array_view(
             root,
@@ -229,9 +234,9 @@ pub(super) fn validate_borrowed_argument(
             &signature.structural_types,
         )
     });
-    // An address join lends from its joined referent through the address
-    // its block entry loaded; it is neither a home nor a descriptor view.
-    let address_join = crate::selection::address_join_input::join(source, semantic.place);
+    let window = byte_view
+        .map(|(offset, _)| offset)
+        .or(element_view.map(|(offset, _, _)| offset));
     let shape = if let Some((_, joined)) = address_join {
         if !matches!(
             semantic.access,
@@ -241,26 +246,38 @@ pub(super) fn validate_borrowed_argument(
         {
             return None;
         }
-        let (selected, offset, elements) =
-            crate::structural_inputs::structural_reference_input::runtime_projection(
-                joined.structural_type,
-                &semantic.path,
+        if let Some(offset) = window {
+            // The window's backing keeps its real root; the descriptor names
+            // the callee's view type, checked with the length word below.
+            if target.root_structural_type != joined.structural_type
+                || target.source_byte_offset != offset
+                || !indices.is_empty()
+            {
+                return None;
+            }
+            ValueShape::borrowed_reference(16, 8)
+        } else {
+            let (selected, offset, elements) =
+                crate::structural_inputs::structural_reference_input::runtime_projection(
+                    joined.structural_type,
+                    &semantic.path,
+                    &signature.structural_types,
+                )?;
+            if target.root_structural_type != joined.structural_type
+                || target.structural_type != selected
+                || target.source_byte_offset != offset
+                || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                    indices, &elements,
+                )
+            {
+                return None;
+            }
+            let referent = crate::structural_inputs::structural_reference_input::shape(
+                selected,
                 &signature.structural_types,
             )?;
-        if target.root_structural_type != joined.structural_type
-            || target.structural_type != selected
-            || target.source_byte_offset != offset
-            || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
-                indices, &elements,
-            )
-        {
-            return None;
+            ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
         }
-        let referent = crate::structural_inputs::structural_reference_input::shape(
-            selected,
-            &signature.structural_types,
-        )?;
-        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
     } else if let Some(shape) = aggregate {
         shape
     } else if let Some(shape) = owner_home {

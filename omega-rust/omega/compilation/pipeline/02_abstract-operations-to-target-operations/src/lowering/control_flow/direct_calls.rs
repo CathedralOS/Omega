@@ -846,6 +846,21 @@ fn structural_argument(
     let view =
         is_byte_parameter(declaration, types) || is_element_view_parameter(declaration, types);
     match route {
+        // An address join lends a fixed-array window of its referent whatever
+        // the result kind, exactly as an incoming parameter does.
+        DirectCallRoute::LiveGraph | DirectCallRoute::StructuralResult
+            if view && live.address_joins.contains(&argument.place) =>
+        {
+            super::borrowed_calls::address_join_window_argument(
+                argument,
+                declaration,
+                destination,
+                callee,
+                function,
+                live,
+                types,
+            )
+        }
         DirectCallRoute::LiveGraph if view => super::borrowed_calls::byte_argument(
             argument,
             declaration,
