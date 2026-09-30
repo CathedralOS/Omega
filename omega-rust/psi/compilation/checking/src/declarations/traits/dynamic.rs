@@ -10,6 +10,9 @@ use typed_trees::statement::StatementNode;
 use typed_trees::trait_definition::{DynamicSignatureIneligibility, TraitDefinition};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+#[cfg(test)]
+mod same_name_tests;
+
 /// One local dynamic coercion whose complete nominal conformance is fixed in
 /// the checked artifact. Runtime descriptor lowering consumes this exact
 /// selection rather than rediscovering implementations from names.
@@ -1007,26 +1010,43 @@ pub fn resolve_dynamic_call_targets(program: &mut TypedTrees) -> Result<(), Vec<
                 .enumerate()
             {
                 if let StatementNode::Call(call) = statement {
-                    let dynamic_target = program
-                        .statement_table
-                        .name_path_members(call.receiver)
-                        .last()
-                        .and_then(|receiver| {
+                    let members = program.statement_table.name_path_members(call.receiver);
+                    // A projected receiver belongs to its entire place, not
+                    // the final field spelling in the caller's attachment.
+                    // This pass also binds Binding<R> calls: selecting another
+                    // same-named record here would overwrite the exact target
+                    // already established by projected-call resolution.
+                    let receiver_type = match members {
+                        [receiver] => {
                             crate::machine_calls::calls::declared_receiver_type_reference(
                                 program,
                                 machine,
                                 state,
                                 receiver.as_str(),
                             )
-                        })
-                        .and_then(|receiver_type| {
-                            resolved_dynamic_requirement_symbol(
+                        }
+                        [] => None,
+                        _ => {
+                            let path = members
+                                .iter()
+                                .map(|member| member.as_str().to_owned())
+                                .collect::<Vec<_>>();
+                            crate::value_custody::places::declared_member_path_type(
                                 program,
-                                receiver_type,
-                                call.target.as_str(),
-                                &mut diagnostics,
+                                machine,
+                                Some(state),
+                                &path,
                             )
-                        });
+                        }
+                    };
+                    let dynamic_target = receiver_type.and_then(|receiver_type| {
+                        resolved_dynamic_requirement_symbol(
+                            program,
+                            receiver_type,
+                            call.target.as_str(),
+                            &mut diagnostics,
+                        )
+                    });
                     let target = dynamic_target.or_else(|| {
                         crate::value_custody::placed_views::statement_call_target(
                             program, machine, state, call,
