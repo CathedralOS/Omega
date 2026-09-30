@@ -872,11 +872,20 @@ the complete product bar; focused successes below do not establish that baseline
   emission stopped at `Main::main`'s missing checked transitive machine plan
   (`state signature: parameter signature: attached data shape, state 0`).
   Coordinate that admission with STATIC-MACHINE-MIGRATION.
-  A separate deeper payload probe reaches stage 05's fixed-depth
-  `resolve_case_payload` fence in
-  `expression_preparation/bindings/structural_fields/`; generalize retained
-  projection paths and dominating-case evidence with the `successor_edge.rs`
-  owner, not another path-length branch. Live reads still alias captured-current
+  Selected record payloads now reuse stage 05's ordinary canonical field-path
+  resolver in `expression_preparation/bindings/structural_fields/`, preserving
+  full paths in successor-edge observations instead of a fixed-depth walk.
+  On macOS ARM64 atop `c32fa418799`, `python3 tools/corpus_gate.py --native
+  --filter structural/` builds five fixtures and checks three; the new
+  `runtime_selected_case_record_member_exit` reads distinct sibling counts and
+  exits 42. Its other arm also lowers a Boolean payload read. Independent
+  replay's 41 case-access/payload tests retain authority and mutation rejection.
+  Adding Boolean leaves beside the sibling integer leaves reaches a separate
+  native `SourceCustodyMismatch` at Omega stage 03's
+  `selection/construction/scalar_graph/structural_case.rs`: the owned subject
+  slot disagrees with the case layout's size/alignment. Coordinate that storage
+  repair with the live Omega compilation owner; do not weaken custody replay.
+  Live reads still alias captured-current
   values and mark failure-default reads present while attached; preserve the
   seven-result delete/list oracle and add distinct recent-read presence/value.
 
