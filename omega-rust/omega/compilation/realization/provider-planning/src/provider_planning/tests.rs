@@ -285,6 +285,24 @@ fn selected_plan_names(plans: &[ProviderPlan]) -> Vec<String> {
     plans.iter().map(|plan| plan.name.clone()).collect()
 }
 
+/// Select over bare candidate plans through the production selection core
+/// that `select_derived_provider_plans` runs, returning the chosen plans.
+fn select_provider_plans(
+    plans: &[ProviderPlan],
+    selected_target: target::NativeTarget,
+    defaults: &[crate::ProviderSelection],
+    requested: &[crate::ProviderSelection],
+) -> Result<Vec<ProviderPlan>, Vec<diagnostics::Diagnostic>> {
+    super::select_provider_plan_indices(plans, selected_target, defaults, requested).map(
+        |selected| {
+            selected
+                .into_iter()
+                .map(|selected| plans[selected.candidate].clone())
+                .collect()
+        },
+    )
+}
+
 fn push_boundary_requirement(
     checked: &mut checked_trees::CheckedTrees,
     owner_symbol: symbols::SymbolHandle,

@@ -10,7 +10,7 @@ use typed_trees::TypedTrees;
 /// provider selection. Reach closure is intentionally irrelevant: only a
 /// selected method's authored `invokes` edges participate, and a missing
 /// selected target cannot manufacture an edge.
-pub fn validate_selected_synchronous_invocation_cycles(
+pub(crate) fn validate_selected_synchronous_invocation_cycles(
     typed: &TypedTrees,
     selected_plans: &[effects::provider_plan::ProviderPlan],
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {

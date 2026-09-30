@@ -1,57 +1,4 @@
 use diagnostics::Diagnostic;
-use std::sync::Arc;
-
-/// Transactionally binds the selected provider projection to the checked
-/// phase result that carries it into backend planning. Complete projection is
-/// staged before the retained sidecar can change.
-pub fn settle_external_binding_rows(
-    retained: &mut Arc<[calling_conventions::ExternalBindingRow]>,
-    typed: &typed_trees::TypedTrees,
-    selected_target: Option<&str>,
-    native_target: target::NativeTarget,
-    selected_plans: &[effects::provider_plan::ProviderPlan],
-    boundary_calling_plan_realizations: &[
-        crate::calling_policy_plans::BoundaryCallingPlanRealization
-    ],
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-) -> Result<(), Vec<Diagnostic>> {
-    let rows = extract_external_binding_rows(
-        selected_target,
-        native_target,
-        selected_plans,
-        boundary_calling_plan_realizations,
-        typed,
-        opaque_representation_selections,
-    )?;
-    if retained.as_ref() == rows.as_slice() {
-        return Ok(());
-    }
-    *retained = Arc::from(rows);
-    Ok(())
-}
-
-/// Extract bodyless external leaves into the calling-convention rows consumed
-/// by the freestanding ABI builder.
-pub fn extract_external_binding_rows(
-    selected_target: Option<&str>,
-    native_target: target::NativeTarget,
-    selected_plans: &[effects::provider_plan::ProviderPlan],
-    boundary_calling_plan_realizations: &[
-        crate::calling_policy_plans::BoundaryCallingPlanRealization
-    ],
-    typed: &typed_trees::TypedTrees,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
-    extract_external_binding_rows_for_scope(
-        selected_target,
-        native_target,
-        selected_plans,
-        boundary_calling_plan_realizations,
-        typed,
-        false,
-        opaque_representation_selections,
-    )
-}
 
 /// Extract normalized imports and syscalls for compiler-to-native custody.
 /// Native realization rejoins both mechanisms to the exact selected row;
@@ -60,7 +7,7 @@ pub fn extract_external_binding_rows(
 /// policy and provider settlements remain independently required.
 /// Other selected provider mechanisms retain their existing specialized
 /// lowering and must not be forced through host-ABI compatibility planning.
-pub fn extract_native_external_binding_rows(
+pub(crate) fn extract_native_external_binding_rows(
     selected_target: Option<&str>,
     native_target: target::NativeTarget,
     selected_plans: &[effects::provider_plan::ProviderPlan],
@@ -68,28 +15,6 @@ pub fn extract_native_external_binding_rows(
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
     typed: &typed_trees::TypedTrees,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
-    extract_external_binding_rows_for_scope(
-        selected_target,
-        native_target,
-        selected_plans,
-        boundary_calling_plan_realizations,
-        typed,
-        true,
-        opaque_representation_selections,
-    )
-}
-
-fn extract_external_binding_rows_for_scope(
-    selected_target: Option<&str>,
-    native_target: target::NativeTarget,
-    selected_plans: &[effects::provider_plan::ProviderPlan],
-    boundary_calling_plan_realizations: &[
-        crate::calling_policy_plans::BoundaryCallingPlanRealization
-    ],
-    typed: &typed_trees::TypedTrees,
-    native_mechanisms_only: bool,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     use calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
@@ -101,14 +26,6 @@ fn extract_external_binding_rows_for_scope(
     // a second binding authority beside the retained typed identity.
     for plan in selected_plans {
         for row in &plan.rows {
-            if native_mechanisms_only
-                && !matches!(
-                    &row.binding,
-                    ProviderBinding::Import { .. } | ProviderBinding::Syscall { .. }
-                )
-            {
-                continue;
-            }
             let binding = match &row.binding {
                 ProviderBinding::Import { evaluated } => ExternalBindingKind::Import {
                     // The selected plan already commits the atomic evaluation
@@ -119,23 +36,11 @@ fn extract_external_binding_rows_for_scope(
                 ProviderBinding::Syscall { number } => {
                     ExternalBindingKind::Syscall { number: *number }
                 }
-                ProviderBinding::CompilerIntrinsic { machine } => {
-                    ExternalBindingKind::CompilerIntrinsic {
-                        machine: machine.clone(),
-                    }
-                }
-                ProviderBinding::VtableSlot { index } => {
-                    ExternalBindingKind::VtableSlot { index: *index }
-                }
-                ProviderBinding::VtableField { field, .. } => ExternalBindingKind::VtableField {
-                    field: field.clone(),
-                },
-                ProviderBinding::TableFunction { field, .. } => {
-                    ExternalBindingKind::TableFunction {
-                        field: field.clone(),
-                    }
-                }
-                ProviderBinding::CheckedAdapter { .. } => continue,
+                ProviderBinding::CompilerIntrinsic { .. }
+                | ProviderBinding::VtableSlot { .. }
+                | ProviderBinding::VtableField { .. }
+                | ProviderBinding::TableFunction { .. }
+                | ProviderBinding::CheckedAdapter { .. } => continue,
             };
             let boundary_entry_plan = selected_source_boundary_entry_plan(
                 typed,
@@ -146,27 +51,7 @@ fn extract_external_binding_rows_for_scope(
                 &row.requirement_identity,
             )
             .map_err(|diagnostic| vec![diagnostic])?;
-            // Boundary operators are consumed by checked operator dispatch,
-            // where the exact selected ProviderPlan realization is retained
-            // on the operator-use fact. They are not host ABI calls and must
-            // not be reinterpreted as platform-call catalog entries merely
-            // because their selected realization is compiler-owned.
-            if matches!(&binding, ExternalBindingKind::CompilerIntrinsic { .. })
-                && typed.operators().iter().any(|operator| {
-                    crate::service_schema::schema_binds_exact_boundary_operator(
-                        crate::ProviderPlanningContext::new(
-                            typed,
-                            source::DependencyScope::Product,
-                        ),
-                        &plan.schema,
-                        operator,
-                    )
-                })
-            {
-                continue;
-            }
             let compatibility_policy = match &binding {
-                ExternalBindingKind::CompilerIntrinsic { .. } => None,
                 ExternalBindingKind::Syscall { .. } => {
                     CallingPolicy::native_syscall_for_target(native_target)
                 }
@@ -183,10 +68,9 @@ fn extract_external_binding_rows_for_scope(
                         &row.method,
                         &row.requirement_identity,
                         policy,
-                        usize::from(matches!(
-                            &binding,
-                            ExternalBindingKind::TableFunction { .. }
-                        )),
+                        // Imports and syscalls have no dispatch-only table
+                        // parameter; only a table function would.
+                        0,
                         opaque_representation_selections,
                     )
                     .map_err(|reason| {

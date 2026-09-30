@@ -1,11 +1,12 @@
 use super::{
     bind_selected_provider_plan_facts_for_test, derive_provider_fixture,
-    normalized_machine_identity, selected_operator_binding_fixture, selection_plan, typed_fixture,
+    normalized_machine_identity, select_provider_plans, selected_operator_binding_fixture,
+    selection_plan, typed_fixture,
 };
 use crate::provider_planning::{
     Arc, ProviderBinding, ProviderPlanDerivation, ProviderPlanRow, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, bind_selected_provider_plan_facts, derive_satisfies_plans,
-    select_derived_provider_plans, select_provider_plans, selected_provider_plan_facts,
+    select_derived_provider_plans, selected_provider_plan_facts,
     validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
 };
 
