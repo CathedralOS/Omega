@@ -1173,6 +1173,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }

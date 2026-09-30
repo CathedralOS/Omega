@@ -15,7 +15,10 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
-use crate::{CheckedStructuralCaseFieldStorePlan, CheckedStructuralScalarFieldStorePlan};
+use crate::{
+    CheckedStructuralCaseFieldStorePlan, CheckedStructuralCaseLiteralFieldStorePlan,
+    CheckedStructuralScalarFieldStorePlan,
+};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
@@ -235,6 +238,11 @@ pub enum CheckedUnitEffectOperationPlan {
     /// no erased or payload custody, so the write copies whole and consumes
     /// nothing.
     StructuralCaseFieldStore(CheckedStructuralCaseFieldStorePlan),
+    /// Replace one sum field through the same exact path with an authored
+    /// case literal: the store itself establishes the construction into the
+    /// field's storage — tag, authored scalar operands and zero-initialized
+    /// unnamed commons — copying nothing that was ever a held place.
+    StructuralCaseLiteralFieldStore(CheckedStructuralCaseLiteralFieldStorePlan),
     ByteSequenceStore(CheckedByteSequenceStorePlan),
     /// One normalized atomic event on an exact primitive leaf, joining the
     /// source carrier's placeholder local and carrier assignment into one
