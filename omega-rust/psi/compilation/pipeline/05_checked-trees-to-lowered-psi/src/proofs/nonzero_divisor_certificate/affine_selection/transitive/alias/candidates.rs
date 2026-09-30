@@ -22,7 +22,9 @@ pub(super) fn find<'a, T>(
     let chains = TwoCitationChains::new(assumptions, semantic_axioms);
     equalities::value_aliases(assumptions, semantic_axioms).find_map(
         |(equality_citation, equality, root, alias)| {
-            chains.find(|left, right, left_proof, right_proof| {
+            // The completion substitutes the alias at one chain endpoint and
+            // refuses a chain that names it at neither.
+            chains.find_touching(alias, |left, right, left_proof, right_proof| {
                 complete(
                     root,
                     alias,

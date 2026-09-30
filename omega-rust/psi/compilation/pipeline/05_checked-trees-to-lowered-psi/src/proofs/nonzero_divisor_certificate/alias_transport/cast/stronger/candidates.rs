@@ -1,5 +1,6 @@
 //! Producer-local ordered stronger-alias fact candidates.
 
+use crate::proofs::nonzero_divisor_certificate::integer_evidence::literal_value;
 use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
 
@@ -31,10 +32,8 @@ pub(super) fn find<T>(
             if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
-            for &(bound_citation, bound, literal, endpoint) in
-                relations_by_endpoint.get(alias).into_iter().flatten()
-            {
-                let Some((integer_type, _)) = literal.integer_value() else {
+            for (bound_citation, bound, literal, endpoint) in relations_by_endpoint.get(alias) {
+                let Some((integer_type, _)) = literal_value(literal) else {
                     continue;
                 };
                 if root.scalar_type() != ScalarType::Integer(integer_type) {

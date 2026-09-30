@@ -27,10 +27,7 @@ pub(super) fn prove(
     let session = exact::session(context, assumptions, semantic_axioms);
     let facts = projected_facts(assumptions, semantic_axioms);
     let reaches = |value: &ScalarTerm, target: &ScalarTerm| {
-        value == target
-            || session
-                .prove(&Proposition::Equal(value.clone(), target.clone()))
-                .is_some()
+        value == target || session.prove_equality(value, target).is_some()
     };
     let differences = facts
         .iter()
@@ -97,10 +94,7 @@ pub(super) fn increase(
             continue;
         };
         let reaches = |value: &ScalarTerm, target: &ScalarTerm| {
-            value == target
-                || session
-                    .prove(&Proposition::Equal(value.clone(), target.clone()))
-                    .is_some()
+            value == target || session.prove_equality(value, target).is_some()
         };
         if !reaches(left, goal_left) || !reaches(result, goal_right) {
             continue;

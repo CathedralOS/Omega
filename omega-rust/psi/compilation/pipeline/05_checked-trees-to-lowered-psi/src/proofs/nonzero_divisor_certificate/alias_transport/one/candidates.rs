@@ -21,10 +21,7 @@ pub(super) fn prove(
             if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
-            let Some(bounds) = bounds_by_endpoint.get(alias) else {
-                continue;
-            };
-            for &(relation_citation, relation, endpoint) in bounds {
+            for (relation_citation, relation, endpoint) in bounds_by_endpoint.get(alias) {
                 let proof = completion::prove(
                     relation,
                     root,

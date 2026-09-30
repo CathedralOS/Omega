@@ -1,5 +1,6 @@
 //! Strict order from exact endpoint equalities and checked discrete bounds.
 
+use crate::proofs::nonzero_divisor_certificate::integer_evidence::literal_value;
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::{
     IntegerCarrier, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType,
@@ -82,16 +83,14 @@ pub(in super::super) fn prove_discrete_endpoint(
             })
             .flatten(),
     ) {
-        if candidate.integer_value().is_some() && !literals.contains(candidate) {
+        if literal_value(candidate).is_some() && !literals.contains(candidate) {
             literals.push(candidate.clone());
         }
     }
     for (endpoint, target) in [left, right].into_iter().enumerate() {
         for literal in &literals {
             if literal.scalar_type() != target.scalar_type()
-                || session
-                    .prove(&Proposition::Equal(target.clone(), literal.clone()))
-                    .is_none()
+                || session.prove_equality(target, literal).is_none()
             {
                 continue;
             }
@@ -152,7 +151,9 @@ fn prove_without_subtract(
     for fact in facts.iter().rev() {
         match fact.proposition {
             Proposition::LessThan(_, _) => {
-                if let Some(proof) = complete(&session, goal, fact.proof()) {
+                if let Some(proof) =
+                    complete_relation(&session, goal, fact.proposition, || fact.proof())
+                {
                     return Some(proof);
                 }
             }
@@ -163,13 +164,13 @@ fn prove_without_subtract(
                     adjacent(right, true).map(|next| Proposition::LessThan(left.clone(), next)),
                 ];
                 for conclusion in conclusions.into_iter().flatten() {
-                    let discrete = ProofNode {
-                        conclusion,
+                    let discrete = || ProofNode {
+                        conclusion: conclusion.clone(),
                         rule: ProofRule::IntegerOrderDiscreteness {
                             relation: Box::new(fact.proof()),
                         },
                     };
-                    if let Some(proof) = complete(&session, goal, discrete) {
+                    if let Some(proof) = complete_relation(&session, goal, &conclusion, discrete) {
                         return Some(proof);
                     }
                 }
@@ -180,16 +181,16 @@ fn prove_without_subtract(
     }
 
     let literal = |term: &ScalarTerm| {
-        if term.integer_value().is_some() {
+        if literal_value(term).is_some() {
             return Some(term.clone());
         }
         equalities
             .iter()
             .flat_map(|(left, right)| [*left, *right])
             .find_map(|candidate| {
-                (candidate.integer_value().is_some()
+                (literal_value(candidate).is_some()
                     && candidate.scalar_type() == term.scalar_type())
-                .then(|| session.prove(&Proposition::Equal(term.clone(), candidate.clone())))
+                .then(|| session.prove_equality(term, candidate))
                 .flatten()
                 .map(|_| candidate.clone())
             })
@@ -199,7 +200,7 @@ fn prove_without_subtract(
 }
 
 pub(super) fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
-    let (integer_type, value) = literal.integer_value()?;
+    let (integer_type, value) = literal_value(literal)?;
     if integer_type.carrier() != IntegerCarrier::Fixed || integer_type.is_address() {
         return None;
     }
@@ -212,23 +213,69 @@ pub(super) fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarT
     ScalarTerm::integer(integer_type, adjacent).ok()
 }
 
-fn complete(
+fn complete(session: &exact::Session, goal: &Proposition, proof: ProofNode) -> Option<ProofNode> {
+    let equalities = endpoint_equalities(session, goal, &proof.conclusion)?;
+    substitute_endpoints(goal, proof, equalities)
+}
+
+/// `complete` for a relation whose proof is built only once both endpoints
+/// reach the goal: the substitutions depend on the relation alone.
+fn complete_relation(
     session: &exact::Session,
     goal: &Proposition,
+    relation: &Proposition,
+    relation_proof: impl FnOnce() -> ProofNode,
+) -> Option<ProofNode> {
+    let equalities = endpoint_equalities(session, goal, relation)?;
+    substitute_endpoints(goal, relation_proof(), equalities)
+}
+
+/// The endpoint equalities that carry a strict `relation` onto `goal`, left
+/// endpoint first; `None` in a slot means that endpoint already matches.
+/// Substituting the left endpoint leaves the right one in place, so both
+/// steps are decided on the original relation.
+fn endpoint_equalities(
+    session: &exact::Session,
+    goal: &Proposition,
+    relation: &Proposition,
+) -> Option<[Option<ProofNode>; 2]> {
+    let Proposition::LessThan(goal_left, goal_right) = goal else {
+        return None;
+    };
+    let Proposition::LessThan(left, right) = relation else {
+        return None;
+    };
+    let mut equalities = [None, None];
+    for (endpoint, (old, target)) in [(left, goal_left), (right, goal_right)]
+        .into_iter()
+        .enumerate()
+    {
+        if old != target {
+            equalities[endpoint] = Some(session.prove_equality(old, target)?);
+        }
+    }
+    Some(equalities)
+}
+
+fn substitute_endpoints(
+    goal: &Proposition,
     mut proof: ProofNode,
+    equalities: [Option<ProofNode>; 2],
 ) -> Option<ProofNode> {
     let Proposition::LessThan(goal_left, goal_right) = goal else {
         return None;
     };
-    for (endpoint, target) in [goal_left, goal_right].into_iter().enumerate() {
+    for (endpoint, (target, equality)) in [goal_left, goal_right]
+        .into_iter()
+        .zip(equalities)
+        .enumerate()
+    {
+        let Some(equality) = equality else {
+            continue;
+        };
         let Proposition::LessThan(left, right) = &proof.conclusion else {
             return None;
         };
-        let old = if endpoint == 0 { left } else { right };
-        if old == target {
-            continue;
-        }
-        let equality = session.prove(&Proposition::Equal(old.clone(), target.clone()))?;
         let conclusion = if endpoint == 0 {
             Proposition::LessThan(target.clone(), right.clone())
         } else {

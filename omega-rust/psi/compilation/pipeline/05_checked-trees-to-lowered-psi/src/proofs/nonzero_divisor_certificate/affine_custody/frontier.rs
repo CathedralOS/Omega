@@ -76,6 +76,27 @@ pub(in crate::proofs::nonzero_divisor_certificate) fn definition_words_to_target
     words
 }
 
+/// `definition_words_to_target` for each of `targets` from one root, in
+/// target order; a target equal to the root is not asked and reads empty.
+pub(in crate::proofs::nonzero_divisor_certificate) fn definition_words_to_targets(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+    root: &ScalarTerm,
+    targets: &[ScalarTerm],
+) -> Vec<Rc<[Vec<usize>]>> {
+    let known = definitions.cached_words_to_targets(root, targets);
+    targets
+        .iter()
+        .zip(known)
+        .map(|(target, known)| match known {
+            Some(words) => words,
+            None if target == root => Rc::from([]),
+            None => definition_words_to_target(context, semantic_axioms, definitions, root, target),
+        })
+        .collect()
+}
+
 fn add_operand(side: &ScalarTerm, target: &ScalarTerm) -> bool {
     let (ScalarTerm::WrappingIntegerAdd { left, right, .. }
     | ScalarTerm::ExactIntegerAdd { left, right, .. }) = side

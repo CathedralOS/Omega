@@ -1,5 +1,6 @@
 //! Existing ordered-bound certificate selection across exact-shift words.
 
+use crate::proofs::nonzero_divisor_certificate::integer_evidence::literal_value;
 use proof_admission::{
     IntegerAffineBoundConversionError, IntegerAffineWitness, PrimitiveJudgment, ProofNode,
     ProofRule, check_integer_affine_witness, integer_affine_truth_bounds, map_integer_affine_bound,
@@ -30,7 +31,7 @@ pub(super) fn prove_recursive(
     } else {
         return None;
     };
-    let (integer_type, goal_value) = goal_bound.integer_value()?;
+    let (integer_type, goal_value) = literal_value(goal_bound)?;
     if integer_type != checked.integer_type() {
         return None;
     }
@@ -62,7 +63,7 @@ pub(super) fn prove_recursive(
         } else {
             return None;
         };
-        let (_, mapped_value) = mapped_bound.integer_value()?;
+        let (_, mapped_value) = literal_value(mapped_bound)?;
         let mapped_value = integer_as_i128(mapped_value)?;
         Some(if lower {
             mapped_value >= goal_value
@@ -215,18 +216,18 @@ fn shift_witness(
             }
             _ => return None,
         };
-        let literal_axiom = if count.integer_value().is_some() {
+        let literal_axiom = if literal_value(count).is_some() {
             None
         } else {
             Some(semantic_axioms[..index].iter().enumerate().rev().find_map(
                 |(literal_index, proposition)| match proposition {
                     Proposition::Equal(left, right)
-                        if left == count && right.integer_value().is_some() =>
+                        if left == count && literal_value(right).is_some() =>
                     {
                         Some(literal_index)
                     }
                     Proposition::Equal(left, right)
-                        if right == count && left.integer_value().is_some() =>
+                        if right == count && literal_value(left).is_some() =>
                     {
                         Some(literal_index)
                     }

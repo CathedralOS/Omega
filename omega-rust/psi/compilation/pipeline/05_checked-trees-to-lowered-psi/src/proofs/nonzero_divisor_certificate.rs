@@ -19,6 +19,8 @@ mod certificate_entry;
 mod integer_evidence;
 mod integer_selection;
 mod predicate_conversion;
+mod scope_identity;
+mod search_context;
 mod value_transport;
 
 /// Build the recursive certificate shape shared by canonical integer goals.
@@ -33,6 +35,7 @@ pub(crate) fn prove_canonical_integer_proposition(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
+    let _search = search_context::SearchContext::enter(context);
     certificate_entry::prove(context, goal, assumptions, semantic_axioms)
 }
 
@@ -48,6 +51,7 @@ pub fn produce_checked_canonical_integer_proof(
     semantic_axioms: &[Proposition],
     machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Option<ProofNode> {
+    let _search = search_context::SearchContext::enter(context);
     certificate_entry::prove_with_machine_parameters(
         context,
         goal,
@@ -74,6 +78,7 @@ pub(crate) fn produce_relaxed_integer_proof(
     semantic_axioms: &[Proposition],
     machine_parameter_values: &BTreeSet<ValueId>,
 ) -> Option<ProofNode> {
+    let _search = search_context::SearchContext::enter(context);
     let proof = integer_selection::prove_relaxed_with_machine_parameters(
         context,
         goal,

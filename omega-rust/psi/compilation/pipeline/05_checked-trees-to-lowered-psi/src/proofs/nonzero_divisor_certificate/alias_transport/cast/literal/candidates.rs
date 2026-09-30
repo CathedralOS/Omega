@@ -1,5 +1,6 @@
 //! Producer-local ordered alias-landed-literal candidates.
 
+use crate::proofs::nonzero_divisor_certificate::integer_evidence::literal_value;
 use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, ScalarTerm};
 
@@ -21,13 +22,11 @@ pub(super) fn find<T>(
             if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
-            for &(literal_citation, literal_equality, literal) in
-                aliases_by_endpoint.get(alias).into_iter().flatten()
-            {
+            for (literal_citation, literal_equality, literal) in aliases_by_endpoint.get(alias) {
                 if std::ptr::eq(root_equality, literal_equality) {
                     continue;
                 }
-                let Some((integer_type, _)) = literal.integer_value() else {
+                let Some((integer_type, _)) = literal_value(literal) else {
                     continue;
                 };
                 if root.scalar_type() != semantic_vocabulary::ScalarType::Integer(integer_type) {
