@@ -404,7 +404,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         let statements = checked.statement_table.statements(source.statement_nodes);
         scalars::validate(checked, state)?;
         let terminator_ordinal = super::body::validate(checked, plan.machine, source, state)?;
-        let tail = &statements[terminator_ordinal..];
+        let tail = typed_trees::statement::reachable_transition_prefix(
+            &statements[terminator_ordinal..],
+        );
         match (&state.terminator, tail) {
             (CheckedComposedUnitControlTerminatorPlan::Guarded { .. }, _) => {
                 super::guarded::validate(checked, plan, source, state, terminator_ordinal)?;

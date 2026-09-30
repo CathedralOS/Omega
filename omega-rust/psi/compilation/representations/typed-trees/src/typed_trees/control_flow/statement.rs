@@ -5,6 +5,29 @@ use symbols::SymbolHandle;
 
 pub type StatementHandle = Handle<StatementNode>;
 
+/// The executable prefix of one ordered transition tail. The first
+/// unconditional arm selects its destination, so later alternatives cannot
+/// execute. This is structural reachability, not a proof that a conditional
+/// guard is true. Preserve the authored statements and their ordinals for
+/// checking; consumers borrow this prefix only when planning/replaying exits.
+/// Mixed statement tails are left intact, rather than hiding unsupported
+/// sequencing or treating an ordinary statement as an alternative arm.
+pub fn reachable_transition_prefix(statements: &[StatementNode]) -> &[StatementNode] {
+    if !statements
+        .iter()
+        .all(|statement| matches!(statement, StatementNode::Transition(_)))
+    {
+        return statements;
+    }
+    match statements.iter().position(|statement| {
+        matches!(statement, StatementNode::Transition(transition)
+            if transition.guard == TransitionGuardNode::Always)
+    }) {
+        Some(ordinal) => &statements[..=ordinal],
+        None => statements,
+    }
+}
+
 /// A Build declaration with product-context operands, never a runtime call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootBinding {

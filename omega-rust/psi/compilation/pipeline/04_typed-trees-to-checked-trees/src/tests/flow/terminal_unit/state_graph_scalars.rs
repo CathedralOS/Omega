@@ -26,6 +26,30 @@ const PREFIX: &str = r#"
 "#;
 
 #[test]
+fn unconditional_transition_does_not_require_an_unreachable_fallback() {
+    let checked = checked(
+        "data Root { count: u32 in Wrapping; }
+         machine Root::choose(&mut self) {
+             self.count = self.count + 1;
+             transition { _ -> selected() _ -> skipped() }
+             state selected(&mut self) { self.count = self.count + 1; }
+             state skipped(&mut self) { self.count = self.count + 10; }
+         }",
+    );
+    let machine = machine_named(&checked, "choose");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .expect("the first unconditional arm terminates the ordered transition tail");
+    assert!(matches!(
+        plan.states[0].terminator,
+        CheckedComposedUnitControlTerminatorPlan::Jump { .. }
+    ));
+}
+
+#[test]
 fn canonical_float_comparison_cannot_bypass_a_present_machine_body() {
     let mut typed = crate::tests::front_end::typed_program(
         "boundary machine > Float::greater(left: f64, right: f64) -> bool;

@@ -105,7 +105,7 @@ pub(super) fn build(
         operations.extend(operand_calls);
         terminator
     } else {
-        match &statements[terminator_index..] {
+        match typed_trees::statement::reachable_transition_prefix(&statements[terminator_index..]) {
             [] if result == checked_trees::CheckedControlResultPlan::Unit => {
                 trace.phase("state graph: terminator: unit tail cleanup");
                 return_cleanup_is_whole(

@@ -219,6 +219,7 @@ pass/control_flow/guarded_value_transition_roster rejected 468ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
 pass/control_flow/nested_parameter_receiver_call checked 179ms
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 758ms exit:70
+pass/control_flow/ordered_unconditional_arm_exit built 370ms exit:70 @ed218c8b1f5+wt
 pass/control_flow/record_pattern_arm_rename_guard_exit built 601ms exit:70
 pass/control_flow/runtime_branching_helper_string rejected 221ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` calls `Main::pick`, which has no plan; `Main::pick` has no admitted body (local construction stopped at result ownership)") })
@@ -226,8 +227,8 @@ pass/control_flow/runtime_captured_local_remutated_field_exit built 677ms exit:7
 pass/control_flow/runtime_compare_pair_dispatch_exit built 609ms exit:70
 pass/control_flow/runtime_integer_literal_dispatch_exit built 591ms exit:22
 pass/control_flow/runtime_loop_patterns_exit built 729ms exit:70
-pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit rejected 485ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: jump followed by a transition` (state 0)
+pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit rejected 295ms @ed218c8b1f5+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 2, statement 0)
 pass/control_flow/runtime_string_literal_dispatch_exit rejected 433ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 488ms

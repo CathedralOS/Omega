@@ -7,6 +7,62 @@ mod closed_cases;
 mod displaced_field_replacement;
 mod qualified_invocation;
 
+#[test]
+fn unreachable_alternatives_do_not_replace_the_selected_edge() {
+    let checked = crate::front_end::checked_program(
+        "data Root { count: u32 in Wrapping; }
+         machine Root::choose(&mut self) {
+             self.count = self.count + 1;
+             transition { _ -> selected() _ -> skipped() }
+             state selected(&mut self) { self.count = self.count + 1; }
+             state skipped(&mut self) { self.count = self.count + 10; }
+         }",
+    );
+    let original = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| plan.states.len() == 3)
+        .expect("ordered transition plan");
+    admission::admit(&checked, original).expect("only the first arm can execute");
+    for change_destination in [false, true] {
+        let mut changed = original.clone();
+        let skipped = changed.states[2].state;
+        let CheckedComposedUnitControlTerminatorPlan::Jump { successor } =
+            &mut changed.states[0].terminator
+        else {
+            panic!("unconditional edge");
+        };
+        if change_destination {
+            successor.target_state = skipped;
+        } else {
+            successor.statement_ordinal += 1;
+        }
+        assert!(
+            admission::admit(&checked, &changed).is_err(),
+            "an unreachable source arm cannot authorize a replacement edge"
+        );
+    }
+    let mut changed = checked.clone();
+    let source = changed.machine_states(&changed.machines()[0])[0].statement_nodes;
+    let condition = changed
+        .typed
+        .expression_table
+        .insert(checked_trees::expression::ExpressionNode::Boolean(false));
+    let checked_trees::statement::StatementNode::Transition(transition) =
+        &mut changed.typed.statement_table.statements_mut(source)[1]
+    else {
+        panic!("first arm");
+    };
+    transition.guard = checked_trees::statement::TransitionGuardNode::When(condition);
+    assert!(
+        admission::admit(&changed, original).is_err(),
+        "a conditional arm cannot justify dropping its fallback"
+    );
+}
+
 fn fixture() -> CheckedTrees {
     let source = r#"
         data Main { counter: u64 in Wrapping; total: u64 in Wrapping; }
