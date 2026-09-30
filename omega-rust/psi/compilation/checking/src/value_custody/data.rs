@@ -267,7 +267,11 @@ pub fn data_requires_establishment(
     program: &TypedTrees,
     definition: &typed_trees::data::DataDefinition,
 ) -> bool {
-    if definition.zero_gated {
+    // Build/entry selection asks on typed trees before checked-tree zero
+    // refinement. Replay the same target-neutral predicate judgment instead
+    // of mistaking the syntax-stage conservative flag for a failed proof.
+    // The recursive walk below still owns contained fields and case payloads.
+    if definition.zero_gated && !crate::data_predicates_admit_zero(program, definition) {
         return true;
     }
     // A fresh index answers each top-level query, so the answer depends only
@@ -284,7 +288,7 @@ fn data_requires_establishment_inner(
     definition: &typed_trees::data::DataDefinition,
     index: &mut EstablishmentIndex,
 ) -> bool {
-    if definition.zero_gated {
+    if definition.zero_gated && !crate::data_predicates_admit_zero(program, definition) {
         return true;
     }
     let key = definition.symbol;

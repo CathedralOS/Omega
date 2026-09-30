@@ -160,6 +160,7 @@ pub use machine_calls::result_overloads::{
 };
 pub use proof_contracts::default_domains::{
     OpenInvariantCrashSite, build_open_invariant_crash_sites, data_float_predicate,
+    data_predicates_admit_zero,
 };
 pub use proof_contracts::float_projection_bindings::semantic_operations::exact_toolchain_float_semantic_contract;
 pub use proof_contracts::float_projection_bindings::semantic_values::exact_toolchain_float_format_const;
