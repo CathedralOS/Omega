@@ -1,5 +1,6 @@
 //! Source-ordered landed-literal cast candidates for production.
 
+use crate::proofs::nonzero_divisor_certificate::integer_evidence::literal_value;
 use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType};
 
@@ -20,7 +21,7 @@ pub(super) fn prove(
             if !matches!(root, ScalarTerm::Value { .. }) {
                 continue;
             }
-            let Some((integer_type, _)) = literal.integer_value() else {
+            let Some((integer_type, _)) = literal_value(literal) else {
                 continue;
             };
             if root.scalar_type() != ScalarType::Integer(integer_type) {

@@ -11,6 +11,7 @@ use proof_admission::{
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::candidates;
+use crate::proofs::nonzero_divisor_certificate::{scope_identity, search_context};
 
 /// Source-ordered semantic rows that may extend one exact affine value chain.
 /// This selects candidates only; the kernel remains authoritative for every
@@ -43,15 +44,23 @@ struct Tables {
     cast_roots: Rc<[ScalarTerm]>,
     cast_definitions: BTreeMap<ScalarTerm, Option<(usize, ScalarTerm)>>,
     words_by_root: BTreeMap<ScalarTerm, Rc<[Vec<usize>]>>,
-    words_by_root_and_target: BTreeMap<(ScalarTerm, ScalarTerm), Rc<[Vec<usize>]>>,
-    literal_axioms_by_witness:
-        BTreeMap<(ScalarTerm, Vec<usize>, ScalarTerm), Option<Vec<Option<usize>>>>,
+    /// Words per root, then per target. Nested maps answer a lookup from
+    /// borrowed keys: the word loops ask these memos far more often than
+    /// they fill them, and a composite key would clone both terms per ask.
+    words_by_root_and_target: BTreeMap<ScalarTerm, BTreeMap<ScalarTerm, Rc<[Vec<usize>]>>>,
+    /// Literal-axiom selections per root, then target, then definition word.
+    literal_axioms_by_witness: BTreeMap<
+        ScalarTerm,
+        BTreeMap<ScalarTerm, BTreeMap<Vec<usize>, Option<Vec<Option<usize>>>>>,
+    >,
     /// `check_word` outcomes per `(bound proposition, root, target,
-    /// definition word)`: the kernel-checked form and its required evidence
-    /// replay without re-running the witness check for every candidate the
-    /// word loops meet.
-    checked_words:
-        BTreeMap<(Proposition, ScalarTerm, ScalarTerm, Vec<usize>), Option<Rc<CheckedWord>>>,
+    /// definition word)`, nested in that order: the kernel-checked form and
+    /// its required evidence replay without re-running the witness check for
+    /// every candidate the word loops meet.
+    checked_words: BTreeMap<
+        Proposition,
+        BTreeMap<ScalarTerm, BTreeMap<ScalarTerm, BTreeMap<Vec<usize>, Option<Rc<CheckedWord>>>>>,
+    >,
     /// `check_integer_affine_witness` outcomes per witness. The check is a
     /// pure `(context, semantic_axioms)` replay — the kernel consults only
     /// the axiom rows and the shared context — so one checked form serves
@@ -238,9 +247,10 @@ struct ScopeProofs {
 thread_local! {
     /// Shared `Tables` resolved by full `(context, semantic_axioms)` content,
     /// most-recently-used first — the same content-matched discipline the
-    /// exact roster cache uses. Bounded so a long compilation keeps a
-    /// bounded working set rather than every roster it ever saw.
-    static TABLES: RefCell<Vec<(PropositionContext, Vec<Proposition>, Rc<RefCell<Tables>>)>> =
+    /// exact roster cache uses, the context compared through its content
+    /// token. Bounded so a long compilation keeps a bounded working set
+    /// rather than every roster it ever saw.
+    static TABLES: RefCell<Vec<(usize, Vec<Proposition>, Rc<RefCell<Tables>>)>> =
         const { RefCell::new(Vec::new()) };
 
     /// Shared `ScopeProofs` resolved by full `(context, assumptions,
@@ -249,14 +259,7 @@ thread_local! {
     /// implication search revisits a handful of assumption scopes per
     /// obligation while case analysis pops back to the enclosing one, so a
     /// small window covers the working set.
-    static PROOFS: RefCell<
-        Vec<(
-            PropositionContext,
-            Vec<Proposition>,
-            Vec<Proposition>,
-            Rc<RefCell<ScopeProofs>>,
-        )>,
-    > = const { RefCell::new(Vec::new()) };
+    static PROOFS: RefCell<Vec<ScopeProofsEntry>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Distinct `(context, axioms)` rosters whose shared tables stay live at
@@ -269,21 +272,32 @@ const MAXIMUM_TABLES: usize = 8;
 /// obligation; matching stays proportional to the live search depth.
 const MAXIMUM_SCOPE_PROOFS: usize = 32;
 
+/// One `PROOFS` entry: the scope's context token, the scope token it was
+/// last matched under, the scope content, and its store.
+struct ScopeProofsEntry {
+    context: usize,
+    scope: u64,
+    assumptions: Vec<Proposition>,
+    semantic_axioms: Vec<Proposition>,
+    proofs: Rc<RefCell<ScopeProofs>>,
+}
+
 /// The most-recently-used shared tables for `(context, semantic_axioms)`,
 /// building them on first sight. Matching is always by full content.
 fn shared_tables(
     context: &PropositionContext,
     semantic_axioms: &[Proposition],
 ) -> Rc<RefCell<Tables>> {
+    let token = search_context::token(context);
     TABLES.with(|cell| {
         let mut tables = cell.borrow_mut();
-        let index = match tables.iter().rposition(|(seen_context, seen_axioms, _)| {
-            seen_axioms == semantic_axioms && seen_context == context
+        let index = match tables.iter().rposition(|(seen_token, seen_axioms, _)| {
+            *seen_token == token && seen_axioms == semantic_axioms
         }) {
             Some(index) => index,
             None => {
                 tables.push((
-                    context.clone(),
+                    token,
                     semantic_axioms.to_vec(),
                     Rc::new(RefCell::new(Tables::new(semantic_axioms))),
                 ));
@@ -309,42 +323,44 @@ fn shared_proofs(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Rc<RefCell<ScopeProofs>> {
+    let token = search_context::token(context);
+    let scope = scope_identity::token(assumptions, semantic_axioms);
     PROOFS.with(|cell| {
         let mut proofs = cell.borrow_mut();
-        let index =
-            match proofs
-                .iter()
-                .rposition(|(seen_context, seen_assumptions, seen_axioms, _)| {
-                    // Slice length is the cheap discriminator; the whole
-                    // proposition context compares last and only on real
-                    // candidates.
-                    seen_axioms == semantic_axioms
-                        && seen_assumptions == assumptions
-                        && seen_context == context
-                }) {
-                Some(index) => index,
-                None => {
-                    proofs.push((
-                        context.clone(),
-                        assumptions.to_vec(),
-                        semantic_axioms.to_vec(),
-                        Rc::new(RefCell::new(ScopeProofs {
-                            affine: BTreeMap::new(),
-                            wrapping: BTreeMap::new(),
-                            bound: BTreeMap::new(),
-                            endpoint: BTreeMap::new(),
-                            cascade: BTreeMap::new(),
-                            selection: BTreeMap::new(),
-                            build: BTreeMap::new(),
-                            relaxed: BTreeMap::new(),
-                            derived: BTreeMap::new(),
-                        })),
-                    ));
-                    proofs.len() - 1
-                }
-            };
-        let entry = proofs.remove(index);
-        let shared = entry.3.clone();
+        let index = match proofs.iter().rposition(|entry| {
+            // Equal tokens imply equal content; content still decides
+            // when the tokens differ, so the matched entry is exactly
+            // the one full-content matching finds.
+            entry.context == token
+                && (entry.scope == scope
+                    || (entry.semantic_axioms == semantic_axioms
+                        && entry.assumptions == assumptions))
+        }) {
+            Some(index) => index,
+            None => {
+                proofs.push(ScopeProofsEntry {
+                    context: token,
+                    scope,
+                    assumptions: assumptions.to_vec(),
+                    semantic_axioms: semantic_axioms.to_vec(),
+                    proofs: Rc::new(RefCell::new(ScopeProofs {
+                        affine: BTreeMap::new(),
+                        wrapping: BTreeMap::new(),
+                        bound: BTreeMap::new(),
+                        endpoint: BTreeMap::new(),
+                        cascade: BTreeMap::new(),
+                        selection: BTreeMap::new(),
+                        build: BTreeMap::new(),
+                        relaxed: BTreeMap::new(),
+                        derived: BTreeMap::new(),
+                    })),
+                });
+                proofs.len() - 1
+            }
+        };
+        let mut entry = proofs.remove(index);
+        entry.scope = scope;
+        let shared = entry.proofs.clone();
         proofs.push(entry);
         if proofs.len() > MAXIMUM_SCOPE_PROOFS {
             proofs.remove(0);
@@ -474,8 +490,24 @@ impl DefinitionIndex {
         self.tables
             .borrow()
             .words_by_root_and_target
-            .get(&(root.clone(), target.clone()))
+            .get(root)
+            .and_then(|targets| targets.get(target))
             .cloned()
+    }
+
+    /// `cached_words_to_target` for several targets of one root, finding the
+    /// root once.
+    pub(in crate::proofs::nonzero_divisor_certificate::affine_custody) fn cached_words_to_targets(
+        &self,
+        root: &ScalarTerm,
+        targets: &[ScalarTerm],
+    ) -> Vec<Option<Rc<[Vec<usize>]>>> {
+        let tables = self.tables.borrow();
+        let known = tables.words_by_root_and_target.get(root);
+        targets
+            .iter()
+            .map(|target| known.and_then(|words| words.get(target)).cloned())
+            .collect()
     }
 
     pub(in crate::proofs::nonzero_divisor_certificate::affine_custody) fn cache_words_to_target(
@@ -487,7 +519,9 @@ impl DefinitionIndex {
         self.tables
             .borrow_mut()
             .words_by_root_and_target
-            .insert((root.clone(), target.clone()), words);
+            .entry(root.clone())
+            .or_default()
+            .insert(target.clone(), words);
     }
 
     pub(in crate::proofs::nonzero_divisor_certificate::affine_custody) fn cached_literal_axioms(
@@ -499,7 +533,9 @@ impl DefinitionIndex {
         self.tables
             .borrow()
             .literal_axioms_by_witness
-            .get(&(root.clone(), definition_axioms.to_vec(), target.clone()))
+            .get(root)
+            .and_then(|targets| targets.get(target))
+            .and_then(|words| words.get(definition_axioms))
             .cloned()
     }
 
@@ -510,10 +546,14 @@ impl DefinitionIndex {
         target: &ScalarTerm,
         literal_axioms: Option<Vec<Option<usize>>>,
     ) {
-        self.tables.borrow_mut().literal_axioms_by_witness.insert(
-            (root.clone(), definition_axioms.to_vec(), target.clone()),
-            literal_axioms,
-        );
+        self.tables
+            .borrow_mut()
+            .literal_axioms_by_witness
+            .entry(root.clone())
+            .or_default()
+            .entry(target.clone())
+            .or_default()
+            .insert(definition_axioms.to_vec(), literal_axioms);
     }
 
     pub(in crate::proofs::nonzero_divisor_certificate) fn cached_affine_proof(
@@ -798,12 +838,10 @@ impl DefinitionIndex {
         self.tables
             .borrow()
             .checked_words
-            .get(&(
-                bound.clone(),
-                root.clone(),
-                target.clone(),
-                definition_axioms.to_vec(),
-            ))
+            .get(bound)
+            .and_then(|roots| roots.get(root))
+            .and_then(|targets| targets.get(target))
+            .and_then(|words| words.get(definition_axioms))
             .cloned()
     }
 
@@ -815,15 +853,16 @@ impl DefinitionIndex {
         definition_axioms: &[usize],
         checked: Option<Rc<CheckedWord>>,
     ) {
-        self.tables.borrow_mut().checked_words.insert(
-            (
-                bound.clone(),
-                root.clone(),
-                target.clone(),
-                definition_axioms.to_vec(),
-            ),
-            checked,
-        );
+        self.tables
+            .borrow_mut()
+            .checked_words
+            .entry(bound.clone())
+            .or_default()
+            .entry(root.clone())
+            .or_default()
+            .entry(target.clone())
+            .or_default()
+            .insert(definition_axioms.to_vec(), checked);
     }
 
     /// The `check_integer_affine_witness` outcome for this witness under the

@@ -1,5 +1,6 @@
 //! Canonical integer proposition-kind proof dispatch.
 
+use crate::proofs::nonzero_divisor_certificate::integer_evidence::literal_value;
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
     lift_fixed_integer_relation, map_integer_affine_bound,
@@ -420,7 +421,7 @@ fn prove_targeted_subtract_relation(
 ) -> Option<ProofNode> {
     let operand_endpoints =
         |operand: &ScalarTerm, endpoint_lower: bool, definitions: &mut DefinitionIndex| {
-            if let Some((actual, value)) = operand.integer_value() {
+            if let Some((actual, value)) = literal_value(operand) {
                 return (actual == integer_type)
                     .then(|| {
                         prove_add_operand_endpoint(
@@ -535,7 +536,7 @@ fn prove_correlated_subtract_relation(
         };
         if *scalar_type != integer_type
             || add_right.as_ref() != right
-            || endpoint.integer_value() != Some((integer_type, expected_endpoint))
+            || literal_value(endpoint) != Some((integer_type, expected_endpoint))
         {
             continue;
         }
@@ -591,7 +592,7 @@ fn prove_correlated_subtract_relation(
                 continue;
             }
             let literal_axiom =
-                if endpoint.integer_value() == Some((integer_type, expected_endpoint)) {
+                if literal_value(endpoint) == Some((integer_type, expected_endpoint)) {
                     None
                 } else {
                     let Some(landing_index) = semantic_axioms[..index].iter().enumerate().find_map(
@@ -606,7 +607,7 @@ fn prove_correlated_subtract_relation(
                             } else {
                                 return None;
                             };
-                            (literal.integer_value() == Some((integer_type, expected_endpoint)))
+                            (literal_value(literal) == Some((integer_type, expected_endpoint)))
                                 .then_some(landing_index)
                         },
                     ) else {
@@ -663,7 +664,7 @@ fn exact_add_operand_value(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<IntegerValue> {
-    if let Some((actual, value)) = operand.integer_value() {
+    if let Some((actual, value)) = literal_value(operand) {
         return (actual == integer_type).then_some(value);
     }
     cited_facts(assumptions, semantic_axioms).find_map(|(_, fact)| {
@@ -671,9 +672,9 @@ fn exact_add_operand_value(
             return None;
         };
         let (actual, value) = if left == operand {
-            right.integer_value()
+            literal_value(right)
         } else if right == operand {
-            left.integer_value()
+            literal_value(left)
         } else {
             None
         }?;
@@ -704,7 +705,7 @@ pub(super) fn add_endpoint_candidates(
     semantic_axioms: &[Proposition],
 ) -> Vec<IntegerValue> {
     let mut candidates = Vec::new();
-    if let Some((actual, value)) = operand.integer_value()
+    if let Some((actual, value)) = literal_value(operand)
         && actual == integer_type
     {
         candidates.push(value);
@@ -717,7 +718,7 @@ pub(super) fn add_endpoint_candidates(
             _ => continue,
         };
         for term in [left, right] {
-            if let Some((actual, value)) = term.integer_value()
+            if let Some((actual, value)) = literal_value(term)
                 && let Some(value) = if actual == integer_type {
                     Some(value)
                 } else {
@@ -747,7 +748,7 @@ fn direct_add_endpoint_candidates(
     semantic_axioms: &[Proposition],
 ) -> Vec<IntegerValue> {
     let mut candidates = Vec::new();
-    if let Some((actual, value)) = operand.integer_value()
+    if let Some((actual, value)) = literal_value(operand)
         && actual == integer_type
     {
         candidates.push(value);
@@ -766,7 +767,7 @@ fn direct_add_endpoint_candidates(
         } else {
             continue;
         };
-        let Some((actual, value)) = literal.integer_value() else {
+        let Some((actual, value)) = literal_value(literal) else {
             continue;
         };
         let Some(value) = (if actual == integer_type {
@@ -793,7 +794,7 @@ pub(super) fn prove_add_operand_endpoint(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
-    if let Some((actual, value)) = operand.integer_value() {
+    if let Some((actual, value)) = literal_value(operand) {
         return (actual == integer_type && value == bound_value).then_some(ProofNode {
             conclusion: Proposition::Truth,
             rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
@@ -1017,7 +1018,7 @@ fn direct_shift_count_evidence(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<(u32, Vec<ProofNode>)> {
-    if let Some((actual, literal)) = count.integer_value() {
+    if let Some((actual, literal)) = literal_value(count) {
         let count = integer_value_as_u32((actual == count_type).then_some(literal)?)?;
         return (count < u32::from(value_type.bits())).then_some((count, Vec::new()));
     }
@@ -1028,9 +1029,9 @@ fn direct_shift_count_evidence(
                 return None;
             };
             let literal = if left == count {
-                right.integer_value()
+                literal_value(right)
             } else if right == count {
-                left.integer_value()
+                literal_value(left)
             } else {
                 None
             }?;

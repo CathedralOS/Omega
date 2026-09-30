@@ -44,11 +44,7 @@ pub(super) fn prove(
         // left endpoint only through a session equality. A difference that
         // cannot reach it never completes, so skip its positivity and minuend
         // searches rather than discard them after the fact.
-        if measured != goal_left
-            && session
-                .prove(&Proposition::Equal(measured.clone(), goal_left.clone()))
-                .is_none()
-        {
+        if measured != goal_left && session.prove_equality(measured, goal_left).is_none() {
             continue;
         }
         // Positivity uses existing exact/discrete order rules, not recursive

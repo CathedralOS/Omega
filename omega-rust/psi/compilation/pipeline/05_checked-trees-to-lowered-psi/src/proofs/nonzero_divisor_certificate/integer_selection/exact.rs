@@ -1,6 +1,6 @@
 //! Exact retained proposition proof custody.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
@@ -10,6 +10,7 @@ use proof_admission::{
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::super::integer_evidence::cited_facts;
+use super::super::{scope_identity, search_context};
 
 /// Distinct scalar endpoints offered pairwise to the kernel's licensed
 /// closed/open integer derivation once the cited chain cannot reach a goal.
@@ -43,15 +44,11 @@ const MAXIMUM_MEMOIZED: usize = 65536;
 thread_local! {
     /// Indexed cited-fact rosters this worker is proving under. `prove` is a
     /// pure function of its `(context, goal, assumptions, semantic_axioms)`
-    /// inputs and every roster is matched by full content, never by position
-    /// or pointer, so a stale entry can at worst be rebuilt: the produced
-    /// proof still passes the kernel unchanged.
+    /// inputs and every roster is matched by full content — the context
+    /// through its content token — never by position or pointer, so a stale
+    /// entry can at worst be rebuilt: the produced proof still passes the
+    /// kernel unchanged.
     static ROSTERS: RefCell<Vec<Rc<Roster>>> = const { RefCell::new(Vec::new()) };
-
-    /// Distinct proposition contexts this worker has proved under. The index
-    /// doubles as the memo token below so hot lookups compare one integer
-    /// instead of re-walking the whole value-type table per call.
-    static CONTEXTS: RefCell<Vec<PropositionContext>> = const { RefCell::new(Vec::new()) };
 
     /// Kernel-computed endpoint expansions, one map per context token, keyed
     /// by the exact denotation input `(endpoint, equations)` — a memo of the
@@ -60,30 +57,55 @@ thread_local! {
     /// cites the same equations and the kernel still replays the same
     /// denotation on admission, so the memo can never smuggle a different
     /// result past the receiver.
-    static DENOTATIONS: RefCell<
-        Vec<BTreeMap<(ScalarTerm, Vec<Proposition>), Option<ScalarTerm>>>,
-    > = const { RefCell::new(Vec::new()) };
+    static DENOTATIONS: RefCell<Vec<PairMemo<ScalarTerm, Vec<Proposition>, Option<ScalarTerm>>>> =
+        const { RefCell::new(Vec::new()) };
 
     /// `ClosedIntegerRelation` answers the kernel already gave, one map per
     /// context token keyed by the ordered endpoint pair — the same
     /// pure-input memo shape as `DENOTATIONS`.
-    static DECISIONS: RefCell<Vec<BTreeMap<(ScalarTerm, ScalarTerm), bool>>> =
+    static DECISIONS: RefCell<Vec<PairMemo<ScalarTerm, ScalarTerm, bool>>> =
         const { RefCell::new(Vec::new()) };
 }
 
-/// The memo token for `context`, allocating a slot on first sight. Compared
-/// by content once per roster build; afterwards only the token travels.
-fn context_token(context: &PropositionContext) -> usize {
-    CONTEXTS.with(|cell| {
-        let mut cell = cell.borrow_mut();
-        match cell.iter().position(|existing| existing == context) {
-            Some(token) => token,
-            None => {
-                cell.push(context.clone());
-                cell.len() - 1
-            }
+/// A pure-input memo keyed by two parts and nested so a lookup borrows both
+/// parts instead of cloning them into a composite key. It stops recording at
+/// `MAXIMUM_MEMOIZED` answers, like the single-map memo it replaces.
+struct PairMemo<First, Second, Answer> {
+    recorded: usize,
+    answers: BTreeMap<First, BTreeMap<Second, Answer>>,
+}
+
+impl<First: Ord, Second: Ord, Answer> Default for PairMemo<First, Second, Answer> {
+    fn default() -> Self {
+        Self {
+            recorded: 0,
+            answers: BTreeMap::new(),
         }
-    })
+    }
+}
+
+impl<First: Ord + Clone, Second: Ord, Answer> PairMemo<First, Second, Answer> {
+    fn get<Borrowed: Ord + ?Sized>(&self, first: &First, second: &Borrowed) -> Option<&Answer>
+    where
+        Second: std::borrow::Borrow<Borrowed>,
+    {
+        self.answers.get(first)?.get(second)
+    }
+
+    fn record(&mut self, first: &First, second: Second, answer: Answer) {
+        if self.recorded >= MAXIMUM_MEMOIZED {
+            return;
+        }
+        if self
+            .answers
+            .entry(first.clone())
+            .or_default()
+            .insert(second, answer)
+            .is_none()
+        {
+            self.recorded += 1;
+        }
+    }
 }
 
 /// A cited-fact roster resolved once for a fixed scope, then consulted for
@@ -109,7 +131,7 @@ impl Session {
                     && self.roster.components.get(*candidate) == Some(component)
             })
         {
-            return self.prove(&Proposition::Equal(endpoint.clone(), literal.clone()));
+            return self.prove_equality(endpoint, literal);
         }
         // A cited definition can compute a literal no premise names yet.
         // Evaluate only its checked, closed scalar denotation: an open
@@ -142,6 +164,19 @@ impl Session {
         self.roster.prove(goal)
     }
 
+    /// `prove(Equal(left, right))` without building the proposition for the
+    /// leaf pairs the roster separates.
+    pub(super) fn prove_equality(
+        &self,
+        left: &ScalarTerm,
+        right: &ScalarTerm,
+    ) -> Option<ProofNode> {
+        if self.roster.separates(left, right) {
+            return None;
+        }
+        self.prove(&Proposition::Equal(left.clone(), right.clone()))
+    }
+
     /// Value terms a cited equality states directly against `endpoint`, each
     /// carrying its `Equal(endpoint, alias)` certificate for the endpoint
     /// substitution to cite. This is the roster's equality adjacency rather
@@ -160,8 +195,7 @@ impl Session {
             {
                 continue;
             }
-            let Some(equality) = self.prove(&Proposition::Equal(endpoint.clone(), alias.clone()))
-            else {
+            let Some(equality) = self.prove_equality(endpoint, alias) else {
                 continue;
             };
             aliases.push((alias.clone(), equality));
@@ -217,19 +251,30 @@ fn roster(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Rc<Roster> {
+    // The token equals another exactly when the contexts do, so matching it
+    // keeps full-content matching without re-walking the value-type table.
+    let token = search_context::token(context);
+    let scope = scope_identity::token(assumptions, semantic_axioms);
     ROSTERS.with(|cell| {
         let mut rosters = cell.borrow_mut();
         let index = match rosters
             .iter()
-            .rposition(|roster| roster.matches(context, assumptions, semantic_axioms))
+            .rposition(|roster| roster.matches(token, scope, assumptions, semantic_axioms))
         {
             Some(index) => index,
             None => {
-                rosters.push(Rc::new(Roster::new(context, assumptions, semantic_axioms)));
+                rosters.push(Rc::new(Roster::new(
+                    context,
+                    token,
+                    scope,
+                    assumptions,
+                    semantic_axioms,
+                )));
                 rosters.len() - 1
             }
         };
         let roster = rosters.remove(index);
+        roster.scope.set(scope);
         rosters.push(roster.clone());
         if rosters.len() > MAXIMUM_ROSTERS {
             rosters.remove(0);
@@ -246,9 +291,12 @@ fn roster(
 /// semantic_axioms)` alone, so content-matched reuse is transparent.
 struct Roster {
     context: PropositionContext,
-    /// This context's slot in `CONTEXTS`; `denotation`/`decide` lookups
-    /// compare the token rather than the whole value-type table.
+    /// This context's content token; roster matching and the
+    /// `denotation`/`decide` lookups compare it rather than the whole
+    /// value-type table.
     token: usize,
+    /// The scope token this roster was last matched under.
+    scope: Cell<u64>,
     assumptions: Vec<Proposition>,
     semantic_axioms: Vec<Proposition>,
     /// First citation proof per top-level proposition, keeping cited order.
@@ -290,19 +338,25 @@ struct Roster {
 }
 
 impl Roster {
+    /// Full-content matching: equal scope tokens imply equal content, and
+    /// content decides whenever the tokens differ.
     fn matches(
         &self,
-        context: &PropositionContext,
+        token: usize,
+        scope: u64,
         assumptions: &[Proposition],
         semantic_axioms: &[Proposition],
     ) -> bool {
-        self.assumptions.as_slice() == assumptions
-            && self.semantic_axioms.as_slice() == semantic_axioms
-            && self.context == *context
+        self.token == token
+            && (self.scope.get() == scope
+                || (self.assumptions.as_slice() == assumptions
+                    && self.semantic_axioms.as_slice() == semantic_axioms))
     }
 
     fn new(
         context: &PropositionContext,
+        token: usize,
+        scope: u64,
         assumptions: &[Proposition],
         semantic_axioms: &[Proposition],
     ) -> Self {
@@ -393,7 +447,8 @@ impl Roster {
             component += 1;
         }
         Self {
-            token: context_token(context),
+            token,
+            scope: Cell::new(scope),
             context: context.clone(),
             assumptions: assumptions.to_vec(),
             semantic_axioms: semantic_axioms.to_vec(),
@@ -415,6 +470,11 @@ impl Roster {
     /// the result is a pure function of the roster's content and the goal,
     /// and a hit still returns a certificate the kernel replays verbatim.
     fn prove(&self, goal: &Proposition) -> Option<ProofNode> {
+        if let Proposition::Equal(left, right) = goal
+            && self.separates(left, right)
+        {
+            return None;
+        }
         if let Some(result) = self.results.borrow().get(goal) {
             return result.clone();
         }
@@ -430,6 +490,21 @@ impl Roster {
                 .insert(goal.clone(), result.clone());
         }
         result
+    }
+
+    /// Whether no cited chain can join two distinct leaves: a leaf moves only
+    /// along cited equality edges, and a cited equality between the two
+    /// would share their component. The chain search answers these pairs
+    /// with no certificate, and so does this check, before the answer memo
+    /// or a proposition is touched.
+    fn separates(&self, left: &ScalarTerm, right: &ScalarTerm) -> bool {
+        if left == right || compound(left) || compound(right) {
+            return false;
+        }
+        match (self.components.get(left), self.components.get(right)) {
+            (Some(left), Some(right)) => left != right,
+            _ => true,
+        }
     }
 
     /// Preserve a cited connective as a whole. From `a < 0 || a > 0` and
@@ -549,86 +624,77 @@ impl Roster {
     /// directed `Equal` edges, each traversed in either orientation with
     /// explicit symmetry certificates, and every hop composed by transitivity
     /// back to `left`.
+    ///
+    /// The traversal records each reached endpoint's parent hop and builds a
+    /// certificate only for the path that reaches `right`: the same
+    /// transitivity nesting the hop-by-hop composition produced, without
+    /// cloning a growing prefix proof into every queued endpoint.
     fn chain_through(
         &self,
         extra: &[ProofNode],
         left: &ScalarTerm,
         right: &ScalarTerm,
     ) -> Option<ProofNode> {
-        let mut extra_adjacency = BTreeMap::<ScalarTerm, Vec<usize>>::new();
+        let mut extra_adjacency = BTreeMap::<&ScalarTerm, Vec<usize>>::new();
         for (index, edge) in extra.iter().enumerate() {
             let Proposition::Equal(source, destination) = &edge.conclusion else {
                 continue;
             };
-            extra_adjacency
-                .entry(source.clone())
-                .or_default()
-                .push(index);
+            extra_adjacency.entry(source).or_default().push(index);
             if destination != source {
-                extra_adjacency
-                    .entry(destination.clone())
-                    .or_default()
-                    .push(index);
+                extra_adjacency.entry(destination).or_default().push(index);
             }
         }
-        let mut pending = vec![(left.clone(), None::<ProofNode>)];
+        // `hops[i]` reaches `endpoints[i]` from `endpoints[parent]` along an
+        // edge, reversed when the edge's destination is the parent. The
+        // start endpoint has no hop.
+        let mut endpoints = vec![left];
+        let mut hops: Vec<Option<ChainHop<'_>>> = vec![None];
         let mut reached = BTreeSet::new();
-        reached.insert(left.clone());
+        reached.insert(left);
         let mut index = 0;
-        while index < pending.len() {
-            let (current, prefix) = pending[index].clone();
+        while index < endpoints.len() {
+            let current = endpoints[index];
+            let parent = index;
             index += 1;
             let incident = self
                 .adjacency
-                .get(&current)
+                .get(current)
                 .into_iter()
                 .flatten()
                 .map(|&index| &self.equal_facts[index])
                 .chain(
                     extra_adjacency
-                        .get(&current)
+                        .get(current)
                         .into_iter()
                         .flatten()
                         .map(|&index| &extra[index]),
                 );
-            for next in incident {
-                let Proposition::Equal(source, destination) = &next.conclusion else {
+            for edge in incident {
+                let Proposition::Equal(source, destination) = &edge.conclusion else {
                     continue;
                 };
-                let (destination, next) = if source == &current {
-                    (destination, next.clone())
-                } else if destination == &current {
-                    (
-                        source,
-                        ProofNode {
-                            conclusion: Proposition::Equal(destination.clone(), source.clone()),
-                            rule: ProofRule::EqualitySymmetry {
-                                equality: Box::new(next.clone()),
-                            },
-                        },
-                    )
+                let (destination, reversed) = if source == current {
+                    (destination, false)
+                } else if destination == current {
+                    (source, true)
                 } else {
                     continue;
                 };
                 if reached.contains(destination) {
                     continue;
                 }
-                let proof = if let Some(prefix) = prefix.clone() {
-                    ProofNode {
-                        conclusion: Proposition::Equal(left.clone(), destination.clone()),
-                        rule: ProofRule::EqualityTransitivity {
-                            left_equals_middle: Box::new(prefix),
-                            middle_equals_right: Box::new(next),
-                        },
-                    }
-                } else {
-                    next
+                let hop = ChainHop {
+                    parent,
+                    edge,
+                    reversed,
                 };
                 if destination == right {
-                    return Some(proof);
+                    return Some(chain_proof(left, &endpoints, &hops, destination, hop));
                 }
-                reached.insert(destination.clone());
-                pending.push((destination.clone(), Some(proof)));
+                reached.insert(destination);
+                endpoints.push(destination);
+                hops.push(Some(hop));
             }
         }
         None
@@ -636,16 +702,18 @@ impl Roster {
 
     /// The sorted endpoint universe `endpoints()` used to compute per call:
     /// `base_endpoints` merged with the goal endpoints and any extra terms.
-    fn universe(
-        &self,
-        left: &ScalarTerm,
-        right: &ScalarTerm,
-        extra: &[ScalarTerm],
-    ) -> Vec<ScalarTerm> {
-        let mut universe = self.base_endpoints.clone();
+    /// Borrowed rather than cloned: callers read the endpoints in order and
+    /// clone only those an emitted edge names.
+    fn universe<'a>(
+        &'a self,
+        left: &'a ScalarTerm,
+        right: &'a ScalarTerm,
+        extra: &'a [ScalarTerm],
+    ) -> Vec<&'a ScalarTerm> {
+        let mut universe = self.base_endpoints.iter().collect::<Vec<_>>();
         for endpoint in [left, right].into_iter().chain(extra.iter()) {
-            if let Err(position) = universe.binary_search(endpoint) {
-                universe.insert(position, endpoint.clone());
+            if let Err(position) = universe.binary_search(&endpoint) {
+                universe.insert(position, endpoint);
             }
         }
         universe
@@ -674,7 +742,7 @@ impl Roster {
         for endpoint in self.universe(left, right, &[]) {
             // A leaf's expansion is its own cited edge; only a compound hides
             // cited names inside a constructor the chain cannot traverse.
-            if !compound(&endpoint) {
+            if !compound(endpoint) {
                 continue;
             }
             // An endpoint holding no defined value cannot expand, so skip it
@@ -682,17 +750,17 @@ impl Roster {
             if !endpoint.any_value_id(|value| self.defined.contains(&value)) {
                 continue;
             }
-            let Some((expanded, closure)) = self.transport(&endpoint) else {
+            let Some((expanded, closure)) = self.transport(endpoint) else {
                 continue;
             };
-            if expanded == endpoint {
+            if expanded == *endpoint {
                 continue;
             }
             edges.push(ProofNode {
                 conclusion: Proposition::Equal(endpoint.clone(), expanded),
                 rule: ProofRule::ValueEqualityTransport {
                     premise: Box::new(ProofNode {
-                        conclusion: Proposition::Equal(endpoint.clone(), endpoint),
+                        conclusion: Proposition::Equal(endpoint.clone(), endpoint.clone()),
                         rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
                     }),
                     equalities: closure
@@ -828,14 +896,20 @@ impl Roster {
                 }
             }
         }
+        let pairs = pairs
+            .into_iter()
+            .take(MAXIMUM_NORMALIZATION_PAIRS)
+            .collect::<Vec<_>>();
+        let decisions = decide_pairs(
+            self.token,
+            &self.context,
+            pairs
+                .iter()
+                .map(|&(source, destination)| (endpoints[source], endpoints[destination])),
+        );
         let mut edges = Vec::new();
-        for (source, destination) in pairs.into_iter().take(MAXIMUM_NORMALIZATION_PAIRS) {
-            if decide(
-                self.token,
-                &self.context,
-                &endpoints[source],
-                &endpoints[destination],
-            ) {
+        for (&(source, destination), decided) in pairs.iter().zip(decisions) {
+            if decided {
                 edges.push(ProofNode {
                     conclusion: Proposition::Equal(
                         endpoints[source].clone(),
@@ -847,6 +921,66 @@ impl Roster {
         }
         edges
     }
+}
+
+/// One breadth-first hop of `Roster::chain_through`.
+#[derive(Clone, Copy)]
+struct ChainHop<'edge> {
+    parent: usize,
+    edge: &'edge ProofNode,
+    reversed: bool,
+}
+
+impl ChainHop<'_> {
+    /// The hop's own certificate: the cited edge, or its symmetry when the
+    /// traversal crossed it from destination to source.
+    fn proof(self) -> ProofNode {
+        if !self.reversed {
+            return self.edge.clone();
+        }
+        let Proposition::Equal(source, destination) = &self.edge.conclusion else {
+            unreachable!("chain edges are equalities")
+        };
+        ProofNode {
+            conclusion: Proposition::Equal(destination.clone(), source.clone()),
+            rule: ProofRule::EqualitySymmetry {
+                equality: Box::new(self.edge.clone()),
+            },
+        }
+    }
+}
+
+/// Compose the path ending in `last` (which reaches `destination`) back to
+/// `left`: the first hop stands alone and every later hop joins its prefix
+/// through transitivity, exactly as the traversal visited them.
+fn chain_proof(
+    left: &ScalarTerm,
+    endpoints: &[&ScalarTerm],
+    hops: &[Option<ChainHop<'_>>],
+    destination: &ScalarTerm,
+    last: ChainHop<'_>,
+) -> ProofNode {
+    let mut path = vec![(destination, last)];
+    let mut parent = last.parent;
+    while let Some(hop) = hops[parent] {
+        path.push((endpoints[parent], hop));
+        parent = hop.parent;
+    }
+    let mut proof: Option<ProofNode> = None;
+    for (reached, hop) in path.into_iter().rev() {
+        let next = hop.proof();
+        proof = Some(match proof {
+            None => next,
+            Some(prefix) => ProofNode {
+                conclusion: Proposition::Equal(left.clone(), reached.clone()),
+                rule: ProofRule::EqualityTransitivity {
+                    left_equals_middle: Box::new(prefix),
+                    middle_equals_right: Box::new(next),
+                },
+            },
+        });
+    }
+    proof.expect("a reached endpoint has at least one hop")
 }
 
 /// The kernel's `check_value_equality_denotation` memoized on its exact
@@ -862,11 +996,10 @@ fn denotation(
     DENOTATIONS.with(|cell| {
         let mut cell = cell.borrow_mut();
         while cell.len() <= token {
-            cell.push(BTreeMap::new());
+            cell.push(PairMemo::default());
         }
         let map = &mut cell[token];
-        let key = (endpoint.clone(), equations.to_vec());
-        if let Some(result) = map.get(&key) {
+        if let Some(result) = map.get(endpoint, equations) {
             return result.clone();
         }
         let premise = Proposition::Equal(endpoint.clone(), endpoint.clone());
@@ -876,9 +1009,7 @@ fn denotation(
                 Proposition::Equal(expanded, _) => Some(expanded),
                 _ => None,
             });
-        if map.len() < MAXIMUM_MEMOIZED {
-            map.insert(key, result.clone());
-        }
+        map.record(endpoint, equations.to_vec(), result.clone());
         result
     })
 }
@@ -894,11 +1025,10 @@ fn decide(
     DECISIONS.with(|cell| {
         let mut cell = cell.borrow_mut();
         while cell.len() <= token {
-            cell.push(BTreeMap::new());
+            cell.push(PairMemo::default());
         }
         let map = &mut cell[token];
-        let key = (source.clone(), destination.clone());
-        if let Some(&result) = map.get(&key) {
+        if let Some(&result) = map.get(source, destination) {
             return result;
         }
         let conclusion = Proposition::Equal(source.clone(), destination.clone());
@@ -908,10 +1038,59 @@ fn decide(
             PrimitiveJudgment::ClosedIntegerRelation,
         )
         .is_ok();
-        if map.len() < MAXIMUM_MEMOIZED {
-            map.insert(key, result);
-        }
+        map.record(source, destination.clone(), result);
         result
+    })
+}
+
+/// `decide` over a run of endpoint pairs under one memo borrow. Consecutive
+/// pairs sharing a source look that source up once. The pairs are distinct,
+/// so a group's lookups cannot observe its own new answers, and misses are
+/// decided and recorded in pair order: answers and memo contents match
+/// asking `decide` pair by pair in the same order.
+fn decide_pairs<'a>(
+    token: usize,
+    context: &PropositionContext,
+    pairs: impl Iterator<Item = (&'a ScalarTerm, &'a ScalarTerm)>,
+) -> Vec<bool> {
+    let pairs = pairs.collect::<Vec<_>>();
+    DECISIONS.with(|cell| {
+        let mut cell = cell.borrow_mut();
+        while cell.len() <= token {
+            cell.push(PairMemo::default());
+        }
+        let map = &mut cell[token];
+        let mut decisions = Vec::with_capacity(pairs.len());
+        for group in pairs.chunk_by(|left, right| std::ptr::eq(left.0, right.0)) {
+            let source = group[0].0;
+            let known = {
+                let answers = map.answers.get(source);
+                group
+                    .iter()
+                    .map(|(_, destination)| {
+                        answers.and_then(|answers| answers.get(*destination).copied())
+                    })
+                    .collect::<Vec<_>>()
+            };
+            for (&(_, destination), known) in group.iter().zip(known) {
+                let result = match known {
+                    Some(result) => result,
+                    None => {
+                        let conclusion = Proposition::Equal(source.clone(), destination.clone());
+                        let result = decide_primitive(
+                            context,
+                            &conclusion,
+                            PrimitiveJudgment::ClosedIntegerRelation,
+                        )
+                        .is_ok();
+                        map.record(source, destination.clone(), result);
+                        result
+                    }
+                };
+                decisions.push(result);
+            }
+        }
+        decisions
     })
 }
 

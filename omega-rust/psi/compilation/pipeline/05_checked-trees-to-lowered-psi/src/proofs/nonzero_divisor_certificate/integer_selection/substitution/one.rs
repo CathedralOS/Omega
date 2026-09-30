@@ -29,6 +29,11 @@ pub(super) fn prove(
             (equality_left, equality_right),
             (equality_right, equality_left),
         ] {
+            // Completion substitutes only at a goal endpoint; skip the
+            // citation's proof copy for orientations it would refuse.
+            if old != goal_left && old != goal_right {
+                continue;
+            }
             if let Some(proof) = completion::prove(
                 context,
                 goal,

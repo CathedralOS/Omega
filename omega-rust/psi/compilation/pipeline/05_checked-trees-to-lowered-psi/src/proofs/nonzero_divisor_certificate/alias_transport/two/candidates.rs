@@ -22,8 +22,8 @@ pub(super) fn find(
             if !distinct_same_carrier_subjects(root, middle_alias) {
                 continue;
             }
-            for &(inner_citation, inner_equality, bound_alias) in
-                aliases_by_endpoint.get(middle_alias).into_iter().flatten()
+            for (inner_citation, inner_equality, bound_alias) in
+                aliases_by_endpoint.get(middle_alias)
             {
                 if std::ptr::eq(outer_equality, inner_equality) {
                     continue;
@@ -32,10 +32,7 @@ pub(super) fn find(
                 {
                     continue;
                 }
-                let Some(bounds) = bounds_by_endpoint.get(bound_alias) else {
-                    continue;
-                };
-                for &(relation_citation, relation, endpoint) in bounds {
+                for (relation_citation, relation, endpoint) in bounds_by_endpoint.get(bound_alias) {
                     let root_bound = completion::prove(
                         relation,
                         root,

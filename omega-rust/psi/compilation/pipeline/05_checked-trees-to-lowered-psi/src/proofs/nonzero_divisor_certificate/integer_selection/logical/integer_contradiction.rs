@@ -161,18 +161,32 @@ fn derived_legs(
     // Bounded like the pair search below: exhaustion leaves legs unchanged
     // rather than weakening the question.
     let mut remaining_words = 4096usize;
+    // Carrier bounds arrive in pairs on one root; the root's words to every
+    // target are resolved once per run of bounds sharing it.
+    let mut root_words: Option<(&ScalarTerm, Vec<std::rc::Rc<[Vec<usize>]>>)> = None;
     for bound in &roots {
-        for target in &targets {
+        if root_words
+            .as_ref()
+            .is_none_or(|(root, _)| *root != &bound.root)
+        {
+            root_words = Some((
+                &bound.root,
+                affine_custody::definition_words_to_targets(
+                    context,
+                    semantic_axioms,
+                    definitions,
+                    &bound.root,
+                    &targets,
+                ),
+            ));
+        }
+        let Some((_, words_per_target)) = &root_words else {
+            unreachable!("resolved for this root above")
+        };
+        for (target, words) in targets.iter().zip(words_per_target) {
             if bound.root == *target {
                 continue;
             }
-            let words = affine_custody::definition_words_to_target(
-                context,
-                semantic_axioms,
-                definitions,
-                &bound.root,
-                target,
-            );
             for word in words.iter() {
                 if remaining_words == 0 {
                     return;
@@ -253,9 +267,7 @@ fn closed_falsehood(
             let upper_proof = if lower.right == upper.left {
                 upper.proof.clone()
             } else {
-                let Some(equality) =
-                    session.prove(&Proposition::Equal(lower.right.clone(), upper.left.clone()))
-                else {
+                let Some(equality) = session.prove_equality(&lower.right, &upper.left) else {
                     continue;
                 };
                 ProofNode {

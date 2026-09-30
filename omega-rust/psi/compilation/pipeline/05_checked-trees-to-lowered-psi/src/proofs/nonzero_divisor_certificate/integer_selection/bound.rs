@@ -1,5 +1,6 @@
 //! Ordered atomic integer-bound proof selection.
 
+use crate::proofs::nonzero_divisor_certificate::integer_evidence::literal_value;
 use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarType};
 
@@ -145,9 +146,9 @@ fn prove_derived_cast_bound(
     let Proposition::LessOrEqual(left, right) = goal else {
         return None;
     };
-    let (target, endpoint, lower) = if left.integer_value().is_some() {
+    let (target, endpoint, lower) = if literal_value(left).is_some() {
         (right, left, true)
-    } else if right.integer_value().is_some() {
+    } else if literal_value(right).is_some() {
         (left, right, false)
     } else {
         return None;

@@ -20,6 +20,7 @@ use std::collections::BTreeMap;
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
 
+use super::super::scope_identity::ScopeFrame;
 use super::{case_analysis, logical};
 
 pub(super) fn prove(
@@ -48,7 +49,9 @@ struct Search<'input, Ordinary> {
     /// cached proof cites that same scope for the kernel to replay. The memo
     /// only skips re-derivation when the search revisits a scope — through
     /// implication elimination, a conjunction's own split, or a case branch.
-    proved: BTreeMap<(Proposition, Vec<Proposition>), Option<ProofNode>>,
+    /// Answers nest by assumption roster, then goal, so a lookup borrows both
+    /// instead of copying the roster into a composite key.
+    proved: BTreeMap<Vec<Proposition>, BTreeMap<Proposition, Option<ProofNode>>>,
 }
 
 impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_, Ordinary> {
@@ -57,15 +60,19 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
         goal: &Proposition,
         assumptions: &[Proposition],
     ) -> Option<ProofNode> {
-        let key = (goal.clone(), assumptions.to_vec());
-        match self.proved.get(&key) {
-            Some(proof) => proof.clone(),
-            None => {
-                let proof = (self.ordinary)(goal, assumptions);
-                self.proved.insert(key, proof.clone());
-                proof
-            }
+        if let Some(proof) = self
+            .proved
+            .get(assumptions)
+            .and_then(|answers| answers.get(goal))
+        {
+            return proof.clone();
         }
+        let proof = (self.ordinary)(goal, assumptions);
+        self.proved
+            .entry(assumptions.to_vec())
+            .or_default()
+            .insert(goal.clone(), proof.clone());
+        proof
     }
 
     /// Split each unresolved connected case in turn and prove every branch
@@ -98,6 +105,7 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
             return None;
         }
         self.remaining = self.remaining.checked_sub(1)?;
+        let _frame = ScopeFrame::enter(assumptions, self.semantic_axioms);
         if let Some(proof) = self.ordinary_proof(goal, assumptions) {
             return Some(proof);
         }

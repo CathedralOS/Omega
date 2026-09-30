@@ -1,5 +1,6 @@
 //! Producer-local completion of one oriented endpoint equality.
 
+use crate::proofs::nonzero_divisor_certificate::integer_evidence::literal_value;
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
@@ -36,7 +37,7 @@ pub(super) fn prove(
     let relation = relation::prove(
         context,
         &relation,
-        replacement.integer_value().is_some(),
+        literal_value(replacement).is_some(),
         assumptions,
         semantic_axioms,
         definitions,

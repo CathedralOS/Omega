@@ -6,6 +6,7 @@ use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::affine_custody::DefinitionIndex;
+use super::scope_identity::ScopeFrame;
 
 mod bound;
 mod case_analysis;
@@ -63,6 +64,7 @@ pub(super) fn build_with_machine_parameters(
     // paying a fresh bounded search for every re-entry. The in-progress
     // marker turns a cyclic re-entry for the same goal into `None` rather
     // than recursion.
+    let _frame = ScopeFrame::enter(assumptions, semantic_axioms);
     let mut definitions = DefinitionIndex::new(context, assumptions, semantic_axioms);
     if let Some(proof) = definitions.cached_build_proof(goal, machine_parameter_values) {
         return proof;
@@ -101,6 +103,7 @@ pub(super) fn prove_relaxed_with_machine_parameters(
 ) -> Option<ProofNode> {
     // The relaxed leaf set differs from `build`, so its answers memoize
     // under their own map rather than the canonical `build` answers.
+    let _frame = ScopeFrame::enter(assumptions, semantic_axioms);
     let mut definitions = DefinitionIndex::new(context, assumptions, semantic_axioms);
     if let Some(proof) = definitions.cached_relaxed_proof(goal, machine_parameter_values) {
         return proof;
@@ -149,6 +152,8 @@ fn build_without_cases(
     // belong to the shared search, never this leaf: splitting here makes every
     // premise probe enumerate alternatives before the search can retain its
     // already-provable consequences. The in-progress marker stops re-entry.
+    // The frame lets every producer below resolve this scope by identity.
+    let _frame = ScopeFrame::enter(assumptions, semantic_axioms);
     let mut definitions = DefinitionIndex::new(context, assumptions, semantic_axioms);
     if let Some(proof) = definitions.cached_selection_proof(goal, machine_parameter_values) {
         return proof;

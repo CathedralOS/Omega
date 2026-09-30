@@ -11,6 +11,7 @@
 //! reconstructs every requirement at admission, so this leg only assembles
 //! the candidate root-bound conjunction from cited facts.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use proof_admission::{
@@ -21,6 +22,7 @@ use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::affine_custody::{self, CheckedWord, DefinitionIndex};
 use super::super::integer_evidence::{projected_facts, relax};
+use super::super::scope_identity::{self, ScopeDerived};
 use super::{bound, exact, range};
 
 pub(super) fn prove(
@@ -206,9 +208,11 @@ fn prove_value_goal(
         Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => (left, right),
         _ => return None,
     };
-    let mut bounds = rooted_bounds(context, assumptions, semantic_axioms);
-    bounds.extend(synthesized_operand_bounds(context, semantic_axioms));
-    for bound in bounds {
+    // Both rosters are pure functions of the scope (the synthesized one of
+    // the context and axioms alone), asked again at every goal under it.
+    let rooted = shared_rooted_bounds(context, assumptions, semantic_axioms);
+    let synthesized = shared_synthesized_operand_bounds(context, semantic_axioms);
+    for bound in rooted.iter().chain(synthesized.iter()) {
         for target in [goal_left, goal_right] {
             if bound.root == *target || !matches!(target, ScalarTerm::Value { .. }) {
                 continue;
@@ -227,7 +231,7 @@ fn prove_value_goal(
                     assumptions,
                     semantic_axioms,
                     definitions,
-                    &bound,
+                    bound,
                     target,
                     word,
                 ) {
@@ -237,6 +241,38 @@ fn prove_value_goal(
         }
     }
     None
+}
+
+/// `rooted_bounds` shared across the goals asked under one scope. The
+/// session is still resolved on every ask, exactly as the uncached walk
+/// resolves it first, so the roster cache sees the same sequence of scopes.
+fn shared_rooted_bounds(
+    context: &PropositionContext,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Rc<Vec<RootedBound>> {
+    thread_local! {
+        static ROOTED: RefCell<ScopeDerived<Vec<RootedBound>>> =
+            const { RefCell::new(ScopeDerived::new()) };
+    }
+    drop(exact::session(context, assumptions, semantic_axioms));
+    scope_identity::derived_in_context(&ROOTED, context, assumptions, semantic_axioms, || {
+        rooted_bounds(context, assumptions, semantic_axioms)
+    })
+}
+
+/// `synthesized_operand_bounds` shared across every scope with these axioms.
+fn shared_synthesized_operand_bounds(
+    context: &PropositionContext,
+    semantic_axioms: &[Proposition],
+) -> Rc<Vec<RootedBound>> {
+    thread_local! {
+        static SYNTHESIZED: RefCell<ScopeDerived<Vec<RootedBound>>> =
+            const { RefCell::new(ScopeDerived::new()) };
+    }
+    scope_identity::derived_in_context(&SYNTHESIZED, context, &[], semantic_axioms, || {
+        synthesized_operand_bounds(context, semantic_axioms)
+    })
 }
 
 /// Bounds each definition target earns from its operation semantics alone:
