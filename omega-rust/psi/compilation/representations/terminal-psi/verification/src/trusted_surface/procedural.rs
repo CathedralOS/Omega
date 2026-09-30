@@ -384,15 +384,15 @@ rows! {
         "formation:module-structure",
         SharedFormation,
         "the terminal module's canonical representation, including leaf-typed structural fields, explicit leaf copies, bounded byte fields with nonempty primitive predicate sets, plain byte-predicate domains without content or establishment routes, and attachment zeroing whose empty bytes satisfy every field predicate; structural domain IDs and canonical identities stay unique, and a repeated semantic family is admitted only for the same primitive byte predicate on distinct exact carriers, never a duplicate family/carrier pair or a repeated non-byte family",
-        "structural validation accepting exactly well-formed modules before any reconstruction; malformed representations reject with a ModuleError",
+        "structural validation accepting exactly well-formed modules before any reconstruction; malformed representations reject with a ModuleError; a service marker is childless but not a constructible empty record: direct owned markers are Affine, owning containers cannot be Unrestricted, shared or mutable borrowed formals remain Unrestricted, and ownership traversal stops at reference and view boundaries; zero initialization cannot create a marker value; exact service-field correspondence accepts a retained relevant marker carrier or a legacy nonempty erased carrier identity without granting authority, which still requires independent requirement, selected-provider and occurrence-custody authentication",
         &["root:verification-contract"],
-        &[tv!( "validation.rs"), tv!( "validation/byte_sequence.rs"), tv!( "validation/element_view.rs"), tv!( "validation/scalar.rs"), tv!( "validation/structural.rs"), tv!( "validation/error.rs"), tv!( "validation/foundation.rs"), tv!( "validation/foundation/boundary_machines.rs"), tv!( "validation/foundation/domains.rs"), tv!( "validation/foundation/machine_foundations.rs"), tv!( "validation/foundation/provider_candidates.rs"), tv!( "validation/foundation/provider_result.rs"), tv!( "validation/foundation/services.rs"), tv!( "validation/foundation/structural_types.rs"), tv!( "lib.rs"), pa!( "lib.rs"), "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs", "omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/types/structural.rs"]
+        &[tv!( "validation.rs"), tv!( "validation/byte_sequence.rs"), tv!( "validation/element_view.rs"), tv!( "validation/scalar.rs"), tv!( "validation/structural.rs"), tv!( "validation/error.rs"), tv!( "validation/foundation.rs"), tv!( "validation/foundation/boundary_machines.rs"), tv!( "validation/foundation/domains.rs"), tv!( "validation/foundation/machine_foundations.rs"), tv!( "validation/foundation/provider_candidates.rs"), tv!( "validation/foundation/provider_result.rs"), tv!( "validation/foundation/services.rs"), tv!( "validation/foundation/structural_types.rs"), tv!( "validation/foundation/service_binding_custody.rs"), ts!( "service_binding.rs"), tv!( "lib.rs"), pa!( "lib.rs"), "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs", "omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/types/structural.rs"]
     );
     FORM_MACHINE => (
         "formation:machine-validation",
         SharedFormation,
         "one machine's signature, blocks, parameters (including shared-borrow record and primitive-scalar views and exclusive whole plain-record state transfers joined at block parameters, with fresh owned homes retaining their affine disposal obligations while backing exclusive state loans, and shared bounded byte owner loans whose plain byte qualifications join a block parameter only by whole forwarding from an identically declared signature or dominating block parameter), contract, and declared invariants",
-        "the machine validates as a whole before its obligations are reconstructed",
+        "the machine validates as a whole before its obligations are reconstructed; an established service marker or record composed of ordinary plain leaves and marker-bearing record children may be received as an unrestricted shared or mutable state loan, with exact source type, access, qualification and path replay; mutable loans participate in the existing alias, availability and frontier checks, so transferred names cannot lend again; this borrowing-only classification does not admit marker construction, plain payload copies or new owned homes",
         &["formation:module-structure"],
         &[tv!( "validation/machine.rs"), tv!( "validation/machine/blocks.rs"), tv!( "validation/machine/contract_clauses.rs"), tv!( "validation/machine/custody_operations.rs"), tv!( "validation/machine/scalar_result_operations.rs"), tv!( "validation/machine/structural_places.rs"), tv!( "validation/block_views.rs"), tv!( "validation/block_views/mutable_records.rs")]
     );
@@ -448,7 +448,7 @@ rows! {
         "formation:structural-result-contracts",
         SharedFormation,
         "the declared structural result contract clauses",
-        "structural result contracts validate before call composition imports them",
+        "structural result contracts validate before call composition imports them; a service marker is excluded from ordinary plain-owned payload admission even when it has no runtime fields",
         &["formation:contract-validation"],
         &[tv!( "validation/structural/result_contracts.rs")]
     );
@@ -464,7 +464,7 @@ rows! {
         "formation:affine-cleanup",
         SharedFormation,
         "the machine's affine cleanup actions and continuations, including Jump edges whose owned arguments move one projected affine child while the residual complement dies on the edge, owned projections out of a structural parameter whose untouched complement dies as residual rows on the machine's own return terminator — or whose covering moves consume the root completely — while continuation edges close only temporary and result roots, and member `drop<T>` specializations whose nominal return carries the same exact cleanup shape",
-        "cleanup plans validate before terminators reconstruct their obligations",
+        "cleanup plans validate before terminators reconstruct their obligations; a childless service marker supplies neither record fields nor a nominal cleanup contract by shape alone",
         &["formation:machine-validation"],
         &[tv!( "validation/affine_cleanup.rs"), tv!( "validation/affine_cleanup/continuation.rs")]
     );

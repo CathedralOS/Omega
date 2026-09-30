@@ -9,6 +9,52 @@ use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{BoundaryMachineId, PlaceId, StructuralPlaceKind};
 
 #[test]
+fn retained_binding_provider_specialization_preserves_exact_root_roster() {
+    let mut unit = provider_attachment_specialization_unit();
+    let carrier = id(445, semantic_vocabulary::StructuralTypeId::new);
+    unit.structural_types
+        .make_mut()
+        .push(terminal_psi::StructuralTypeDeclaration {
+            id: carrier,
+            identity: "validation::binding".into(),
+            shape: terminal_psi::StructuralTypeShape::FusedServiceBinding,
+        });
+    let terminal_psi::StructuralTypeShape::Record { fields } =
+        &mut unit.structural_types.make_mut()[0].shape
+    else {
+        panic!("attachment record")
+    };
+    fields[0].field_type = terminal_psi::StructuralFieldType::Structural(carrier);
+    refresh_identity(&mut unit);
+    validate_psi_optimization_unit(&unit).expect("retained binding keeps exact provider roots");
+    for mutation in 0..4 {
+        let mut changed = unit.clone();
+        match mutation {
+            0 => changed.functions[0].structural_places.clear(),
+            1 => {
+                changed.structural_types.make_mut()[1].shape =
+                    terminal_psi::StructuralTypeShape::Record { fields: Vec::new() }
+            }
+            2 => {
+                let StructuralPlaceKind::ProviderAttachment { field, .. } =
+                    &mut changed.functions[0].structural_places[0].kind
+                else {
+                    panic!("provider root")
+                };
+                *field = id(2, semantic_vocabulary::StructuralFieldId::new);
+            }
+            3 => changed.boundary_machines[0].kind = terminal_psi::BoundaryRequirementKind::Machine,
+            _ => unreachable!(),
+        }
+        refresh_identity(&mut changed);
+        assert!(
+            validate_psi_optimization_unit(&changed).is_err(),
+            "provider roster mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
     let baseline = provider_attachment_specialization_unit();
     validate_psi_optimization_unit(&baseline)

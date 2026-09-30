@@ -35,6 +35,7 @@ optimization-core = { path = "../../../../foundation/optimization-core" }
 target-operations = { path = "../../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 sha2 = "0.10.9"
 program-entry-plan = { path = "../../plans/program-entry-plan" }

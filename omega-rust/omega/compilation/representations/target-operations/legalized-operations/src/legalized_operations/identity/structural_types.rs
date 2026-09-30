@@ -223,6 +223,7 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     bytes.extend_from_slice(&declaration.id.get().to_le_bytes());
     encode_string(bytes, &declaration.identity);
     match &declaration.shape {
+        StructuralTypeShape::FusedServiceBinding => bytes.push(9),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.push(7);
             bytes.extend_from_slice(&referent.get().to_le_bytes());

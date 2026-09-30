@@ -19,6 +19,7 @@ installed-writer = [
 [dependencies]
 typed-trees = { path = "../../../../../psi/compilation/representations/typed-trees" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
 calling-conventions = { path = "../../calling-conventions" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }
 post-handoff-writer-plan = { path = "../post-handoff-writer-plan", optional = true }

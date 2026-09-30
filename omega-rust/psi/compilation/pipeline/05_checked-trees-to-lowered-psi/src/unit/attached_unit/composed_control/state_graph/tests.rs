@@ -8,6 +8,7 @@ mod composite_arguments;
 mod displaced_field_replacement;
 mod qualified_invocation;
 mod receiver_subslice_edges;
+mod service_edges;
 
 #[test]
 fn scalar_returns_rejoin_local_cleanup_evidence() {

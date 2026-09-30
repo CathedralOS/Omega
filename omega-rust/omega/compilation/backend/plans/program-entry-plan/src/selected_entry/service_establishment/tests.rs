@@ -248,6 +248,69 @@ fn fixture_eligibility() -> terminal_psi::CheckedProgramEntryReceiverEligibility
 }
 
 #[test]
+fn terminal_replay_retained_binding_requires_exact_carrier_and_establishment() {
+    for nested in [false, true] {
+        let (mut module, source, row, plan) = fixture(nested);
+        let service_type = StructuralTypeId::new(3).unwrap();
+        let owner = usize::from(nested);
+        let StructuralTypeShape::Record { fields } = &mut module.structural_types[owner].shape
+        else {
+            panic!("service field owner");
+        };
+        fields[0].relevance = BindingRelevance::Relevant;
+        fields[0].field_type = StructuralFieldType::Structural(service_type);
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: service_type,
+            identity: "ConsoleCarrier".into(),
+            shape: StructuralTypeShape::FusedServiceBinding,
+        });
+        let eligibility = terminal_psi::CheckedProgramEntryReceiverEligibility::new(
+            "Main".into(),
+            "Main".into(),
+            terminal_psi::CheckedProgramEntryReceiverProjection::Erased { source_position: 0 },
+            StructuralTypeId::new(1).unwrap(),
+            vec![terminal_psi::CheckedProgramEntryFusedServiceField::new(
+                "console".into(),
+                "ConsoleCarrier".into(),
+                row.field_path().to_vec(),
+            )],
+            terminal_psi::CheckedProgramEntryReceiverCleanup::None,
+        );
+        let validate = |module: &TerminalModule, rows: &[ProgramEntryFusedServiceEstablishment]| {
+            validate_terminal_fused_service_establishments(
+                module,
+                &source,
+                Some(&eligibility),
+                rows,
+                std::slice::from_ref(&plan),
+            )
+        };
+        validate(&module, std::slice::from_ref(&row)).expect("retained exact binding leaf");
+        assert!(
+            validate(&module, &[]).is_err(),
+            "missing entire establishment roster"
+        );
+        for mutation in 0..4 {
+            let mut changed = module.clone();
+            let declaration = changed.structural_types.last_mut().unwrap();
+            match mutation {
+                0 => declaration.identity = "ClockCarrier".into(),
+                1 => declaration.shape = StructuralTypeShape::Record { fields: Vec::new() },
+                2 => declaration.id = StructuralTypeId::new(4).unwrap(),
+                _ => {
+                    let duplicate = declaration.clone();
+                    changed.structural_types.push(duplicate);
+                }
+            }
+            assert!(
+                validate(&changed, std::slice::from_ref(&row)).is_err(),
+                "retained carrier mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn terminal_replay_uses_retained_context_place_without_attachment() {
     let (mut module, source, row, plan) = fixture(false);
     let place = semantic_vocabulary::PlaceId::new(7).unwrap();

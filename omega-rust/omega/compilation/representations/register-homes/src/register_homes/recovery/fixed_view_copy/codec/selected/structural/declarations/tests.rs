@@ -11,6 +11,32 @@ use crate::register_homes::recovery::fixed_view_copy::codec::selected::structura
 use crate::register_homes::recovery::fixed_view_copy::codec::selected::structural::declarations::encode_type;
 
 #[test]
+fn fused_binding_type_round_trip_distinguishes_empty_record_and_unknown_tag() {
+    let declaration = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(7).unwrap(),
+        identity: "test::Binding".into(),
+        shape: StructuralTypeShape::FusedServiceBinding,
+    };
+    let mut encoded = Vec::new();
+    encode_type(&mut encoded, &declaration);
+    assert_eq!(encoded.last(), Some(&9));
+    let mut cursor = Cursor::new(&encoded);
+    assert_eq!(decode_type(&mut cursor).unwrap(), declaration);
+    assert_eq!(cursor.remaining(), 0);
+
+    let mut record = declaration.clone();
+    record.shape = StructuralTypeShape::Record { fields: Vec::new() };
+    let mut record_bytes = Vec::new();
+    encode_type(&mut record_bytes, &record);
+    assert_ne!(encoded, record_bytes);
+    *encoded.last_mut().unwrap() = 255;
+    assert_eq!(
+        decode_type(&mut Cursor::new(&encoded)),
+        Err(FixedViewCopyDecodeError::UnknownStructuralTypeShape(255)),
+    );
+}
+
+#[test]
 fn fixed_byte_range_path_round_trip_retains_exact_endpoints_and_rejects_truncation() {
     for (start, end) in [(0, 0), (1, 3), (2, 4), (u64::MAX - 1, u64::MAX)] {
         let path = vec![StructuralPathSegment::FixedByteRange { start, end }];

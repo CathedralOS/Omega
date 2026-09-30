@@ -103,12 +103,30 @@ fn validate_type(
         | StructuralTypeShape::Reference { .. } => {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        StructuralTypeShape::PrimitiveScalar(_)
+        // The already supplied binding identity has no scalar payload. This
+        // content walk neither creates the binding nor establishes authority.
+        StructuralTypeShape::FusedServiceBinding
+        | StructuralTypeShape::PrimitiveScalar(_)
         | StructuralTypeShape::ByteSequence(_)
         | StructuralTypeShape::ElementView { .. } => {}
     }
     active.pop();
     Ok(())
+}
+
+#[test]
+fn supplied_fused_binding_has_no_scalar_entry_contents() {
+    let identity = StructuralTypeId::new(1).unwrap();
+    let types = BTreeMap::from([(
+        identity,
+        StructuralTypeDeclaration {
+            id: identity,
+            identity: "test::Binding".into(),
+            shape: StructuralTypeShape::FusedServiceBinding,
+        },
+    )]);
+    assert!(!requires_contents(&types, identity));
+    assert!(terminal_semantics::zeroed_structural_leaves(types.values(), identity).is_none());
 }
 
 fn requires_contents(
@@ -127,7 +145,9 @@ fn requires_contents(
         let mut fields = Vec::new();
         match &declaration.shape {
             StructuralTypeShape::Reference { .. } => return true,
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {
+            StructuralTypeShape::FusedServiceBinding
+            | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_) => {
                 continue;
             }
             StructuralTypeShape::FixedArray { element, length } => {

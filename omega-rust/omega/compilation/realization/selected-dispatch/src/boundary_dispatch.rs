@@ -550,13 +550,24 @@ fn plan_selected_boundary_adapter_dispatch(
         }
     }
 
-    // The first routed-Service parameter rung is admitted only when checked Unit planning
+    // Routed Binding parameters are admitted only when checked Unit planning
     // retained an exact typed-parameter symbol plus the matching Fused plan
     // digest. Do not rediscover arbitrary Service-looking parameters from
     // names or types here: receipt custody is what authorizes receiver
     // erasure and direct adapter dispatch.
-    for machine in &checked.facts.flow.terminal_unit_effects.machines {
-        for parameter in &machine.structural_parameters {
+    let unit = &checked.facts.flow.terminal_unit_effects;
+    let parameter_rosters = unit
+        .machines
+        .iter()
+        .map(|machine| machine.structural_parameters.as_slice())
+        .chain(unit.composed_machines.iter().flat_map(|machine| {
+            machine
+                .states
+                .iter()
+                .map(|state| state.structural_parameters.as_slice())
+        }));
+    for parameters in parameter_rosters {
+        for parameter in parameters {
             let Some(receipt) = &parameter.fused_service_erasure else {
                 continue;
             };

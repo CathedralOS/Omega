@@ -137,7 +137,9 @@ pub(super) fn contains_reference(module: &TerminalModule, root: StructuralTypeId
             }
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element } => pending.push(*element),
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::FusedServiceBinding => {}
         }
     }
     false

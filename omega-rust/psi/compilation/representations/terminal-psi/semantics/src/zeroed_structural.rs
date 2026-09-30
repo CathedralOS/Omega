@@ -95,6 +95,9 @@ pub fn zeroed_structural_leaves<'types>(
             .iter()
             .find(|declaration| declaration.id == current)?;
         match &declaration.shape {
+            // No payload does not mean no validity: a selected binding must be
+            // established by the entry/transfer route, never by all-zero bytes.
+            StructuralTypeShape::FusedServiceBinding => return None,
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 leaves.push(ZeroedStructuralLeaf::ArrayScalar {
                     path,
@@ -267,6 +270,32 @@ mod tests {
 
     fn signed_tag() -> ScalarType {
         ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    }
+
+    #[test]
+    fn fused_service_binding_cannot_be_zero_constructed_directly_or_nested() {
+        let binding = declaration(1, StructuralTypeShape::FusedServiceBinding);
+        assert!(!zeroed_structural_shape([&binding].into_iter(), binding.id));
+        for shape in [
+            StructuralTypeShape::Record {
+                fields: vec![field(1, StructuralFieldType::Structural(binding.id))],
+            },
+            StructuralTypeShape::FixedArray {
+                element: binding.id,
+                length: 1,
+            },
+        ] {
+            let container = declaration(2, shape);
+            assert!(
+                zeroed_structural_leaves([&binding, &container].into_iter(), container.id)
+                    .is_none()
+            );
+        }
+        let ordinary = declaration(3, StructuralTypeShape::Record { fields: Vec::new() });
+        assert_eq!(
+            zeroed_structural_leaves([&ordinary].into_iter(), ordinary.id),
+            Some(Vec::new())
+        );
     }
 
     #[test]

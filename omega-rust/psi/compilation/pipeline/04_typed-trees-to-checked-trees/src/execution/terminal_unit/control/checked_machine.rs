@@ -5,8 +5,7 @@ use crate::execution::terminal_unit::control::statement_sequence;
 
 use crate::execution::terminal_unit::calls::{
     build_affine_array_construction_prefix, build_unit_trivial_affine_locals, entry_claims,
-    free_fused_service_scalar_signature, free_structural_scalar_signature,
-    fused_service_scalar_signature, structural_scalar_signature, structural_signature,
+    free_structural_scalar_signature, structural_scalar_signature, structural_signature,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::call_occurrences;
@@ -233,8 +232,13 @@ pub(crate) fn build_checked_machine_residual_parts(
     let statements = program.statement_table.statements(state.statement_nodes);
     let binders = machine_binders(program, machine);
     let carries_fused_service_parameter = program.state_parameters(state).iter().any(|parameter| {
-        typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
-            .is_some()
+        typed_trees::service::classify_exact_service_parameter_carrier(
+            program,
+            parameter.type_reference,
+        )
+        .ok()
+        .flatten()
+        .is_some()
     });
     let carries_scalar_parameter = program.state_parameters(state).iter().any(|parameter| {
         !parameter.is_self
@@ -247,25 +251,10 @@ pub(crate) fn build_checked_machine_residual_parts(
     // request legacy attachment storage during the static-machine migration.
     let (attachment_type_identity, mut structural_parameters, scalar_parameters) =
         if !program.machine_has_receiver(machine) {
-            if carries_fused_service_parameter {
-                let (structural, scalar) =
-                    free_fused_service_scalar_signature(program, shapes, state, &binders)?;
-                (None, structural, scalar)
-            } else {
-                let (structural, scalar) =
-                    free_structural_scalar_signature(program, shapes, state, &binders)?;
-                (None, structural, scalar)
-            }
-        } else if carries_fused_service_parameter {
-            fused_service_scalar_signature(
-                program,
-                shapes,
-                machine,
-                state,
-                &binders,
-                retain_reference_self,
-            )?
-        } else if carries_scalar_parameter {
+            let (structural, scalar) =
+                free_structural_scalar_signature(program, shapes, state, &binders)?;
+            (None, structural, scalar)
+        } else if carries_scalar_parameter || carries_fused_service_parameter {
             structural_scalar_signature(
                 program,
                 shapes,

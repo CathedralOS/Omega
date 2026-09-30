@@ -892,6 +892,7 @@ pub(super) fn valid_nominal_cleanup_requirements(
         .and_then(|declaration| match &declaration.shape {
             StructuralTypeShape::Record { fields } => Some(fields),
             StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::FusedServiceBinding
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. }

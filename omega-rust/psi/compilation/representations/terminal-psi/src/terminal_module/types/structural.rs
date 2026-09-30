@@ -12,6 +12,11 @@ pub struct StructuralTypeDeclaration {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralTypeShape {
+    /// An established routed binding with no runtime payload under selected
+    /// Fused realization. This semantic carrier is not constructible by a
+    /// record literal or zero initialization. Ordinary loans preserve its
+    /// occurrence; entry provisioning retains separate establishment evidence.
+    FusedServiceBinding,
     /// A permission carrier retaining the original referent, not an owned copy
     /// of its storage. Owning or moving this value transfers the loan only;
     /// projection through `Referent` must independently respect borrowed access.

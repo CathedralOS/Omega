@@ -495,6 +495,15 @@ pub(super) fn validate_bindings(
             {
                 return unsupported("Unit graph loan argument custody drifted");
             }
+            validate_projected_loan_source(
+                checked,
+                plan.machine,
+                source,
+                state,
+                edge.statement_ordinal,
+                *expression,
+                subject,
+            )?;
             continue;
         }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
@@ -1412,6 +1421,100 @@ pub(super) fn return_discards(
     }
     drops.retain(|index| !consumed.contains(index));
     Ok(drops)
+}
+
+/// A projected loan must name the authored occurrence, not merely another
+/// place with the same leaf type. Existing locals also rejoin their producer.
+fn validate_projected_loan_source(
+    checked: &CheckedTrees,
+    machine_symbol: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    statement_ordinal: u32,
+    expression: checked_trees::expression::ExpressionHandle,
+    subject: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> Result<(), LoweringError> {
+    let (machine, _) =
+        crate::expression_preparation::source_custody::authored_state(checked, source.symbol)?;
+    if machine.symbol != machine_symbol {
+        return unsupported("Unit graph projected loan changed its source machine");
+    }
+    let (root_symbol, receiver_root, root_type, root_access) = match subject.source {
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+            let parameter = state
+                .structural_parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph projected loan parameter missing",
+                ))?;
+            let declared = checked
+                .state_parameters(source)
+                .get(parameter.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph projected loan source position missing",
+                ))?;
+            (
+                declared.symbol,
+                declared.is_self.then_some(machine.symbol),
+                declared.type_reference,
+                parameter.access,
+            )
+        }
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal,
+        } => {
+            let mut results = state
+                .operations
+                .iter()
+                .filter_map(result_custody::result)
+                .filter(|result| result.binding_ordinal == binding_ordinal);
+            let result = results.next().ok_or(LoweringError::Unsupported(
+                "Unit graph projected loan result missing",
+            ))?;
+            if results.next().is_some() || result.statement_index >= statement_ordinal {
+                return unsupported("Unit graph projected loan result establishment drifted");
+            }
+            let Some(StatementNode::LocalData(local)) = checked
+                .statement_table
+                .statements(source.statement_nodes)
+                .get(result.statement_index as usize)
+            else {
+                return unsupported("Unit graph projected loan source local missing");
+            };
+            result_custody::validate(checked, machine.symbol, source, local, result)?;
+            (
+                local.symbol,
+                None,
+                local.type_reference,
+                checked_trees::CheckedStructuralAccess::Owned,
+            )
+        }
+        _ => return unsupported("Unit graph projected loan has no existing source place"),
+    };
+    let (actual_root, actual_path, actual_access) =
+        crate::unit::attached_unit::parameters::source_path(
+            checked,
+            machine,
+            Some(source),
+            root_type,
+            expression,
+        )?;
+    use checked_trees::CheckedStructuralAccess::{MutableBorrow, Owned, SharedBorrow};
+    if (actual_root != root_symbol && Some(actual_root) != receiver_root)
+        || actual_path != subject.path
+        || actual_access != Some(subject.access)
+        || !matches!(
+            (root_access, subject.access),
+            (Owned, SharedBorrow | MutableBorrow)
+                | (SharedBorrow, SharedBorrow)
+                | (MutableBorrow, SharedBorrow | MutableBorrow)
+        )
+    {
+        return unsupported(
+            "Unit graph projected loan differs from its authored root, path, or access",
+        );
+    }
+    Ok(())
 }
 
 /// The data declaration a member path walks from its root type: borrows and

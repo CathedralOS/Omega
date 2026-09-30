@@ -45,6 +45,9 @@ fn terminal_summary(
             declaration.id.get(),
             declaration.identity,
             match &declaration.shape {
+                terminal_psi::StructuralTypeShape::FusedServiceBinding => {
+                    "fused_service_binding".to_owned()
+                }
                 terminal_psi::StructuralTypeShape::Reference { referent, access } => {
                     format!(
                         "reference(referent=type:{},access={access:?})",

@@ -618,6 +618,7 @@ pub(super) fn build_traced(
                     // A borrowed bounded owner (`&[u8; N] in Utf8`) names the
                     // owner's carrier; the reference is this parameter's loan.
                     if !borrowed_named_referent
+                        && parameter.fused_service_erasure.is_none()
                         && !byte_sequence_carrier(program, reference, &[]).is_some_and(|carrier| {
                             carrier.is_borrowed()
                                 || matches!(
@@ -1259,7 +1260,8 @@ fn declared_contains_reference(
         };
         match &plan.shape {
             checked_trees::CheckedUnitStructuralTypeShape::Reference { .. } => return true,
-            checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+            checked_trees::CheckedUnitStructuralTypeShape::FusedServiceBinding
+            | checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
             | checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             checked_trees::CheckedUnitStructuralTypeShape::Record { fields: items } => {
                 fields(items);
@@ -1804,7 +1806,7 @@ fn successor_bindings(
                         }
                         _ => |_| true,
                     };
-                    if let Some((source_index, source_parameter, typed_parameter)) =
+                    if let Some((source_index, source_parameter, _typed_parameter)) =
                         parameter_subject
                     {
                         if mutable_loan_permitted(source_parameter.access)
@@ -1848,21 +1850,14 @@ fn successor_bindings(
                                 // already rides an outstanding loan.
                                 let declared = match source_parameter.access {
                                     CheckedStructuralAccess::SharedBorrow
-                                    | CheckedStructuralAccess::MutableBorrow => shapes
-                                        .add_reference_type(typed_parameter.type_reference, &[])
-                                        // The `&mut self` receiver borrows
-                                        // without a `&`-typed declaration:
-                                        // its loanable custody is still the
-                                        // projected subtree, so a carrier
-                                        // that cannot be formed falls back
-                                        // to the projected identity.
-                                        .or_else(|| {
-                                            Some(
-                                                program
-                                                    .normalized_type_identity(projected_type)
-                                                    .into_string(),
-                                            )
-                                        }),
+                                    | CheckedStructuralAccess::MutableBorrow => {
+                                        // The parameter already retains its
+                                        // referent type separately from access.
+                                        // Wrapping it in Reference here would
+                                        // reject every borrowed root as though
+                                        // its storage contained another loan.
+                                        Some(source_parameter.type_identity.clone())
+                                    }
                                     _ => Some(
                                         program
                                             .normalized_type_identity(projected_type)

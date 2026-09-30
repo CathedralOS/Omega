@@ -158,6 +158,7 @@ pub(crate) fn retain_additional_structural_types(
         }
         active.push(identity.to_owned());
         match &plan.shape {
+            CheckedUnitStructuralTypeShape::FusedServiceBinding => {}
             CheckedUnitStructuralTypeShape::Reference {
                 referent_identity, ..
             } => {
@@ -261,6 +262,7 @@ pub(crate) fn retain_additional_structural_types(
                 .chain(cases.iter().flat_map(|case| case.fields.iter()))
                 .collect(),
             StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::FusedServiceBinding
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. }
@@ -280,6 +282,7 @@ pub(crate) fn retain_additional_structural_types(
             StructuralTypeShape::Sum { cases } => cases.as_slice(),
             StructuralTypeShape::Mixed { cases, .. } => cases.as_slice(),
             StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::FusedServiceBinding
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. }
@@ -299,6 +302,11 @@ pub(crate) fn retain_additional_structural_types(
             .find(|plan| plan.identity == identity)
             .expect("selected scalar structural type was validated");
         let shape = match &plan.shape {
+            // Catalog retention preserves service identity, never an empty
+            // record representation that ordinary construction could forge.
+            CheckedUnitStructuralTypeShape::FusedServiceBinding => {
+                StructuralTypeShape::FusedServiceBinding
+            }
             CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,
@@ -492,6 +500,9 @@ pub(crate) fn lower_structural_type_plans(
         .into_iter()
         .map(|plan| {
             let shape = match &plan.shape {
+                CheckedUnitStructuralTypeShape::FusedServiceBinding => {
+                    StructuralTypeShape::FusedServiceBinding
+                }
                 CheckedUnitStructuralTypeShape::Reference { referent_identity, access } => {
                     StructuralTypeShape::Reference {
                         referent: lookup_type_id(&type_ids, referent_identity)?,

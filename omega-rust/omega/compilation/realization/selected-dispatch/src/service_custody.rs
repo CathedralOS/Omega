@@ -349,7 +349,10 @@ fn structural_shape_contains_fused_service(shape: &CheckedUnitStructuralTypeShap
                     .iter()
                     .any(|case| case.fields.iter().any(fused_service_field))
         }
-        CheckedUnitStructuralTypeShape::Reference { .. }
+        // A binding leaf contains no erased fields. Its actual occurrence is
+        // checked by the enclosing field or parameter receipt, not this walk.
+        CheckedUnitStructuralTypeShape::FusedServiceBinding
+        | CheckedUnitStructuralTypeShape::Reference { .. }
         | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
         | CheckedUnitStructuralTypeShape::FixedArray { .. }

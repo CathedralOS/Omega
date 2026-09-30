@@ -2,6 +2,7 @@
 
 mod fixed_array_views;
 mod owned_record_stores;
+mod service_binding;
 use super::{decode_module, encode_module};
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, MachineId, PsiSemanticId, StructuralPlaceKind,

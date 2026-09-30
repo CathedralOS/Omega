@@ -812,7 +812,6 @@ the complete product bar; focused successes below do not establish that baseline
   | `text/runtime_local_struct_string_field_concat_exit`, `text/runtime_string_stored_suffix_exit` | Exits 188/193 with unchanged shared-view Room records. At `569fd64894` on macOS ARM64 both stop at stage 04 `structural field store: borrowed view field` (state 0, statement 0, `self.source.label = "Gate"`), as do `control_flow/runtime_string_literal_dispatch_exit`, `domains/utf8_field_read_carries_domain_exit` and `text/runtime_slice_indexed_string_guard_exit` (statement 4). This is a Terminal vocabulary gap, not a stage 04 arrangement: no Terminal operation replaces a borrowed-view field's descriptor (`structural_access.md` Store vocabulary admits bounded-owned byte fields only; verification `byte_sequence_store.rs` rejects other carriers), and `in Utf8` fields lower to `PredicateByteSequence { BorrowedView }`, which record establishment, field length/read, leaf copy and plain by-value transfer also reject. Next: specify and verify a borrowed-view field store (literal sources first, since image storage outlives every root; source predicates must imply field predicates, as for the owned store), then qualified field reads, argument passing and `[copy]` record transfer. Copy permission cannot establish qualification or extend a loan. **NOMINAL-FIELD-FLOW** / **STATE-LOCAL-VALUE-FRONTIER**. |
   | `text/runtime_stdin_command_branch_exit` | Preserve the reader and owned Command result-to-field storage, then execute its input/branch oracle. **STATE-LOCAL-VALUE-FRONTIER** owns composition; reattribute the current omission instead of inheriting a historical phase label. |
   | `host/runtime_console_bounded_line_exit` | Matching-host result and mutable-window execution: LF, EOF, Full, repeated middle-window reads, zero-capacity non-consumption, exact count/reason exits and output, next unread byte and untouched tails. Restore coverage for the alternate `repeat` entry; discard-result execution is insufficient. |
-  | `text/runtime_stdin_line_buffering_exit` | Both blocking `echo_line` calls, caller CRLF normalization and exact completed prefixes. **ENTRY-CONTENT-ROOTS** owns borrowed intrinsic-service receipt transport through `write_prefix`, calls and state edges; preserve the two-read/helper flow. |
   | `filesystem/native_wrapper_write_all_result` | On macOS ARM64, store and dispatch the write result: nonexistent parent gives Error, `/tmp` gives Ok, stdout contains PASS and no FAIL. Exit zero alone is insufficient. This is distinct from **FILESYSTEM-RELEASE-CONTRACT** proof closure. |
   | `host/runtime_gui_foreground_window_exit` | Windows, exact authored Gui provider: create, query/store foreground result, destroy, exit 70. An invisible window need not become foreground. |
   | `control_flow/runtime_{integer,string}_literal_dispatch_exit` | Exits 22 and 11 for `"look"`, with authored selection order and ordinary result/field storage. Integer dispatch has recorded native results; retain it as the control while completing string dispatch and the host matrix. **MATCH-SELECTIVE-LOWERING** / **STATE-LOCAL-VALUE-FRONTIER**. |
@@ -2434,22 +2433,22 @@ completion syntax or other terminal service is a prerequisite.
   `ForeignBinding` is a separate locator. No authored `Bound` qualification,
   source-created binding or provider lookup repairs missing establishment.
 
-  - Complete borrowed `Binding<R>` transport. Psi checking's
-    [carrier placement gate](omega-rust/psi/compilation/checking/src/value_custody/type_references.rs)
-    still rejects references to the carrier.
-    `samples/cli/games/dungeon_crawler_cli` and
-    `text/runtime_stdin_line_buffering_exit` lend `&mut self.console` to
-    `&mut Console` formals; Psi checking does not type-check actuals against a
-    bare-boundary-trait reference formal (a `u64` place passes), so migrate
-    those formals to `Binding<R>` borrows and reject the bare-trait reference
-    spelling once borrowed transport lands.
-    Make `capabilities/uses_caller_folder` lend the caller's field to
-    `Librarian::archive(folder: &Binding<Folder>)`; promote
-    `fail/providers/service_borrowed_parameter_rejected` when checking,
-    Unit/Terminal calls, selected dispatch, interpretation and native service
-    effects work. Moving an affine binding from borrowed storage without
-    replacement must still reject. Provider multiplicity, conformance and Fused
-    erasure do not change declaration-owned affine semantics.
+  - Execute the remaining borrowed-service customers:
+    `samples/cli/games/dungeon_crawler_cli` now uses `&mut Binding<Console>`
+    formals; on macOS ARM64 its checked route now stops at `Game::run_game_loop`,
+    `call operation: structural arguments: caller structural result` (state 1,
+    statement 3). Carry that existing command flow to native execution. Make
+    `capabilities/uses_caller_folder` lend the caller's field to
+    `Librarian::archive(folder: &Binding<Folder>)` and execute its service effects.
+    Shared/mutable machine and state formals now retain exact binding identity,
+    loan access and Fused dispatch receipts; bare boundary-trait value formals
+    reject. The two-read control `omega run --both
+    tests/omega/pass/text/runtime_stdin_line_buffering_exit/main.omg` with its
+    `input.txt` executes both engines at exit 0 on macOS ARM64, with exact
+    `first\nsecond\n` native output; keep that control while expanding customers.
+    Moving an affine binding from borrowed storage without replacement must
+    still reject. Provider multiplicity, conformance and Fused erasure do not
+    change declaration-owned affine semantics.
   - Complete activation/result/out-parameter joins while preserving exact closed
     requirement, occurrence and selected-plan validity through erased fields,
     Terminal and native replay. Reuse `program-entry-plan`, Psi's

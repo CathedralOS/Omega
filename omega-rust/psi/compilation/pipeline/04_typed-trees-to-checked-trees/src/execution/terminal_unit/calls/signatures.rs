@@ -68,30 +68,6 @@ pub(crate) fn structural_signature(
     scalar.is_empty().then_some((attachment, structural))
 }
 
-pub(crate) fn fused_service_scalar_signature(
-    program: &TypedTrees,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-    retain_reference_self: bool,
-) -> Option<(
-    Option<String>,
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
-    structural_signature_with_partial_affine(
-        program,
-        shapes,
-        machine,
-        state,
-        binders,
-        false,
-        true,
-        retain_reference_self,
-    )
-}
-
 fn scalar_parameter_signature(
     program: &TypedTrees,
     position: usize,
@@ -104,71 +80,6 @@ fn scalar_parameter_signature(
         source_position: u32::try_from(position).ok()?,
         primitive_type: program.primitive_type_reference(parameter.type_reference)?,
     })
-}
-
-pub(crate) fn free_fused_service_scalar_signature(
-    program: &TypedTrees,
-    shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-)> {
-    if !binders.is_empty() {
-        return None;
-    }
-    let mut structural_parameters = Vec::new();
-    let mut scalar_parameters = Vec::new();
-    for (position, parameter) in program.state_parameters(state).iter().enumerate() {
-        if strips_erased_parameter(parameter)? {
-            continue;
-        }
-        if parameter.is_self || parameter.is_const || parameter.is_mutable {
-            return None;
-        }
-        let source_position = u32::try_from(position).ok()?;
-        if program
-            .primitive_type_reference(parameter.type_reference)
-            .is_some()
-        {
-            scalar_parameters.push(scalar_parameter_signature(program, position, parameter)?);
-            continue;
-        }
-        if typed_trees::service::exact_bound_service_requirement(program, parameter.type_reference)
-            .is_none()
-            || !structural_parameters.is_empty()
-        {
-            return None;
-        }
-        let (type_identity, fused_service_erasure) = shapes.add_fused_service_parameter_type(
-            parameter.type_reference,
-            parameter.symbol,
-            binders,
-        )?;
-        let qualifications =
-            parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
-        let multiplicity = crate::checks::type_multiplicity(program, parameter.type_reference);
-        let access = structural_access_for_type_reference(program, parameter.type_reference)?;
-        if multiplicity != Multiplicity::Affine
-            || access != CheckedStructuralAccess::Owned
-            || !qualifications.is_empty()
-        {
-            return None;
-        }
-        structural_parameters.push(CheckedUnitStructuralParameterPlan {
-            position: source_position,
-            is_self: false,
-            type_identity,
-            multiplicity,
-            access,
-            qualifications,
-            projected_qualifications: Vec::new(),
-            fused_service_erasure: Some(fused_service_erasure),
-        });
-    }
-    matches!(structural_parameters.as_slice(), [parameter] if parameter.fused_service_erasure.is_some())
-        .then_some((structural_parameters, scalar_parameters))
 }
 
 pub(crate) fn partial_affine_structural_signature(
@@ -276,13 +187,15 @@ fn structural_signature_with_partial_affine(
         // resolved attachment above.
         let (type_identity, fused_service_erasure) = if parameter.is_self {
             (attachment.as_ref()?.0.clone(), None)
-        } else if typed_trees::service::exact_bound_service_requirement(
+        } else if typed_trees::service::classify_exact_service_parameter_carrier(
             program,
             parameter.type_reference,
         )
+        .ok()
+        .flatten()
         .is_some()
         {
-            if allow_partial_affine || parameter.is_mutable || !binders.is_empty() {
+            if allow_partial_affine || !binders.is_empty() {
                 return None;
             }
             fused_service_parameter_count = fused_service_parameter_count.checked_add(1)?;
@@ -318,8 +231,8 @@ fn structural_signature_with_partial_affine(
         };
         let access = structural_access_for_type_reference(program, parameter.type_reference)?;
         if fused_service_erasure.is_some()
-            && (multiplicity != Multiplicity::Affine
-                || access != CheckedStructuralAccess::Owned
+            && (!service_parameter_access_matches(multiplicity, access)
+                || parameter.is_mutable != (access == CheckedStructuralAccess::MutableBorrow)
                 || !qualifications.is_empty())
         {
             return None;
@@ -369,6 +282,22 @@ fn structural_signature_with_partial_affine(
         structural_parameters,
         scalar_parameters,
     ))
+}
+
+/// Borrowed parameters lend an existing affine carrier; the reference itself
+/// does not own that carrier. Keep access separate from value multiplicity so
+/// erasure cannot turn a loan into an owned service argument.
+fn service_parameter_access_matches(
+    multiplicity: Multiplicity,
+    access: CheckedStructuralAccess,
+) -> bool {
+    match access {
+        CheckedStructuralAccess::Owned => multiplicity == Multiplicity::Affine,
+        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow => {
+            multiplicity == Multiplicity::Unrestricted
+        }
+        CheckedStructuralAccess::WriteOnlyBorrow => false,
+    }
 }
 
 pub(crate) fn structural_scalar_signature(
@@ -600,10 +529,30 @@ fn scalar_and_structural_parameters(
             continue;
         }
         trace.phase("state graph: state signature: parameter signature: structural parameter type");
-        let type_identity = if parameter.is_self {
-            attachment?.0.to_owned()
+        let (type_identity, fused_service_erasure) = if parameter.is_self {
+            (attachment?.0.to_owned(), None)
+        } else if typed_trees::service::classify_exact_service_parameter_carrier(
+            program,
+            parameter.type_reference,
+        )
+        .ok()
+        .flatten()
+        .is_some()
+        {
+            if !binders.is_empty() {
+                return None;
+            }
+            let (identity, receipt) = shapes.add_fused_service_parameter_type(
+                parameter.type_reference,
+                parameter.symbol,
+                binders,
+            )?;
+            (identity, Some(receipt))
         } else {
-            shapes.add_type(parameter.type_reference, binders, &[])?
+            (
+                shapes.add_type(parameter.type_reference, binders, &[])?,
+                None,
+            )
         };
         trace.phase("state graph: state signature: parameter signature: parameter qualifications");
         let qualifications =
@@ -619,9 +568,19 @@ fn scalar_and_structural_parameters(
         };
         trace.phase("state graph: state signature: parameter signature: parameter access");
         let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+        if fused_service_erasure.is_some()
+            && (!service_parameter_access_matches(multiplicity, access)
+                || parameter.is_mutable != (access == CheckedStructuralAccess::MutableBorrow)
+                || !qualifications.is_empty())
+        {
+            return None;
+        }
         trace.phase("state graph: state signature: parameter signature: projected qualifications");
-        let projected_qualifications =
-            projected_parameter_qualifications(program, shapes, parameter.type_reference, binders)?;
+        let projected_qualifications = if fused_service_erasure.is_some() {
+            Vec::new()
+        } else {
+            projected_parameter_qualifications(program, shapes, parameter.type_reference, binders)?
+        };
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
             is_self: parameter.is_self,
@@ -630,7 +589,7 @@ fn scalar_and_structural_parameters(
             access,
             qualifications,
             projected_qualifications,
-            fused_service_erasure: None,
+            fused_service_erasure,
         });
     }
     Some((structural_parameters, scalar_parameters))

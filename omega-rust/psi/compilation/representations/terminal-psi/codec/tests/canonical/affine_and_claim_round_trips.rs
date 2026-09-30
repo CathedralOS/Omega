@@ -426,6 +426,53 @@ fn disjoint_sibling_claim_set_round_trips_as_canonical_identity() {
 }
 
 #[test]
+fn retained_service_attachment_round_trip_rejoins_exact_marker_field() {
+    let mut module = unused_provider_attachment_fixture();
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(2),
+        identity: "example::BindingConsole".into(),
+        shape: StructuralTypeShape::FusedServiceBinding,
+    });
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = StructuralFieldType::Structural(structural_type_id(2));
+    module.machines[0]
+        .structural_places
+        .push(provider_attachment_root());
+    module.machines[0].blocks[0]
+        .operations
+        .push(provider_boundary_call());
+    let bytes = encode_module(&module).expect("retained marker rejoins its provider root");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+
+    for mutation in 0..4 {
+        let mut changed = module.clone();
+        match mutation {
+            0 => changed.machines[0].structural_places.clear(),
+            1 => {
+                changed.structural_types[1].shape =
+                    StructuralTypeShape::Record { fields: Vec::new() };
+            }
+            2 => {
+                let StructuralPlaceKind::ProviderAttachment { field, .. } =
+                    &mut changed.machines[0].structural_places[0].kind
+                else {
+                    unreachable!()
+                };
+                *field = structural_field_id(2);
+            }
+            3 => changed.machines[0].blocks[0].operations.clear(),
+            _ => unreachable!(),
+        }
+        assert!(
+            encode_module(&changed).is_err(),
+            "provider custody mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn provider_attachment_encoding_counts_only_signature_boundary_calls() {
     let mut module = unused_provider_attachment_fixture();
     let mut declared = module.boundary_machines[0].clone();

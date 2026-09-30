@@ -16,6 +16,9 @@ pub fn validate_terminal_fused_service_establishments(
     selected_provider_plans: &[effects::provider_plan::ProviderPlan],
 ) -> Result<(), &'static str> {
     if rows.is_empty() {
+        if eligibility.is_some_and(|eligible| !eligible.fused_service_fields().is_empty()) {
+            return Err("Terminal proposal omitted its required Fused root establishments");
+        }
         return Ok(());
     }
     let Some(receiver_identity) = source.receiver().normalized_type_identity() else {
@@ -117,10 +120,10 @@ pub fn validate_terminal_fused_service_establishments(
                 return Err("Terminal proposal root establishment has no unique receiver field");
             };
             if position + 1 == route_length {
-                if !matches!(
-                    &field.field_type,
-                    terminal_psi::StructuralFieldType::Erased { type_identity }
-                        if type_identity == row.carrier_type_identity()
+                if !terminal_semantics::fused_service_field_matches(
+                    &module.structural_types,
+                    field,
+                    row.carrier_type_identity(),
                 ) {
                     return Err(
                         "Terminal proposal root establishment substituted its erased carrier",

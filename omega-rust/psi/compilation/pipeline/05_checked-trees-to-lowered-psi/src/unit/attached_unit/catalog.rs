@@ -19,10 +19,10 @@ use super::{
     content_conservation, dense_identity, lookup_domain_id, lookup_service_id, lookup_type_id,
     terminal_scalar_type, unique_unit_boundary, unsupported,
 };
+use crate::terminal_identities::BYTE_VIEW_ELEMENT_TYPE_IDENTITY;
 use crate::terminal_identities::{
     StructuralDomainBinding, lookup_domain_id_for_carrier, structural_domain_identity,
 };
-use crate::terminal_identities::BYTE_VIEW_ELEMENT_TYPE_IDENTITY;
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 
 /// Root the leaf type identity of every structural argument plan reachable
@@ -541,7 +541,8 @@ pub(crate) fn lower_unit_structural_type_roots(
             // A byte carrier keeps no element field. The `u8` row a borrowed
             // view's element-view establishment resolves is rooted by that
             // operation (`establishes_byte_element_view`), not by the type.
-            CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+            CheckedUnitStructuralTypeShape::FusedServiceBinding
+            | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
             | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             // A borrowed `&[T]` view is the runtime-length descriptor over an
             // element type that must itself reach the catalog.
@@ -552,8 +553,11 @@ pub(crate) fn lower_unit_structural_type_roots(
             }
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 for field in fields {
-                    if let CheckedUnitStructuralFieldType::Structural { type_identity } =
-                        &field.field_type
+                    if let CheckedUnitStructuralFieldType::Structural { type_identity }
+                    | CheckedUnitStructuralFieldType::FusedServiceBacked {
+                        provider_type_identity: type_identity,
+                        ..
+                    } = &field.field_type
                     {
                         collect(checked, plans, type_identity, active, selected)?;
                     }
@@ -567,8 +571,11 @@ pub(crate) fn lower_unit_structural_type_roots(
             }
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 for field in cases.iter().flat_map(|case| &case.fields) {
-                    if let CheckedUnitStructuralFieldType::Structural { type_identity } =
-                        &field.field_type
+                    if let CheckedUnitStructuralFieldType::Structural { type_identity }
+                    | CheckedUnitStructuralFieldType::FusedServiceBacked {
+                        provider_type_identity: type_identity,
+                        ..
+                    } = &field.field_type
                     {
                         collect(checked, plans, type_identity, active, selected)?;
                     }
@@ -579,8 +586,11 @@ pub(crate) fn lower_unit_structural_type_roots(
                     .iter()
                     .chain(cases.iter().flat_map(|case| &case.fields))
                 {
-                    if let CheckedUnitStructuralFieldType::Structural { type_identity } =
-                        &field.field_type
+                    if let CheckedUnitStructuralFieldType::Structural { type_identity }
+                    | CheckedUnitStructuralFieldType::FusedServiceBacked {
+                        provider_type_identity: type_identity,
+                        ..
+                    } = &field.field_type
                     {
                         collect(checked, plans, type_identity, active, selected)?;
                     }
@@ -614,6 +624,9 @@ pub(crate) fn lower_unit_structural_type_roots(
     for plan in selected {
         let identity = plan.identity.clone();
         let shape = match &plan.shape {
+            CheckedUnitStructuralTypeShape::FusedServiceBinding => {
+                StructuralTypeShape::FusedServiceBinding
+            }
             CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,
@@ -687,13 +700,12 @@ pub(crate) fn lower_unit_structural_type_roots(
                                 "fused Service erasure lacks an exact requirement receipt",
                             );
                         }
-                        // Fused realization removes the runtime carrier after
-                        // its authorization is checked. This applies to ordinary
-                        // parameter records as well as provisioned entry records;
-                        // lexical machine attachment cannot grant erasure.
-                        (language_core::BindingRelevance::Erased, StructuralFieldType::Erased {
-                            type_identity: provider_type_identity.clone(),
-                        })
+                        // Payload erases, not the semantic occurrence. A field loan
+                        // retains this exact path; the child marker prohibits record
+                        // construction and still requires entry/transfer establishment.
+                        (field.relevance, StructuralFieldType::Structural(
+                            lookup_type_id(&type_ids, provider_type_identity)?,
+                        ))
                     }
                     CheckedUnitStructuralFieldType::Erased { type_identity } => {
                         (field.relevance, StructuralFieldType::Erased {

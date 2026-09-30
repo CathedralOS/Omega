@@ -246,6 +246,7 @@ pub(super) fn emit(
         lower_provider_attachment_places(
             attachment,
             attachment_declaration,
+            structural_types,
             &plan.provider_attachment_requirements,
             &provider_boundaries,
             &mut next_place,

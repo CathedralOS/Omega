@@ -342,6 +342,108 @@ fn an_exclusive_view_lends_through_a_block_parameter_and_a_shared_root_rejects()
 }
 
 #[test]
+fn fused_binding_address_joins_replay_pointer_custody_on_all_hosted_targets() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut source = block_parameter_source(access);
+        let identity = source.functions[0].structural_parameters[0].structural_type;
+        source
+            .structural_types
+            .make_mut()
+            .iter_mut()
+            .find(|declaration| declaration.id == identity)
+            .unwrap()
+            .shape = StructuralTypeShape::FusedServiceBinding;
+        source.functions[0].structural_parameters[0].access = access;
+        source.functions[1].structural_parameters[0].access = access;
+        source.functions[0].operations[0] = AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(10).unwrap(),
+            result: ValueId::new(101).unwrap(),
+            scalar_type: source.functions[0].parameters[0].scalar_type,
+            value: semantic_vocabulary::IntegerValue::Unsigned(4),
+        };
+        let AbstractOperation::CallStructural {
+            structural_arguments,
+            ..
+        } = &mut source.functions[0].operations[3]
+        else {
+            panic!("joined call")
+        };
+        structural_arguments[0].access = access;
+        for native in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
+        ] {
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+            validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legal, &environment);
+            let selected = select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+            for mutation in 0..3 {
+                let mut changed = target.clone();
+                let argument = changed.functions[0]
+                    .graph
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find_map(|operation| match operation {
+                        TargetUnitOperation::Call { arguments, .. } => arguments.first_mut(),
+                        _ => None,
+                    })
+                    .unwrap();
+                assert_eq!(
+                    argument.shape,
+                    calling_conventions::ValueShape::borrowed_reference(0, 1)
+                );
+                assert!(!argument.destination.locations.is_empty());
+                match mutation {
+                    0 => argument.source_byte_offset = 1,
+                    1 => argument.place = PlaceId::new(999).unwrap(),
+                    _ => argument.access = StructuralAccess::Owned,
+                }
+                assert!(
+                    legalize_target_operations(&changed, &source, &unit).is_err(),
+                    "binding join mutation {mutation}: {native:?}"
+                );
+                assert!(
+                    validate_legalized_operations(&changed, &source, &unit, legal.plan().clone())
+                        .is_err()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn projected_address_join_calls_replay_exact_geometry_and_access() {
     check_projected_address_join(StructuralAccess::SharedBorrow, false);
 }

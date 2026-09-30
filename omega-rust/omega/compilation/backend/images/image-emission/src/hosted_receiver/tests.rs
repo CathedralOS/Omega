@@ -2,6 +2,82 @@ use super::{
     ProgramEntryPhysicalContractPlan, physical_contract_matches, receiver_pointer_matches,
     zero_valid_record_storage,
 };
+
+#[test]
+fn retained_service_leaf_cannot_be_zero_filled_or_omit_its_establishment() {
+    use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let root = StructuralTypeId::new(1).unwrap();
+    let service = StructuralTypeId::new(2).unwrap();
+    let field = StructuralFieldDeclaration {
+        id: StructuralFieldId::new(1).unwrap(),
+        identity: "console".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(service),
+    };
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: root,
+            identity: "Main".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![field.clone()],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: service,
+            identity: "ConsoleCarrier".into(),
+            shape: StructuralTypeShape::FusedServiceBinding,
+        },
+    ];
+    let source = program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+        target::TargetProfile::MacosArm64.program_entry_slot(),
+        symbols::SymbolHandle::from_arena_index(1),
+        symbols::SymbolHandle::from_arena_index(2),
+        "Main::entry".into(),
+        "entry".into(),
+        "Main::entry()".into(),
+        program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            source_position: 0,
+            source_symbol: symbols::SymbolHandle::from_arena_index(3),
+            normalized_type_identity: "Main".into(),
+        },
+        Vec::new(),
+    )
+    .unwrap();
+    assert!(!zero_valid_record_storage(
+        &declarations,
+        root,
+        &mut Vec::new()
+    ));
+    assert!(!zero_valid_record_storage(
+        &declarations,
+        service,
+        &mut Vec::new()
+    ));
+    let mut used = super::ErasedRowUse::default();
+    assert!(
+        super::validate_receiver_fields(
+            &declarations,
+            &[field],
+            &source,
+            "Main",
+            "Main",
+            super::ErasedRows {
+                services: &[],
+                determined_evidence: &[]
+            },
+            &mut Vec::new(),
+            &mut vec![root],
+            &mut used,
+            &|| diagnostics::Diagnostic::error("unestablished service"),
+        )
+        .is_err()
+    );
+    assert_eq!(used.services, 0);
+}
 #[test]
 fn zero_filled_receiver_byte_fields_require_owned_backing() {
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};

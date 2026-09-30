@@ -387,7 +387,7 @@ fn admit_fused_service_field(
 
 /// Walk the receiver's record-field tree: every authored bound-service field —
 /// wherever nested record fields place it — must rejoin the same Terminal
-/// `Erased` field shape and contributes one roster row keyed by its complete
+/// erased or retained field shape and contributes one roster row keyed by its complete
 /// field route. Plain nested-record fields only extend the route; every other
 /// field kind contributes nothing and is skipped.
 fn collect_fused_service_fields(
@@ -413,10 +413,10 @@ fn collect_fused_service_fields(
                     .filter(|candidate| candidate.identity == field_identity);
                 let terminal_field = terminal_fields.next()?;
                 if terminal_fields.next().is_some()
-                    || !matches!(
-                        &terminal_field.field_type,
-                        StructuralFieldType::Erased { type_identity }
-                            if type_identity == &carrier.carrier_type_identity
+                    || !terminal_semantics::fused_service_field_matches(
+                        declarations,
+                        terminal_field,
+                        &carrier.carrier_type_identity,
                     )
                 {
                     return None;
@@ -628,6 +628,9 @@ fn zero_valid_shape(
     entry: symbols::SymbolHandle,
 ) -> bool {
     match &declaration.shape {
+        // A binding leaf is admitted only by its exact source/roster join in
+        // zero_valid_fields, never by generic recursion or zero-filled bytes.
+        StructuralTypeShape::FusedServiceBinding => false,
         StructuralTypeShape::Record { fields } => zero_valid_fields(
             checked,
             declarations,
@@ -687,12 +690,10 @@ fn zero_valid_shape(
     }
 }
 
-/// Every field inhabiting zero storage must itself be zero-valid. Erased
-/// fields carry obligations this storage cannot discharge: the receiver's own
-/// erased fields join fused-service establishment rows directly, and a nested
-/// erased field joins the same rows only on a record-field route the roster
-/// can name — detected by the erased carrier type rejoining a bound-service
-/// source carrier, since the carrier erasure keeps the authored relevance.
+/// Every field inhabiting zero storage must itself be zero-valid. A service
+/// field instead rejoins its exact source carrier and independent establishment
+/// roster. Only record-field routes can name that occurrence; neither its
+/// legacy erasure nor its retained zero-payload marker establishes a value.
 fn zero_valid_fields(
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
@@ -704,12 +705,16 @@ fn zero_valid_fields(
     entry: symbols::SymbolHandle,
 ) -> bool {
     fields.iter().all(|field| {
-        let nested_erased_service = admit_erased_services
-            && !is_receiver
-            && matches!(field.field_type, StructuralFieldType::Erased { .. })
-            && checked
-                .bound_service_parameter_carrier(field_reference(field))
-                .is_ok_and(|carrier| carrier.is_some());
+        // A source Binding leaf is established by the separate complete
+        // service roster, never by recursively zero-filling its empty shape.
+        if let Ok(Some(carrier)) = checked.bound_service_parameter_carrier(field_reference(field)) {
+            return admit_erased_services
+                && terminal_semantics::fused_service_field_matches(
+                    declarations,
+                    field,
+                    &carrier.carrier_type_identity,
+                );
+        }
         // Determined evidence joins its own roster row on the same record-field
         // routes a service row can name (`collect_determined_evidence_fields`).
         let determined_erased = admit_erased_services
@@ -717,7 +722,7 @@ fn zero_valid_fields(
             && field.relevance.is_erased()
             && matches!(&field.field_type, StructuralFieldType::Erased { type_identity }
                 if nullary_determined_evidence(checked, type_identity, entry));
-        (is_receiver || !field.relevance.is_erased() || nested_erased_service || determined_erased)
+        (is_receiver || !field.relevance.is_erased() || determined_erased)
             && match field.field_type {
                 StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
                 StructuralFieldType::BoundedInteger(integer) => {
@@ -746,9 +751,7 @@ fn zero_valid_fields(
                     predicates.holds_for(&[])
                         && zero_valid_byte_field(checked, field_reference(field), capacity)
                 }
-                StructuralFieldType::Erased { .. } => {
-                    is_receiver || nested_erased_service || determined_erased
-                }
+                StructuralFieldType::Erased { .. } => is_receiver || determined_erased,
                 StructuralFieldType::ByteSequence(_)
                 | StructuralFieldType::PredicateByteSequence { .. } => false,
             }
@@ -971,6 +974,38 @@ mod tests {
 
     const SOURCE: &str =
         "data Main { value: i32; } machine Main::run(&mut self) { self.value = 7; }";
+
+    #[test]
+    fn ordinary_empty_field_cannot_acquire_service_establishment_from_a_marker() {
+        let checked = check_source(
+            "data Empty {} data Main { value: i32; empty: Empty; } \
+             machine Main::run(&mut self) { self.value = 7; }",
+        );
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        assert!(produced.receipt().unwrap().receiver_eligibility().is_some());
+        let mut module =
+            terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        let empty = module
+            .structural_types
+            .iter_mut()
+            .find(|declaration| declaration.identity == "named(name(Empty))")
+            .unwrap();
+        empty.shape = StructuralTypeShape::FusedServiceBinding;
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::run"),
+        )
+        .unwrap();
+        assert!(derive(&checked, selection, &module).is_none());
+    }
 
     /// The determined-evidence rows of `source`'s `Main::run` receiver, or
     /// `None` when the receiver is not zero-eligible.

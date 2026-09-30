@@ -223,6 +223,36 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 // execute: they cannot disqualify the route.
                 continue;
             }
+            if let Some(carrier) = checked
+                .bound_service_parameter_carrier(source.type_reference)
+                .map_err(|_| {
+                    LoweringError::Unsupported("Unit graph has an invalid Binding carrier")
+                })?
+            {
+                // Service authority comes from this state's exact source receipt,
+                // never from an empty storage shape. Ordinary edge custody still
+                // checks which existing occurrence supplies the next state.
+                crate::unit::attached_unit::parameters::validate_service_parameter(
+                    checked, source, parameter, &carrier,
+                )?;
+                let mut shapes = checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .structural_types
+                    .iter()
+                    .filter(|shape| shape.identity == parameter.type_identity);
+                if !matches!(
+                    shapes.next().map(|shape| &shape.shape),
+                    Some(checked_trees::CheckedUnitStructuralTypeShape::FusedServiceBinding)
+                ) || shapes.next().is_some()
+                {
+                    return unsupported(
+                        "Unit graph Binding lost its exact nonconstructible carrier",
+                    );
+                }
+                continue;
+            }
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
                 if source.is_self
                     || source.is_const

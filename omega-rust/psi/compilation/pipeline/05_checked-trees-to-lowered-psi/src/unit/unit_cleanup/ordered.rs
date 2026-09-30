@@ -360,6 +360,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                         fields.iter().find(|field| field.identity == field_identity)
                     }
                     StructuralTypeShape::Reference { .. }
+                    | StructuralTypeShape::FusedServiceBinding
                     | StructuralTypeShape::PrimitiveScalar(_)
                     | StructuralTypeShape::ByteSequence(_)
                     | StructuralTypeShape::ElementView { .. }

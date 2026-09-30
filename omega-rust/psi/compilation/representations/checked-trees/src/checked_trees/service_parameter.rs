@@ -22,6 +22,7 @@ pub struct CheckedServiceParameterCarrier {
     pub carrier_type_identity: String,
     pub base_type_identity: String,
     pub qualifications: Vec<SemanticDomainId>,
+    pub access: crate::CheckedStructuralAccess,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,22 +47,27 @@ impl CheckedTrees {
         &self,
         type_reference: types::TypeReferenceHandle,
     ) -> Result<Option<CheckedServiceParameterCarrier>, CheckedServiceParameterError> {
-        let Some(carrier) =
-            typed_trees::service::classify_exact_bound_service_carrier(&self.typed, type_reference)
-                .map_err(CheckedServiceParameterError::InvalidCarrier)?
+        let Some(carrier) = typed_trees::service::classify_exact_service_parameter_carrier(
+            &self.typed,
+            type_reference,
+        )
+        .map_err(CheckedServiceParameterError::InvalidCarrier)?
         else {
             return Ok(None);
         };
 
         let carrier_type_identity = self.normalized_type_identity(type_reference).into_string();
         let (base_type_identity, qualifications) =
-            self.service_base_and_qualifications(type_reference);
+            self.service_base_and_qualifications(carrier.carrier_type);
         Ok(Some(CheckedServiceParameterCarrier {
-            service_data: carrier.service_data,
-            requirement: carrier.requirement,
+            service_data: carrier.carrier.service_data,
+            requirement: carrier.carrier.requirement,
             carrier_type_identity,
             base_type_identity,
             qualifications,
+            access: carrier
+                .access
+                .map_or(crate::CheckedStructuralAccess::Owned, Into::into),
         }))
     }
 

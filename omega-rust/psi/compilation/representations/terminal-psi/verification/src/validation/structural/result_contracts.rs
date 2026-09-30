@@ -253,6 +253,7 @@ pub(in crate::validation) fn has_plain_owned_shape(
                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
             ) => true,
             StructuralTypeShape::ByteSequence(_) => false,
+            StructuralTypeShape::FusedServiceBinding => false,
             StructuralTypeShape::ElementView { .. } => false,
             StructuralTypeShape::Reference { .. } => false,
             StructuralTypeShape::Record { fields } => fields.iter().all(&mut field_is_owned),

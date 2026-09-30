@@ -763,6 +763,7 @@ fn shape(
         .get(&structural_type)
         .ok_or(InvalidStructuralShape)?;
     let result = match &declaration.shape {
+        StructuralTypeShape::FusedServiceBinding => ValueShape::integer(0, 1),
         // A reference carrier transports no referent storage: custody is
         // compile-time metadata, so its value shape is the empty aggregate
         // slot the lowering assigns rather than a pointer-sized payload.

@@ -194,7 +194,7 @@ pub fn receiver_layout(
     )))
 }
 
-/// Mirrors the hosted-receiver bridge's discipline exactly: every erased
+/// Mirrors the hosted-receiver bridge's discipline exactly: every service or erased
 /// field in the receiver's record-field tree must rejoin one Fused
 /// establishment row by its complete field route — its erased bytes are
 /// installed by the selected provider, not by zero-fill — and every other
@@ -210,10 +210,13 @@ fn validate_receiver_fields(
     erased: &mut usize,
 ) -> bool {
     fields.iter().all(|field| {
+        let service_carrier = terminal_semantics::fused_service_field_carrier(declarations, field);
         if field.relevance.is_erased()
             || matches!(field.field_type, StructuralFieldType::Erased { .. })
+            || service_carrier.is_some()
         {
-            let StructuralFieldType::Erased { type_identity } = &field.field_type else {
+            // A retained binding is not ordinary zero-valid record storage.
+            let Some(type_identity) = service_carrier else {
                 return false;
             };
             field_path.push(field.identity.clone());
@@ -221,7 +224,7 @@ fn validate_receiver_fields(
                 .iter()
                 .filter(|row| {
                     row.field_path() == field_path.as_slice()
-                        && row.carrier_type_identity() == type_identity.as_str()
+                        && row.carrier_type_identity() == type_identity
                 })
                 .count()
                 == 1;
@@ -337,6 +340,47 @@ fn zero_valid_record_storage(
     };
     visiting.pop();
     valid
+}
+
+#[cfg(test)]
+mod service_tests {
+    use super::{validate_receiver_fields, zero_valid_record_storage};
+    use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+
+    #[test]
+    fn retained_service_leaf_requires_an_establishment_before_zero_valid_recursion() {
+        let service = StructuralTypeId::new(1).unwrap();
+        let declaration = StructuralTypeDeclaration {
+            id: service,
+            identity: "ConsoleCarrier".into(),
+            shape: StructuralTypeShape::FusedServiceBinding,
+        };
+        let field = StructuralFieldDeclaration {
+            id: StructuralFieldId::new(1).unwrap(),
+            identity: "console".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(service),
+        };
+        assert!(!zero_valid_record_storage(
+            std::slice::from_ref(&declaration),
+            service,
+            &mut Vec::new()
+        ));
+        let mut used = 0;
+        assert!(!validate_receiver_fields(
+            &[declaration],
+            &[field],
+            &[],
+            &mut Vec::new(),
+            &mut Vec::new(),
+            &mut used
+        ));
+        assert_eq!(used, 0);
+    }
 }
 
 fn zero_valid_field(

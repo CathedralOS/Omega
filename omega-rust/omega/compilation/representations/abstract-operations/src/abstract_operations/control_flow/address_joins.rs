@@ -1,7 +1,7 @@
 //! Borrowed joins whose runtime carrier is the referent's address.
 //!
-//! Shared joins admit primitive scalars and plain records through static
-//! projections. Mutable joins admit plain records the same way, whole or
+//! Shared joins admit primitive scalars, service binding leaves and plain records
+//! through static projections. Mutable joins admit records and binding leaves, whole or
 //! statically projected, while transferring the exact incoming mutable
 //! permission. Neither carrier copies the referent.
 //! A shared bounded byte owner loan (`owner_loans`) is also carried as its
@@ -31,7 +31,7 @@ pub fn is_address_join<'a>(
         || is_plain_address_join(parameter, lookup)
 }
 
-/// The record and primitive joins: unqualified, over plain referents.
+/// Unqualified address loans over plain referents, including existing bindings.
 fn is_plain_address_join<'a>(
     parameter: &StructuralParameterDeclaration,
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
@@ -39,7 +39,10 @@ fn is_plain_address_join<'a>(
     (parameter.access == StructuralAccess::SharedBorrow
         || parameter.access == StructuralAccess::MutableBorrow
             && lookup(parameter.structural_type).is_some_and(|declaration| {
-                matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Record { .. } | StructuralTypeShape::FusedServiceBinding
+                )
             }))
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && !parameter.is_self
@@ -171,6 +174,9 @@ fn is_plain_referent<'a>(
     active.push(identity);
     let plain = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(_) => true,
+        // Address transport preserves an established binding occurrence. This
+        // says nothing about construction or zero validity of its authority.
+        StructuralTypeShape::FusedServiceBinding => true,
         // Empty records still have a borrowed address carrier. No payload
         // bytes are copied, and the join retains its place and loan custody.
         StructuralTypeShape::Record { fields } => plain_fields(fields, lookup, active),
