@@ -57,6 +57,8 @@ mod shape_validation;
 mod value_classification;
 
 // Shared vocabulary: result types and reference type matching.
+#[cfg(test)]
+mod named_fields_tests;
 mod reference_values;
 mod result_type;
 
@@ -521,6 +523,50 @@ fn hinted_named_value_type_reference(
         return None;
     }
     match program.symbols.get(parent).kind {
+        // A declaration predicate has no machine or state. Its field binder
+        // still supplies a real destination type: float endpoints must land
+        // in that carrier's format before the predicate is evaluated. Follow
+        // the retained owner and field symbols, never a same-spelled field in
+        // another declaration or case.
+        symbols::SymbolKind::Data => {
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == parent)?;
+            program
+                .data_members(definition)
+                .iter()
+                .find_map(|member| match member {
+                    typed_trees::data::DataMember::Field(field) if matches_symbol(field.symbol) => {
+                        Some(field.type_reference)
+                    }
+                    _ => None,
+                })
+        }
+        symbols::SymbolKind::Variant => {
+            let owner = program.symbols.get(parent).parent;
+            let definition = program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == owner)?;
+            let variant =
+                program
+                    .data_members(definition)
+                    .iter()
+                    .find_map(|member| match member {
+                        typed_trees::data::DataMember::Variant(variant)
+                            if variant.symbol == parent =>
+                        {
+                            Some(variant)
+                        }
+                        _ => None,
+                    })?;
+            program
+                .data_payload_fields(variant)
+                .iter()
+                .find(|field| matches_symbol(field.symbol))
+                .map(|field| field.type_reference)
+        }
         // Machine-owned data: the binder's parent is the machine itself.
         symbols::SymbolKind::Machine => {
             if let Some(machine) = program

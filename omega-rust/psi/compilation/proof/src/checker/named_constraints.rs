@@ -5,7 +5,11 @@ use crate::checker::diagnostics::{
     cannot_prove_initializer_named_constraint, cannot_prove_return_named_constraint,
     cannot_prove_transition_named_constraint,
 };
-use crate::checker::float_ranges::{finite_float_literal, float_range_from_constraints};
+use crate::checker::float_ranges::{
+    finite_float_literal, float_range_for_assignment, float_range_for_call_argument,
+    float_range_for_return_value, float_range_for_transition_argument,
+    float_range_from_constraints,
+};
 use crate::checker::integer_ranges::{
     guarded_integer_range_for_assignment, guarded_integer_range_for_transition_argument,
     integer_range_for_transition_argument, integer_range_from_constraints, type_constraints,
@@ -24,6 +28,12 @@ pub(crate) fn check_call_named_constraints(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
+        if constraint == "finite"
+            && float_range_for_call_argument(proof_plan, obligation)
+                .is_some_and(|range| range.proves_finite())
+        {
+            continue;
+        }
         if !argument_handle_satisfies_named_constraint(
             proof_plan,
             obligation.argument,
@@ -71,6 +81,12 @@ pub(crate) fn check_return_named_constraints(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
+        if constraint == "finite"
+            && float_range_for_return_value(proof_plan, obligation)
+                .is_some_and(|range| range.proves_finite())
+        {
+            continue;
+        }
         if !argument_handle_satisfies_named_constraint(
             proof_plan,
             obligation.value,
@@ -146,6 +162,13 @@ fn transition_argument_satisfies_named_constraint(
         return true;
     }
 
+    if constraint == "finite"
+        && float_range_for_transition_argument(proof_plan, obligation)
+            .is_some_and(|range| range.proves_finite())
+    {
+        return true;
+    }
+
     if matches!(constraint, "positive" | "non_negative") {
         let range = guarded_integer_range_for_transition_argument(proof_plan, obligation);
         return match constraint {
@@ -178,6 +201,13 @@ fn assignment_satisfies_named_constraint(
     let constraints = type_constraints(proof_plan, obligation.value_constraints);
 
     if constraints_satisfy_named_constraint(constraints, constraint) {
+        return true;
+    }
+
+    if constraint == "finite"
+        && float_range_for_assignment(proof_plan, obligation)
+            .is_some_and(|range| range.proves_finite())
+    {
         return true;
     }
 

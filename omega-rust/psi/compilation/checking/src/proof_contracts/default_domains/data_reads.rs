@@ -3,7 +3,7 @@
 
 use crate::proof_contracts::default_domains::place_queries::{
     data_definition_for_expression, is_self_rooted, place_spelling_covers, self_place_spelling,
-    transition_evaluated_expressions, write_target_index_expressions,
+    transition_evaluated_expressions, write_place_spelling, write_target_index_expressions,
 };
 use crate::proof_contracts::default_domains::{InvariantWindow, TrackedPlace};
 use diagnostics::Diagnostic;
@@ -126,32 +126,70 @@ fn scan_expression_reads(
     inherited_windows: &[InvariantWindow],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    scan_expression_use(
+        program,
+        machine,
+        state,
+        expression,
+        tracked,
+        entry_established,
+        call_established,
+        inherited_windows,
+        true,
+        diagnostics,
+    );
+}
+
+/// A projection's address spine does not consume each intermediate record.
+/// Its final value does: taking `sample.child` observes that whole child,
+/// whereas reading `sample.child.value` may use the raw scalar during repair.
+fn scan_expression_use(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    tracked: &[TrackedPlace<'_>],
+    entry_established: &[String],
+    call_established: &[String],
+    inherited_windows: &[InvariantWindow],
+    consumes_value: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     if !expression.is_valid() {
         return;
+    }
+    if consumes_value && let Some(spelling) = write_place_spelling(program, expression) {
+        // Dynamic selectors overlap every possible element. A nominal value
+        // also consumes a covering window; a raw scalar projection does not.
+        let consumes_record =
+            data_definition_for_expression(program, machine, Some(state), expression).is_some();
+        let overlaps_consumed_value = |place: &str| {
+            place_spelling_covers(&spelling, place)
+                || (consumes_record && place_spelling_covers(place, &spelling))
+        };
+        if let Some(place) = tracked
+            .iter()
+            .find(|place| place.window_open && overlaps_consumed_value(&place.spelling))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
+                 window: a prior write left data `{}`'s default domain FALSE -- \
+                 restore the facts before copying or exposing the value (ch11)",
+                place.definition.name.as_str()
+            )));
+        } else if let Some((_, data_name, _)) = inherited_windows
+            .iter()
+            .find(|(place, _, _)| overlaps_consumed_value(place))
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "the next whole-value read of `{spelling}` occurs inside an OPEN invariant \
+                 window carried from a predecessor state for data `{data_name}`"
+            )));
+        }
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
-            if members.len() == 1
-                && members[0].is_self_receiver()
-                && let Some(definition) = machine.attached_data.as_ref().and_then(|attached| {
-                    program
-                        .data_definitions()
-                        .iter()
-                        .find(|definition| definition.name == *attached)
-                })
-                && let Some(place) = tracked
-                    .iter()
-                    .find(|place| is_self_receiver(&place.spelling))
-                && place.window_open
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "the next whole-value read of `self` occurs inside an OPEN invariant \
-                     window: a prior write left data `{}`'s default domain FALSE -- \
-                     restore the facts before copying or exposing the value (ch11)",
-                    definition.name.as_str()
-                )));
-            }
             if members.len() > 1 {
                 let receiver_spelling = members[..members.len() - 1]
                     .iter()
@@ -228,8 +266,15 @@ fn scan_expression_reads(
                     );
                 }
             }
-            if !is_bare_self_name(program, member.receiver) {
-                scan_expression_reads(
+            // A field projection does not also consume its whole root. The
+            // current raw scalar contents remain usable during a repair
+            // window; domain-relying reads are checked above. Computed
+            // receivers still need their ordinary expression walk.
+            if !matches!(
+                program.expression_table.expression(member.receiver),
+                ExpressionNode::Name(_)
+            ) {
+                scan_expression_use(
                     program,
                     machine,
                     state,
@@ -238,12 +283,13 @@ fn scan_expression_reads(
                     entry_established,
                     call_established,
                     inherited_windows,
+                    false,
                     diagnostics,
                 );
             }
         }
         ExpressionNode::Indexed(indexed) => {
-            scan_expression_reads(
+            scan_expression_use(
                 program,
                 machine,
                 state,
@@ -252,6 +298,7 @@ fn scan_expression_reads(
                 entry_established,
                 call_established,
                 inherited_windows,
+                false,
                 diagnostics,
             );
             scan_expression_reads(
@@ -483,14 +530,6 @@ fn scan_expression_reads(
     }
 }
 
-fn is_bare_self_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    let members = program.expression_table.name_path_members(path.members);
-    members.len() == 1 && members[0].is_self_receiver()
-}
-
 fn validate_data_read(
     program: &TypedTrees,
     machine: &Machine,
@@ -618,6 +657,7 @@ pub(crate) fn attached_value_established(
                         .find(|(name, _)| name == field.name.as_str())
                 })
                 .and_then(|(_, value)| *value)
+                .and_then(super::symbolic_values::LiteralValue::integer)
             else {
                 return false;
             };
@@ -675,6 +715,7 @@ pub(crate) fn range_gates_hold(program: &TypedTrees, place: &TrackedPlace<'_>) -
             .iter()
             .find(|(name, _)| name == field.name.as_str())
             .and_then(|(_, value)| *value)
+            .and_then(super::symbolic_values::LiteralValue::integer)
         else {
             return false;
         };

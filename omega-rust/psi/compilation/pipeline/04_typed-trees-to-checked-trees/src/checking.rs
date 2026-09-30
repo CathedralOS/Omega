@@ -7,6 +7,7 @@
 
 pub(crate) mod call_acknowledgements;
 mod deferred_constants;
+mod default_domain_zero;
 mod exact_input_memo;
 mod opaque_property_receipts;
 pub use exact_input_memo::{RepeatedCheckRetention, retain_repeated_checks};
@@ -290,6 +291,7 @@ fn lower_typed_trees_uncached(
     // Already-landed literals retain their format; this is not a default-f64
     // fallback or permission to reinterpret a typed argument.
     validation::land_float_literal_destinations(&mut program);
+    default_domain_zero::refine_default_domain_zero(&mut program);
     // The program is now frozen for checking: specialization and every
     // call-identity rebinding above mutate it, so the plan memo scope can only
     // open here — the first of the consumers below computes the program-pure
