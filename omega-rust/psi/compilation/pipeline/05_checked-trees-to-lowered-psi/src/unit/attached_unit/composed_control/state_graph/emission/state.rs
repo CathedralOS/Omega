@@ -1001,7 +1001,11 @@ impl StateGraphEmission<'_, '_> {
                             target: edge.target,
                             case: case.identity,
                             payload_fields: case.fields.clone(),
-                            trivial_affine_discards: vec![prepared.source],
+                            trivial_affine_discards: if prepared.discard_subject {
+                                vec![prepared.source]
+                            } else {
+                                Vec::new()
+                            },
                         })
                     })
                     .collect::<Result<Vec<_>, LoweringError>>()?;
