@@ -3186,7 +3186,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   (the resource `pass/filesystem/native_metadata_ino` exhausts on linux_x86_64,
   the only golden `incomplete` row) or `proof_obligation_identities`, and its
   code 28 limit (4,096) disagrees with the reference compiler's 16,384. `omega
-  run` still reports `Incomplete` as 200, and CLI argument errors also exit 2.
+  run` still reports `Incomplete` as 200.
   Complete production-path exhaustion controls beyond the existing helper-budget
   tests, retaining independent certificate verification.
 

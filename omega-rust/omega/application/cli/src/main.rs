@@ -29,7 +29,7 @@ fn main() -> ExitCode {
         Ok(invocation) => invocation,
         Err(error) => {
             eprintln!("{error}");
-            return ExitCode::from(2);
+            return ExitCode::from(arguments::USAGE_ERROR_EXIT);
         }
     };
 
