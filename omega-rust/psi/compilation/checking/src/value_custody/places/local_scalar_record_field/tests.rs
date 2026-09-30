@@ -15,6 +15,36 @@ fn fixture() -> (TypedTrees, SymbolHandle, SymbolHandle, ExpressionHandle) {
 }
 
 #[test]
+fn local_field_observes_nested_boolean_beside_array_and_sum_storage() {
+    let (program, machine, state, expression) = typed_source(
+        "data Token [copy] { position: u64; case Empty; case Full(value: u64); }
+         data Output { tokens: [Token; 2]; accepted: bool; }
+         data Parser { output: Output; bytes: [u8; 16]; }
+         machine observe() -> bool {
+             let mut parser: Parser;
+             parser.output.accepted
+         }",
+    );
+    let field = local_scalar_record_field(&program, machine, state, 1, expression)
+        .expect("scalar observation retains the established aggregate owner");
+    assert_eq!(field.path, ["output"]);
+    assert_eq!(field.primitive_type, super::PrimitiveType::Bool);
+}
+
+#[test]
+fn local_field_does_not_relax_linear_owner_custody_for_a_boolean_observation() {
+    let (program, machine, state, expression) = typed_source(
+        "data Claim [linear] { value: u64; }
+         data Record { claim: Claim; accepted: bool; }
+         machine observe(incoming: Record) -> bool {
+             let record: Record = incoming;
+             record.accepted
+         }",
+    );
+    assert!(local_scalar_record_field(&program, machine, state, 1, expression).is_none());
+}
+
+#[test]
 fn local_field_rejects_a_foreign_intermediate_declaration() {
     let (mut program, machine, state, expression) = typed_source(
         "data Child { value: u64; } data Other { child: Child; }

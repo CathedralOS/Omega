@@ -1191,6 +1191,7 @@ pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/local_after_call_result_store_exit checked 1446ms @2d8ed253669f
 pass/calls/local_array_direct_read_exit checked 1296ms @2d8ed253669f
 pass/calls/local_fixed_byte_array_loan_exit checked 2294ms @2d8ed253669f
+pass/calls/local_nested_record_call_then_state_exit checked 2608ms @e72f620f1da8+wt
 pass/calls/local_projected_field_argument_exit checked 1231ms @2d8ed253669f
 pass/calls/local_projected_field_record_result_argument_exit checked 1980ms @2d8ed253669f
 pass/calls/local_projected_field_scalar_result_argument_exit checked 1947ms @2d8ed253669f

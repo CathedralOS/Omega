@@ -5564,10 +5564,14 @@ is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
   Recheck `omega --check source/omega/main.omg` and
   `omega --check source/psi/gates/parser/main.omg`, then build/run
   `source/psi/test-parser.sh` with explicit freshly built `OMEGA_CLI` and
-  `OMEGA_TARGET`. At `1ed469454e5`, macOS probes reached a two-minute limit
-  without diagnostics;
-  the former `Parser::parse` scalar-store refusal is not a reproduced frontier.
-  Profile the unfinished checks before assigning a lowering repair.
+  `OMEGA_TARGET`. Both source checks currently reach `Parser::parse` and
+  omit its unit plan at state 7, `conditional successors: guard expression`.
+  Minimize the nested `Token::Keyword { keyword: KeywordKind::Data }`
+  guard in `source/psi/parse/parser.omg` before assigning its lowering repair.
+  Local mixed-aggregate construction, scalar guards beside array fields and
+  projected borrowed-root state transfers are covered by
+  `calls/local_nested_record_call_then_state_exit` (native and interpreted
+  exit 70); passing that fixture does not establish either compiler root.
   General realization belongs to **STATE-LOCAL-VALUE-FRONTIER**;
   **BORROWED-STORAGE-RESTORATION** and **CRASH-CONTRACT** retain their gaps.
   The copied-argument fixture is now
