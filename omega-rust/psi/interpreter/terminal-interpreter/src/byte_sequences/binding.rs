@@ -19,7 +19,6 @@ use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::StructuralTypeShape;
-use terminal_psi::TerminalMachineResult;
 #[derive(Clone)]
 pub(crate) enum ByteSequenceBinding {
     Immutable(ByteSequenceView),
@@ -210,45 +209,28 @@ impl TerminalExecution {
                 opaque_arguments.push(argument.clone());
             }
         }
-        let scalar_case_result = machine.result.structural().is_some_and(|result| {
-            matches!(
-                result.multiplicity,
-                StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-            ) && result.qualifications.is_empty()
-                && result.projected_qualifications.is_empty()
-                && self
-                    .program
-                    .structural_types
-                    .get(&result.structural_type)
-                    .is_some_and(|declaration| {
-                        matches!(&declaration.shape, StructuralTypeShape::Sum { cases }
-                        if cases.iter().all(|case| case.fields.iter().all(|field|
-                            field.relevance == terminal_psi::BindingRelevance::Relevant
-                                && field.field_type.scalar_type().is_some())))
-                    })
-        });
         if opaque_parameters
             .iter()
             .zip(&opaque_arguments)
             .any(|(parameter, _argument)| {
-                (parameter.access == StructuralAccess::SharedBorrow
-                    || (matches!(
-                        parameter.access,
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-                    ) && (machine.result == TerminalMachineResult::Unit || scalar_case_result)))
-                    && self
-                        .program
-                        .structural_types
-                        .get(&parameter.structural_type)
-                        .is_some_and(|declaration| {
-                            declaration.shape.is_borrowed_byte_carrier()
-                                || matches!(
-                                    declaration.shape,
-                                    StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                                    )
+                matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
+                ) && self
+                    .program
+                    .structural_types
+                    .get(&parameter.structural_type)
+                    .is_some_and(|declaration| {
+                        declaration.shape.is_borrowed_byte_carrier()
+                            || matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                                 )
-                        })
+                            )
+                    })
             })
         {
             // Share only exact referent preparation. External buffer staging and

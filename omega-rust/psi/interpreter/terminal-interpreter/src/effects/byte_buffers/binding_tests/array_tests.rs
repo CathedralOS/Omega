@@ -323,6 +323,31 @@ fn fixed_byte_windows_forward_the_visible_extent_and_write_original_backing() {
             expected[start as usize] = 65;
         }
         assert_eq!(execution.structural_byte_array(101, &[]).unwrap(), expected);
+        // Primitive stores generated for static array indexing must use the
+        // same forwarded window as byte-sequence writes, including its bound.
+        execution.values.insert(value, scalar(8, 66));
+        for selected in [0, end - start, u64::MAX] {
+            let path = vec![StructuralPathSegment::FixedIndex(selected)];
+            let operation = Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: OperationId::new(2).unwrap(),
+                result: OperationResult::Unit,
+                kind: OperationKind::WriteOnlyPrimitiveStore {
+                    destination: place(3),
+                    value,
+                    path: path.clone(),
+                },
+            };
+            let stored = execution.execute_primitive_store(&operation, place(3), value, &path);
+            if selected < end - start {
+                stored.unwrap();
+                expected[(start + selected) as usize] = 66;
+            } else {
+                assert!(stored.is_err());
+            }
+            assert_eq!(execution.structural_byte_array(101, &[]).unwrap(), expected);
+        }
         assert_eq!(
             execution
                 .resume(

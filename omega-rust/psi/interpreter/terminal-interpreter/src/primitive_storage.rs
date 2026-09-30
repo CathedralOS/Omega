@@ -131,6 +131,53 @@ impl TerminalExecution {
                     .map(|result| result.structural_type)
             })
             .ok_or_else(invalid)?;
+        // Array loans are presented to callees as bounded byte views. Their
+        // indices are relative to the loan window, not a second scalar store.
+        if let Some(
+            binding @ crate::byte_sequences::binding::ByteSequenceBinding::MutableArray {
+                array,
+                array_type,
+                offset,
+                length,
+                ..
+            },
+        ) = self.byte_sequence_values.get(&place)
+        {
+            let value = self.structural_values.get(&place).ok_or_else(invalid)?;
+            binding.validate_mutable_referent(&self.program.structural_types, value)?;
+            let [StructuralPathSegment::FixedIndex(index)] = path else {
+                return Err(invalid());
+            };
+            let scalar_type = terminal_semantics::primitive_projection_type(
+                self.program.structural_types.values(),
+                structural_type,
+                path,
+            )
+            .ok_or_else(invalid)?;
+            let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).map_err(|_| invalid())?;
+            let extent = crate::structural_inputs::byte_arrays::byte_array_length(
+                &self.program.structural_types,
+                *array_type,
+            )
+            .ok_or_else(invalid)?;
+            let bytes = self.structural_byte_arrays.get(array).ok_or_else(invalid)?;
+            if value.structural_type != structural_type
+                || scalar_type != ScalarType::Integer(byte_type)
+                || *index >= *length
+                || bytes.len() as u128 != u128::from(extent)
+            {
+                return Err(invalid());
+            }
+            let index = usize::try_from(offset.checked_add(*index).ok_or_else(invalid)?)
+                .map_err(|_| invalid())?;
+            return Ok((
+                PrimitiveStorage::ArrayElement {
+                    array: array.clone(),
+                    index,
+                },
+                scalar_type,
+            ));
+        }
         let path = terminal_semantics::canonical_primitive_path(
             self.program.structural_types.values(),
             structural_type,

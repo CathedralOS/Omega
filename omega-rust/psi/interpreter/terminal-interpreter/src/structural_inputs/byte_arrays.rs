@@ -56,7 +56,7 @@ pub(crate) fn byte_array_length(
         .then_some(length)
 }
 
-fn array_path_type(
+pub(crate) fn array_path_type(
     types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -264,25 +264,63 @@ impl TerminalExecution {
         let Some(length) = byte_array_length(&self.program.structural_types, array_type) else {
             return Ok(None);
         };
-        let source = self
+        let machine = self
             .program
             .machines
             .get(&self.current_machine)
-            .ok_or_else(invalid)?
+            .ok_or_else(invalid)?;
+        let source = machine
             .structural_parameters
             .iter()
             .chain(
-                self.program
-                    .machines
-                    .get(&self.current_machine)
-                    .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
-                        self.current_machine,
-                    ))?
+                machine
                     .blocks
                     .values()
                     .flat_map(|block| &block.structural_parameters),
             )
             .find(|source| source.place == argument.place)
+            .cloned()
+            .or_else(|| {
+                // An initialized local owns its backing. Recover that fact from
+                // its checked producer, never from the requested argument access.
+                let place = machine
+                    .structural_places
+                    .iter()
+                    .find(|place| place.id == argument.place)?;
+                let semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                } = place.kind
+                else {
+                    return None;
+                };
+                let result = machine
+                    .blocks
+                    .values()
+                    .flat_map(|block| &block.operations)
+                    .find(|operation| operation.id == producer)?
+                    .result
+                    .structural()?;
+                if result.place != argument.place
+                    || result.structural_type != structural_type
+                    || result.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !result.claims.is_empty()
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                {
+                    return None;
+                }
+                Some(StructuralParameterDeclaration {
+                    place: result.place,
+                    position: 0,
+                    is_self: false,
+                    structural_type,
+                    multiplicity: result.multiplicity,
+                    access: StructuralAccess::MutableBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                })
+            })
             .ok_or_else(invalid)?;
         if source.multiplicity != StructuralMultiplicity::Unrestricted
             || source.structural_type != root.structural_type
@@ -293,7 +331,7 @@ impl TerminalExecution {
         }
         let window = terminal_semantics::fixed_byte_array_window(
             self.program.structural_types.values(),
-            source,
+            &source,
             argument,
             parameter,
         )

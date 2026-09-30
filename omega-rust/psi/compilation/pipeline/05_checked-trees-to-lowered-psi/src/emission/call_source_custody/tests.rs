@@ -19,6 +19,71 @@ use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 #[test]
+fn record_returning_static_call_updates_local_scratch() {
+    let checked = checked_binding_context(
+        "pub boundary trait Host { machine mark(value: u64); machine byte(value: u8); }
+         data FillReport [copy] { value: u64; }
+         machine fill(bytes: &mut [u8; 4]) -> FillReport {
+             bytes[0] = 7;
+             FillReport { value: 9 }
+         }
+         machine run() reaches Host {
+             let mut bytes: [u8; 4];
+             let report: FillReport = fill(&mut bytes);
+             Host::mark(report.value);
+             Host::byte(bytes[0]);
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("record-returning call borrows local scratch");
+    #[derive(Default)]
+    struct Observations(Vec<u128>);
+    impl terminal_interpreter::TerminalEffectHandler for Observations {
+        fn handle_effect(
+            &mut self,
+            effect: &terminal_interpreter::TerminalEffect,
+        ) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+            let terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. } = effect
+            else {
+                panic!("expected observation: {effect:?}");
+            };
+            let [
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                    ..
+                },
+            ] = arguments.as_slice()
+            else {
+                panic!("expected unsigned observation: {arguments:?}");
+            };
+            self.0.push(*value);
+            Ok(())
+        }
+    }
+    let mut observations = Observations::default();
+    let result = terminal_interpreter::interpret_terminal_artifact_measured(
+        &terminal_codec::encode_module(&lowered.semantic_module).expect("encode module"),
+        &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof"),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        terminal_interpreter::TerminalStructuralInputs::default(),
+        &mut observations,
+    )
+    .unwrap_or_else(|error| {
+        panic!(
+            "verified local-buffer execution failed: {error:?}; observed {:?}",
+            observations.0
+        )
+    });
+    assert_eq!(
+        result.value(),
+        terminal_interpreter::TerminalExecutionResult::Unit
+    );
+    assert_eq!(observations.0, [9, 7]);
+}
+
+#[test]
 fn copy_local_call_argument_survives_state_graph() {
     let checked = checked_binding_context(
         "data Value [copy] { count: u32; }
