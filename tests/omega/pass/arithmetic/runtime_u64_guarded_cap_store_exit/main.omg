@@ -4,16 +4,18 @@
 // range where the type fact alone (now the true [0, u64::MAX]) cannot.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main where 0 <= capped, capped <= 9223372036854775807 { console: Binding<Console>; raw: u64; capped: u64; }
-machine Main::main(&mut self) reaches Console
+data Values where 0 <= capped, capped <= 9223372036854775807 { raw: u64; capped: u64; }
+data Main { console: Binding<Console>; }
+machine Main::main(context: &mut Main) reaches Console
 {
-    self.raw = 42;
-    transition self.raw <= 9223372036854775807 { true -> store() _ -> bad() }
-    state store(&mut self)
+    let mut values: Values;
+    values.raw = 42;
+    transition values.raw <= 9223372036854775807 { true -> store(context, &mut values) _ -> bad(context) }
+    state store(context: &mut Main, values: &mut Values)
     {
-        self.capped = self.raw;
-        self.console.exit_process(70);
+        values.capped = values.raw;
+        context.console.exit_process(70);
     }
-    state bad(&mut self)
-    { self.console.exit_process(71); }
+    state bad(context: &mut Main)
+    { context.console.exit_process(71); }
 }

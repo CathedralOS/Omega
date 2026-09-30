@@ -8,7 +8,98 @@ use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, PrimitiveJudgment, ProofNode, ProofRule,
     ProofSystemMarker,
 };
+use terminal_psi::{
+    Block, Operation, OperationResult, SuccessorEdge, Terminator, ValueDeclaration,
+};
 use terminal_verifier::{ObligationEvidence, ProofBundle, verify_module};
+
+#[test]
+fn bounded_store_alone_reconstructs_only_its_selected_edge_guard() {
+    for store_on_true in [true, false] {
+        let mut module = fixture(StructuralAccess::MutableBorrow);
+        let machine = &mut module.machines[0];
+        machine.parameters.push(ValueDeclaration {
+            qualifications: Default::default(),
+            id: id(1),
+            scalar_type: integer_type(),
+        });
+        let store = machine.blocks[0].operations.pop().unwrap();
+        let limit = &mut machine.blocks[0].operations[0];
+        limit.result.scalar_mut().unwrap().id = id(2);
+        limit.kind = OperationKind::IntegerConstant {
+            value: IntegerValue::Signed(100),
+        };
+        machine.blocks[0].operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: id(3),
+            result: OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: id(3),
+                scalar_type: ScalarType::Boolean,
+            }),
+            kind: OperationKind::IntegerLessOrEqual {
+                left: id(1),
+                right: id(2),
+            },
+        });
+        let successor = |edge, target| SuccessorEdge {
+            edge: id(edge),
+            target: id(target),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        };
+        machine.blocks[0].terminator = Terminator::Conditional {
+            condition: id(3),
+            when_true: successor(1, if store_on_true { 2 } else { 3 }),
+            when_false: successor(2, if store_on_true { 3 } else { 2 }),
+        };
+        for (block, operations) in [(2, vec![store]), (3, Vec::new())] {
+            machine.blocks.push(Block {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                id: id(block),
+                parameters: Vec::new(),
+                operations,
+                terminator: Terminator::ReturnUnit {
+                    edge: id(block + 1),
+                    trivial_affine_discards: Vec::new(),
+                },
+            });
+        }
+        let obligations = reconstruct_operation_obligations(&module).unwrap();
+        assert_eq!(obligations.len(), 1);
+        let ScalarType::Integer(integer) = integer_type() else {
+            panic!("integer");
+        };
+        let limit = ScalarTerm::integer(integer, IntegerValue::Signed(100)).unwrap();
+        let guard =
+            Proposition::LessOrEqual(ScalarTerm::value(id(1), integer_type()), limit.clone());
+        assert_eq!(
+            obligations[0].semantic_axioms.contains(&guard),
+            store_on_true
+        );
+        let opposite = Proposition::LessThan(limit, ScalarTerm::value(id(1), integer_type()));
+        assert_eq!(
+            obligations[0].semantic_axioms.contains(&opposite),
+            !store_on_true
+        );
+        // Selecting an edge only supplies its actual predicate, never proof
+        // authority for the unrelated lower endpoint of the bounded field.
+        assert!(
+            verify_module(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default()
+            )
+            .is_err()
+        );
+    }
+}
 
 fn fixture(access: StructuralAccess) -> TerminalModule {
     let mut module = structural_scalar_field_module();

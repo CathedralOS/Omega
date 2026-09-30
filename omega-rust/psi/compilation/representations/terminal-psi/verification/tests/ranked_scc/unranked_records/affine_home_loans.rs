@@ -184,6 +184,79 @@ fn affine_home_cannot_escape_final_disposal() {
     );
 }
 
+fn dispose_after_last_loan() -> TerminalModule {
+    let mut module = module();
+    let machine = &mut module.machines[0];
+    machine.blocks[2].terminator = Terminator::Jump {
+        edge: id(14, EdgeId::new),
+        target: id(6, BlockId::new),
+        arguments: Vec::new(),
+        structural_arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        residual_affine_discards: Vec::new(),
+        trivial_affine_discards: vec![id(5, PlaceId::new)],
+    };
+    machine.blocks.push(Block {
+        id: id(6, BlockId::new),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        operations: Vec::new(),
+        terminator: Terminator::ReturnUnit {
+            edge: id(15, EdgeId::new),
+            trivial_affine_discards: Vec::new(),
+        },
+    });
+    module
+}
+
+#[test]
+fn affine_home_can_be_disposed_when_leaving_its_last_loan() {
+    let module = dispose_after_last_loan();
+    validate_module(&module).expect("the successor retains no loan of the disposed home");
+    verify_module_for_optimization(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("ending the loan and disposing its home leaves no outstanding custody");
+}
+
+#[test]
+fn disposed_home_cannot_be_read_through_a_dominating_name() {
+    for place in [5, 7] {
+        let mut module = dispose_after_last_loan();
+        module.machines[0].blocks[3]
+            .operations
+            .push(read(24, place, 23));
+        assert!(
+            validate_module(&module).is_err(),
+            "disposed storage cannot be observed through place {place}"
+        );
+    }
+}
+
+#[test]
+fn disposed_home_cannot_be_reborrowed_through_a_dominating_name() {
+    let mut module = dispose_after_last_loan();
+    module.machines[0].blocks[3].terminator = Terminator::Jump {
+        edge: id(15, EdgeId::new),
+        target: id(1, BlockId::new),
+        arguments: Vec::new(),
+        structural_arguments: vec![argument(7, StructuralAccess::MutableBorrow)],
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        residual_affine_discards: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    assert!(
+        validate_module(&module).is_err(),
+        "an old loan cannot resurrect disposed backing on a later edge"
+    );
+}
+
 #[test]
 fn affine_home_cannot_be_disposed_on_its_loan_edge() {
     let mut module = module();

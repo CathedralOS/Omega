@@ -360,6 +360,40 @@ fn a_local_record_lends_an_exact_field_subtree_to_a_unit_call() {
 }
 
 #[test]
+fn zeroed_local_record_checks_bounded_fields_before_lending() {
+    use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
+
+    for (minimum, maximum, accepted) in
+        [(-2, 0, true), (0, 3, true), (1, 3, false), (-2, -1, false)]
+    {
+        let access = StructuralAccess::MutableBorrow;
+        let mut module = local_loan_module(vec![loan(&["top"], access)], &[access]);
+        let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape else {
+            panic!("Banner must remain a record");
+        };
+        fields[0].field_type = StructuralFieldType::BoundedInteger(
+            BoundedIntegerType::new(
+                IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                IntegerValue::Signed(minimum),
+                IntegerValue::Signed(maximum),
+            )
+            .unwrap(),
+        );
+        if accepted {
+            assert!(verified(&module), "zero lies in {minimum}..={maximum}");
+        } else {
+            assert!(
+                matches!(
+                    validate_module(&module),
+                    Err(ModuleError::ZeroedStructuralResultMismatch(_))
+                ),
+                "zero must not establish {minimum}..={maximum}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_local_record_loan_replays_source_path_liveness_and_overlap() {
     let exclusive = StructuralAccess::MutableBorrow;
 

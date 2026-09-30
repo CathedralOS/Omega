@@ -106,7 +106,11 @@ pub(crate) fn aliases(
     }
 }
 
-fn same_storage(aliases: &BorrowedRecordOrigins, first: PlaceId, second: PlaceId) -> bool {
+pub(super) fn same_storage(
+    aliases: &BorrowedRecordOrigins,
+    first: PlaceId,
+    second: PlaceId,
+) -> bool {
     // Distinct machine parameters retain the disjointness their caller
     // independently proves. Intermediate aliases remain in the sets so every
     // spelled descriptor and block binding shares its original whole root.
@@ -279,37 +283,39 @@ pub(crate) fn validate_terminator(
         }
         Ok(())
     };
-    let backing_home = |place| {
+    let backing_home = |place, arguments: &[terminal_psi::StructuralArgument]| {
         owned_home(module, machine, place).is_some()
-            && machine
-                .blocks
+            && arguments
                 .iter()
-                .flat_map(|block| &block.structural_parameters)
-                .any(|parameter| {
-                    parameter_type(module, parameter)
-                        && same_storage(aliases, place, parameter.place)
+                .any(|argument| same_storage(aliases, place, argument.place))
+    };
+    // Past loans do not forbid disposal. A loan carried on this edge still
+    // needs its home; later uses of old names are checked by edge availability.
+    let reject_cleanup =
+        |edge, arguments: &[terminal_psi::StructuralArgument], discards: &[PlaceId]| {
+            if let Some(place) = discards
+                .iter()
+                .find(|place| backing_home(**place, arguments))
+            {
+                Err(ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: *place,
                 })
-    };
-    let reject_cleanup = |edge, discards: &[PlaceId]| {
-        if let Some(place) = discards.iter().find(|place| backing_home(**place)) {
-            Err(ModuleError::InvalidStructuralSuccessorArgument {
-                edge,
-                place: *place,
-            })
-        } else {
-            Ok(())
-        }
-    };
+            } else {
+                Ok(())
+            }
+        };
     match &block.terminator {
         Terminator::Jump {
             edge,
+            structural_arguments,
             trivial_affine_discards,
             residual_affine_discards,
             ..
         } => {
-            reject_cleanup(*edge, trivial_affine_discards)?;
+            reject_cleanup(*edge, structural_arguments, trivial_affine_discards)?;
             for discard in residual_affine_discards {
-                reject_cleanup(*edge, &[discard.place])?;
+                reject_cleanup(*edge, structural_arguments, &[discard.place])?;
             }
         }
         Terminator::Conditional {
@@ -318,12 +324,16 @@ pub(crate) fn validate_terminator(
             ..
         } => {
             for arm in [when_true, when_false] {
-                reject_cleanup(arm.edge, &arm.trivial_affine_discards)?;
+                reject_cleanup(
+                    arm.edge,
+                    &arm.structural_arguments,
+                    &arm.trivial_affine_discards,
+                )?;
             }
         }
         Terminator::StructuralCase { cases, .. } => {
             for arm in cases {
-                reject_cleanup(arm.edge, &arm.trivial_affine_discards)?;
+                reject_cleanup(arm.edge, &[], &arm.trivial_affine_discards)?;
             }
         }
         _ => {}

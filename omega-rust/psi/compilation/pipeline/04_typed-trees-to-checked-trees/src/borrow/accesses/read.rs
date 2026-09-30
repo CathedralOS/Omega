@@ -1,5 +1,4 @@
 use crate::borrow::accesses::BorrowAccessCollection;
-use checked_trees::BorrowAccessKind;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn collect_read_accesses(
@@ -10,6 +9,8 @@ pub(super) fn collect_read_accesses(
         ExpressionNode::Match(dispatch) => {
             collect_read_accesses(collection, dispatch.subject);
             // This is a may-read summary, not an execution or move schedule.
+            // Each arm retains result loans; only copied reads and loans
+            // internal to a completed nested call expire within that arm.
             for arm in collection
                 .program
                 .expression_table
@@ -44,6 +45,7 @@ pub(super) fn collect_read_accesses(
             collect_read_accesses(collection, binary.right);
         }
         ExpressionNode::Call(call) => {
+            let first_access = collection.access_count();
             // Static qualification selects a declaration, not a runtime place.
             // Keep real receivers and every actual in evaluation order; the
             // resolved target determines whether a qualifier is only lexical.
@@ -65,6 +67,7 @@ pub(super) fn collect_read_accesses(
                 .unwrap_or(false);
             if call.receiver.is_valid() && !no_runtime_receiver {
                 collect_read_accesses(collection, call.receiver);
+                collection.retain_receiver_accesses(first_access);
             }
 
             for argument in collection
@@ -74,6 +77,7 @@ pub(super) fn collect_read_accesses(
             {
                 collect_read_accesses(collection, *argument);
             }
+            collection.finish_nested_call(first_access, expression);
         }
         ExpressionNode::Cast(cast) => collect_read_accesses(collection, cast.value),
         ExpressionNode::Indexed(indexed) => {
@@ -93,9 +97,7 @@ pub(super) fn collect_read_accesses(
         ExpressionNode::Name(_) => {
             append_read_access(collection, expression);
         }
-        ExpressionNode::Borrow(inner_expression) => {
-            collect_read_accesses(collection, inner_expression.target)
-        }
+        ExpressionNode::Borrow(_) => super::collect_argument_accesses(collection, expression),
         ExpressionNode::Unary(unary) => collect_read_accesses(collection, unary.operand),
         ExpressionNode::StructLiteral(struct_literal) => {
             for field in collection
@@ -123,6 +125,6 @@ fn append_read_access(
         return false;
     };
 
-    collection.append_argument_access(access_place, BorrowAccessKind::Read);
+    collection.append_read_access(access_place, expression);
     true
 }

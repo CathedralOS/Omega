@@ -1027,20 +1027,27 @@ fn rejoin_computation_accesses(
     if expected.len() != actual.len() {
         return None;
     }
-    for (expected, actual) in expected.iter().zip(actual) {
+    for (access_ordinal, (expected, actual)) in expected.iter().zip(actual).enumerate() {
         if expected.root_symbol != actual.root_symbol
             || expected.kind != actual.kind
+            || expected.end_before_access != actual.end_before_access
             || expected_segments.span(expected.segments)?
                 != borrow.access_segments.span(actual.segments)?
         {
             return None;
         }
         if actual.kind.is_exclusive()
+            && actual.end_before_access.is_none()
             && borrow
                 .argument_accesses
                 .span(call.accesses)?
                 .iter()
-                .filter(|candidate| candidate.root_symbol == actual.root_symbol)
+                .filter(|candidate| {
+                    candidate.root_symbol == actual.root_symbol
+                        && !candidate
+                            .end_before_access
+                            .is_some_and(|end| end <= access_ordinal)
+                })
                 .count()
                 != 1
         {

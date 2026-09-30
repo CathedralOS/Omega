@@ -1,6 +1,52 @@
 use crate::tests::front_end::checked_program_result;
 mod widening;
 
+#[test]
+fn guarded_update_bounds_preserve_existing_arrival_precision() {
+    let source = "machine advance(input: i32, choose: bool)
+        requires input >= 5 && input <= 10 {
+            transition choose {
+                true -> consume(input + 1)
+                _ -> done()
+            }
+            state consume(value: i32) requires value >= 6 && value <= 11 {}
+            state done() {}
+        }";
+    checked(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+}
+
+#[test]
+fn guarded_local_record_scalar_argument_composes_before_mutable_loan() {
+    let source = "data Counter where 0 <= count, count <= 100, { count: i32; }
+        machine advance() {
+            let mut counter: Counter;
+            transition counter.count < 100 {
+                true -> consume(counter.count + 1, &mut counter)
+                _ -> done()
+            }
+            state consume(value: i32, counter: &mut Counter)
+                requires 0 <= value && value <= 100 {}
+            state done() {}
+        }";
+    checked(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    assert_call_requirement_rejected(&source.replace("count < 100", "count <= 100"));
+    assert_call_requirement_rejected(&source.replace("count + 1", "count + 2"));
+}
+
+#[test]
+fn guarded_update_bounds_do_not_reinterpret_wrapping_arithmetic() {
+    assert_call_requirement_rejected(
+        "machine advance(input: u8 in Wrapping) {
+            transition input <= 255 {
+                true -> consume(input + 1)
+                _ -> done()
+            }
+            state consume(value: u8 in Wrapping) requires value >= 1 {}
+            state done() {}
+        }",
+    );
+}
+
 fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
     checked_program_result(source)
 }

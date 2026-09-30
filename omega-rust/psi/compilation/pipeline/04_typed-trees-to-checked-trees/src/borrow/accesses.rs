@@ -2,8 +2,10 @@
 //! appends one `BorrowArgumentAccessFact` per accessed place and returns the
 //! call's span of them: a `&`, `&mut` or `&write` argument records a read,
 //! mutable or write-only access to its borrowed place, and any other argument
-//! records a read access for each place it reads (`read`). `borrow::calls`
-//! calls it while building borrow facts, and `checks::borrows::calls::receiver`
+//! records a read access for each place it reads (`read`).
+//! Retained rows also distinguish copied observations and nested-call loans
+//! that finish during operand evaluation from loans held through invocation.
+//! `borrow::calls` calls it while building borrow facts, and `checks::borrows::calls::receiver`
 //! calls it into scratch arenas for the operand that follows an exclusive
 //! operation's receiver.
 //!
