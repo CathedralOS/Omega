@@ -119,6 +119,9 @@ pub(super) fn ineligibility(
                                 ) || matches!(
                                     declaration.shape,
                                     StructuralTypeShape::ElementView { .. }
+                                ) || matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::PrimitiveScalar(_)
                                 ))
                         }))))
     }) {
@@ -764,12 +767,20 @@ fn cycle_operation_eligible(
                     == Ok(result.scalar_type)
             })
         }
+        // A whole-root write through a borrowed primitive-scalar parameter
+        // mutates caller-owned storage, like a byte-sequence write through
+        // `&mut [u8]`: no result custody exists and the referent never joins
+        // the machine's own frontier, so every arrival presents the identical
+        // anchor. `store_type` retains the full destination checks — a
+        // non-scalar or non-writable parameter still declines there — while a
+        // locally-established scalar keeps the existing admission.
         OperationKind::WriteOnlyPrimitiveStore {
             destination, path, ..
         } => {
             operation.result == OperationResult::Unit
                 && (primitive_storage::local_result(machine, *destination).is_some()
-                    || !path.is_empty())
+                    || !path.is_empty()
+                    || primitive_storage::parameter_type(machine, *destination, true).is_some())
                 && primitive_storage::store_type(module, machine, operation.id, *destination, path)
                     .is_ok()
         }
