@@ -509,6 +509,27 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
+        // A boundary operator application (`CheckedMath::offset_zero(70)`,
+        // `I8::from_f32(x)`, a policy cast bound to its conversion) or a
+        // spelled float operation bound to its bodyless `Float` requirement
+        // runs the realization checked Psi selects for that exact
+        // requirement. The requirement owns no executable state, so it
+        // resolves here by identity before any spelling-keyed route below
+        // could claim its leaf.
+        if let Some(value) = self.try_operator_application(
+            call.target_symbol,
+            handle,
+            self.program
+                .expression_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            if self.guard_depth > 0 {
+                frame.record_guard_call_result(handle, &value);
+            }
+            return Ok(value);
+        }
+
         let target = call.target.as_str();
         // Build facets act on invocation-owned values, never declaration
         // namespaces. Probing storage for a qualified user `read`/`resolve`
