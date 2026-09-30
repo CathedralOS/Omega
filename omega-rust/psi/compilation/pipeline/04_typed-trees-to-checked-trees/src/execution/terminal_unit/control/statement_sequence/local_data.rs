@@ -693,6 +693,13 @@ fn exclusive_place_loan_referent(
     if !parameter_root && !local_root {
         return None;
     }
+    if recast {
+        // The §5b judgment already proved operand and referent compatible,
+        // and the local plans no operation: the checked segment walk only
+        // serves the non-recast referent comparison below, so a selector it
+        // cannot resolve no longer fences the loan.
+        return Some(());
+    }
     let (storage, _) = crate::execution::terminal_unit::calls::projected_borrowed_path(
         program,
         machine,
@@ -700,9 +707,6 @@ fn exclusive_place_loan_referent(
         statement,
         &place,
     )?;
-    if recast {
-        return Some(());
-    }
     (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
         .then_some(())
 }
@@ -793,6 +797,13 @@ fn shared_place_loan_referent(
     if !parameter_root && !local_root {
         return None;
     }
+    if recast {
+        // The §5b judgment already proved operand and referent compatible,
+        // and the local plans no operation: the checked segment walk only
+        // serves the non-recast referent comparison below, so a selector it
+        // cannot resolve no longer fences the loan.
+        return Some(());
+    }
     let (storage, _) = crate::execution::terminal_unit::calls::projected_borrowed_path(
         program,
         machine,
@@ -800,9 +811,6 @@ fn shared_place_loan_referent(
         statement,
         &place,
     )?;
-    if recast {
-        return Some(());
-    }
     (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
         .then_some(())
 }
