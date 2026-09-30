@@ -75,6 +75,9 @@ pub(crate) fn build(
         }
         attachment = Some(state_attachment);
     }
+    // Dynamic dispatch needs an attached caller: only an authored receiver
+    // retains that attachment.
+    let attachment = attachment.flatten();
     if attachment.as_deref() != Some(dynamic.caller_attachment_type_identity.as_str()) {
         return None;
     }

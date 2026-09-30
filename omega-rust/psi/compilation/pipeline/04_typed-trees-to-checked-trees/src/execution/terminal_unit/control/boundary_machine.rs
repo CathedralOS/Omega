@@ -1,8 +1,8 @@
 //! Building boundary machines and their static boundary requirements.
 
 use crate::execution::terminal_unit::calls::{
-    exact_external_leaf_boundary_requirement, free_structural_scalar_signature,
-    structural_scalar_signature,
+    boundary_owner_scalar_signature, exact_external_leaf_boundary_requirement,
+    free_structural_scalar_signature,
 };
 use crate::execution::terminal_unit::types::{
     ShapeCollector, boundary_domain_requirements, fold_authorized_result_domains, is_unit,
@@ -60,7 +60,7 @@ pub(crate) fn build_boundary_machine(
             (None, structural, scalar)
         } else {
             let (attachment, structural, scalar) =
-                structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+                boundary_owner_scalar_signature(program, shapes, machine, state, &binders)?;
             (Some(attachment), structural, scalar)
         };
     let domain_requirements = boundary_domain_requirements(

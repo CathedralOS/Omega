@@ -12,10 +12,11 @@ use super::super::{
 use super::{
     CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, LoweringError, ServiceId, ServiceReachId,
     StructuralTypeId, argument_evaluation, checked_requirements, content_conservation,
-    lookup_type_id, terminal_scalar_type, unsupported, validate_boundary_scalar_return,
+    terminal_scalar_type, unsupported, validate_boundary_scalar_return,
 };
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::terminal_identities::lookup_attachment_type_id;
 
 pub(crate) struct BoundaryScalarReturnCatalogs<'a> {
     pub(crate) structural_types: &'a [StructuralTypeDeclaration],
@@ -329,7 +330,7 @@ pub(crate) fn emit_boundary_scalar_return(
             service_ids,
         )?,
         id: identities.machine,
-        attachment: Some(lookup_type_id(type_ids, &plan.attachment_type_identity)?),
+        attachment: lookup_attachment_type_id(type_ids, plan.attachment_type_identity.as_deref())?,
         parameters: scalar_parameters.clone(),
         structural_parameters: parameters.clone(),
         ranked_scc: None,

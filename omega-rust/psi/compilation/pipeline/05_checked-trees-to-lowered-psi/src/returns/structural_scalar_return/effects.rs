@@ -152,7 +152,9 @@ pub(super) fn validate(
     {
         return unsupported("primitive store return has unsupported authored or checked contracts");
     }
-    if machine.attached_data.is_none() != plan.attachment_type_identity.is_none() {
+    // Only an authored receiver retains its qualified owner as attachment
+    // storage; qualification alone contributes none.
+    if checked.machine_has_receiver(machine) != plan.attachment_type_identity.is_some() {
         return unsupported("primitive store return attachment differs from its authored owner");
     }
     if let Some(identity) = &plan.attachment_type_identity {

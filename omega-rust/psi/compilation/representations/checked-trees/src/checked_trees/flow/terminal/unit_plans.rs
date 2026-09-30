@@ -74,7 +74,7 @@ impl<'a> CheckedUnitPlan<'a> {
             Self::NominalAffineCleanup(plan) => plan.machine.attachment_type_identity.as_deref(),
             Self::PartialAffineCleanup(plan) => plan.machine.attachment_type_identity.as_deref(),
             Self::ComposedControl(plan) => plan.attachment_type_identity.as_deref(),
-            Self::StructuralControl(plan) => Some(&plan.attachment_type_identity),
+            Self::StructuralControl(plan) => plan.attachment_type_identity.as_deref(),
         }
     }
 
@@ -134,10 +134,13 @@ mod tests {
         CheckedStructuralUnitControlMachinePlan, CheckedTerminalSignatureEligibility,
     };
 
-    fn structural_control(machine: SymbolHandle) -> CheckedStructuralUnitControlMachinePlan {
+    fn structural_control(
+        machine: SymbolHandle,
+        attachment_type_identity: Option<&str>,
+    ) -> CheckedStructuralUnitControlMachinePlan {
         CheckedStructuralUnitControlMachinePlan {
             machine,
-            attachment_type_identity: "Owner".to_owned(),
+            attachment_type_identity: attachment_type_identity.map(str::to_owned),
             states: Vec::new(),
             ranked_scc: None,
         }
@@ -149,7 +152,7 @@ mod tests {
         let mut flow = FlowFacts::default();
         flow.terminal_structural_unit_controls
             .machines
-            .push(structural_control(machine));
+            .push(structural_control(machine, Some("Owner")));
 
         let plan = CheckedUnitPlan::for_machine(&flow, machine).expect("plan");
         assert!(matches!(plan, CheckedUnitPlan::StructuralControl(_)));
@@ -163,5 +166,22 @@ mod tests {
             CheckedUnitPlan::for_machine(&flow, SymbolHandle::from_arena_index(2)),
             None
         );
+    }
+
+    /// A qualified static machine retains no attachment, so its control plan
+    /// lowers only under a free selection.
+    #[test]
+    fn a_receiver_free_control_plan_admits_only_free_signatures() {
+        let machine = SymbolHandle::from_arena_index(1);
+        let mut flow = FlowFacts::default();
+        flow.terminal_structural_unit_controls
+            .machines
+            .push(structural_control(machine, None));
+
+        let plan = CheckedUnitPlan::for_machine(&flow, machine).expect("plan");
+        assert_eq!(plan.attachment_type_identity(), None);
+        assert!(!plan.admits_signature(CheckedTerminalSignatureEligibility::Attached));
+        assert!(plan.admits_signature(CheckedTerminalSignatureEligibility::Eligible));
+        assert!(plan.admits_signature(CheckedTerminalSignatureEligibility::FreeUnitEffect));
     }
 }

@@ -23,6 +23,7 @@ use super::{
     unsupported,
 };
 use crate::direct_calls::{DirectCall, DirectCallResult};
+use crate::terminal_identities::lookup_attachment_type_id;
 use crate::unit::attached_unit::shared_closure::ExternalUnitRoots;
 use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
 
@@ -59,13 +60,14 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
         return unsupported("guarded payloadless callee does not lower as one closure machine");
     }
     let result_type = lookup_type_id(&closure.type_ids, &plan.result.type_identity)?;
-    let attachment = lookup_type_id(&closure.type_ids, &plan.attachment_type_identity)?;
+    let attachment =
+        lookup_attachment_type_id(&closure.type_ids, plan.attachment_type_identity.as_deref())?;
     let mut lowered = closure.lowered;
     let [callee] = lowered.semantic_module.machines.as_slice() else {
         return unsupported("guarded payloadless callee did not lower to one machine");
     };
     if callee.id != callee_id
-        || callee.attachment != Some(attachment)
+        || callee.attachment != attachment
         || !callee.parameters.is_empty()
         || !callee.structural_parameters.is_empty()
         || callee.result.structural().is_none_or(|result| {
@@ -89,7 +91,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
         closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: caller_id,
-        attachment: Some(attachment),
+        attachment,
         structural_parameters: Vec::new(),
         ranked_scc: None,
         entry_claims: Vec::new(),
@@ -177,7 +179,7 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
             closed_reach_application: None,
             declared_service_reach: Vec::new(),
             id: tail_id,
-            attachment: Some(attachment),
+            attachment,
             parameters: Vec::new(),
             structural_parameters: vec![StructuralParameterDeclaration {
                 place: parameter,

@@ -180,12 +180,7 @@ pub(super) fn build_traced(
     // Qualification selects a declaration's namespace, not an implicit
     // context. Only an authored receiver retains the legacy attachment path
     // while remaining receiver-based source is migrated.
-    let has_receiver = states.iter().any(|state| {
-        program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.is_self)
-    });
+    let has_receiver = program.machine_has_receiver(machine);
     let mut signatures = Vec::new();
     let mut state_entry_claims = Vec::new();
     let mut state_requires = Vec::new();
@@ -247,7 +242,7 @@ pub(super) fn build_traced(
                 true,
                 trace,
             )?;
-            attachment = Some(identity);
+            attachment = identity;
             (structural, scalar)
         } else {
             free_structural_scalar_signature_traced(program, shapes, state, &[], trace)?

@@ -107,19 +107,23 @@ pub(crate) fn build_trait_operator_scalar_return_machine(
     ));
 
     let binders = machine_binders(program, machine);
-    let attachment_type_identity = machine
-        .attached_data
-        .as_ref()
-        .and_then(|attached_name| {
+    // A qualified owner must resolve, but only an authored receiver retains
+    // it as attachment storage.
+    let attached = match machine.attached_data.as_ref() {
+        Some(attached_name) => Some(
             program
                 .data_definitions()
                 .iter()
-                .find(|data| data.name == *attached_name)
-        })
-        .and_then(|attached| shapes.add_attached_data(attached, &binders));
-    if machine.attached_data.is_some() != attachment_type_identity.is_some() {
-        return None;
-    }
+                .find(|data| data.name == *attached_name)?,
+        ),
+        None => None,
+    };
+    let attachment_type_identity = match attached {
+        Some(attached) if program.machine_has_receiver(machine) => {
+            Some(shapes.add_attached_data(attached, &binders)?)
+        }
+        _ => None,
+    };
     let source_parameters = program.state_parameters(state);
     let structural_parameters = source_parameters
         .iter()
@@ -263,9 +267,7 @@ pub(crate) fn build_structural_scalar_return_machine(
                 free_structural_scalar_signature(program, shapes, state, &binders)?;
             (None, structural, scalar)
         } else {
-            let (attachment, structural, scalar) =
-                structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
-            (Some(attachment), structural, scalar)
+            structural_scalar_signature(program, shapes, machine, state, &binders, false)?
         };
     let effects = if primitive_reference_body {
         primitive_effects::build(

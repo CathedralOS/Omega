@@ -188,7 +188,9 @@ pub(in crate::execution::terminal_unit) fn admit_dynamic_join_control_topology(
     ];
     Some(DynamicJoinControlTopology {
         entry_state: entry.symbol,
-        attachment_type_identity,
+        // Dynamic dispatch needs an attached caller: only an authored
+        // receiver retains that attachment.
+        attachment_type_identity: attachment_type_identity?,
         scalar_parameters,
         guard,
         successors,

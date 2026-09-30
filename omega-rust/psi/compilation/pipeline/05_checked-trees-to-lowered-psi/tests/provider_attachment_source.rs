@@ -190,23 +190,33 @@ fn static_boundary_attachment_composes_without_receiver_custody() {
             "a static signature still retains its authored nominal attachment"
         );
         let mut substituted_owner = checked.clone();
-        let other_identity = substituted_owner
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_machines
-            .iter()
-            .find_map(|plan| plan.attachment_type_identity.clone())
-            .expect("Root has its own retained attachment");
+        // `Root::enter` is a qualified static machine: it retains no
+        // attachment, so stage the unrelated empty `Root` record as another
+        // existing structural type beside the boundary owner.
         assert!(
             substituted_owner
                 .facts
                 .flow
                 .terminal_unit_effects
-                .structural_types
+                .composed_machines
                 .iter()
-                .any(|shape| shape.identity == other_identity)
+                .all(|plan| plan.attachment_type_identity.is_none()),
+            "qualification contributes no attachment storage"
         );
+        let unit_effects = &mut substituted_owner.facts.flow.terminal_unit_effects;
+        let owner_identity = unit_effects.boundary_machines[0]
+            .attachment_type_identity
+            .clone()
+            .expect("the boundary retains its nominal owner");
+        let mut other_shape = unit_effects
+            .structural_types
+            .iter()
+            .find(|shape| shape.identity == owner_identity)
+            .cloned()
+            .expect("the boundary owner is an existing structural type");
+        let other_identity = "named(name(Root))".to_owned();
+        other_shape.identity = other_identity.clone();
+        unit_effects.structural_types.push(other_shape);
         substituted_owner
             .facts
             .flow

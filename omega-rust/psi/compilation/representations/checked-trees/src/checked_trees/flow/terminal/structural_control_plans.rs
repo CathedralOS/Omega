@@ -136,7 +136,9 @@ impl CheckedStructuralUnitControlPlans {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralUnitControlMachinePlan {
     pub machine: SymbolHandle,
-    pub attachment_type_identity: String,
+    /// The owner an authored receiver retains as attachment storage; `None`
+    /// for a receiver-free machine, qualified or not.
+    pub attachment_type_identity: Option<String>,
     pub states: Vec<CheckedStructuralUnitControlStatePlan>,
     /// The first retained cyclic-control proof. `None` preserves the acyclic
     /// structural-Unit slice; a cyclic plan is published only when the

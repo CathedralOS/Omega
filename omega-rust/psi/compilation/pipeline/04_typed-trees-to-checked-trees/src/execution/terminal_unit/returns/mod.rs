@@ -130,7 +130,9 @@ pub(crate) fn build_checked_structural_return_plans(
     let retained = machines
         .iter()
         .flat_map(|plan| {
-            std::iter::once(plan.attachment_type_identity.as_str())
+            plan.attachment_type_identity
+                .as_deref()
+                .into_iter()
                 .chain(
                     plan.structural_parameters
                         .iter()
@@ -193,10 +195,10 @@ pub(crate) fn build_checked_structural_call_return_plans(
     let retained = payloadless_guarded_machines
         .iter()
         .flat_map(|plan| {
-            [
-                plan.attachment_type_identity.as_str(),
-                plan.result.type_identity.as_str(),
-            ]
+            plan.attachment_type_identity
+                .as_deref()
+                .into_iter()
+                .chain([plan.result.type_identity.as_str()])
         })
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);
@@ -326,12 +328,16 @@ pub(crate) fn build_checked_boundary_scalar_return_plans(
                 )
         })
         .chain(machines.iter().flat_map(|machine| {
-            std::iter::once(machine.attachment_type_identity.as_str()).chain(
-                machine
-                    .structural_parameters
-                    .iter()
-                    .map(|parameter| parameter.type_identity.as_str()),
-            )
+            machine
+                .attachment_type_identity
+                .as_deref()
+                .into_iter()
+                .chain(
+                    machine
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
         }))
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);

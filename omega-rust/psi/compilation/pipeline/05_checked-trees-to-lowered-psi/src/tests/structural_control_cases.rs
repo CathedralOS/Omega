@@ -183,10 +183,9 @@ fn install_structural_unit_control_fixture(checked: &mut CheckedTrees) {
     let root = source.machine;
     let entry = source.state;
     let acknowledgement_identity = source.structural_parameters[0].type_identity.clone();
-    let attachment_identity = source
-        .attachment_type_identity
-        .clone()
-        .expect("root attachment");
+    // `Root::enter` is a qualified static machine without a receiver: its
+    // plans retain no attachment storage.
+    let attachment_identity = source.attachment_type_identity.clone();
     let leaf = SymbolHandle::from_arena_index(14);
     let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
         position,
@@ -261,10 +260,9 @@ fn install_structural_unit_conditional_fixture(checked: &mut CheckedTrees) {
     let root = source.machine;
     let entry = source.state;
     let acknowledgement_identity = source.structural_parameters[0].type_identity.clone();
-    let attachment_identity = source
-        .attachment_type_identity
-        .clone()
-        .expect("root attachment");
+    // `Root::enter` is a qualified static machine without a receiver: its
+    // plans retain no attachment storage.
+    let attachment_identity = source.attachment_type_identity.clone();
     let true_leaf = SymbolHandle::from_arena_index(12);
     let false_leaf = SymbolHandle::from_arena_index(13);
     let affine_parameter = |position| checked_trees::CheckedUnitStructuralParameterPlan {
@@ -942,13 +940,22 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
     ));
 
     install_structural_unit_control_fixture(&mut checked);
-    let wrong_type = checked
-        .facts
-        .flow
-        .terminal_structural_unit_controls
-        .machines[0]
-        .attachment_type_identity
+    // Relabel the leaf parameter with another existing structural type. The
+    // receiver-free root retains no attachment type to borrow, so stage a
+    // distinct copy of the leaf's record shape.
+    let controls = &mut checked.facts.flow.terminal_structural_unit_controls;
+    let leaf_type = controls.machines[0].states[1].structural_parameters[0]
+        .type_identity
         .clone();
+    let mut wrong_shape = controls
+        .structural_types
+        .iter()
+        .find(|structural_type| structural_type.identity == leaf_type)
+        .cloned()
+        .expect("the leaf parameter type is lowered");
+    let wrong_type = "named(name(Stale))".to_owned();
+    wrong_shape.identity = wrong_type.clone();
+    controls.structural_types.push(wrong_shape);
     checked
         .facts
         .flow

@@ -102,12 +102,10 @@ fn nominal_affine_wide_scalar_unit_cleanup_retains_exact_field_shape() {
         CheckedUnitStructuralFieldType::Erased {
             type_identity: "named(name(Erased))".to_owned(),
         },
+        // `Root::enter` is static and retains no attachment; any structural
+        // field is outside the bounded flat record.
         CheckedUnitStructuralFieldType::Structural {
-            type_identity: plan
-                .machine
-                .attachment_type_identity
-                .clone()
-                .expect("nominal cleanup fixture remains attached"),
+            type_identity: "named(name(Root))".to_owned(),
         },
     ] {
         let mut stale = checked.clone();

@@ -31,9 +31,12 @@ fn a_root_without_an_admitted_body_names_its_own_local_construction() {
         panic!("unexpected error: {error:?}");
     };
     assert_eq!(machine, "Main::main");
+    // `Main::main` has no receiver, so it selects the free route: the scalar
+    // graph's by-design decline names the reason and the Unit omission ledger
+    // still names the operative wall.
     assert_eq!(
         reason,
-        "attached Unit closure is missing a checked transitive machine plan"
+        "machine has no source-independent checked scalar control plan (structural parameter the graph cannot carry)"
     );
     assert_eq!(
         omission.as_deref(),

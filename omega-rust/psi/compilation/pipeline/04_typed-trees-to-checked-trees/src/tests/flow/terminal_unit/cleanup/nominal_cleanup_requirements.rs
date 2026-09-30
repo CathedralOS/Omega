@@ -169,7 +169,7 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
         machine Root::nested(value: Wrapper) {}
 
         data NonemptyRoot { marker: u64; }
-        machine NonemptyRoot::attached_nonempty(token: Token) {}
+        machine NonemptyRoot::qualified_nonempty(token: Token) {}
         "#,
     );
 
@@ -179,6 +179,14 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
             .for_machine(machine_named(&checked, "exact"))
             .is_some()
     );
+    // Qualification by a nonempty record contributes no argument or storage,
+    // so this static machine is the same exact cleanup as `Root::exact`.
+    for machine in ["qualified_nonempty", "take"] {
+        let qualified = plans
+            .for_machine(machine_named(&checked, machine))
+            .unwrap_or_else(|| panic!("`{machine}` retains no nonempty attachment"));
+        assert_eq!(qualified.machine.attachment_type_identity, None);
+    }
     let ordered = plans
         .for_machine(machine_named(&checked, "two"))
         .expect("two whole affine roots have an ordered cleanup plan");
@@ -244,7 +252,6 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
         "qualified",
         "generic",
         "nested",
-        "attached_nonempty",
     ] {
         assert!(
             plans
@@ -253,9 +260,10 @@ fn bounded_whole_root_nominal_cleanup_plan_accepts_finite_lists_and_fails_closed
             "`{machine}` must remain outside the exact nominal-cleanup slice"
         );
     }
+    // `exact`, `two`, `three`, `five`, `qualified_nonempty` and `Sink::take`.
     assert_eq!(
         plans.machines.len(),
-        4,
+        6,
         "rejected candidates must not leave partial cleanup plans"
     );
 }

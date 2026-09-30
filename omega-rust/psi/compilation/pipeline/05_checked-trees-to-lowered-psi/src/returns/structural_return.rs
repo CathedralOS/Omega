@@ -12,6 +12,7 @@ use super::{
     lower_structural_type_plans, lower_unit_parameters, machine_id, operation_id, place_id,
     structural_domain_id, unsupported,
 };
+use crate::terminal_identities::lookup_attachment_type_id;
 pub(crate) fn lower_structural_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralReturnMachinePlan,
@@ -212,7 +213,7 @@ pub(crate) fn lower_structural_return_machine(
         closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: terminal_machine,
-        attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+        attachment: lookup_attachment_type_id(&type_ids, plan.attachment_type_identity.as_deref())?,
         parameters: Vec::new(),
         structural_parameters: parameters,
         ranked_scc: None,

@@ -90,7 +90,7 @@ fn scalar_wrapper_registration_and_result_drift_reject() {
             0 => plans.machines.push(plans.machines[0].clone()),
             1 => plans.machines[0].result_type = typed_trees::types::PrimitiveType::Bool,
             2 => plans.boundary_machines.clear(),
-            3 => plans.machines[0].attachment_type_identity = "named(name(Main))".into(),
+            3 => plans.machines[0].attachment_type_identity = Some("named(name(Main))".into()),
             _ => unreachable!(),
         }
         assert!(
@@ -108,33 +108,39 @@ fn scalar_wrapper_registration_and_result_drift_reject() {
 fn selected_wrapper_type_duplicates_and_cross_owner_conflicts_reject() {
     for duplicate in [false, true] {
         let mut checked = crate::front_end::checked_program(&source());
+        // `Scalar::measure` is a qualified static wrapper: it retains no
+        // attachment type. Stage the closure's `Main` receiver type in the
+        // wrapper roster instead.
+        let wrappers = &checked.facts.flow.terminal_boundary_scalar_returns;
+        assert!(
+            wrappers
+                .structural_types
+                .iter()
+                .all(|plan| plan.identity != "named(name(Scalar))")
+        );
         let declaration = checked
             .facts
             .flow
-            .terminal_boundary_scalar_returns
+            .terminal_unit_effects
             .structural_types
             .iter()
-            .find(|plan| plan.identity == "named(name(Scalar))")
+            .find(|plan| plan.identity == "named(name(Main))")
             .unwrap()
             .clone();
+        let wrappers = &mut checked
+            .facts
+            .flow
+            .terminal_boundary_scalar_returns
+            .structural_types;
         if duplicate {
-            checked
-                .facts
-                .flow
-                .terminal_boundary_scalar_returns
-                .structural_types
-                .push(declaration);
+            wrappers.push(declaration.clone());
+            wrappers.push(declaration);
         } else {
             let mut conflicting = declaration;
             conflicting.shape = checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(
                 typed_trees::types::PrimitiveType::Bool,
             );
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .structural_types
-                .push(conflicting);
+            wrappers.push(conflicting);
         }
         assert!(
             checked_trees_to_lowered_psi::lower_machine(

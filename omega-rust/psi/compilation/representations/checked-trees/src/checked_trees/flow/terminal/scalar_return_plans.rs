@@ -214,7 +214,9 @@ impl CheckedBoundaryScalarReturnPlans {
 pub struct CheckedBoundaryScalarReturnMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub attachment_type_identity: String,
+    /// The owner an authored receiver retains as attachment storage; `None`
+    /// for a receiver-free machine, qualified or not.
+    pub attachment_type_identity: Option<String>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Dense scalar order, with each parameter retaining its authored position.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,

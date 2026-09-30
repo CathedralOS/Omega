@@ -255,7 +255,8 @@ fn boundary_temporary_schedule_preserves_prefix_result_slots_ids_and_residual_cl
 fn open_nominal_boundary_temporaries_require_a_closed_selection() {
     // Nominal unit callbacks require closed execution selections: the open
     // generic entry does not publish, while the explicit invocation of the
-    // same boundary runs the same temporary schedule.
+    // same boundary runs the same temporary schedule. The open entry is a
+    // receiver-free generic machine, so its selection is refused outright.
     let completion = "Sink::consume(Factory::create(prefix, 19u16), prefix);";
     let open = source(completion)
         .replace(
@@ -263,11 +264,19 @@ fn open_nominal_boundary_temporaries_require_a_closed_selection() {
             "machine Main::main<machine Create>() where machine Create satisfies Factory::create;",
         )
         .replace("Factory::create(", "Create(");
-    assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&crate::front_end::checked_program(&open), TerminalMachineSelection::Name("Main::main")),
-        Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
-            if machine == "Main::main"
-    ));
+    let result = checked_trees_to_lowered_psi::lower_machine(
+        &crate::front_end::checked_program(&open),
+        TerminalMachineSelection::Name("Main::main"),
+    );
+    assert!(
+        matches!(
+            &result,
+            Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                "machine signature is outside the current terminal-Psi source slice"
+            ))
+        ),
+        "{result:?}"
+    );
     let explicit = crate::front_end::checked_program(&invoking(&source(completion), "Factory"));
     let artifact = encoded_locals(&explicit, &["prefix", "first", "spare"]);
     assert_completion(

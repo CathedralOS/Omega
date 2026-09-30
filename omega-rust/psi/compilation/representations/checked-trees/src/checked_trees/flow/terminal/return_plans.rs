@@ -102,22 +102,27 @@ impl<'a> CheckedReturnPlan<'a> {
         }
     }
 
-    /// The signature a terminal selection must carry to lower this plan:
-    /// attached when the plan retains its owner, free otherwise. The
-    /// operator-realized kinds constrain their realization instead of the
-    /// caller's selection and return `None`.
-    pub fn expected_signature(self) -> Option<CheckedTerminalSignatureEligibility> {
+    /// Whether `signature` is the selection this plan lowers under: an
+    /// attached signature when the plan retains its owner, either free
+    /// signature otherwise, exactly as a Unit plan admits it. A free machine
+    /// that reaches services is selected `FreeUnitEffect`. The
+    /// operator-realized kind constrains its realization instead of the
+    /// caller's selection and admits any signature.
+    pub fn admits_signature(self, signature: CheckedTerminalSignatureEligibility) -> bool {
         let attached = match self {
-            Self::TraitOperator(_) => return None,
+            Self::TraitOperator(_) => return true,
+            Self::PayloadlessGuardedCall(plan) => plan.attachment_type_identity.is_some(),
             Self::StructuralScalar(plan) => plan.attachment_type_identity.is_some(),
+            Self::BoundaryScalar(plan) => plan.attachment_type_identity.is_some(),
+            Self::Structural(plan) => plan.attachment_type_identity.is_some(),
             Self::ClaimFreeAffine(plan) => plan.attachment_type_identity.is_some(),
-            Self::PayloadlessGuardedCall(_) | Self::BoundaryScalar(_) | Self::Structural(_) => true,
         };
-        Some(if attached {
-            CheckedTerminalSignatureEligibility::Attached
-        } else {
-            CheckedTerminalSignatureEligibility::Eligible
-        })
+        matches!(
+            (signature, attached),
+            (CheckedTerminalSignatureEligibility::Attached, true)
+                | (CheckedTerminalSignatureEligibility::Eligible, false)
+                | (CheckedTerminalSignatureEligibility::FreeUnitEffect, false)
+        )
     }
 }
 
@@ -184,17 +189,15 @@ mod tests {
         assert!(matches!(plan, CheckedReturnPlan::ClaimFreeAffine(_)));
         assert_eq!(plan.machine(), attached);
         assert_eq!(plan.realization_machine(), None);
-        assert_eq!(
-            plan.expected_signature(),
-            Some(CheckedTerminalSignatureEligibility::Attached)
-        );
+        assert!(plan.admits_signature(CheckedTerminalSignatureEligibility::Attached));
+        assert!(!plan.admits_signature(CheckedTerminalSignatureEligibility::Eligible));
+        assert!(!plan.admits_signature(CheckedTerminalSignatureEligibility::FreeUnitEffect));
 
         let plan = CheckedReturnPlan::for_machine(&flow, free).expect("free plan");
         assert!(matches!(plan, CheckedReturnPlan::ClaimFreeAffine(_)));
-        assert_eq!(
-            plan.expected_signature(),
-            Some(CheckedTerminalSignatureEligibility::Eligible)
-        );
+        assert!(!plan.admits_signature(CheckedTerminalSignatureEligibility::Attached));
+        assert!(plan.admits_signature(CheckedTerminalSignatureEligibility::Eligible));
+        assert!(plan.admits_signature(CheckedTerminalSignatureEligibility::FreeUnitEffect));
 
         assert_eq!(
             CheckedReturnPlan::for_machine(&flow, SymbolHandle::from_arena_index(3)),
@@ -214,7 +217,7 @@ mod tests {
             .push(CheckedPayloadlessGuardedCallReturnMachinePlan {
                 machine,
                 state: SymbolHandle::from_arena_index(9),
-                attachment_type_identity: "Owner".to_owned(),
+                attachment_type_identity: Some("Owner".to_owned()),
                 result: result(),
                 call: CheckedUnitCallCoordinate {
                     statement_index: 0,

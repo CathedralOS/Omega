@@ -332,18 +332,11 @@ pub(super) fn available_target(
         let mut shapes = ShapeCollector::new(program);
         // Same receiver pivot the mint applies: attachment storage exists
         // only when an authored `self` parameter retains it.
-        let has_receiver = program.machine_states(machine).iter().any(|state| {
-            program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_self)
-        });
-        let signature = if !has_receiver {
+        let signature = if !program.machine_has_receiver(machine) {
             free_structural_scalar_signature(program, &mut shapes, state, &[])
                 .map(|(structural, scalar)| (None, structural, scalar))
         } else {
             structural_scalar_signature(program, &mut shapes, machine, state, &[], true)
-                .map(|(attachment, structural, scalar)| (Some(attachment), structural, scalar))
         };
         let (attachment, structural, scalar) = signature?;
         if attachment != plan.attachment_type_identity
@@ -415,13 +408,7 @@ pub(super) fn available_target(
         // The plan mints attachment storage only when some state parameter is
         // a receiver; a receiver-free attached machine carries no attachment
         // identity and must compare signatures through the free route.
-        let has_receiver = program.machine_states(machine).iter().any(|state| {
-            program
-                .state_parameters(state)
-                .iter()
-                .any(|parameter| parameter.is_self)
-        });
-        let signature = if !has_receiver {
+        let signature = if !program.machine_has_receiver(machine) {
             free_structural_scalar_signature(program, &mut shapes, state, &binders)
                 .map(|(structural, scalar)| (None, structural, scalar))
         } else {
@@ -435,7 +422,6 @@ pub(super) fn available_target(
                     .iter()
                     .any(|parameter| parameter.is_self),
             )
-            .map(|(attachment, structural, scalar)| (Some(attachment), structural, scalar))
         };
         let (attachment, structural, scalar) = signature?;
         if attachment != plan.attachment_type_identity

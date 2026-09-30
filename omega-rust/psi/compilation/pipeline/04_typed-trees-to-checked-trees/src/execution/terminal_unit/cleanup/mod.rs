@@ -88,9 +88,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
         }
         (None, structural)
     } else {
-        let (attachment, structural) =
-            structural_signature(program, shapes, machine, state, &binders, false)?;
-        (Some(attachment), structural)
+        structural_signature(program, shapes, machine, state, &binders, false)?
     };
     let source_parameters = program.state_parameters(state);
     if source_parameters.is_empty() || source_parameters.len() != structural_parameters.len() {
