@@ -9,6 +9,12 @@
 //! Byte and element views keep their dominating descriptor names until an
 //! explicit transfer consumes them. They do not have record loans' implicit
 //! end-at-edge rule and must not acquire extra forwarding here.
+//!
+//! Both state-graph producers split authored states this way, so both call
+//! this one transfer rule: the Unit state graph seals each state's blocks
+//! through it (`unit/attached_unit/composed_control/state_graph/emission/seal.rs`),
+//! and a scalar graph applies it to each authored state's private region
+//! once the whole machine is emitted (`scalar_graph/scalar_graph_module/state_borrows.rs`).
 
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::{allocate_dense, place_id};
@@ -21,7 +27,7 @@ use terminal_psi::{
 #[cfg(test)]
 mod tests;
 
-pub(super) fn forward_private_state_borrows(
+pub(crate) fn forward_private_state_borrows(
     root: BlockId,
     blocks: &mut [Block],
     structural_types: &[StructuralTypeDeclaration],

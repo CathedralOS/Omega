@@ -36,6 +36,7 @@ pub(crate) mod call_source_custody;
 pub(crate) mod indexed_write;
 pub(crate) mod operation_emission;
 pub(crate) mod primitive_store;
+pub(crate) mod private_borrow_transport;
 pub(crate) mod representation_view_store;
 pub(crate) mod runtime_elements;
 pub(crate) mod structural_byte_sequence_store;

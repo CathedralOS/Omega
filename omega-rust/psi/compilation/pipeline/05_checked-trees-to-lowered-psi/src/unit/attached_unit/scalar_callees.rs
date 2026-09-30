@@ -403,6 +403,7 @@ pub(super) fn emit(
                 &views,
                 &machine.literal_places,
                 machine.loop_plan.as_ref(),
+                next_place,
             )?;
         let [terminal_machine] = lowered.semantic_module.machines.as_mut_slice() else {
             unreachable!("one prepared selected scalar graph emits one terminal machine")
