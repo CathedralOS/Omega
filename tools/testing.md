@@ -418,13 +418,16 @@ speedup.
 
 ## Release matrix
 
-[release_matrix.py](release_matrix.py) runs the
+[release_record.py](release/release_record.py) runs the
 [release matrix](../wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-the eight `RC-*` gates with their exact contract invocations plus the hosted
-platform rows, and writes the release record (`commit`, toolchain, host,
-commands, results, elapsed time, expected skips). It does not substitute for
-the selector — `--plan` reviews what would run, `--run` executes. See
-[release_matrix.md](release_matrix.md).
+the eight `RC-*` gates with their exact contract invocations on one host, and
+writes that lane's release record (`commit`, toolchain, host, commands,
+results, elapsed time, expected skips, direct-execution observation). `close`
+joins the four lanes' same-commit records into the release closure. It does
+not substitute for the selector — `plan` reviews what would run on this host,
+`run` executes. See
+[recording a runner row](release/README.md#recording-a-runner-row) and
+[joining the four lanes](release/README.md#joining-the-four-lanes).
 
 ## Slow builds
 

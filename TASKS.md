@@ -5149,26 +5149,20 @@ but report the missing runtime leg explicitly; it does not close that host row.
 
 - **RC-RELEASE-RECORD-AND-CLOSURE.** Complete the existing release-evidence
   route and assemble all eight gates and four matching-host rows at one clean
-  commit. Owners: `tools/release/release_record.py`,
-  `tools/release_matrix.py`, their tests and the
+  commit. Owners: `tools/release/release_record.py`, its tests and the
   [completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
-  Both runners exist; they emit different record formats and neither joins
-  independent host records into complete same-commit closure. Reconcile their
-  evidence rather than introduce another recorder. No release record is
-  committed.
+  No release record is committed.
 
-  `release_record.py` (schema 2) derives each gate status, recorded lane and
-  `closure.open_rows` from command evidence: a pass needs exit 0, every
-  counted skip named, nothing filtered out, a nonzero executed count from
-  each test, doc-test, corpus or sample command's summary, a clean checkout
-  and no inherited filter variables; `check` rejects any record that
-  disagrees. `release_matrix.py` still decides a gate from exit status and
-  its own skip parse. Move it onto the same evidence rules (or retire it into
-  `release_record.py`), then add the missing join: one closure computed from
-  the four lanes' records at the same commit, rejecting stale or mixed-commit
-  rows. Preserve bidirectional command-manifest coverage, the portable
-  formatting route and explicit native-execution evidence. A valid open
-  record may be retained; it must not count as release closure.
+  `release_record.py` is the only recorder (schema 3). `run` records one lane
+  on its own host. A gate passes only with exit 0, every skip named and
+  declared for that gate, nothing filtered, a nonzero executed count, a clean
+  checkout and no inherited filter variables; a timeout, unavailable tool or
+  `--limit` leaves it open. `close` joins one record per lane and rejects
+  missing, duplicated, mixed-commit, stale, mixed-toolchain and wrong-host
+  records. It reads closed only when both per-host gates pass on all four
+  lanes, every other gate passes wherever it ran and ran somewhere, and each
+  lane carries its direct-execution observation. The frontier is four real
+  same-commit records and a closed join; none exists.
 
   Acceptance: produce and revalidate the same-commit collection with pinned
   toolchain, host OS/architecture, exact commands/arguments, outcomes, elapsed
