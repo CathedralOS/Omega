@@ -14,6 +14,7 @@
 // Expected exit: 0.
 // Expected output contains: *
 use omega_language_std::console;
+use omega_language_std::clock;
 use omega::language::core::binding;
 
 domain [u8]::Utf8
@@ -28,7 +29,6 @@ requires
 domain [u8; 2]::Utf8
 requires
     valid_utf8(self);
-pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Particle {
     x: i32 in Wrapping;
