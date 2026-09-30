@@ -20,6 +20,7 @@ pub(crate) fn finalize_execution(
         &mut facts.flow.terminal_scalar_graphs,
         &facts.values.proof_terms,
         call_frames.as_ref(),
+        &facts.operators,
     );
 
     crate::execution::terminal_scalar::finalize_scalar_unit_operations(program, &mut facts);

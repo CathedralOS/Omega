@@ -24,6 +24,7 @@ pub(crate) mod prepared_graph;
 pub(crate) mod primitive_locals;
 #[cfg(test)]
 mod primitive_read_tests;
+mod state_contracts;
 pub(crate) mod structural_values;
 pub(crate) mod unit_operations;
 

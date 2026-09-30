@@ -381,7 +381,7 @@ impl PreparedScalarCallee<'_> {
 
     pub(crate) fn requirement_count(&self) -> usize {
         match self {
-            Self::Graph(graph) => graph.contract.requirement_count(),
+            Self::Graph(graph) => graph.requirement_count(),
             Self::Boundary {
                 requirement_count, ..
             } => *requirement_count,

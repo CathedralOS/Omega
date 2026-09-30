@@ -114,6 +114,7 @@ pub(super) mod primitive_locals;
 mod unit_operations;
 pub(crate) use unit_operations::finalize as finalize_scalar_unit_operations;
 mod ranking;
+mod state_contracts;
 mod successors;
 
 #[cfg(test)]
@@ -126,6 +127,7 @@ pub(crate) fn build_checked_scalar_graph_plans(
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
     proof_terms: &checked_trees::CheckedProofTerms,
+    operators: &checked_trees::CheckedOperatorFacts,
 ) -> CheckedScalarGraphPlans {
     build_checked_scalar_graph_plans_with_call_frames(
         program,
@@ -134,6 +136,7 @@ pub(crate) fn build_checked_scalar_graph_plans(
         structural_values,
         proof_terms,
         None,
+        operators,
     )
 }
 
@@ -144,6 +147,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     structural_values: &checked_trees::CheckedStructuralValuePlans,
     proof_terms: &checked_trees::CheckedProofTerms,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    operators: &checked_trees::CheckedOperatorFacts,
 ) -> CheckedScalarGraphPlans {
     let (guarded_exits, guarded_tails) = guarded_exits::build(program, expressions, computations);
     let mut parameter_storage = arena::Arena::default();
@@ -160,6 +164,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
                 expressions,
                 computations,
                 structural_values,
+                operators,
                 &mut parameter_storage,
                 &mut structural_types,
                 &mut reason,
@@ -175,8 +180,11 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     let mut structural_transfers = arena::Arena::default();
     let mut scalar_arguments = arena::Arena::default();
     let mut erased_proof_arguments = arena::Arena::default();
+    // The source program is unchanged across candidates. Prove its runtime
+    // components once, then project each graph's selected state coordinates.
+    let runtime_components = validation::validated_runtime_natural_components(program);
     machines.retain_mut(|graph| {
-        let Some(ranked_scc) = ranking::plan(program, graph, call_frames) else {
+        let Some(ranked_scc) = ranking::plan(program, graph, call_frames, &runtime_components) else {
             declined.push((
                 graph.machine,
                 "machine has no source-independent checked scalar control plan (ranked graph)",
@@ -223,6 +231,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
     computations: &checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
     proof_terms: &checked_trees::CheckedProofTerms,
+    operators: &checked_trees::CheckedOperatorFacts,
 ) {
     finalize_checked_scalar_graph_plans_with_call_frames(
         program,
@@ -232,6 +241,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
         plans,
         proof_terms,
         None,
+        operators,
     )
 }
 
@@ -243,10 +253,21 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
     plans: &mut CheckedScalarGraphPlans,
     proof_terms: &checked_trees::CheckedProofTerms,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    operators: &checked_trees::CheckedOperatorFacts,
 ) {
     let declined = &mut plans.declined;
+    let runtime_components = validation::validated_runtime_natural_components(program);
     plans.machines.retain(|graph| {
-        if ranking::plan(program, graph, call_frames) != Some(graph.ranked_scc.clone()) {
+        if graph.states.iter().any(|retained| {
+            crate::semantic::calls::find_state_with_machine(program, retained.state)
+                .and_then(|(owner, state)| state_contracts::lower(program, operators, owner, state))
+                .is_none_or(|requires| !state_contracts::matches(&requires, &retained.requires))
+        }) {
+            declined.push((graph.machine,
+                "machine has no source-independent checked scalar control plan (state contracts)"));
+            return false;
+        }
+        if ranking::plan(program, graph, call_frames, &runtime_components) != Some(graph.ranked_scc.clone()) {
             declined.push((
                 graph.machine,
                 "machine has no source-independent checked scalar control plan (finalized ranking)",
@@ -323,6 +344,7 @@ fn build_machine_graph(
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
+    operators: &checked_trees::CheckedOperatorFacts,
     parameter_storage: &mut arena::Arena<CheckedScalarParameterStorage>,
     structural_types: &mut std::collections::BTreeMap<
         String,
@@ -363,6 +385,7 @@ fn build_machine_graph(
             expressions,
             computations,
             structural_values,
+            operators,
             reason,
         )?;
         for successor in successors::iter(&built.0.terminator) {
@@ -388,15 +411,10 @@ fn build_machine_graph(
         }
         states.push(built);
     }
-    // Structural formals belong to one body: a lone single-state graph binds
-    // them on its entry roster and forwards them only on its own re-entry. A
-    // graph of several states would bind each non-entry state's formals from
-    // the transfers on its incoming edges; that forwarding is the Unit state
-    // graph's, which carries each state's roster and is reachable from Unit
-    // callers (`scalar_targets::registered_structural_graph_target` accepts
-    // only single-state graphs). So a multi-state machine with structural
-    // formals, or a fused graph with any, declines here and the state graph
-    // owns it.
+    // Explicit borrowed formals belong to each state's own roster. Incoming
+    // edges transfer the exact loan, and lowering binds a distinct block
+    // parameter for the destination. Owned multi-state formals still need
+    // their disposal sequencing on the Unit graph.
     //
     // A tail fusion of single-state machines that each retain the same
     // borrowed receiver forwards no formal: the receiver is one machine-scope
@@ -413,16 +431,23 @@ fn build_machine_graph(
         });
     if states.len() > 1
         && !shared_receiver_fusion
-        && states
-            .iter()
-            .any(|(state, _, _)| !state.structural_parameters.is_empty())
+        && states.iter().any(|(state, _, _)| {
+            state.structural_parameters.iter().any(|parameter| {
+                parameter.is_self
+                    || !matches!(
+                        parameter.access,
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                            | checked_trees::CheckedStructuralAccess::MutableBorrow
+                    )
+            })
+        })
     {
         *reason = "machine has no source-independent checked scalar control plan (multi-state structural formals)";
         return None;
     }
     // Any receiver omitted from this representation must remain unobserved.
-    // Readable borrowed receivers were retained above, so multi-state bodies
-    // carrying them have already declined to the Unit state graph. In
+    // Readable implicit receivers were retained above, so ordinary multi-state
+    // bodies carrying them have declined to the Unit state graph. In
     // particular, an unread receiver is not an erased call argument merely
     // because this planner found no field observations.
     for (&(_, state), (built, ..)) in pending.iter().zip(&states) {
@@ -491,6 +516,7 @@ fn checked_state_graph(
     expressions: &checked_trees::CheckedScalarExpressionPlans,
     computations: &checked_trees::CheckedScalarComputationPlans,
     structural_values: &checked_trees::CheckedStructuralValuePlans,
+    operators: &checked_trees::CheckedOperatorFacts,
     reason: &mut &'static str,
 ) -> Option<(
     CheckedScalarStateGraph,
@@ -500,10 +526,10 @@ fn checked_state_graph(
     *reason = "machine has no source-independent checked scalar control plan (state admission)";
     {
         {
-            if !validation::scalar_state_contracts_are_qualifications(program, state) {
+            let Some(requires) = state_contracts::lower(program, operators, machine, state) else {
                 *reason = "machine has no source-independent checked scalar control plan (state contract kind)";
                 return None;
-            }
+            };
             let parameters = program.state_parameters(state);
             // Borrowed receivers use the retained signature below. An owned
             // `self` still has no scalar-graph representation and refuses the
@@ -541,9 +567,9 @@ fn checked_state_graph(
                         .primitive_type_reference(parameter.type_reference)
                         .is_none()
             });
-            // Preserve the signature before selecting a representation. A
-            // multi-state body with structural custody belongs to the Unit
-            // graph; see `build_machine_graph`.
+            // Preserve the signature before selecting a representation.
+            // Explicit loans bind per state; implicit receiver custody keeps
+            // its separate machine-scoped admission in `build_machine_graph`.
             let receiver = parameters.iter().any(|parameter| parameter.is_self);
             let retains_receiver = retains_borrowed_receiver(program, state);
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed
@@ -691,6 +717,13 @@ fn checked_state_graph(
             if mixed
                 && structural_parameters.iter().all(|parameter| {
                     parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                        && parameters.get(parameter.position as usize).is_some_and(|source| {
+                            matches!(
+                                program.type_reference_table.type_reference(source.type_reference),
+                                typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                                    if program.primitive_type_reference(*referee).is_some()
+                            )
+                        })
                 })
                 && matches!(statements, [StatementNode::Expression(_)])
                 && !computations
@@ -782,6 +815,7 @@ fn checked_state_graph(
             Some((
                 CheckedScalarStateGraph {
                     state: state.symbol,
+                    requires,
                     structural_parameters,
                     scalar_parameters,
                     erased_scalar_parameters,

@@ -7,6 +7,9 @@ use super::{
 mod owned;
 mod owned_types;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn parameter_storage<'checked>(
     checked: &'checked CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -199,7 +202,7 @@ fn validate_structural_parameter(
         .type_reference_table
         .type_reference(parameter.type_reference)
     else {
-        return unsupported("scalar graph structural parameter requires a primitive reference");
+        return unsupported("scalar graph structural parameter requires an admitted reference");
     };
     let access = match access {
         language_semantics::ReferenceAccess::Shared => {
@@ -271,7 +274,7 @@ fn validate_structural_parameter(
         // its complete shape from source, including record fields and their
         // numeric restrictions; checking only primitive leaves excludes record
         // views, while trusting the retained identity alone permits substitution.
-        return owned_types::validate_slice_element(checked, *element_type, element_type_identity);
+        return owned_types::validate_referent_type(checked, *element_type, element_type_identity);
     }
     if retained.is_self
         || retained.position as usize != position
@@ -280,10 +283,41 @@ fn validate_structural_parameter(
         || !retained.qualifications.is_empty()
         || retained.fused_service_erasure.is_some()
         || !matches!(referee_node, TypeReferenceNode::Named { .. })
-        || checked.primitive_type_reference(*referee).is_none()
         || retained.type_identity != checked.normalized_type_identity(*referee).into_string()
     {
-        return unsupported("scalar graph primitive reference differs from its authored signature");
+        return unsupported("scalar graph reference differs from its authored signature");
+    }
+    if checked.primitive_type_reference(*referee).is_none() {
+        if !matches!(
+            access,
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+                | checked_trees::CheckedStructuralAccess::MutableBorrow
+        ) || !retained.projected_qualifications.is_empty()
+            || !validation::has_plain_owned_contents_with_numeric_constraints(checked, *referee)
+        {
+            return unsupported("scalar graph record reference has unsupported source custody");
+        }
+        // Borrowing changes access, not the declared record or its nested
+        // fields. Reconstruct the catalog by the same source-type replay used
+        // for slice elements before admitting its borrowed parameter carrier.
+        owned_types::validate_referent_type(checked, *referee, &retained.type_identity)?;
+        if !checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_types
+            .iter()
+            .any(|shape| {
+                shape.identity == retained.type_identity
+                    && matches!(
+                        shape.shape,
+                        checked_trees::CheckedUnitStructuralTypeShape::Record { .. }
+                    )
+            })
+        {
+            return unsupported("scalar graph borrowed record differs from its source shape");
+        }
+        return Ok(());
     }
     let mut shapes = checked
         .facts

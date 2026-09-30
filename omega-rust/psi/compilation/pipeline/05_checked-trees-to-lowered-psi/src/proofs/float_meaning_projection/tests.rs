@@ -193,6 +193,7 @@ fn nested_state_contract_projects_an_exact_terminal_block_parameter() {
     // for this machine once the state-contract boundary widens.
     let graph_state =
         |state: &checked_trees::state::State| checked_trees::CheckedScalarStateGraph {
+            requires: Vec::new(),
             erased_scalar_parameters: Vec::new(),
             erased_proof_parameters: Vec::new(),
             state: state.symbol,

@@ -4,7 +4,7 @@
 //! carry no cleanup, but their admitted values remain part of field identity.
 //! Reconstruct those restrictions from the original type and substitutions before
 //! comparing catalogs; agreement between retained catalogs cannot replace this.
-//! Borrowed slice elements use the same reconstruction as owned parameters:
+//! Borrowed referents use the same reconstruction as owned parameters:
 //! borrowing changes access, not the referent's fields or numeric restrictions.
 
 use checked_trees::TypeIdentityRequest;
@@ -23,9 +23,9 @@ use crate::lowering_error::unsupported;
 
 mod scalar_fields;
 
-pub(super) fn validate_slice_element(
+pub(super) fn validate_referent_type(
     checked: &CheckedTrees,
-    element: TypeReferenceHandle,
+    reference: TypeReferenceHandle,
     retained_identity: &str,
 ) -> Result<(), LoweringError> {
     let mut source = SourceTypes {
@@ -33,8 +33,8 @@ pub(super) fn validate_slice_element(
         active: Vec::new(),
         complete: Vec::new(),
     };
-    if source.validate_type(element, &[])? != retained_identity {
-        return unsupported("scalar graph slice element identity differs from its source");
+    if source.validate_type(reference, &[])? != retained_identity {
+        return unsupported("scalar graph referent type identity differs from its source");
     }
     Ok(())
 }

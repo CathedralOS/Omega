@@ -632,3 +632,109 @@ pub(super) fn unwrapped(
     }
     expression
 }
+
+/// Publish only coordinates already selected by the component's filtered
+/// telescope. Unsupported ranking orders keep their ordinary admission but
+/// do not acquire an unsigned scalar projection.
+pub(super) fn natural_component(
+    program: &TypedTrees,
+    component: &[usize],
+    ranks: &[RankProjection],
+    mappings: &[Vec<Vec<SymbolHandle>>],
+) -> Option<super::ValidatedRuntimeNaturalComponent> {
+    let mut states = Vec::new();
+    for ((machine_position, rank), mappings) in component.iter().zip(ranks).zip(mappings) {
+        let RankOrder::Natural(primitive_type) = rank.order else {
+            return None;
+        };
+        for (state, roles) in program
+            .machine_states(&program.machines()[*machine_position])
+            .iter()
+            .zip(mappings)
+        {
+            let argument_position = roles.iter().position(|role| *role == rank.parameter)?;
+            let (position, parameter) = program
+                .state_parameters(state)
+                .iter()
+                .enumerate()
+                .filter(|(_, parameter)| !parameter.is_self)
+                .nth(argument_position)?;
+            if unsigned_carrier_type(program, parameter.type_reference) != Some(primitive_type) {
+                return None;
+            }
+            states.push(super::ValidatedRuntimeNaturalState {
+                state: state.symbol,
+                parameter: parameter.symbol,
+                parameter_position: u32::try_from(position).ok()?,
+                primitive_type,
+            });
+        }
+    }
+    Some(super::ValidatedRuntimeNaturalComponent {
+        states,
+        edges: Vec::new(),
+    })
+}
+
+/// An acyclic subordinate-state hop may rename its rank formal. Retaining
+/// its exact resolved actual proves identity transport without introducing
+/// another arithmetic comparison recognizer.
+pub(super) fn retain_internal_transfer(
+    program: &TypedTrees,
+    component: &mut super::ValidatedRuntimeNaturalComponent,
+    source: SymbolHandle,
+    target: SymbolHandle,
+    arguments: &[ExpressionHandle],
+    statement_ordinal: usize,
+) -> bool {
+    let target = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == target)
+        .and_then(|machine| program.machine_states(machine).first())
+        .map_or(target, |state| state.symbol);
+    let Some(source_rank) = component.states.iter().find(|rank| rank.state == source) else {
+        return false;
+    };
+    let Some(target_rank) = component.states.iter().find(|rank| rank.state == target) else {
+        return false;
+    };
+    let Some(target_state) = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine))
+        .find(|state| state.symbol == target)
+    else {
+        return false;
+    };
+    let Some(argument_position) = program
+        .state_parameters(target_state)
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.symbol == target_rank.parameter)
+    else {
+        return false;
+    };
+    let Some(argument) = arguments.get(argument_position) else {
+        return false;
+    };
+    let ExpressionNode::Name(name) = program.expression_table.expression(*argument) else {
+        return false;
+    };
+    if name.symbol != source_rank.parameter
+        || name.head_symbol != name.symbol
+        || name.members.count() != 1
+    {
+        return false;
+    }
+    let Ok(statement_ordinal) = u32::try_from(statement_ordinal) else {
+        return false;
+    };
+    component.edges.push(super::ValidatedRuntimeNaturalEdge {
+        source,
+        target,
+        statement_ordinal,
+        strict: false,
+    });
+    true
+}

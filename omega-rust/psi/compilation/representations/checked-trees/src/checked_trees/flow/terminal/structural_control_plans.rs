@@ -146,10 +146,10 @@ pub struct CheckedStructuralUnitControlMachinePlan {
     pub ranked_scc: Option<CheckedStructuralRankedSccPlan>,
 }
 
-/// One canonical Nat-descending component admitted by the first cyclic
-/// structural-Unit slice. Bounds are the exact unsigned carrier bounds, not
-/// authored text, and every retained edge names the checked transition
-/// coordinate whose positive guard and decrement the ranking checker proved.
+/// One canonical Nat-descending component. Bounds are the exact unsigned
+/// carrier bounds, not authored text. Each retained edge names the checked
+/// transition coordinate and either its direct countdown proof or the
+/// runtime component judgment's strict/nonincreasing comparison.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralRankedSccPlan {
     pub header_state: SymbolHandle,
@@ -171,6 +171,9 @@ pub struct CheckedStructuralRankedSccEdgePlan {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedStructuralRankedGuardPlan {
+    /// The runtime component judgment proved this edge under its exact
+    /// authored premises, not necessarily a syntactic positive guard.
+    SourceRankingJudgment,
     UnsignedParameterPositive {
         scalar_parameter_index: u32,
         primitive_type: PrimitiveType,
@@ -179,6 +182,15 @@ pub enum CheckedStructuralRankedGuardPlan {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedStructuralRankedArgumentPlan {
+    /// Exact natural rank lanes compared by the runtime component judgment.
+    /// `strict = false` means nonincrease, not an assertion of equality.
+    UnsignedParameterComparison {
+        argument_ordinal: u32,
+        source_scalar_parameter_index: u32,
+        target_scalar_parameter_index: u32,
+        primitive_type: PrimitiveType,
+        strict: bool,
+    },
     UnsignedParameterMinusOne {
         argument_ordinal: u32,
         source_scalar_parameter_index: u32,

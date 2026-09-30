@@ -129,6 +129,7 @@ fn cyclic_successor_rejects_substituted_argument_rows_and_rank_coordinates() {
             &checked.facts.values.scalar_computations,
             &mut plans,
             &checked.facts.values.proof_terms,
+            &checked.facts.operators,
         );
         assert!(plans.for_machine(machine).is_none(), "mutation {mutation}");
     }

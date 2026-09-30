@@ -313,6 +313,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
     let lowered = build_scalar_graph_module(
         &states,
         &[],
+        &[],
         ScalarType::Boolean.into(),
         &terminal_psi::ScalarQualificationCatalog::default(),
         PreparedScalarContract::Empty,

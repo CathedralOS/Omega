@@ -95,6 +95,7 @@ fn affine_graph_rejoins_discard_eligibility_and_whole_transfers() {
                     &checked.facts.values.scalar_computations,
                     &mut retained,
                     &checked.facts.values.proof_terms,
+                    &checked.facts.operators,
                 );
                 assert!(
                     retained.for_machine(machine.symbol).is_none(),

@@ -23,7 +23,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
-    PreparedScalarContract,
+    PreparedScalarContract, PreparedStateRequirements,
 };
 
 mod owned_parameters;
@@ -31,6 +31,7 @@ mod pending_blocks;
 mod qualifications;
 mod ranking;
 mod short_circuit_staging;
+mod state_contracts;
 mod state_emission;
 use crate::scalar_graph::scalar_contracts;
 use semantic_vocabulary::BlockId;
@@ -141,6 +142,7 @@ fn emission_order(states: &[LoweredScalarBranchState]) -> Vec<usize> {
 pub(crate) fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
     state_symbols: &[symbols::SymbolHandle],
+    state_requires: &[PreparedStateRequirements],
     result_type: QualifiedScalarType,
     scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
     contract: PreparedScalarContract,
@@ -157,6 +159,7 @@ pub(crate) fn build_scalar_graph_module(
     build_scalar_graph_module_in_namespace(
         states,
         state_symbols,
+        state_requires,
         result_type,
         scalar_qualifications,
         contract,
@@ -179,6 +182,7 @@ pub(crate) fn build_scalar_graph_module(
 pub(crate) fn build_scalar_graph_module_in_namespace(
     states: &[LoweredScalarBranchState],
     state_symbols: &[symbols::SymbolHandle],
+    state_requires: &[PreparedStateRequirements],
     result_type: QualifiedScalarType,
     scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
     contract: PreparedScalarContract,
@@ -357,6 +361,9 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     emission.resolve_pending_blocks()?;
     let GraphEmission {
         mut scalar_qualifications,
+        state_parameters,
+        state_erased_formals,
+        mut call_emission,
         all_operations,
         next_edge_identity,
         next_block_identity,
@@ -436,7 +443,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     resolved_partition_compositions.sort();
-    let (requires, ensures, evidence) = match (result_type.scalar_type, contract) {
+    let (mut requires, ensures, evidence) = match (result_type.scalar_type, contract) {
         (
             ScalarType::Boolean,
             PreparedScalarContract::ClosedLiteral(KnownDirectScalar::Boolean(value)),
@@ -693,6 +700,20 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     } else {
         graph_entry
     };
+    let scalar_block_invariants = state_contracts::emit(
+        state_requires,
+        &state_parameters,
+        &state_erased_formals,
+        &parameters,
+        &erased_scalar_formals,
+        views,
+        terminal_machine,
+        identity_base,
+        entry,
+        &blocks,
+        &mut requires,
+        &mut call_emission,
+    )?;
     for operation in blocks.iter().flat_map(|block| &block.operations) {
         if matches!(
             operation.kind,
@@ -724,6 +745,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .sort_by_key(|range| (range.machine, range.parameter));
     let mut lowered = LoweredPsi {
         semantic_module: TerminalModule {
+            scalar_block_invariants,
             scalar_qualifications,
             machines: vec![TerminalMachine {
                 closed_reach_application: None,

@@ -1009,7 +1009,7 @@ pub(super) fn cleanup_type_is_unit(
 
 /// Whether a state's authored parameters fit the scalar graph's structural
 /// carrier contract: owned plain contents, closed primitive arrays, borrowed
-/// slices, and named primitive referees carry; anything else keeps the state
+/// slices, and named borrowed referees carry; anything else keeps the state
 /// off the graph.
 pub(crate) fn structural_scalar_graph_parameter_admission(
     program: &TypedTrees,
@@ -1039,7 +1039,9 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
             .type_reference_table
             .type_reference(parameter.type_reference)
         {
-            TypeReferenceNode::Reference { referee, .. } => {
+            TypeReferenceNode::Reference {
+                access, referee, ..
+            } => {
                 // A borrowed slice view is a structural carrier in its own
                 // right: its extent is a stored runtime length, not a
                 // declared bound, so the referent stays outside the owned
@@ -1056,8 +1058,36 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
                 if validation::is_closed_primitive_array_type(program, *referee) {
                     return false;
                 }
+                // Borrowed records carry caller-owned storage, not an owned
+                // payload. Signature construction validates their exact shape
+                // and access; successor replay retains the same loan.
                 if program.primitive_type_reference(*referee).is_none() {
-                    return true;
+                    let TypeReferenceNode::Named { symbol, .. } =
+                        program.type_reference_table.type_reference(*referee)
+                    else {
+                        return true;
+                    };
+                    let Some(data) = program
+                        .data_definitions()
+                        .iter()
+                        .find(|data| data.symbol == *symbol)
+                    else {
+                        return true;
+                    };
+                    if !matches!(
+                        access,
+                        language_semantics::ReferenceAccess::Shared
+                            | language_semantics::ReferenceAccess::Mutable
+                    ) || !validation::has_plain_owned_contents_with_numeric_constraints(
+                        program, *referee,
+                    ) || !matches!(
+                        typed_trees::data::DataDefinition::shape_kind_from_members(
+                            program.data_members(data)
+                        ),
+                        DataShapeKind::Empty | DataShapeKind::Record
+                    ) {
+                        return true;
+                    }
                 }
                 *referee
             }

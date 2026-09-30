@@ -434,7 +434,7 @@ pub(crate) fn lower_scalar_call_closure(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let requirement_counts = prepared
         .iter()
-        .map(|machine| (machine.source_machine, machine.contract.requirement_count()))
+        .map(|machine| (machine.source_machine, machine.requirement_count()))
         .collect::<Vec<_>>();
     let mut machines = Vec::with_capacity(prepared.len());
     let mut evidence = Vec::new();
@@ -442,6 +442,7 @@ pub(crate) fn lower_scalar_call_closure(
     let mut selected_ieee_float_comparison_occurrences = Vec::new();
     let mut selected_integer_comparison_occurrences = Vec::new();
     let mut scalar_qualifications = qualifications.catalog().clone();
+    let mut scalar_block_invariants = Vec::new();
     for (index, machine) in prepared.into_iter().enumerate() {
         let terminal_machine = machine_ids[index].1;
         let identity_base = u64::try_from(index)
@@ -453,6 +454,7 @@ pub(crate) fn lower_scalar_call_closure(
         let mut lowered = build_scalar_graph_module(
             &machine.states,
             &machine.state_symbols,
+            &machine.state_requires,
             machine.result_type,
             &machine.scalar_qualifications,
             machine.contract,
@@ -489,6 +491,7 @@ pub(crate) fn lower_scalar_call_closure(
                 .scalar_qualifications
                 .integer_entry_ranges,
         );
+        scalar_block_invariants.append(&mut lowered.semantic_module.scalar_block_invariants);
         let [terminal_machine] = lowered.semantic_module.machines.as_slice() else {
             unreachable!("one prepared scalar graph emits one terminal machine")
         };
@@ -506,9 +509,11 @@ pub(crate) fn lower_scalar_call_closure(
     scalar_qualifications
         .integer_entry_ranges
         .sort_by_key(|range| (range.machine, range.parameter));
+    scalar_block_invariants.sort_by_key(|invariant| (invariant.machine, invariant.header));
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications,
+            scalar_block_invariants,
             machines,
             ..TerminalModule::for_entry(machine_id(1))
         },
