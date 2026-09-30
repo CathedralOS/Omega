@@ -39,9 +39,9 @@ pub(super) fn registered_structural_graph_target<'facts>(
         .iter()
         .filter(|graph| graph.machine == machine_symbol);
     let graph = graphs.next()?;
-    let [retained] = graph.states.as_slice() else {
-        return None;
-    };
+    // The call binds the graph's entry signature. Later state rosters belong
+    // to their incoming edges and must not constrain the caller's arity.
+    let retained = graph.states.first()?;
     if graphs.next().is_some()
         || retained.state != state_symbol
         || retained.result_type != Some(result)
@@ -60,9 +60,7 @@ pub(super) fn registered_structural_graph_target<'facts>(
         return None;
     }
     let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
-    let [state] = program.machine_states(machine) else {
-        return None;
-    };
+    let state = program.machine_states(machine).first()?;
     if state.symbol != state_symbol
         || program.primitive_type_reference(state.return_type) != Some(result)
     {
@@ -227,10 +225,20 @@ pub(super) fn available_target(
                 checked_trees::CheckedControlResultPlan::Scalar { .. }
             )
     });
-    let state = match (composed, program.machine_states(machine)) {
-        (Some(_), [entry, _, ..]) => entry,
-        (None, [state]) => state,
-        _ => return None,
+    let authored_states = program.machine_states(machine);
+    let state = if composed.is_some()
+        || facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(*target_machine)
+            .is_some()
+    {
+        authored_states.first()?
+    } else {
+        let [state] = authored_states else {
+            return None;
+        };
+        state
     };
     let contract = facts.contract_plans.for_machine(*target_machine)?;
     let mut availability = AvailableScalarTarget::Registered;

@@ -205,6 +205,7 @@ pub(crate) fn build_check_facts(
             &values.structural_values,
             &values.proof_terms,
             call_frames.as_ref(),
+            &operators,
         );
     flow.terminal_machines =
         crate::execution::terminal_scalar::build_checked_terminal_machine_selections(

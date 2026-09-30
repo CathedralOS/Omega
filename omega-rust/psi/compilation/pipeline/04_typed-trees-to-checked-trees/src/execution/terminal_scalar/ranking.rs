@@ -11,7 +11,22 @@ pub(super) fn plan(
     program: &TypedTrees,
     graph: &CheckedScalarMachineGraph,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    runtime_components: &[validation::ValidatedRuntimeNaturalComponent],
 ) -> Option<Option<CheckedStructuralRankedSccPlan>> {
+    let mut retained_components = runtime_components.iter().filter(|component| {
+        component
+            .states
+            .iter()
+            .any(|rank| graph.states.iter().any(|state| state.state == rank.state))
+    });
+    if let Some(component) = retained_components.next() {
+        // One retained SCC is supported by this graph carrier. An unranked
+        // dispatch prologue is not a member and cannot erase its witness.
+        if retained_components.next().is_some() {
+            return None;
+        }
+        return runtime_plan(graph, component).map(Some);
+    }
     let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
     if machine.termination_plan.implementation_witness.is_none() {
         return Some(None);
@@ -143,4 +158,81 @@ pub(super) fn plan(
         rank_upper_bound: component.rank_upper_bound,
         covered_cyclic_edges: edges,
     }))
+}
+
+fn runtime_plan(
+    graph: &CheckedScalarMachineGraph,
+    component: &validation::ValidatedRuntimeNaturalComponent,
+) -> Option<CheckedStructuralRankedSccPlan> {
+    let coordinate = |state| {
+        let rank = component.states.iter().find(|rank| rank.state == state)?;
+        let row = graph.states.iter().find(|row| row.state == state)?;
+        let position = row.scalar_parameters.iter().position(|parameter| {
+            parameter.source_position == rank.parameter_position
+                && parameter.primitive_type == rank.primitive_type
+        })?;
+        Some((rank, u32::try_from(position).ok()?))
+    };
+    let header = graph
+        .states
+        .iter()
+        .find(|row| component.states.iter().any(|rank| rank.state == row.state))?;
+    let (header_rank, header_position) = coordinate(header.state)?;
+    let rank_upper_bound = match header_rank.primitive_type {
+        typed_trees::types::PrimitiveType::U8 => u128::from(u8::MAX),
+        typed_trees::types::PrimitiveType::U16 => u128::from(u16::MAX),
+        typed_trees::types::PrimitiveType::U32 => u128::from(u32::MAX),
+        typed_trees::types::PrimitiveType::U64 => u128::from(u64::MAX),
+        _ => return None,
+    };
+    for rank in &component.states {
+        coordinate(rank.state)?;
+    }
+    let mut edges = Vec::new();
+    for edge in &component.edges {
+        let (source, source_position) = coordinate(edge.source)?;
+        let (target, target_position) = coordinate(edge.target)?;
+        let source_row = graph.states.iter().find(|row| row.state == edge.source)?;
+        let successor = super::successors::iter(&source_row.terminator).find(|successor| {
+            successor.statement_ordinal == edge.statement_ordinal
+                && successor.target == edge.target
+                && !successor.is_continuation
+        })?;
+        if source.primitive_type != header_rank.primitive_type
+            || target.primitive_type != header_rank.primitive_type
+            || successor.argument_count == 0
+        {
+            return None;
+        }
+        edges.push(CheckedStructuralRankedSccEdgePlan {
+            source_state: edge.source,
+            target_state: edge.target,
+            statement_ordinal: edge.statement_ordinal,
+            guard: CheckedStructuralRankedGuardPlan::SourceRankingJudgment,
+            successor_argument: CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison {
+                argument_ordinal: target.parameter_position,
+                source_scalar_parameter_index: source_position,
+                target_scalar_parameter_index: target_position,
+                primitive_type: source.primitive_type,
+                strict: edge.strict,
+            },
+        });
+    }
+    edges.sort_by_key(|edge| {
+        (
+            edge.source_state.arena_index(),
+            edge.source_state.generation(),
+            edge.target_state.arena_index(),
+            edge.target_state.generation(),
+            edge.statement_ordinal,
+        )
+    });
+    Some(CheckedStructuralRankedSccPlan {
+        header_state: header.state,
+        rank_scalar_parameter_index: header_position,
+        rank_primitive_type: header_rank.primitive_type,
+        rank_lower_bound: 0,
+        rank_upper_bound,
+        covered_cyclic_edges: edges,
+    })
 }

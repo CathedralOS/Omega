@@ -139,10 +139,14 @@ pub(super) fn retain(
                     if edge.target_state != state {
                         return None;
                     }
-                    let CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
+                    let (CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
                         target_scalar_parameter_index,
                         ..
-                    } = edge.successor_argument;
+                    }
+                    | CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison {
+                        target_scalar_parameter_index,
+                        ..
+                    }) = edge.successor_argument;
                     Some(target_scalar_parameter_index)
                 })
                 .ok_or(LoweringError::Unsupported(
@@ -155,10 +159,14 @@ pub(super) fn retain(
                     if edge.source_state != state {
                         return None;
                     }
-                    let CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
+                    let (CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
                         source_scalar_parameter_index,
                         ..
-                    } = edge.successor_argument;
+                    }
+                    | CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison {
+                        source_scalar_parameter_index,
+                        ..
+                    }) = edge.successor_argument;
                     Some(source_scalar_parameter_index)
                 })
                 .ok_or(LoweringError::Unsupported(
@@ -260,7 +268,17 @@ pub(super) fn retain(
                 None => target_member.rank,
             };
             let covered = rank.covered_cyclic_edges.iter().any(|edge| {
-                edge.source_state == source.state && edge.target_state == target_member.state
+                edge.source_state == source.state
+                    && edge.target_state == target_member.state
+                    && match edge.successor_argument {
+                        CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
+                            ..
+                        } => true,
+                        CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison {
+                            strict,
+                            ..
+                        } => strict,
+                    }
             });
             let comparison = if covered && successor_rank != source.rank {
                 TerminalNaturalRankComparison::Strict
@@ -280,7 +298,16 @@ pub(super) fn retain(
         .iter()
         .filter(|edge| edge.comparison == TerminalNaturalRankComparison::Strict)
         .count()
-        != rank.covered_cyclic_edges.len()
+        != rank
+            .covered_cyclic_edges
+            .iter()
+            .filter(|edge| match edge.successor_argument {
+                CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne { .. } => true,
+                CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison {
+                    strict, ..
+                } => strict,
+            })
+            .count()
     {
         return unsupported("scalar natural rank lost an authored backedge");
     }

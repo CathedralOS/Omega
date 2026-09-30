@@ -711,13 +711,19 @@ fn lower_ranked_structural_unit_countdown(
     let checked_trees::CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
         scalar_parameter_index,
         primitive_type,
-    } = covered.guard;
+    } = covered.guard
+    else {
+        return unsupported("ranked structural Unit requires its countdown guard");
+    };
     let checked_trees::CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
         argument_ordinal,
         source_scalar_parameter_index,
         target_scalar_parameter_index,
         primitive_type: argument_type,
-    } = covered.successor_argument;
+    } = covered.successor_argument
+    else {
+        return unsupported("ranked structural Unit requires its countdown argument");
+    };
     if scalar_parameter_index != ranked.rank_scalar_parameter_index
         || primitive_type != ranked.rank_primitive_type
         || source_scalar_parameter_index != ranked.rank_scalar_parameter_index

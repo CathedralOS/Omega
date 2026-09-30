@@ -27,6 +27,30 @@ use crate::proof_contracts::contract_entailment::{
 use comparison::Comparison;
 use projection::{RankOrder, RankProjection};
 
+/// Exact scalar coordinates from the runtime component judgment. These are
+/// transient query results, not another executable representation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedRuntimeNaturalState {
+    pub state: SymbolHandle,
+    pub parameter: SymbolHandle,
+    pub parameter_position: u32,
+    pub primitive_type: typed_trees::types::PrimitiveType,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedRuntimeNaturalEdge {
+    pub source: SymbolHandle,
+    pub target: SymbolHandle,
+    pub statement_ordinal: u32,
+    pub strict: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedRuntimeNaturalComponent {
+    pub states: Vec<ValidatedRuntimeNaturalState>,
+    pub edges: Vec<ValidatedRuntimeNaturalEdge>,
+}
+
 pub(super) fn extend_runtime_adjacency(
     program: &TypedTrees,
     proof_only: &ProofOnlyClassification,
@@ -78,6 +102,14 @@ pub(super) fn check_component(
     adjacency: &[Vec<usize>],
     component: &[usize],
 ) -> Result<(), &'static str> {
+    project_component(program, adjacency, component).map(|_| ())
+}
+
+pub(super) fn project_component(
+    program: &TypedTrees,
+    adjacency: &[Vec<usize>],
+    component: &[usize],
+) -> Result<Option<ValidatedRuntimeNaturalComponent>, &'static str> {
     let Some(ranks) = component
         .iter()
         .map(|index| RankProjection::resolve(program, &program.machines()[*index]))
@@ -233,6 +265,7 @@ pub(super) fn check_component(
         }
         member_mappings.push(filtered);
     }
+    let mut natural = projection::natural_component(program, component, &ranks, &member_mappings);
     // A prefix store is judged against the premise carriers the call-site
     // judgment actually reads (subjects, endpoints, requires facts, and
     // constrained entries), located in each state through the same telescope,
@@ -267,7 +300,12 @@ pub(super) fn check_component(
         let mut observed = Vec::new();
         for (state_position, state) in states.iter().enumerate() {
             let mut guards = Vec::new();
-            for statement in program.statement_table.statements(state.statement_nodes) {
+            for (statement_ordinal, statement) in program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .enumerate()
+            {
                 let StatementNode::Transition(transition) = statement else {
                     if prefix::preserves_rank(
                         program,
@@ -370,6 +408,18 @@ pub(super) fn check_component(
                             return Err("a call target has no exact machine identity");
                         };
                         if callee == index {
+                            if let Some(retained) = &mut natural {
+                                if !projection::retain_internal_transfer(
+                                    program,
+                                    retained,
+                                    state.symbol,
+                                    target_symbol,
+                                    arguments,
+                                    statement_ordinal,
+                                ) {
+                                    natural = None;
+                                }
+                            }
                             // An internal state arrival belongs to the
                             // member's own ranking judgment -- the checked
                             // stage runs that judgment whenever the member's
@@ -418,6 +468,7 @@ pub(super) fn check_component(
                                 "the ranked parameter has no corresponding actual argument",
                             );
                         };
+                        let strict;
                         if matches!(
                             ranks[position].order,
                             projection::RankOrder::Natural(_)
@@ -449,8 +500,9 @@ pub(super) fn check_component(
                                 &site_guards,
                                 arguments,
                             ) {
-                                Some(RankingRangeCallProgress::Strict) => {}
+                                Some(RankingRangeCallProgress::Strict) => strict = true,
                                 Some(RankingRangeCallProgress::NonIncreasing) => {
+                                    strict = false;
                                     weak_edges[position].push(callee_position)
                                 }
                                 None => {
@@ -476,8 +528,9 @@ pub(super) fn check_component(
                                     entry_parameters: &mappings[state_position],
                                 },
                             ) {
-                                Some(Comparison::Strict) => {}
+                                Some(Comparison::Strict) => strict = true,
                                 Some(Comparison::Equal) => {
+                                    strict = false;
                                     weak_edges[position].push(callee_position)
                                 }
                                 None => {
@@ -486,6 +539,15 @@ pub(super) fn check_component(
                                     );
                                 }
                             }
+                        }
+                        if let Some(retained) = &mut natural {
+                            retained.edges.push(ValidatedRuntimeNaturalEdge {
+                                source: state.symbol,
+                                target: callee_entry.symbol,
+                                statement_ordinal: u32::try_from(statement_ordinal)
+                                    .map_err(|_| "a ranking statement ordinal exceeds u32")?,
+                                strict,
+                            });
                         }
                         if mixed_ranges {
                             // Conservation reads the caller's entry values
@@ -545,7 +607,22 @@ pub(super) fn check_component(
     // Weak edges may exist across every state of a member; their acyclicity
     // is still judged per machine position.
     if weak_edges_are_acyclic(&weak_edges) {
-        Ok(())
+        // Scalar emission currently identifies authored delivery by the
+        // source/target state pair. Keep mixed parallel comparisons out of
+        // this projection until emitted delivery retains the call ordinal;
+        // ordinary runtime component admission is unchanged.
+        if natural.as_ref().is_some_and(|component| {
+            component.edges.iter().enumerate().any(|(position, edge)| {
+                component.edges[..position].iter().any(|earlier| {
+                    earlier.source == edge.source
+                        && earlier.target == edge.target
+                        && earlier.strict != edge.strict
+                })
+            })
+        }) {
+            natural = None;
+        }
+        Ok(natural)
     } else {
         Err("a preserving cycle has no strict measure DECREASE")
     }

@@ -190,11 +190,10 @@ pub(super) fn prepare(
         };
         let (header_machine, header_source) =
             source_custody::authored_state(checked, graph.states[*header].state)?;
-        if header_machine.symbol != graph.machine
-            || header_machine
-                .termination_plan
-                .implementation_witness
-                .is_none()
+        if header_machine
+            .termination_plan
+            .implementation_witness
+            .is_none()
         {
             return unsupported("scalar loop lost or substituted its authored ranking witness");
         }
@@ -206,10 +205,9 @@ pub(super) fn prepare(
         let Some(witness) = &header_machine.termination_plan.implementation_witness else {
             continue;
         };
-        // The checker judged only the dispatch machine's witness for this
-        // graph. A fused member's own witness has no retained judgment here,
-        // so its loop is not lowered as if it were unranked.
-        if header_machine.symbol != graph.machine {
+        // A fused member's own witness needs its retained component judgment;
+        // an unranked dispatch prologue cannot erase that obligation.
+        if header_machine.symbol != graph.machine && rank.is_none() {
             return unsupported("scalar loop header's ranking witness has no graph judgment");
         }
         // The Nat countdown is only one ranking order: a cyclic machine proven
@@ -224,8 +222,8 @@ pub(super) fn prepare(
     }
     if feedback.iter().all(|&(_, header)| header != 0) {
         // The entry roster binds once on the machine signature, before any
-        // cycle; later rows carry scalar formals only, which their own block
-        // parameters rebind on every feedback edge.
+        // cycle; later rows' scalar and borrowed structural formals rebind
+        // through their own block parameters on every feedback edge.
         return Ok(Some(ScalarLoopPlan {
             entry: ScalarLoopEntry::Prologue,
             rank,
@@ -263,11 +261,23 @@ pub(super) fn prepare(
                             | StructuralTypeShape::ByteSequence(_)
                     )
                 });
-        !(plain_owned || shared_view)
+        // Ordinary record loans move only the usable binding across the
+        // edge, never the caller's storage or an owned disposal obligation.
+        // Signature and successor custody independently rejoin the exact
+        // referent and access; Terminal replay checks the resulting aliases.
+        let borrowed_record = matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && structural_types.iter().any(|declaration| {
+                declaration.id == parameter.structural_type
+                    && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            });
+        !(plain_owned || shared_view || borrowed_record)
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
     }) {
-        return unsupported("scalar loop requires whole plain-owned state parameters");
+        return unsupported("scalar loop requires plain owned values or whole supported loans");
     }
     let mut loop_parameters = parameters.to_vec();
     for (position, parameter) in loop_parameters
@@ -306,6 +316,14 @@ fn validate_rank<'a>(
     graph: &'a CheckedScalarMachineGraph,
     rank: &CheckedStructuralRankedSccPlan,
 ) -> Result<(), LoweringError> {
+    if rank.covered_cyclic_edges.iter().any(|edge| {
+        matches!(
+            edge.successor_argument,
+            CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison { .. }
+        )
+    }) {
+        return validate_runtime_rank(checked, graph, rank);
+    }
     // The member set preserves authored edge order — header first, then each
     // covered edge's endpoints — so the rejoined roster compares to the
     // checker's retained plan element for element.
@@ -482,6 +500,177 @@ fn validate_rank<'a>(
             })
     {
         return unsupported("scalar loop ranking differs from its complete authored rank roster");
+    }
+    Ok(())
+}
+
+/// Rejoin component evidence through the same runtime ranking judgment, then
+/// independently rejoin each executable successor to its authored call site.
+fn validate_runtime_rank(
+    checked: &CheckedTrees,
+    graph: &CheckedScalarMachineGraph,
+    rank: &CheckedStructuralRankedSccPlan,
+) -> Result<(), LoweringError> {
+    let components = validation::validated_runtime_natural_components(checked);
+    let mut matching = components.iter().filter(|component| {
+        component
+            .states
+            .iter()
+            .any(|state| state.state == rank.header_state)
+    });
+    let component = matching.next().ok_or(LoweringError::Unsupported(
+        "scalar loop lost its exact runtime ranking component",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("scalar loop has ambiguous runtime ranking components");
+    }
+    let coordinate = |state| -> Result<_, LoweringError> {
+        let subject = component
+            .states
+            .iter()
+            .find(|subject| subject.state == state)
+            .ok_or(LoweringError::Unsupported(
+                "scalar loop lost its runtime rank subject",
+            ))?;
+        let row = graph.states.iter().find(|row| row.state == state).ok_or(
+            LoweringError::Unsupported("scalar loop lost a runtime component row"),
+        )?;
+        let (owner, source) = source_custody::authored_state(checked, state)?;
+        source_custody::parameter_storage(checked, owner.symbol, row)?;
+        if checked
+            .machine_states(owner)
+            .first()
+            .is_some_and(|entry| entry.symbol == state)
+        {
+            // The runtime judgment reads typed subject/range roots. Retain
+            // the normalized witness metadata's independent join to those
+            // roots too; subordinate states use the filtered telescope.
+            resolve_member(checked, owner, source, row)?;
+        }
+        if checked
+            .state_parameters(source)
+            .get(subject.parameter_position as usize)
+            .is_none_or(|parameter| parameter.symbol != subject.parameter)
+        {
+            return unsupported("scalar runtime rank substituted its authored parameter");
+        }
+        let position = row
+            .scalar_parameters
+            .iter()
+            .position(|parameter| {
+                parameter.source_position == subject.parameter_position
+                    && parameter.primitive_type == subject.primitive_type
+            })
+            .ok_or(LoweringError::Unsupported(
+                "scalar loop lost its runtime scalar rank lane",
+            ))?;
+        Ok((
+            subject,
+            u32::try_from(position)
+                .map_err(|_| LoweringError::Unsupported("scalar runtime rank index exceeds u32"))?,
+        ))
+    };
+    let header = graph
+        .states
+        .iter()
+        .find(|row| {
+            component
+                .states
+                .iter()
+                .any(|subject| subject.state == row.state)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "scalar runtime rank lost its header",
+        ))?;
+    let (header_subject, header_position) = coordinate(header.state)?;
+    let ScalarType::Integer(carrier) = terminal_scalar_type(header_subject.primitive_type)? else {
+        return unsupported("scalar runtime rank requires an integer carrier");
+    };
+    let IntegerValue::Unsigned(upper_bound) = carrier.maximum_value() else {
+        return unsupported("scalar runtime rank requires an unsigned carrier");
+    };
+    for subject in &component.states {
+        coordinate(subject.state)?;
+    }
+    let mut edges = Vec::new();
+    for edge in &component.edges {
+        let (source, source_position) = coordinate(edge.source)?;
+        let (target, target_position) = coordinate(edge.target)?;
+        let source_row = graph
+            .states
+            .iter()
+            .find(|row| row.state == edge.source)
+            .ok_or(LoweringError::Unsupported(
+                "scalar runtime rank lost its source row",
+            ))?;
+        let successors = match &source_row.terminator {
+            CheckedScalarStateTerminator::Jump(successor) => [Some(successor), None],
+            CheckedScalarStateTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                fn jump(
+                    destination: &CheckedScalarBranchDestination,
+                ) -> Option<&CheckedScalarSuccessor> {
+                    match destination {
+                        CheckedScalarBranchDestination::Jump(successor) => Some(successor),
+                        _ => None,
+                    }
+                }
+                [jump(when_true), jump(when_false)]
+            }
+            _ => [None, None],
+        };
+        let mut matching = successors.into_iter().flatten().filter(|successor| {
+            successor.statement_ordinal == edge.statement_ordinal
+                && successor.target == edge.target
+                && !successor.is_continuation
+        });
+        let successor = matching.next().ok_or(LoweringError::Unsupported(
+            "scalar runtime rank lost its authored successor",
+        ))?;
+        if matching.next().is_some()
+            || source.primitive_type != target.primitive_type
+            || source.primitive_type != header_subject.primitive_type
+        {
+            return unsupported("scalar runtime rank has substituted edge coordinates");
+        }
+        source_custody::validate_successor(checked, source.state, successor)?;
+        edges.push(CheckedStructuralRankedSccEdgePlan {
+            source_state: source.state,
+            target_state: target.state,
+            statement_ordinal: edge.statement_ordinal,
+            guard: CheckedStructuralRankedGuardPlan::SourceRankingJudgment,
+            successor_argument: CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison {
+                argument_ordinal: target.parameter_position,
+                source_scalar_parameter_index: source_position,
+                target_scalar_parameter_index: target_position,
+                primitive_type: source.primitive_type,
+                strict: edge.strict,
+            },
+        });
+    }
+    edges.sort_by_key(|edge| {
+        (
+            edge.source_state.arena_index(),
+            edge.source_state.generation(),
+            edge.target_state.arena_index(),
+            edge.target_state.generation(),
+            edge.statement_ordinal,
+        )
+    });
+    if *rank
+        != (CheckedStructuralRankedSccPlan {
+            header_state: header.state,
+            rank_scalar_parameter_index: header_position,
+            rank_primitive_type: header_subject.primitive_type,
+            rank_lower_bound: 0,
+            rank_upper_bound: upper_bound,
+            covered_cyclic_edges: edges,
+        })
+    {
+        return unsupported("scalar loop ranking differs from its runtime component judgment");
     }
     Ok(())
 }

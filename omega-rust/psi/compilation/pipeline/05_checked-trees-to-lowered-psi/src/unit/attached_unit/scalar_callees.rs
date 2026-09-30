@@ -19,7 +19,9 @@ use super::{
     collect_service_summary, contract_id, lookup_machine_id, lower_declared_service_reach,
     lower_installation_machine_service_ceiling, lower_unit_parameters, unsupported,
 };
-use terminal_psi::{ObligationEvidence, ScalarFloatRange, ScalarIntegerRange};
+use terminal_psi::{
+    ObligationEvidence, ScalarBlockInvariant, ScalarFloatRange, ScalarIntegerRange,
+};
 pub(super) fn retain_catalog_roots<'checked>(
     checked: &'checked CheckedTrees,
     callees: &[CheckedScalarCallee<'checked>],
@@ -251,6 +253,7 @@ pub(super) struct EmissionCatalog<'a> {
 /// rows.
 pub(super) struct EmittedScalarCallees {
     pub(super) evidence: Vec<ObligationEvidence>,
+    pub(super) scalar_block_invariants: Vec<ScalarBlockInvariant>,
     /// Floating and integer entry ranges are machine-local rows keyed by each
     /// emitted helper's own identities; they merge into the assembled catalog
     /// without sharing the qualification namespace this path keeps empty.
@@ -271,6 +274,7 @@ pub(super) fn emit(
 ) -> Result<EmittedScalarCallees, LoweringError> {
     let mut output = EmittedScalarCallees {
         evidence: Vec::new(),
+        scalar_block_invariants: Vec::new(),
         float_entry_ranges: Vec::new(),
         integer_entry_ranges: Vec::new(),
     };
@@ -296,6 +300,9 @@ pub(super) fn emit(
                 checked, plan, terminal_machine, identity_base, Some(catalog.structural_types),
             )?;
             machines.append(&mut lowered.semantic_module.machines);
+            output
+                .scalar_block_invariants
+                .append(&mut lowered.semantic_module.scalar_block_invariants);
             output.evidence.append(&mut lowered.proof_bundle.evidence);
             occurrences.retain_lowered(&mut lowered);
             continue;
@@ -380,6 +387,7 @@ pub(super) fn emit(
             crate::scalar_graph::scalar_graph_module::build_scalar_graph_module_in_namespace(
                 &machine.states,
                 &machine.state_symbols,
+                &machine.state_requires,
                 machine.result_type,
                 &machine.scalar_qualifications,
                 machine.contract,
@@ -426,6 +434,9 @@ pub(super) fn emit(
         terminal_machine.declared_service_reach =
             lower_declared_service_reach(checked, machine.source_machine, catalog.service_ids)?;
         machines.push(terminal_machine.clone());
+        output
+            .scalar_block_invariants
+            .append(&mut lowered.semantic_module.scalar_block_invariants);
         output.float_entry_ranges.append(
             &mut lowered
                 .semantic_module

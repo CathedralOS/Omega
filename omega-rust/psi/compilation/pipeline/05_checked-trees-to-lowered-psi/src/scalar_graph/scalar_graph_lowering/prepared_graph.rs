@@ -212,11 +212,19 @@ pub(crate) struct LoweredScalarArrayConstruction {
     pub(crate) elements: Vec<LoweredDirectExpression>,
 }
 
+/// Authored state requirements and their exact structural read namespace.
+/// Synthetic evaluation rows do not acquire another copy of these predicates.
+pub(crate) struct PreparedStateRequirements {
+    pub(crate) clauses: Vec<Option<ClosedScalarContractValue>>,
+    pub(crate) parameters: Vec<(u32, StructuralParameterDeclaration)>,
+}
+
 pub(crate) struct PreparedScalarMachine {
     pub(crate) source_machine: symbols::SymbolHandle,
     /// Authored symbols of the leading source rows in `states`, in graph
     /// order; later rows are synthesized and carry no authored state.
     pub(crate) state_symbols: Vec<symbols::SymbolHandle>,
+    pub(crate) state_requires: Vec<PreparedStateRequirements>,
     pub(crate) states: Vec<LoweredScalarBranchState>,
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) scalar_qualifications: terminal_psi::ScalarQualificationCatalog,
@@ -228,6 +236,16 @@ pub(crate) struct PreparedScalarMachine {
     /// literal ops themselves join `all_operations` through their edges.
     pub(crate) literal_places: Vec<scalar_computations::literals::Slot>,
     pub(crate) loop_plan: Option<cycles::ScalarLoopPlan>,
+}
+
+impl PreparedScalarMachine {
+    pub(crate) fn requirement_count(&self) -> usize {
+        self.contract.requirement_count().max(usize::from(
+            self.state_requires
+                .first()
+                .is_some_and(|state| !state.clauses.is_empty()),
+        ))
+    }
 }
 
 pub(crate) enum PreparedScalarContract {

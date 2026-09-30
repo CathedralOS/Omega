@@ -410,10 +410,19 @@ the complete product bar; focused successes below do not establish that baseline
     builds and exits 70 on macOS ARM64; preserve both separator-count effects
     and result 2. Connect `termination/rank_range_state_call`'s
     count/step cycle through its subordinate state with **GENERAL-CYCLIC-EXECUTION**
-    and **TRANSITION-TAIL-CALL-TO-MACHINE**: its runtime twin
-    `termination/runtime_rank_range_state_call_exit` expects
-    result 0 (exit 70) and rejects at `state graph: natural ranks`, leaving
-    `Main::count` an unavailable scalar target.
+    and **TRANSITION-TAIL-CALL-TO-MACHINE**. Its hosted Build entry preserves
+    the borrowed `Main`, count → hold → step → count weak/strict cycle, and
+    result 0. On macOS ARM64, `omega run --both
+    tests/omega/pass/termination/rank_range_state_call/main.omg` reaches native
+    selection but rejects at `selection/construction/scalar_graph/structural.rs`
+    because default-initialized empty locals have no addressable home. Psi
+    retains and independently verifies rank comparisons, per-state loan transfers,
+    and mandatory arrival predicates; scoped checks pass 69/69. Finish the
+    native storage join and require native/interpreter exit 0; the old `checked`
+    golden is not execution evidence.
+    Also preserve the upstream runtime twin
+    `termination/runtime_rank_range_state_call_exit`, which carries a
+    Console-bearing context and expects result 0 (exit 70).
   - **Results and control.** `calls/runtime_dispatch_float_terminal_exit` and
     `calls/runtime_dispatch_result_enum_case_exit` (score 15) exit 70 on macOS
     ARM64. Finish receiver transfer through

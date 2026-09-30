@@ -598,6 +598,7 @@ pub(crate) fn lower_unit_closure(
 
     // Publication: one module in canonical roster order.
     call_evidence.append(&mut scalar_output.evidence);
+    scalar_block_invariants.append(&mut scalar_output.scalar_block_invariants);
     let mut float_entry_ranges = scalar_output.float_entry_ranges;
     let mut integer_entry_ranges = scalar_output.integer_entry_ranges;
     float_entry_ranges.sort_by_key(|range| (range.machine, range.parameter));

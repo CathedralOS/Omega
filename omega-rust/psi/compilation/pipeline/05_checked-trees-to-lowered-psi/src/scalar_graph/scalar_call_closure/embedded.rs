@@ -91,6 +91,7 @@ impl EmbeddedScalarCalls {
             let mut helper = build_scalar_graph_module(
                 &machine.states,
                 &machine.state_symbols,
+                &machine.state_requires,
                 machine.result_type,
                 &machine.scalar_qualifications,
                 machine.contract,
@@ -148,6 +149,10 @@ impl EmbeddedScalarCalls {
                 );
             lowered
                 .semantic_module
+                .scalar_block_invariants
+                .append(&mut helper.semantic_module.scalar_block_invariants);
+            lowered
+                .semantic_module
                 .machines
                 .append(&mut helper.semantic_module.machines);
             lowered
@@ -174,6 +179,10 @@ impl EmbeddedScalarCalls {
             .scalar_qualifications
             .integer_entry_ranges
             .sort_by_key(|range| (range.machine, range.parameter));
+        lowered
+            .semantic_module
+            .scalar_block_invariants
+            .sort_by_key(|invariant| (invariant.machine, invariant.header));
         Ok(())
     }
 }
@@ -240,7 +249,7 @@ impl EmbeddedScalarCalls {
         .collect::<Result<Vec<_>, LoweringError>>()?;
         let requirement_counts = prepared
             .iter()
-            .map(|machine| (machine.source_machine, machine.contract.requirement_count()))
+            .map(|machine| (machine.source_machine, machine.requirement_count()))
             .collect();
         let machine_ids = closure
             .into_iter()

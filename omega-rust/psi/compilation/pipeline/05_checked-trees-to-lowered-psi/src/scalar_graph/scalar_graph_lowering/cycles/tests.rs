@@ -5,6 +5,240 @@ use super::{
 };
 use crate::scalar_graph::PrimitiveType;
 
+const MUTUAL_RANK_TRANSPORT: &str = r#"
+    data Main {}
+    machine Main::main(main: &mut Main) -> u32 {
+        transition { _ -> Main::count(main, 5) }
+    }
+    machine Main::count(main: &mut Main, remaining: u32)
+    terminates by remaining in 0..=9;
+    -> u32 requires remaining <= 9 {
+        transition remaining > 0 {
+            true -> hold(main, remaining)
+            false -> remaining
+        }
+        state hold(main: &mut Main, pending: u32)
+        requires pending <= 9 {
+            transition pending > 0 {
+                true -> Main::step(main, pending)
+                false -> pending
+            }
+        }
+    }
+    machine Main::step(main: &mut Main, n: u32)
+    terminates by n in 0..=9;
+    -> u32 requires n <= 9 {
+        transition n > 0 {
+            true -> Main::count(main, n - 1)
+            false -> n
+        }
+    }
+"#;
+
+#[test]
+fn mixed_parallel_runtime_comparisons_do_not_lose_their_call_site_identity() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        machine first(remaining: u32)
+        terminates by remaining in 0..=9;
+        -> u32 requires remaining <= 9 {
+            transition remaining > 1 {
+                true -> second(remaining - 1)
+                false -> remaining
+            }
+        }
+        machine second(remaining: u32)
+        terminates by remaining in 0..=9;
+        -> u32 requires remaining > 0 && remaining <= 9 {
+            transition remaining > 1 {
+                true -> first(remaining)
+                false -> first(remaining - 1)
+            }
+        }
+    "#,
+    );
+    assert_eq!(
+        validation::validated_runtime_recursive_components(&checked).len(),
+        1,
+        "each complete runtime cycle has first's strict decrease"
+    );
+    assert!(
+        validation::validated_runtime_natural_components(&checked).is_empty(),
+        "state-pair emission cannot replace two different call-site comparisons"
+    );
+}
+
+#[test]
+fn mutual_rank_transport_retains_weak_edges_behind_an_unranked_prologue() {
+    let checked = crate::front_end::checked_program(MUTUAL_RANK_TRANSPORT);
+    let components = validation::validated_runtime_natural_components(&checked);
+    assert_eq!(
+        components.len(),
+        1,
+        "one runtime natural projection; admitted components: {:?}",
+        validation::validated_runtime_recursive_components(&checked)
+    );
+    let graph = named_graph(&checked, "Main::main");
+    let plan = prepare(&checked, graph, &[], &[], &mut 10)
+        .expect("runtime component retains its own witness")
+        .expect("one cycle behind the prologue");
+    assert!(matches!(plan.entry, ScalarLoopEntry::Prologue));
+    let rank = plan.rank.expect("component ranking");
+    assert_ne!(rank.header_state, graph.states[0].state);
+    assert_eq!(rank.covered_cyclic_edges.len(), 3);
+    assert_eq!(
+        rank.covered_cyclic_edges
+            .iter()
+            .filter(|edge| matches!(
+                edge.successor_argument,
+                CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison {
+                    strict: true,
+                    ..
+                }
+            ))
+            .count(),
+        1
+    );
+    let lowered = crate::lower_machine(
+        &checked,
+        crate::TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("weak transport and strict descent lower together");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("every emitted cycle independently has strict descent");
+}
+
+#[test]
+fn mutual_rank_transport_rejects_forged_comparisons_and_subject_coordinates() {
+    let checked = crate::front_end::checked_program(MUTUAL_RANK_TRANSPORT);
+    let original = named_graph(&checked, "Main::main");
+    for mutation in 0..6 {
+        let mut graph = original.clone();
+        let rank = graph.ranked_scc.as_mut().expect("runtime ranking");
+        match mutation {
+            0 => rank.header_state = graph.states[0].state,
+            1 => {
+                rank.covered_cyclic_edges.remove(0);
+            }
+            mutation => {
+                let edge = &mut rank.covered_cyclic_edges[0];
+                let CheckedStructuralRankedArgumentPlan::UnsignedParameterComparison {
+                    strict,
+                    source_scalar_parameter_index,
+                    target_scalar_parameter_index,
+                    ..
+                } = &mut edge.successor_argument
+                else {
+                    panic!("runtime comparison");
+                };
+                match mutation {
+                    2 => *strict = !*strict,
+                    3 => *source_scalar_parameter_index += 1,
+                    4 => *target_scalar_parameter_index += 1,
+                    _ => edge.statement_ordinal += 1,
+                }
+            }
+        };
+        assert!(
+            prepare(&checked, &graph, &[], &[], &mut 10).is_err(),
+            "mutation {mutation}"
+        );
+    }
+    let mut graph = original.clone();
+    graph.ranked_scc = None;
+    assert!(prepare(&checked, &graph, &[], &[], &mut 10).is_err());
+    for mutation in 0..2 {
+        let mut changed = checked.clone();
+        let witness = changed
+            .typed
+            .machines_mut()
+            .iter_mut()
+            .find(|machine| machine.name.as_str() == "Main::count")
+            .unwrap()
+            .termination_plan
+            .implementation_witness
+            .as_mut()
+            .unwrap();
+        match mutation {
+            0 => witness.subjects[0] = "pending".into(),
+            _ => witness.rank_range.as_mut().unwrap().ceiling = "8".into(),
+        }
+        assert!(
+            prepare(
+                &changed,
+                named_graph(&changed, "Main::main"),
+                &[],
+                &[],
+                &mut 10
+            )
+            .is_err(),
+            "witness metadata mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn ordinary_record_loans_rebind_without_owned_disposal_across_scalar_backedges() {
+    for access in ["&", "&mut"] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Context {{ marker: u64; }}
+             machine walk(context: {access} Context, remaining: u64) -> u64 {{
+                 transition remaining > 0 {{
+                     true -> walk(context, remaining - 1)
+                     false -> remaining
+                 }}
+             }}"
+        ));
+        let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("walk"))
+            .expect("an ordinary whole record loan is a loop-carried binding");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("loop loan aliases independently verify");
+        let machine = &lowered.semantic_module.machines[0];
+        let original = &machine.structural_parameters[0];
+        assert!(!original.is_self);
+        assert!(machine.blocks.iter().any(|block| {
+            block.structural_parameters.iter().any(|parameter| {
+                parameter.place != original.place
+                    && parameter.structural_type == original.structural_type
+                    && parameter.access == original.access
+            })
+        }));
+        let retained_graph = graph(&checked);
+        let mut forged = machine.structural_parameters.clone();
+        forged[0].multiplicity = terminal_psi::StructuralMultiplicity::Affine;
+        assert!(
+            prepare(
+                &checked,
+                retained_graph,
+                &forged,
+                &lowered.semantic_module.structural_types,
+                &mut 100,
+            )
+            .is_err()
+        );
+        forged[0].multiplicity = terminal_psi::StructuralMultiplicity::Unrestricted;
+        forged[0].access = terminal_psi::StructuralAccess::WriteOnlyBorrow;
+        assert!(
+            prepare(
+                &checked,
+                retained_graph,
+                &forged,
+                &lowered.semantic_module.structural_types,
+                &mut 100,
+            )
+            .is_err()
+        );
+    }
+}
+
 #[test]
 fn mutable_receiver_keeps_its_invocation_place_across_a_scalar_backedge() {
     let checked = crate::front_end::checked_program(
@@ -165,7 +399,10 @@ fn source_rank_custody_preserves_boolean_wrappers_reversal_and_arm_order() {
             let CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
                 argument_ordinal,
                 ..
-            } = edge.successor_argument;
+            } = edge.successor_argument
+            else {
+                panic!("countdown argument");
+            };
             assert_eq!(
                 argument_ordinal, 1,
                 "owned input precedes the rank in the authored telescope"
@@ -243,14 +480,20 @@ fn source_rank_custody_rejects_each_retained_coordinate_descriptor_and_bound_mut
                         let CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
                             scalar_parameter_index,
                             ..
-                        } = &mut edge.guard;
+                        } = &mut edge.guard
+                        else {
+                            panic!("countdown guard");
+                        };
                         *scalar_parameter_index = 1;
                     }
                     11 => {
                         let CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
                             primitive_type,
                             ..
-                        } = &mut edge.guard;
+                        } = &mut edge.guard
+                        else {
+                            panic!("countdown guard");
+                        };
                         *primitive_type = PrimitiveType::U32;
                     }
                     mutation => {
@@ -259,7 +502,10 @@ fn source_rank_custody_rejects_each_retained_coordinate_descriptor_and_bound_mut
                             source_scalar_parameter_index,
                             target_scalar_parameter_index,
                             primitive_type,
-                        } = &mut edge.successor_argument;
+                        } = &mut edge.successor_argument
+                        else {
+                            panic!("countdown argument");
+                        };
                         match mutation {
                             12 => *argument_ordinal = 0,
                             13 => *source_scalar_parameter_index = 1,
@@ -319,7 +565,16 @@ fn named_graph<'a>(checked: &'a CheckedTrees, name: &str) -> &'a CheckedScalarMa
         .flow
         .terminal_scalar_graphs
         .for_machine(machine.symbol)
-        .expect("scalar graph")
+        .unwrap_or_else(|| {
+            panic!(
+                "scalar graph {name}: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_scalar_graphs
+                    .declined_reason(machine.symbol)
+            )
+        })
 }
 
 /// Square-and-multiply re-enters `step`, never the entry; the nested count

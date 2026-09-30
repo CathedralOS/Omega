@@ -173,30 +173,30 @@ fn arguments<'a>(
             .count()
     };
     if forwarded(source) != 0 || forwarded(target) != 0 {
-        // Structural formals forward only across one body's re-entry: a
-        // multi-state machine belongs to the Unit state graph, and a fused
-        // graph carries scalar formals only (see `build_machine_graph`). The
-        // retained roster must still be exactly the admitted signature, the
-        // whole mixed one for an attached machine that retains its borrowed
-        // receiver (or has none), and the ordinary free one otherwise.
-        let (structural, scalar, _) = if machine.attached_data.is_some()
-            && (super::retains_borrowed_receiver(program, source_state)
-                || !source_parameters.iter().any(|parameter| parameter.is_self))
-        {
-            super::super::terminal_unit::calls::ambient_self_scalar_graph_signature(
-                program,
-                machine,
-                source_state,
-            )?
-        } else {
-            super::super::terminal_unit::structural_scalar_graph_signature(program, source_state)?
-        };
-        if graph.states.len() != 1
-            || source.state != target.state
-            || source.structural_parameters != structural
-            || source.scalar_parameters != scalar
-        {
-            return None;
+        // Both endpoint rosters rejoin their own declaration. A fused edge
+        // does not give the dispatch machine authority over a sibling's
+        // signature, nor does sharing a carrier imply sharing a place.
+        for (owner, authored, retained) in [
+            (source_machine, source_state, source),
+            (target_machine, target_state, target),
+        ] {
+            let (structural, scalar, _) = if owner.attached_data.is_some()
+                && (super::retains_borrowed_receiver(program, authored)
+                    || !program
+                        .state_parameters(authored)
+                        .iter()
+                        .any(|parameter| parameter.is_self))
+            {
+                super::super::terminal_unit::calls::ambient_self_scalar_graph_signature(
+                    program, owner, authored,
+                )?
+            } else {
+                super::super::terminal_unit::structural_scalar_graph_signature(program, authored)?
+            };
+            if retained.structural_parameters != structural || retained.scalar_parameters != scalar
+            {
+                return None;
+            }
         }
     }
     let StatementNode::Transition(transition) = program
@@ -244,10 +244,10 @@ fn arguments<'a>(
     let target_index = if let Some(target_index) =
         crate::checks::termination::named_transition_target_state_index(
             program,
-            machine,
+            source_machine,
             path.symbol,
         ) {
-        if machine.symbol != target_machine.symbol {
+        if source_machine.symbol != target_machine.symbol {
             return None;
         }
         target_index
@@ -410,7 +410,18 @@ fn arguments<'a>(
                         && name.head_symbol == name.symbol
                         && parameter.symbol == name.symbol
                         && parameter.name == *spelling
-                        && !parameter.is_mutable
+                        // A mutable reference marks its formal mutable too;
+                        // forwarding that loan does not read a mutable owned
+                        // binding. Exact reference/access custody is checked
+                        // against the target below.
+                        && (!parameter.is_mutable
+                            || matches!(
+                                program.type_reference_table.type_reference(parameter.type_reference),
+                                typed_trees::types::TypeReferenceNode::Reference {
+                                    access: language_semantics::ReferenceAccess::Mutable,
+                                    ..
+                                }
+                            ))
                         && !parameter.is_const
                         && !parameter.is_self
                 })?;

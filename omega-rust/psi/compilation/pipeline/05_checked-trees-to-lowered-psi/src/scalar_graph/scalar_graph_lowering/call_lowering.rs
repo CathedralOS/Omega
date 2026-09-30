@@ -346,8 +346,9 @@ pub(crate) fn lower_scalar_graph_successor(
                     // A borrowed view forwards its descriptor along the edge:
                     // the callee re-borrows the same place rather than taking
                     // ownership the source never had.
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => scalar_bindings
-                        .shared_structural_argument(
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | checked_trees::CheckedStructuralAccess::MutableBorrow => scalar_bindings
+                        .borrowed_structural_argument(
                             &argument,
                             source_machine,
                             checked.typed.state_parameters(source_state_typed),

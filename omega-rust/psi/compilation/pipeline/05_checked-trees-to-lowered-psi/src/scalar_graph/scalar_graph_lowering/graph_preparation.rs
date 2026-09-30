@@ -17,7 +17,7 @@ use crate::scalar_graph::scalar_graph_lowering::graph_validation::validate_scala
 use crate::scalar_graph::scalar_graph_lowering::known_evaluation::evaluate_known_scalar_graph;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     CaseDispatchArm, LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
-    PreparedScalarContract, PreparedScalarMachine,
+    PreparedScalarContract, PreparedScalarMachine, PreparedStateRequirements,
 };
 use crate::scalar_graph::scalar_graph_lowering::{
     bindings, branch_destinations, cycles, guards, structural_values,
@@ -129,18 +129,10 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             "scalar graph has no source machine",
         ));
     }
-    for retained in states {
-        // A fused graph retains a sibling machine's states beside its own;
-        // the exact authored state resolves through its owning machine.
-        let (_, source) = source_custody::authored_state(checked, retained.state)
-            .map_err(|_| LoweringError::Unsupported("scalar graph has no exact source state"))?;
-        // Qualified signatures carry these exact membership requirements.
-        // Reconstruct the source obligation; a producer's missing contract row
-        // cannot authorize erasing a predicate, route, or unrelated state clause.
-        if !validation::scalar_state_contracts_are_qualifications(&checked.typed, source) {
-            return unsupported("scalar state contract is not carried by its qualified signature");
-        }
-    }
+    let replayed_requirements = states
+        .iter()
+        .map(|state| super::state_contracts::replay(checked, machine, state))
+        .collect::<Result<Vec<_>, _>>()?;
     let entry_state = states.first().ok_or(LoweringError::Unsupported(
         "checked scalar control plan must contain an entry state",
     ))?;
@@ -153,12 +145,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         );
     }
     let (_, result_type) = qualifications.scalar_state_types(checked, entry_state.state)?;
-    // Structural formals belong to one body (`terminal_scalar::
-    // build_machine_graph`): only a graph of one state carries them, on the
-    // entry roster that is the machine signature. A graph of several states,
-    // a multi-state machine or tail-fused bodies, carries scalar formals
-    // only; a multi-state machine whose non-entry states would bind formals
-    // from their incoming edges belongs to the Unit state graph.
+    // Each explicit borrowed formal belongs to its state's block namespace.
+    // A successor forwards the current loan into that destination roster;
+    // equal carrier types never imply equal storage identities.
     //
     // The one exception binds nothing on an edge: a tail fusion of
     // single-state machines whose every member retains the entry's exact
@@ -175,9 +164,16 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     if entry_state.structural_parameters.len() != structural_parameters.len()
         || (states.len() != 1
             && !shared_receiver
-            && states
-                .iter()
-                .any(|state| !state.structural_parameters.is_empty()))
+            && states.iter().any(|state| {
+                state.structural_parameters.iter().any(|parameter| {
+                    parameter.is_self
+                        || !matches!(
+                            parameter.access,
+                            checked_trees::CheckedStructuralAccess::SharedBorrow
+                                | checked_trees::CheckedStructuralAccess::MutableBorrow
+                        )
+                })
+            }))
         || (!primitive_locals.is_empty() && states.len() != 1)
         || states
             .iter()
@@ -186,7 +182,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             != primitive_locals.len()
     {
         return unsupported(
-            "scalar graph requires its exact structural entry namespace; a multi-state graph carries scalar formals only",
+            "scalar graph requires its exact structural namespaces and supported state custody",
         );
     }
     let loop_plan = cycles::prepare(
@@ -255,14 +251,39 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .with_copies(&copies)
             .with_fields(&fields);
 
+    let structural_type_ids = structural_types
+        .iter()
+        .map(|declaration| (declaration.identity.clone(), declaration.id))
+        .collect::<Vec<_>>();
+    let mut state_requires = Vec::with_capacity(states.len());
     for (state_index, state) in states.iter().enumerate() {
+        let state_parameters = if state_index == 0 || shared_receiver {
+            Vec::new()
+        } else {
+            crate::unit::attached_unit::lower_unit_parameters(
+                &state.structural_parameters,
+                &structural_type_ids,
+                &[],
+                next_place,
+            )?
+        };
+        let local_namespace = state
+            .structural_parameters
+            .iter()
+            .zip(&state_parameters)
+            .map(|(source, declaration)| (source.position, declaration.clone()))
+            .collect::<Vec<_>>();
         let state_namespace: &[(u32, StructuralParameterDeclaration)] =
             if state_index == 0 || shared_receiver {
                 &entry_namespace
             } else {
-                &[]
+                &local_namespace
             };
         computations.refresh_proof_scope(&state.erased_proof_parameters);
+        state_requires.push(PreparedStateRequirements {
+            clauses: replayed_requirements[state_index].clone(),
+            parameters: state_namespace.to_vec(),
+        });
         let (parameter_types, state_result_type) =
             qualifications.scalar_state_types(checked, state.state)?;
         let Some(state_result_carrier) = state.result_type else {
@@ -538,7 +559,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         // The entry's roster lives on the machine signature, not the block:
         // an entry block with a nonempty roster is reserved for owned loop
         // forwarding custody.
-        lowered_states.push(prepared.finish(state.state, terminator, &mut computations)?);
+        let mut lowered = prepared.finish(state.state, terminator, &mut computations)?;
+        lowered.structural_parameters = state_parameters;
+        lowered_states.push(lowered);
     }
 
     if return_sink.is_some() {
@@ -745,6 +768,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     Ok(PreparedScalarMachine {
         source_machine: machine,
         state_symbols: states.iter().map(|state| state.state).collect(),
+        state_requires,
         scalar_qualifications: qualifications.catalog().clone(),
         states: lowered_states,
         result_type,

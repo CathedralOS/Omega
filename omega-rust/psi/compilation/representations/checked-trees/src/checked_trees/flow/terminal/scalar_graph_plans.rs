@@ -105,6 +105,9 @@ pub struct CheckedScalarMachineGraph {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedScalarStateGraph {
     pub state: SymbolHandle,
+    /// Authored scalar arrival predicates. These are mandatory header
+    /// contracts, not optional facts inferred from the state's body.
+    pub requires: Vec<Option<crate::ClosedScalarContractValue>>,
     /// Structural formals retain their complete authored parameter positions.
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Dense scalar formals retain the corresponding authored positions.

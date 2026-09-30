@@ -18,6 +18,9 @@ use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTarge
 use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) mod runtime_ranking;
+pub use runtime_ranking::{
+    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
+};
 
 #[cfg(test)]
 mod query_tests;
@@ -310,6 +313,34 @@ pub fn validated_runtime_recursive_components(program: &TypedTrees) -> Vec<Vec<S
                 .into_iter()
                 .map(|member| program.machines()[member].symbol)
                 .collect()
+        })
+        .collect()
+}
+
+/// Re-run the runtime component judgment and retain its exact unsigned rank
+/// coordinates and edge comparisons. Acyclic callers are not component members.
+pub fn validated_runtime_natural_components(
+    program: &TypedTrees,
+) -> Vec<ValidatedRuntimeNaturalComponent> {
+    let mut diagnostics = Vec::new();
+    let symbols = TopLevelSymbols::build(program, &mut diagnostics);
+    if diagnostics.iter().any(Diagnostic::is_error) {
+        return Vec::new();
+    }
+    let proof_only = crate::proof_only_classification(program);
+    let graph = build_machine_call_graph(program, &symbols, &proof_only);
+    strongly_connected_components(&graph.edges)
+        .into_iter()
+        .filter(|component| {
+            component.len() > 1
+                && component.iter().all(|position| {
+                    !proof_only.is_proof_machine(program, &program.machines()[*position])
+                })
+        })
+        .filter_map(|component| {
+            runtime_ranking::project_component(program, &graph.edges, &component)
+                .ok()
+                .flatten()
         })
         .collect()
 }

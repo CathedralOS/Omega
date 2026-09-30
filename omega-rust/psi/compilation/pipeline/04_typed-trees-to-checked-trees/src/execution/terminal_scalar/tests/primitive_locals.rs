@@ -179,6 +179,7 @@ fn borrowed_local_rejects_missing_or_mismatched_initializer_facts() {
             &checked.facts.values.scalar_computations,
             &checked.facts.values.structural_values,
             &checked.facts.values.proof_terms,
+            &checked.facts.operators,
         );
         assert!(
             plans.for_machine(machine.symbol).is_none(),
@@ -221,6 +222,7 @@ fn borrowed_local_rejects_mismatched_computed_initializer() {
             &computations,
             &checked.facts.values.structural_values,
             &checked.facts.values.proof_terms,
+            &checked.facts.operators,
         );
         assert!(
             plans.for_machine(machine.symbol).is_none(),
@@ -278,6 +280,7 @@ fn borrowed_local_demand_rejects_wrong_referent_or_type() {
             &computations,
             &checked.facts.values.structural_values,
             &checked.facts.values.proof_terms,
+            &checked.facts.operators,
         );
         assert!(
             plans.for_machine(machine.symbol).is_none(),

@@ -197,10 +197,9 @@ pub(super) fn prepare(
     let mut parameter_types = parameter_types;
     let mut prefixes = Vec::new();
     let mut value_types = parameter_types.clone();
-    // Only a single-state graph carries structural formals: graph
-    // preparation pairs them with the emitted entry roster in authored order,
-    // including a retained receiver, so argument plans index the state's
-    // checked roster densely. A multi-state graph's namespaces are empty.
+    // Graph preparation pairs each state's structural formals with its own
+    // emitted namespace in authored order. Argument plans index this roster,
+    // not the dispatch entry's possibly different parameter list.
     // States whose prefix carries `__arm_destructure` markers destructure case
     // payloads under a membership guard: their payload reads stay deferred so
     // the guard's case dispatch can bind them at the exact case it selects.

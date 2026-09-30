@@ -95,8 +95,9 @@ pub use crate::declarations::selection_authority::{
 pub use crate::machine_calls::call_cycles::{
     ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
-    ValidatedProofRecursiveTransitionLane, machine_call_dependency_symbols,
-    validated_runtime_recursive_components,
+    ValidatedProofRecursiveTransitionLane, ValidatedRuntimeNaturalComponent,
+    ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState, machine_call_dependency_symbols,
+    validated_runtime_natural_components, validated_runtime_recursive_components,
 };
 pub use crate::machine_calls::calls::{
     AssignmentWriteTarget, CallFrameResolver, LocalWriteOrigin, frame_paths_overlap,
