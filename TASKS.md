@@ -196,17 +196,6 @@ the complete product bar; focused successes below do not establish that baseline
     sample exits **70** natively. **COMPOSITE-TRANSITION-ARGUMENT** owns the
     composite sources that still decline.
 
-    `omega run tests/omega/pass/calls/runtime_nested_case_argument_exit/main.omg`
-    on macOS arm64 now clears copy/affine case-return cleanup in Psi, but
-    native selection rejects `FunctionProjectionMismatch { function: 0 }`.
-    The explicit `Main` context has only an erased binding: stage 03
-    `selection/edge_transfers/addresses.rs::store` transports its pointer,
-    while `check` rejects the zero-byte referent span. Preserve the real
-    8-byte pointer slot and exact source custody; do not invent referent
-    bytes. Coordinate that active address-transport assignment, then require
-    this complete nested-case/owned-payload customer to exit 70. The checked
-    corpus result alone is not acceptance.
-
     Finish mixed scalar/structural operands, effectful arguments/returns,
     nested mutable-receiver calls, dependent/public-trait results and boundary
     consumers on that common route. A normalized foreign call's scalar result
