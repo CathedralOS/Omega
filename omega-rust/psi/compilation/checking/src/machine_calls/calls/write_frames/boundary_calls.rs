@@ -274,6 +274,21 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 .find(|definition| definition.symbol == receiver_type)?;
             (definition, true, field.type_reference)
         }
+        [_, _, ..] => {
+            let reference = parameter_boundary_receiver_type(
+                program,
+                current_machine,
+                receiver_members,
+                receiver_symbol,
+                site,
+            )?;
+            let receiver_type = boundary_receiver_type_symbol(program, reference)?;
+            let definition = program
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == receiver_type)?;
+            (definition, true, reference)
+        }
         _ => return None,
     };
     if !trait_definition.is_boundary
@@ -317,6 +332,68 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
         has_runtime_receiver,
         bindings,
     })
+}
+
+/// A static machine's lexical owner supplies no implicit receiver. Resolve
+/// parameter projections from the call's retained root and field identities.
+fn parameter_boundary_receiver_type(
+    program: &TypedTrees,
+    machine: &Machine,
+    members: &[String],
+    leaf: SymbolHandle,
+    site: CallerWriteSite<'_>,
+) -> Option<TypeReferenceHandle> {
+    let (state, _, _) = caller_statement_owner(program, machine, site)?;
+    let root = match site {
+        CallerWriteSite::Call(call) => call.receiver_root_symbol,
+        CallerWriteSite::Expression(expression) => {
+            let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
+                return None;
+            };
+            let mut receiver = call.receiver;
+            let mut root = SymbolHandle::invalid();
+            for _ in 0..members.len() {
+                match program.expression_table.expression(receiver) {
+                    ExpressionNode::Member(member) => receiver = member.receiver,
+                    ExpressionNode::Name(name) => {
+                        root = name.head_symbol;
+                        break;
+                    }
+                    _ => return None,
+                }
+            }
+            root
+        }
+        CallerWriteSite::Statement(_) => return None,
+    };
+    let (name, fields) = members.split_first()?;
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == root && parameter.name.as_str() == name)?;
+    if !root.is_valid() || !leaf.is_valid() || fields.is_empty() {
+        return None;
+    }
+    let mut reference = parameter.type_reference;
+    let mut selected = root;
+    for name in fields {
+        let definition =
+            crate::value_custody::places::data_definition_for_type(program, reference)?;
+        let mut candidates = program
+            .data_members(definition)
+            .iter()
+            .filter_map(|member| match member {
+                DataMember::Field(field) if field.name.as_str() == name => Some(field),
+                _ => None,
+            });
+        let field = candidates.next()?;
+        if candidates.next().is_some() {
+            return None;
+        }
+        selected = field.symbol;
+        reference = field.type_reference;
+    }
+    (selected == leaf).then_some(reference)
 }
 
 /// The call's retained receiver and target identities at this write site. A
