@@ -1,4 +1,6 @@
-//! Join a length observation to its exact validated producer or incoming view.
+//! Join a byte length observation to its validated producer or incoming view.
+//! The descriptor-arrival walk and repeated-observation equation also serve
+//! element views: changing the length unit does not change descriptor custody.
 
 use std::collections::BTreeSet;
 
@@ -162,7 +164,9 @@ fn bounded_view_capacity_of(
 
 /// Reconstruct the exact descriptor binding at every arrival. The equation
 /// relates two real observations, never a generic parameter extent or invariant.
-fn block_length_equation(
+/// Byte and element observations use the same transport rule, but never equate
+/// across those families: byte counts and element counts are different units.
+pub(super) fn block_length_equation(
     module: &TerminalModule,
     machine: &TerminalMachine,
     current: &Operation,
@@ -196,16 +200,26 @@ fn block_length_equation(
             continue;
         }
         for (operation_position, producer) in candidate_block.operations.iter().enumerate() {
-            if matches!(producer.kind, OperationKind::ByteSequenceLength { .. })
-                && (block_position != current_position.0 || operation_position < current_position.1)
-            {
-                candidates.push((block_position, operation_position, producer));
+            if block_position == current_position.0 && operation_position >= current_position.1 {
+                continue;
             }
+            let measured = match (&current.kind, &producer.kind) {
+                (
+                    OperationKind::ByteSequenceLength { .. },
+                    OperationKind::ByteSequenceLength { source },
+                )
+                | (
+                    OperationKind::ElementViewLength { .. },
+                    OperationKind::ElementViewLength { source },
+                ) => *source,
+                _ => continue,
+            };
+            candidates.push((block_position, operation_position, producer, measured));
         }
     }
     // Dominating blocks form a chain. Prefer the nearest observation, retaining
     // stable identity order independently of the serialized block roster.
-    candidates.sort_by_key(|(block_position, operation_position, _)| {
+    candidates.sort_by_key(|(block_position, operation_position, _, _)| {
         let block = machine.blocks[*block_position].id;
         (
             std::cmp::Reverse(dominators.depth(block).unwrap_or(0)),
@@ -213,13 +227,7 @@ fn block_length_equation(
             std::cmp::Reverse(*operation_position),
         )
     });
-    for (block_position, operation_position, producer) in candidates {
-        let OperationKind::ByteSequenceLength { source: measured } = producer.kind else {
-            continue;
-        };
-        if producer.id == current.id {
-            continue;
-        }
+    for (block_position, operation_position, producer, measured) in candidates {
         let Some(aliases) = descriptor_origins(
             machine,
             current_position,

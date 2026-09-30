@@ -427,3 +427,76 @@ fn arrival_rejects_escalating_a_shared_producer_to_mutable_access() {
         })
     );
 }
+
+/// A caller-supplied view has no local establishment to reconstruct. Its
+/// dominating length read is nevertheless the extent every arrival preserves.
+fn observed_signature_arrival() -> TerminalModule {
+    let mut module = joined(false, SIGNATURE_VIEW);
+    let machine = &mut module.machines[0];
+    machine.blocks[0].operations.push(scalar(
+        31,
+        31,
+        ScalarType::Integer(count()),
+        OperationKind::ElementViewLength {
+            source: id(SIGNATURE_VIEW, PlaceId::new),
+        },
+    ));
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut machine.blocks[1].terminator
+    else {
+        panic!("left staging edge");
+    };
+    structural_arguments[0] = view_argument(SIGNATURE_VIEW, StructuralAccess::SharedBorrow);
+    module
+}
+
+#[test]
+fn arrival_length_preserves_a_dominating_signature_view_observation() {
+    let mut module = observed_signature_arrival();
+    let equation = Proposition::Equal(value(LENGTH), value(31));
+    assert!(read_axioms(&module).contains(&equation));
+    module.machines[0].blocks.reverse();
+    assert!(read_axioms(&module).contains(&equation));
+}
+
+#[test]
+fn arrival_length_keeps_both_observation_and_backing_extent() {
+    let mut module = joined(false, PRODUCED);
+    module.machines[0].blocks[0].operations.push(scalar(
+        31,
+        31,
+        ScalarType::Integer(count()),
+        OperationKind::ElementViewLength {
+            source: id(PRODUCED, PlaceId::new),
+        },
+    ));
+    let axioms = read_axioms(&module);
+    assert!(axioms.contains(&arrival_extent()));
+    assert!(axioms.contains(&Proposition::Equal(value(LENGTH), value(31))));
+    verify_module_for_interpretation(&module, &read_bound(&module), &AdmissionProfile::default())
+        .expect("the previous backing-extent proof remains valid with another length observation");
+}
+
+#[test]
+fn arrival_length_rejects_a_different_descriptor_on_one_edge() {
+    let mut module = observed_signature_arrival();
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[1].terminator
+    else {
+        panic!("left staging edge");
+    };
+    structural_arguments[0] = view_argument(PRODUCED, StructuralAccess::SharedBorrow);
+    assert!(!read_axioms(&module).contains(&Proposition::Equal(value(LENGTH), value(31))));
+}
+
+#[test]
+fn arrival_length_rejects_an_observation_on_only_one_branch() {
+    let mut module = observed_signature_arrival();
+    let observation = module.machines[0].blocks[0].operations.pop().unwrap();
+    module.machines[0].blocks[1].operations.push(observation);
+    assert!(!read_axioms(&module).contains(&Proposition::Equal(value(LENGTH), value(31))));
+}

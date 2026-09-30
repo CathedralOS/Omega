@@ -381,7 +381,8 @@ the complete product bar; focused successes below do not establish that baseline
     exits 70 on macOS ARM64 (value 9 versus 7). Reconcile source admission and
     independent loan replay for
     `calls/runtime_dispatch_{slice_element_terminal,machine_array_slice_arg}_exit`,
-    which still reject natively. Preserve slice element 7, with exit 70;
+    following the current provider-erasure native blocker under
+    **TERMINAL-SLICE-VIEW-VOCABULARY**. Preserve slice element 7, with exit 70;
     **BORROW-PROOF-CONVERGENCE** owns compatibility evidence. Genuine conflicting
     parent/child loans must still reject; widening the verifier's pair check
     does not supply missing authority.
@@ -3439,18 +3440,24 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   and independent replay. Signed indices already use `exact_u64_index`'s
   proof-checked conversion; `runtime_slice_indexed_read_exit` records exit 70.
 
+  Keep `calls/runtime_dispatch_slice_element_terminal_exit` and
+  `calls/runtime_dispatch_machine_array_slice_arg_exit` as native exit-70
+  controls for caller-supplied view bounds through guarded state transfers.
+  The shared all-arrival descriptor check retains both the dominating length
+  observation and any independently established backing extent.
+  `slices/runtime_slice_iteration_exit` remains the exit-91 loop control.
+  The two dispatch programs and five existing slice controls executed with
+  the reconstruction repair on base `0af3ba174af`. Native closure is still
+  open: clean `affa5d23c50` rejects both dispatch programs before reconstruction with
+  `provider-backed attachment requirement disagrees with its erased carrier`.
+  The repair on base `967ce1fd6ff` encounters this refusal for all seven.
+  The producer in `attached_unit/catalog.rs` and consumer in
+  `attached_unit/provider_attachments.rs` need the separately owned Binding
+  erasure repair. After that lands, rerun
+  `python3 tools/corpus_gate.py --native --filter runtime_dispatch_slice_element_terminal_exit,runtime_dispatch_machine_array_slice_arg_exit,runtime_slice_iteration_exit`
+  on macOS ARM64 before updating their native golden rows.
+
   Remaining joins:
-  - Carry same-view bounds through guarded successors and loops. A
-    block-parameter element view already measures the dominating establishment
-    or subslice every arrival transfers (`element_extent::arrival_producer`), so
-    `runtime_slice_fixed_index_guard_exit`, `runtime_slice_index_transition_exit`
-    and `runtime_subslice_dynamic_index_exit` exit 121/111/207 natively.
-    `runtime_slice_element_runtime_index_read_exit` exits 1 but proves its read
-    from `i <= 3` and the establishment's extent; it must retain the
-    predecessor's `i < s.len` through the nearest dominating same-view length
-    observation. `runtime_slice_iteration_exit` needs the loop-carried
-    `index < entries.len` as a relational block invariant: its header read
-    stops at `OperationProofUnavailable` holding only `entries.len == 4`.
   - Copy bounded, erased and structural fields of `[copy]` view elements under
     [ownership](wiki/spec/language/ownership.md). Stage 04's
     `values/scalar/computations/structural_values.rs::view_element_copy` admits
