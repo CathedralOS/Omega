@@ -2,8 +2,8 @@
 //! digests a record stores so a lookup can prove it was filed for the live
 //! package key and source resolution.
 
-use super::record_codec::purpose_tag;
 use crate::declarations::DependencyPurpose;
+use package_compilation::review_record_encoding::{hash_framed, purpose_tag};
 use package_compilation::{
     PackageCompilationInputs, review_cache_inputs_digest, review_cache_snapshot_digest,
 };
@@ -42,24 +42,19 @@ pub(crate) fn compiled_review_key(
     digest.update(RECORD_KEY_DOMAIN);
     digest.update(package.digest());
     digest.update([purpose_tag(purpose)]);
-    hash_bytes(&mut digest, checked_target.target_name().as_bytes());
+    hash_framed(&mut digest, checked_target.target_name().as_bytes());
     match build_execution_profile {
         Some(profile) => {
             digest.update([1]);
-            hash_bytes(&mut digest, profile.target_name().as_bytes());
+            hash_framed(&mut digest, profile.target_name().as_bytes());
         }
         None => digest.update([0]),
     }
-    hash_bytes(&mut digest, entry.as_os_str().as_encoded_bytes());
-    hash_bytes(&mut digest, stamp_string().as_bytes());
+    hash_framed(&mut digest, entry.as_os_str().as_encoded_bytes());
+    hash_framed(&mut digest, stamp_string().as_bytes());
     digest.update(review_cache_inputs_digest(inputs));
     digest.update(review_cache_snapshot_digest(snapshot));
     digest.finalize().into()
-}
-
-fn hash_bytes(digest: &mut Sha256, bytes: &[u8]) {
-    digest.update((bytes.len() as u64).to_le_bytes());
-    digest.update(bytes);
 }
 
 pub(super) fn lineage_digest(lineage: &SourceLineage) -> [u8; 32] {
@@ -77,8 +72,8 @@ pub(super) fn resolution_digest(resolution: &ImmutableSourceResolution) -> [u8; 
             content,
         } => {
             digest.update([0]);
-            hash_bytes(&mut digest, commit.to_hex().as_bytes());
-            hash_bytes(&mut digest, tree.to_hex().as_bytes());
+            hash_framed(&mut digest, commit.to_hex().as_bytes());
+            hash_framed(&mut digest, tree.to_hex().as_bytes());
             digest.update(content.digest());
         }
         ImmutableSourceResolution::Workspace { content } => {
