@@ -215,23 +215,10 @@ pub(super) fn instantiated_fact_judgment(
             }
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            let (Some(left), Some(right)) = (
-                structural_term(program, binary.left),
-                structural_term(program, binary.right),
-            ) else {
+            let Some((left, right)) = instantiated_operands(program, judge, binary, map) else {
                 return StructuralJudgment::Unknown;
             };
-            let equality = judge.judge_equation(
-                super::structural_terms::unfold_constant_applications(
-                    program,
-                    judge.resolve(StructuralJudge::substitute_term(&left, map)),
-                ),
-                super::structural_terms::unfold_constant_applications(
-                    program,
-                    judge.resolve(StructuralJudge::substitute_term(&right, map)),
-                ),
-                0,
-            );
+            let equality = judge.judge_equation(left, right, 0);
             if binary.operator == BinaryOperator::Equal {
                 equality
             } else {
@@ -242,8 +229,56 @@ pub(super) fn instantiated_fact_judgment(
                 }
             }
         }
+        BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual => {
+            // Ordering decides only over closed integer values: an operand
+            // that stays symbolic leaves the fact for the positive prover's
+            // bound, guard, and hypothesis channels.
+            let Some((StructuralTerm::Integer(left), StructuralTerm::Integer(right))) =
+                instantiated_operands(program, judge, binary, map)
+            else {
+                return StructuralJudgment::Unknown;
+            };
+            let verdict = match binary.operator {
+                BinaryOperator::Less => left < right,
+                BinaryOperator::LessOrEqual => left <= right,
+                BinaryOperator::Greater => left > right,
+                BinaryOperator::GreaterOrEqual => left >= right,
+                _ => unreachable!(),
+            };
+            if verdict {
+                StructuralJudgment::Proven
+            } else {
+                StructuralJudgment::Refuted
+            }
+        }
         _ => StructuralJudgment::Unknown,
     }
+}
+
+/// Both sides of a binary fact, substituted with the call's argument terms and
+/// normalized through the judge: applications resolve under the judge's
+/// machine bodies, constant applications unfold to their closed constructor.
+fn instantiated_operands(
+    program: &TypedTrees,
+    judge: &StructuralJudge,
+    binary: &typed_trees::expression::TableBinaryExpression,
+    map: &[(String, StructuralTerm)],
+) -> Option<(StructuralTerm, StructuralTerm)> {
+    let left = structural_term(program, binary.left)?;
+    let right = structural_term(program, binary.right)?;
+    Some((
+        super::structural_terms::unfold_constant_applications(
+            program,
+            judge.resolve(StructuralJudge::substitute_term(&left, map)),
+        ),
+        super::structural_terms::unfold_constant_applications(
+            program,
+            judge.resolve(StructuralJudge::substitute_term(&right, map)),
+        ),
+    ))
 }
 
 /// Walk an ensures fact's `&&`-conjuncts; each `==` conjunct whose sides
