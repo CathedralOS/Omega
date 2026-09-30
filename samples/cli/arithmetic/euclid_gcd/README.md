@@ -1,8 +1,13 @@
 # Euclid's greatest common divisor
 
-The original state-machine loop computes `gcd(48, 36)`, prints its result
+The state-machine loop computes `gcd(48, 36)`, prints its result
 message, waits for input (or EOF), and exits with code **12**. The hosted entry
-uses a provisioned `Service<Console>` with intrinsic binding validity.
+uses a provisioned `Binding<Console>` with intrinsic binding validity.
+
+`Main` contains only that binding. The static entry and states take their
+context explicitly; the loop carries the two operands as state parameters.
+The remainder and pause buffer are local values. No scratch field is needed
+to swap the operands: the next transition receives `(right, remainder)`.
 
 The complete expected stdout is:
 
@@ -35,10 +40,11 @@ stderr, and expect exit 12 for both EOF and Enter. Never run an old artifact
 after compilation fails. Local-source locks bind the checkout; review again
 in a different checkout rather than copying its lock.
 
-The ordinary CLI route is verified on macOS ARM64: package update, explicit
+Before this static-parameter migration, the ordinary CLI route was verified
+on macOS ARM64: package update, explicit
 review decisions, resume, native compilation, and execution produce the exact
 stdout above, empty stderr, and exit 12 with both EOF and Enter. On Linux
-x86-64 the compiler-library regression below (filtered to this sample)
+x86-64 the former compiler-library regression (filtered to this sample)
 compiles, publishes, and runs natively to exit 12 with the documented stdout
 under EOF input; its test-owned acceptance does not cover the ordinary CLI
 review route. On Linux x86-64 `omega update --project . --target
@@ -49,17 +55,9 @@ already recorded for this project at `f600f8400b7`, re-witnessed at
 `b53c7ea26032`. Windows x86-64
 and the ordinary Linux CLI route remain open in [SAMPLE-CORPUS](../../../../TASKS.md).
 
-Run the native sample regression from the repository root:
-
-```sh
-OMEGA_SAMPLE_RUNTIME_FILTER=euclid_gcd cargo nextest run -p compiler \
-  --test samples_compile --no-fail-fast \
-  -E 'test(=samples_with_documented_exit_run_correctly)'
-```
-
-In PowerShell, set `$env:OMEGA_SAMPLE_RUNTIME_FILTER = 'euclid_gcd'`, then run
-the same Cargo command on one line; remove the filter afterward with
-`Remove-Item Env:OMEGA_SAMPLE_RUNTIME_FILTER`. Use `mbx` instead of `cargo`
-when available. The harness supplies EOF and checks the documented exit and
-output substring on the current host; it does not establish runtime behavior
-on other hosts or replace ordinary CLI package review/acceptance.
+The migrated source passes `omega --check` on Windows x86-64. Its ordinary
+`omega run` attempt stops at missing package acceptance before native
+realization; no review decisions were accepted during migration. The historical
+native results above do not validate this version. After reviewing the current
+package closure, rerun the ordinary CLI route and verify the exact output and
+exit code above. The former `samples_compile` Rust test target no longer exists.
