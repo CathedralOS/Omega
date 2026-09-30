@@ -22,6 +22,12 @@
 //            reads never advance it, so interpreter canaries assert EXACT
 //            values. Wall clock = 2026-01-01T00:00:00Z + elapsed, already in
 //            Unix units (epoch offset 0, units 1000).
+use targets::macos_arm64::time_host_impl;
+
+// The selected target owns an ordinary reviewed provider, not a table of
+// compiler-folded answers. Unsupported targets retain their settlement gap.
+pub data TimeHostNativeProvider { }
+
 pub boundary trait TimeHost {
     // Monotonic, never-decreasing tick counter since an unspecified epoch.
     // Only differences are meaningful.
@@ -35,7 +41,7 @@ pub boundary trait TimeHost {
     machine wall_clock_units_per_second() -> u64 reaches TimeHost;
     // Platform-epoch -> Unix-epoch shift, in seconds (constant per target).
     machine wall_clock_epoch_offset_seconds() -> u64 reaches TimeHost;
-    // Millisecond sleep (already bound natively: windows Kernel32 Sleep,
-    // darwin poll; the interpreter advances the virtual clock).
-    machine sleep(milliseconds: u32) reaches TimeHost;
+    // Millisecond sleep. The macOS provider waits with poll; the interpreter
+    // advances its virtual clock. Other native targets still need providers.
+    machine sleep(milliseconds: u32) reaches TimeHost blocks;
 }

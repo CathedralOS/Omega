@@ -82,8 +82,10 @@ pub(crate) fn build_checked_terminal_machine_selections(
                             call_frames,
                         )
                         .is_none())
+                    // Blocking retains the ordinary stack and call ABI.
+                    // Its ceiling and acknowledgements are checked separately;
+                    // unlike suspension it needs no continuation representation.
                     || machine.suspends
-                    || machine.blocks
                     || !machine.supply_mode.is_checked_body()
                 {
                     CheckedTerminalSignatureEligibility::Unsupported

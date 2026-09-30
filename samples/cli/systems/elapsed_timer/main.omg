@@ -36,7 +36,7 @@ machine Main::main(context: &mut Main) reaches Console {
     context.console.write_line("elapsed_timer: times a 50ms workload with std::time");
     let start: Instant = Time::now(&mut context.time);
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
-    let slept: u32 = Time::sleep_for(&mut context.time, pause);
+    let slept: u32 = block Time::sleep_for(&mut context.time, pause);
     transition slept == 50 {
         true -> read_elapsed(context, start)
         false -> fail_request(context)

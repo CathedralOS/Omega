@@ -6,10 +6,12 @@
 //! one subordinate admission: re-verifying the component descriptions the
 //! package inputs attached before provider planning joins them.
 //!
-//! Only requirement-only canonical boundaries mint here (`FilesystemHost`,
-//! `TimeHost`): no package may author a `satisfies` conformance or a
-//! selection row for them, so the toolchain mints the reviewed per-target
-//! realization plan itself. `Console` is deliberately absent from that set:
+//! Canonical `FilesystemHost` and `TimeHost` slots may use fallback
+//! toolchain plans when their accepted schema has no selected authored
+//! provider. Ordinary reviewed checked providers take precedence: macOS
+//! TimeHost supplies explicit satisfaction and selection in std, including
+//! checked calibration bodies and adapters around private imports.
+//! `Console` is deliberately absent from the fallback set:
 //! its canonical boundary is authored-provider-complete — every hosted
 //! target ships a `ConsoleNativeProvider` conformance plus a
 //! `provider_defaults` selection in `targets/<target>/console_impl.omg`, and
@@ -141,9 +143,8 @@ pub fn settle_checked_providers(
             .map(|selected| selected.derived.plan.clone())
             .collect::<Vec<_>>(),
     )?;
-    // The canonical `TimeHost` slot settles the same way: no authored
-    // conformance or selection row can resolve it, so the toolchain mints
-    // its per-target realization plan from the reviewed leaf table.
+    // An already-selected ordinary TimeHost provider keeps its exact
+    // provenance. Only an unfilled slot may use the reviewed fallback table.
     let toolchain_time_host_plan = canonical_time_host::mint_canonical_time_host_plan(
         typed,
         package_inputs.and_then(|inputs| {
