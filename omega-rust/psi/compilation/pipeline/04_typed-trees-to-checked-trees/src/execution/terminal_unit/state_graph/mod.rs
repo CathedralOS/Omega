@@ -510,12 +510,22 @@ pub(super) fn build_traced(
             continue;
         }
         trace.state(u32::try_from(state_index).ok());
-        for parameter in &planned[state_index].structural_parameters {
+        for (parameter_index, parameter) in planned[state_index]
+            .structural_parameters
+            .iter()
+            .enumerate()
+        {
             let reference =
                 || program.state_parameters(state)[parameter.position as usize].type_reference;
             if parameter.multiplicity != Multiplicity::Linear
                 && !parameter.qualifications.is_empty()
                 && !(state_index == 0 && invocation_only_entry)
+                && !forwards_qualified_shared_loan(
+                    &planned,
+                    &live_states,
+                    state_index,
+                    parameter_index,
+                )
             {
                 trace.phase(
                     "state graph: state signature: parameter custody shape: qualified non-linear parameter",
@@ -592,9 +602,16 @@ pub(super) fn build_traced(
                                 TypeReferenceNode::Named { .. }
                             )
                     );
+                    // A borrowed bounded owner (`&[u8; N] in Utf8`) names the
+                    // owner's carrier; the reference is this parameter's loan.
                     if !borrowed_named_referent
-                        && !byte_sequence_carrier(program, reference, &[])
-                            .is_some_and(CheckedByteSequenceCarrier::is_borrowed)
+                        && !byte_sequence_carrier(program, reference, &[]).is_some_and(|carrier| {
+                            carrier.is_borrowed()
+                                || matches!(
+                                    carrier,
+                                    CheckedByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                        })
                         && borrowed_slice_view_element(program, reference, &[]).is_none()
                     {
                         trace.phase(
@@ -681,6 +698,61 @@ pub(super) fn build_traced(
 /// A returning exit disposes whole roots only: a partial affine drop or a
 /// residual discard at the return has no Terminal return-cleanup row here.
 #[allow(clippy::too_many_arguments)]
+/// A shared loan freezes its referent, so a qualification the loan carried
+/// into one state still holds when that same loan is forwarded whole. A
+/// successor's qualified shared parameter is admitted only when every live
+/// edge into its state forwards a source parameter with exactly the same
+/// carrier, access, multiplicity and qualifications. The entry state keeps
+/// its invocation rule: a re-entered entry is a separate arrival.
+fn forwards_qualified_shared_loan(
+    planned: &[CheckedComposedUnitControlStatePlan],
+    live: &[bool],
+    target_index: usize,
+    parameter_index: usize,
+) -> bool {
+    let Some(target) = planned.get(target_index) else {
+        return false;
+    };
+    let Some(parameter) = target.structural_parameters.get(parameter_index) else {
+        return false;
+    };
+    if target_index == 0
+        || parameter.is_self
+        || parameter.access != CheckedStructuralAccess::SharedBorrow
+        || parameter.multiplicity != Multiplicity::Unrestricted
+    {
+        return false;
+    }
+    planned
+        .iter()
+        .zip(live)
+        .filter(|(_, live)| **live)
+        .all(|(source, _)| {
+            source
+                .successors()
+                .into_iter()
+                .filter(|successor| successor.target_state == target.state)
+                .all(|successor| {
+                    successor.transfers.iter().any(|transfer| {
+                        transfer.target_parameter_index as usize == parameter_index
+                            && matches!(
+                                transfer.source,
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index }
+                                    if source.structural_parameters.get(index as usize).is_some_and(|forwarded| {
+                                        !forwarded.is_self
+                                            && forwarded.type_identity == parameter.type_identity
+                                            && forwarded.access == parameter.access
+                                            && forwarded.multiplicity == parameter.multiplicity
+                                            && forwarded.qualifications == parameter.qualifications
+                                            && forwarded.projected_qualifications
+                                                == parameter.projected_qualifications
+                                    })
+                            )
+                    })
+                })
+        })
+}
+
 fn return_cleanup_is_whole(
     program: &TypedTrees,
     facts: &CheckFacts,

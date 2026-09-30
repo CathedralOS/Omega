@@ -50,13 +50,14 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
                 .enumerate()
                 .filter_map(|(index, (state, live))| live.then_some((index, state)))
                 .all(|(index, state)| {
-                    state.structural_parameters.iter().all(|parameter| {
+                    state.structural_parameters.iter().enumerate().all(|(parameter_index, parameter)| {
                         ((parameter.multiplicity == Multiplicity::Unrestricted
                             && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
                             || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
                             && (parameter.qualifications.is_empty()
                                 || parameter.multiplicity == Multiplicity::Linear
-                                || (index == 0 && qualified_invocation))
+                                || (index == 0 && qualified_invocation)
+                                || forwards_qualified_shared_loan(plan, &live, index, parameter_index))
                     })
                 })
                 && claim_transport_supported(checked, plan, &live)
@@ -201,7 +202,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         {
             return unsupported("Unit graph signature dropped or duplicated a parameter");
         }
-        for parameter in &state.structural_parameters {
+        for (parameter_index, parameter) in state.structural_parameters.iter().enumerate() {
             let source = source_parameters.get(parameter.position as usize).ok_or(
                 LoweringError::Unsupported("Unit graph view parameter position is invalid"),
             )?;
@@ -273,7 +274,9 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             let (referee, access, qualifications) =
                 borrowed_parameter_custody(checked, source.type_reference)?;
             if qualifications != parameter.qualifications
-                || (!qualifications.is_empty() && !(state_index == 0 && qualified_invocation))
+                || (!qualifications.is_empty()
+                    && !(state_index == 0 && qualified_invocation)
+                    && !forwards_qualified_shared_loan(plan, &live, state_index, parameter_index))
             {
                 return unsupported(
                     "Unit graph borrowed parameter qualifications differ from invocation custody",
@@ -319,6 +322,18 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         length: checked_trees::types::FixedArrayLength::Literal(length),
                     } => {
                         if checked.primitive_type_reference(*element_type)
+                            == Some(PrimitiveType::U8)
+                            && !qualifications.is_empty()
+                        {
+                            // A domain-qualified fixed byte array is a
+                            // bounded owner with its own live length; the
+                            // reference loans that owner.
+                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                                checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
+                                    capacity: *length as u64,
+                                },
+                            )
+                        } else if checked.primitive_type_reference(*element_type)
                             == Some(PrimitiveType::U8)
                         {
                             // A borrowed fixed byte array registers the
@@ -1096,6 +1111,60 @@ fn validate_guard(
 /// Qualified invocation inputs already have their caller-established domains.
 /// Only their original entry uses that custody; every actual incoming edge,
 /// including entry reentry, still needs separately supported domain transport.
+/// A shared loan freezes its referent, so the qualifications it carried into
+/// one state still hold when that same loan is forwarded whole. A successor's
+/// qualified shared parameter is admitted only when every live edge into its
+/// state forwards a source parameter with exactly the same carrier, access,
+/// multiplicity and qualifications. The entry keeps its invocation rule.
+fn forwards_qualified_shared_loan(
+    plan: &CheckedComposedUnitControlMachinePlan,
+    live: &[bool],
+    target_index: usize,
+    parameter_index: usize,
+) -> bool {
+    let Some(target) = plan.states.get(target_index) else {
+        return false;
+    };
+    let Some(parameter) = target.structural_parameters.get(parameter_index) else {
+        return false;
+    };
+    if target_index == 0
+        || parameter.is_self
+        || parameter.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+        || parameter.multiplicity != Multiplicity::Unrestricted
+    {
+        return false;
+    }
+    plan.states
+        .iter()
+        .zip(live)
+        .filter(|(_, live)| **live)
+        .all(|(source, _)| {
+            source
+                .successors()
+                .into_iter()
+                .filter(|successor| successor.target_state == target.state)
+                .all(|successor| {
+                    successor.transfers.iter().any(|transfer| {
+                        transfer.target_parameter_index as usize == parameter_index
+                            && matches!(
+                                transfer.source,
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index }
+                                    if source.structural_parameters.get(index as usize).is_some_and(|forwarded| {
+                                        !forwarded.is_self
+                                            && forwarded.type_identity == parameter.type_identity
+                                            && forwarded.access == parameter.access
+                                            && forwarded.multiplicity == parameter.multiplicity
+                                            && forwarded.qualifications == parameter.qualifications
+                                            && forwarded.projected_qualifications
+                                                == parameter.projected_qualifications
+                                    })
+                            )
+                    })
+                })
+        })
+}
+
 fn invocation_only_entry(plan: &CheckedComposedUnitControlMachinePlan, live: &[bool]) -> bool {
     plan.states.first().is_some_and(|entry| {
         !plan

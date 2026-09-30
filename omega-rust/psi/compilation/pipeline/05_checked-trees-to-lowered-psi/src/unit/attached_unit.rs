@@ -319,6 +319,25 @@ pub(crate) fn lower_unit_closure(
                     &mut structural_types,
                 )?;
             }
+            // An owned bounded literal local copies its octets from a
+            // generated literal view into its declared owner.
+            if let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. } =
+                operation
+                && let Ok(declared) = lookup_type_id(&type_ids, &result.type_identity)
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == declared
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                })
+            {
+                crate::emission::structural_byte_sequence_store::literal_view_type(
+                    &mut structural_types,
+                )?;
+            }
         }
     }
     let wrapper_domains = scalar_callees::wrapper_domains(&checked_scalar_callees);

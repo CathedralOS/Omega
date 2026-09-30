@@ -25,6 +25,7 @@ use crate::execution::terminal_unit::calls::argument_paths::projected_argument_p
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
 
 mod anonymous_shared;
+mod bounded_owner;
 
 #[cfg(test)]
 mod tests;
@@ -113,6 +114,22 @@ pub(super) fn argument(
             type_identity: target_identity.to_owned(),
             access,
         });
+    }
+    // A bounded byte owner local lends its whole carrier to a formal of the
+    // same carrier; the loan leaves the owner in place.
+    if let Some(argument) = bounded_owner::loan(
+        program,
+        facts,
+        machine,
+        source_state,
+        call,
+        expression,
+        place,
+        result,
+        parameter,
+        target_identity,
+    ) {
+        return Some(argument);
     }
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     // An attached method's owned `self` formal carries `Named { machine,

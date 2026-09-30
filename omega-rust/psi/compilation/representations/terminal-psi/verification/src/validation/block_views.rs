@@ -57,7 +57,8 @@ pub(super) fn validate_declarations(
                         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
                     )
                 )
-                || !declaration.qualifications.is_empty()
+                || (!declaration.qualifications.is_empty()
+                    && !shared_bounded_owner_loan(module, declaration))
                 || !declaration.projected_qualifications.is_empty()
                 || !machine.structural_places.iter().any(|place| {
                     place.id == declaration.place
@@ -76,6 +77,7 @@ pub(super) fn validate_declarations(
                                 if carrier.is_borrowed()
                             )
                             || matches!(row.shape, StructuralTypeShape::ElementView { .. })
+                            || shared_bounded_owner_loan(module, declaration)
                             || mutable_records::parameter_type(module, declaration)
                             || (declaration.access == StructuralAccess::SharedBorrow
                                 && (matches!(row.shape, StructuralTypeShape::PrimitiveScalar(_))
@@ -108,6 +110,30 @@ pub(super) fn validate_declarations(
         }
     }
     Ok(())
+}
+
+/// A shared loan of a bounded byte owner (`&[u8; N] in Utf8`) whose every
+/// qualification is a plain byte predicate of that exact carrier. The loan
+/// freezes its referent, so those predicates hold for as long as the block
+/// holds the loan; the owner's live length is its own, never the capacity.
+pub(super) fn shared_bounded_owner_loan(
+    module: &TerminalModule,
+    declaration: &StructuralParameterDeclaration,
+) -> bool {
+    declaration.access == StructuralAccess::SharedBorrow
+        && declaration.multiplicity == StructuralMultiplicity::Unrestricted
+        && !declaration.is_self
+        && declaration.projected_qualifications.is_empty()
+        && module.structural_types.iter().any(|row| {
+            row.id == declaration.structural_type
+                && matches!(
+                    row.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
+        && terminal_semantics::byte_parameter_predicates(module, declaration).is_some()
 }
 
 /// Return permission follows the owned binding, not the syntax of its producer.
@@ -171,6 +197,37 @@ pub(super) fn validate_successor(
                 edge,
                 place: argument.place,
             });
+        }
+        if shared_bounded_owner_loan(module, expected) {
+            // A bounded owner's shared loan is forwarded whole from a
+            // signature or dominating block parameter with the identical
+            // declaration. The source's frozen referent already carries every
+            // qualification the target declares; no other root can supply one.
+            let forwarded = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == argument.place)
+                .or_else(|| {
+                    parameter(machine, argument.place)
+                        .filter(|_| available.contains(&argument.place))
+                })
+                .is_some_and(|source| {
+                    source.structural_type == expected.structural_type
+                        && source.access == StructuralAccess::SharedBorrow
+                        && source.multiplicity == StructuralMultiplicity::Unrestricted
+                        && source.qualifications == expected.qualifications
+                        && source.projected_qualifications.is_empty()
+                });
+            if !argument.path.is_empty()
+                || argument.access != StructuralAccess::SharedBorrow
+                || !forwarded
+            {
+                return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: argument.place,
+                });
+            }
+            continue;
         }
         if expected.access == StructuralAccess::SharedBorrow {
             // A shared successor loan joins the exact referent the authored

@@ -128,7 +128,10 @@ pub(in crate::validation) fn validate_source(
                 crate::validation::block_views::parameter(machine, source).ok_or_else(&invalid)?;
             if parameter.access != StructuralAccess::SharedBorrow
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
+                || (!parameter.qualifications.is_empty()
+                    && !crate::validation::block_views::shared_bounded_owner_loan(
+                        module, parameter,
+                    ))
                 || !parameter.projected_qualifications.is_empty()
             {
                 return Err(invalid());
@@ -162,7 +165,12 @@ pub(in crate::validation) fn validate_source(
                 || machine
                     .structural_parameters
                     .iter()
-                    .any(|parameter| parameter.place == source))
+                    .any(|parameter| parameter.place == source)
+                || crate::validation::block_views::parameter(machine, source).is_some_and(
+                    |parameter| {
+                        crate::validation::block_views::shared_bounded_owner_loan(module, parameter)
+                    },
+                ))
                 && matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(

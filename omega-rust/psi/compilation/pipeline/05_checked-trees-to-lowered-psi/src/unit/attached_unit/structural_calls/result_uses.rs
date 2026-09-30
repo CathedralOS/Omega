@@ -1456,6 +1456,39 @@ pub(crate) fn validate_consumer(
             }
             continue;
         }
+        // A whole bounded byte owner local lends its carrier, qualifications
+        // included, exactly as a caller's bounded-owner parameter would.
+        if whole_local_bounded_owner_loan(
+            checked,
+            caller,
+            coordinate,
+            authored.source_target,
+            result,
+            argument,
+            parameter,
+            signature
+                .parameters
+                .get(source_position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "bounded owner loan has no authored formal",
+                ))?
+                .type_reference,
+        )? {
+            if authored.boundary
+                || parameter.is_self
+                || parameter.fused_service_erasure.is_some()
+                || target_entry_claims
+                    .iter()
+                    .any(|claim| claim.parameter_index as usize == parameter_index)
+                || claim_transfers
+                    .iter()
+                    .any(|transfer| transfer.argument_index as usize == index)
+                || !loan_free_ordinary_call(checked, operation)
+            {
+                return unsupported("bounded owner loan changes the target custody");
+            }
+            continue;
+        }
         // A live result binding may lend one of its record's leaves, fixed
         // elements, or its whole extent through an exclusive borrow, and a
         // projected subtree through a shared one: the binding is not
@@ -1666,6 +1699,136 @@ fn whole_local_array_loan(
     };
     if accesses.peek().is_none() || accesses.any(|access| access.kind != expected_kind) {
         return unsupported("local array loan differs from captured argument access");
+    }
+    Ok(true)
+}
+
+/// Reconstruct a whole bounded byte owner loan (`parse(&text)` with
+/// `text: [u8; 8] in Utf8`) independently of its argument plan: the operand
+/// is the authored local itself, the formal is a reference to a bounded
+/// owner of the same capacity and identity, every formal qualification is
+/// declared on the local, and the captured call access equals the formal's.
+/// A bounded owner is never a raw fixed array: its live length is its own.
+#[allow(clippy::too_many_arguments)]
+fn whole_local_bounded_owner_loan(
+    checked: &CheckedTrees,
+    caller: &CallerView<'_>,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    target: symbols::SymbolHandle,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+    formal: checked_trees::types::TypeReferenceHandle,
+) -> Result<bool, LoweringError> {
+    use checked_trees::CheckedStructuralAccess;
+    if !argument.path.is_empty() || result.multiplicity != Multiplicity::Unrestricted {
+        return Ok(false);
+    }
+    let (_, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let Some(StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(result.statement_index as usize)
+    else {
+        return Ok(false);
+    };
+    let Some(capacity) =
+        validation::bounded_byte_buffer_capacity(&checked.typed, local.type_reference)
+    else {
+        return Ok(false);
+    };
+    // The formal's access is the loan; its referent names the owner.
+    let mut referent = formal;
+    let mut formal_access = None;
+    loop {
+        match checked.type_reference_table.type_reference(referent) {
+            TypeReferenceNode::Constrained { base_type, .. } => referent = *base_type,
+            TypeReferenceNode::Reference {
+                access, referee, ..
+            } if formal_access.is_none() => {
+                formal_access = Some(*access);
+                referent = *referee;
+            }
+            _ => break,
+        }
+    }
+    let expected_access = match formal_access {
+        Some(language_core::ReferenceAccess::Shared) => CheckedStructuralAccess::SharedBorrow,
+        Some(language_core::ReferenceAccess::Mutable) => CheckedStructuralAccess::MutableBorrow,
+        _ => return unsupported("bounded owner loan has unsupported formal access"),
+    };
+    let formal_capacity = match checked.type_reference_table.type_reference(referent) {
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: checked_trees::types::FixedArrayLength::Literal(length),
+        } if checked.primitive_type_reference(*element_type)
+            == Some(checked_trees::types::PrimitiveType::U8) =>
+        {
+            Some(*length)
+        }
+        _ => None,
+    };
+    let mut declared =
+        validation::structural_result_qualifications(&checked.typed, local.type_reference)
+            .map_err(LoweringError::Unsupported)?;
+    declared.sort_by_key(|domain| domain.0);
+    declared.dedup();
+    if formal_capacity != Some(capacity)
+        || argument.access != expected_access
+        || parameter.access != expected_access
+        || (expected_access == CheckedStructuralAccess::MutableBorrow && !local.is_mutable)
+        || parameter.multiplicity != Multiplicity::Unrestricted
+        || argument.type_identity != result.type_identity
+        || parameter.type_identity != argument.type_identity
+        || checked.normalized_type_identity(referent).as_str() != result.type_identity
+        || !parameter
+            .qualifications
+            .iter()
+            .all(|domain| declared.contains(domain))
+        || !parameter.projected_qualifications.is_empty()
+    {
+        return unsupported("bounded owner loan changes backing, presentation, or access");
+    }
+    let borrow = &checked.facts.borrow;
+    let state = borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == caller.machine && state.state_symbol == caller.state)
+        .ok_or(LoweringError::Unsupported(
+            "bounded owner loan has no borrow state",
+        ))?;
+    let mut calls = borrow
+        .calls
+        .span_or_empty(state.calls)
+        .iter()
+        .filter(|call| {
+            call.statement_index == coordinate.statement_index as usize
+                && call.call_ordinal == coordinate.call_ordinal as usize
+                && call.target_symbol == target
+        });
+    let call = calls.next().ok_or(LoweringError::Unsupported(
+        "bounded owner loan has no captured call",
+    ))?;
+    if calls.next().is_some() {
+        return unsupported("bounded owner loan has ambiguous captured calls");
+    }
+    let mut accesses = borrow
+        .argument_accesses
+        .span_or_empty(call.accesses)
+        .iter()
+        .filter(|access| {
+            access.root_symbol == local.symbol && borrow.access_segments(access).is_empty()
+        })
+        .peekable();
+    let expected_kind = if expected_access == CheckedStructuralAccess::SharedBorrow {
+        checked_trees::BorrowAccessKind::Read
+    } else {
+        checked_trees::BorrowAccessKind::Mutable
+    };
+    if accesses.peek().is_none() || accesses.any(|access| access.kind != expected_kind) {
+        return unsupported("bounded owner loan differs from captured argument access");
     }
     Ok(true)
 }
@@ -1937,7 +2100,14 @@ fn validate_operand_producers(
                     && !(validation::has_plain_owned_contents_with_numeric_constraints(
                         &checked.typed,
                         local.type_reference,
-                    ) || view_carrier.is_some()))
+                    ) || view_carrier.is_some()
+                        // A bounded byte owner (`[u8; N] in Utf8`) keeps its
+                        // declared domains; its carrier is the fixed array.
+                        || validation::bounded_byte_buffer_capacity(
+                            &checked.typed,
+                            local.type_reference,
+                        )
+                        .is_some()))
                 || checked
                     .typed
                     .normalized_type_identity(view_carrier.unwrap_or(

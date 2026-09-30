@@ -246,6 +246,22 @@ pub(in crate::validation) fn validate_structural_argument(
                         Some((result.structural_type, StructuralMultiplicity::Unrestricted,
                             StructuralAccess::SharedBorrow, &[][..], &[][..]))
                     }
+                    StructuralPlaceKind::OperationResult { .. }
+                        if ordinary_call
+                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                            && argument.path.is_empty()
+                            && argument.access == StructuralAccess::SharedBorrow
+                            && crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place).is_some() =>
+                    {
+                        // An owned bounded byte local is a concatenation's
+                        // immutable materialization. It lends its whole
+                        // carrier shared; its byte predicates are replayed
+                        // from its operands below, never from a roster.
+                        let result = crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place)
+                            .expect("exact owned byte result checked above");
+                        Some((result.structural_type, StructuralMultiplicity::Unrestricted,
+                            StructuralAccess::Owned, &[][..], &[][..]))
+                    }
                     StructuralPlaceKind::ByteSequenceLiteral {
                         structural_type, ..
                     } if argument.path.is_empty()
@@ -513,7 +529,7 @@ pub(in crate::validation) fn validate_structural_argument(
                 .is_some()
         });
     let bounded_owner_presentation = ordinary_call
-        && caller.structural_parameters.iter().any(|actual| {
+        && (caller.structural_parameters.iter().any(|actual| {
             terminal_semantics::bounded_byte_owner_capacity(module, actual, argument, expected)
                 .is_some()
                 && !caller
@@ -524,7 +540,7 @@ pub(in crate::validation) fn validate_structural_argument(
                     .content_entry_claims
                     .iter()
                     .any(|claim| claim.input.root == argument.place)
-        });
+        }) || owned_bounded_owner_presentation(module, caller, argument, expected));
     // A whole owner cannot bypass its predicate-preserving loan contract by
     // falling through to raw type equality for an unprojected argument.
     if ordinary_call
@@ -677,4 +693,46 @@ pub(in crate::validation) fn validate_structural_argument(
         }
     }
     Ok(())
+}
+
+/// A whole owned bounded byte local lent shared to a bounded-owner formal.
+/// The local is an immutable concatenation result of the formal's exact
+/// carrier; every byte predicate the formal requires is replayed from the
+/// local's own operands, so a shared loan presents no unproven membership.
+fn owned_bounded_owner_presentation(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    argument: &StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+) -> bool {
+    if !argument.path.is_empty()
+        || argument.access != StructuralAccess::SharedBorrow
+        || expected.access != StructuralAccess::SharedBorrow
+        || expected.multiplicity != StructuralMultiplicity::Unrestricted
+        || expected.is_self
+        || !expected.projected_qualifications.is_empty()
+    {
+        return false;
+    }
+    let Some(result) =
+        crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place)
+    else {
+        return false;
+    };
+    let bounded_owner = module.structural_types.iter().any(|row| {
+        row.id == expected.structural_type
+            && matches!(
+                row.shape,
+                crate::validation::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                )
+            )
+    });
+    let Some(required) = terminal_semantics::byte_parameter_predicates(module, expected) else {
+        return false;
+    };
+    bounded_owner
+        && result.structural_type == expected.structural_type
+        && terminal_semantics::byte_sequence_source_predicates(module, caller, argument.place)
+            .is_some_and(|established| established.implies(required))
 }

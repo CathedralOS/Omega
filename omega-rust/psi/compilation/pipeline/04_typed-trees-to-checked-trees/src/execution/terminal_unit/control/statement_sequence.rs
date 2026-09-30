@@ -844,12 +844,36 @@ pub(in crate::execution::terminal_unit) fn build(
 ) -> Option<StatementSequence> {
     trace.phase("statement sequence: scalar control guard");
     let scalar_control = scalar_control(program, facts, machine, state).map(|(control, _)| control);
+    // A shared loan of a bounded byte owner keeps its domain qualifications
+    // on the declaration: the loan freezes its referent, so a scalar
+    // completion reading it needs no qualification transport.
+    let shared_bounded_owner = |parameter: &CheckedUnitStructuralParameterPlan| {
+        parameter.access == CheckedStructuralAccess::SharedBorrow
+            && !parameter.is_self
+            && parameter.projected_qualifications.is_empty()
+            && program
+                .state_parameters(state)
+                .get(parameter.position as usize)
+                .and_then(|source| {
+                    crate::execution::terminal_unit::types::byte_sequence_carrier(
+                        program,
+                        source.type_reference,
+                        &[],
+                    )
+                })
+                .is_some_and(|carrier| {
+                    matches!(
+                        carrier,
+                        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                })
+    };
     if scalar_control.is_some()
         && (!entry_claims.is_empty()
             || !trivial_affine_locals.is_empty()
             || structural_parameters.iter().any(|parameter| {
                 parameter.multiplicity != Multiplicity::Unrestricted
-                    || !parameter.qualifications.is_empty()
+                    || (!parameter.qualifications.is_empty() && !shared_bounded_owner(parameter))
             }))
     {
         return None;

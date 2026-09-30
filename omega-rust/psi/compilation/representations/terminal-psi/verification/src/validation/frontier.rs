@@ -550,6 +550,10 @@ fn validate_owned_reads(
     for place in reads.filter(|place| {
         super::byte_sequence::subslice::borrowed_result(machine, *place).is_none()
             && super::element_view::subslice::borrowed_result(machine, *place).is_none()
+            // An owned byte concatenation is an unrestricted immutable
+            // materialization with no affine frontier entry; byte-view use
+            // validation requires it to dominate every loan of it.
+            && super::byte_sequence::concatenation::owned_result(machine, *place).is_none()
             && super::primitive_storage::local_result(machine, *place).is_none()
             // Copyable case results have no affine frontier entry. Their exact
             // producer and dominance are checked by crate::validation::scalar::case::validate_uses;
