@@ -1,0 +1,4 @@
+owner: z6
+provenance: cargo check -p omega -p typed-trees-to-checked-trees exit 0; nextest 1880/1881 (1 pre-existing); 227-fixture sweep 6 green / 0 regress
+ticket: 5902c06185ed4d229b85b4104b496c87
+published_utc: 2026-09-30T15:52:48.788144+00:00
