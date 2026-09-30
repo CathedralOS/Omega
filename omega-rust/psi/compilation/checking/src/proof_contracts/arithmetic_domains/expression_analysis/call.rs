@@ -5,7 +5,8 @@
 //! machine's carrier, a selected constant call's result bounds, `min`/`max`
 //! over their operands, a declared or ensured return range, and finally a
 //! return interval inferred from the callee's body. A call none of them
-//! describes stays neutral.
+//! describes stays neutral. Whichever source bounds the value, a callee's
+//! declared result policy (`-> u32 in Wrapping`) is the call's domain.
 
 use super::{Analysis, ExpressionWalk, NEUTRAL};
 use crate::proof_contracts::arithmetic_domains::float_arithmetic::resolve_named_float_arithmetic;
@@ -54,13 +55,45 @@ pub(super) fn analyze(
     if let Some(result) = named_float_operation(walk, call, diagnostics) {
         return result;
     }
-    named_operator_result(walk.program, call)
+    let analysis = named_operator_result(walk.program, call)
         .or_else(|| resolved_static_integer_call(walk.program, call))
         .or_else(|| selected_const_call_result(walk, expression))
         .or_else(|| bounding_builtin_result(walk, call))
         .or_else(|| declared_return_range(walk.program, call))
         .or_else(|| inferred_return_range(walk, call))
-        .unwrap_or(NEUTRAL)
+        .unwrap_or(NEUTRAL);
+    with_declared_result_policy(walk.program, call, analysis)
+}
+
+/// Decision 17 is operand-driven: a call whose callee declares a qualified
+/// result (`-> u32 in Wrapping`) contributes that policy to enclosing
+/// arithmetic, exactly as a field or local of that type does. The range
+/// sources above only bound the value; without this a receiver method's
+/// Wrapping result read as Exact whenever its body defeated inference, and the
+/// overflow diagnostic then asked for the annotation already present. An
+/// Exact result keeps the neutral domain it had.
+fn with_declared_result_policy(
+    program: &TypedTrees,
+    call: &TableCallExpression,
+    analysis: Analysis,
+) -> Analysis {
+    if analysis.domain.is_some() {
+        return analysis;
+    }
+    let Some(return_type) = call_return_type(program, call) else {
+        return analysis;
+    };
+    let domain = program.arithmetic_domain_for_type_reference(return_type);
+    if domain == ArithmeticDomain::Exact {
+        return analysis;
+    }
+    Analysis {
+        domain: Some(domain),
+        primitive: analysis
+            .primitive
+            .or_else(|| program.primitive_type_reference(return_type)),
+        ..analysis
+    }
 }
 
 /// F7 named float requirements use the same operand-driven policy selection as

@@ -80,3 +80,38 @@ fn declared_comparison_meanings_cannot_manufacture_numeric_result_bounds() {
         );
     }
 }
+
+#[test]
+fn receiver_method_results_carry_their_declared_policy_into_arithmetic() {
+    let messages = |result: &str| -> Vec<String> {
+        let program = crate::front_end::typed_program(&format!(
+            r#"
+            data Counter {{ ticks: {result}; }}
+            machine Counter::tick(&mut self) -> {result} {{
+                self.ticks
+            }}
+            machine Counter::digits(&mut self) -> {result} {{
+                let digits: {result} = self.tick() * 10 + self.tick();
+                digits
+            }}
+        "#
+        ));
+        validation::validate_program(&program)
+            .err()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|diagnostic| diagnostic.message)
+            .collect()
+    };
+    // The body is a tail read that defeats return-range inference, so only
+    // the declared `in Wrapping` policy can admit the arithmetic.
+    let wrapping = messages("u32 in Wrapping");
+    assert!(wrapping.is_empty(), "{wrapping:?}");
+    let exact = messages("u32");
+    assert!(
+        exact
+            .iter()
+            .any(|message| message.contains("may overflow `u32`")),
+        "an unqualified result still owes the Exact overflow proof: {exact:?}"
+    );
+}
