@@ -37,6 +37,7 @@ pub mod review_record_encoding;
 mod semantic_bindings;
 mod source_consumption;
 mod source_snapshot;
+mod wire_codec_sources;
 
 pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{
