@@ -3,6 +3,7 @@
 //! nominal drop respects them.
 
 use super::borrowed_windows;
+use super::consumed_owners::ConsumedOwners;
 use crate::checks::multiplicity::linear_validation::{
     event_statement_index, validate_linear_permission_events_with_incoming_guards,
 };
@@ -117,9 +118,17 @@ pub(crate) fn check_linear_obligations(
     facts: &mut CheckFacts,
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
 ) -> Result<(), Vec<Diagnostic>> {
-    validate_partial_moves(program, facts)?;
+    let consumed_owner_uses = validate_partial_moves(program, facts)?;
     record_permission_events_with_incoming_guards(program, facts, incoming_guards)?;
-    validate_linear_permission_events_with_incoming_guards(program, facts, incoming_guards)
+    validate_linear_permission_events_with_incoming_guards(program, facts, incoming_guards)?;
+    // A repeated whole transfer is also a use of a consumed owner. Linear
+    // validation names that shape first; the occurrence replay reports only
+    // the reads, borrows, receivers and projections no permission event sees.
+    if consumed_owner_uses.is_empty() {
+        Ok(())
+    } else {
+        Err(consumed_owner_uses)
+    }
 }
 
 /// A nominal cleanup machine is entitled to one whole valid value. Reject a
@@ -127,11 +136,16 @@ pub(crate) fn check_linear_obligations(
 /// nominal cleanup remain decomposable, and moving the entitled value itself
 /// remains legal. Temporary partial moves must also retain every linear claim
 /// because there is no remaining local owner for an unselected sibling.
+///
+/// The same occurrence replay tracks owned places already transferred or
+/// consumed. Those uses return as the `Ok` rows so `check_linear_obligations`
+/// can report them after linear validation.
 fn validate_partial_moves(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
+    let mut consumed_owner_uses = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             let mut segments = arena::Arena::default();
@@ -172,8 +186,10 @@ fn validate_partial_moves(
             // statement. Every taken edge and the implicit return must see a
             // discharged window; the fall-through path may still repair it.
             let mut windows = borrowed_windows::BorrowedStorageWindows::default();
+            let mut consumed = ConsumedOwners::default();
             for (statement_index, statement) in statements.iter().enumerate() {
                 let is_transition = matches!(statement, StatementNode::Transition(_));
+                consumed.begin_statement();
                 // Match arms join on one edge set: a move evaluated inside an
                 // arm opens a hole on that arm's joining edge only, so the
                 // window is admitted only when every reachable arm agrees on
@@ -220,7 +236,7 @@ fn validate_partial_moves(
                     &moves,
                     &facts.operators,
                 ) {
-                    let (event_index, conditional) = match step {
+                    let (event_index, conditional, ordered) = match step {
                         borrowed_windows::WindowStep::Observe { place, expression } => {
                             windows.check_use(
                                 program,
@@ -240,6 +256,15 @@ fn validate_partial_moves(
                                 expression,
                                 &place,
                                 &mut diagnostics,
+                            );
+                            consumed.check_use(
+                                program,
+                                machine,
+                                state,
+                                statement,
+                                statement_index,
+                                &place,
+                                &mut consumed_owner_uses,
                             );
                             continue;
                         }
@@ -287,9 +312,11 @@ fn validate_partial_moves(
                             );
                             continue;
                         }
-                        borrowed_windows::WindowStep::Move { event, conditional } => {
-                            (event, conditional)
-                        }
+                        borrowed_windows::WindowStep::Move {
+                            event,
+                            conditional,
+                            ordered,
+                        } => (event, conditional, ordered),
                     };
                     let event = &moves[event_index];
                     let path = segments.span_or_empty(event.segments);
@@ -432,6 +459,19 @@ fn validate_partial_moves(
                         path,
                         &mut diagnostics,
                     );
+                    // A move no evaluated occurrence claimed has no position
+                    // in the replay; it neither consumes nor reopens a place.
+                    if ordered {
+                        consumed.record_move(
+                            program,
+                            machine,
+                            state,
+                            statement_index,
+                            event,
+                            path,
+                            conditional,
+                        );
+                    }
                 }
                 // Replacement evaluation and destination selectors must both
                 // finish before the store discharges restoration debt.
@@ -445,7 +485,16 @@ fn validate_partial_moves(
                         assignment,
                         &mut diagnostics,
                     );
+                    consumed.check_store(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        assignment,
+                        &mut consumed_owner_uses,
+                    );
                 }
+                consumed.finish_statement(is_transition);
                 // A taken transition edge leaves the state; a window open on
                 // it can never be repaired. A crash edge abandons the window
                 // outright under the existing survivor contract — no hole is
@@ -471,7 +520,7 @@ fn validate_partial_moves(
         }
     }
     if diagnostics.is_empty() {
-        Ok(())
+        Ok(consumed_owner_uses)
     } else {
         Err(diagnostics)
     }

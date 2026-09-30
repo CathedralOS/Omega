@@ -699,6 +699,10 @@ fail/ownership/linear_second_transfer rejected 566ms expected @2d8ed253669f
 	linear value `receipt` was already transferred or consumed; it cannot be moved here
 fail/ownership/linear_zero_storage_not_established rejected 626ms expected @2d8ed253669f
 	linear value `receipt` has not been established (implicit zero-fill creates no linear obligation); it cannot be moved here
+fail/ownership/read_through_consumed_owner_rejected rejected 732ms expected @78cf629f34f9+wt
+	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
+fail/ownership/read_through_dropped_owner_rejected rejected 771ms expected @78cf629f34f9+wt
+	cannot use `g.handle` in machine `Main::main` state `main` (statement 2) after `g` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `g` first
 fail/parse/machine_clause_garbage_rejected rejected 1ms expected @2d8ed253669f
 	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:31: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
 fail/parser/nesting_exceeds_max_depth rejected 4ms expected @2d8ed253669f
@@ -1766,6 +1770,7 @@ pass/ownership/linear_transfer_and_consume rejected 738ms @2d8ed253669f
 pass/ownership/linear_transparent_record_frontier rejected 742ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding`
 pass/ownership/move_keyword_field_assignment checked 1226ms @2d8ed253669f
+pass/ownership/read_owner_before_consumption_and_after_reassignment checked 1127ms @78cf629f34f9+wt
 pass/ownership/runtime_borrowed_record_transform_exit checked 1261ms @2d8ed253669f
 pass/parameters/byte_store_root_after_scalar_formal_exit checked 1749ms @2d8ed253669f
 pass/parameters/shared_and_mut_borrow_params_compile checked 298ms @2d8ed253669f

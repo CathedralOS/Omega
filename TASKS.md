@@ -487,14 +487,6 @@ the complete product bar; focused successes below do not establish that baseline
   Generic selection already admits hooks reading/writing `self` and calling
   helpers. Preserve that route and reserved `T::drop` authored-call rejection.
 
-  - Reject reads through consumed owners in ordinary ownership checking:
-    both `drop(g); g.handle` and `consume(g); g.handle` currently check;
-    repeated consumption rejects and a pre-consumption scalar snapshot checks.
-    `04_typed-trees-to-checked-trees/src/flow/ownership/moves/observations.rs`
-    omits base-name reads; extend access validation alongside
-    `checks/multiplicity/linear_validation/recorded_events.rs`.
-    Cover both consumers with rejection fixtures and the snapshot with a
-    passing control; do not special-case the name `drop`.
   - Carry nominal cleanup through Omega ownership replay and native calls.
     With macOS ARM64 `ProgramEntry(Main::main)` bindings (e62553b906a),
     `drops/core_drop_owner_hook_body` stops at `CurrentCleanupMismatch` in
@@ -525,8 +517,8 @@ the complete product bar; focused successes below do not establish that baseline
   encoded, independently verified Terminal and native artifacts. Observe
   nonempty hooks exactly once at early disposal and normal scope exit with
   contextual prerequisites; erased fields cause no runtime cleanup. Reject
-  missing/forged hook identity or premises, duplicate consumption and dead
-  reads; retain helper-call and reserved-hook selection controls.
+  missing/forged hook identity or premises and duplicate consumption; retain
+  helper-call and reserved-hook selection controls.
 
 - **CML4.** Complete edge-local residual cleanup under the
   [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize outgoing

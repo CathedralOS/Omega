@@ -1658,7 +1658,7 @@ fn exclusive_storage_chain(
 /// An authored-facing name for a resolved storage place: `self`-rooted
 /// storage spells through the receiver, other roots spell their own symbol,
 /// and segments spell as field/index/case projections.
-fn place_spelling(
+pub(super) fn place_spelling(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
@@ -1711,9 +1711,13 @@ pub(super) enum WindowStep {
         place: CanonicalPlace,
         expression: ExpressionHandle,
     },
+    /// `ordered` is false for a move no evaluated occurrence claimed — a
+    /// production destination or an operand of an unreachable arm — which is
+    /// appended after every ordered step.
     Move {
         event: usize,
         conditional: bool,
+        ordered: bool,
     },
     Invoke(ExpressionHandle),
 }
@@ -1789,8 +1793,12 @@ pub(super) fn statement_steps(
                     typed_trees::statement::TransitionTargetNode::Value(value) => {
                         order.expression(*value, true)
                     }
+                    // Transition arguments live in the statement table's
+                    // handle arena, as statement-call arguments do; the
+                    // expression table's span at the same offset names
+                    // unrelated expressions.
                     typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => {
-                        for argument in program.expression_table.expression_handles(*arguments) {
+                        for argument in program.statement_table.expression_handles(*arguments) {
                             order.expression(*argument, true);
                         }
                         order
@@ -1809,6 +1817,7 @@ pub(super) fn statement_steps(
         order.steps.push(WindowStep::Move {
             event,
             conditional: true,
+            ordered: false,
         });
     }
     order.steps
@@ -1829,7 +1838,11 @@ impl WindowOrder<'_> {
         while position < self.remaining.len() {
             if self.remaining[position].1.expression == expression {
                 let (event, _) = self.remaining.remove(position);
-                self.steps.push(WindowStep::Move { event, conditional });
+                self.steps.push(WindowStep::Move {
+                    event,
+                    conditional,
+                    ordered: true,
+                });
             } else {
                 position += 1;
             }
