@@ -13,28 +13,28 @@ data Main { console: Binding<Console>; stored: Msg; }
 
 machine Main::main(&mut self) {
     self.stored = Msg::Pong { y: 10, z: 20 };
-    self.dispatch();
+    Main::dispatch(&mut self);
 }
 
-machine Main::dispatch(&mut self) reaches Console {
-    transition self.stored {
-        Msg::Pong { y, z } -> chk(y, z)
-        Msg::Ping { x } -> bad()
-        _ -> bad()
+machine Main::dispatch(main: &mut Main) reaches Console {
+    transition main.stored {
+        Msg::Pong { y, z } -> chk(main, y, z)
+        Msg::Ping { x } -> bad(main)
+        _ -> bad(main)
     }
-    state chk(&mut self, y: i32, z: i32) {
+    state chk(main: &mut Main, y: i32, z: i32) {
         transition y == 10 {
-            true -> chk2(z)
-            _ -> wrong()
+            true -> chk2(main, z)
+            _ -> wrong(main)
         }
     }
-    state chk2(&mut self, z: i32) {
+    state chk2(main: &mut Main, z: i32) {
         transition z == 20 {
-            true -> good()
-            _ -> wrong()
+            true -> good(main)
+            _ -> wrong(main)
         }
     }
-    state good(&mut self)  { self.console.exit_process(70); }
-    state wrong(&mut self) { self.console.exit_process(72); }
-    state bad(&mut self)   { self.console.exit_process(71); }
+    state good(main: &mut Main)  { main.console.exit_process(70); }
+    state wrong(main: &mut Main) { main.console.exit_process(72); }
+    state bad(main: &mut Main)   { main.console.exit_process(71); }
 }
