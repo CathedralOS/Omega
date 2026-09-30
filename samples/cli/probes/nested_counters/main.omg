@@ -83,18 +83,18 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::set_value(&mut self, v: i32)
+machine Main::set_value(main: &mut Main, v: i32)
 requires
     v >= 0 && v <= 1000;
 {
-    self.state.inner.value = v;
+    main.state.inner.value = v;
 }
 
-machine Main::set_bonus(&mut self, b: i32)
+machine Main::set_bonus(main: &mut Main, b: i32)
 requires
     b >= 0 && b <= 1000;
 {
-    self.state.inner.bonus = b;
+    main.state.inner.bonus = b;
 }
 
 // The MODULAR-COUNTER idiom -- the Exact-provable bounded counter: reducing
@@ -102,25 +102,25 @@ requires
 // the outer `% 101` wraps to 0 at 101 exactly as before for a count in
 // 0..=100. The boundary behavior is declared IN the arithmetic, not silently
 // assumed -- nothing here can overflow, so no overflow domain is needed.
-machine Main::increment_count(&mut self) {
-    self.state.count = (self.state.count % 101 + 1) % 101;
+machine Main::increment_count(main: &mut Main) {
+    main.state.count = (main.state.count % 101 + 1) % 101;
 }
 
-machine Main::set_multiplier(&mut self, m: i32)
+machine Main::set_multiplier(main: &mut Main, m: i32)
 requires
     m >= 0 && m <= 100;
 {
-    self.state.multiplier = m;
+    main.state.multiplier = m;
 }
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
-    self.set_value(10);
-    self.set_bonus(20);
-    self.increment_count();
-    self.set_multiplier(5);
-    self.set_value(40);
-    self.increment_count();
+    Main::set_value(&mut self, 10);
+    Main::set_bonus(&mut self, 20);
+    Main::increment_count(&mut self);
+    Main::set_multiplier(&mut self, 5);
+    Main::set_value(&mut self, 40);
+    Main::increment_count(&mut self);
 
     // Verify nested field self.state.inner.value == 40.
     transition self.state.inner.value == 40 {

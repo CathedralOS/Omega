@@ -20,9 +20,9 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::dispatch(&mut self, event: AlarmEvent) {
+machine Main::dispatch(main: &mut Main, event: AlarmEvent) {
     transition event {
-        AlarmEvent::Trigger -> do_trigger()
+        AlarmEvent::Trigger -> do_trigger(main)
         AlarmEvent::Dismiss -> do_dismiss()
         AlarmEvent::Cancel -> do_cancel()
         AlarmEvent::Set { hour, minute } -> do_set(hour, minute)
@@ -30,7 +30,7 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
         _ -> done()
     }
 
-    state do_trigger(&mut self) { self.fire_count = self.fire_count + 1; }
+    state do_trigger(main: &mut Main) { main.fire_count = main.fire_count + 1; }
     state do_dismiss() {}
     state do_cancel() {}
     state do_set(hour: i32 in Saturating, minute: i32 in Saturating) {}
@@ -40,8 +40,8 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("alarm_probe2: no-payload Trigger arm at position 0 -- must fire twice");
-    self.dispatch(AlarmEvent::Trigger);
-    self.dispatch(AlarmEvent::Trigger);
+    Main::dispatch(&mut self, AlarmEvent::Trigger);
+    Main::dispatch(&mut self, AlarmEvent::Trigger);
 
     transition self.fire_count == 2 {
         true -> good()

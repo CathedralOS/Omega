@@ -41,75 +41,75 @@ data Main {
 }
 
 // Add one value to the running sum.
-machine Main::add(&mut self, x: f64) {
-    self.s.sum = self.s.sum + x;
-    self.s.count = (self.s.count % 101 + 1) % 101;
+machine Main::add(main: &mut Main, x: f64) {
+    main.s.sum = main.s.sum + x;
+    main.s.count = (main.s.count % 101 + 1) % 101;
 }
 
 // Finalize mean = sum / count.
-machine Main::finalize_mean(&mut self) {
+machine Main::finalize_mean(main: &mut Main) {
     // count is 8; divide by storing quotient manually to avoid float/int division.
     // sum = 40.0; mean = 5.0
-    self.s.mean = self.s.sum * 0.125;  // multiply by 1/8
+    main.s.mean = main.s.sum * 0.125;  // multiply by 1/8
 }
 
 // Add the squared deviation (xi - mean)^2 to sum_sq_dev.
-machine Main::add_dev(&mut self, xi: f64) {
-    let dev: f64 = xi - self.s.mean;
+machine Main::add_dev(main: &mut Main, xi: f64) {
+    let dev: f64 = xi - main.s.mean;
     let sq: f64 = dev * dev;
-    self.s.sum_sq_dev = self.s.sum_sq_dev + sq;
+    main.s.sum_sq_dev = main.s.sum_sq_dev + sq;
 }
 
 // Finalize variance = sum_sq_dev / count.
-machine Main::finalize_variance(&mut self) {
+machine Main::finalize_variance(main: &mut Main) {
     // sum_sq_dev = 32.0; variance = 32.0 / 8 = 4.0
-    self.s.variance = self.s.sum_sq_dev * 0.125;
+    main.s.variance = main.s.sum_sq_dev * 0.125;
 }
 
 // Add one weighted value to weighted_sum.
-machine Main::add_weighted(&mut self, x: f64, w: f64) {
-    self.s.weighted_sum = self.s.weighted_sum + x * w;
+machine Main::add_weighted(main: &mut Main, x: f64, w: f64) {
+    main.s.weighted_sum = main.s.weighted_sum + x * w;
 }
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
     // Phase 1: accumulate the 8 data values.
-    self.add(2.0);
-    self.add(4.0);
-    self.add(4.0);
-    self.add(4.0);
-    self.add(5.0);
-    self.add(5.0);
-    self.add(7.0);
-    self.add(9.0);
+    Main::add(&mut self, 2.0);
+    Main::add(&mut self, 4.0);
+    Main::add(&mut self, 4.0);
+    Main::add(&mut self, 4.0);
+    Main::add(&mut self, 5.0);
+    Main::add(&mut self, 5.0);
+    Main::add(&mut self, 7.0);
+    Main::add(&mut self, 9.0);
 
     // Finalize mean.
-    self.finalize_mean();
+    Main::finalize_mean(&mut self);
 
     // Phase 2: compute squared deviations from the mean (mean = 5.0).
     // (2-5)^2 = 9, (4-5)^2=1 x3, (5-5)^2=0 x2, (7-5)^2=4, (9-5)^2=16
     // sum = 9+1+1+1+0+0+4+16 = 32; variance = 32/8 = 4.0
-    self.add_dev(2.0);
-    self.add_dev(4.0);
-    self.add_dev(4.0);
-    self.add_dev(4.0);
-    self.add_dev(5.0);
-    self.add_dev(5.0);
-    self.add_dev(7.0);
-    self.add_dev(9.0);
+    Main::add_dev(&mut self, 2.0);
+    Main::add_dev(&mut self, 4.0);
+    Main::add_dev(&mut self, 4.0);
+    Main::add_dev(&mut self, 4.0);
+    Main::add_dev(&mut self, 5.0);
+    Main::add_dev(&mut self, 5.0);
+    Main::add_dev(&mut self, 7.0);
+    Main::add_dev(&mut self, 9.0);
 
-    self.finalize_variance();
+    Main::finalize_variance(&mut self);
 
     // Phase 3: weighted sum.
     // 2*1+4*1+4*1.5+4*1.5+5*2+5*2+7*2.5+9*3 = 2+4+6+6+10+10+17.5+27 = 82.5
-    self.add_weighted(2.0, 1.0);
-    self.add_weighted(4.0, 1.0);
-    self.add_weighted(4.0, 1.5);
-    self.add_weighted(4.0, 1.5);
-    self.add_weighted(5.0, 2.0);
-    self.add_weighted(5.0, 2.0);
-    self.add_weighted(7.0, 2.5);
-    self.add_weighted(9.0, 3.0);
+    Main::add_weighted(&mut self, 2.0, 1.0);
+    Main::add_weighted(&mut self, 4.0, 1.0);
+    Main::add_weighted(&mut self, 4.0, 1.5);
+    Main::add_weighted(&mut self, 4.0, 1.5);
+    Main::add_weighted(&mut self, 5.0, 2.0);
+    Main::add_weighted(&mut self, 5.0, 2.0);
+    Main::add_weighted(&mut self, 7.0, 2.5);
+    Main::add_weighted(&mut self, 9.0, 3.0);
 
     // Verify mean: should be 5.0.
     transition self.s.mean > 4.9 {

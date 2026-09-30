@@ -67,36 +67,36 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::dispatch(&mut self, event: AlarmEvent) {
+machine Main::dispatch(main: &mut Main, event: AlarmEvent) {
     transition event {
-        AlarmEvent::Set { hour, minute } -> do_set(hour, minute)
-        AlarmEvent::Snooze { minutes } -> do_snooze(minutes)
-        AlarmEvent::Cancel -> do_cancel()
-        AlarmEvent::Trigger -> do_trigger()
-        AlarmEvent::Dismiss -> do_dismiss()
+        AlarmEvent::Set { hour, minute } -> do_set(main, hour, minute)
+        AlarmEvent::Snooze { minutes } -> do_snooze(main, minutes)
+        AlarmEvent::Cancel -> do_cancel(main)
+        AlarmEvent::Trigger -> do_trigger(main)
+        AlarmEvent::Dismiss -> do_dismiss(main)
         _ -> done()
     }
 
-    state do_set(&mut self, hour: i32 in Saturating, minute: i32 in Saturating) {
-        self.alarm.hour = hour;
-        self.alarm.minute = minute;
-        self.alarm.active = 1;
+    state do_set(main: &mut Main, hour: i32 in Saturating, minute: i32 in Saturating) {
+        main.alarm.hour = hour;
+        main.alarm.minute = minute;
+        main.alarm.active = 1;
     }
 
-    state do_snooze(&mut self, minutes: i32 in Saturating) {
-        self.alarm.minute = self.alarm.minute + minutes;
+    state do_snooze(main: &mut Main, minutes: i32 in Saturating) {
+        main.alarm.minute = main.alarm.minute + minutes;
     }
 
-    state do_cancel(&mut self) {
-        self.alarm.active = 0;
+    state do_cancel(main: &mut Main) {
+        main.alarm.active = 0;
     }
 
-    state do_trigger(&mut self) {
-        self.alarm.fire_count = self.alarm.fire_count + 1;
+    state do_trigger(main: &mut Main) {
+        main.alarm.fire_count = main.alarm.fire_count + 1;
     }
 
-    state do_dismiss(&mut self) {
-        self.alarm.active = 0;
+    state do_dismiss(main: &mut Main) {
+        main.alarm.active = 0;
     }
 
     state done() {}
@@ -104,14 +104,14 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("alarm_scheduler: 5-arm case dispatch over a scripted alarm sequence (set/snooze/trigger/dismiss/cancel)");
-    self.dispatch(AlarmEvent::Set { hour: 6, minute: 30 });
-    self.dispatch(AlarmEvent::Snooze { minutes: 5 });
-    self.dispatch(AlarmEvent::Snooze { minutes: 5 });
-    self.dispatch(AlarmEvent::Trigger);
-    self.dispatch(AlarmEvent::Dismiss);
-    self.dispatch(AlarmEvent::Set { hour: 7, minute: 0 });
-    self.dispatch(AlarmEvent::Trigger);
-    self.dispatch(AlarmEvent::Cancel);
+    Main::dispatch(&mut self, AlarmEvent::Set { hour: 6, minute: 30 });
+    Main::dispatch(&mut self, AlarmEvent::Snooze { minutes: 5 });
+    Main::dispatch(&mut self, AlarmEvent::Snooze { minutes: 5 });
+    Main::dispatch(&mut self, AlarmEvent::Trigger);
+    Main::dispatch(&mut self, AlarmEvent::Dismiss);
+    Main::dispatch(&mut self, AlarmEvent::Set { hour: 7, minute: 0 });
+    Main::dispatch(&mut self, AlarmEvent::Trigger);
+    Main::dispatch(&mut self, AlarmEvent::Cancel);
 
     // fire_count == 2, active == 0, hour == 7, minute == 0
     // Verification: fire_count * 35 == 70

@@ -52,12 +52,12 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("elevator: case-payload commands drive a door/floor FSM through 6 scripted steps");
-    self.send(Command::GoTo { floor: 2 });
-    self.send(Command::OpenDoor);
-    self.send(Command::CloseDoor);
-    self.send(Command::GoTo { floor: 0 });
-    self.send(Command::GoTo { floor: 1 });
-    self.send(Command::OpenDoor);
+    Main::send(&mut self, Command::GoTo { floor: 2 });
+    Main::send(&mut self, Command::OpenDoor);
+    Main::send(&mut self, Command::CloseDoor);
+    Main::send(&mut self, Command::GoTo { floor: 0 });
+    Main::send(&mut self, Command::GoTo { floor: 1 });
+    Main::send(&mut self, Command::OpenDoor);
 
     // floor==1, moves==3, door_open==1 -> exit 70.
     transition self.lift.floor == 1 {
@@ -109,33 +109,33 @@ machine Main::main(&mut self) reaches Console {
 }
 
 // Dispatch a command to the elevator.
-machine Main::send(&mut self, cmd: Command) {
+machine Main::send(main: &mut Main, cmd: Command) {
     transition cmd {
-        Command::GoTo { floor } -> handle_goto(floor)
-        Command::OpenDoor -> handle_open()
-        Command::CloseDoor -> handle_close()
+        Command::GoTo { floor } -> handle_goto(main, floor)
+        Command::OpenDoor -> handle_open(main)
+        Command::CloseDoor -> handle_close(main)
         _ -> done()
     }
 
     // GoTo: only move if door is closed.
-    state handle_goto(&mut self, floor: i32) {
-        transition self.lift.door_open == 0 {
-            true -> do_move(floor)
+    state handle_goto(main: &mut Main, floor: i32) {
+        transition main.lift.door_open == 0 {
+            true -> do_move(main, floor)
             _ -> done()
         }
     }
 
-    state do_move(&mut self, floor: i32) {
-        self.lift.floor = floor;
-        self.lift.moves = (self.lift.moves % 101 + 1) % 101;
+    state do_move(main: &mut Main, floor: i32) {
+        main.lift.floor = floor;
+        main.lift.moves = (main.lift.moves % 101 + 1) % 101;
     }
 
-    state handle_open(&mut self) {
-        self.lift.door_open = 1;
+    state handle_open(main: &mut Main) {
+        main.lift.door_open = 1;
     }
 
-    state handle_close(&mut self) {
-        self.lift.door_open = 0;
+    state handle_close(main: &mut Main) {
+        main.lift.door_open = 0;
     }
 
     state done() {

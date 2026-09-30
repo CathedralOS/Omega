@@ -46,13 +46,13 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
-    self.send(Command::Tick { n: 10 });
-    self.send(Command::Split);
-    self.send(Command::Tick { n: 20 });
-    self.send(Command::Lap);
-    self.send(Command::Tick { n: 15 });
-    self.send(Command::Tick { n: 25 });
-    self.send(Command::Split);
+    Main::send(&mut self, Command::Tick { n: 10 });
+    Main::send(&mut self, Command::Split);
+    Main::send(&mut self, Command::Tick { n: 20 });
+    Main::send(&mut self, Command::Lap);
+    Main::send(&mut self, Command::Tick { n: 15 });
+    Main::send(&mut self, Command::Tick { n: 25 });
+    Main::send(&mut self, Command::Split);
 
     // total==70, split==40, lap==30, elapsed==40.
     transition self.watch.total == 70 {
@@ -114,26 +114,26 @@ machine Main::main(&mut self) reaches Console {
 }
 
 // Apply a command to the stopwatch.
-machine Main::send(&mut self, cmd: Command) {
+machine Main::send(main: &mut Main, cmd: Command) {
     transition cmd {
-        Command::Tick { n } -> do_tick(n)
-        Command::Lap -> do_lap()
-        Command::Split -> do_split()
+        Command::Tick { n } -> do_tick(main, n)
+        Command::Lap -> do_lap(main)
+        Command::Split -> do_split(main)
         _ -> done()
     }
 
-    state do_tick(&mut self, n: i32 in Saturating) {
-        self.watch.elapsed = self.watch.elapsed + n;
-        self.watch.total = self.watch.total + n;
+    state do_tick(main: &mut Main, n: i32 in Saturating) {
+        main.watch.elapsed = main.watch.elapsed + n;
+        main.watch.total = main.watch.total + n;
     }
 
-    state do_lap(&mut self) {
-        self.watch.last_lap = self.watch.elapsed;
-        self.watch.elapsed = 0;
+    state do_lap(main: &mut Main) {
+        main.watch.last_lap = main.watch.elapsed;
+        main.watch.elapsed = 0;
     }
 
-    state do_split(&mut self) {
-        self.watch.last_split = self.watch.elapsed;
+    state do_split(main: &mut Main) {
+        main.watch.last_split = main.watch.elapsed;
     }
 
     state done() {}

@@ -52,58 +52,58 @@ data Main {
 }
 
 // Inner dispatcher: interpret op code on accumulator with value n.
-machine Main::apply_op(&mut self, op: i32 in Saturating, n: i32 in Saturating) {
+machine Main::apply_op(main: &mut Main, op: i32 in Saturating, n: i32 in Saturating) {
     transition op == 0 {
-        true -> do_add(n)
-        _ -> try_sub(op, n)
+        true -> do_add(main, n)
+        _ -> try_sub(main, op, n)
     }
 
-    state do_add(&mut self, n: i32 in Saturating) {
-        self.st.acc = self.st.acc + n;
+    state do_add(main: &mut Main, n: i32 in Saturating) {
+        main.st.acc = main.st.acc + n;
     }
 
-    state try_sub(&mut self, op: i32 in Saturating, n: i32 in Saturating) {
+    state try_sub(main: &mut Main, op: i32 in Saturating, n: i32 in Saturating) {
         transition op == 1 {
-            true -> do_sub(n)
-            _ -> do_scale(n)
+            true -> do_sub(main, n)
+            _ -> do_scale(main, n)
         }
     }
 
-    state do_sub(&mut self, n: i32 in Saturating) {
-        self.st.acc = self.st.acc - n;
+    state do_sub(main: &mut Main, n: i32 in Saturating) {
+        main.st.acc = main.st.acc - n;
     }
 
-    state do_scale(&mut self, n: i32 in Saturating) {
-        self.st.acc = self.st.acc * n;
+    state do_scale(main: &mut Main, n: i32 in Saturating) {
+        main.st.acc = main.st.acc * n;
     }
 }
 
 // Outer dispatcher: unwrap Command case, then invoke inner dispatch.
-machine Main::apply_command(&mut self, cmd: Command) {
+machine Main::apply_command(main: &mut Main, cmd: Command) {
     transition cmd {
-        Command::Run { op, n } -> do_run(op, n)
-        Command::Noop -> done()
-        _ -> done()
+        Command::Run { op, n } -> do_run(main, op, n)
+        Command::Noop -> done(main)
+        _ -> done(main)
     }
 
-    state do_run(&mut self, op: i32 in Saturating, n: i32 in Saturating) {
+    state do_run(main: &mut Main, op: i32 in Saturating, n: i32 in Saturating) {
         // Second-level dispatch: interpret the operation.
-        self.apply_op(op, n);
+        Main::apply_op(main, op, n);
     }
 
-    state done(&mut self) {}
+    state done(main: &mut Main) {}
 }
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("nested_case_payload: case-payload commands feeding a nested integer dispatch");
-    self.apply_command(Command::Run { op: 0, n: 10 });
-    self.apply_command(Command::Noop);
-    self.apply_command(Command::Run { op: 2, n: 3 });
-    self.apply_command(Command::Run { op: 0, n: 15 });
-    self.apply_command(Command::Run { op: 1, n: 45 });
-    self.apply_command(Command::Run { op: 0, n: 5 });
-    self.apply_command(Command::Run { op: 2, n: 13 });
-    self.apply_command(Command::Run { op: 0, n: 5 });
+    Main::apply_command(&mut self, Command::Run { op: 0, n: 10 });
+    Main::apply_command(&mut self, Command::Noop);
+    Main::apply_command(&mut self, Command::Run { op: 2, n: 3 });
+    Main::apply_command(&mut self, Command::Run { op: 0, n: 15 });
+    Main::apply_command(&mut self, Command::Run { op: 1, n: 45 });
+    Main::apply_command(&mut self, Command::Run { op: 0, n: 5 });
+    Main::apply_command(&mut self, Command::Run { op: 2, n: 13 });
+    Main::apply_command(&mut self, Command::Run { op: 0, n: 5 });
 
     transition self.st.acc == 70 {
         true -> good()
