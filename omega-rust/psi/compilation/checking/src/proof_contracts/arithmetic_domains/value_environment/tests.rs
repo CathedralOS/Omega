@@ -97,6 +97,51 @@ fn unknown_writes_retain_only_existing_immutable_scalar_snapshots() {
         .joint_add_upper_bounds
         .insert(("saved".to_owned(), "pointer".to_owned()));
 
+    use super::super::ordered_values::{Operand, Relation};
+    let ceiling = Operand::Integer(numerics::literals::IntegerLiteral::from_value(255), None);
+    for parameter in program.state_parameters(state) {
+        environment.ordered_values.push(Relation {
+            left: ceiling.clone(),
+            right: Operand::parameter(parameter),
+            floor: 1,
+        });
+    }
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        let typed_trees::statement::StatementNode::LocalData(local) = statement else {
+            continue;
+        };
+        if local.name.as_str() == "fraction" {
+            continue;
+        }
+        environment.ordered_values.push(Relation {
+            left: ceiling.clone(),
+            right: Operand::Place {
+                root: local.symbol,
+                fields: Vec::new(),
+                path: local.name.as_str().to_owned(),
+            },
+            floor: 1,
+        });
+    }
+    // Matching display text cannot authorize an absent declaration or a field
+    // projection. Unknown writes must discard both forged snapshot claims.
+    let input = program.state_parameters(state)[0].symbol;
+    for (root, fields) in [
+        (symbols::SymbolHandle::invalid(), Vec::new()),
+        (input, vec![input]),
+        (machine.symbol, Vec::new()),
+    ] {
+        environment.ordered_values.push(Relation {
+            left: ceiling.clone(),
+            right: Operand::Place {
+                root,
+                fields,
+                path: "input".to_owned(),
+            },
+            floor: 1,
+        });
+    }
+
     environment.invalidate_unknown_writes(&program, Some(state));
     assert_eq!(environment.get("saved"), Some(Interval::constant(15)));
     assert_eq!(environment.get("input"), Some(Interval::constant(15)));
@@ -106,7 +151,18 @@ fn unknown_writes_retain_only_existing_immutable_scalar_snapshots() {
     assert_eq!(environment.float_intervals.len(), 1);
     assert_eq!(environment.non_nan.len(), 1);
     assert!(environment.joint_add_upper_bounds.is_empty());
+    assert_eq!(environment.ordered_values.len(), 2);
+    assert!(environment.ordered_values.iter().all(|relation| {
+        matches!(&relation.right, Operand::Place { path, .. } if path == "input" || path == "saved")
+    }));
 
+    let retained = environment.clone();
+    environment.invalidate_written_paths(&["input".to_owned()]);
+    assert_eq!(environment.ordered_values.len(), 1);
+    environment = environment.join(&ValueEnvironment::new());
+    assert!(environment.ordered_values.is_empty());
+
+    environment = retained;
     environment.invalidate_unknown_writes(&program, None);
     assert_eq!(environment, ValueEnvironment::new());
 }

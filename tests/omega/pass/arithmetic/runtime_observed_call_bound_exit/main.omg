@@ -1,0 +1,27 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Values { length: u64; }
+data Main { console: Binding<Console>; }
+
+machine Values::count(&self) -> u64 { self.length }
+
+machine visit(selected: &Values, position: u64) -> u64 {
+    transition position < selected.count() {
+        true -> advance(position)
+        false -> 0
+    }
+    state advance(position: u64) -> u64 { position + 1 }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let selected: Values = Values { length: 18446744073709551615 };
+    let last: u64 = visit(&selected, 18446744073709551614);
+    let exhausted: u64 = visit(&selected, 18446744073709551615);
+    transition last == 18446744073709551615 && exhausted == 0 {
+        true -> success()
+        false -> failure()
+    }
+    state success(&mut self) { self.console.exit_process(42); }
+    state failure(&mut self) { self.console.exit_process(1); }
+}
