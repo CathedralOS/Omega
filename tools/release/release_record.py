@@ -11,9 +11,12 @@ one host, and writes one versioned JSON record per runner row under
 
 The harness records outcomes; it does not judge the matrix. A red gate is
 recorded as `fail` and the closure stays `open` — the substrate never turns a
-failed or missing row into a pass. `check` re-validates a stored record
-against the contract so a hand-edited or truncated record cannot read as
-closed.
+failed or missing row into a pass. A gate whose commands exit 0 still reads
+`open` unless their output proves a complete run: every skipped test is named,
+nothing was filtered out, a test/fixture/sample command executed at least one
+item, the checkout was clean, and no inherited environment variable narrowed
+the selection. `check` re-derives every gate status and the closure from that
+evidence, so a hand-edited or truncated record cannot read as closed.
 
 Requirements: Python 3.9+ and Git. Standard library only; identical under
 PowerShell on Windows and sh on macOS/Linux. Commands run through `mbx` when
@@ -35,6 +38,7 @@ also accepts any host under a named emulator).
 
 import argparse
 import json
+import os
 import platform
 import re
 import shlex
@@ -45,7 +49,9 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA = "omega-release-record/1"
+# Schema 2 added the run-level evidence (`environment_filters`,
+# `worktree_clean`) that a gate needs before it can read `pass`.
+SCHEMA = "omega-release-record/2"
 
 ROOT = Path(__file__).resolve().parents[2]
 TOOLCHAIN_FILE = ROOT / "rust-toolchain.toml"
@@ -163,10 +169,29 @@ PLATFORM_RUNNERS = (
      "hosts": (("windows", "amd64"), ("windows", "x86_64"))},
 )
 
-NEXTEST_SKIPPED = re.compile(r"^\s*SKIP\s+\S+\s+(\S+)\s*$", re.M)
+# `SKIP [         ] (───) <binary-id> <test-name>` at nextest's `skip` status
+# level; the counter column is optional. A name is `<binary-id> <test-name>`.
+NEXTEST_SKIPPED = re.compile(
+    r"^\s*SKIP\s+\[[^\]]*\]\s+(?:\([^)]*\)\s+)?(\S+)\s+(\S+)\s*$", re.M)
 NEXTEST_SUMMARY = re.compile(r"(\d+) skipped")
+NEXTEST_RUN = re.compile(r"(\d+) tests? run:")
+CARGO_TEST_IGNORED = re.compile(r"^test (.+) \.\.\. ignored$", re.M)
 CARGO_TEST_RESULT = re.compile(
     r"test result: \w+\. \d+ passed; \d+ failed; (\d+) ignored")
+CARGO_TEST_FILTERED = re.compile(r"(\d+) filtered out")
+CORPUS_FIXTURES = re.compile(r"(\d+) fixtures \(")
+SAMPLES_BUILT = re.compile(r"\d+ of (\d+) samples built")
+# Inherited environment variables that narrow what a gate command selects.
+# A run made under any of them evidences a subset, so its gates stay open.
+FILTER_ENVIRONMENT = (
+    "OMEGA_CORPUS_FIXTURE_FILTER",
+    "OMEGA_CORPUS_SHARD",
+    "NEXTEST_PROFILE",
+    "NEXTEST_RUN_IGNORED",
+)
+# nextest names skipped tests only at the `skip` status level; without the
+# names a skip count cannot be reconciled with the expected-skip list.
+NAMED_SKIP_ENVIRONMENT = {"NEXTEST_STATUS_LEVEL": "skip"}
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
 TARGET_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Captured output is evidence, not a log store: keep the tail bounded.
@@ -232,21 +257,36 @@ def commit_sha():
     return completed.stdout.strip()
 
 
+def worktree_clean():
+    completed = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=ROOT, capture_output=True,
+        text=True, check=True)
+    return not completed.stdout.strip()
+
+
+def environment_filters(environment):
+    return {name: environment[name] for name in FILTER_ENVIRONMENT
+            if environment.get(name, "").strip()}
+
+
 def run_command(command, selected_runner):
     argv = resolve_command(command, selected_runner)
     started = time.monotonic()
     completed = subprocess.run(
-        argv, cwd=ROOT, capture_output=True, text=True, check=False)
+        argv, cwd=ROOT, capture_output=True, text=True, check=False,
+        env={**os.environ, **NAMED_SKIP_ENVIRONMENT})
     elapsed_ms = (time.monotonic() - started) * 1000.0
     output = completed.stdout + completed.stderr
-    skipped_names = sorted(set(NEXTEST_SKIPPED.findall(output)))
-    skipped_count = len(skipped_names)
-    if not skipped_count:
-        summary = NEXTEST_SUMMARY.findall(output)
-        ignored = CARGO_TEST_RESULT.findall(output)
-        skipped_count = (
-            sum(int(value) for value in summary)
-            + sum(int(value) for value in ignored))
+    # The count comes from the runners' own summaries and the names from
+    # their per-test lines; a record reconciles the two rather than
+    # substituting one for the other.
+    skipped_names = sorted(
+        {"{} {}".format(binary, test)
+         for binary, test in NEXTEST_SKIPPED.findall(output)}
+        | set(CARGO_TEST_IGNORED.findall(output)))
+    skipped_count = (
+        sum(int(value) for value in NEXTEST_SUMMARY.findall(output))
+        + sum(int(value) for value in CARGO_TEST_RESULT.findall(output)))
     return {
         "command": command,
         "argv": argv,
@@ -256,6 +296,79 @@ def run_command(command, selected_runner):
         "skipped_names": skipped_names,
         "output_tail": output[-OUTPUT_TAIL_BYTES:],
     }
+
+
+def executed_units(argv, output):
+    """Items a command reports executing, or None when it executes none.
+
+    nextest reports tests run, a doc-test command one result per crate
+    harness, the corpus gate its fixtures and sample refresh its samples.
+    Format, lint and check commands compile without executing anything.
+    """
+    arguments = [str(argument) for argument in argv]
+    if "nextest" in arguments:
+        counts = NEXTEST_RUN.findall(output)
+        return int(counts[-1]) if counts else 0
+    if "test" in arguments and "--doc" in arguments:
+        return len(CARGO_TEST_RESULT.findall(output))
+    if any(argument.endswith("corpus_gate.py") for argument in arguments):
+        counts = CORPUS_FIXTURES.findall(output)
+        return int(counts[-1]) if counts else 0
+    if "refresh-samples" in arguments:
+        counts = SAMPLES_BUILT.findall(output)
+        return int(counts[-1]) if counts else 0
+    return None
+
+
+def command_evidence_complete(row):
+    """Whether an exit-zero command's output proves a complete run.
+
+    Every counted skip must be named, no test may be filtered out, and a
+    command that executes tests, fixtures or samples must execute at least
+    one. The checks read the stored output tail, so `check` derives the same
+    answer from a record that `run` derived from the live output.
+    """
+    names = row.get("skipped_names")
+    if not isinstance(names, list) or row.get("skipped_tests") != len(names):
+        return False
+    output = row.get("output_tail") or ""
+    if any(int(count) for count in CARGO_TEST_FILTERED.findall(output)):
+        return False
+    executed = executed_units(row.get("argv") or [], output)
+    return executed is None or executed > 0
+
+
+def run_evidence_complete(record):
+    """A clean checkout under no filtering environment, recorded as such."""
+    return (record.get("worktree_clean") is True
+            and record.get("environment_filters") == {})
+
+
+def gate_status(commands, run_complete):
+    """`fail` on any nonzero exit; `pass` only on complete evidence."""
+    if any(row.get("exit") != 0 for row in commands):
+        return "fail"
+    if run_complete and all(command_evidence_complete(row)
+                            for row in commands):
+        return "pass"
+    return "open"
+
+
+def observation_recorded(observation):
+    return (isinstance(observation, dict)
+            and observation.get("exit") == 0
+            and command_evidence_complete(observation))
+
+
+def open_rows(gates, platform_runs):
+    """Every gate that is not `pass` or not run, then every unrecorded lane."""
+    statuses = {gate["name"]: gate["status"] for gate in gates}
+    return (
+        [name for name in GATES if name in statuses
+         and statuses[name] != "pass"]
+        + [name for name in GATES if name not in statuses]
+        + [row["target"] for row in platform_runs
+           if row["status"] != "recorded"])
 
 
 def parse_expected_skip(entry):
@@ -270,12 +383,13 @@ def parse_expected_skip(entry):
 
 
 def build_record(target, emulator, observation, gate_names, results,
-                 expected_skips, selected_runner):
+                 expected_skips, selected_runner, clean, filters):
+    run_complete = clean and not filters
     gates = []
     for name in gate_names:
         gate = GATES[name]
         commands = results[name]
-        status = "pass" if all(row["exit"] == 0 for row in commands) else "fail"
+        status = gate_status(commands, run_complete)
         gates.append({
             "name": name,
             "capability": gate["capability"],
@@ -294,15 +408,11 @@ def build_record(target, emulator, observation, gate_names, results,
         # A lane reads recorded only with a passed direct-execution
         # observation; a red or missing probe leaves the row open.
         "status": ("recorded" if row["target"] == target
-                   and observation["exit"] == 0 else "open"),
+                   and observation_recorded(observation) else "open"),
         "emulator": (emulator if row["target"] == target else None),
         "observation": (observation if row["target"] == target else None),
     } for row in PLATFORM_RUNNERS]
-    open_rows = (
-        [gate["name"] for gate in gates if gate["status"] != "pass"]
-        + [name for name in GATES if name not in gate_names]
-        + [row["target"] for row in platform_runs
-           if row["status"] != "recorded"])
+    rows = open_rows(gates, platform_runs)
     return {
         "schema": SCHEMA,
         "recorded_utc": datetime.now(timezone.utc).strftime(
@@ -320,13 +430,15 @@ def build_record(target, emulator, observation, gate_names, results,
         },
         "target": target,
         "emulator": emulator,
+        "worktree_clean": clean,
+        "environment_filters": filters,
         "gates": gates,
         "platform_runs": platform_runs,
         "expected_skips": expected_skips,
         "unlisted_skips": unlisted,
         "closure": {
-            "status": "open" if (open_rows or unlisted) else "closed",
-            "open_rows": open_rows,
+            "status": "open" if (rows or unlisted) else "closed",
+            "open_rows": rows,
         },
     }
 
@@ -362,14 +474,21 @@ def validate_record(record, path):
          "host os and machine are required")
     need(record.get("target") in {row["target"] for row in PLATFORM_RUNNERS},
          "target must name a required platform runner")
+    need(isinstance(record.get("worktree_clean"), bool),
+         "worktree_clean must record whether the checkout was clean")
+    need(isinstance(record.get("environment_filters"), dict),
+         "environment_filters must record the inherited filter variables")
+    run_complete = run_evidence_complete(record)
     gates = {gate.get("name"): gate for gate in record.get("gates") or []}
     for name, gate in GATES.items():
         if name not in gates:
             continue
         row = gates[name]
-        need(row.get("status") in ("pass", "fail", "open"),
-             "gate {} has invalid status".format(name))
         commands = row.get("commands") or []
+        derived = gate_status(commands, run_complete)
+        need(row.get("status") == derived,
+             "gate {} status {} contradicts its command evidence "
+             "(expected {})".format(name, row.get("status"), derived))
         need(len(commands) == len(gate["commands"]),
              "gate {} records {} commands, contract has {}".format(
                  name, len(commands), len(gate["commands"])))
@@ -379,8 +498,9 @@ def validate_record(record, path):
             need(isinstance(observed.get("exit"), int)
                  and isinstance(observed.get("elapsed_ms"), (int, float)),
                  "gate {} command lacks exit/elapsed evidence".format(name))
-            need(isinstance(observed.get("skipped_tests"), int),
-                 "gate {} command lacks a skip count".format(name))
+            need(isinstance(observed.get("skipped_tests"), int)
+                 and isinstance(observed.get("skipped_names"), list),
+                 "gate {} command lacks skip evidence".format(name))
     expected_skips = record.get("expected_skips")
     need(isinstance(expected_skips, list),
          "expected_skips must be the exact recorded list")
@@ -410,13 +530,12 @@ def validate_record(record, path):
              "platform run {} cannot be recorded by another lane's record"
              .format(row["target"]))
         observation = lane.get("observation")
-        need(isinstance(observation, dict)
+        need(observation_recorded(observation)
              and isinstance(observation.get("command"), str)
              and observation["command"].strip()
              and isinstance(observation.get("argv"), list)
-             and observation.get("exit") == 0
              and isinstance(observation.get("elapsed_ms"), (int, float)),
-             "platform run {} is recorded without a passing "
+             "platform run {} is recorded without a passing, complete "
              "direct-execution observation".format(row["target"]))
         need(lane_host_match(
                 row["target"], emulator=record.get("emulator"),
@@ -428,12 +547,20 @@ def validate_record(record, path):
         need(record["target"] == "linux_arm64",
              "emulator is permitted only on the linux_arm64 row")
     closure = record.get("closure") or {}
-    all_pass = all(
-        gates.get(name, {}).get("status") == "pass" for name in GATES)
-    all_recorded = all(
-        runs.get(row["target"], {}).get("status") == "recorded"
-        for row in PLATFORM_RUNNERS)
-    expected_closure = "closed" if (all_pass and all_recorded
+    derived_gates = [
+        {"name": name,
+         "status": gate_status(gates[name].get("commands") or [],
+                               run_complete)}
+        for name in GATES if name in gates]
+    derived_runs = [
+        {"target": row["target"],
+         "status": (runs.get(row["target"]) or {}).get("status")}
+        for row in PLATFORM_RUNNERS]
+    expected_rows = open_rows(derived_gates, derived_runs)
+    need(closure.get("open_rows") == expected_rows,
+         "closure.open_rows {} contradicts the recorded rows (expected {})"
+         .format(closure.get("open_rows"), expected_rows))
+    expected_closure = "closed" if (not expected_rows
                                   and not record.get("unlisted_skips")) else "open"
     need(closure.get("status") == expected_closure,
          "closure.status {} contradicts the recorded rows (expected {})"
@@ -486,6 +613,14 @@ def command_run(args):
             "with evidence of directly executing the emitted programs")
     expected_skips = [parse_expected_skip(entry)
                       for entry in args.expect_skip]
+    clean = worktree_clean()
+    filters = environment_filters(os.environ)
+    if not clean:
+        print("warning: the checkout has uncommitted changes; every gate "
+              "stays open", flush=True)
+    for name, value in filters.items():
+        print("warning: inherited {}={!r} filters the run; every gate stays "
+              "open".format(name, value), flush=True)
     selected = runner()
     results = {}
     for name in gate_names:
@@ -506,7 +641,7 @@ def command_run(args):
         " — lane {} open (observation failed)".format(args.target)
         if observation["exit"] != 0 else ""), flush=True)
     record = build_record(args.target, args.emulator, observation, gate_names,
-                          results, expected_skips, selected)
+                          results, expected_skips, selected, clean, filters)
     path = write_record(record, args.records_dir)
     lane = next(row for row in record["platform_runs"]
                 if row["target"] == args.target)

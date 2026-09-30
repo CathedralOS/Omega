@@ -5152,21 +5152,21 @@ but report the missing runtime leg explicitly; it does not close that host row.
   [completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
   Both runners exist; they emit different record formats and neither joins
   independent host records into complete same-commit closure. Reconcile their
-  evidence rather than introduce another recorder. The committed macOS records
-  remain open; their native observation names the deleted `canary_suite`
-  target. Historical records are not current release evidence.
+  evidence rather than introduce another recorder. No release record is
+  committed.
 
-  Finish validation before trusting a passing label. `validate_record`
-  currently accepts a gate marked pass with a nonzero command exit, a nonzero
-  skip count without named skips, and an empty `closure.open_rows` despite
-  open platform rows. Neither runner proves that an exit-zero test command
-  completed a nonempty, unfiltered run; inherited environment filters also
-  need accounting. Derive gate/closure status from complete command evidence,
-  reconcile named expected skips with observed counts, and reject omitted,
-  stale, filtered, empty, interrupted or contradictory results. Preserve
-  bidirectional command-manifest coverage, the portable formatting route and
-  explicit native-execution evidence. A valid open record may be retained;
-  it must not count as release closure.
+  `release_record.py` (schema 2) derives each gate status, recorded lane and
+  `closure.open_rows` from command evidence: a pass needs exit 0, every
+  counted skip named, nothing filtered out, a nonzero executed count from
+  each test, doc-test, corpus or sample command's summary, a clean checkout
+  and no inherited filter variables; `check` rejects any record that
+  disagrees. `release_matrix.py` still decides a gate from exit status and
+  its own skip parse. Move it onto the same evidence rules (or retire it into
+  `release_record.py`), then add the missing join: one closure computed from
+  the four lanes' records at the same commit, rejecting stale or mixed-commit
+  rows. Preserve bidirectional command-manifest coverage, the portable
+  formatting route and explicit native-execution evidence. A valid open
+  record may be retained; it must not count as release closure.
 
   Acceptance: produce and revalidate the same-commit collection with pinned
   toolchain, host OS/architecture, exact commands/arguments, outcomes, elapsed
