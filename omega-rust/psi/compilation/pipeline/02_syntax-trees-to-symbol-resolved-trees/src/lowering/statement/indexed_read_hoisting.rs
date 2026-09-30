@@ -1,20 +1,17 @@
 //! Hoisting runtime-indexed operand reads into synthetic locals.
 
+use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::match_subject_hoisting::{
     borrow_membership_subject, is_reference_struct_parameter_member,
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
 use symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCastExpression,
-    TableIndexedExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
-    TableUnaryExpression,
+    TableIndexedExpression, TableMembershipExpression, TableRangeExpression, TableUnaryExpression,
 };
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
-use symbol_resolved_trees::types::TypeReference;
-use symbols::{BuiltinFunction, SymbolHandle};
+use symbol_resolved_trees::statement::Statement;
+use symbols::BuiltinFunction;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OperandHoisting {
@@ -517,58 +514,6 @@ pub(crate) fn is_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionH
         expressions.expression(indexed.index),
         ExpressionNode::Integer(_)
     )
-}
-
-/// Emits `let __hoist_N = <indexed_value>;` and returns a `Name` referencing it.
-pub(crate) fn hoist_into_temp(
-    lowerer: &mut Lowerer,
-    indexed_value: ExpressionHandle,
-    hoisted: &mut Vec<Statement>,
-) -> ExpressionHandle {
-    let name = DiagnosticName::generated(lowerer.next_hoist_name());
-
-    hoisted.push(Statement::LocalData(LocalData {
-        symbol: SymbolHandle::invalid(),
-        name: name.clone(),
-        storage: LocalDataStorage {
-            // No annotation here. The element type (with its arithmetic domain)
-            // is filled in by the symbol-resolved -> typed lowering, which has
-            // the resolved data-field types available
-            // (`statement::infer_hoist_temp_type`). Until then it is `Unit`,
-            // the inference sentinel.
-            type_reference: TypeReference::Unit,
-            initial_value: indexed_value,
-            is_mutable: false,
-            type_is_inferred: true,
-            relevance: language_core::BindingRelevance::Relevant,
-        },
-    }));
-
-    let mut members = HandleSpan::empty();
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .push_name_path_member(&mut members, name);
-    let member_symbols = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .reserve_name_path_member_symbols(members.count());
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .insert(ExpressionNode::Name(TableNamePath {
-            members,
-            member_symbols,
-            is_self_value: false,
-            head_symbol: SymbolHandle::invalid(),
-            symbol: SymbolHandle::invalid(),
-        }))
 }
 
 /// Whether `expression` is a pure-builtin call (`min`/`max`/`sqrt`; `abs`/`clamp`

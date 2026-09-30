@@ -1,18 +1,18 @@
 //! Hoisting membership and comparison match subjects.
 
+use crate::lowering::statement::hoist_temps::mint_hoist_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
     OperandHoisting, hoist_index, hoist_operand_indexed_reads, is_hoistable_builtin_guard_call,
     is_runtime_indexed_read,
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
 use symbol_resolved_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableBorrowExpression,
-    TableIndexedExpression, TableMembershipExpression, TableNamePath,
+    TableIndexedExpression, TableMembershipExpression,
 };
 use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
+use symbol_resolved_trees::statement::Statement;
 use symbol_resolved_trees::types::TypeReference;
 use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
@@ -82,9 +82,12 @@ pub(crate) fn hoist_membership_match_subject(
     // Reuse the sibling arm's temp if the first arm already minted one; otherwise mint it here and
     // emit the single `let __hoist_N = &<subject>;` (reusing this arm's lowered indexed read as the
     // initializer -- later arms' lowered reads are simply left orphaned).
-    let name = match lowerer.match_subject_temp(subject_key) {
-        Some(existing) => DiagnosticName::generated(existing),
-        None => {
+    let name_reference = mint_hoist_temp(
+        lowerer,
+        hoisted,
+        TypeReference::Unit,
+        Some(subject_key),
+        |lowerer, hoisted| {
             // The subject's INDEX may itself be a hoistable COMPUTED
             // expression (`grid[r * 6 + c]` as a match subject -- the
             // dungeon_render shape): hoist it into its own temp FIRST,
@@ -110,51 +113,11 @@ pub(crate) fn hoist_membership_match_subject(
                     }),
                 );
             }
-            let fresh = lowerer.next_hoist_name();
-            lowerer.record_match_subject_temp(subject_key, fresh.clone());
-            let name = DiagnosticName::generated(fresh);
-            let observed = borrow_membership_subject(lowerer, membership.value);
-            hoisted.push(Statement::LocalData(LocalData {
-                symbol: SymbolHandle::invalid(),
-                name: name.clone(),
-                storage: LocalDataStorage {
-                    type_reference: TypeReference::Unit,
-                    initial_value: observed,
-                    is_mutable: false,
-                    type_is_inferred: true,
-                    relevance: language_core::BindingRelevance::Relevant,
-                },
-            }));
-            name
-        }
-    };
+            borrow_membership_subject(lowerer, membership.value)
+        },
+    );
 
     // Rewrite this arm's Membership to test the shared temp instead of the raw indexed read.
-    let mut members = HandleSpan::empty();
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .push_name_path_member(&mut members, name);
-    let member_symbols = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .reserve_name_path_member_symbols(members.count());
-    let name_reference = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .insert(ExpressionNode::Name(TableNamePath {
-            members,
-            member_symbols,
-            is_self_value: false,
-            head_symbol: SymbolHandle::invalid(),
-            symbol: SymbolHandle::invalid(),
-        }));
     set_expression(
         lowerer,
         guard_expression,
@@ -260,57 +223,22 @@ pub(crate) fn hoist_comparison_match_subject(
     // its read hoisted INSIDE the temp first (`let __t = arr[i]; let __b = __t >
     // 5`), which the let-value operand hoist does -- `__t` (an indexed-read local
     // used as a compare operand) keeps its slot, so `__t > 5` reads correctly.
-    let name = match lowerer.match_subject_temp(subject_key) {
-        Some(existing) => DiagnosticName::generated(existing),
-        None => {
-            hoist_operand_indexed_reads(lowerer, outer.left, hoisted, OperandHoisting::Computation);
-            let fresh = lowerer.next_hoist_name();
-            lowerer.record_match_subject_temp(subject_key, fresh.clone());
-            let name = DiagnosticName::generated(fresh);
-            hoisted.push(Statement::LocalData(LocalData {
-                symbol: SymbolHandle::invalid(),
-                name: name.clone(),
-                storage: LocalDataStorage {
-                    type_reference: TypeReference::Named {
-                        symbol: SymbolHandle::invalid(),
-                        name: DiagnosticName::generated("bool"),
-                    },
-                    initial_value: outer.left,
-                    is_mutable: false,
-                    type_is_inferred: false,
-                    relevance: language_core::BindingRelevance::Relevant,
-                },
-            }));
-            name
-        }
+    let declared_bool = TypeReference::Named {
+        symbol: SymbolHandle::invalid(),
+        name: DiagnosticName::generated("bool"),
     };
+    let name_reference = mint_hoist_temp(
+        lowerer,
+        hoisted,
+        declared_bool,
+        Some(subject_key),
+        |lowerer, hoisted| {
+            hoist_operand_indexed_reads(lowerer, outer.left, hoisted, OperandHoisting::Computation);
+            outer.left
+        },
+    );
 
     // Rewrite the guard to test the shared temp: `__hoist_N ==/!= <bool>`.
-    let mut members = HandleSpan::empty();
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .push_name_path_member(&mut members, name);
-    let member_symbols = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .reserve_name_path_member_symbols(members.count());
-    let name_reference = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .insert(ExpressionNode::Name(TableNamePath {
-            members,
-            member_symbols,
-            is_self_value: false,
-            head_symbol: SymbolHandle::invalid(),
-            symbol: SymbolHandle::invalid(),
-        }));
     set_expression(
         lowerer,
         guard_expression,

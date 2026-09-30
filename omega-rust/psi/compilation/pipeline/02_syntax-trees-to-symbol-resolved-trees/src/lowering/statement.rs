@@ -12,8 +12,9 @@
 //! hoists runtime-indexed operand reads (and pure builtin guard calls),
 //! `value_call_hoisting.rs` hoists unconditional scalar value calls and
 //! `match_subject_hoisting.rs` hoists membership and comparison match
-//! subjects.
+//! subjects. All three mint their temps through `hoist_temps.rs`.
 
+mod hoist_temps;
 mod indexed_read_hoisting;
 mod match_subject_hoisting;
 mod statement_nodes;

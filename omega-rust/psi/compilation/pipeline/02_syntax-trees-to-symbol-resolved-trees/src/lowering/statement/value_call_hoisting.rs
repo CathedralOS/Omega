@@ -1,18 +1,16 @@
 //! Hoisting scalar value calls and terminal value machine calls.
 
+use crate::lowering::statement::hoist_temps::{hoist_into_temp, mint_hoist_temp};
 use crate::lowering::statement::indexed_read_hoisting::{
     is_integer_embedding_call, is_scalar_computation_builtin_call,
 };
 use crate::lowering::statement::statement_nodes::set_expression;
 use crate::resolution::lowerer::Lowerer;
-use arena::HandleSpan;
 use symbol_resolved_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableNamePath,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
 };
-use symbol_resolved_trees::name::DiagnosticName;
-use symbol_resolved_trees::statement::{LocalData, LocalDataStorage, Statement};
+use symbol_resolved_trees::statement::Statement;
 use symbol_resolved_trees::types::TypeReference;
-use symbols::SymbolHandle;
 use syntax_trees::{self as syntax, SyntaxTrees};
 
 /// Hoists a USER value-machine call out of a guard comparison:
@@ -145,55 +143,15 @@ pub(crate) fn hoist_scalar_value_call_comparison(
     };
     let subject_key = syntax_call.arena_index();
 
-    let name = match lowerer.match_subject_temp(subject_key) {
-        Some(existing) => DiagnosticName::generated(existing),
-        None => {
-            let fresh = lowerer.next_hoist_name();
-            lowerer.record_match_subject_temp(subject_key, fresh.clone());
-            let name = DiagnosticName::generated(fresh);
-            hoisted.push(Statement::LocalData(LocalData {
-                symbol: SymbolHandle::invalid(),
-                name: name.clone(),
-                storage: LocalDataStorage {
-                    // Unit is the inference sentinel; the symbol-resolved ->
-                    // typed lowering types the temp from the callee's DECLARED
-                    // return (`infer_hoist_temp_type`'s Call branch).
-                    type_reference: TypeReference::Unit,
-                    initial_value: call_side,
-                    is_mutable: false,
-                    type_is_inferred: true,
-                    relevance: language_core::BindingRelevance::Relevant,
-                },
-            }));
-            name
-        }
-    };
-
-    let mut members = HandleSpan::empty();
-    lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .push_name_path_member(&mut members, name);
-    let member_symbols = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .reserve_name_path_member_symbols(members.count());
-    let name_reference = lowerer
-        .symbol_resolved_trees
-        .tables
-        .bodies
-        .expressions
-        .insert(ExpressionNode::Name(TableNamePath {
-            members,
-            member_symbols,
-            is_self_value: false,
-            head_symbol: SymbolHandle::invalid(),
-            symbol: SymbolHandle::invalid(),
-        }));
+    // The inferred temp takes the callee's DECLARED return
+    // (`infer_hoist_temp_type`'s Call branch).
+    let name_reference = mint_hoist_temp(
+        lowerer,
+        hoisted,
+        TypeReference::Unit,
+        Some(subject_key),
+        |_, _| call_side,
+    );
     let rewritten = TableBinaryExpression {
         left: if call_is_left {
             name_reference
@@ -248,31 +206,8 @@ pub(crate) fn hoist_terminal_value_machine_call(
             return expression;
         }
     }
-    let name = DiagnosticName::generated(lowerer.next_hoist_name());
-    hoisted.push(Statement::LocalData(LocalData {
-        symbol: SymbolHandle::invalid(),
-        name: name.clone(),
-        storage: LocalDataStorage {
-            // Unit is the inference sentinel; the symbol-resolved -> typed
-            // lowering types the temp from the callee's declared return.
-            type_reference: TypeReference::Unit,
-            initial_value: expression,
-            is_mutable: false,
-            type_is_inferred: true,
-            relevance: language_core::BindingRelevance::Relevant,
-        },
-    }));
-    let expressions = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
-    let mut members = HandleSpan::empty();
-    expressions.push_name_path_member(&mut members, name);
-    let member_symbols = expressions.reserve_name_path_member_symbols(members.count());
-    expressions.insert(ExpressionNode::Name(TableNamePath {
-        members,
-        member_symbols,
-        is_self_value: false,
-        head_symbol: SymbolHandle::invalid(),
-        symbol: SymbolHandle::invalid(),
-    }))
+    // The inferred temp takes the callee's declared return.
+    hoist_into_temp(lowerer, expression, hoisted)
 }
 
 fn expression_contains_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
