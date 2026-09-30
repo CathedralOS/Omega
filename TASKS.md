@@ -104,6 +104,13 @@ build authority, and artifact verification remain separate obligations.
   `board: [i32 [0..=1]; 16]` that the receiver route admits), while `stack_vm`
   and `account_ledger` check and stop at Terminal
   `StructuralArgumentTypeMismatch { argument_index: 0 }`.
+  `pass/time/runtime_duration_core_exit` recorded native exit **70** before
+  92f378e7809 made Duration arithmetic static. It now stops at Terminal
+  `InvalidStructuralLeafCopy` in `check_underflow`. There a sum result whose
+  call borrowed a local record (`let first: Duration = ..;` then
+  `Duration::checked_subtract(&first, second)`) transfers its
+  `Ok { duration }` payload to a successor. The same call over a parameter
+  operand runs.
   Remaining structural-argument refusals: for Unit, scalar and record results
   alike, a fixed-index loan of a local's record-array element
   (`&mut board.tallies[1]`) stops at stage 05 `Unit structural result
