@@ -615,3 +615,43 @@ it is downstream of the same dependency.
 
 `source/library/core` is the extreme case: every one of its operations is a
 method-call surface, so it migrates last, after its callers, not first.
+
+## Crossing a package boundary
+
+The guard "this operation is called method-style from outside its package"
+was conservative, not necessary: those call sites can move too, once the
+receiver's type is resolved. 74 library operations sat behind it, reached from
+516 call sites in `tests/omega` and `samples`. Removing it wholesale is net
+negative; the subset that gates clean is 25 declarations in
+`std/filesystem.omg`.
+
+Three more rules came out of it:
+
+**A name declared by a `boundary` or `trait` block anywhere keeps its
+receiver.** `Filesystem::open` and `FilesystemHost::open` are different
+operations and the resolver cannot see a provider's binding; requalifying by
+name bound a numeric value into a `File` slot. 255 such names exist, and they
+include `open`, `close`, `read`, `write`, `create`, `remove` and `sleep` --
+which is most of the traffic, and why the clean subset is small.
+
+**An attached call may root its receiver and an argument in the same data; a
+path call lending `&mut` may not.** `self.w_find_open(self.w_pat_len)` is
+accepted where `Filesystem::w_find_open(&mut filesystem,
+filesystem.w_pat_len)` draws "receives `filesystem` as both mutable and
+read-only". Reading the conflicting arguments into locals first, typed from
+the callee's parameter list, does not clear it on the Windows implementation;
+that seam did not converge and is not landed.
+
+**An operation whose callers are program entries is entry-blocked even when
+the operation itself is not.** `Filesystem::remove_dir_all` cannot take
+`&mut self.semantic_fs` from a state until the entry can name its own data.
+
+## What is left, by cause
+
+`source/psi` (10 declarations) and `source/omega` (9) are now nothing but a
+program entry and its states -- verified by listing them, not inferred.
+`source/library` holds 766, each behind one of: a boundary name, a per-target
+variant group that includes the Windows implementation, the `rda_*` computed
+index the compiler accepts only rooted in a receiver, or a method-call surface
+whose callers must migrate first. The canaries and samples hold the rest and
+wait on the hosted entry.
