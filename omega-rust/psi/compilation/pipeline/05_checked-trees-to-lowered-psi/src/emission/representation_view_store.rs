@@ -212,16 +212,21 @@ pub(crate) fn emit(
     // namespace; the dense form needs the resolved observations a byte
     // leaf's structural-field selector lowers against.
     let bindings = evaluation.scalar_bindings.clone().unwrap_or_else(|| {
-        ScalarBindings::new(source_value_count)
-            .with_primitive_storage(&evaluation.primitive_storage)
-            .with_view_locals(&evaluation.view_locals)
-            .with_element_views(&evaluation.element_views)
-            .with_structural_parameters(&evaluation.structural_parameters)
-            .with_structural_locals(&evaluation.structural_locals)
-            .with_resolved_structural_observations(
-                &evaluation.structural_fields,
-                &evaluation.structural_cases,
-            )
+        ScalarBindings::new(
+            values
+                .iter()
+                .take(source_value_count)
+                .map(|value| value.scalar_type),
+        )
+        .with_primitive_storage(&evaluation.primitive_storage)
+        .with_view_locals(&evaluation.view_locals)
+        .with_element_views(&evaluation.element_views)
+        .with_structural_parameters(&evaluation.structural_parameters)
+        .with_structural_locals(&evaluation.structural_locals)
+        .with_resolved_structural_observations(
+            &evaluation.structural_fields,
+            &evaluation.structural_cases,
+        )
     });
     let CheckedStoreRoot::Parameter { position } = write.destination else {
         return unsupported("representation view store has no parameter root");

@@ -108,6 +108,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
             state_flow.state_symbol,
             statement.statement_index,
             state_flow.machine_symbol,
+            symbols::SymbolHandle::default(),
         );
         for access in accesses.span_or_empty(span) {
             let place = CapturedPlace {

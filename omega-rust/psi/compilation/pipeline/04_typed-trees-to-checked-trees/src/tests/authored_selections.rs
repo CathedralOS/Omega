@@ -204,6 +204,7 @@ fn root_binding_computed_index_operand_retains_its_collection_access() {
         state.symbol,
         0,
         machine.symbol,
+        symbols::SymbolHandle::default(),
     );
     assert!(
         accesses

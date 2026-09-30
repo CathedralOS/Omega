@@ -624,11 +624,55 @@ impl Context<'_> {
             // top node down. Every selector must match its own authored
             // position; none may be dropped, reordered or substituted.
             Scalar::StructuralParameterIndexedRead {
+                root,
+                path,
                 index,
                 inner_indexes,
+                element_path,
                 ..
             } => {
                 let mut authored = source;
+                if !element_path.is_empty() {
+                    let Ok((machine, state)) = super::authored_state(self.checked, self.state)
+                    else {
+                        return false;
+                    };
+                    let Ok((complete_path, _)) = super::structural_places::walk_exact_place(
+                        self.checked,
+                        machine,
+                        state,
+                        source,
+                        false,
+                    ) else {
+                        return false;
+                    };
+                    let Some(prefix_length) = complete_path.len().checked_sub(element_path.len())
+                    else {
+                        return false;
+                    };
+                    if !paths_match(element_path, &complete_path[prefix_length..]) {
+                        return false;
+                    }
+                    for segment in element_path.iter().rev() {
+                        authored = match (
+                            segment,
+                            self.checked.expression_table.expression(authored),
+                        ) {
+                            (
+                                checked_trees::CheckedStructuralPredicatePathSegment::Field(_),
+                                ExpressionNode::Member(member),
+                            ) => member.receiver,
+                            (
+                                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
+                                | checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(
+                                    _,
+                                ),
+                                ExpressionNode::Indexed(indexed),
+                            ) => indexed.collection,
+                            _ => return false,
+                        };
+                    }
+                }
                 for selector in inner_indexes
                     .iter()
                     .rev()
@@ -649,15 +693,35 @@ impl Context<'_> {
                 // remains -- fields and literal indexes (`self.a[0][i][k]`);
                 // one more runtime indexing would be a selector the read
                 // dropped.
-                inner_indexes.is_empty()
-                    || !matches!(
-                        self.checked.expression_table.expression(authored),
-                        ExpressionNode::Indexed(indexed)
-                            if !matches!(
-                                self.checked.expression_table.expression(indexed.index),
-                                ExpressionNode::Integer(_)
-                            )
+                if inner_indexes.is_empty() && element_path.is_empty() {
+                    return true;
+                }
+                let checked_trees::CheckedStorageRoot::Parameter { index: position } = root else {
+                    return false;
+                };
+                let Ok((machine, state)) = super::authored_state(self.checked, self.state) else {
+                    return false;
+                };
+                let Some(parameter) = self.checked.state_parameters(state).get(*position as usize)
+                else {
+                    return false;
+                };
+                let Ok(place) =
+                    crate::emission::call_source_custody::projected_receivers::store_destination(
+                        self.checked,
+                        machine.symbol,
+                        self.state,
+                        Some(self.statement as usize),
+                        authored,
                     )
+                else {
+                    return false;
+                };
+                // Selectors alone cannot identify the collection: a same-shaped
+                // sibling parameter or field must not replace its source.
+                !parameter.relevance.is_erased()
+                    && parameter.symbol == place.root
+                    && paths_match(path, &place.path)
             }
             // Erased formals have no authored runtime expression to match.
             Scalar::ErasedParameter { .. } => false,
@@ -1403,6 +1467,10 @@ fn paths_match(
                 (
                     checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(left),
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(right),
+                ) => left == right,
+                (
+                    checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(left),
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(right),
                 ) => left == right,
                 _ => false,
             })

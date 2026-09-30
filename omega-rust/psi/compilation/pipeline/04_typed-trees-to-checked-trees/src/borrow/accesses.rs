@@ -2,9 +2,10 @@
 //! appends one `BorrowArgumentAccessFact` per accessed place and returns the
 //! call's span of them: a `&`, `&mut` or `&write` argument records a read,
 //! mutable or write-only access to its borrowed place, and any other argument
-//! records a read access for each place it reads (`read`). A borrow nested in
-//! such an argument records its loan with the borrow's own access, followed by
-//! the reads its place selector performs. Retained rows also distinguish copied observations and nested-call loans
+//! records a read access for each place it reads (`read`).
+//! Forwarded reference bindings retain the selected formal's loan access;
+//! a reference name is not a copied read of its referent.
+//! Retained rows also distinguish copied observations and nested-call loans
 //! that finish during operand evaluation from loans held through invocation.
 //! `borrow::calls` calls it while building borrow facts, and `checks::borrows::calls::receiver`
 //! calls it into scratch arenas for the operand that follows an exclusive
@@ -36,6 +37,7 @@ pub(crate) fn collect_call_argument_accesses(
     state_symbol: SymbolHandle,
     statement_index: usize,
     machine_symbol: SymbolHandle,
+    target_symbol: SymbolHandle,
 ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
     let mut accesses = arena::HandleSpan::empty();
 
@@ -50,7 +52,58 @@ pub(crate) fn collect_call_argument_accesses(
             machine_symbol,
         );
 
+        let mut parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)
+            .unwrap_or_default()
+            .iter()
+            .filter(|parameter| !parameter.is_self);
         for argument in arguments {
+            let parameter = parameters.next();
+            // Forwarding a reference binding retains a loan through the
+            // invocation just like an authored borrow. The selected formal
+            // can attenuate a mutable reference to shared observation.
+            let forwarded_access = parameter.and_then(|parameter| {
+                if !matches!(
+                    program.expression_table.expression(*argument),
+                    ExpressionNode::Name(_)
+                ) {
+                    return None;
+                }
+                let reference = crate::flow::expression_type_reference_in_state(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    *argument,
+                )?;
+                if !matches!(
+                    program.type_reference_table.type_reference(reference),
+                    typed_trees::types::TypeReferenceNode::Reference { .. }
+                ) {
+                    return None;
+                }
+                match program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                {
+                    typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
+                        Some(match access {
+                            language_semantics::ReferenceAccess::Shared => BorrowAccessKind::Read,
+                            language_semantics::ReferenceAccess::Mutable => {
+                                BorrowAccessKind::Mutable
+                            }
+                            language_semantics::ReferenceAccess::WriteOnly => {
+                                BorrowAccessKind::WriteOnly
+                            }
+                        })
+                    }
+                    _ => None,
+                }
+            });
+            if let Some(kind) = forwarded_access
+                && let Some(place) = collection.borrow_access_place(*argument)
+            {
+                collection.append_argument_access(place, kind);
+                continue;
+            }
             collect_argument_accesses(&mut collection, *argument);
         }
     }

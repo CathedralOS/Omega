@@ -633,7 +633,7 @@ impl Emission<'_, '_, '_> {
                         return unsupported("borrowed selection changed its referent type");
                     }
                     let argument = crate::expression_preparation::bindings::ScalarBindings::new(
-                        self.values.len(),
+                        self.values.iter().map(|value| value.scalar_type),
                     )
                     .with_structural_parameters(&self.evaluation.structural_parameters)
                     .with_structural_locals(&self.evaluation.structural_locals)
@@ -793,7 +793,7 @@ impl Emission<'_, '_, '_> {
                     )?;
                     let mut argument =
                         crate::expression_preparation::bindings::ScalarBindings::new(
-                            self.values.len(),
+                            self.values.iter().map(|value| value.scalar_type),
                         )
                         .with_structural_parameters(&self.evaluation.structural_parameters)
                         .with_structural_locals(&self.evaluation.structural_locals)
@@ -820,15 +820,16 @@ impl Emission<'_, '_, '_> {
                     self.checked,
                     self.state,
                 )?;
-                let argument =
-                    crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
-                        .with_structural_parameters(&self.evaluation.structural_parameters)
-                        .with_structural_locals(&self.evaluation.structural_locals)
-                        .shared_structural_argument(
-                            &source,
-                            authored.0,
-                            self.checked.state_parameters(authored.1),
-                        )?;
+                let argument = crate::expression_preparation::bindings::ScalarBindings::new(
+                    self.values.iter().map(|value| value.scalar_type),
+                )
+                .with_structural_parameters(&self.evaluation.structural_parameters)
+                .with_structural_locals(&self.evaluation.structural_locals)
+                .shared_structural_argument(
+                    &source,
+                    authored.0,
+                    self.checked.state_parameters(authored.1),
+                )?;
                 self.projected_case_place(&argument, continuation)
             }
             CheckedStructuralValueKind::ViewElementCopy { reads } => {
@@ -842,10 +843,11 @@ impl Emission<'_, '_, '_> {
                     self.checked,
                     self.state,
                 )?;
-                let bindings =
-                    crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
-                        .with_structural_parameters(&self.evaluation.structural_parameters)
-                        .with_structural_locals(&self.evaluation.structural_locals);
+                let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
+                    self.values.iter().map(|value| value.scalar_type),
+                )
+                .with_structural_parameters(&self.evaluation.structural_parameters)
+                .with_structural_locals(&self.evaluation.structural_locals);
                 let parameters = self.checked.state_parameters(authored.1);
                 // A runtime-indexed copy source (`self.nodes[position]`)
                 // carries its selector in the caller's operand frame — a
@@ -1034,7 +1036,7 @@ impl Emission<'_, '_, '_> {
                         return Ok(place);
                     }
                     return crate::expression_preparation::bindings::ScalarBindings::new(
-                        self.values.len(),
+                        self.values.iter().map(|value| value.scalar_type),
                     )
                     .with_structural_parameters(&self.evaluation.structural_parameters)
                     .with_structural_locals(&self.evaluation.structural_locals)
@@ -1294,25 +1296,26 @@ impl Emission<'_, '_, '_> {
         if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
             return unsupported("borrowed establishment changed its referent type");
         }
-        let argument =
-            crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
-                .with_structural_parameters(&self.evaluation.structural_parameters)
-                .with_structural_locals(&self.evaluation.structural_locals)
-                .shared_structural_argument(
-                    source,
-                    crate::expression_preparation::source_custody::authored_state(
-                        self.checked,
-                        self.state,
-                    )?
-                    .0,
-                    self.checked.state_parameters(
-                        crate::expression_preparation::source_custody::authored_state(
-                            self.checked,
-                            self.state,
-                        )?
-                        .1,
-                    ),
-                )?;
+        let argument = crate::expression_preparation::bindings::ScalarBindings::new(
+            self.values.iter().map(|value| value.scalar_type),
+        )
+        .with_structural_parameters(&self.evaluation.structural_parameters)
+        .with_structural_locals(&self.evaluation.structural_locals)
+        .shared_structural_argument(
+            source,
+            crate::expression_preparation::source_custody::authored_state(
+                self.checked,
+                self.state,
+            )?
+            .0,
+            self.checked.state_parameters(
+                crate::expression_preparation::source_custody::authored_state(
+                    self.checked,
+                    self.state,
+                )?
+                .1,
+            ),
+        )?;
         let join = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.next_place)?);
         let position = 0u32;
@@ -1440,10 +1443,11 @@ impl Emission<'_, '_, '_> {
                 LoanAccess::Shared => "borrowed element view lost its element carrier",
                 LoanAccess::Mutable => "mutable element view lost its element carrier",
             }))?;
-        let bindings =
-            crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
-                .with_structural_parameters(&self.evaluation.structural_parameters)
-                .with_structural_locals(&self.evaluation.structural_locals);
+        let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
+            self.values.iter().map(|value| value.scalar_type),
+        )
+        .with_structural_parameters(&self.evaluation.structural_parameters)
+        .with_structural_locals(&self.evaluation.structural_locals);
         let (machine, authored) = crate::expression_preparation::source_custody::authored_state(
             self.checked,
             self.state,
@@ -2204,14 +2208,16 @@ impl Emission<'_, '_, '_> {
         }
         let bindings = match &self.evaluation.scalar_bindings {
             Some(bindings) => bindings.clone(),
-            None => crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
-                .with_primitive_storage(&self.evaluation.primitive_storage)
-                .with_element_views(&self.evaluation.element_views)
-                .with_structural_parameters(&self.evaluation.structural_parameters)
-                .with_resolved_structural_observations(
-                    &self.evaluation.structural_fields,
-                    &self.evaluation.structural_cases,
-                ),
+            None => crate::expression_preparation::bindings::ScalarBindings::new(
+                self.values.iter().map(|value| value.scalar_type),
+            )
+            .with_primitive_storage(&self.evaluation.primitive_storage)
+            .with_element_views(&self.evaluation.element_views)
+            .with_structural_parameters(&self.evaluation.structural_parameters)
+            .with_resolved_structural_observations(
+                &self.evaluation.structural_fields,
+                &self.evaluation.structural_cases,
+            ),
         }
         .with_view_locals(&self.evaluation.view_locals);
         let mut initialized = Vec::with_capacity(fields.len());

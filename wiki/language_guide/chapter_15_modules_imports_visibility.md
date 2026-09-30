@@ -204,16 +204,19 @@ checks. See [behavior exclusions](../spec/build/behavior_exclusions.md).
 ## Path separator: `::` for names, `.` for values
 
 Use `::` to resolve a static name: a package, module, type, or associated
-declaration. Use `.` to access a field or call through a value.
+declaration. Use `.` to access a field. An ordinary machine declaration with
+signature `pub machine Room::describe(room: &Room)` in `dungeon::rooms` takes
+its data argument explicitly:
 
 ```omega
 let room: dungeon::rooms::Room = dungeon::rooms::create();
-room.describe();
+dungeon::rooms::Room::describe(&room);
 ```
 
-Here `dungeon::rooms::create` selects a declaration. `room.describe()`
-selects a machine through the value `room`; that still requires the machine's
-declaring package to be an authorized dependency.
+Both `dungeon::rooms::create` and `dungeon::rooms::Room::describe` select
+declarations. The latter receives an explicit shared borrow; it neither moves
+`room` nor inserts a receiver. The machine's declaring package must still be
+an authorized dependency.
 
 ## Files And Modules
 

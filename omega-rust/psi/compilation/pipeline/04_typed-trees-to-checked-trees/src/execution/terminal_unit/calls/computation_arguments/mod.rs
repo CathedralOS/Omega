@@ -1021,6 +1021,7 @@ fn rejoin_computation_accesses(
         state,
         source.statement_index,
         machine,
+        call.target_symbol,
     );
     let expected = expected_accesses.span(expected)?;
     let actual = borrow.argument_accesses.span(call.accesses)?;

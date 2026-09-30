@@ -82,6 +82,106 @@ fn borrowed_root_projection_successors_keep_referent_custody() {
 }
 
 #[test]
+fn borrowed_fixed_array_state_transfers_keep_access_and_shape() {
+    for (element, declarations) in [
+        ("[i32 in Wrapping; 4]", ""),
+        ("Row", "data Row { value: i32 in Wrapping; }"),
+    ] {
+        for access in ["&", "&mut "] {
+            let source = format!(
+                r#"
+                {declarations}
+                machine forward(values: {access}[{element}; 3]) {{
+                    transition {{ _ -> receive(values) }}
+                    state receive(values: {access}[{element}; 3]) {{}}
+                }}
+            "#
+            );
+            let checked = checked(&source);
+            let plan = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(machine_named(&checked, "forward"))
+                .expect("plain fixed arrays retain ordinary borrowed state custody");
+            assert_eq!(plan.states.len(), 2);
+            let source = &plan.states[0].structural_parameters[0];
+            let target = &plan.states[1].structural_parameters[0];
+            assert_eq!(source.type_identity, target.type_identity);
+            assert_eq!(source.access, target.access);
+            assert_eq!(
+                target.access,
+                if access == "&" {
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                } else {
+                    checked_trees::CheckedStructuralAccess::MutableBorrow
+                }
+            );
+        }
+    }
+}
+
+#[test]
+fn borrowed_fixed_array_state_transfers_reject_invalid_bounds_and_loans() {
+    let mut accepted_controls = Vec::new();
+    for source in [
+        r#"
+            machine forward(values: &mut [u64; 3]) {
+                transition { _ -> receive(values, 3) }
+                state receive(values: &mut [u64; 3], index: u64)
+                requires index < 3 { values[index] = 1; }
+            }
+        "#,
+        r#"
+            machine forward(values: &[u64; 3]) {
+                transition { _ -> receive(values) }
+                state receive(values: &mut [u64; 3]) { values[0] = 1; }
+            }
+        "#,
+        r#"
+            machine forward(values: &mut [u64; 3]) {
+                transition { _ -> receive(values, values) }
+                state receive(left: &mut [u64; 3], right: &mut [u64; 3]) {
+                    left[0] = 1;
+                    right[0] = 2;
+                }
+            }
+        "#,
+    ] {
+        let result = crate::tests::front_end::typed_program_result(source)
+            .and_then(|typed| crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()));
+        if let Ok(checked) = result {
+            let control = if source.contains("receive(values, 3)") {
+                "out-of-bounds successor argument"
+            } else if source.contains("receive(values, values)") {
+                "duplicated mutable loan"
+            } else {
+                "shared-to-mutable loan escalation"
+            };
+            let machine = machine_named(&checked, "forward");
+            accepted_controls.push(format!(
+                "{control}: omission={:?}, composed={}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine),
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_for_machine(machine)
+                    .is_some(),
+            ));
+        }
+    }
+    assert!(
+        accepted_controls.is_empty(),
+        "state shape admission cannot supply bounds or loan authority: {accepted_controls:#?}"
+    );
+}
+
+#[test]
 fn borrowed_root_projection_cannot_upgrade_shared_authority() {
     let source = r#"
         data Buffer { value: u64; }
@@ -94,6 +194,68 @@ fn borrowed_root_projection_cannot_upgrade_shared_authority() {
     let result = crate::tests::front_end::typed_program_result(source)
         .and_then(|typed| crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()));
     assert!(result.is_err());
+}
+
+#[test]
+fn forwarded_reference_arguments_reject_duplicate_mutable_record_loans() {
+    for invocation in [
+        "transition { _ -> receive(values, values) } state receive(left: &mut Buffer, right: &mut Buffer) { left.value = 1; right.value = 2; }",
+        "receive(values, values); } machine receive(left: &mut Buffer, right: &mut Buffer) { left.value = 1; right.value = 2;",
+    ] {
+        let source = format!(
+            "data Buffer {{ value: u64; }} machine forward(values: &mut Buffer) {{ {invocation} }}"
+        );
+        let diagnostics = crate::tests::front_end::checked_program_result(&source)
+            .expect_err("forwarding a named record loan cannot duplicate exclusive authority");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("as mutable more than once")),
+            "the common loan conflict check must reject: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn forwarded_reference_arguments_allow_shared_aliases_and_disjoint_mutable_projections() {
+    for source in [
+        r#"
+            data Buffer { value: u64; }
+            machine forward(values: &Buffer) {
+                transition { _ -> receive(values, values) }
+                state receive(left: &Buffer, right: &Buffer) {}
+            }
+        "#,
+        r#"
+            data Buffer { value: u64; }
+            machine forward(values: &mut Buffer) {
+                transition { _ -> receive(values, values) }
+                state receive(left: &Buffer, right: &Buffer) {}
+            }
+        "#,
+        r#"
+            data Buffer { value: u64; }
+            data Pair { left: Buffer; right: Buffer; }
+            machine forward(pair: &mut Pair) {
+                transition { _ -> receive(&mut pair.left, &mut pair.right) }
+                state receive(left: &mut Buffer, right: &mut Buffer) {
+                    left.value = 1;
+                    right.value = 2;
+                }
+            }
+        "#,
+    ] {
+        let checked = checked(source);
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(machine_named(&checked, "forward"))
+                .is_some(),
+            "shared aliases and disjoint projections preserve exact state custody"
+        );
+    }
 }
 
 #[test]

@@ -1348,13 +1348,29 @@ fn collect_authored_storage_reads(
             // identity rejoins, not only the top one.
             let mut descended = 0;
             let mut collection = indexed.collection;
-            while let ExpressionNode::Indexed(enclosing) =
-                checked.expression_table.expression(collection)
-                && !matches!(
-                    checked.expression_table.expression(enclosing.index),
-                    ExpressionNode::Integer(_) | ExpressionNode::Range(_)
-                )
-            {
+            let mut visited = Vec::new();
+            loop {
+                if !checked.expression_table.expression_is_valid(collection)
+                    || visited.contains(&collection)
+                {
+                    return unsupported("indexed read has a stale or cyclic collection");
+                }
+                visited.push(collection);
+                let enclosing = match checked.expression_table.expression(collection) {
+                    ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                        collection = member.receiver;
+                        continue;
+                    }
+                    ExpressionNode::Indexed(enclosing)
+                        if !matches!(
+                            checked.expression_table.expression(enclosing.index),
+                            ExpressionNode::Range(_)
+                        ) =>
+                    {
+                        enclosing
+                    }
+                    _ => break,
+                };
                 path.push(1);
                 descended += 1;
                 path.push(0);
@@ -1450,13 +1466,47 @@ fn collect_scalar_storage_reads(
             // last one applied -- at `[0]`, each enclosing one a level deeper
             // at `[1, 0]`, `[1, 1, 0]`. The value replay then rejoins the
             // chain's shape.
-            if !inner_indexes.is_empty() {
+            if !inner_indexes.is_empty()
+                || element_path.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(_)
+                    )
+                })
+            {
                 *needs_value_replay = true;
+                let mut tail_depth = 0;
+                for segment in element_path.iter().rev() {
+                    match segment {
+                        checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(
+                            coordinate,
+                        ) => {
+                            path.extend(std::iter::repeat_n(1, tail_depth));
+                            path.push(0);
+                            if let Some(selector) = retained_index_selector(namespace, coordinate) {
+                                collect_scalar_storage_reads(
+                                    &selector,
+                                    namespace,
+                                    path,
+                                    reads,
+                                    needs_value_replay,
+                                );
+                            }
+                            path.truncate(path.len() - tail_depth - 1);
+                            tail_depth += 1;
+                        }
+                        checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
+                            tail_depth += 1
+                        }
+                        _ => {}
+                    }
+                }
                 let selectors = std::iter::once(index.as_ref())
                     .chain(inner_indexes.iter())
                     .rev()
                     .enumerate();
                 for (depth, selector) in selectors {
+                    let depth = depth + tail_depth;
                     path.extend(std::iter::repeat_n(1, depth));
                     path.push(0);
                     collect_scalar_storage_reads(
@@ -1606,6 +1656,43 @@ fn collect_scalar_storage_reads(
                 ));
             }
         }
+    }
+}
+
+/// Recover the declared scalar type of a retained path coordinate. The complete
+/// path replay separately checks that the authored selector names this coordinate.
+fn retained_index_selector(
+    namespace: &ReadNamespace,
+    coordinate: &checked_trees::CheckedRuntimeIndex,
+) -> Option<CheckedScalarExpression> {
+    match coordinate {
+        checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+            let symbol = *namespace.scalar.get(*position as usize)?;
+            let parameter = namespace
+                .structural
+                .iter()
+                .find(|parameter| parameter.symbol == symbol)?;
+            Some(CheckedScalarExpression::Parameter {
+                position: *position as usize,
+                primitive_type: namespace
+                    .checked
+                    .primitive_type_reference(parameter.type_reference)?,
+            })
+        }
+        checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+            let reference = super::structural_places::declared_parameter_path_type(
+                namespace.checked,
+                namespace.state,
+                field,
+            )?;
+            let primitive_type = namespace.checked.primitive_type_reference(reference)?;
+            Some(CheckedScalarExpression::StructuralParameterField {
+                parameter_position: field.parameter_position,
+                path: field.path.clone(),
+                primitive_type,
+            })
+        }
+        _ => None,
     }
 }
 

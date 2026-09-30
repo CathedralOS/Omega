@@ -792,6 +792,9 @@ fn lower_join_guard(
     next_value: &mut u64,
 ) -> Result<(Vec<Operation>, ValueId), LoweringError> {
     let fields = StructuralScalarFieldBinding::collect(structural_parameters, structural_types);
+    let scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::new(
+        scalar_parameters.iter().map(|value| value.scalar_type),
+    );
     let lowered = lower_checked_scalar_expression_with_parameters(
         guard,
         structural_parameters,
@@ -801,6 +804,7 @@ fn lower_join_guard(
         &std::collections::BTreeMap::new(),
         &[],
         &[],
+        Some(&scalar_bindings),
     )?;
     if lowered.scalar_type() != ScalarType::Boolean {
         return unsupported("joined dynamic control guard is not a Boolean scalar");

@@ -859,7 +859,7 @@ impl OperationFrame<'_, '_> {
     /// otherwise the ordinary dense source prefix over primitive storage,
     /// structural parameters, and established structural locals.
     fn dense_assignment_namespace(&self) -> ScalarBindings {
-        ScalarBindings::new(self.values.len())
+        ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
             .with_primitive_storage(&self.evaluation.primitive_storage)
             .with_view_locals(&self.evaluation.view_locals)
             .with_element_views(&self.evaluation.element_views)

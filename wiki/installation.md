@@ -144,10 +144,10 @@ use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self)
+machine Main::main(context: &mut Main)
 reaches Console
 {
-    self.console.exit_process(42);
+    context.console.exit_process(42);
 }
 ```
 

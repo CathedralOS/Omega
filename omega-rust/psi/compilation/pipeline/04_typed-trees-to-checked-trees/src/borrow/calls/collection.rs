@@ -43,6 +43,7 @@ impl<'a> BorrowCallCollection<'a> {
     pub(super) fn collect_call_argument_accesses(
         &mut self,
         arguments: &[ExpressionHandle],
+        target_symbol: SymbolHandle,
     ) -> arena::HandleSpan<BorrowArgumentAccessFact> {
         collect_call_argument_accesses(
             self.program,
@@ -52,6 +53,7 @@ impl<'a> BorrowCallCollection<'a> {
             self.state.symbol,
             self.statement_index,
             self.machine.symbol,
+            target_symbol,
         )
     }
 

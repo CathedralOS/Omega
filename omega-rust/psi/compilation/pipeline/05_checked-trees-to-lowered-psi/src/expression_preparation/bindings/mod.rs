@@ -57,7 +57,8 @@ pub(crate) struct ScalarBindings {
     /// so it never occupies a slot here; resolving authored reads through the
     /// binding namespace instead would shift every later local onto the
     /// preceding call's result.
-    authored: Vec<Option<usize>>,
+    authored: Vec<Option<(usize, ScalarType)>>,
+    parameter_count: usize,
     storage: Vec<(symbols::SymbolHandle, ScalarType, usize)>,
     primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// Authored parameter positions stay separate from dense Terminal positions.
@@ -535,10 +536,22 @@ impl ScalarBindings {
         self
     }
 
-    pub(crate) fn for_computation_operands(offset: usize, count: usize) -> Self {
+    pub(crate) fn for_computation_operands(
+        offset: usize,
+        types: impl IntoIterator<Item = ScalarType>,
+    ) -> Self {
+        let authored = types
+            .into_iter()
+            .enumerate()
+            .map(|(position, scalar_type)| Some((offset + position, scalar_type)))
+            .collect::<Vec<_>>();
         Self {
-            immutable: (offset..offset + count).map(Some).collect(),
-            authored: (offset..offset + count).map(Some).collect(),
+            immutable: authored
+                .iter()
+                .map(|binding| binding.map(|row| row.0))
+                .collect(),
+            parameter_count: authored.len(),
+            authored,
             storage: Vec::new(),
             primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
@@ -551,20 +564,8 @@ impl ScalarBindings {
         }
     }
 
-    pub(crate) fn new(parameters: usize) -> Self {
-        Self {
-            immutable: (0..parameters).map(Some).collect(),
-            authored: (0..parameters).map(Some).collect(),
-            storage: Vec::new(),
-            primitive_storage: Vec::new(),
-            structural_parameters: Vec::new(),
-            structural_locals: Vec::new(),
-            local_cases: Vec::new(),
-            structural_fields: Vec::new(),
-            structural_cases: Vec::new(),
-            element_views: std::collections::BTreeMap::new(),
-            view_locals: Vec::new(),
-        }
+    pub(crate) fn new(parameters: impl IntoIterator<Item = ScalarType>) -> Self {
+        Self::for_computation_operands(0, parameters)
     }
 
     pub(crate) fn with_structural_parameters(
@@ -863,7 +864,7 @@ impl ScalarBindings {
         match destination {
             CheckedScalarBindingDestination::Immutable => {
                 self.immutable.push(Some(position));
-                self.authored.push(Some(position));
+                self.authored.push(Some((position, scalar_type)));
             }
             CheckedScalarBindingDestination::StorageInitialize { symbol } => {
                 if !symbol.is_valid() || self.storage.iter().any(|row| row.0 == symbol) {
@@ -916,6 +917,7 @@ impl ScalarBindings {
             .get(position)
             .copied()
             .flatten()
+            .map(|(position, _)| position)
             .ok_or(LoweringError::Unsupported(
                 "scalar immutable operand is outside the established namespace",
             ))
@@ -935,8 +937,15 @@ impl ScalarBindings {
 
     fn scalar(&self, expression: &mut CheckedScalarExpression) -> Result<(), LoweringError> {
         match expression {
-            CheckedScalarExpression::StructuralParameterIndexedRead { index, .. } => {
-                self.scalar(index)?
+            CheckedScalarExpression::StructuralParameterIndexedRead {
+                index,
+                inner_indexes,
+                ..
+            } => {
+                self.scalar(index)?;
+                for selector in inner_indexes {
+                    self.scalar(selector)?;
+                }
             }
             CheckedScalarExpression::Parameter { position, .. }
             | CheckedScalarExpression::Local { position, .. } => {
@@ -1058,6 +1067,32 @@ impl ScalarBindings {
         })
     }
 
+    /// Resolve an authored scalar coordinate before emission. Runtime path
+    /// coordinates have not undergone the ordinary expression remapping.
+    pub(crate) fn runtime_index_parameter(
+        &self,
+        position: u32,
+    ) -> Result<LoweredDirectExpression, LoweringError> {
+        if position as usize >= self.parameter_count {
+            return unsupported("runtime selector parameter names a non-parameter scalar");
+        }
+        let (position, scalar_type) = self
+            .authored
+            .get(position as usize)
+            .copied()
+            .flatten()
+            .ok_or(LoweringError::Unsupported(
+                "runtime selector has no established immutable scalar parameter",
+            ))?;
+        if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+            return unsupported("runtime selector parameter is not an integer");
+        }
+        Ok(LoweredDirectExpression::Parameter {
+            position,
+            scalar_type,
+        })
+    }
+
     pub(crate) fn expression(
         &self,
         expression: &CheckedScalarExpression,
@@ -1073,6 +1108,7 @@ impl ScalarBindings {
             &self.element_views,
             &self.view_locals,
             &self.structural_locals,
+            Some(self),
         )
     }
 }

@@ -901,7 +901,9 @@ impl<'a> Expansion<'a> {
                 }
                 let expression = storage::ScalarBindings::for_computation_operands(
                     input_types.len(),
-                    operands.len(),
+                    operand_types[input_types.len()..]
+                        .iter()
+                        .map(|value| value.scalar_type),
                 )
                 .expression(&expression)?;
                 if expression.value_type(&operand_types)? != result_type {

@@ -183,9 +183,11 @@ pub(super) fn emit(
             return unsupported("byte subslice source is an owned local, not a view");
         }
     };
-    let bindings = crate::expression_preparation::bindings::ScalarBindings::new(values.len())
-        .with_structural_parameters(structural_parameters)
-        .with_view_locals(view_locals);
+    let bindings = crate::expression_preparation::bindings::ScalarBindings::new(
+        values.iter().map(|value| value.scalar_type),
+    )
+    .with_structural_parameters(structural_parameters)
+    .with_view_locals(view_locals);
     let argument_ordinal = u32::try_from(authored_ordinal)
         .map_err(|_| LoweringError::Unsupported("subslice argument ordinal exceeds u32"))?;
     view_ranges::emit(

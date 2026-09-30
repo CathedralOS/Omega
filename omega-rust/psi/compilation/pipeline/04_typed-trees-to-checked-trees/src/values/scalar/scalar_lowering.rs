@@ -1490,9 +1490,9 @@ pub(super) fn selected_element(
     })
 }
 
-/// A selector beneath a runtime selector (`self.a[i][k]`, `self.a[i][1]`).
-/// Authored indexing nests outermost-last: `self.a[i][k]` is
-/// `Indexed(k)` over `Indexed(i)` over the static place `self.a`. The indexing
+/// A selector beneath a runtime selector (`grid[i][k]`, `record.a[i][1]`).
+/// Authored indexing nests outermost-last: `grid[i][k]` is
+/// `Indexed(k)` over `Indexed(i)` over the static place `grid`. The indexing
 /// directly over the static place is the ordinary element selection; every
 /// enclosing indexing selects again inside that element, which must itself be
 /// a fixed array, and contributes one inner selector in application order.
@@ -1506,7 +1506,7 @@ pub(super) fn selected_element(
 /// an element policy such as `i32 in Wrapping` survives into the read's
 /// arithmetic domain.
 ///
-/// Scope: a structural parameter's static field path over owned fixed arrays.
+/// Scope: a structural parameter, whole or projected, over fixed arrays.
 /// View and local roots and a field path after the inner selection keep
 /// declining.
 #[allow(clippy::too_many_arguments)]
@@ -1568,8 +1568,7 @@ fn nested_element_read(
     if !matches!(
         selection.root,
         checked_trees::CheckedStorageRoot::Parameter { .. }
-    ) || selection.path.is_empty()
-        || selection.through_view
+    ) || selection.through_view
     {
         return None;
     }
@@ -1888,10 +1887,9 @@ fn view_member_nested_index_read(
 }
 
 /// The checked coordinate an element path's runtime selector evaluates to.
-/// Only a program-point integer field read below an entry parameter
-/// (`self.rj`) is admitted: lowering resolves it through the structural
-/// field bindings — scalar-parameter and local positions carry no type the
-/// element path can reach, so those selectors stay unminted.
+/// Scalar parameters retain their scalar namespace; program-point field reads
+/// retain their structural source. Local and computed selectors need their own
+/// retained evaluation and are not admitted by this coordinate conversion.
 #[allow(clippy::too_many_arguments)]
 fn runtime_index_coordinate(
     program: &TypedTrees,
@@ -1918,6 +1916,11 @@ fn runtime_index_coordinate(
         return None;
     }
     match index {
+        CheckedScalarExpression::Parameter { position, .. } => {
+            Some(checked_trees::CheckedRuntimeIndex::Parameter {
+                position: u32::try_from(position).ok()?,
+            })
+        }
         CheckedScalarExpression::StructuralParameterField {
             parameter_position,
             path,
@@ -1933,7 +1936,7 @@ fn runtime_index_coordinate(
 }
 
 /// One scalar leaf selected by an index step below a member that itself sits
-/// inside a runtime-selected element — `self.rows[self.i].data[self.rj]` —
+/// inside a runtime-selected element — `rows[row_index].data[column_index]` —
 /// whose `Field` step between two runtime selectors neither
 /// `nested_element_read`'s consecutive-selector chain nor
 /// `view_element_field_read`'s member-last walk can spell. The `Indexed`
@@ -1963,17 +1966,17 @@ fn parameter_member_nested_index_read(
     // element path spells, in authored order once reversed.
     let mut tail = Vec::new();
     let mut cursor = expression;
-    let (parameter_position, path, collection_type, first_enclosing) = loop {
+    let first_enclosing = loop {
         match program.expression_table.expression(cursor) {
             ExpressionNode::Indexed(indexed) => {
-                if let Some((position, path, type_reference)) =
-                    structural_fields::structural_parameter_place(
-                        program,
-                        authored_parameters,
-                        indexed.collection,
-                    )
+                if structural_fields::structural_parameter_place(
+                    program,
+                    authored_parameters,
+                    indexed.collection,
+                )
+                .is_some()
                 {
-                    break (position, path, type_reference, cursor);
+                    break cursor;
                 }
                 if matches!(
                     program.expression_table.expression(indexed.index),
@@ -2000,40 +2003,28 @@ fn parameter_member_nested_index_read(
     if tail.is_empty() {
         return None;
     }
-    let ExpressionNode::Indexed(first) = program.expression_table.expression(first_enclosing)
-    else {
-        return None;
-    };
-    if !structural_fields::indexed_read_is_builtin(
+    // The first selection owns reference unwrapping and selector checking,
+    // whether its fixed array is the entire parameter or a record field.
+    // Later selections still require owned fixed-array elements.
+    let selection = selected_element(
         program,
         operators,
-        authored_parameters,
         first_enclosing,
-        collection_type,
-        first.index,
-    ) {
+        parameters,
+        authored_parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+    )?;
+    if selection.through_view
+        || !matches!(
+            selection.root,
+            checked_trees::CheckedStorageRoot::Parameter { .. }
+        )
+    {
         return None;
     }
-    let index =
-        land_anonymous_scalar_expression(program, operators, first.index, PrimitiveType::U64)
-            .or_else(|| {
-                lower_scalar_expression(
-                    program,
-                    operators,
-                    first.index,
-                    parameters,
-                    authored_parameters,
-                    parameter_types,
-                    locals,
-                    exact_integer_casts,
-                )
-                .map(|(index, _)| index)
-            })?;
-    let index_type = scalar_expression_type(&index)?;
-    if !is_integer(index_type) || index_type == PrimitiveType::Addr {
-        return None;
-    }
-    let mut element_type = fixed_array_element(program, collection_type)?;
+    let mut element_type = selection.element_type;
     let mut element_path = Vec::with_capacity(tail.len());
     for segment in tail.into_iter().rev() {
         match segment {
@@ -2115,11 +2106,9 @@ fn parameter_member_nested_index_read(
     }
     Some((
         CheckedScalarExpression::StructuralParameterIndexedRead {
-            root: checked_trees::CheckedStorageRoot::Parameter {
-                index: parameter_position,
-            },
-            path,
-            index: Box::new(index),
+            root: selection.root,
+            path: selection.path,
+            index: Box::new(selection.index),
             inner_indexes: Vec::new(),
             element_path,
             primitive_type,
