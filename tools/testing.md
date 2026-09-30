@@ -180,6 +180,33 @@ python3 tools/corpus_gate.py --native --filter providers/
 oracle. `--base <rev>` diffs two goldens and lists `lost` authored runs as
 regressions; wave reports lead with this number, not commit counts.
 
+The scoreboard reads the golden, which moves only for fixtures a lander ran;
+routine validation filters, so rows go stale — 71 were re-recorded on
+2026-09-29 — and a fixture that goes red outside every lander's filter
+stays green on paper. `python3 tools/native_watch.py` is the scheduled
+full native run that catches it: it snapshots `origin/main` in a scratch
+checkout, runs every fixture natively against an empty golden, and diffs
+the result against its previous snapshot under ignored
+`build/native_watch/`. It exits 1 on a regression the rule below does not
+sanction, bisecting each to its first bad commit (`--no-bisect` to skip),
+and writes `build/native_watch/report-<sha>.md` listing regressions,
+sanctioned `unimplemented:` debt, fixtures that arrived red, and fixtures
+that turned green. It edits no golden or board; the report is for whoever
+files the item. Run it every few hours on each host that has a native
+golden — the scratch checkout and its mbx cache are removed after each run:
+
+```bash
+# macOS: every 4 hours via launchd (~/Library/LaunchAgents/dev.omega.native-watch.plist)
+#   ProgramArguments: /usr/bin/python3 <repo>/tools/native_watch.py
+#   WorkingDirectory: <repo>   StartInterval: 14400
+launchctl load ~/Library/LaunchAgents/dev.omega.native-watch.plist
+```
+
+```powershell
+# Windows: every 4 hours via Task Scheduler
+schtasks /Create /SC HOURLY /MO 4 /TN OmegaNativeWatch /TR "python <repo>\tools\native_watch.py"
+```
+
 Large structural moves (deleting a mechanism, rewriting a seam) may land while
 some fixtures stop compiling, under one rule. A regressed pass or run fixture
 must reject with a diagnostic whose message starts `unimplemented:` and names
