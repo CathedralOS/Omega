@@ -1141,6 +1141,7 @@ pass/borrows/borrow_domain_window_write_and_call checked 292ms @2d8ed253669f
 pass/borrows/borrow_guarded_window_write_and_call checked 286ms @2d8ed253669f
 pass/borrows/borrow_returned_window_write_and_call checked 313ms @2d8ed253669f
 pass/borrows/borrow_stated_index_disequality_mut checked 278ms @2d8ed253669f
+pass/borrows/mutable_record_loan_read_in_state_arms_exit checked 1231ms @a9f373809a48+wt
 pass/borrows/projected_indexed_member_loan checked 1332ms @2d8ed253669f
 pass/borrows/projected_local_member_loan checked 1270ms @2d8ed253669f
 pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
@@ -1273,6 +1274,7 @@ pass/calls/serviceful_borrowed_scalar_exit checked 1548ms @2d8ed253669f
 pass/calls/state_and_machine_names_exit checked 401ms @2d8ed253669f
 pass/calls/state_graph_callee_forwards_mut_parameter_exit checked 2856ms @0508a5426a27+wt
 pass/calls/statement_call_recursive_overload_compile checked 278ms @2d8ed253669f
+pass/calls/static_context_forwarded_through_state_arms_exit checked 1634ms @a9f373809a48+wt
 pass/calls/static_state_context_field_window_exit checked 6807ms @29ae131e8c31+wt
 pass/calls/structural_mut_to_shared_argument checked 378ms @2d8ed253669f
 pass/calls/structural_self_rooted_argument checked 370ms @2d8ed253669f
