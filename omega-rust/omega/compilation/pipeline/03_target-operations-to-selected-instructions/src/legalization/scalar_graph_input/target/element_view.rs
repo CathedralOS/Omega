@@ -138,9 +138,17 @@ impl Checker<'_> {
                 };
                 *place == source
                     && access(argument.access)
-                    && argument.path.iter().all(|segment| {
-                        matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
-                    })
+                    && {
+                        let field_path = match argument.path.last() {
+                            Some(terminal_psi::StructuralPathSegment::FixedByteRange {
+                                ..
+                            }) => &argument.path[..argument.path.len() - 1],
+                            _ => &argument.path[..],
+                        };
+                        field_path.iter().all(|segment| {
+                            matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
+                        })
+                    }
                     && backing
                     && self.established_element_window(
                         *root_structural_type,
@@ -257,10 +265,19 @@ impl Checker<'_> {
         extent: u64,
         element_stride: u32,
     ) -> bool {
+        // A borrowed byte view carries a `FixedByteRange` window over the
+        // fixed array its field prefix names: the window bounds the array and
+        // its width is the descriptor's extent.
+        let (field_path, byte_window) = match path.last() {
+            Some(terminal_psi::StructuralPathSegment::FixedByteRange { start, end }) => {
+                (&path[..path.len() - 1], Some((*start, *end)))
+            }
+            _ => (path, None),
+        };
         let Some(tip) = terminal_semantics::runtime_structural_path_tip(
             self.types.iter(),
             root_structural_type,
-            path,
+            field_path,
         ) else {
             return false;
         };
@@ -271,8 +288,18 @@ impl Checker<'_> {
         else {
             return false;
         };
-        if *array_element != element || *length != extent {
+        if *array_element != element {
             return false;
+        }
+        match byte_window {
+            Some((start, end)) if start <= end && end <= *length => {
+                if end - start != extent {
+                    return false;
+                }
+            }
+            Some(_) => return false,
+            None if *length != extent => return false,
+            None => {}
         }
         crate::structural_inputs::structural_reference_input::shape(element, self.types)
             .and_then(|shape| {

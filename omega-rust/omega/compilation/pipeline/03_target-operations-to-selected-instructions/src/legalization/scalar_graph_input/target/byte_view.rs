@@ -53,8 +53,9 @@ impl Checker<'_> {
             } => {
                 access == terminal_psi::StructuralAccess::SharedBorrow
                     && *place == source
-                    && super::super::literals::declaration_producer(self.optimized, source)
+                    && (super::super::literals::declaration_producer(self.optimized, source)
                         == Some((*psi_operation, *structural_type))
+                        || self.established_byte_view(*psi_operation, source, *structural_type))
             }
             TargetByteView::BlockParameter {
                 block,
@@ -130,5 +131,60 @@ impl Checker<'_> {
                         })
             }
         }
+    }
+
+    /// The operation at `psi_operation` establishes a borrowed `&[u8]` view at
+    /// `source`: its declared result is the borrowed byte-view type and its
+    /// element is the `u8` scalar exactly.
+    fn established_byte_view(
+        &self,
+        psi_operation: semantic_vocabulary::OperationId,
+        source: PlaceId,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+    ) -> bool {
+        self.optimized
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                let AbstractOperation::EstablishElementView {
+                    psi_operation: operation,
+                    result,
+                    destination,
+                    element,
+                    ..
+                } = &node.operation
+                else {
+                    return false;
+                };
+                operation == &psi_operation
+                    && *destination == source
+                    && result.structural_type == structural_type
+                    && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+                    && self
+                        .types
+                        .iter()
+                        .find(|declaration| declaration.id == structural_type)
+                        .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view())
+                    && self
+                        .types
+                        .iter()
+                        .find(|declaration| declaration.id == *element)
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                                    semantic_vocabulary::ScalarType::Integer(integer)
+                                ) if Ok(integer)
+                                    == semantic_vocabulary::IntegerType::new(
+                                        semantic_vocabulary::IntegerSign::Unsigned,
+                                        8,
+                                    )
+                            )
+                        })
+            })
     }
 }

@@ -356,7 +356,30 @@ fn projected_argument_path_impl(
                     runtime_index,
                 ));
             }
-            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Case { .. } => {
+            facts::PlaceSegment::FixedRange { start, end } => {
+                // A borrowed byte view's window is itself part of the place:
+                // `self.source[0..2]` lends the fixed byte range the view
+                // names. The container must be fixed byte-array backing whose
+                // literal extent bounds the window — the same shape the
+                // `FixedIndex` walk proves — since a stored view carries no
+                // runtime bound evidence of its own.
+                let container = crate::flow::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments[..position].to_vec(),
+                };
+                let container = crate::flow::canonical_place_type_reference(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    &container,
+                )?;
+                fixed_byte_range_within_extent(program, container, *start, *end)?;
+                path.push(CheckedUnitStructuralPathSegment::FixedByteRange {
+                    start: u64::try_from(*start).ok()?,
+                    end: u64::try_from(*end).ok()?,
+                });
+            }
+            facts::PlaceSegment::Case { .. } => {
                 return None;
             }
         }
@@ -579,6 +602,39 @@ fn fixed_index_within_extent(
         Some(length) => (index < length).then_some(()),
         None => slice_type_reference(program, container).then_some(()),
     }
+}
+
+/// The window's bounds against a fixed byte-array container's literal
+/// extent. The `FixedByteRange` segment names a byte view's own window, so
+/// unlike the index arm a runtime-length slice cannot carry it — a stored
+/// `&[u8]` has no literal bound to re-prove against.
+pub(crate) fn fixed_byte_range_within_extent(
+    program: &TypedTrees,
+    container: typed_trees::types::TypeReferenceHandle,
+    start: usize,
+    end: usize,
+) -> Option<()> {
+    let mut container = container;
+    while let TypeReferenceNode::Constrained { base_type, .. }
+    | TypeReferenceNode::Reference {
+        referee: base_type, ..
+    } = program.type_reference_table.type_reference(container)
+    {
+        container = *base_type;
+    }
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(container)
+    else {
+        return None;
+    };
+    if program.primitive_type_reference(*element_type)
+        != Some(typed_trees::types::PrimitiveType::U8)
+    {
+        return None;
+    }
+    (start <= end && end <= usize::try_from(*length).ok()?).then_some(())
 }
 
 /// The container is a slice through any number of domain constraints and

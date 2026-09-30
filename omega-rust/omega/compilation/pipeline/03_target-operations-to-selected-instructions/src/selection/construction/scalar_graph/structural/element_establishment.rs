@@ -76,14 +76,31 @@ pub(super) fn establish(
     else {
         return Err(invalid());
     };
-    let StructuralTypeShape::ElementView {
-        element: view_element,
-    } = &declaration.shape
-    else {
-        return Err(invalid());
-    };
-    if *view_element != *element {
-        return Err(invalid());
+    match &declaration.shape {
+        StructuralTypeShape::ElementView {
+            element: view_element,
+        } if *view_element == *element => {}
+        // A `&[u8]` result declares its view over the `u8` element instead of
+        // an `ElementView` shell; the descriptor shape is identical.
+        StructuralTypeShape::ByteSequence(_)
+            if declaration.shape.is_borrowed_byte_view()
+                && signature
+                    .structural_types
+                    .iter()
+                    .find(|element_declaration| element_declaration.id == *element)
+                    .is_some_and(|element_declaration| {
+                        matches!(
+                            element_declaration.shape,
+                            StructuralTypeShape::PrimitiveScalar(
+                                semantic_vocabulary::ScalarType::Integer(integer)
+                            ) if Ok(integer)
+                                == semantic_vocabulary::IntegerType::new(
+                                    semantic_vocabulary::IntegerSign::Unsigned,
+                                    8,
+                                )
+                        )
+                    }) => {}
+        _ => return Err(invalid()),
     }
     // The backing is an incoming parameter's storage or a local aggregate
     // home. A home presents its own owned storage through this view's loan

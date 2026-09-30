@@ -38,29 +38,65 @@ pub(super) fn validate(
     argument: &CheckedUnitStructuralArgumentPlan,
     loan: LoanAccess,
 ) -> Result<(), LoweringError> {
-    let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
-        return unsupported(refusal!(loan, "lost its authored view call"));
+    // A view is spelled `.as_slice()` over a whole collection, or as a range
+    // index `collection[a..b]` — the byte-view arm mints this selection
+    // without an authored call. The range replays as a `FixedByteRange`
+    // path suffix over the collection the index names.
+    let (receiver, window) = match checked.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            if !call.arguments.is_empty() {
+                return unsupported(refusal!(loan, "call gained arguments"));
+            }
+            (call.receiver, None)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index)
+            else {
+                return unsupported(refusal!(loan, "lost its authored view call"));
+            };
+            let window = (|| {
+                if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
+                    return None;
+                }
+                let start = usize::try_from(
+                    checked
+                        .expression_table
+                        .constant_integer_value(range.start)?,
+                )
+                .ok()?;
+                let end =
+                    usize::try_from(checked.expression_table.constant_integer_value(range.end)?)
+                        .ok()?;
+                Some(
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange {
+                        start: u64::try_from(start).ok()?,
+                        end: u64::try_from(end).ok()?,
+                    },
+                )
+            })();
+            let Some(window) = window else {
+                return unsupported(refusal!(loan, "lost its authored view call"));
+            };
+            (indexed.collection, Some(window))
+        }
+        _ => return unsupported(refusal!(loan, "lost its authored view call")),
     };
-    if !call.arguments.is_empty() {
-        return unsupported(refusal!(loan, "call gained arguments"));
-    }
     if argument.access != loan.planned_access() {
         return unsupported(refusal!(loan, "changed its planned access"));
     }
-    let (root, checked_path) = authored_collection_path(checked, machine, authored, call.receiver)?;
+    let (root, mut checked_path) = authored_collection_path(checked, machine, authored, receiver)?;
+    if let Some(window) = window {
+        checked_path.push(window);
+    }
     if checked_path != argument.path {
         return unsupported(refusal!(loan, "path does not match its projected path"));
     }
-    let leaf = validation::expression_result_type_reference(
-        &checked.typed,
-        machine,
-        authored,
-        call.receiver,
-    )
-    .ok_or(LoweringError::Unsupported(refusal!(
-        loan,
-        "lost its collection type"
-    )))?;
+    let leaf =
+        validation::expression_result_type_reference(&checked.typed, machine, authored, receiver)
+            .ok_or(LoweringError::Unsupported(refusal!(
+            loan,
+            "lost its collection type"
+        )))?;
     if checked.normalized_type_identity(leaf).as_str() != argument.type_identity {
         return unsupported(refusal!(loan, "does not project its collection"));
     }

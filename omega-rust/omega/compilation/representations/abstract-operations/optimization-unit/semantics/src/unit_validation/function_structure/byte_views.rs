@@ -236,6 +236,15 @@ pub(super) fn validate_source(
                     psi_operation,
                     result,
                     ..
+                }
+                // A `&[u8]` view is established through the element-view
+                // family (`element` = `u8`); the byte carrier keeps no
+                // element field, so the view kind is read from the result's
+                // declared `ByteSequence` shape.
+                | AbstractOperation::EstablishElementView {
+                    psi_operation,
+                    result,
+                    ..
                 } if psi_operation == producer
                     && result.place == source
                     && result.structural_type == *structural_type

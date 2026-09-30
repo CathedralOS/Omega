@@ -24,8 +24,18 @@ pub(in crate::validation) fn borrowed_result(
         .iter()
         .flat_map(|block| &block.operations)
         .find_map(|operation| {
+            // `EstablishElementView` over `u8` elements is a byte-view
+            // establishment spelled through the element-view family: the byte
+            // carrier keeps no element field, so the view kind is read from
+            // the result's declared `ByteSequence` shape instead of a
+            // dedicated op variant.
             if operation.id != producer
-                || !matches!(operation.kind, OperationKind::ByteSequenceSubslice { .. })
+                || !matches!(
+                    operation.kind,
+                    OperationKind::ByteSequenceSubslice { .. }
+                        | OperationKind::EstablishElementView { .. }
+                        | OperationKind::EstablishMutableElementView { .. }
+                )
             {
                 return None;
             }

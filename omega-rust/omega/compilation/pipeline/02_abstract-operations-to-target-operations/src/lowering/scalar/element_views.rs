@@ -10,7 +10,7 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{
-    IntegerSign, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+    IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
@@ -263,9 +263,24 @@ pub(in crate::lowering) fn element_view_for_place(
             || !result.claims.is_empty()
             || !structural_types
                 .get(&result.structural_type)
-                .is_some_and(|declaration| {
-                    matches!(declaration.shape,
-                        StructuralTypeShape::ElementView { element: declared } if declared == *element)
+                .is_some_and(|declaration| match &declaration.shape {
+                    StructuralTypeShape::ElementView { element: declared } => declared == element,
+                    StructuralTypeShape::ByteSequence(_) => {
+                        declaration.shape.is_borrowed_byte_view()
+                            && structural_types
+                                .get(element)
+                                .is_some_and(|element_declaration| {
+                                    matches!(
+                                        element_declaration.shape,
+                                        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                                            ref integer
+                                        )) if *integer
+                                            == IntegerType::new(IntegerSign::Unsigned, 8)
+                                                .expect("u8 is a valid integer type")
+                                    )
+                                })
+                    }
+                    _ => false,
                 })
         {
             return Err(invalid());
@@ -501,11 +516,20 @@ fn established_source(
     LoweringError,
 > {
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    // A `&[u8]` view over `collection[a..b]` ends its projection in a
+    // `FixedByteRange` window: the field path still names the fixed byte
+    // array and the window contributes the descriptor's own byte offset and
+    // extent, leaving the backing stride at the `u8` element's.
+    let (field_path, byte_window) = match source.path.last() {
+        Some(StructuralPathSegment::FixedByteRange { start, end }) => {
+            (&source.path[..source.path.len() - 1], Some((*start, *end)))
+        }
+        _ => (&source.path[..], None),
+    };
     if !matches!(
         source.access,
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) || source
-        .path
+    ) || field_path
         .iter()
         .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
     {
@@ -550,7 +574,7 @@ fn established_source(
     };
     let mut shape_cache = BTreeMap::new();
     let mut active = BTreeSet::new();
-    let (projected_type, projected_shape, source_byte_offset) = if source.path.is_empty() {
+    let (projected_type, projected_shape, source_byte_offset) = if field_path.is_empty() {
         (
             root_structural_type,
             structural_shape(
@@ -564,7 +588,7 @@ fn established_source(
     } else {
         resolve_structural_field_path(
             root_structural_type,
-            &source.path,
+            field_path,
             structural_types,
             &mut shape_cache,
             &mut active,
@@ -589,10 +613,26 @@ fn established_source(
     if u64::from(element_stride) * length != u64::from(projected_shape.byte_size) {
         return Err(invalid());
     }
+    let (window_offset, extent) = match byte_window {
+        Some((start, end)) if start <= end && end <= length => (
+            u32::try_from(
+                start
+                    .checked_mul(u64::from(element_stride))
+                    .ok_or_else(invalid)?,
+            )
+            .map_err(|_| invalid())?,
+            end - start,
+        ),
+        Some(_) => return Err(invalid()),
+        None => (0, length),
+    };
+    let source_byte_offset = source_byte_offset
+        .checked_add(window_offset)
+        .ok_or_else(invalid)?;
     Ok((
         root_structural_type,
         source_byte_offset,
-        length,
+        extent,
         element_stride,
         backing,
     ))
