@@ -4018,8 +4018,8 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 
   Acceptance: use `tests/omega/pass/expressions/declared_operator_match_result/`:
   `select_true` and `by_name` produce `260u64` from wrapped `250 + 10`;
-  `select_false` produces `1` without invoking the operation. Bind an executable
-  entry and observe native results; the existing fixture has no Build root.
+  `select_false` produces `1` without invoking the operation; its Console-bound
+  `Main` exits 70 natively on macOS ARM64 with checked-interpreter agreement.
   Checked interpretation, reloaded Terminal and native execution must agree.
   Stage 04 and checked-interpreter `tests/token_bound_machine_calls.rs` cover
   narrower ordinary-call/interpretation routes. Check generic/stateful bodies,
