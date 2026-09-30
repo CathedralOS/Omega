@@ -918,6 +918,21 @@ fn cycle_operation_eligible(
                             || (argument.path.is_empty()
                                 && borrows_operation_result(machine, argument))
                             || byte_field_boundary_loan(module, machine, argument, expected)
+                            // A borrowed projection loans a subtree for the
+                            // boundary call's duration only — the provider
+                            // cannot retain it past the operation, so the loan
+                            // is created and released inside the call on every
+                            // traversal and loop-carried custody is identical
+                            // on each arrival. Reusing the unit-call arm's
+                            // unrestricted subloan shapes keeps the root's
+                            // authority checks and the positional pairing
+                            // identical.
+                            || (!argument.path.is_empty()
+                                && (crate::validation::structural::operations::is_unrestricted_shared_subloan(
+                                    module, machine, expected, argument,
+                                ) || crate::validation::structural::operations::is_unrestricted_mutable_subloan(
+                                    module, machine, expected, argument,
+                                )))
                     },
                 )
         }
