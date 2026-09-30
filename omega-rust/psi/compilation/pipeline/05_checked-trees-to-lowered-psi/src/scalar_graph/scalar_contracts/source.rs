@@ -20,7 +20,8 @@ enum GuaranteeScope {
     ScalarResult,
     /// A Unit or structural result publishes only the unconditional
     /// machine-level predicates the closed scalar contract retains. Named
-    /// evidence outputs lower through the evidence contract plan, and
+    /// evidence outputs lower through the evidence contract plan, domain
+    /// memberships and propositions through their qualification owners, and
     /// outcome-specific or state guarantees keep their own owners; this
     /// publication validates exactly the clauses it publishes.
     PostState,
@@ -32,15 +33,16 @@ pub(crate) fn validate_guarantees(
     machine: &checked_trees::machine::Machine,
     state: &checked_trees::state::State,
 ) -> Result<(), LoweringError> {
-    validate_guarantee_sources(checked, machine, state, GuaranteeScope::ScalarResult)
+    validate_guarantee_sources(checked, machine, state, GuaranteeScope::ScalarResult).map(drop)
 }
 
-/// Validate the post-state guarantees a Unit or structural result publishes.
+/// Validate the post-state guarantees a Unit or structural result publishes
+/// and return exactly those closed rows, in authored order.
 pub(crate) fn validate_post_state_guarantees(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
     state: &checked_trees::state::State,
-) -> Result<(), LoweringError> {
+) -> Result<Vec<Option<ClosedScalarContractValue>>, LoweringError> {
     validate_guarantee_sources(checked, machine, state, GuaranteeScope::PostState)
 }
 
@@ -49,7 +51,7 @@ fn validate_guarantee_sources(
     machine: &checked_trees::machine::Machine,
     state: &checked_trees::state::State,
     scope: GuaranteeScope,
-) -> Result<(), LoweringError> {
+) -> Result<Vec<Option<ClosedScalarContractValue>>, LoweringError> {
     let contract = checked
         .facts
         .contract_plans
@@ -69,6 +71,7 @@ fn validate_guarantee_sources(
         );
     }
     let mut retained = contract.closed_scalar_values.ensures().iter();
+    let mut published = Vec::new();
     for source in checked
         .machine_contracts(machine)
         .iter()
@@ -82,11 +85,28 @@ fn validate_guarantee_sources(
             }
             return unsupported("scalar guarantee cannot erase an evidence binding");
         }
-        let Some([ProofFact::Expression(expression)]) = checked.proof_facts.span(source.facts)
-        else {
+        let facts = checked.proof_facts.span(source.facts);
+        // A membership or proposition fact has no scalar predicate reading,
+        // so the closed contract keeps the whole clause as an unlowered row.
+        // A post-state publication leaves that row to its qualification
+        // owner; a scalar result still refuses to erase it below.
+        if scope == GuaranteeScope::PostState
+            && facts.is_some_and(|facts| {
+                facts
+                    .iter()
+                    .any(|fact| !matches!(fact, ProofFact::Expression(_)))
+            })
+        {
+            if !matches!(retained.next(), Some(None)) {
+                return unsupported("post-state membership guarantee has a scalar row");
+            }
+            continue;
+        }
+        let Some([ProofFact::Expression(expression)]) = facts else {
             return unsupported("scalar guarantee has no exact authored predicate");
         };
-        let predicate = match retained.next() {
+        let row = retained.next();
+        let predicate = match row {
             Some(Some(ClosedScalarContractValue::Predicate(predicate))) => predicate.clone(),
             // Closed legacy rows encode reflexive literal equality, not the
             // truth of the literal itself. Reconstruct that exact meaning for
@@ -126,9 +146,10 @@ fn validate_guarantee_sources(
             PrimitiveType::Bool,
             &checked_trees::CheckedCallScalarArgument::Pure(scalar),
         )?;
+        published.push(row.cloned().flatten());
     }
     if retained.next().is_some() {
         return unsupported("scalar completion contains an unauthored guarantee");
     }
-    Ok(())
+    Ok(published)
 }
