@@ -1886,6 +1886,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
     rest of the float/provider cohort report `interpreter:agrees`. A
     requirement with several checked satisfiers still declines there,
     because checked Psi does not retain the Build's provider choice.
+    Bound requirements retain arithmetic policy through the same checked
+    expression-selection projection as legacy named and spelled operators;
+    the interpreter rejects missing, substituted or duplicate selections.
+    Native policy-result adaptation remains unfinished. At `6303d5b2a2d5`
+    on macOS ARM64, `python3 tools/corpus_gate.py --interpret --filter
+    float/float_saturating_arithmetic_exit` still rejects the policy-qualified
+    field store in stage 04 (`pure source: scalar expression row`), before
+    interpretation. An unpublished same-carrier cast probe reaches execution
+    but exposes native exit **78** against the authored **77**, while the
+    interpreter returns **77**. Complete the shared cast/result join and
+    checked result-policy adapter; require saturation **77** and the authored
+    overflow/non-finite traps without changing program source.
     A `let` after a call-result field store keeps its own value and source:
     source roles key it by its authored local ordinal
     (`TypedTrees::immutable_scalar_locals_before`), while its plan keeps the
