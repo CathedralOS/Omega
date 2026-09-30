@@ -70,8 +70,9 @@ pub(crate) fn validate_entry_read_expression(
     validate_reads(checked, state, ReadScope::Entry, expression, retained)
 }
 
-/// Normal guarantees read immutable formals and the exact contract-owned result.
-/// Mutable post-state storage needs separate evidence and is not an entry snapshot.
+/// Normal guarantees read immutable scalar formals, structural post-state places,
+/// and the exact contract-owned result when one exists. A Unit return has no
+/// scalar result slot. Mutable scalar snapshots cannot impersonate post-state.
 pub(crate) fn validate_normal_result_read_expression(
     checked: &CheckedTrees,
     state: symbols::SymbolHandle,
@@ -81,10 +82,7 @@ pub(crate) fn validate_normal_result_read_expression(
     let (machine, source_state) = authored_state(checked, state)?;
     let primitive = checked
         .primitive_type_reference(source_state.return_type)
-        .filter(|primitive| supported_mutable_parameter(*primitive))
-        .ok_or(LoweringError::Unsupported(
-            "normal predicate result requires a fixed integer or Boolean carrier",
-        ))?;
+        .filter(|primitive| supported_mutable_parameter(*primitive));
     validate_reads(
         checked,
         state,
@@ -105,7 +103,7 @@ enum ReadScope {
     NormalResult {
         machine: symbols::SymbolHandle,
         return_type: checked_trees::types::TypeReferenceHandle,
-        primitive: PrimitiveType,
+        primitive: Option<PrimitiveType>,
     },
 }
 
@@ -328,7 +326,7 @@ impl ReadNamespace<'_> {
         } = self.scope
             && is_parameter
             && position == self.scalar.len()
-            && primitive == result_primitive
+            && Some(primitive) == result_primitive
         {
             return (machine, ReadKind::Result);
         }
@@ -1100,6 +1098,9 @@ fn collect_authored_storage_reads(
                 if owner != (machine, return_type) {
                     return unsupported("normal predicate result belongs to another contract");
                 }
+                let primitive = primitive.ok_or(LoweringError::Unsupported(
+                    "normal predicate result requires a fixed integer or Boolean carrier",
+                ))?;
                 reads.push((path.clone(), machine, primitive, ReadKind::Result));
                 active.pop();
                 return Ok(());

@@ -34,13 +34,13 @@ use crate::expression_preparation::bindings::structural_paths::lower_structural_
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::{
     Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, ClaimId,
-    ContractClause, LoweringError, MachineContract, Multiplicity, Operation, OperationKind,
+    LoweringError, MachineContract, Multiplicity, Operation, OperationKind,
     PermissionClaimIdentity, PlaceId, SemanticDomainId, StructuralDomainId, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, TerminalMachine,
     TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, content_conservation,
     contract_id, dense_identity, edge_id, lookup_domain_id, lookup_type_id,
-    lower_checked_crash_route_buckets, lower_structural_crash_route_buckets, obligation_id,
-    place_id, terminal_scalar_type, unsupported, value_id,
+    lower_checked_crash_route_buckets, lower_structural_crash_route_buckets, place_id,
+    terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::{
     MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -840,46 +840,19 @@ pub(super) fn emit(
             kind: StructuralPlaceKind::Result,
         });
     }
-    let normal_guarantees = if let Some((_, result)) = scalar_return {
-        // Contract result identity is distinct from the body's returned
-        // binding. Only exit reconstruction equates them, after normal
-        // completion; crashes and incomplete calls establish neither.
-        let mut namespace = scalar_parameters.clone();
-        namespace.push(result);
-        let contract = checked
-            .facts
-            .contract_plans
-            .for_machine(plan.machine)
-            .ok_or(LoweringError::Unsupported(
-                "scalar completion has no checked contract",
-            ))?;
-        let refined = crate::scalar_graph::scalar_contracts::with_result_range(
-            checked,
-            plan.state,
-            scalar_parameters.len(),
-            &contract.closed_scalar_values,
-        )?;
-        crate::scalar_graph::scalar_contracts::clauses(
-            refined.ensures(),
-            &namespace,
-            &signature.erased_scalar_parameters,
-            &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
-                parameters: &evaluation.structural_parameters,
-                structural_types,
-                element_views: &evaluation.element_views,
-            },
-        )?
-        .into_iter()
-        .map(|proposition| {
-            Ok(ContractClause {
-                obligation: obligation_id(allocate_dense(&mut next_call_obligation)?),
-                proposition,
-            })
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?
-    } else {
-        Vec::new()
-    };
+    let normal_guarantees = super::normal_guarantees::lower(
+        checked,
+        plan.state,
+        &scalar_parameters,
+        scalar_return.map(|(_, result)| result),
+        &signature.erased_scalar_parameters,
+        &crate::scalar_graph::scalar_contracts::ContractViewNamespace {
+            parameters: &evaluation.structural_parameters,
+            structural_types,
+            element_views: &evaluation.element_views,
+        },
+        &mut next_call_obligation,
+    )?;
     let machine = TerminalMachine {
         closed_reach_application: None,
         declared_service_reach: lower_declared_service_reach(checked, plan.machine, service_ids)?,

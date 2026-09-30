@@ -299,7 +299,7 @@ impl ContractPredicates<'_, '_> {
                 {
                     return None;
                 }
-                let (term, domain) = super::structural_fields::lower_structural_parameter_field(
+                let (term, _) = super::structural_fields::lower_structural_parameter_field(
                     program,
                     self.parameters,
                     expression,
@@ -307,9 +307,8 @@ impl ContractPredicates<'_, '_> {
                 let CheckedScalarExpression::StructuralParameterField { .. } = term else {
                     return None;
                 };
-                if domain != ArithmeticDomain::Exact {
-                    return None;
-                }
+                // Reading a field for comparison preserves its carrier value;
+                // its arithmetic policy constrains operations, not observation.
                 Some((term, reference))
             }
             _ => None,
