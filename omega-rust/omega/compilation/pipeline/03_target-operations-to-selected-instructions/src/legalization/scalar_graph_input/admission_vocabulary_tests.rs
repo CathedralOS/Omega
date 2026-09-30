@@ -175,6 +175,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::IntegerArithmetic { .. }
         | AbstractOperation::IntegerShift { .. }
         | AbstractOperation::IeeeFloatCompare { .. }
+        | AbstractOperation::FloatResultPolicy { .. }
         | AbstractOperation::IeeeFloatConstant { .. }
         | AbstractOperation::IntegerBitwiseAnd { .. }
         | AbstractOperation::IntegerBitwiseNot { .. }

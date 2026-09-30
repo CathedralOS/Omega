@@ -1169,6 +1169,7 @@ fn scan_operation(
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. }
+        | O::FloatResultPolicy { .. }
         | O::BooleanConstant { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }

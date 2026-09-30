@@ -96,6 +96,12 @@ pub(super) fn project(
         AbstractOperation::IntegerBitwiseNot { operand, .. } => {
             LegalizedScalarInstructionKind::BitwiseNot { operand: *operand }
         }
+        AbstractOperation::FloatResultPolicy { format, policy, .. } => {
+            LegalizedScalarInstructionKind::FloatResultPolicy {
+                format: *format,
+                policy: *policy,
+            }
+        }
         AbstractOperation::IeeeFloatCompare {
             comparison,
             format,

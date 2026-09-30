@@ -23,7 +23,8 @@ pub(crate) fn expected_definitions(
         O::IeeeFloatConstant { result, value, .. } => {
             Some((*result, ScalarType::IeeeFloat(value.format())))
         }
-        O::NearestIeeeFloatFusedMultiplyAdd { result, format, .. } => {
+        O::NearestIeeeFloatFusedMultiplyAdd { result, format, .. }
+        | O::FloatResultPolicy { result, format, .. } => {
             Some((*result, ScalarType::IeeeFloat(*format)))
         }
         O::CallStructural {
@@ -189,6 +190,7 @@ pub(crate) fn expected_uses(
         | O::IntegerBitwiseXor { left, right, .. }
         | O::IntegerArithmetic { left, right, .. } => vec![*left, *right],
         O::TrappingInteger { operation, .. } => operation.operands(),
+        O::FloatResultPolicy { policy, .. } => policy.operands(),
         O::IeeeFloatCompare { left, right, .. } => vec![*left, *right],
         O::NearestIeeeFloatFusedMultiplyAdd {
             left,

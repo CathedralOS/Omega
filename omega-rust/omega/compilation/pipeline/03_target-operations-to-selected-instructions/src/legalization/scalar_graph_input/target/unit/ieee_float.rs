@@ -12,6 +12,45 @@ pub(super) fn validate(
 ) -> Result<(), LegalizationError> {
     match (target, abstracted) {
         (
+            TargetUnitOperation::FloatResultPolicy {
+                psi_operation,
+                result_home,
+                format,
+                policy,
+            },
+            AbstractOperation::FloatResultPolicy {
+                psi_operation: expected_operation,
+                result,
+                format: expected_format,
+                policy: expected_policy,
+            },
+        ) => {
+            let scalar_type = ScalarType::IeeeFloat(*expected_format);
+            let shape = ValueShape::float(match expected_format {
+                IeeeFloatFormat::Binary32 => 4,
+                IeeeFloatFormat::Binary64 => 8,
+            });
+            if psi_operation != expected_operation
+                || result_home.defining_operation != *expected_operation
+                || result_home.source_value != *result
+                || result_home.scalar_type != scalar_type
+                || result_home.shape != shape
+                || format != expected_format
+                || policy.semantic_policy() != *expected_policy
+                || policy.operands().any(|operand| {
+                    operand.scalar_type() != scalar_type
+                        || !sources
+                            .iter()
+                            .filter(|(value, _)| *value == operand.source_value())
+                            .map(|(_, source)| source)
+                            .eq(std::iter::once(&operand))
+                })
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((*result, Source::Home(*result_home)));
+        }
+        (
             TargetUnitOperation::IeeeFloatCompare {
                 result_home,
                 comparison,

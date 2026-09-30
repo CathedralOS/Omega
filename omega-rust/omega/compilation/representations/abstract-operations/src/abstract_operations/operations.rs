@@ -436,6 +436,16 @@ pub enum AbstractOperation {
         result: ValueId,
         value: IeeeFloatValue,
     },
+    /// Adapts an already computed IEEE result without replacing its producer.
+    /// Trapping retains an operation-owned crash even when the result is unused;
+    /// saturation retains the original operands needed to distinguish overflow
+    /// from propagated nonfinite values and division by zero.
+    FloatResultPolicy {
+        psi_operation: OperationId,
+        result: ValueId,
+        format: IeeeFloatFormat,
+        policy: terminal_psi::FloatResultPolicy,
+    },
     NearestIeeeFloatFusedMultiplyAdd {
         psi_operation: OperationId,
         result: ValueId,
@@ -761,6 +771,7 @@ impl AbstractOperation {
             | Self::IntegerConstant { psi_operation, .. }
             | Self::IeeeFloatConstant { psi_operation, .. }
             | Self::IeeeFloatCompare { psi_operation, .. }
+            | Self::FloatResultPolicy { psi_operation, .. }
             | Self::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
             | Self::BooleanConstant { psi_operation, .. }
             | Self::StructuralScalarFieldRead { psi_operation, .. }

@@ -159,6 +159,10 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
             replace(&mut value);
             value
         }),
+        O::FloatResultPolicy { policy, .. } => policy.map_operands(&mut |mut value| {
+            replace(&mut value);
+            value
+        }),
         O::IeeeFloatCompare { left, right, .. } => {
             replace(left);
             replace(right);

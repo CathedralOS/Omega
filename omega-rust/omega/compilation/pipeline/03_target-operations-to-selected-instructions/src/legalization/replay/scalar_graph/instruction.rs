@@ -347,6 +347,14 @@ pub(super) fn validate(
             },
         ) if operand == source => {}
         (
+            LegalizedScalarInstructionKind::FloatResultPolicy { format, policy },
+            AbstractOperation::FloatResultPolicy {
+                format: expected_format,
+                policy: expected_policy,
+                ..
+            },
+        ) if format == expected_format && policy == expected_policy => {}
+        (
             LegalizedScalarInstructionKind::IeeeFloatCompare {
                 comparison,
                 format,

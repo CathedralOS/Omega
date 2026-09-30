@@ -151,6 +151,9 @@ pub(crate) fn operation_scalar_types_match(
             ScalarType::IeeeFloat(_) => false,
         },
         O::IeeeFloatConstant { .. } => true,
+        O::FloatResultPolicy { format, policy, .. } => {
+            policy.operands().into_iter().all(|value| ieee_float(value, *format))
+        }
         O::IeeeFloatCompare {
             format,
             left,

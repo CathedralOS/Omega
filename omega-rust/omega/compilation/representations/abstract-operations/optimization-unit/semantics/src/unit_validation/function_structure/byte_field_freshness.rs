@@ -186,6 +186,7 @@ pub(super) fn changes_length(
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. }
+        | O::FloatResultPolicy { .. }
         | O::BooleanConstant { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }

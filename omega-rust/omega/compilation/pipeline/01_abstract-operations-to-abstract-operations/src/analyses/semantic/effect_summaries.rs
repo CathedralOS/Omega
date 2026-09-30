@@ -373,6 +373,13 @@ fn operation_effect(
         // `Trap` crash: that exit is observable, so it is not pure scalar
         // work, and it happens only when its operands meet the predicate.
         O::TrappingInteger { .. } => (EffectClass::Control, May, No, May, No),
+        O::FloatResultPolicy { policy, .. } => {
+            if policy.can_trap() {
+                (EffectClass::Control, May, No, May, No)
+            } else {
+                (EffectClass::PureScalar, No, No, No, No)
+            }
+        }
         O::StructuralCase { .. } => (EffectClass::Control, No, Yes, No, No),
         O::Jump { .. } | O::Conditional { .. } | O::Return { .. } | O::ReturnUnit { .. } => {
             (EffectClass::Control, No, May, No, No)

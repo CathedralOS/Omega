@@ -62,6 +62,10 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
             replace(&mut value);
             value
         }),
+        O::FloatResultPolicy { policy, .. } => policy.map_operands(&mut |mut value| {
+            replace(&mut value);
+            value
+        }),
         O::IeeeFloatCompare { left, right, .. } => {
             replace(left);
             replace(right);

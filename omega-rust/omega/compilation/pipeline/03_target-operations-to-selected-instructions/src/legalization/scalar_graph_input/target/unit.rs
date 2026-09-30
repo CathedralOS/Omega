@@ -201,6 +201,7 @@ pub(super) fn validate_operation(
         (
             _,
             AbstractOperation::IeeeFloatCompare { .. }
+            | AbstractOperation::FloatResultPolicy { .. }
             | AbstractOperation::IeeeFloatConstant { .. }
             | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. },
         ) => {

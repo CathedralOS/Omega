@@ -72,6 +72,10 @@ pub(crate) fn rewrite_block_parameter_operation(
             replace(&mut value);
             value
         }),
+        O::FloatResultPolicy { policy, .. } => policy.map_operands(&mut |mut value| {
+            replace(&mut value);
+            value
+        }),
         O::IeeeFloatCompare { left, right, .. } => {
             replace(left);
             replace(right);

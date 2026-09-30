@@ -470,6 +470,7 @@ pub(super) fn lower(
         ),
         OperationKind::IntegerConstant { .. } => integer_constants_and_relations::lower(operation),
         OperationKind::IeeeFloatCompare { .. }
+        | OperationKind::FloatResultPolicy { .. }
         | OperationKind::IeeeFloatConstant { .. }
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. } => {
             ieee_float::lower(operation, value_types)

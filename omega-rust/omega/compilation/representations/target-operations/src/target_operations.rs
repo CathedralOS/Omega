@@ -57,7 +57,9 @@ pub use boundary::{
     TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
 };
 pub mod operations;
-pub use operations::{NativeCallOrigin, TargetStructuralRuntimeIndex, TargetUnitOperation};
+pub use operations::{
+    NativeCallOrigin, TargetFloatResultPolicy, TargetStructuralRuntimeIndex, TargetUnitOperation,
+};
 pub mod values;
 pub use values::{
     TargetBooleanExpression, TargetByteView, TargetElementView, TargetIntegerExpression,

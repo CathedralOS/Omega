@@ -211,6 +211,59 @@ pub(super) fn lower_operation(
             }
             Ok(())
         }
+        AbstractOperation::FloatResultPolicy {
+            psi_operation,
+            result,
+            format,
+            policy,
+        } => {
+            // Resolve every input from the same live environment as the
+            // preceding call. The adapter never invokes its provider again.
+            let source = |value| super::scalar_sources::source(value, function, live);
+            let policy = match *policy {
+                terminal_psi::FloatResultPolicy::Trapping { raw_result } => {
+                    target_operations::TargetFloatResultPolicy::Trapping {
+                        raw_result: source(raw_result)?,
+                    }
+                }
+                terminal_psi::FloatResultPolicy::Saturating {
+                    raw_result,
+                    left,
+                    right,
+                    rule,
+                } => target_operations::TargetFloatResultPolicy::Saturating {
+                    left: source(left)?,
+                    right: source(right)?,
+                    raw_result: source(raw_result)?,
+                    rule,
+                },
+            };
+            let scalar_type = ScalarType::IeeeFloat(*format);
+            if policy
+                .operands()
+                .any(|operand| operand.scalar_type() != scalar_type)
+            {
+                return Err(LoweringError::ValueTypeMismatch(*result));
+            }
+            let result_home = TargetUnitScalarHomeRequirement {
+                defining_operation: *psi_operation,
+                source_value: *result,
+                scalar_type,
+                shape: crate::lowering::scalar_abi::fixed_native_scalar_shape(scalar_type)
+                    .ok_or(LoweringError::ValueTypeMismatch(*result))?,
+            };
+            if live.scalar_homes.insert(*result, result_home).is_some() {
+                return Err(LoweringError::DuplicateValue(*result));
+            }
+            provenance.operations.push(*psi_operation);
+            operations.push(TargetUnitOperation::FloatResultPolicy {
+                psi_operation: *psi_operation,
+                result_home,
+                format: *format,
+                policy,
+            });
+            Ok(())
+        }
         AbstractOperation::IeeeFloatCompare {
             psi_operation,
             result,

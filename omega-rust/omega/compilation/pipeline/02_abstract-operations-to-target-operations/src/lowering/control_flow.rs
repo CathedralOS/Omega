@@ -169,6 +169,7 @@ pub(super) fn lower(
             | AbstractOperation::BooleanConstant { result, .. }
             | AbstractOperation::IeeeFloatConstant { result, .. }
             | AbstractOperation::IeeeFloatCompare { result, .. }
+            | AbstractOperation::FloatResultPolicy { result, .. }
             | AbstractOperation::IntegerWiden { result, .. }
             | AbstractOperation::IntegerExactCast { result, .. }
             | AbstractOperation::IntegerEqual { result, .. }
