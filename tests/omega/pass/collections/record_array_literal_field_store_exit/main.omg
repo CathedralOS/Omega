@@ -12,16 +12,16 @@ data Main {
     console: Binding<Console>;
     points: [Point; 3];
 }
-machine Main::main(&mut self) reaches Console {
-    self.points = [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }, Point { x: 5, y: 20 }];
-    transition { _ -> check() }
-    state check(&mut self) {
-        transition self.points[2].y == 20 && self.points[0].x == 1 && self.points[1].y == 4 {
-            true -> finish(25)
-            _ -> finish(1)
+machine Main::main(context: &mut Main) reaches Console {
+    context.points = [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }, Point { x: 5, y: 20 }];
+    transition { _ -> check(context) }
+    state check(context: &mut Main) {
+        transition context.points[2].y == 20 && context.points[0].x == 1 && context.points[1].y == 4 {
+            true -> finish(context, 25)
+            _ -> finish(context, 1)
         }
     }
-    state finish(&mut self, code: i32) {
-        self.console.exit_process(code);
+    state finish(context: &mut Main, code: i32) {
+        context.console.exit_process(code);
     }
 }

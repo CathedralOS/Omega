@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 32, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 24, "jobs": null, "load1_end": null, "load1_start": null, "machine": "amd64", "platform": "windows", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 302ms @0484de104502
 pass/arithmetic/anonymous_rational_integer_landing checked 306ms @0484de104502
 pass/arithmetic/bounded_assignment checked 323ms @0484de104502
@@ -196,7 +196,9 @@ pass/capabilities/win64_pointer_length_vs_descriptor_compile rejected 167ms @048
 pass/capabilities/windows_provides_import_exit rejected 1005ms @0484de104502
 	native artifact target lowering failed: TranslationValidation(StructuralCallArgumentMismatch { machine: MachineId(1), operation: OperationId(4) })
 pass/collections/array_local_control checked 427ms @0484de104502
+pass/collections/case_array_literal_field_store_exit built 1209ms exit:42
 pass/collections/owned_array_scalar_comparisons checked 433ms @0484de104502
+pass/collections/record_array_literal_field_store_exit built 1321ms exit:25
 pass/collections/runtime_argmax_index_exit built 1440ms exit:70 @0484de104502
 pass/collections/runtime_case_array_element_write_exit rejected 1196ms @0484de104502
 	terminal-artifact production failed: Lowering(Unsupported("runtime field observation requires a field leaf after its index"))

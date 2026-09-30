@@ -1,7 +1,7 @@
 // A whole array literal of payload-free cases stored into a fixed-array field
-// (`self.grid = [Cell::Water, ..]`, the `samples/cli/rendering/dungeon_render`
+// (`context.grid = [Cell::Water, ..]`, the `samples/cli/rendering/dungeon_render`
 // shape). Terminal has no whole structural-array establishment, so the literal
-// composes from the operations one `self.grid[k] = Cell::X` already uses:
+// composes from the operations one `context.grid[k] = Cell::X` already uses:
 // every element is established first, then each replaces its own element
 // window. The second literal overwrites occupied elements, so every element's
 // displacement runs too; the arms read three elements back: exit 42.
@@ -17,26 +17,26 @@ data Main {
     console: Binding<Console>;
     grid: [Cell; 4];
 }
-machine Main::main(&mut self) reaches Console {
-    self.grid = [Cell::Wall, Cell::Wall, Cell::Wall, Cell::Wall];
-    self.grid = [Cell::Water, Cell::Door, Cell::Floor, Cell::Wall];
-    transition self.grid[0] {
-        Cell::Water -> second(40)
-        _ -> finish(1)
+machine Main::main(context: &mut Main) reaches Console {
+    context.grid = [Cell::Wall, Cell::Wall, Cell::Wall, Cell::Wall];
+    context.grid = [Cell::Water, Cell::Door, Cell::Floor, Cell::Wall];
+    transition context.grid[0] {
+        Cell::Water -> second(context, 40)
+        _ -> finish(context, 1)
     }
-    state second(&mut self, base: i32) {
-        transition self.grid[3] {
-            Cell::Wall -> third(base + 2)
-            _ -> finish(2)
+    state second(context: &mut Main, base: i32) {
+        transition context.grid[3] {
+            Cell::Wall -> third(context, base + 2)
+            _ -> finish(context, 2)
         }
     }
-    state third(&mut self, total: i32) {
-        transition self.grid[1] {
-            Cell::Door -> finish(total)
-            _ -> finish(3)
+    state third(context: &mut Main, total: i32) {
+        transition context.grid[1] {
+            Cell::Door -> finish(context, total)
+            _ -> finish(context, 3)
         }
     }
-    state finish(&mut self, code: i32) {
-        self.console.exit_process(code);
+    state finish(context: &mut Main, code: i32) {
+        context.console.exit_process(code);
     }
 }
