@@ -1164,6 +1164,7 @@ pass/calls/case_arm_payload_receiver_arg rejected 1217ms @2d8ed253669f
 pass/calls/case_scrutinee_param_clone_exit rejected 758ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
 pass/calls/case_scrutinee_self_dispatch_exit checked 1513ms @2d8ed253669f
+pass/calls/conditional_arm_tail_call_to_machine_exit checked 1378ms @c9c108ecb4ac+wt
 pass/calls/constant_result_requires_argument_accepted checked 1243ms @2d8ed253669f
 pass/calls/copy_projection_from_borrowed_receiver checked 1378ms @2d8ed253669f
 pass/calls/cyclic_affine_call_result_exit checked 1523ms @2d8ed253669f
@@ -1173,6 +1174,7 @@ pass/calls/cyclic_projected_borrow_call_exit checked 1488ms @2d8ed253669f
 pass/calls/cyclic_scalar_query_reborrow_exit checked 1429ms @2d8ed253669f
 pass/calls/field_path_byte_subslice_exit checked 1321ms @2d8ed253669f
 pass/calls/guard_call_scalar_argument_exit checked 295ms @2d8ed253669f
+pass/calls/guarded_arm_tail_call_to_state_machine_exit checked 1552ms @c9c108ecb4ac+wt
 pass/calls/guarded_value_call_arm_exit checked 1358ms @2d8ed253669f
 pass/calls/local_after_call_result_store_exit checked 1446ms @2d8ed253669f
 pass/calls/local_array_direct_read_exit checked 1296ms @2d8ed253669f
@@ -1262,7 +1264,7 @@ pass/calls/static_state_context_field_window_exit checked 6807ms @29ae131e8c31+w
 pass/calls/structural_mut_to_shared_argument checked 378ms @2d8ed253669f
 pass/calls/structural_self_rooted_argument checked 370ms @2d8ed253669f
 pass/calls/transition_arg_local_from_embedded_call_exit checked 1627ms @2d8ed253669f
-pass/calls/transition_tail_call_to_machine checked 1211ms @2d8ed253669f
+pass/calls/transition_tail_call_to_machine checked 1299ms @c9c108ecb4ac+wt
 pass/calls/unread_multistate_receiver_exit checked 1179ms @2d8ed253669f
 pass/calls/value_call_as_host_arg_exit checked 1198ms @2d8ed253669f
 pass/calls/value_call_element_view_arg_compile checked 285ms @2d8ed253669f
@@ -1899,8 +1901,8 @@ pass/slices/byte_sequence_literal_tail_return_compile rejected 358ms @2d8ed25366
 	terminal-artifact production failed: Lowering(Unsupported("boundary structural result disagrees with its authored local"))
 pass/slices/callee_non_byte_view_len_index_subslice checked 294ms @2d8ed253669f
 pass/slices/disjoint_mut_subslice_windows_compile checked 307ms @2d8ed253669f
-pass/slices/domained_runtime_end_subslice_exit rejected 777ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::check`), which was itself omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/slices/domained_runtime_end_subslice_exit rejected 524ms @c9c108ecb4ac+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::check`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 0, statement 0)
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 293ms @2d8ed253669f
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 286ms @2d8ed253669f
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 319ms @2d8ed253669f
@@ -1909,8 +1911,8 @@ pass/slices/inclusive_subslice_literal_bounds_compile checked 313ms @2d8ed253669
 pass/slices/local_array_element_view_exit checked 2015ms @2d8ed253669f
 pass/slices/recursive_subslice_element_accumulator_exit checked 1421ms @2d8ed253669f
 pass/slices/requires_field_count_alias_index_compile checked 354ms @2d8ed253669f
-pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 801ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::view`), which was itself omitted at local construction at `state graph: terminator: conditional successors: target state` (state 0, statement 0)
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 521ms @c9c108ecb4ac+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::view`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 0, statement 0)
 pass/slices/runtime_join_meet_bound_exit checked 1360ms @2d8ed253669f
 pass/slices/runtime_mutable_slice_element_write_exit checked 1286ms @2d8ed253669f
 pass/slices/runtime_nested_subslice_fixed_index_exit checked 1425ms @2d8ed253669f
@@ -2045,8 +2047,9 @@ pass/termination/remainder_actual_call_component checked 305ms @2d8ed253669f
 pass/termination/remainder_literal_call_component checked 297ms @2d8ed253669f
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 1581ms @2d8ed253669f
 pass/termination/runtime_rank_range_state_call_exit checked 867ms @82d2bd2d7669
-pass/termination/runtime_shrinking_slice_recursion_exit rejected 1208ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("Unit graph subslice disagrees with its source argument"))
+pass/termination/runtime_receiver_byte_slice_recursion_exit checked 738ms @c9c108ecb4ac+wt
+pass/termination/runtime_shrinking_slice_recursion_exit rejected 510ms @c9c108ecb4ac+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidByteSequenceLengthSource { operation: OperationId(12), source: PlaceId(6) }))
 pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1212ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 2)") })
 pass/termination/stored_reference_endpoint_arrivals checked 320ms @2d8ed253669f

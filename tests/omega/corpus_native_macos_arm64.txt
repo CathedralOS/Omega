@@ -80,7 +80,9 @@ pass/calls/case_arm_payload_receiver_arg rejected 832ms
 pass/calls/case_scrutinee_param_clone_exit rejected 509ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
 pass/calls/case_scrutinee_self_dispatch_exit built 2129ms exit:0 @fb2178def922
+pass/calls/conditional_arm_tail_call_to_machine_exit built 1360ms exit:70 @c9c108ecb4ac+wt
 pass/calls/copy_projection_from_borrowed_receiver built 2075ms exit:70 @65bfe6bcd6c9+wt
+pass/calls/guarded_arm_tail_call_to_state_machine_exit built 1487ms exit:70 @c9c108ecb4ac+wt
 pass/calls/guarded_value_call_arm_exit built 718ms exit:70
 pass/calls/local_array_direct_read_exit built 824ms exit:70 @ef96dd31bdca
 pass/calls/local_projected_field_scalar_result_argument_exit built 583ms exit:70 @f22b140301c7+wt
@@ -152,6 +154,7 @@ pass/calls/statement_call_recursive_overload_compile checked 181ms
 pass/calls/static_context_forwarded_twice_exit built 828ms exit:70 @339c45cd5326
 pass/calls/static_state_context_field_window_exit built 6453ms exit:70 @29ae131e8c31+wt
 pass/calls/transition_arg_local_from_embedded_call_exit built 924ms exit:70 @3da828ba5434+wt
+pass/calls/transition_tail_call_to_machine built 1406ms exit:70 @c9c108ecb4ac+wt
 pass/calls/unread_multistate_receiver_exit built 530ms exit:70 @5c1d6f8344c7
 pass/calls/value_call_as_host_arg_exit built 1832ms exit:70 @fb2178def922
 pass/calls/value_call_element_view_arg_compile checked 169ms
@@ -774,8 +777,8 @@ pass/slices/byte_sequence_literal_tail_return_compile rejected 224ms
 	native-artifact Terminal production failed: Lowering(Unsupported("boundary structural result disagrees with its authored local"))
 pass/slices/callee_non_byte_view_len_index_subslice checked 180ms
 pass/slices/disjoint_mut_subslice_windows_compile checked 218ms
-pass/slices/domained_runtime_end_subslice_exit rejected 437ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement`
+pass/slices/domained_runtime_end_subslice_exit rejected 964ms @c9c108ecb4ac+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::check`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 0, statement 0)
 pass/slices/guarded_slice_parameter_bounded_subslice_compile checked 166ms
 pass/slices/guarded_slice_parameter_empty_false_index_compile checked 208ms
 pass/slices/guarded_slice_parameter_min_length_tail_compile checked 187ms
@@ -783,8 +786,8 @@ pass/slices/guarded_slice_parameter_successor_index_compile checked 193ms
 pass/slices/inclusive_subslice_literal_bounds_compile checked 207ms
 pass/slices/recursive_subslice_element_accumulator_exit built 738ms exit:70
 pass/slices/requires_field_count_alias_index_compile checked 186ms
-pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 493ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call count agreement`
+pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 1029ms @c9c108ecb4ac+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::view`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 0, statement 0)
 pass/slices/runtime_join_meet_bound_exit built 596ms exit:70
 pass/slices/runtime_mutable_slice_element_write_exit built 1421ms exit:21 @fb2178def922
 pass/slices/runtime_nested_subslice_fixed_index_exit built 1602ms exit:215 @fb2178def922
@@ -915,8 +918,9 @@ pass/termination/remainder_actual_call_component checked 210ms
 pass/termination/remainder_literal_call_component checked 218ms
 pass/termination/runtime_named_state_remainder_endpoint_exit built 33533ms exit:0
 pass/termination/runtime_rank_range_state_call_exit built 1004ms exit:70 @82d2bd2d7669+wt
-pass/termination/runtime_shrinking_slice_recursion_exit rejected 498ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement`
+pass/termination/runtime_receiver_byte_slice_recursion_exit built 1474ms exit:70 @c9c108ecb4ac+wt
+pass/termination/runtime_shrinking_slice_recursion_exit rejected 945ms @c9c108ecb4ac+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidByteSequenceLengthSource { operation: OperationId(12), source: PlaceId(6) }))
 pass/termination/runtime_stored_exclusive_endpoint_exit rejected 12050ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 1)") })
 pass/termination/stored_reference_endpoint_arrivals checked 195ms

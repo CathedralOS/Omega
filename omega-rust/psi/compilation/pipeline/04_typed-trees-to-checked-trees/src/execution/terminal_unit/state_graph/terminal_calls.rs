@@ -17,6 +17,10 @@
 //!   (`CheckedConditionalReturnArm::Call`); emission places it in the arm's
 //!   private completion block.
 //!
+//! Its subslice operands replay at the call-argument site the checker records
+//! for an invocation (`values::scalar::expression_plans::transition`), like an
+//! expression call's.
+//!
 //! Honest boundaries: only Unit completion is planned (a value result would
 //! forward the callee's result through its own return rejoin); an arm call
 //! is ordinary, transfers no claims, is its statement's only call (its guard
