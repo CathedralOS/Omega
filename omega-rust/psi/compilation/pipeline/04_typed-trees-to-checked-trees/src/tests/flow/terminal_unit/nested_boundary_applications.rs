@@ -20,6 +20,78 @@ const SOURCE: &str = "data Root { first: f64; second: f64; }
     }";
 
 #[test]
+fn policy_qualified_boundary_result_has_one_computation_owner() {
+    for policy in ["Saturating", "Trapping"] {
+        let checked = checked(&format!(
+            "data Root {{ value: f64 in {policy}; }}
+             pub boundary machine + Float::add(left: f64, right: f64) -> f64;
+             machine Root::enter(&mut self, value: f64 in {policy}) {{
+                 self.value = (value + value) as f64 in {policy};
+             }}"
+        ));
+        let symbol = machine_named(&checked, "Root::enter");
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == symbol)
+            .unwrap();
+        let state = &checked.machine_states(machine)[0];
+        let computations = &checked.facts.values.scalar_computations;
+        let root = computations
+            .root_at(
+                state.symbol,
+                0,
+                CheckedScalarExpressionRole::AssignmentValue,
+            )
+            .unwrap_or_else(|| panic!("{policy} cast owns its operand computation"));
+        assert_eq!(root.machine, symbol);
+        assert!(
+            checked
+                .facts
+                .operators
+                .resolved_expression_selections()
+                .any(|(_, _, _, adapter)| {
+                    adapter != checked_trees::CheckedArithmeticPolicyAdapter::None
+                }),
+            "the original operation retains its {policy} adapter"
+        );
+        let CheckedScalarComputationKind::BoundaryCall { source_call, .. } =
+            computations.nodes.get(root.root).kind
+        else {
+            panic!("policy qualification does not insert another runtime operation");
+        };
+        let StatementNode::Assignment(assignment) =
+            &checked.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("field assignment");
+        };
+        let ExpressionNode::Cast(cast) = checked.expression_table.expression(assignment.value)
+        else {
+            panic!("authored policy cast");
+        };
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .control
+                .calls
+                .get(source_call)
+                .authored_expression,
+            cast.value
+        );
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(symbol)
+                .is_some(),
+            "{policy} cast and field store compose through ordinary sequencing"
+        );
+    }
+}
+
+#[test]
 fn boundary_applications_feed_mutable_scalar_storage_in_source_order() {
     let checked = checked(
         "data Root {}
