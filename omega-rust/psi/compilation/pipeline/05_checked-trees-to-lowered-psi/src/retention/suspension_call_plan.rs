@@ -2,6 +2,7 @@ use super::{
     CheckedTrees, LoweredSourceCallOccurrence, LoweringError, OperationId, OperationKind,
     TerminalModule, ValueDeclaration, ValueId, terminal_scalar_type, unsupported,
 };
+use crate::direct_calls::{DirectCallRole, direct_call_parts};
 pub(crate) fn retain_suspension_call_plans(
     checked: &CheckedTrees,
     source_machines: &[symbols::SymbolHandle],
@@ -77,11 +78,10 @@ pub(crate) fn retain_suspension_call_plans(
         // deliberately absent — its `arguments` are not an admitted
         // suspension-argument namespace.
         let call_arguments: &[ValueId] = match &operation.kind {
-            OperationKind::Call { arguments, .. }
-            | OperationKind::CallStructuralScalar { arguments, .. }
-            | OperationKind::CallStructuralWithScalarArguments { arguments, .. }
-            | OperationKind::BoundaryCall { arguments, .. } => arguments.as_slice(),
-            _ => &[],
+            OperationKind::BoundaryCall { arguments, .. } => arguments,
+            kind => direct_call_parts(kind)
+                .filter(|call| call.role != DirectCallRole::Unit)
+                .map_or(&[], |call| call.arguments),
         };
         let target = terminal_call_target(&operation.kind).ok_or(LoweringError::Unsupported(
             "suspension crossing Terminal operation is not an ordinary call",
@@ -300,14 +300,12 @@ fn owning_callable_symbol(
 fn terminal_call_target(
     kind: &OperationKind,
 ) -> Option<terminal_psi::TerminalSuspensionCallTarget> {
+    if let Some(call) = direct_call_parts(kind) {
+        return Some(terminal_psi::TerminalSuspensionCallTarget::Machine(
+            call.callee,
+        ));
+    }
     match kind {
-        OperationKind::Call { callee, .. }
-        | OperationKind::CallUnit { callee, .. }
-        | OperationKind::CallStructuralScalar { callee, .. }
-        | OperationKind::CallStructural { callee, .. }
-        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
-            Some(terminal_psi::TerminalSuspensionCallTarget::Machine(*callee))
-        }
         OperationKind::BoundaryCall { boundary, .. } => Some(
             terminal_psi::TerminalSuspensionCallTarget::Boundary(*boundary),
         ),

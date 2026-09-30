@@ -9,6 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::direct_calls::call_structural_arguments;
 use crate::unit::{
     ByteSequenceCarrier, Operation, OperationKind, PlaceId, StructuralAccess, StructuralFieldType,
     StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
@@ -24,29 +25,7 @@ pub(super) fn moved_subtrees(
 ) -> BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>> {
     let mut moved: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>> = BTreeMap::new();
     for operation in operations {
-        let arguments = match &operation.kind {
-            OperationKind::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | OperationKind::CallStructuralScalar {
-                structural_arguments,
-                ..
-            }
-            | OperationKind::CallStructural {
-                structural_arguments,
-                ..
-            }
-            | OperationKind::CallStructuralWithScalarArguments {
-                structural_arguments,
-                ..
-            }
-            | OperationKind::BoundaryCall {
-                structural_arguments,
-                ..
-            } => structural_arguments.as_slice(),
-            _ => &[],
-        };
+        let arguments = call_structural_arguments(&operation.kind);
         for argument in arguments {
             if argument.access == StructuralAccess::Owned && !argument.path.is_empty() {
                 moved

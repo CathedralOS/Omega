@@ -2,6 +2,7 @@
 //! consumer needs diagnostics. These names and spans are not admission
 //! evidence and do not decide whether a module is valid.
 
+use crate::direct_calls::direct_call_parts;
 use checked_trees::CheckedTrees;
 use semantic_vocabulary::MachineId;
 use source::SourceSpan;
@@ -38,8 +39,8 @@ impl LoweredMachineProvenance {
         for machine in &module.machines {
             for block in &machine.blocks {
                 for operation in &block.operations {
-                    if let Some(callee) = call_callee(&operation.kind) {
-                        callee_by_operation.insert(operation.id, callee);
+                    if let Some(call) = direct_call_parts(&operation.kind) {
+                        callee_by_operation.insert(operation.id, call.callee);
                     }
                 }
             }
@@ -82,7 +83,7 @@ impl LoweredMachineProvenance {
             };
             for block in &machine.blocks {
                 for operation in &block.operations {
-                    if let Some(callee) = call_callee(&operation.kind)
+                    if let Some(callee) = direct_call_parts(&operation.kind).map(|call| call.callee)
                         && visited.insert(callee)
                     {
                         provenance.callers.insert(callee, current);
@@ -171,18 +172,5 @@ impl LoweredMachineProvenance {
     pub fn source_span(&self, machine: MachineId) -> Option<SourceSpan> {
         let (_, (_, span)) = self.named_ancestor(machine)?;
         *span
-    }
-}
-
-fn call_callee(kind: &terminal_psi::OperationKind) -> Option<MachineId> {
-    match kind {
-        terminal_psi::OperationKind::Call { callee, .. }
-        | terminal_psi::OperationKind::CallUnit { callee, .. }
-        | terminal_psi::OperationKind::CallStructuralScalar { callee, .. }
-        | terminal_psi::OperationKind::CallStructural { callee, .. }
-        | terminal_psi::OperationKind::CallStructuralWithScalarArguments { callee, .. } => {
-            Some(*callee)
-        }
-        _ => None,
     }
 }

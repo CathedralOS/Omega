@@ -8,11 +8,12 @@ use super::super::{
 };
 use super::{
     Block, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
-    LoweringError, Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ScalarType,
+    LoweringError, Multiplicity, Operation, OperationResult, PlaceId, ScalarType,
     StructuralMultiplicity, StructuralTypeShape, Terminator, ValueDeclaration, allocate_dense,
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
+use crate::direct_calls::{DirectCallRole, call_structural_arguments_mut, direct_call_parts};
 use crate::emission::boolean_control::{
     LoweredBooleanDecision, LoweredBooleanDecisionTarget, boolean_guard_decision_block_count,
     emit_inlined_boolean_guard_blocks, lower_boolean_control_decision,
@@ -209,11 +210,8 @@ impl Evaluation {
             let mut producers = operations.iter().filter(|operation| {
                 matches!(&operation.result,
                 OperationResult::Structural(value) if value == &produced)
-                    && matches!(
-                        operation.kind,
-                        OperationKind::CallStructural { .. }
-                            | OperationKind::CallStructuralWithScalarArguments { .. }
-                    )
+                    && direct_call_parts(&operation.kind)
+                        .is_some_and(|call| call.role == DirectCallRole::Structural)
             });
             let producer = producers.next().ok_or(LoweringError::Unsupported(
                 "linear local has no ordinary call result",
@@ -403,28 +401,8 @@ impl Evaluation {
     pub(crate) fn remap_transported_call_operands(&mut self, operations: &mut OperationBuffer) {
         let cleanups = &self.selection_cleanups;
         let remap = |operation: &mut Operation| {
-            let arguments = match &mut operation.kind {
-                OperationKind::CallUnit {
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::CallStructuralScalar {
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::CallStructural {
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::CallStructuralWithScalarArguments {
-                    structural_arguments,
-                    ..
-                }
-                | OperationKind::BoundaryCall {
-                    structural_arguments,
-                    ..
-                } => structural_arguments,
-                _ => return,
+            let Some(arguments) = call_structural_arguments_mut(&mut operation.kind) else {
+                return;
             };
             for cleanup in cleanups {
                 if operation.id.get() < cleanup.next_operation {

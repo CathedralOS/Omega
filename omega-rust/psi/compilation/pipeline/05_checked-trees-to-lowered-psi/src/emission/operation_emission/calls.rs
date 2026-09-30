@@ -2,6 +2,7 @@
 
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
+use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
 use crate::emission::boolean_control::{
     boolean_decision_block_count, emit_reserved_boolean_tuple_stage_blocks,
     lower_boolean_value_decision,
@@ -17,9 +18,7 @@ use crate::terminal_identities::edge_id;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{BlockId, MachineId, ObligationId, QualifiedScalarType, ValueId};
-use terminal_psi::{
-    Block, Operation, OperationKind, StructuralArgument, Terminator, ValueDeclaration,
-};
+use terminal_psi::{Block, Operation, StructuralArgument, Terminator, ValueDeclaration};
 
 /// The source place is known during preparation; runtime path values and their
 /// bounds obligations belong to the emitting call's actual scalar frame.
@@ -452,27 +451,24 @@ fn emit_direct_call_operation(
             id: result,
             scalar_type: call.result_type.scalar_type,
         }),
-        kind: if call.structural_arguments.is_empty() && !call.uses_structural_frame {
-            OperationKind::Call {
-                callee,
-                arguments: arguments.iter().map(|argument| argument.id).collect(),
-                erased_arguments,
-                erased_proof_arguments,
-                requirement_obligations,
-                crash_continuations,
-            }
-        } else {
-            OperationKind::CallStructuralScalar {
-                callee,
-                arguments: arguments.iter().map(|argument| argument.id).collect(),
-                erased_arguments,
-                erased_proof_arguments,
-                structural_arguments,
-                claim_transfers: Vec::new(),
-                requirement_obligations,
-                crash_continuations,
-            }
-        },
+        // A lowered direct call binding has no claim-transfer lane, so no
+        // transfer crosses this call.
+        kind: DirectCall {
+            callee,
+            arguments: arguments.iter().map(|argument| argument.id).collect(),
+            erased_arguments,
+            erased_proof_arguments,
+            structural_arguments,
+            claim_transfers: Vec::new(),
+            requirement_obligations,
+            crash_continuations,
+            result: DirectCallResult::Scalar(ScalarCallFrame::for_call(
+                !call.structural_arguments.is_empty(),
+                false,
+                call.uses_structural_frame,
+            )),
+        }
+        .into_operation_kind(),
     });
     Ok(result)
 }

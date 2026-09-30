@@ -37,6 +37,7 @@ pub(crate) fn realize_receiver_adapters(
     source_owners: &[(symbols::SymbolHandle, MachineId)],
     module: &mut terminal_psi::TerminalModule,
 ) -> Result<(), LoweringError> {
+    use crate::direct_calls::{DirectCall, DirectCallResult, ScalarCallFrame};
     use crate::terminal_identities::{
         allocate_dense, block_id, contract_id, edge_id, machine_id, operation_id, place_id,
         value_id,
@@ -251,19 +252,10 @@ pub(crate) fn realize_receiver_adapters(
             .collect();
         let call = operation_id(allocate_dense(&mut next)?);
         let edge = edge_id(allocate_dense(&mut next)?);
-        let (result, kind, terminator) = match &mut adapter.result {
+        let (result, call_result, terminator) = match &mut adapter.result {
             TerminalMachineResult::Unit => (
                 OperationResult::Unit,
-                OperationKind::CallUnit {
-                    callee: candidate.id,
-                    arguments,
-                    structural_arguments,
-                    erased_arguments: Vec::new(),
-                    erased_proof_arguments: Vec::new(),
-                    claim_transfers: Vec::new(),
-                    requirement_obligations: Vec::new(),
-                    crash_continuations: Vec::new(),
-                },
+                DirectCallResult::Unit,
                 Terminator::ReturnUnit {
                     edge,
                     trivial_affine_discards: Vec::new(),
@@ -275,16 +267,9 @@ pub(crate) fn realize_receiver_adapters(
                 returned.id = value_id(allocate_dense(&mut next)?);
                 (
                     OperationResult::Scalar(returned),
-                    OperationKind::CallStructuralScalar {
-                        callee: candidate.id,
-                        arguments,
-                        structural_arguments,
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        claim_transfers: Vec::new(),
-                        requirement_obligations: Vec::new(),
-                        crash_continuations: Vec::new(),
-                    },
+                    // The adapter always lends its established receiver, so a
+                    // structural argument crosses every adapter call.
+                    DirectCallResult::Scalar(ScalarCallFrame::Structural),
                     Terminator::Return {
                         edge,
                         value: returned.id,
@@ -296,6 +281,18 @@ pub(crate) fn realize_receiver_adapters(
                 return unsupported("unimplemented: provider receiver adapter structural result");
             }
         };
+        let kind = DirectCall {
+            callee: candidate.id,
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments,
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+            result: call_result,
+        }
+        .into_operation_kind();
         adapter.blocks = vec![Block {
             id: adapter.entry,
             parameters: Vec::new(),

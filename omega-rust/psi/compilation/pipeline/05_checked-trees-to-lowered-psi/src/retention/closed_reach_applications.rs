@@ -17,10 +17,11 @@ use semantic_vocabulary::{MachineId, ServiceId};
 use symbols::SymbolHandle;
 use terminal_psi::{
     ClosedReachApplication, ClosedReachArgument, ClosedReachCall, ClosedReachCallApplication,
-    ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema, OperationKind,
-    ServiceDeclaration, TerminalModule,
+    ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema, ServiceDeclaration,
+    TerminalModule,
 };
 
+use crate::direct_calls::{DirectCallParts, direct_call_parts};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
@@ -369,13 +370,8 @@ pub(crate) fn retain_closed_reach_applications(
                 .ok_or(LoweringError::Unsupported(
                     "closed reach consumer has no exact owner operation",
                 ))?;
-            let callee = match operation.kind {
-                OperationKind::Call { callee, .. }
-                | OperationKind::CallUnit { callee, .. }
-                | OperationKind::CallStructuralScalar { callee, .. }
-                | OperationKind::CallStructural { callee, .. }
-                | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
-                _ => return unsupported("closed reach consumer is not a direct machine call"),
+            let Some(DirectCallParts { callee, .. }) = direct_call_parts(&operation.kind) else {
+                return unsupported("closed reach consumer is not a direct machine call");
             };
             let selected_callee = call
                 .application

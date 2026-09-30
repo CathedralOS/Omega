@@ -16,12 +16,13 @@
 //! renumbering a separately lowered callee.
 
 use super::{
-    Block, CheckedTrees, LoweredPsi, LoweringError, MachineContract, Operation, OperationKind,
-    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration, TerminalMachine,
-    TerminalMachineResult, Terminator, block_id, contract_id, edge_id, lookup_type_id, machine_id,
-    operation_id, place_id, unsupported,
+    Block, CheckedTrees, LoweredPsi, LoweringError, MachineContract, Operation, StructuralAccess,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralResultDeclaration, TerminalMachine, TerminalMachineResult,
+    Terminator, block_id, contract_id, edge_id, lookup_type_id, machine_id, operation_id, place_id,
+    unsupported,
 };
+use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::unit::attached_unit::shared_closure::ExternalUnitRoots;
 use crate::unit::attached_unit::{UnitClosureRequest, lower_unit_closure};
 
@@ -140,15 +141,18 @@ pub(crate) fn lower_payloadless_guarded_call_return_machine(
                         claims: Vec::new(),
                     },
                 ),
-                kind: OperationKind::CallStructural {
+                kind: DirectCall {
                     callee: callee_id,
+                    arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
-                    returned_claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
-                    selected_evidence: Vec::new(),
-                },
+                    result: DirectCallResult::PayloadlessCase,
+                }
+                .into_operation_kind(),
             }],
             terminator: Terminator::ReturnStructural {
                 edge: edge_id(take(&mut next_edge)?),
