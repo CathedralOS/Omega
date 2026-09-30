@@ -1,7 +1,6 @@
 // Deployable process-exit canary (ordered-output case): every hosted target
-// selects its entry. The native legs for the conditional case live in the
-// sibling `process_exit_i32_status` fixture; this source exercises ordered
-// output beside the canonical exit in the checked interpreter.
+// selects its entry, and native execution and the checked interpreter both
+// observe the ordered line before the canonical exit.
 machine build(builder: &mut Build) {
     builder.application("process_exit_i32_status_ordered");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });

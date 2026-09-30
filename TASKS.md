@@ -2361,9 +2361,15 @@ Acceptance: serialize and independently replay unconditional and conditional/hel
 exits. Tampered identity, arguments, completion or provider evidence reject, as do
 missing authority/reach/progress, lookalikes, returning/aborting substitutes,
 cleanup exits and unsupported survivor contracts. Reuse the
-`tests/omega/pass/host/process_exit_i32_status_{mapped,ordered}` customers; execute
-on matching hosts and retain ordered output/status oracles. Interpreter exit ends
-only its simulated domain. Cross-target emission is not runtime evidence.
+`tests/omega/pass/host/process_exit_i32_status_{mapped,ordered}` customers and
+their `expected_native_exit.<target>.txt` oracles on the three Unix targets:
+`ordered` exits 70 after its one stdout line, and `mapped` presents status -44
+as 212 while the interpreter keeps -44 (both measured on macOS ARM64, where the
+runner's `--both` agreement applies the host presentation rule). Windows gets
+its promises once `ordered` builds there (its golden records a rejection) and
+a Windows host measures `mapped`'s full-i32 presentation. Interpreter exit ends
+only its simulated domain.
+Cross-target emission is not runtime evidence.
 **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns further receiver admission; no general
 completion syntax or other terminal service is a prerequisite.
 
