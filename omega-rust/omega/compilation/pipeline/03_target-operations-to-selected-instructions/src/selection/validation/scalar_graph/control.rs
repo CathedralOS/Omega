@@ -464,6 +464,7 @@ fn check_successor(
                 &semantic.argument,
                 &replay.transport.pointers,
                 &replay.transport.local_slots,
+                &replay.transport.element_views,
             )
             .ok_or(SelectedInstructionError::custody())?;
             if actual.semantic != *semantic || actual.transport != expected {

@@ -245,41 +245,48 @@ pub(super) fn lower(
             field,
         } => {
             let (psi_operation, result, place, field) = (*psi_operation, *result, *source, *field);
-            let (structural_type, access) = if let Some(home) = live.structural_homes.get(&place) {
-                if home.has_claims()
-                    || home.multiplicity() == StructuralMultiplicity::Linear
-                    || !home.qualifications().is_empty()
-                    || !home.projected_qualifications().is_empty()
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
-                (home.structural_type(), StructuralAccess::Owned)
-            } else {
-                let source = function
-                    .structural_parameters
-                    .iter()
-                    .chain(
-                        function
-                            .block_entries
-                            .iter()
-                            .flat_map(|entry| &entry.structural_parameters)
-                            .filter(|parameter| live.address_joins.contains(&parameter.place)),
-                    )
-                    .find(|parameter| parameter.place == place)
-                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if !matches!(
-                    source.access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
-                ) || source.multiplicity == StructuralMultiplicity::Linear
-                    || !source.qualifications.is_empty()
-                    || !source.projected_qualifications.is_empty()
-                {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
-                (source.structural_type, source.access)
-            };
+            let (structural_type, access) =
+                if let Some((_, structural_type)) = live.views.get(&place) {
+                    // A field read through a view place observes one element:
+                    // the descriptor root is the carrier, the index step stays in
+                    // the path, and either view family lends a shared read. An
+                    // affine view is also a structural home, so views win first.
+                    (*structural_type, StructuralAccess::SharedBorrow)
+                } else if let Some(home) = live.structural_homes.get(&place) {
+                    if home.has_claims()
+                        || home.multiplicity() == StructuralMultiplicity::Linear
+                        || !home.qualifications().is_empty()
+                        || !home.projected_qualifications().is_empty()
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    (home.structural_type(), StructuralAccess::Owned)
+                } else {
+                    let source = function
+                        .structural_parameters
+                        .iter()
+                        .chain(
+                            function
+                                .block_entries
+                                .iter()
+                                .flat_map(|entry| &entry.structural_parameters)
+                                .filter(|parameter| live.address_joins.contains(&parameter.place)),
+                        )
+                        .find(|parameter| parameter.place == place)
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                    if !matches!(
+                        source.access,
+                        StructuralAccess::Owned
+                            | StructuralAccess::SharedBorrow
+                            | StructuralAccess::MutableBorrow
+                    ) || source.multiplicity == StructuralMultiplicity::Linear
+                        || !source.qualifications.is_empty()
+                        || !source.projected_qualifications.is_empty()
+                    {
+                        return Err(LoweringError::unsupported_control_flow(function.machine));
+                    }
+                    (source.structural_type, source.access)
+                };
             let mut carrier = structural_type;
             let mut runtime_path = Vec::with_capacity(path.len());
             let mut case = None;
@@ -328,18 +335,30 @@ pub(super) fn lower(
                     semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
                         if position + 1 == carrier_end =>
                     {
-                        let StructuralTypeShape::FixedArray { element, length } = &types
+                        let shape = &types
                             .get(&carrier)
                             .ok_or_else(|| {
                                 LoweringError::unsupported_control_flow(function.machine)
                             })?
-                            .shape
-                        else {
-                            return Err(LoweringError::unsupported_control_flow(function.machine));
+                            .shape;
+                        let element = match shape {
+                            StructuralTypeShape::FixedArray { element, length } => {
+                                if index >= length {
+                                    return Err(LoweringError::unsupported_control_flow(
+                                        function.machine,
+                                    ));
+                                }
+                                element
+                            }
+                            // An element view's live extent is the bound proven
+                            // by its producer; the index names one member.
+                            StructuralTypeShape::ElementView { element } => element,
+                            _ => {
+                                return Err(LoweringError::unsupported_control_flow(
+                                    function.machine,
+                                ));
+                            }
                         };
-                        if index >= length {
-                            return Err(LoweringError::unsupported_control_flow(function.machine));
-                        }
                         runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
                         carrier = *element;
                     }

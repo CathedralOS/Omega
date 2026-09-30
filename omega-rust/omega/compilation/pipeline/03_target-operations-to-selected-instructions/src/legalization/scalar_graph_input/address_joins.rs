@@ -225,6 +225,27 @@ fn root_type(
         super::primitive_locals::producer(function, place)
     {
         (operation, result.clone())
+    } else if let Some((operation, result)) = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishElementView {
+                psi_operation,
+                result,
+                ..
+            }
+            | AbstractOperation::ElementViewSubslice {
+                psi_operation,
+                result,
+                ..
+            } if result.place == place => Some((*psi_operation, result.clone())),
+            _ => None,
+        })
+    {
+        // An element view's descriptor root is a readable non-linear source:
+        // the edge lends an element's address through its live extent.
+        (operation, result)
     } else {
         match super::structural_case::source_owner(function, place).ok()? {
             legalized_operations::LegalizedStructuralCaseSource::OperationResult {
@@ -274,6 +295,8 @@ fn node_operation(operation: &AbstractOperation) -> Option<OperationId> {
         | AbstractOperation::CallStructural { psi_operation, .. }
         | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
         | AbstractOperation::MoveStructuralField { psi_operation, .. }
+        | AbstractOperation::EstablishElementView { psi_operation, .. }
+        | AbstractOperation::ElementViewSubslice { psi_operation, .. }
         | AbstractOperation::BoundaryCall { psi_operation, .. } => Some(*psi_operation),
         _ => None,
     }

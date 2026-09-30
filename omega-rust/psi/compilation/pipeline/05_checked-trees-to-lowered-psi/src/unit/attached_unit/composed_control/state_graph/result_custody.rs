@@ -331,14 +331,21 @@ pub(super) fn validate(
                     .normalized_type_identity(local.type_reference)
                     .into_string()
             })
+    } else if let Some((referee, _)) =
+        validation::reference_result_custody::shared_place_borrowed_parts(
+            checked,
+            local.type_reference,
+        )
+    {
+        // A shared-loaned local publishes its referent identity — the same
+        // peel the checker-side roster applies.
+        checked.normalized_type_identity(referee).into_string()
     } else {
         checked
             .normalized_type_identity(local.type_reference)
             .into_string()
     };
-    if expected_multiplicity != result.multiplicity
-        || expected_identity != result.type_identity
-    {
+    if expected_multiplicity != result.multiplicity || expected_identity != result.type_identity {
         return unsupported("Unit graph local disposition type drifted");
     }
     let events = || {

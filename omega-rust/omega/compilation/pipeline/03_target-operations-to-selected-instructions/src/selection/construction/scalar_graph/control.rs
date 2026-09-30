@@ -356,6 +356,7 @@ fn successor(
                             &semantic.argument,
                             &builder.transport.pointers,
                             &builder.transport.local_slots,
+                            &builder.transport.element_views,
                         )
                         .ok_or(SelectedInstructionError::custody())?,
                     });
