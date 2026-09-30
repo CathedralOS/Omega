@@ -987,8 +987,8 @@ pass/traits/trait_generic_bound_static_dispatch built 543ms
 pass/traits/transparent_refinement_declaration built 238ms
 pass/types/runtime_addr_algebra_exit rejected 2489ms @2e2913321f6b
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 1, statement 4)
-pass/types/runtime_addr_field_exit rejected 2627ms @2e2913321f6b
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
+pass/types/runtime_addr_conversion_trap_exit built 747ms exit:signal signal:5 @5266569d1601
+pass/types/runtime_addr_field_exit built 820ms exit:88 @5266569d1601
 pass/types/runtime_exact_address_subtraction_exit built 4397ms exit:70 @2e2913321f6b
 pass/types/runtime_i16_signed_arith_exit built 560ms exit:70
 pass/versioning/migration_generic_trait built 499ms
