@@ -136,9 +136,17 @@ def path_atoms(value):
             for segment in value.split(",") for piece in segment.split()]
 
 
+def is_task_board(path):
+    return any(PurePosixPath(path).name.casefold() == board.casefold()
+               for board in BOARDS)
+
+
 def paths_overlap(first, second):
+    # Legacy board-file claims cannot fence shared task lists. Keep the
+    # remaining paths in joined fields protected as before.
     return any(a == b or a in b.parents or b in a.parents
-               for a in path_atoms(first) for b in path_atoms(second))
+               for a in path_atoms(first) if not is_task_board(a)
+               for b in path_atoms(second) if not is_task_board(b))
 
 
 def is_directory_fence(repository, path):
@@ -538,6 +546,8 @@ class Claims:
                for path in claim["paths"]]
         uncovered, violations = [], []
         for path in sorted(changed):
+            if is_task_board(path):
+                continue
             if any(paths_overlap(path, owned) for owned in own):
                 continue
             uncovered.append(path)
@@ -697,6 +707,11 @@ def main(argv=None):
             # validation pins the item to a real marker. --allow-overlap
             # does not bypass this; file-only claims may stay off-board.
             for path in options.paths:
+                if is_task_board(path):
+                    raise ClaimsError(
+                        f"Task list {path} is shared and cannot be claimed. "
+                        "Claim individual items with --board and --item, "
+                        "and implementation paths with --path.")
                 if not options.board and is_directory_fence(options.repository,
                                                             path):
                     raise ClaimsError(

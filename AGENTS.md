@@ -128,6 +128,9 @@ The rules that touch every edit:
   frontier once — replace the paragraph, do not append run history. New
   items carry `(new-scope)` or `(split-of:<parent>)` on the first line.
   Owner decisions go to `OWNER_QUESTIONS.md`, not the boards.
+  Task lists are shared: claim individual items and implementation paths,
+  never a whole board file. Update only the relevant items and reconcile
+  concurrent board edits during landing; nobody owns the task list.
 - Windows and macOS are both supported development hosts; shared tooling
   needs a documented usable entrypoint on each — a `.ps1` alone is not
   macOS support; either document `pwsh` as an explicit prerequisite or
@@ -167,8 +170,9 @@ canonical source and evidence identities are byte-sensitive.
   Assignments carry the objective, governing design links, ownership
   boundary, dependencies, and the acceptance command.
 - Workers report through `python tools/claims.py note --ticket` and the
-  session report; the coordinator owns board edits. A slice that reaches a
-  sibling-owned path stops there and reports it.
+  session report; the coordinator integrates its workers' board updates,
+  without claiming the board or blocking other sessions' updates. A slice
+  that reaches a sibling-owned implementation path stops there and reports it.
 - Continue implementation when the design answers the question; hand off
   the exact missing dependency when it does not.
 
