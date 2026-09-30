@@ -24,7 +24,7 @@ data Main {
     fs: Binding<FilesystemHost>;
     fd: i32;
     n: i64;
-    rc64: i64;
+    rc64: i32;
     ft: [u8; 8];
     stat_buf: [u8; 144];
     mtime: i64;
@@ -36,7 +36,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
     // rides a clean read-write reopen.
     self.fd = self.fs.create("omega_wsft_probe.txt", 438);
     self.n = self.fs.write(self.fd, "stamp");
-    self.n = self.fs.close(self.fd);
+    let closed_create: i32 = self.fs.close(self.fd);
     self.fd = self.fs.open("omega_wsft_probe.txt", 2);
     transition self.fd >= 0 { true -> bridge() _ -> bad(71) }
     state bridge(&mut self) {
@@ -55,12 +55,12 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
         self.ft[6] = 210;
         self.ft[7] = 1;
         let rc: i32 = self.fs.set_file_time(handle, 0, &self.ft, &self.ft);
-        self.n = self.fs.close(self.fd);
+        let closed_probe: i32 = self.fs.close(self.fd);
         transition rc != 0 { true -> restat() _ -> bad(73) }
     }
     state restat(&mut self) {
         self.rc64 = self.fs.read_metadata("omega_wsft_probe.txt", &mut self.stat_buf);
-        self.n = self.fs.remove("omega_wsft_probe.txt");
+        let removed: i32 = self.fs.remove("omega_wsft_probe.txt");
         transition self.rc64 == 0 { true -> decode() _ -> bad(74) }
     }
     state decode(&mut self) {
