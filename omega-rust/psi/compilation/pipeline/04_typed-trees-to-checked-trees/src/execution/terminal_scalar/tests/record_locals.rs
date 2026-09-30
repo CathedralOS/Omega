@@ -2,6 +2,42 @@ use crate::tests::front_end::checked_program_result;
 use checked_trees::CheckedUnitEffectOperationPlan;
 
 #[test]
+fn projected_parameter_stores_keep_the_complete_effect_body() {
+    for target in ["context.value", "context.samples[0]"] {
+        let checked = check_source(&format!(
+            "data Cell {{ value: i32; samples: [i32; 2]; }}
+             machine stamp(context: &mut Cell) -> i32 {{ {target} = 90; 7 }}"
+        ));
+        let machine = checked.machines()[0].symbol;
+        let operations = if let Some(graph) = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine)
+        {
+            &graph.states[0].unit_operations
+        } else {
+            let body = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine)
+                .expect("the ordinary effect body retains the store and scalar result");
+            assert!(body.scalar_result.is_some());
+            &body.operations
+        };
+        assert_eq!(
+            operations
+                .iter()
+                .filter_map(CheckedUnitEffectOperationPlan::store_statement_index)
+                .collect::<Vec<_>>(),
+            [0],
+            "the selected body retains {target}'s store exactly once"
+        );
+    }
+}
+
+#[test]
 fn mutable_record_field_stores_keep_local_identity_and_authored_order() {
     for (copy, target, result, value) in [
         ("[copy]", "first", "second.value", "5"),

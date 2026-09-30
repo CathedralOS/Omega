@@ -1594,14 +1594,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
   literal has no Terminal establishment" refusal (pinned by
   `folded_index_faces_the_literal_lowering_boundary`).
 
-  Constructor ordering remains open: after `context.samples = [30, 40]`,
-  `Packet { samples: context.samples, stamp: stamp(context) }`, where `stamp`
-  writes `context.samples[0] = 90` and returns 7, must retain [30, 40] in the
-  packet. On macOS ARM64 at `4ac06a9f69c`, the unchanged borrowed-field route
-  rejects with `scalar graph lost its complete authored binding prefix`; the
-  checked interpreter observes the wrong result. Rejoin the complete operand
-  bindings and preserve copied array values across later writes. A mutable
-  local-array version additionally needs the scalar-array local establishment
+  `pass/structs/runtime_array_member_snapshot_exit` exits 70 natively on
+  macOS ARM64: `Packet { samples: context.samples, stamp: stamp(context) }`
+  retains [30, 40] while the later operand writes the source's first element
+  to 90. Scalar bindings and effects share the projected-assignment inventory;
+  an incomplete scalar graph cannot preempt the complete ordinary effect body.
+  Checked interpretation remains wrong (exit 1): `eval_struct_literal` and
+  `eval_case_literal` in checked-interpreter's
+  `evaluator/execution/expressions_and_value_calls.rs` retain shallow field
+  cells across later operand effects. Snapshot owned constructor operands at
+  evaluation time while retaining borrowed-view aliasing; do not deep-copy
+  reference referents. A mutable local-array version additionally needs the
+  scalar-array local establishment
   in stage 04 `control/statement_sequence/local_data.rs`, which currently
   refuses mutable bindings, and whole-array computation-argument loans.
 
