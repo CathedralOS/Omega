@@ -171,10 +171,9 @@ the complete product bar; focused successes below do not establish that baseline
     ([structural access](wiki/spec/terminal-psi/structural_access.md#case-observation));
     `entity_list` exits 35 and
     `pass/control_flow/runtime_indexed_case_dispatch_exit` exits 2 on macOS
-    arm64. Remaining: `bouncing_particles` checks its reads and stops at
-    `selected ProgramEntry Binding field Main::clock requires a selected Fused
-    provider`, the Clock-bearing samples' gap; Boolean element fields,
-    which Terminal and Omega admit but stage 04's
+    arm64. Remaining: `bouncing_particles` checks its reads and, with std
+    `Clock`, stops at the `proof_search_candidate_work` provision; Boolean
+    element fields, which Terminal and Omega admit but stage 04's
     `view_element_field_read` does not produce; bounded and IEEE element
     fields.
 
@@ -638,8 +637,8 @@ the complete product bar; focused successes below do not establish that baseline
 
   | Customer group | Capability owner and remaining acceptance |
   | --- | --- |
-  | `rendering/{bouncing_ball_2d,mandelbrot_zoom}` | Past **OPERATOR-BOUNDARY-CALLS**: at `e1fba057b1` on macOS ARM64 both stop at "selected ProgramEntry Binding field `Main::clock` requires a selected Fused provider for boundary `Clock`", because each declares a package-local `Clock` that nothing provides. The documented migration to `omega_language_std::clock` needs a macOS sleep leg, and `poll(NULL, 0, ms)` has no realization route: a leaf's foreign signature must equal its Omega signature, and a checked adapter over `darwin_poll` reaches `DarwinClock` outside `Clock::sleep`'s ceiling (the marshalled-syscall question in OWNER_QUESTIONS.md). Retain `pending/arithmetic/float_computation_no_route`. |
-  | `rendering/bouncing_particles` | At `e5cb2fc2dbf` on macOS ARM64 it stops at "selected ProgramEntry Binding field `Main::clock` requires a selected Fused provider for boundary `Clock`": its package-local `Clock` has no provider, and std `clock` has no leg that sleeps (the marshalled-syscall question in OWNER_QUESTIONS.md). A scratch copy with the clock field and `sleep` removed stops at the private `proof_search_candidate_work` provision (16384) with Unit call obligation 2^63 + 9 unproved; `collections/entity_list`, formerly in this row, meets its oracle. |
+  | `rendering/bouncing_particles` | With std `Clock` at `82df922beeb` on macOS ARM64 it stops after 163 s at the private `proof_search_candidate_work` provision (16384) with Unit call obligation 2^63 + 9 unproved; at `9e546211a69` its package review exceeds `sample_native_gate.py`'s 2400 s timeout. `collections/entity_list`, formerly in this row, meets its oracle. |
+  | std `Clock` on Linux hosts (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`) | Both linux `nanosleep` leaves stop target lowering with `MissingBoundarySettlement`: provider admission classifies an authored syscall leaf's mechanism but settles no native realization for it. Then linux_x86_64 can take the darwin leg's shape, a checked adapter over a std-private wait requirement, through the integer-only `poll` syscall (7); linux_arm64 has only `ppoll` and `nanosleep`, whose `timespec*` needs a pointer argument that syscall plans do not admit. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
   | `systems/wire_protocol`, `probes/value_call_in_expr` | **RECORD-LITERAL-ARRAY-FIELD** and **VALUE-CALL-SUBEXPRESSION** own the respective operations. |
   | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
@@ -1869,11 +1868,12 @@ crash and native exit behavior. Use affected check/native corpus slices under
     (red at `447fa43066` without these commits; the same state lowered at
     `b5cfc489741`), and `self.nums[0] = 20.5; self.lo = self.nums[0];` in
     one state (already red at `b5cfc489741`). `rendering/bouncing_ball_2d` and
-    `rendering/mandelbrot_zoom` stop at their `Main::clock` Fused provider;
-    `gui/{window_demo,windowed_calculator}` stop after their float statements
-    at a borrowed byte-array element argument and `gui/window_app` at a
-    structural field store destination parameter. Scalar graphs and ordinary
-    bodies share the closure's exact boundary declarations. On macOS ARM64,
+    `rendering/mandelbrot_zoom` meet their exit 0 and output oracles natively
+    with std `Clock`; `gui/{window_demo,windowed_calculator}` stop after
+    their float statements at a borrowed byte-array element argument and
+    `gui/window_app` at a structural field store destination parameter.
+    Scalar graphs and ordinary bodies share the closure's exact boundary
+    declarations. On macOS ARM64,
     `omega run tests/omega/pass/expressions/match_float_subjects/main.omg`
     exits **0** unchanged; `expressions/scalar_match_boundary_composition_exit`
     exits **70**, checking nested applications, ordinary helper operands,
