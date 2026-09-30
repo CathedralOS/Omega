@@ -270,6 +270,17 @@ fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if let StructuralPathSegment::FixedIndex(index) = segment {
+            let declaration = types.iter().find(|declaration| declaration.id == current)?;
+            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+                return None;
+            };
+            if index >= length {
+                return None;
+            }
+            current = *element;
+            continue;
+        }
         let StructuralPathSegment::Field(identity) = segment else {
             return None;
         };
@@ -414,8 +425,8 @@ fn normalized_source(
             // Member storage under a carrier never held as a live reference
             // borrows the carrier's own storage; only a non-reference member
             // may root there — a missing reference carrier is a custody gap.
-            let carrier = source_contract(function, custody, source.place)
-                .ok_or_else(|| invalid())?;
+            let carrier =
+                source_contract(function, custody, source.place).ok_or_else(|| invalid())?;
             return match leaf_type(types, carrier, carrier_path).and_then(|leaf| {
                 types
                     .iter()
@@ -425,10 +436,7 @@ fn normalized_source(
                         _ => Some(()),
                     })
             }) {
-                Some(()) => Ok((
-                    Root::Ingress(source.place, carrier_path.to_vec()),
-                    None,
-                )),
+                Some(()) => Ok((Root::Ingress(source.place, carrier_path.to_vec()), None)),
                 None => Err(invalid()),
             };
         };

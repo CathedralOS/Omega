@@ -229,6 +229,18 @@ fn leaf_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if let StructuralPathSegment::FixedIndex(index) = segment {
+            let StructuralTypeShape::FixedArray { element, length } =
+                &lookup(declarations, current)?.shape
+            else {
+                return None;
+            };
+            if index >= length {
+                return None;
+            }
+            current = *element;
+            continue;
+        }
         let StructuralPathSegment::Field(identity) = segment else {
             return None;
         };
