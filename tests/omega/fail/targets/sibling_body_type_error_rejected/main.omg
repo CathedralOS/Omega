@@ -6,7 +6,7 @@ use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
-demo_target machine Helper::paradigm_internal(&self) -> i32 {
+demo_target machine Helper::paradigm_internal(helper: &Helper) -> i32 {
     let wrong: i32 = true;
     transition { _ -> wrong }
 }

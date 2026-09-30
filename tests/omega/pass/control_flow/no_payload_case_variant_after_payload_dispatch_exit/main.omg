@@ -24,12 +24,12 @@ data Main {
     fire_count: i32 in Wrapping;
 }
 
-machine Main::dispatch(&mut self, event: AlarmEvent) {
+machine Main::dispatch(main: &mut Main, event: AlarmEvent) {
     transition event {
         AlarmEvent::Set { hour, minute } -> do_set(hour, minute)
         AlarmEvent::Snooze { minutes } -> do_snooze(minutes)
         AlarmEvent::Cancel -> do_cancel()
-        AlarmEvent::Trigger -> do_trigger()
+        AlarmEvent::Trigger -> do_trigger(main)
         AlarmEvent::Dismiss -> do_dismiss()
         _ -> done()
     }
@@ -37,14 +37,14 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
     state do_set(hour: i32 in Wrapping, minute: i32 in Wrapping) {}
     state do_snooze(minutes: i32 in Wrapping) {}
     state do_cancel() {}
-    state do_trigger(&mut self) { self.fire_count = self.fire_count + 1; }
+    state do_trigger(main: &mut Main) { main.fire_count = main.fire_count + 1; }
     state do_dismiss() {}
     state done() {}
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.dispatch(AlarmEvent::Trigger);
-    self.dispatch(AlarmEvent::Trigger);
+    Main::dispatch(&mut self, AlarmEvent::Trigger);
+    Main::dispatch(&mut self, AlarmEvent::Trigger);
 
     transition self.fire_count == 2 {
         true -> good()

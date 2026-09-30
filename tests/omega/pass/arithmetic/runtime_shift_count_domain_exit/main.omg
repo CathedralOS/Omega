@@ -11,21 +11,21 @@ use omega::language::core::binding;
 data Main { console: Binding<Console>; k: u32; }
 machine Main::main(&mut self) {
     self.k = 3;
-    self.build();
+    Main::build(&mut self);
 }
-machine Main::build(&mut self) reaches Console {
+machine Main::build(main: &mut Main) reaches Console {
     let a: u32 in Wrapping = (1 as u32 in Wrapping);
-    let r: u32 in Wrapping = a << self.k;
+    let r: u32 in Wrapping = a << main.k;
     transition r == 8 {
-        true -> leg2()
-        _ -> wrong_shl()
+        true -> leg2(main)
+        _ -> wrong_shl(main)
     }
-    state leg2(&mut self) {
+    state leg2(main: &mut Main) {
         let b: u32 in Wrapping = (64 as u32 in Wrapping);
-        let s: u32 in Wrapping = b >> self.k;
+        let s: u32 in Wrapping = b >> main.k;
         transition s == 8 {
-            true -> atwidth32()
-            _ -> wrong_shr()
+            true -> atwidth32(main)
+            _ -> wrong_shr(main)
         }
     }
     // MASKED-COUNT at-width legs (F8b, ch5 shift-count ruling 2026-07-18):
@@ -33,27 +33,27 @@ machine Main::build(&mut self) reaches Console {
     // modular reading, and what the hardware computes anyway. 1 << 40 at u32
     // is 1 << 8 = 256; 1 << 70 at u64 is 1 << 6 = 64. (Supersedes the
     // retired modular-VALUE semantics where at-width counts collapsed to 0.)
-    state atwidth32(&mut self) {
+    state atwidth32(main: &mut Main) {
         let a: u32 in Wrapping = (1 as u32 in Wrapping);
         let c: u32 in Wrapping = (40 as u32 in Wrapping);
         let r: u32 in Wrapping = a << c;
         transition r == 256 {
-            true -> atwidth64()
-            _ -> wrong_atwidth32()
+            true -> atwidth64(main)
+            _ -> wrong_atwidth32(main)
         }
     }
-    state atwidth64(&mut self) {
+    state atwidth64(main: &mut Main) {
         let a: u64 in Wrapping = (1 as u64 in Wrapping);
         let c: u64 in Wrapping = (70 as u64 in Wrapping);
         let r: u64 in Wrapping = a << c;
         transition r == 64 {
-            true -> good()
-            _ -> wrong_atwidth64()
+            true -> good(main)
+            _ -> wrong_atwidth64(main)
         }
     }
-    state good(&mut self)           { self.console.exit_process(70); }
-    state wrong_shl(&mut self)      { self.console.exit_process(71); }
-    state wrong_shr(&mut self)      { self.console.exit_process(72); }
-    state wrong_atwidth32(&mut self){ self.console.exit_process(73); }
-    state wrong_atwidth64(&mut self){ self.console.exit_process(74); }
+    state good(main: &mut Main)           { main.console.exit_process(70); }
+    state wrong_shl(main: &mut Main)      { main.console.exit_process(71); }
+    state wrong_shr(main: &mut Main)      { main.console.exit_process(72); }
+    state wrong_atwidth32(main: &mut Main){ main.console.exit_process(73); }
+    state wrong_atwidth64(main: &mut Main){ main.console.exit_process(74); }
 }

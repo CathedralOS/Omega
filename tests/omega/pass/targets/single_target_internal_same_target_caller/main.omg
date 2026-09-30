@@ -23,14 +23,14 @@ use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
-uefi_x86_64 machine Helper::paradigm_internal(&self) -> i32 {
+uefi_x86_64 machine Helper::paradigm_internal(helper: &Helper) -> i32 {
     transition { _ -> 63 }
 }
 
 // The caller: scoped to the SAME non-selected target, so it is filtered out
 // alongside the callee instead of naming a body this build never realizes.
-uefi_x86_64 machine Helper::paradigm_caller(&self) -> i32 {
-    transition { _ -> (self.paradigm_internal()) }
+uefi_x86_64 machine Helper::paradigm_caller(helper: &Helper) -> i32 {
+    transition { _ -> (Helper::paradigm_internal(helper)) }
 }
 
 data Main { console: Binding<Console>; helper: Helper; }

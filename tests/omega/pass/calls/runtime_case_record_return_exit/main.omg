@@ -26,26 +26,26 @@ machine delta(direction: Direction) -> Output {
     }
 }
 
-machine Main::direct(&mut self, direction: Direction) {
+machine Main::direct(main: &mut Main, direction: Direction) {
     let output: Output = delta(direction);
-    self.total = self.total + (output.value as u64 in Saturating);
+    main.total = main.total + (output.value as u64 in Saturating);
 }
 
-machine Main::step(&mut self, direction: Direction) {
+machine Main::step(main: &mut Main, direction: Direction) {
     let first: Spare = Spare { value: 1 };
     let last: Spare = Spare { value: 2 };
     let output: Output = make(first, direction, last);
-    self.total = self.total + (output.value as u64 in Saturating);
+    main.total = main.total + (output.value as u64 in Saturating);
 }
 
 machine Main::main(&mut self) reaches Console {
     self.total = 0;
-    self.step(Direction::Left);
-    self.step(Direction::Right);
-    self.direct(Direction::Left);
-    self.direct(Direction::Right);
-    self.direct(Direction::Up);
-    self.direct(Direction::Down);
+    Main::step(&mut self, Direction::Left);
+    Main::step(&mut self, Direction::Right);
+    Main::direct(&mut self, Direction::Left);
+    Main::direct(&mut self, Direction::Right);
+    Main::direct(&mut self, Direction::Up);
+    Main::direct(&mut self, Direction::Down);
     transition self.total == 80 {
         true -> passed()
         false -> failed()

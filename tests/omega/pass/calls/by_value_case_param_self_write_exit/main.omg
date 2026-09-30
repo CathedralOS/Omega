@@ -27,7 +27,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.apply(Event::Insert { cents: 50 });
+    Main::apply(&mut self, Event::Insert { cents: 50 });
     transition self.register.balance == 50 {
         true -> report(70)
         _ -> not_fifty()
@@ -43,13 +43,13 @@ machine Main::main(&mut self) reaches Console {
     }
 }
 
-machine Main::apply(&mut self, event: Event) {
+machine Main::apply(main: &mut Main, event: Event) {
     transition event {
-        Event::Insert { cents } -> add_balance(cents)
+        Event::Insert { cents } -> add_balance(main, cents)
         _ -> idle()
     }
-    state add_balance(&mut self, cents: i32 in Wrapping) {
-        self.register.balance = self.register.balance + cents;
+    state add_balance(main: &mut Main, cents: i32 in Wrapping) {
+        main.register.balance = main.register.balance + cents;
     }
     state idle() {
     }

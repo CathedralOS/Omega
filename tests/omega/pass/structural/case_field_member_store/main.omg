@@ -27,12 +27,12 @@ data Main {
     boxed: Box;
 }
 
-machine Main::copy_fmt<'a>(&mut self, source: &'a Box) {
-    self.boxed.fmt = source.fmt;
+machine Main::copy_fmt<'a>(main: &mut Main, source: &'a Box) {
+    main.boxed.fmt = source.fmt;
 }
 
 machine Main::main(&mut self) reaches Console {
     let source: Box = Box { fmt: Fmt::Hex, tag: 7 };
-    self.copy_fmt(&source);
+    Main::copy_fmt(&mut self, &source);
     self.console.exit_process(0);
 }

@@ -13,16 +13,16 @@ data Probe {
     limit: u64;
 }
 
-machine Probe::classify(&self, value: u64) -> u64 {
-    let ready: bool = self.enabled;
+machine Probe::classify(probe: &Probe, value: u64) -> u64 {
+    let ready: bool = probe.enabled;
     transition ready {
-        true -> bounds(value)
+        true -> bounds(probe, value)
         false -> (0)
         _ -> (0)
     }
 
-    state bounds(&self, value: u64) -> u64 {
-        transition value < self.limit {
+    state bounds(probe: &Probe, value: u64) -> u64 {
+        transition value < probe.limit {
             true -> (1)
             _ -> (0)
         }
@@ -35,7 +35,7 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     let probe: Probe = Probe { enabled: true, limit: 10 };
-    let class: u64 = probe.classify(5);
+    let class: u64 = Probe::classify(probe, 5);
 
     transition class == 1 {
         true -> done()

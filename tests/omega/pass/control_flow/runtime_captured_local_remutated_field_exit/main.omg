@@ -27,32 +27,32 @@ data Main {
     vm: Vm;
 }
 
-machine Main::init(&mut self) {
-    self.vm.sp = 0 - 1;
+machine Main::init(main: &mut Main) {
+    main.vm.sp = 0 - 1;
 }
 
-machine Main::push(&mut self, value: i32 in Wrapping) {
-    let new_sp: i32 in Wrapping = self.vm.sp + 1;
-    self.vm.sp = new_sp;
+machine Main::push(main: &mut Main, value: i32 in Wrapping) {
+    let new_sp: i32 in Wrapping = main.vm.sp + 1;
+    main.vm.sp = new_sp;
     transition new_sp == 0 {
-        true -> push0(value)
-        _ -> try_push1(new_sp, value)
+        true -> push0(main, value)
+        _ -> try_push1(main, new_sp, value)
     }
-    state push0(&mut self, value: i32 in Wrapping) { self.vm.stack[0] = value; }
-    state try_push1(&mut self, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
+    state push0(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[0] = value; }
+    state try_push1(main: &mut Main, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 1 {
-            true -> push1(value)
-            _ -> push2(value)
+            true -> push1(main, value)
+            _ -> push2(main, value)
         }
     }
-    state push1(&mut self, value: i32 in Wrapping) { self.vm.stack[1] = value; }
-    state push2(&mut self, value: i32 in Wrapping) { self.vm.stack[2] = value; }
+    state push1(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[1] = value; }
+    state push2(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[2] = value; }
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.init();
-    self.push(3);
-    self.push(4);
+    Main::init(&mut self);
+    Main::push(&mut self, 3);
+    Main::push(&mut self, 4);
 
     transition self.vm.stack[1] == 4 {
         true -> check0()
