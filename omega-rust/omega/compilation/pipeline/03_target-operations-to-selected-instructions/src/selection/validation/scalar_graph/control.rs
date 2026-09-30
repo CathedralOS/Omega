@@ -27,7 +27,7 @@ pub(super) fn validate(
         block.terminator,
         LegalizedScalarTerminator::StructuralCase { .. }
     ) {
-        return super::structural_case::validate(block, replay, catalog);
+        return super::structural_case::validate(source, block, replay, catalog);
     }
     if super::process_exit::validate(block, replay)? {
         return Ok(());

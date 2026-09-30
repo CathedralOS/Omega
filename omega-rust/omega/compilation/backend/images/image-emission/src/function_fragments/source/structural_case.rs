@@ -58,8 +58,9 @@ pub(super) fn retained(
 // Mandatory selected-source replay validates the complete realization. This
 // roster join still distinguishes an operation result from a destination-owned
 // arrival; equal place numbers cannot substitute a different block's home.
-// A function's own owned parameter dispatches from its entry-retained slot,
-// and a readable borrow dispatches through its referent pointer.
+// A function's owned parameter can use an entry-retained local slot or the
+// address of its ABI value copy; a readable loan uses its referent pointer.
+// The selected-source replay checks that physical choice against the call ABI.
 fn source_slot_matches(
     dispatch: &selected_instructions::SelectedCaseDispatchSource,
     source: PlaceId,
@@ -107,8 +108,9 @@ fn source_slot_matches(
             let mut declared = parameters
                 .iter()
                 .filter(|parameter| parameter.place == source);
-            return declared.next().is_some_and(|parameter| borrowed(parameter))
-                && declared.next().is_none();
+            return declared.next().is_some_and(|parameter| {
+                parameter.access == StructuralAccess::Owned || borrowed(parameter)
+            }) && declared.next().is_none();
         }
     };
     match slot {
@@ -148,6 +150,54 @@ mod tests {
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         }
+    }
+
+    #[test]
+    fn addressed_case_parameter_keeps_its_declared_owner_and_read_access() {
+        let source = PlaceId::new(7).unwrap();
+        let dispatch = selected_instructions::SelectedCaseDispatchSource::Borrowed {
+            place: source,
+            pointer: selected_instructions::VirtualRegisterId(3),
+            byte_size: 20,
+        };
+        for access in [
+            StructuralAccess::Owned,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+        ] {
+            let mut parameter = owned(source);
+            parameter.access = access;
+            assert!(source_slot_matches(
+                &dispatch,
+                source,
+                &[],
+                std::slice::from_ref(&parameter)
+            ));
+            assert!(!source_slot_matches(
+                &dispatch,
+                source,
+                &[],
+                &[parameter.clone(), parameter]
+            ));
+        }
+        assert!(!source_slot_matches(&dispatch, source, &[], &[]));
+        let mut write_only = owned(source);
+        write_only.access = StructuralAccess::WriteOnlyBorrow;
+        assert!(!source_slot_matches(&dispatch, source, &[], &[write_only]));
+        let other = owned(PlaceId::new(8).unwrap());
+        assert!(!source_slot_matches(&dispatch, source, &[], &[other]));
+        let arrival = AbstractBlockEntry {
+            block: BlockId::new(3).unwrap(),
+            operation_offset: 0,
+            parameters: Vec::new(),
+            structural_parameters: vec![owned(source)],
+        };
+        assert!(!source_slot_matches(
+            &dispatch,
+            source,
+            &[arrival],
+            &[owned(source)]
+        ));
     }
 
     #[test]

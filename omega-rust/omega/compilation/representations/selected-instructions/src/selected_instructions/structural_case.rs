@@ -14,8 +14,10 @@ pub struct SelectedStructuralCaseEdge {
 }
 
 /// Where a selected case edge reads the dispatched sum. An activation-local
-/// home is a frame slot; a borrowed parameter is the entry-retained referent
-/// pointer, so the edge reads caller-owned bytes through it.
+/// home is a frame slot; an address-backed source borrows the entry-retained
+/// pointer for observation. The pointer may name either an owned ABI value
+/// copy or a loan's referent. This physical transport does not grant ownership:
+/// independent source replay retains the legalized subject's access and owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedCaseDispatchSource {
     Local {
@@ -24,7 +26,7 @@ pub enum SelectedCaseDispatchSource {
     Borrowed {
         place: PlaceId,
         pointer: VirtualRegisterId,
-        /// The referent's full byte size — the payload-read bound a slot row
+        /// The addressed value's full byte size — the payload-read bound a slot row
         /// supplies for local sources.
         byte_size: u32,
     },
@@ -43,7 +45,7 @@ impl SelectedCaseDispatchSource {
             _ => None,
         }
     }
-    /// Only a value-copy dispatch owns a local storage slot.
+    /// Register-carried values use local slots; addressed ABI copies need none.
     pub fn local_slot(&self) -> Option<LocalStorageSlotId> {
         match self {
             Self::Local { slot } => Some(*slot),

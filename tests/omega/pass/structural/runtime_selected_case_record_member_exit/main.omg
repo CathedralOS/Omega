@@ -3,7 +3,7 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 data Reset { success: bool; }
-data Metadata { count: i32; }
+data Metadata { valid: bool; count: i32; }
 data Scanned { left: Metadata; right: Metadata; }
 data Response {
     case Reset(response: Reset);
@@ -14,7 +14,7 @@ data Main { console: Binding<Console>; }
 machine Main::inspect(&mut self, response: Response) reaches Console {
     transition response {
         Response::Reset { response } -> finish(1, 2, response.success)
-        Response::Scanned { response } -> finish(response.left.count, response.right.count, true)
+        Response::Scanned { response } -> finish(response.left.count, response.right.count, response.left.valid && !response.right.valid)
     }
     state finish(&mut self, left: i32, right: i32, success: bool) {
         transition success && left == 17 && right == 25 {
@@ -28,6 +28,6 @@ machine Main::inspect(&mut self, response: Response) reaches Console {
 
 machine Main::main(&mut self) reaches Console {
     self.inspect(Response::Scanned {
-        response: Scanned { left: Metadata { count: 17 }, right: Metadata { count: 25 } }
+        response: Scanned { left: Metadata { valid: true, count: 17 }, right: Metadata { valid: false, count: 25 } }
     });
 }
