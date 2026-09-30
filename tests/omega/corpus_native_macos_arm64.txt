@@ -698,6 +698,10 @@ pass/proofs/quotient_lift_managed_compile rejected 406ms
 pass/proofs/ring_full_polynomial_compile built 586ms
 pass/proofs/ring_law_conformance built 518ms
 pass/proofs/runtime_decreases_u64_measure_exit built 680ms exit:70
+pass/proofs/runtime_inductive_climbing_sum_exit rejected 6132ms @7c6892099245+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::climb", reason: "scalar callee has no checked executable body", omission: Some("`Main::climb` has no admitted body (local construction stopped at statement sequence: call count agreement)") })
+pass/proofs/runtime_inductive_gauss_sum_exit rejected 6807ms @7c6892099245+wt
+	terminal-artifact production failed: Lowering(Unsupported("machine must have exactly one requires and one ensures clause"))
 pass/proofs/runtime_nat_structural_recursion_exit built 573ms exit:70
 pass/proofs/runtime_ranked_accumulator_early_exit built 578ms exit:70
 pass/proofs/runtime_ranked_accumulator_guarantee_exit built 821ms exit:70
