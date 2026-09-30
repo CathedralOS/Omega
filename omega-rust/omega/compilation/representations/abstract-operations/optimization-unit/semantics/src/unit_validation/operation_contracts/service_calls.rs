@@ -343,40 +343,85 @@ fn reference_call_matches(
     let Some(contract) = callee.verified_contract.as_ref() else {
         return false;
     };
-    result.structural_type == signature.structural_type
-        && result.multiplicity == signature.multiplicity
-        && result.qualifications == signature.qualifications
-        && result.projected_qualifications == signature.projected_qualifications
-        && crate::unit_validation::references::contains_reference(types, result.structural_type)
-        && (crate::unit_validation::references::referent(types, result.structural_type).is_some()
-            || crate::unit_validation::operation_contracts::constructible(
-                types,
-                result.structural_type,
-            ))
-        && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-        && result.claims.is_empty()
-        && caller.structural_places.iter().any(|place| {
-            place.id == result.place
-                && place.kind
-                    == semantic_vocabulary::StructuralPlaceKind::OperationResult {
-                        producer: *psi_operation,
-                        structural_type: result.structural_type,
+    let checks = [
+        (
+            "sig_type",
+            result.structural_type == signature.structural_type,
+        ),
+        ("sig_mult", result.multiplicity == signature.multiplicity),
+        (
+            "sig_qual",
+            result.qualifications == signature.qualifications,
+        ),
+        (
+            "sig_pqual",
+            result.projected_qualifications == signature.projected_qualifications,
+        ),
+        (
+            "contains_ref",
+            crate::unit_validation::references::contains_reference(types, result.structural_type),
+        ),
+        (
+            "ref_or_construct",
+            crate::unit_validation::references::referent(types, result.structural_type)
+                .is_some()
+                || crate::unit_validation::operation_contracts::constructible(
+                    types,
+                    result.structural_type,
+                )
+                // A record referent is equally a whole established carrier:
+                // `&Node` binds the constructible record its `Reference`
+                // shell names, not a primitive referent.
+                || match types.get(&result.structural_type).map(|declaration| {
+                    &declaration.shape
+                }) {
+                    Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) => {
+                        crate::unit_validation::operation_contracts::constructible(
+                            types, *referent,
+                        )
                     }
-        })
-        && claim_transfers.is_empty()
-        && returned_claim_transfers.is_empty()
-        && callee.entry_claims.is_empty()
-        && callee.content_entry_claims.is_empty()
-        && arguments.len() == callee.parameters.len()
-        && requirement_obligations.len() == contract.requires.len()
-        && *crash_continuations == contract.crash_routes
-        && structural_arguments_match(
-            caller,
-            structural_arguments,
-            &callee.structural_parameters,
-            types,
-            domains,
-            StructuralProjectionPolicy::Unit,
-            true,
-        )
+                    _ => false,
+                },
+        ),
+        (
+            "affine",
+            result.multiplicity == terminal_psi::StructuralMultiplicity::Affine,
+        ),
+        ("claims_empty", result.claims.is_empty()),
+        (
+            "place_kind",
+            caller.structural_places.iter().any(|place| {
+                place.id == result.place
+                    && place.kind
+                        == semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                            producer: *psi_operation,
+                            structural_type: result.structural_type,
+                        }
+            }),
+        ),
+        ("ct_empty", claim_transfers.is_empty()),
+        ("rct_empty", returned_claim_transfers.is_empty()),
+        ("ec_empty", callee.entry_claims.is_empty()),
+        ("cec_empty", callee.content_entry_claims.is_empty()),
+        ("args_len", arguments.len() == callee.parameters.len()),
+        (
+            "req_len",
+            requirement_obligations.len() == contract.requires.len(),
+        ),
+        ("crash", *crash_continuations == contract.crash_routes),
+        (
+            "args_match",
+            structural_arguments_match(
+                caller,
+                structural_arguments,
+                &callee.structural_parameters,
+                types,
+                domains,
+                StructuralProjectionPolicy::Unit,
+                true,
+            ),
+        ),
+    ];
+
+    checks.iter().all(|(_, ok)| *ok)
 }

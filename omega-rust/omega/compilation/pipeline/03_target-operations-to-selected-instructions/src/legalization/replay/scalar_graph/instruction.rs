@@ -314,7 +314,7 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. },
             AbstractOperation::StructuralByteSequenceFieldLength { .. },
         ) => storage_instructions::validate_structural_scalar_field_read(
-            actual, node, optimized, plan,
+            actual, node, optimized, plan, custody,
         )?,
         (
             LegalizedScalarInstructionKind::BitwiseAnd { left, right },

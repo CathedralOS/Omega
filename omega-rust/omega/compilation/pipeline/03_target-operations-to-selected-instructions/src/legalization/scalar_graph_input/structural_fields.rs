@@ -192,6 +192,7 @@ pub(in crate::legalization) fn read(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,
     types: &[terminal_psi::StructuralTypeDeclaration],
+    custody: &super::reference_custody::Custody,
 ) -> Option<FieldObservation> {
     if let AbstractOperation::StructuralByteSequenceFieldLength {
         psi_operation,
@@ -243,6 +244,15 @@ pub(in crate::legalization) fn read(
     {
         return None;
     }
+    // A field read spelled on a live `&` carrier rebases onto the referent
+    // root the custody names — the carrier never materializes its own
+    // pointer — resolving `(place, access, path prefix)` for the argument.
+    let mut rebased: Option<(
+        semantic_vocabulary::PlaceId,
+        terminal_psi::StructuralAccess,
+        Vec<terminal_psi::StructuralPathSegment>,
+        semantic_vocabulary::StructuralTypeId,
+    )> = None;
     // Access belongs to the exact declaration. Owned input observations retain
     // the value ABI; selection must supply captured value storage, not reinterpret
     // an incoming value fragment as the address used by a borrowed parameter.
@@ -276,21 +286,59 @@ pub(in crate::legalization) fn read(
         }
         // An element view's descriptor is the read's carrier, not the
         // observed storage: a view element read borrows through the live
-        // extent, an owned result reads its own value storage.
-        let access = if types
+        // extent, an owned result reads its own value storage. A live `&`
+        // loan carrier rebases onto the referent root its custody names; the
+        // referent declaration resolves the field geometry either way.
+        let (structural_type, access) = match types
             .iter()
             .find(|declaration| declaration.id == result.structural_type)
-            .is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    terminal_psi::StructuralTypeShape::ElementView { .. }
-                )
-            }) {
-            terminal_psi::StructuralAccess::SharedBorrow
-        } else {
-            terminal_psi::StructuralAccess::Owned
+            .map(|declaration| &declaration.shape)
+        {
+            Some(terminal_psi::StructuralTypeShape::ElementView { .. }) => (
+                result.structural_type,
+                terminal_psi::StructuralAccess::SharedBorrow,
+            ),
+            Some(terminal_psi::StructuralTypeShape::Reference {
+                referent,
+                access:
+                    terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow,
+            }) => {
+                let leaf = custody.leaf(place, &[])?;
+                let (root_place, root_path) = match &leaf.root {
+                    super::reference_custody::Root::Place(place) => (*place, Vec::new()),
+                    super::reference_custody::Root::Ingress(place, path) => (*place, path.clone()),
+                };
+                let root_contract = function
+                    .structural_parameters
+                    .iter()
+                    .chain(
+                        function
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.structural_parameters),
+                    )
+                    .find(|parameter| parameter.place == root_place)
+                    .map(|parameter| (parameter.structural_type, parameter.access))
+                    .or_else(|| {
+                        super::structural_case::source_result(function, root_place)
+                            .ok()
+                            .map(|(_, result)| {
+                                (
+                                    result.structural_type,
+                                    terminal_psi::StructuralAccess::Owned,
+                                )
+                            })
+                    })?;
+                rebased = Some((root_place, root_contract.1, root_path, root_contract.0));
+                (*referent, root_contract.1)
+            }
+            _ => (
+                result.structural_type,
+                terminal_psi::StructuralAccess::Owned,
+            ),
         };
-        (result.structural_type, access)
+        (structural_type, access)
     };
     // A final `Case` step selects which payload overlay holds the field. It
     // names no storage of its own: the payload lives at the sum's place, so
@@ -302,21 +350,37 @@ pub(in crate::legalization) fn read(
         _ => (path.as_slice(), None),
     };
     let runtime_path = runtime_path(structural_type, carrier_path, types)?;
-    let source = terminal_psi::StructuralArgument {
-        place,
-        access,
-        path: runtime_path,
+    let (source, observed) = match rebased {
+        Some((root_place, root_access, mut root_path, root_type)) => {
+            root_path.extend(runtime_path.iter().cloned());
+            (
+                terminal_psi::StructuralArgument {
+                    place: root_place,
+                    access: root_access,
+                    path: root_path,
+                },
+                root_type,
+            )
+        }
+        None => (
+            terminal_psi::StructuralArgument {
+                place,
+                access,
+                path: runtime_path,
+            },
+            structural_type,
+        ),
     };
     match case {
         None => crate::structural_inputs::structural_reference_input::field_read(
-            structural_type,
+            observed,
             &source.path,
             field,
             result.scalar_type,
             types,
         )?,
         Some(case) => crate::structural_inputs::structural_reference_input::case_field_read(
-            structural_type,
+            observed,
             &source.path,
             case,
             field,

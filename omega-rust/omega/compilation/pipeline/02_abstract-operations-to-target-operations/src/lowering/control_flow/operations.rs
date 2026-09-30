@@ -60,24 +60,51 @@ pub(super) fn lower_operation(
     // Reference custody: reads, writes and establishments cannot touch a
     // suspended referent, and a live carrier is never owned data. Call-shaped
     // operations route through the custody-aware argument lowering below.
-    let accessed_root = match operation {
-        AbstractOperation::AtomicEvent { event, .. } => event.place(),
+    let (accessed_root, referent_read) = match operation {
+        AbstractOperation::AtomicEvent { event, .. } => (event.place(), false),
         AbstractOperation::PrimitiveScalarRead { source, .. }
         | AbstractOperation::StructuralCaseMembership { source, .. }
-        | AbstractOperation::StructuralLeafCopy { source, .. }
         | AbstractOperation::StructuralCase { source, .. }
-        | AbstractOperation::StructuralScalarFieldRead { source, .. } => Some(*source),
-        AbstractOperation::PrimitiveLocalStore { destination, .. } => Some(*destination),
-        AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } => Some(destination.place),
-        AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
-            Some(destination.place())
+        | AbstractOperation::StructuralScalarFieldRead { source, .. } => {
+            // A scalar or case observation spelled on a live reference
+            // carrier reads through the loan's own authority — the referent
+            // observation the borrow exists to serve, not owned-data use of
+            // the carrier place. A write-only loan has no read authority.
+            let referent_read = live.references.iter().any(|((carrier, _), custody)| {
+                *carrier == *source
+                    && structural_types
+                        .get(&custody.result.structural_type)
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::Reference {
+                                    access: terminal_psi::StructuralAccess::SharedBorrow
+                                        | terminal_psi::StructuralAccess::MutableBorrow,
+                                    ..
+                                }
+                            )
+                        })
+            });
+            (Some(*source), referent_read)
         }
-        AbstractOperation::EstablishPrimitiveLocal { result, .. } => Some(result.place),
-        AbstractOperation::MoveStructuralField { source, .. } => Some(source.place()),
-        AbstractOperation::StoreStructuralField { destination, .. } => Some(destination.place()),
-        _ => None,
+        AbstractOperation::StructuralLeafCopy { source, .. } => (Some(*source), false),
+        AbstractOperation::PrimitiveLocalStore { destination, .. } => (Some(*destination), false),
+        AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } => {
+            (Some(destination.place), false)
+        }
+        AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
+            (Some(destination.place()), false)
+        }
+        AbstractOperation::EstablishPrimitiveLocal { result, .. } => (Some(result.place), false),
+        AbstractOperation::MoveStructuralField { source, .. } => (Some(source.place()), false),
+        AbstractOperation::StoreStructuralField { destination, .. } => {
+            (Some(destination.place()), false)
+        }
+        _ => (None, false),
     };
-    if accessed_root.is_some_and(|place| super::references::check_root_access(live, place)) {
+    if !referent_read
+        && accessed_root.is_some_and(|place| super::references::check_root_access(live, place))
+    {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // Call paths that do not lower reference-aware arguments reject any

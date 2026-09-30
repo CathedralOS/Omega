@@ -73,6 +73,10 @@ struct LiveDefinitions {
     /// lowering-time mirror of the verified ownership replay: carriers own
     /// loan permission, never referent storage.
     references: BTreeMap<(PlaceId, Vec<StructuralPathSegment>), references::ReferenceCustody>,
+    /// Roots whose loan custody a sibling edge already released. Every edge
+    /// cleanup roster declares the same places, so later edges re-admit a
+    /// root the first edge drained instead of failing its live-carrier check.
+    drained_loan_roots: BTreeSet<PlaceId>,
 }
 
 pub(super) fn lower(
@@ -362,6 +366,7 @@ pub(super) fn lower(
         lengths: BTreeMap::new(),
         trivial_affine_locals: BTreeMap::new(),
         references: entry_references.clone(),
+        drained_loan_roots: BTreeSet::new(),
     };
     for (position, dominator) in schedule {
         let mut live = match dominator {

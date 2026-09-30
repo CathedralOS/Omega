@@ -654,6 +654,7 @@ pub(super) fn validate_operation(
                 optimized,
                 abstracted,
                 &plan.structural_types,
+                custody,
             )
             .ok_or(LegalizationError::custody())?;
             if expected != (*psi_operation, *result, source.clone(), case, *field) {

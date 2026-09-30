@@ -540,7 +540,29 @@ pub(super) fn apply_operation(
         | O::StructuralCaseMembership { source, .. }
         | O::StructuralCase { source, .. }
         | O::StructuralScalarFieldRead { source, .. } => {
-            check_root_access(function, block, node, live, *source)?
+            // A scalar or case observation spelled on a live reference
+            // carrier reads through the loan's own authority — the referent
+            // observation the borrow exists to serve, not owned-data use of
+            // the carrier place. A write-only loan has no read authority.
+            if live.iter().any(|reference| reference.carrier == *source) {
+                let readable = structural_source_contract(function, *source, false)
+                    .and_then(|contract| structural_types.get(&contract.structural_type))
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::Reference {
+                                access: terminal_psi::StructuralAccess::SharedBorrow
+                                    | terminal_psi::StructuralAccess::MutableBorrow,
+                                ..
+                            }
+                        )
+                    });
+                if !readable {
+                    check_root_access(function, block, node, live, *source)?;
+                }
+            } else {
+                check_root_access(function, block, node, live, *source)?;
+            }
         }
         O::PrimitiveLocalStore { destination, .. } => {
             check_root_access(function, block, node, live, *destination)?

@@ -13,6 +13,7 @@ pub(super) fn validate_structural_scalar_field_read(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
+    custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<(), LegalizationError> {
     // A record read and a byte-length observation carry no case; a
     // case-qualified read must name exactly the case its abstract carrier's
@@ -39,6 +40,7 @@ pub(super) fn validate_structural_scalar_field_read(
             optimized,
             &node.operation,
             &plan.structural_types,
+            custody,
         )
         .ok_or(invalid.clone())?;
     if source != &expected_source || case != expected_case || *field != expected_field {

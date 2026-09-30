@@ -232,8 +232,19 @@ fn lower_integer_read(
     let invalid = || LoweringError::InvalidIntegerStructuralField(operation.id);
     let structural_type = readable_source_type(machine, source).ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
+    // A call result's `Reference` shell keeps the loan's access on the type;
+    // the observed record is its referent, the same peel the verifying and
+    // codec-side validators apply to this read.
+    let observed_root = match structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .map(|declaration| &declaration.shape)
+    {
+        Some(StructuralTypeShape::Reference { referent, .. }) => *referent,
+        _ => structural_type,
+    };
     if !matches!(result.scalar_type, ScalarType::Integer(_))
-        || observed_scalar_field(structural_types, structural_type, path, field)
+        || observed_scalar_field(structural_types, observed_root, path, field)
             != Some(result.scalar_type)
     {
         return Err(invalid());

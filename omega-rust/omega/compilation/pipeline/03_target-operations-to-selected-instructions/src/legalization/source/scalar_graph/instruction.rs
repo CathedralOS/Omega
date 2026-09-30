@@ -56,6 +56,7 @@ pub(super) fn project(
                 optimized,
                 &node.operation,
                 &plan.structural_types,
+                custody,
             )
             .ok_or(Error::custody())?;
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field }
@@ -65,6 +66,7 @@ pub(super) fn project(
                 optimized,
                 &node.operation,
                 &plan.structural_types,
+                custody,
             )
             .ok_or(Error::custody())?;
             LegalizedScalarInstructionKind::StructuralScalarFieldRead {

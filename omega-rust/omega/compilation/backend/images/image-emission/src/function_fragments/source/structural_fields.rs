@@ -603,10 +603,49 @@ pub(super) fn retained(
         return false;
     };
     let (identity, result, place, field) = (*identity, *result, *place, *field);
-    let Some((access, mut carrier)) = read_access(function, target, place, AccessPurpose::Field)
-    else {
-        return false;
+    // A read spelled on a live `&` carrier names no storage of its own: the
+    // producing call's reference roster re-bases it onto the referent root,
+    // and the runtime path walks the root's declaration through that prefix.
+    let (arg_place, mut root_path, access, mut carrier) = if let Some((access, carrier)) =
+        read_access(function, target, place, AccessPurpose::Field)
+    {
+        (place, Vec::new(), access, carrier)
+    } else {
+        let Some((root_place, root_path)) = reference_root(target, place) else {
+            return false;
+        };
+        let Some((access, carrier)) =
+            read_access(function, target, root_place, AccessPurpose::Field)
+        else {
+            return false;
+        };
+        (root_place, root_path, access, carrier)
     };
+    for segment in &root_path {
+        let terminal_psi::StructuralPathSegment::Field(field_identity) = segment else {
+            return false;
+        };
+        let Some(declaration) = target
+            .graph
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == carrier)
+        else {
+            return false;
+        };
+        let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return false;
+        };
+        let Some(selected) = fields.iter().find(|candidate| {
+            candidate.identity == *field_identity && !candidate.relevance.is_erased()
+        }) else {
+            return false;
+        };
+        let terminal_psi::StructuralFieldType::Structural(child) = selected.field_type else {
+            return false;
+        };
+        carrier = child;
+    }
     // A final `Case` step names the payload overlay the field belongs to. It
     // adds no runtime segment; the published row must carry that same case.
     let (carrier_path, case) = match path.split_last() {
@@ -680,10 +719,11 @@ pub(super) fn retained(
             _ => return false,
         }
     }
+    root_path.extend(runtime_path.iter().cloned());
     let expected_source = StructuralArgument {
-        place,
+        place: arg_place,
         access,
-        path: runtime_path,
+        path: root_path,
     };
     let mut reads = target
         .graph
@@ -713,6 +753,41 @@ enum AccessPurpose {
     Field,
     ByteLength,
     ByteOwnerReplacement,
+}
+
+/// The referent root a live `&` carrier resolves to: the producing call's
+/// published reference roster names the whole-carrier leaf (`path` empty) by
+/// root place and the referent's path beneath it.
+fn reference_root(
+    target: &TargetFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<(
+    semantic_vocabulary::PlaceId,
+    Vec<terminal_psi::StructuralPathSegment>,
+)> {
+    target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match operation {
+            TargetUnitOperation::Call {
+                result:
+                    target_operations::TargetCallResult::Structural {
+                        result,
+                        reference_results,
+                        ..
+                    },
+                ..
+            } if result.place == place => Some(reference_results),
+            _ => None,
+        })
+        .find_map(|leaves| {
+            leaves
+                .iter()
+                .find(|leaf| leaf.path.is_empty())
+                .map(|leaf| (leaf.root, leaf.root_path.clone()))
+        })
 }
 
 fn read_access(

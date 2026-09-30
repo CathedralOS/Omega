@@ -249,12 +249,15 @@ fn leaf_referent(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     let leaf = leaf_type(types, current, fields)?;
+    // A reference leaf over a record names its whole referent the same way a
+    // primitive referent does: the mapped source's type is the referent
+    // declaration itself, not the `Reference` shell.
     referent(types, leaf).or_else(|| {
         types
             .iter()
             .find(|declaration| declaration.id == leaf)
             .and_then(|declaration| match declaration.shape {
-                StructuralTypeShape::Reference { .. } => None,
+                StructuralTypeShape::Reference { referent, .. } => Some(referent),
                 _ => Some(leaf),
             })
     })
@@ -736,6 +739,10 @@ fn call_results(
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: leaf.root.place(),
+            root_path: match &leaf.root {
+                Root::Place(_) => Vec::new(),
+                Root::Ingress(_, path) => path.clone(),
+            },
         });
         established.push(((result.place, mapping.path.clone()), leaf));
     }
@@ -801,7 +808,24 @@ pub(in crate::legalization) fn apply(
             result,
             source,
         } => {
-            let referent = referent(types, result.structural_type).ok_or_else(|| invalid())?;
+            let referent = referent(types, result.structural_type)
+                .or_else(|| {
+                    match types
+                        .iter()
+                        .find(|declaration| declaration.id == result.structural_type)
+                        .map(|declaration| &declaration.shape)
+                    {
+                        Some(StructuralTypeShape::Reference {
+                            referent,
+                            access:
+                                StructuralAccess::SharedBorrow
+                                | StructuralAccess::MutableBorrow
+                                | StructuralAccess::WriteOnlyBorrow,
+                        }) => Some(*referent),
+                        _ => None,
+                    }
+                })
+                .ok_or_else(|| invalid())?;
             if result.multiplicity != StructuralMultiplicity::Affine
                 || !result.claims.is_empty()
                 || !result.qualifications.is_empty()
@@ -1051,6 +1075,10 @@ pub(in crate::legalization) fn apply_terminator(
         }
         _ => {}
     }
+    // Every edge cleanup roster declares the same places; a `&` carrier's
+    // own leaf ends once, however many edges carry the discard.
+    places.sort_unstable();
+    places.dedup();
     for place in places {
         // A suspended referent root cannot be discarded while its loan lives.
         if is_suspended_root(custody, place) {
@@ -1402,6 +1430,10 @@ pub(in crate::legalization) fn reference_results(
         expected.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: root.place(),
+            root_path: match &root {
+                Root::Place(_) => Vec::new(),
+                Root::Ingress(_, path) => path.clone(),
+            },
         });
     }
     Ok(expected)

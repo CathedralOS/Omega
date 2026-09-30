@@ -17,7 +17,7 @@ package
 source
 name "omega_language_std"
 lineage external-local "6485e0de25245c920006a3d47b6b4b7705980fe51b8aab8f1405c439fcf2f795" "/home/ubuntu/omega-pin/source/library/std"
-resolution external-local "6d16165757f92dd4b1ee0f0d3e5d4f17fb25b854d288ffe0526daab5a54876c8"
+resolution external-local "6ad129eb5d3e911b8079d422f91ddb6252281e10aa7fc81dbfa9b63d4c14fa20"
 navigation root
 authored 0
 authored-build 0
@@ -45,13 +45,13 @@ selected
 source
 name "omega_language_std"
 lineage external-local "6485e0de25245c920006a3d47b6b4b7705980fe51b8aab8f1405c439fcf2f795" "/home/ubuntu/omega-pin/source/library/std"
-resolution external-local "6d16165757f92dd4b1ee0f0d3e5d4f17fb25b854d288ffe0526daab5a54876c8"
+resolution external-local "6ad129eb5d3e911b8079d422f91ddb6252281e10aa7fc81dbfa9b63d4c14fa20"
 end
 occurrences 2
 occurrence 0 product omega.target-profile.v1:linux_x86_64 omega.target-profile.v1:linux_x86_64
-acceptance 8542
+acceptance 16415
 acceptance_schema 3
-rows 3
+rows 5
 row callable
 key 2074148735bf17f7aa1385dc432e3e4e29e18db0c96a8669f8f14ff4ae39dd5f
 meaning 4664
@@ -291,6 +291,248 @@ field value {
     }
   }
 }
+row callable
+key fe72550b195e42296a16e6bff490c6bec911a15fa23248fbd974f685c5b08f55
+meaning 4714
+omega_package_policy_row_text 1
+field binary_format {
+  fixed "OMEGA-PACKAGE-POLICY-ROW\x00"
+}
+field row_schema {
+  u16 3
+}
+field baseline_schema {
+  u16 8
+}
+field package {
+  digest e3a61233379b04fd368de98e42279c9abd3a3d5bbf1122e72d53b64aeff42be4
+}
+field target {
+  string "omega.target-profile.v1:linux_x86_64"
+}
+field kind {
+  tag callable 8
+}
+field initial_requires_decision {
+  bool true
+}
+field update_requires_decision {
+  bool true
+}
+field audit_recommended_when_present {
+  bool true
+}
+field audit_recommended_on_change {
+  bool true
+}
+field value {
+  field role {
+    tag private_external 4
+  }
+  field identity {
+    field owner {
+      tag package 0
+      field package {
+        digest e3a61233379b04fd368de98e42279c9abd3a3d5bbf1122e72d53b64aeff42be4
+      }
+    }
+    field path {
+      string "20:conformance-callable26:ClockNativeProvider::sleep152:named-callable(path(ClockNativeProvider::sleep),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u32\\)\\)\\)),result-dispatch())26:ClockNativeProvider::sleep7:machine102:9:parameter68:14:signature-type41:named(name(compiler-type\\(atom\\(u32\\)\\)))5:named17:false:false:false14:11:result-none"
+    }
+  }
+  field supply {
+    field supply {
+      tag external_realization 4
+    }
+  }
+  field spelling {
+    option none
+  }
+  field lifetime_parameter_count {
+    u64 0
+  }
+  field type_parameters {
+    sequence 0 {
+    }
+  }
+  field conformance_bounds {
+    sequence 0 {
+    }
+  }
+  field parameters {
+    sequence 1 {
+      item {
+        field name {
+          string "milliseconds"
+        }
+        field type {
+          field canonical {
+            string "14:signature-type41:named(name(compiler-type\\(atom\\(u32\\)\\)))5:named"
+          }
+        }
+        field const {
+          bool false
+        }
+        field mutable {
+          bool false
+        }
+        field self {
+          bool false
+        }
+      }
+    }
+  }
+  field return_type {
+    option none
+  }
+  field conformances {
+    sequence 1 {
+      item {
+        field trait {
+          field owner {
+            tag package 0
+            field package {
+              digest e3a61233379b04fd368de98e42279c9abd3a3d5bbf1122e72d53b64aeff42be4
+            }
+          }
+          field path {
+            string "Clock"
+          }
+        }
+        field requirement {
+          field owner {
+            tag package 0
+            field package {
+              digest e3a61233379b04fd368de98e42279c9abd3a3d5bbf1122e72d53b64aeff42be4
+            }
+          }
+          field path {
+            string "named-callable(path(Clock::sleep),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u32\\)\\)\\)),result-dispatch())"
+          }
+        }
+        field requirement_lifetime_partition {
+          sequence 0 {
+          }
+        }
+        field trait_lifetime_arguments {
+          sequence 0 {
+          }
+        }
+        field arguments {
+          sequence 0 {
+          }
+        }
+        field alias {
+          option none
+        }
+      }
+    }
+  }
+  field operator_realizations {
+    sequence 0 {
+    }
+  }
+  field requirement_realizations {
+    sequence 0 {
+    }
+  }
+  field contracts {
+    sequence 0 {
+    }
+  }
+  field declared_service_reach {
+    option some {
+      sequence 0 {
+      }
+    }
+  }
+  field service_reach_dependency {
+    field concrete {
+      sequence 0 {
+      }
+    }
+    field parameters {
+      sequence 0 {
+      }
+    }
+  }
+  field checked_service_reach {
+    tag no_checked_body 0
+  }
+  field unresolved_installation_reaches {
+    sequence 0 {
+    }
+  }
+  field declared_synchronous_invocations {
+    option some {
+      sequence 0 {
+      }
+    }
+  }
+  field realized_synchronous_invocations {
+    sequence 0 {
+    }
+  }
+  field capability_flows {
+    sequence 0 {
+    }
+  }
+  field reachable_capability_flows {
+    sequence 0 {
+    }
+  }
+  field declared_may_suspend {
+    option some {
+      bool false
+    }
+  }
+  field declared_may_block {
+    option some {
+      bool false
+    }
+  }
+  field declared_termination {
+    option some {
+      tag no_guarantee 0
+    }
+  }
+  field checked_may_suspend {
+    bool false
+  }
+  field checked_may_block {
+    bool false
+  }
+  field checked_termination {
+    tag no_guarantee 0
+  }
+  field checked_crash {
+    field interface {
+      tag published_ceiling 1
+    }
+    field published {
+      sequence 0 {
+      }
+    }
+    field structural_runtime_requirements {
+      option some {
+        sequence 0 {
+        }
+      }
+    }
+    field inferred {
+      tag unknown 0
+    }
+  }
+  field mutation {
+    field completeness {
+      tag complete 0
+    }
+    field paths {
+      sequence 0 {
+      }
+    }
+  }
+}
 row external_supply
 key 2074148735bf17f7aa1385dc432e3e4e29e18db0c96a8669f8f14ff4ae39dd5f
 meaning 2689
@@ -405,6 +647,137 @@ field value {
   }
   field binding {
     tag compiler_intrinsic 2
+  }
+}
+row external_supply
+key fe72550b195e42296a16e6bff490c6bec911a15fa23248fbd974f685c5b08f55
+meaning 2962
+omega_package_policy_row_text 1
+field binary_format {
+  fixed "OMEGA-PACKAGE-POLICY-ROW\x00"
+}
+field row_schema {
+  u16 3
+}
+field baseline_schema {
+  u16 8
+}
+field package {
+  digest e3a61233379b04fd368de98e42279c9abd3a3d5bbf1122e72d53b64aeff42be4
+}
+field target {
+  string "omega.target-profile.v1:linux_x86_64"
+}
+field kind {
+  tag external_supply 17
+}
+field initial_requires_decision {
+  bool true
+}
+field update_requires_decision {
+  bool true
+}
+field audit_recommended_when_present {
+  bool true
+}
+field audit_recommended_on_change {
+  bool true
+}
+field value {
+  field callable {
+    field owner {
+      tag package 0
+      field package {
+        digest e3a61233379b04fd368de98e42279c9abd3a3d5bbf1122e72d53b64aeff42be4
+      }
+    }
+    field path {
+      string "20:conformance-callable26:ClockNativeProvider::sleep152:named-callable(path(ClockNativeProvider::sleep),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u32\\)\\)\\)),result-dispatch())26:ClockNativeProvider::sleep7:machine102:9:parameter68:14:signature-type41:named(name(compiler-type\\(atom\\(u32\\)\\)))5:named17:false:false:false14:11:result-none"
+    }
+  }
+  field signature {
+    field lifetime_parameter_count {
+      u64 0
+    }
+    field static_parameters {
+      sequence 0 {
+      }
+    }
+    field conformance_bounds {
+      sequence 0 {
+      }
+    }
+    field parameters {
+      sequence 1 {
+        item {
+          field type {
+            field canonical {
+              string "14:signature-type41:named(name(compiler-type\\(atom\\(u32\\)\\)))5:named"
+            }
+          }
+          field const {
+            bool false
+          }
+          field mutable {
+            bool false
+          }
+          field self {
+            bool false
+          }
+        }
+      }
+    }
+    field return_type {
+      option none
+    }
+  }
+  field requirement {
+    tag trait 0
+    field conformance {
+      field trait {
+        field owner {
+          tag package 0
+          field package {
+            digest e3a61233379b04fd368de98e42279c9abd3a3d5bbf1122e72d53b64aeff42be4
+          }
+        }
+        field path {
+          string "Clock"
+        }
+      }
+      field requirement {
+        field owner {
+          tag package 0
+          field package {
+            digest e3a61233379b04fd368de98e42279c9abd3a3d5bbf1122e72d53b64aeff42be4
+          }
+        }
+        field path {
+          string "named-callable(path(Clock::sleep),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u32\\)\\)\\)),result-dispatch())"
+        }
+      }
+      field requirement_lifetime_partition {
+        sequence 0 {
+        }
+      }
+      field trait_lifetime_arguments {
+        sequence 0 {
+        }
+      }
+      field arguments {
+        sequence 0 {
+        }
+      }
+      field alias {
+        option none
+      }
+    }
+  }
+  field binding {
+    tag syscall 1
+    field number {
+      i64 35
+    }
   }
 }
 row dangerous_capability
@@ -664,18 +1037,20 @@ field value {
   }
 }
 end_acceptance
-decisions 713
+decisions 883
 omega-policy-decisions 2
-source a133a8902d6e57a9ba9259477768ffbbaef97b3f7e1a2dc5db39588b9ae50f1e
+source 53a52718fb8b5039316de641d8931bd5e1daa52aeff5a6557bd70777328cbd73
 baseline none
-comparison 8e39b09a9980191d713b5aa0ea431bcd8bde8bcdfb81f58df06a0d76af4ec6b3
-decisions 6
-decision row 4353c941953b332cdf976bafddcc027014dd22d69a4d5ec5e450b16ed9cd94c1 accept
-decision row 447ea6e546612fab9e739fa4a1854dbce5fa0a65610ed00d748695eb5f87f882 accept
-decision row 567df11e16e0aeff93fd9e2e3c64c4079adec8af7ebe6994fd93d4117139db09 accept
-decision row 9b248677faf17fab41579e25a84a7445fa895f95053b9766affcea05c570d9a1 accept
-decision row 9e3b9f5d58fdc01c011bc0537a8a481e87bce5ef4cb1547c80ffc1dfed24c51e accept
-decision row d0bd17aa6ca418bf5596517f82dfc6b1076d2ff907c4952293a6079087b7c906 accept
+comparison 52e645463164884616f5df8b9561b315352013c284fbe93a410df75dd40957c8
+decisions 8
+decision row 04904ec341698a25d316078545df5ebd42e75ac3ffc49236c91fb1220042dfaa accept
+decision row 18fbe86fe333218b20462342dd75a249646fe332924c1e50f013ec290f802eb7 accept
+decision row 5164e1bb528d6af8874ca3ac11f38b73242c0d7f67730e388908de2bf58f605c accept
+decision row 7d01a35cd9f1d13b1c93ff66c7359e5ddb962e78585601656bfcc7e43ccff071 accept
+decision row 8cf05d2ca90502ab9fc95b42a261b38d833acd5318d440299803e794102cb538 accept
+decision row 9792dee8f6f5ef1051edcf0b32224d57c078879af1f8687ed4173da49ab6f043 accept
+decision row bc4335f93616fbbd2bb41be73ee3216257ff7d3cf9124084fe8d2137dcfca407 accept
+decision row df095d5b5493a3cbf386cf7f22513e18d80bb97bd17b310d9d6ad64db82df284 accept
 end
 end_target
 end
