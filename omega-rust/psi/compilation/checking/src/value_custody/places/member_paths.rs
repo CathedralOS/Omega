@@ -1,4 +1,8 @@
-use super::unwrapped_type_reference;
+//! Retained name paths and member diagnostics share declared place resolution.
+//! Member expressions keep case projections: flattening them to spellings can
+//! both reject a valid payload read and admit a field from an inactive case.
+
+use super::{declared_place_type_raw, unwrapped_type_reference};
 use language_core::is_self_receiver;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -132,6 +136,36 @@ pub(crate) fn first_unknown_nested_field(
     current_state: Option<&typed_trees::state::State>,
     expression: ExpressionHandle,
 ) -> Option<(String, String)> {
+    if let ExpressionNode::Member(member) = program.expression_table.expression(expression) {
+        // Diagnose the first missing receiver hop before resolving this member.
+        // The shared type query retains every selected case in that receiver;
+        // a name-only walk would choose the first same-spelled payload instead.
+        if let Some(missing) =
+            first_unknown_nested_field(program, current_machine, current_state, member.receiver)
+        {
+            return Some(missing);
+        }
+        let receiver_type =
+            declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
+        let container = data_definition_for_type(program, receiver_type)?;
+        let field = super::exact_data_member_field(
+            program,
+            container,
+            if member.case_variant.is_some() {
+                member.member_symbol
+            } else {
+                symbols::SymbolHandle::invalid()
+            },
+            member.member.as_str(),
+            member.case_variant.as_ref().map(|case| case.as_str()),
+        );
+        return field.is_none().then(|| {
+            (
+                container.name.as_str().to_owned(),
+                member.member.as_str().to_owned(),
+            )
+        });
+    }
     let path = collect_member_path(program, expression)?;
     if path.len() < 2 {
         return None;

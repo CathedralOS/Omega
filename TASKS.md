@@ -853,15 +853,24 @@ the complete product bar; focused successes below do not establish that baseline
   compiler before assigning any further source-signature or structural-argument
   failure: old diagnostics and expired claims are not current blockers.
 
-  Current published application `a3186ac92eb2bc495817e3d42a9222460db53983`
-  still has the disconnected acceptance route above. On macOS ARM64, compiler
-  base `83b393f4aa1` reaches pending package review (exit 3), not the historical
-  restored-checkout `do_element_scan` rejection, with `omega update --project
-  samples/apps/squalr/squalr-tests --target linux_x86_64`. The shared fixed-array
-  carried-lifetime repair reduces that same review from 101 to 68 seconds with
-  byte-identical output; it does not restore or execute the missing tests.
-  Reconnect the authored acceptance route, resolve ordinary package review, and
-  reproduce its first failure before assigning the next compiler dependency.
+  Published application `a3186ac92eb2bc495817e3d42a9222460db53983` still has
+  the disconnected entry. A restored candidate on that base now checks all 282
+  source files on macOS ARM64 with `omega --check
+  samples/apps/squalr/squalr-tests/main.omg --target linux_x86_64`, after ordinary
+  update/review/resume for 17 packages. The shared member diagnostic now retains
+  selected-case identity instead of confusing same-named response payloads;
+  579 validation tests include valid, foreign-case, borrowed and nested controls.
+  Native emission (`omega run --keep --target linux_x86_64` on the same root)
+  stops at `Main::main`: missing checked transitive machine plan, with local
+  construction refused at `state signature: parameter signature: attached data
+  shape, state 0`. Coordinate the admitted body with STATIC-MACHINE-MIGRATION.
+  A separate deeper payload probe reaches stage 05's fixed-depth
+  `resolve_case_payload` fence in
+  `expression_preparation/bindings/structural_fields/`; generalize retained
+  projection paths and dominating-case evidence with the `successor_edge.rs`
+  owner, not another path-length branch. Production listing also bypasses
+  `Snapshot::deleted_indices` and marks failure-default live reads as present;
+  preserve the seven-result delete/list oracle and real value-presence checks.
 
   Preserve Windows and Linux ARM64 geometry, `set_alignment`, parsing/refusal
   and error-text parity, native clone/serialization of case-bearing alignment,
