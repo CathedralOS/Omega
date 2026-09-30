@@ -23,6 +23,7 @@ mod byte_extent;
 mod case_hops;
 mod element_extent;
 mod float_fields;
+mod primitive_elements;
 mod record;
 mod runtime_index;
 mod scalar_case;
@@ -386,6 +387,11 @@ pub(super) fn append_operation(
     // the ordinary write invalidation above retires prior observations.
     if let Some(equation) =
         float_fields::primitive_equation(module, machine, operation, value_types)
+    {
+        axioms.push(equation);
+    }
+    if let Some(equation) =
+        primitive_elements::element_equation(module, machine, operation, value_types)
     {
         axioms.push(equation);
     }

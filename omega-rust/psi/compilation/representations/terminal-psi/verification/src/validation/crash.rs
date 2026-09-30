@@ -745,7 +745,9 @@ fn validate_boolean_field_terms(
                 if !matches!(
                     structural_leaf_type(module, machine, *root, path),
                     Some(StructuralFieldType::Scalar(ScalarType::Boolean))
-                ) {
+                ) && crate::validation::structural_element_scalar(module, machine, *root, path)
+                    != Some(ScalarType::Boolean)
+                {
                     return Err(ModuleError::InvalidBooleanFieldTerm {
                         machine: machine.id,
                         root: *root,
@@ -766,7 +768,9 @@ fn validate_boolean_field_terms(
                     structural_leaf_type(module, machine, *root, path),
                     Some(StructuralFieldType::BoundedInteger(bounded))
                         if bounded.integer_type() == *scalar_type
-                ) {
+                ) && crate::validation::structural_element_scalar(module, machine, *root, path)
+                    != Some(ScalarType::Integer(*scalar_type))
+                {
                     return Err(ModuleError::InvalidIntegerFieldTerm {
                         machine: machine.id,
                         root: *root,
@@ -779,6 +783,8 @@ fn validate_boolean_field_terms(
                 if structural_leaf_type(module, machine, *root, path)
                     .and_then(StructuralFieldType::scalar_type)
                     != Some(ScalarType::IeeeFloat(*format))
+                    && crate::validation::structural_element_scalar(module, machine, *root, path)
+                        != Some(ScalarType::IeeeFloat(*format))
                 {
                     return Err(ModuleError::InvalidIeeeFloatFieldTerm {
                         machine: machine.id,

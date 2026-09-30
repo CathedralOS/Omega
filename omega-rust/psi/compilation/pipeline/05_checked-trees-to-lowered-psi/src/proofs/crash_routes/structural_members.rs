@@ -65,10 +65,11 @@ pub(crate) fn lower_structural_member_path(
         if let checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) =
             segment
         {
-            // A literal fixed-array index selects an inline element; it can
-            // appear anywhere below the root but cannot terminate the path,
-            // since the leaf must stay a field-typed value.
-            if selected_case_fields.is_some() || index + 1 == path.len() {
+            // A literal fixed-array index selects an inline element. Below
+            // the root it continues into the element's structure; as the
+            // final segment it names one primitive scalar element, the leaf
+            // a collection invariant's per-element row observes.
+            if selected_case_fields.is_some() {
                 return unsupported("structural scalar contract has a malformed indexed path");
             }
             let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
@@ -81,6 +82,22 @@ pub(crate) fn lower_structural_member_path(
             }
             terminal_path.push(CanonicalStructuralPathSegment::FixedIndex(*element_index));
             structural_type = *element;
+            if index + 1 == path.len() {
+                let element_shape = structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == structural_type)
+                    .map(|declaration| &declaration.shape);
+                let Some(StructuralTypeShape::PrimitiveScalar(scalar)) = element_shape else {
+                    return unsupported(
+                        "structural scalar contract element leaf is not a primitive scalar",
+                    );
+                };
+                return Ok((
+                    parameter.place,
+                    terminal_path,
+                    StructuralFieldType::Scalar(*scalar),
+                ));
+            }
             continue;
         }
         let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {

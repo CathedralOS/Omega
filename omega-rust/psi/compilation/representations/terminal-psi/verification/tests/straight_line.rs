@@ -15,6 +15,8 @@ mod case_access;
 mod case_payload;
 #[path = "straight_line/content_modules.rs"]
 mod content_modules;
+#[path = "straight_line/contract_element_leaves.rs"]
+mod contract_element_leaves;
 #[path = "straight_line/contract_fields.rs"]
 mod contract_fields;
 #[path = "straight_line/false_edge_custody.rs"]

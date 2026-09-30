@@ -69,7 +69,9 @@ Do not duplicate those policies in operation-specific verifier branches.
 Contract formation checks every field term, including unused requirements and
 ordinary or outcome-specific guarantees. The existing scope traversal resolves
 canonical paths, exact Boolean/integer/IEEE leaf types, and byte-field kinds
-before proof reconstruction. Caller-supplied facts do not perform observations:
+before proof reconstruction. A Boolean, integer or IEEE leaf is a relevant
+record field or a static in-bounds element of a fixed array whose element
+shape is that primitive scalar. Caller-supplied facts do not perform observations:
 write-only parameters may occur in those logical contracts without acquiring
 readable access. Executable field reads and tag dispatch require their own access
 judgment, even with a supplied case refinement. Nominal cleanup sites
@@ -243,6 +245,15 @@ different forwarded/reborrowed identities alone do not prove separation. The
 bounded query never evaluates source expressions or infers floating equality.
 Its availability rule remains part of the explicitly trusted Rust reconstruction
 closure below, not a separately proved low-rung storage theorem.
+
+[Primitive element observations](src/verification/reconstruction/operation_facts/primitive_elements.rs)
+give a static fixed-index element of a primitive array the equation a field
+observation has: a `PrimitiveScalarRead` result equals the element, and after
+ordinary write invalidation a `WriteOnlyPrimitiveStore` makes the element equal
+the stored value. The element term uses the canonical path contract rows name,
+so a collection invariant's per-element row reaches the values a body reads
+and constrains the values it stores. A runtime-selected element names no leaf
+and publishes nothing; an IEEE element keeps interchange-bit identity.
 
 [Proof scheduling](src/control_graph.rs) cuts DFS ancestor edges in its working
 graph. Cut targets discard incoming semantic axioms. A declared scalar range

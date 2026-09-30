@@ -20,6 +20,7 @@ const PATH_FACTS_DISCRETE: &str = "omega-rust/psi/compilation/representations/te
 const PATH_FACTS_TRANSPORT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/path_facts/transport.rs";
 const OPERATION_FACTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts.rs";
 const OP_FACTS_FLOAT_FIELDS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/float_fields.rs";
+const OP_FACTS_PRIMITIVE_ELEMENTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/primitive_elements.rs";
 const OP_FACTS_POLARITY: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/boolean_polarity.rs";
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/byte_extent.rs";
 const OP_FACTS_RECORD: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/record.rs";
@@ -534,6 +535,27 @@ static FACT_IEEE_PRIMITIVE_FIELD_OBSERVATION: TrustedSurfaceEntry = TrustedSurfa
     soundness: TRUSTED,
 };
 
+static FACT_PRIMITIVE_ELEMENT_OBSERVATION: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:primitive-element-observation",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "a validated PrimitiveScalarRead or WriteOnlyPrimitiveStore whose root declaration and static canonical path end at a fixed index selecting, within bounds, one element of a fixed array whose element shape is the SSA value's exact primitive scalar type; no runtime-selected segment and no record field leaf",
+    conclusion: "the read result equals the current element, or the element equals the stored value after ordinary write invalidation; the element term uses the same canonical path contract field terms name, and an IEEE element keeps interchange-bit identity rather than IEEE equality",
+    dependencies: &[
+        "fact:semantic-axiom-roster",
+        "formation:operation-validation",
+        "formation:proposition-context",
+        "invalidation:write-only-primitive-store",
+    ],
+    implementation: &[
+        OPERATION_FACTS,
+        OP_FACTS_PRIMITIVE_ELEMENTS,
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/primitive_place.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/primitive_storage.rs",
+    ],
+    soundness: TRUSTED,
+};
+
 static FACT_FIELD_STORE_LEAF_EQUATION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:field-store-leaf-equation",
     family: LedgerFamily::ReconstructedFactKind,
@@ -791,6 +813,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_INTEGER_FIELD_READ_RANGE,
     FACT_RUNTIME_INDEX_BOUND,
     FACT_IEEE_PRIMITIVE_FIELD_OBSERVATION,
+    FACT_PRIMITIVE_ELEMENT_OBSERVATION,
     FACT_FIELD_STORE_LEAF_EQUATION,
     FACT_BORROWED_STORAGE_RESTORATION_DEBT,
     FACT_PROOF_BEARING_SCALAR_GOAL,
