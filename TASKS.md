@@ -3446,16 +3446,12 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   The shared all-arrival descriptor check retains both the dominating length
   observation and any independently established backing extent.
   `slices/runtime_slice_iteration_exit` remains the exit-91 loop control.
-  The two dispatch programs and five existing slice controls executed with
-  the reconstruction repair on base `0af3ba174af`. Native closure is still
-  open: clean `affa5d23c50` rejects both dispatch programs before reconstruction with
-  `provider-backed attachment requirement disagrees with its erased carrier`.
-  The repair on base `967ce1fd6ff` encounters this refusal for all seven.
-  The producer in `attached_unit/catalog.rs` and consumer in
-  `attached_unit/provider_attachments.rs` need the separately owned Binding
-  erasure repair. After that lands, rerun
+  At `a822939054ad` on macOS ARM64, both unchanged dispatch programs execute
+  with exit 70 through `omega run <fixture>/main.omg`; all five slice controls
+  retain their authored exits and all 11 `fail/slices` fixtures reject.
+  Native acceptance is recorded. Recheck these controls with
   `python3 tools/corpus_gate.py --native --filter runtime_dispatch_slice_element_terminal_exit,runtime_dispatch_machine_array_slice_arg_exit,runtime_slice_iteration_exit`
-  on macOS ARM64 before updating their native golden rows.
+  on macOS ARM64 while completing the remaining joins below.
 
   Remaining joins:
   - Copy bounded, erased and structural fields of `[copy]` view elements under
