@@ -84,3 +84,49 @@ pub(crate) fn resolve_structural_path(
     }
     Some(structural_type)
 }
+
+/// Whether a leaf copy mints a record out of a byte carrier: `path` ends at
+/// a literal index inside a `u8` fixed array whose remaining elements host
+/// `expected`'s fixed scalar layout — the same window the verifier's
+/// `byte_carrier_leaf_copy` admission proved. A runtime-selected index
+/// cannot prove the wider `index + extent` bound, so it stays outside this
+/// arm.
+pub(crate) fn byte_carrier_leaf_window(
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[terminal_psi::StructuralPathSegment],
+    expected: StructuralTypeId,
+) -> bool {
+    let Some((terminal_psi::StructuralPathSegment::FixedIndex(index), prefix)) = path.split_last()
+    else {
+        return false;
+    };
+    let Some(parent) = resolve_structural_path(types, root, prefix) else {
+        return false;
+    };
+    let Some(declaration) = types.get(&parent) else {
+        return false;
+    };
+    let terminal_psi::StructuralTypeShape::FixedArray { element, length } = &declaration.shape
+    else {
+        return false;
+    };
+    let byte_type = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+            .expect("u8 is valid"),
+    );
+    if !types.values().any(|candidate| {
+        candidate.id == *element
+            && candidate.shape == terminal_psi::StructuralTypeShape::PrimitiveScalar(byte_type)
+    }) {
+        return false;
+    };
+    let Some(layout) =
+        terminal_semantics::byte_carrier_scalar_layout(types.values().copied(), expected)
+    else {
+        return false;
+    };
+    index
+        .checked_add(layout.size)
+        .is_some_and(|end| end <= *length)
+}

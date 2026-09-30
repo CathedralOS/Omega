@@ -7,10 +7,12 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
-use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
-use terminal_psi::StructuralOperationResult;
+use terminal_psi::{StructuralOperationResult, StructuralPathSegment, StructuralTypeShape};
 
 /// A leaf copy reads an owned home or a readable parameter root; the
 /// verifier's copyable-path replay already excluded every other source kind.
@@ -111,7 +113,22 @@ pub(super) fn copy_extent(
             )?
         }
     };
-    if endpoint != result.structural_type {
+    // A byte-carrier copy projects a `u8` array element into the overlaid
+    // record the verifier's recast window admitted; its copied extent is the
+    // record's own layout, not the element's scalar shape.
+    let byte_carrier = endpoint != result.structural_type
+        && byte_carrier_leaf_copy(types, root_type, path, result.structural_type);
+    let shape = if byte_carrier {
+        crate::lowering::structural_layout::structural_shape(
+            result.structural_type,
+            types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?
+    } else {
+        shape
+    };
+    if endpoint != result.structural_type && !byte_carrier {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     // A selector resolves to its exact dominating scalar source — an
@@ -145,4 +162,48 @@ pub(super) fn copy_extent(
     });
     provenance.operations.push(psi_operation);
     Ok(())
+}
+
+/// Whether `path` ends at a literal index inside a `u8` fixed array whose
+/// remaining elements host `expected`'s fixed scalar layout — the same
+/// window the verifier's `byte_carrier_leaf_copy` admission proved. A
+/// runtime-selected index cannot prove the wider `index + extent` bound, so
+/// it stays outside this arm.
+fn byte_carrier_leaf_copy(
+    types: &StructuralTypeLookup<'_>,
+    root: StructuralTypeId,
+    path: &abstract_operations::StructuralCopyPath,
+    expected: StructuralTypeId,
+) -> bool {
+    let abstract_operations::StructuralCopyPath::Ordinary(path) = path else {
+        return false;
+    };
+    let Some((StructuralPathSegment::FixedIndex(index), prefix)) = path.split_last() else {
+        return false;
+    };
+    let Some(parent) = types.subtree(root, prefix) else {
+        return false;
+    };
+    let Some(declaration) = types.get(&parent) else {
+        return false;
+    };
+    let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+        return false;
+    };
+    let byte_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"));
+    if !types.values().any(|candidate| {
+        candidate.id == *element
+            && candidate.shape == StructuralTypeShape::PrimitiveScalar(byte_type)
+    }) {
+        return false;
+    };
+    let Some(layout) =
+        terminal_semantics::byte_carrier_scalar_layout(types.values().copied(), expected)
+    else {
+        return false;
+    };
+    index
+        .checked_add(layout.size)
+        .is_some_and(|end| end <= *length)
 }

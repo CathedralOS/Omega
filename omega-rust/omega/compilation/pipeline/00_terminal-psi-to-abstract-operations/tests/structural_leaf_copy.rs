@@ -414,6 +414,108 @@ fn case_payload_copy_retains_verified_membership_and_local_identity() {
 }
 
 #[test]
+fn byte_carrier_copy_retains_the_overlaid_record_type() {
+    let source = r#"
+        data Desc { tag: u32; }
+        data Root { buf: [u8; 48]; }
+        machine Root::enter(&mut self) -> u32 {
+            let borrowed: &Desc = &self.buf[0] as &Desc;
+            transition borrowed.tag == 0 { true -> done() _ -> bad() }
+            state done() -> u32 { 0 }
+            state bad() -> u32 { 1 }
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        checked_trees_to_lowered_psi::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
+    let module = lowered.semantic_module;
+    let proof = lowered.proof_bundle;
+    let profile = AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
+    let desc = module
+        .structural_types
+        .iter()
+        .find(|declaration| {
+            matches!(&declaration.shape, StructuralTypeShape::Record { fields }
+                if fields.len() == 1
+                    && matches!(fields[0].field_type, StructuralFieldType::Scalar(_)))
+        })
+        .expect("the overlay record declaration");
+    let expected: Vec<_> = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match (&operation.kind, &operation.result) {
+            (
+                OperationKind::StructuralLeafCopy { source, path },
+                OperationResult::Structural(result),
+            ) => Some((operation.id, *source, path.clone(), result.structural_type)),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        expected
+            .iter()
+            .any(|(_, _, path, structural_type)| *structural_type == desc.id
+                && matches!(path.last(), Some(StructuralPathSegment::FixedIndex(_)))),
+        "source must exercise a byte-carrier record copy"
+    );
+    let semantic_bytes = encode_module(&module).unwrap();
+    let proof_bytes = encode_proof_section(&module, &proof).unwrap();
+    let admitted = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic_bytes,
+            proof_bytes: &proof_bytes,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .expect("verified byte-carrier copy lowers natively");
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input(),
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
+    for (operation, source, expected_path, structural_type) in &expected {
+        assert!(
+            verified
+                .unit()
+                .functions
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .flat_map(|block| &block.nodes)
+                .any(|node| matches!(&node.operation,
+                AbstractOperation::StructuralLeafCopy { psi_operation, source: retained_source,
+                    path: abstract_operations::StructuralCopyPath::Ordinary(path),
+                    result, .. }
+                if psi_operation == operation && retained_source == source
+                    && path == expected_path && result.structural_type == *structural_type))
+        );
+    }
+}
+
+#[test]
 fn a_write_only_borrow_root_never_copies_a_leaf() {
     assert!(matches!(
         encode_module(&copy_module(StructuralAccess::WriteOnlyBorrow)),
