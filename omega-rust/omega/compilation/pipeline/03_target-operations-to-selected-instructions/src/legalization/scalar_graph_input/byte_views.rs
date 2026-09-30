@@ -465,6 +465,41 @@ pub(in crate::legalization) fn owned_concatenation(
             _ => None,
         })
 }
+/// Whether a byte place reads the owner layout (length word at offset 0,
+/// bytes from offset 8): an owned concatenation in this activation, or a
+/// shared bounded owner loan whose signature or block parameter carries the
+/// owner's address.
+pub(in crate::legalization) fn reads_owner_layout(
+    function: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> bool {
+    owned_concatenation(function, place).is_some() || owner_loan(function, place, types).is_some()
+}
+
+/// The shared bounded owner loan declared at `place`, if any.
+pub(in crate::legalization) fn owner_loan<'a>(
+    function: &'a PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+    types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
+    function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == place)
+        .filter(|parameter| {
+            abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+                parameter, types,
+            )
+        })
+}
+
 pub(super) fn contains_readable_bytes(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,

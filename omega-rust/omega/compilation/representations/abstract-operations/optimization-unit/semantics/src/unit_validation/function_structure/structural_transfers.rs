@@ -1,5 +1,5 @@
-//! Exact whole shared-view, address-join and plain owned telescopes;
-//! ownership replays separately.
+//! Exact whole shared-view, shared bounded-owner, address-join and plain
+//! owned telescopes; ownership replays separately.
 //!
 //! A descriptor view or owned arrival binds a whole root of exactly its own
 //! contract. An address join (`abstract_operations::control_flow::address_joins`)
@@ -35,7 +35,7 @@ pub(super) fn validate(
         for (position, parameter) in block.structural_parameters.iter().enumerate() {
             if parameter.position as usize != position
                 || !places.insert(parameter.place)
-                || !plain(parameter)
+                || (!plain(parameter) && !owner_loan(parameter, types))
                 || !types
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {
@@ -89,7 +89,31 @@ pub(super) fn validate(
                 .zip(&destination.structural_parameters)
             {
                 let source = source_contract(function, binding.argument.place);
-                let exact_source = if address_join(parameter, types) {
+                let exact_source = if owner_loan(parameter, types) {
+                    // A bounded owner's shared loan is forwarded whole from a
+                    // signature or block parameter with the identical
+                    // declaration, qualifications included: the frozen
+                    // referent already carries them.
+                    binding.argument.path.is_empty()
+                        && function
+                            .structural_parameters
+                            .iter()
+                            .chain(
+                                function
+                                    .blocks
+                                    .iter()
+                                    .flat_map(|block| &block.structural_parameters),
+                            )
+                            .any(|source| {
+                                source.place == binding.argument.place
+                                    && source.structural_type == parameter.structural_type
+                                    && source.access == parameter.access
+                                    && source.multiplicity == parameter.multiplicity
+                                    && source.qualifications == parameter.qualifications
+                                    && source.projected_qualifications.is_empty()
+                                    && !source.is_self
+                            })
+                } else if address_join(parameter, types) {
                     // The root lends its address; it neither changes owner nor
                     // widens past shared access, and the path names the join's
                     // exact referent type. A mutable join may lend the same
@@ -155,6 +179,16 @@ fn address_join(
     abstract_operations::control_flow::address_joins::is_address_join(parameter, |identity| {
         types.get(&identity).copied()
     })
+}
+
+fn owner_loan(
+    parameter: &StructuralParameterDeclaration,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
+        parameter,
+        |identity| types.get(&identity).copied(),
+    )
 }
 
 /// Block parameters carry no qualification roster, so a structural join merges

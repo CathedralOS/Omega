@@ -128,6 +128,34 @@ pub(super) fn validate_borrowed_argument(
                 shape.alignment,
             ))
         });
+    // A whole owned bounded byte home lends its `{length, bytes}` storage to
+    // a shared bounded-owner formal; the callee reads the owner layout in
+    // place, so the pointer names the home itself at offset zero.
+    let owner_home = aggregate_home
+        .filter(|(_, result)| {
+            semantic.path.is_empty()
+                && semantic.access == StructuralAccess::SharedBorrow
+                && target.root_structural_type == result.structural_type
+                && target.structural_type == result.structural_type
+                && target.source_byte_offset == 0
+                && indices.is_empty()
+                && signature.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                })
+        })
+        .and_then(|(_, result)| {
+            crate::structural_inputs::structural_reference_input::shape(
+                result.structural_type,
+                &signature.structural_types,
+            )
+        })
+        .map(|shape| ValueShape::borrowed_reference(shape.byte_size, shape.alignment));
     // A fixed array presents its backing from an incoming parameter or, whole,
     // from a local home lent through this argument's own borrow — Terminal's
     // array-result loan. The home keeps its owned access; `aggregate_home`
@@ -235,6 +263,8 @@ pub(super) fn validate_borrowed_argument(
         ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
     } else if let Some(shape) = aggregate {
         shape
+    } else if let Some(shape) = owner_home {
+        shape
     } else if let Some((offset, _)) = byte_view {
         if offset != target.source_byte_offset {
             return None;
@@ -336,6 +366,7 @@ pub(super) fn validate_borrowed_argument(
         || (!exclusive
             && address_join.is_none()
             && aggregate.is_none()
+            && owner_home.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
             && byte_owner.is_none()
@@ -347,6 +378,7 @@ pub(super) fn validate_borrowed_argument(
         || (!exclusive
             && address_join.is_none()
             && aggregate.is_none()
+            && owner_home.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
             && byte_owner.is_none()
@@ -356,6 +388,7 @@ pub(super) fn validate_borrowed_argument(
         || (!exclusive
             && address_join.is_none()
             && aggregate.is_none()
+            && owner_home.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
             && byte_owner.is_none()
@@ -377,7 +410,7 @@ pub(super) fn validate_borrowed_argument(
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             let (producer, _) = aggregate_home?;
             let home_view = local_loan.is_some() && (byte_view.is_some() || element_view.is_some());
-            if (aggregate.is_none() && !home_view)
+            if (aggregate.is_none() && !home_view && owner_home.is_none())
                 || *psi_operation != producer
                 || producer == operation
             {

@@ -36,12 +36,19 @@ pub(super) fn lower(
         AbstractOperation::ByteSequenceLength { source, .. }
         | AbstractOperation::ByteSequenceRead { source, .. }
         | AbstractOperation::ByteSequenceSubslice { source, .. } => {
+            // A bounded owner loan arrives as an address join; it is read in
+            // place through the owner layout.
+            let owner_join = live.address_joins.contains(source)
+                && super::transfers::address_parameter(function, live, *source).is_some_and(
+                    |parameter| byte_views::is_owner_loan(parameter, structural_types),
+                );
             if !prepared
                 .parameters
                 .iter()
                 .any(|parameter| parameter.place == *source)
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
+                && !owner_join
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }

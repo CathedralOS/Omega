@@ -177,6 +177,15 @@ pub(super) fn validate_source(
         ),
         _ => access == StructuralAccess::SharedBorrow,
     };
+    // A shared bounded-owner loan keeps its owner's plain byte qualifications;
+    // it is read through the owner layout, never written.
+    let owner_loan = |parameter: &terminal_psi::StructuralParameterDeclaration| {
+        !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
+            && abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
+                parameter,
+                |identity| structural_types.get(&identity).copied(),
+            )
+    };
     let structural_type = match source_kind {
         Some(StructuralPlaceKind::BlockParameter {
             block: owner,
@@ -188,10 +197,11 @@ pub(super) fn validate_source(
             .and_then(|block| block.structural_parameters.get(*position as usize))
             .filter(|parameter| {
                 parameter.place == source
-                    && permitted_access(parameter.access)
-                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
+                    && ((permitted_access(parameter.access)
+                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        && parameter.qualifications.is_empty()
+                        && parameter.projected_qualifications.is_empty())
+                        || owner_loan(parameter))
             })
             .map(|parameter| parameter.structural_type),
         Some(StructuralPlaceKind::Parameter { .. }) => function
@@ -199,10 +209,11 @@ pub(super) fn validate_source(
             .iter()
             .find(|parameter| {
                 parameter.place == source
-                    && permitted_access(parameter.access)
-                    && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                    && parameter.qualifications.is_empty()
-                    && parameter.projected_qualifications.is_empty()
+                    && ((permitted_access(parameter.access)
+                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        && parameter.qualifications.is_empty()
+                        && parameter.projected_qualifications.is_empty())
+                        || owner_loan(parameter))
             })
             .map(|parameter| parameter.structural_type),
         Some(StructuralPlaceKind::ByteSequenceLiteral {
@@ -246,8 +257,13 @@ pub(super) fn validate_source(
                 declaration.shape,
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. })
             ) || (matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }))
-                && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::EstablishByteSequenceConcatenation { result, .. } if result.place == source)))
+                && (function.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                    AbstractOperation::EstablishByteSequenceConcatenation { result, .. } if result.place == source))
+                    || function
+                        .structural_parameters
+                        .iter()
+                        .chain(function.blocks.iter().flat_map(|block| &block.structural_parameters))
+                        .any(|parameter| parameter.place == source && owner_loan(parameter))))
         })
         && function
             .entry_claim_declarations

@@ -232,7 +232,9 @@ fn copy(
                 .ok_or_else(|| replay.invalid())?
         }
         ByteSequenceOperand::Whole { source, .. } => {
-            if crate::selection::byte_concatenation_input::owned_type(function, *source).is_some() {
+            if crate::selection::byte_concatenation_input::owner_layout_type(function, *source)
+                .is_some()
+            {
                 8
             } else {
                 0

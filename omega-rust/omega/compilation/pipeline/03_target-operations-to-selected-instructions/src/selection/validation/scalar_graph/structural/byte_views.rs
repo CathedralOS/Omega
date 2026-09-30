@@ -141,7 +141,9 @@ pub(in crate::selection) fn byte_observation(
     } = row.kind
     {
         let expected =
-            if crate::selection::byte_concatenation_input::owned_type(function, source).is_some() {
+            if crate::selection::byte_concatenation_input::owner_layout_type(function, source)
+                .is_some()
+            {
                 0
             } else {
                 8
@@ -256,7 +258,9 @@ fn byte_sequence_read(
             replay,
             row,
             source,
-            if crate::selection::byte_concatenation_input::owned_type(function, source).is_some() {
+            if crate::selection::byte_concatenation_input::owner_layout_type(function, source)
+                .is_some()
+            {
                 8
             } else {
                 0
@@ -309,7 +313,7 @@ pub(super) fn backing_pointer(
         .find(|(place, _)| *place == source)
         .map(|(_, register)| *register)
         .ok_or_else(|| replay.invalid())?;
-    if crate::selection::byte_concatenation_input::owned_type(function, source).is_some() {
+    if crate::selection::byte_concatenation_input::owner_layout_type(function, source).is_some() {
         let pointer = result(replay, source, 8)?;
         replay.check_instruction(
             SelectedInstructionKind::AddressOffset { byte_offset: 8 },

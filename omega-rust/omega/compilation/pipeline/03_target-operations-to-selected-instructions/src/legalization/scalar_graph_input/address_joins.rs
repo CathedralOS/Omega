@@ -148,6 +148,21 @@ pub(in crate::legalization) fn edge_bindings(
                 ) {
                     return true;
                 }
+                if abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+                    declaration,
+                    &plan.structural_types,
+                ) {
+                    return binding.parameter == declaration.place
+                        && binding.argument.access == declaration.access
+                        && binding.argument.path.is_empty()
+                        && forwarded_owner_loan(
+                            function,
+                            source_block,
+                            binding.argument.place,
+                            declaration,
+                            plan,
+                        );
+                }
                 binding.parameter == declaration.place
                     && binding.argument.access == declaration.access
                     && abstract_operations::control_flow::address_joins::is_static_projection(
@@ -169,6 +184,35 @@ pub(in crate::legalization) fn edge_bindings(
                     })
                     .is_some_and(|(referent, _)| referent == declaration.structural_type)
             })
+}
+
+/// A bounded owner loan is forwarded whole from a signature parameter or a
+/// dominating owner-loan join with the identical declaration: its frozen
+/// referent carries exactly the qualifications the target declares.
+fn forwarded_owner_loan(
+    function: &PsiOptimizationFunction,
+    block: BlockId,
+    place: PlaceId,
+    declaration: &StructuralParameterDeclaration,
+    plan: &AbstractOperationPlan,
+) -> bool {
+    let identical = |source: &StructuralParameterDeclaration| {
+        !source.is_self
+            && source.structural_type == declaration.structural_type
+            && source.access == declaration.access
+            && source.multiplicity == declaration.multiplicity
+            && source.qualifications == declaration.qualifications
+            && source.projected_qualifications.is_empty()
+    };
+    if let Some(source) = function
+        .structural_parameters
+        .iter()
+        .find(|source| source.place == place)
+    {
+        return identical(source);
+    }
+    parameter(function, place, plan)
+        .is_some_and(|(owner, source)| identical(source) && dominates(function, owner, block))
 }
 
 /// The readable, non-linear, unqualified root type `place` names on an edge

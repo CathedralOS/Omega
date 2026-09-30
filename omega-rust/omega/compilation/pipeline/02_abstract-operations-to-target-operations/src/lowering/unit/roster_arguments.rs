@@ -89,11 +89,57 @@ pub(in crate::lowering) fn lower_structural_argument(
                     )
                 )
             });
-    if !projected_byte_owner && source_qualifications != callee_parameter.qualifications.as_slice()
+    // A whole owned bounded byte local lends its home to a shared bounded
+    // owner formal. Unit validation replayed the formal's byte predicates
+    // from the local's own operands, so the home's empty roster is not
+    // compared against the formal's qualifications.
+    let owner_home = owned_owner_home(
+        argument,
+        callee_parameter,
+        function,
+        local_homes,
+        structural_types,
+    );
+    if !projected_byte_owner
+        && owner_home.is_none()
+        && source_qualifications != callee_parameter.qualifications.as_slice()
     {
         return Err(LoweringError::StructuralCallArgumentTypeMismatch {
             callee,
             place: argument.place,
+        });
+    }
+    // The owned home is also a readable view of this activation; the owner
+    // formal takes the home's own `{length, bytes}` address instead.
+    if let Some(producer) = owner_home {
+        let home = local_homes.get(&argument.place).ok_or(
+            LoweringError::UnknownStructuralArgumentPlace {
+                machine: function.machine,
+                place: argument.place,
+            },
+        )?;
+        let owner = home.layout.shape();
+        if shape != structural_parameter_shape(owner, argument.access) {
+            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                callee,
+                place: argument.place,
+            });
+        }
+        return Ok(TargetStructuralArgument {
+            place: argument.place,
+            access: argument.access,
+            path: Vec::new(),
+            root_structural_type: callee_parameter.structural_type,
+            structural_type: callee_parameter.structural_type,
+            shape,
+            source_byte_offset: 0,
+            fixed_array_length: None,
+            element_stride: None,
+            indices: Vec::new(),
+            source: TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: producer,
+            },
+            destination: destination.clone(),
         });
     }
     if let Some((source, structural_type)) = established_views
@@ -495,6 +541,37 @@ pub(in crate::lowering) fn lower_structural_argument(
 /// for window geometry while the home itself stays owned by this activation.
 /// `Ok(None)` means the home is not lendable through this parameter's view.
 #[allow(clippy::too_many_arguments)]
+/// The producer of a whole owned bounded byte local (an owned concatenation
+/// home) lent shared to a bounded owner formal of the same carrier.
+fn owned_owner_home(
+    argument: &terminal_psi::StructuralArgument,
+    callee_parameter: &terminal_psi::StructuralParameterDeclaration,
+    function: &AbstractFunction,
+    local_homes: &BTreeMap<PlaceId, TargetStructuralHomeRequirement>,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> Option<OperationId> {
+    if !argument.path.is_empty()
+        || argument.access != StructuralAccess::SharedBorrow
+        || !super::super::scalar::byte_views::is_owner_loan(callee_parameter, structural_types)
+    {
+        return None;
+    }
+    let (producer, result) = local_homes.get(&argument.place)?.operation_result()?;
+    (result.place == argument.place
+        && result.structural_type == callee_parameter.structural_type
+        && result.multiplicity == StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && function.operations.iter().any(|operation| {
+            matches!(operation,
+                abstract_operations::AbstractOperation::EstablishByteSequenceConcatenation {
+                    psi_operation, result, ..
+                } if *psi_operation == producer && result.place == argument.place)
+        }))
+    .then_some(producer)
+}
+
 pub(in crate::lowering) fn local_array_loan(
     argument: &terminal_psi::StructuralArgument,
     callee_parameter: &terminal_psi::StructuralParameterDeclaration,

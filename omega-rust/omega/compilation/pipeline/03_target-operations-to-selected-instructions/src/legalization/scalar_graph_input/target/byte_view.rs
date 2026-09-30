@@ -71,8 +71,11 @@ impl Checker<'_> {
                                     && parameter.access == access
                                     && parameter.multiplicity
                                         == terminal_psi::StructuralMultiplicity::Unrestricted
-                                    && parameter.qualifications.is_empty()
-                                    && parameter.projected_qualifications.is_empty()
+                                    && ((parameter.qualifications.is_empty()
+                                        && parameter.projected_qualifications.is_empty())
+                                        || abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+                                            parameter, self.types,
+                                        ))
                             })
                     })
             }

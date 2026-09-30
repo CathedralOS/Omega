@@ -315,11 +315,11 @@ pub(super) fn project(
             LegalizedScalarInstructionKind::ByteSequenceLength {
                 source: *source,
                 length_byte_offset:
-                    if crate::legalization::scalar_graph_input::byte_views::owned_concatenation(
-                        optimized, *source,
-                    )
-                    .is_some()
-                    {
+                    if crate::legalization::scalar_graph_input::byte_views::reads_owner_layout(
+                        optimized,
+                        *source,
+                        &unit.structural_types,
+                    ) {
                         0
                     } else {
                         8

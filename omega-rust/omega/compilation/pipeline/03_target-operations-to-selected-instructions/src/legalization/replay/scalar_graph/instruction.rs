@@ -730,9 +730,11 @@ pub(super) fn validate(
             },
         ) if source == expected
             && *length_byte_offset
-                == if scalar_graph_input::byte_views::owned_concatenation(optimized, *source)
-                    .is_some()
-                {
+                == if scalar_graph_input::byte_views::reads_owner_layout(
+                    optimized,
+                    *source,
+                    &unit.structural_types,
+                ) {
                     0
                 } else {
                     8

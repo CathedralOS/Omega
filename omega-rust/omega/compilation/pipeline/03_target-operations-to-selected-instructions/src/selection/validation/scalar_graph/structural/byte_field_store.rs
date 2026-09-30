@@ -186,7 +186,9 @@ pub(super) fn replace(
             replay,
             row,
             *source,
-            if crate::selection::byte_concatenation_input::owned_type(function, *source).is_some() {
+            if crate::selection::byte_concatenation_input::owner_layout_type(function, *source)
+                .is_some()
+            {
                 8
             } else {
                 0
