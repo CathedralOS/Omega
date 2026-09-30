@@ -92,7 +92,8 @@ pub(crate) fn scalar_expression_type(
 
 /// Plain mutable primitive declarations establish zero without an authored
 /// initializer. Keep this tied to the declaration: a missing expression at
-/// another site, a reference, or a qualified type has no such meaning.
+/// another site or a reference has no such meaning. Arithmetic policy alone
+/// permits zero; other qualifications still need their establishment evidence.
 pub(crate) fn zeroed_scalar_local_initializer(
     program: &TypedTrees,
     local: &typed_trees::statement::TableLocalData,
@@ -100,12 +101,12 @@ pub(crate) fn zeroed_scalar_local_initializer(
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
     if !local.is_mutable
         || local.initial_value.is_valid()
-        || !matches!(
+        || !(matches!(
             program
                 .type_reference_table
                 .type_reference(local.type_reference),
             typed_trees::types::TypeReferenceNode::Named { .. }
-        )
+        ) || validation::is_arithmetic_policy_only_integer(program, local.type_reference))
     {
         return None;
     }

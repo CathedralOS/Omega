@@ -69,12 +69,15 @@ fn declaration(
     if matches.next().is_some()
         || !symbol.is_valid()
         || !local.is_mutable
-        || !matches!(
+        || !(matches!(
             checked
                 .type_reference_table
                 .type_reference(local.type_reference),
             checked_trees::types::TypeReferenceNode::Named { .. }
-        )
+        ) || validation::is_arithmetic_policy_only_integer(
+            &checked.typed,
+            local.type_reference,
+        ))
         || checked
             .primitive_type_reference(local.type_reference)
             .is_none()
@@ -136,7 +139,10 @@ pub(crate) fn validate_roster(
 /// Rejoin one establishment to its authored declaration, declared type and
 /// exact retained initializer: the bound pure expression, or the computation
 /// rooted at the declaration's `StorageInitializer` coordinate together with
-/// the source custody of every call that computation performs.
+/// the source custody of every call that computation performs. The plan's type
+/// identity names storage, so arithmetic policy remains on the authored type
+/// and checked computations, not on the primitive storage carrier. Declaration
+/// validation rejects every other qualification before this projection.
 fn validate_establishment(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -166,7 +172,10 @@ fn validate_establishment(
         || checked.primitive_type_reference(local.type_reference) != Some(*primitive_type)
         || checked
             .typed
-            .normalized_type_identity(local.type_reference)
+            .normalized_type_identity(validation::peel_arithmetic_policy(
+                &checked.typed,
+                local.type_reference,
+            ))
             .into_string()
             != *type_identity
     {
@@ -266,7 +275,10 @@ pub(super) fn validate_argument_source(
         || argument.type_identity
             != checked
                 .typed
-                .normalized_type_identity(local.type_reference)
+                .normalized_type_identity(validation::peel_arithmetic_policy(
+                    &checked.typed,
+                    local.type_reference,
+                ))
                 .into_string()
     {
         return unsupported("primitive local argument substituted its authored borrow");
@@ -392,5 +404,73 @@ impl OperationFrame<'_, '_> {
                 },
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CheckedUnitEffectOperationPlan, validate_establishment};
+
+    const SOURCE: &str = "
+        data Output { value: i32; }
+        machine fill(output: &mut Output) {
+            let mut value: i32 in Wrapping;
+            value = value - 1;
+            output.value = value as i32;
+        }
+    ";
+
+    #[test]
+    fn qualified_primitive_local_keeps_checked_storage_custody() {
+        let checked = crate::front_end::checked_program(SOURCE);
+        let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("fill"))
+            .expect("zeroed qualified local composes with writes and an output borrow");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("independent verification preserves local storage and arithmetic");
+    }
+
+    #[test]
+    fn qualified_primitive_local_rejects_substituted_storage_identity() {
+        let checked = crate::front_end::checked_program(SOURCE);
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter()
+            .find(|plan| {
+                plan.operations.iter().any(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+                    )
+                })
+            })
+            .expect("qualified local has an ordinary establishment plan");
+        let operation = plan
+            .operations
+            .iter()
+            .find(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+                )
+            })
+            .expect("local establishment");
+        validate_establishment(&checked, plan.machine, plan.state, operation)
+            .expect("authored storage identity is accepted");
+        let mut substituted = operation.clone();
+        if let CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { type_identity, .. } =
+            &mut substituted
+        {
+            type_identity.push_str("::substituted");
+        }
+        let error = validate_establishment(&checked, plan.machine, plan.state, &substituted)
+            .expect_err("peeling arithmetic policy must not permit replacing the storage carrier");
+        assert!(format!("{error:?}").contains("substituted its authored type"));
     }
 }

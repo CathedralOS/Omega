@@ -587,8 +587,9 @@ pub(crate) fn locate(
     let implicit_primitive_zero = matches!((authored, role),
         (StatementNode::LocalData(local), CheckedScalarExpressionRole::StorageInitializer)
             if local.is_mutable && !local.initial_value.is_valid()
-                && matches!(program.type_reference_table.type_reference(local.type_reference),
-                    checked_trees::types::TypeReferenceNode::Named { .. }));
+                && (matches!(program.type_reference_table.type_reference(local.type_reference),
+                    checked_trees::types::TypeReferenceNode::Named { .. })
+                    || validation::is_arithmetic_policy_only_integer(program, local.type_reference)));
     if !program.expression_table.expression_is_valid(expression) && !implicit_primitive_zero {
         return unsupported("scalar source custody has no live authored expression");
     }
@@ -621,7 +622,7 @@ pub(crate) fn validate_pure(
     }
     validate_namespace(checked, binding)?;
     if !source.expression.is_valid() {
-        // `locate` admits absence only for a plain mutable primitive's own
+        // `locate` admits absence only for a zero-valid mutable primitive's own
         // declaration. Reconstruct its default value independently, rather
         // than treating a missing expression as an unconstrained value.
         let (_, value) = checked

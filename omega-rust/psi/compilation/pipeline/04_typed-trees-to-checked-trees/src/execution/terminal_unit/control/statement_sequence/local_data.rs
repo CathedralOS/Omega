@@ -470,13 +470,16 @@ pub(super) fn plan(
     }
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference) {
         if local.is_mutable {
-            local_phase("statement sequence: local data: mutable primitive local: named type");
+            local_phase("statement sequence: local data: mutable primitive local: storage type");
+            // Arithmetic policy qualifies operations, not storage. Preserve the
+            // exact type below; other qualifications still need their own evidence.
             if !matches!(
                 program
                     .type_reference_table
                     .type_reference(local.type_reference),
                 TypeReferenceNode::Named { .. }
-            ) {
+            ) && !validation::is_arithmetic_policy_only_integer(program, local.type_reference)
+            {
                 return None;
             }
             // A call or ordered selection initializes storage through its
