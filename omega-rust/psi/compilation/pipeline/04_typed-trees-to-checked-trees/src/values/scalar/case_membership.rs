@@ -46,24 +46,70 @@ pub(super) fn lower(
                 .then_some((machine, state))
         })
     })?;
-    if !validation::has_exact_case_membership_meaning(
-        program,
-        machine,
-        Some(state),
-        expression,
-        binary,
-    ) {
-        return None;
-    }
-    let ExpressionNode::Name(selected) = program.expression_table.expression(binary.right) else {
-        return None;
+    let case = match program.expression_table.expression(binary.right) {
+        ExpressionNode::Name(selected) => {
+            if !validation::has_exact_case_membership_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+                binary,
+            ) {
+                return None;
+            }
+            structural_case_name(program, selected.symbol)?
+        }
+        // A payload-free case spelled as a value (`subject == T::Case`) arrives
+        // as a construction, not a name: the authored test carries no
+        // case-selection roster for the exact-meaning rejoin, but builtin
+        // equality on a union's operands is already the same tag observation.
+        ExpressionNode::StructLiteral(literal)
+            if literal.case_symbol.is_some()
+                && program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .is_empty() =>
+        {
+            if !validation::has_builtin_binary_expression_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) {
+                return None;
+            }
+            let Some(case_symbol) = literal.case_symbol else {
+                return None;
+            };
+            let owner = program.data_definitions().iter().find(|data| {
+                data.symbol == literal.type_symbol
+                    && program.data_members(data).iter().any(|member| {
+                        matches!(
+                            member,
+                            typed_trees::data::DataMember::Variant(variant)
+                                if variant.symbol == case_symbol
+                                    && program.data_payload_fields(variant).is_empty()
+                        )
+                    })
+            })?;
+            let subject_type =
+                validation::declared_place_type_raw(program, machine, Some(state), subject)?;
+            if crate::values::scalar::structural_fields::structural_data(program, subject_type)?
+                .symbol
+                != owner.symbol
+            {
+                return None;
+            }
+            structural_case_name(program, case_symbol)?
+        }
+        _ => return None,
     };
     Some(CheckedBooleanExpression::StructuralCaseMembership {
         subject: CheckedStructuralParameterField {
             parameter_position,
             path,
         },
-        case: structural_case_name(program, selected.symbol)?,
+        case,
     })
 }
 
