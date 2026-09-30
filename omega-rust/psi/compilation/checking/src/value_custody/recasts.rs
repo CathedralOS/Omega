@@ -67,6 +67,7 @@ mod scalar_representation;
 
 pub use literal_indexed_footprints::{
     ValidatedLiteralIndexedRecastFootprint, validate_literal_indexed_recast_footprint,
+    validate_runtime_indexed_recast_source,
 };
 pub(crate) use representation_types::{exact_primitive_type, exact_scalar_representation_type};
 

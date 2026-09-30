@@ -123,6 +123,90 @@ pub fn validate_literal_indexed_recast_footprint(
     })
 }
 
+/// Admission for the runtime-indexed sibling of the literal footprint.
+///
+/// The preamble replays the same recast judgment and admits the same target
+/// subset as `validate_literal_indexed_recast_footprint`; the offset is
+/// proven by the interior byte-region bounds walk rather than a literal, so
+/// `high(index) + size(target) <= region_length` is the footprint check.
+/// Returns the indexed source expression whose collection place carries the
+/// conservative `Index` loan. `None` keeps the source under its historical
+/// no-loan fence: unbounded offsets, non-byte interiors, and unsupported
+/// target shapes mint no loan at all.
+pub fn validate_runtime_indexed_recast_source(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<ExpressionHandle> {
+    let TypeReferenceNode::Reference {
+        referee, access, ..
+    } = program
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return None;
+    };
+    let spelled_borrow_exclusive = match program.expression_table.expression(local.initial_value) {
+        ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
+        _ => None,
+    };
+    let initializer = strip_mutable(program, local.initial_value);
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(initializer) else {
+        return None;
+    };
+    if !cast.form.is_recast() {
+        return None;
+    }
+
+    let mut diagnostics = Vec::new();
+    judge_scalar_recast(
+        program,
+        machine,
+        state,
+        cast,
+        initializer,
+        *referee,
+        access.is_exclusive(),
+        spelled_borrow_exclusive,
+        &mut diagnostics,
+    );
+    if !diagnostics.is_empty() {
+        return None;
+    }
+
+    let source = strip_mutable(program, cast.value);
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(source) else {
+        return None;
+    };
+    // Literal indices keep the exact `FixedRange` footprint arm; this gate
+    // owns only runtime or otherwise non-literal offsets.
+    if matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Integer(_)
+    ) {
+        return None;
+    }
+
+    let target_size = i64::try_from(literal_indexed_recast_target_size(
+        program,
+        cast.target_type,
+    )?)
+    .ok()?;
+    let InteriorByteRegion::Bounded {
+        offset,
+        region_length,
+    } = interior_byte_region_source(program, machine, state, source)
+    else {
+        return None;
+    };
+    if offset.checked_add(target_size)? > region_length {
+        return None;
+    }
+
+    Some(source)
+}
+
 pub(crate) fn literal_indexed_recast_target_size(
     program: &TypedTrees,
     target_type: TypeReferenceHandle,
