@@ -1,17 +1,10 @@
-// std::time rung 10 NATIVE CONFIRMATION on darwin/aarch64 (claimed by the
-// fs lane 2026-07-10g -- it has the Mac; see TASKS_FS.md "Stolen work"):
-// `_clock_gettime_nsec_np` serves BOTH reads via clockid injection
-// (monotonic CLOCK_UPTIME_RAW = 8, wall CLOCK_REALTIME = 0), and the
-// aarch64 CONSTANT-RESULT encoder serves frequency/units with no call at
-// all. The darwin calibration constants are asserted EXACTLY -- they are
-// the darwin lowering rows themselves: nanosecond units (10^9 for both
-// monotonic frequency and wall units) and a unix epoch offset of 0.
-// The sibling runtime_time_host_native_exit asserts the WINDOWS rows
-// (FILETIME 10^7 / 11_644_473_600) and is #[cfg(windows)]-gated; this one
-// is #[cfg(target_os = "macos")]-gated.
+// Exercise all six operations of the reviewed macOS TimeHost provider.
+// Ordinary checked adapters supply clock selectors, sleep retry control and
+// calibration constants; only the clock read and poll are foreign imports.
+// build.omg selects macos_arm64, whose units and epoch this fixture asserts.
 //
 // Real-clock assertions are INEQUALITIES: monotonic strictly advances
-// across a 30ms sleep; wall-clock sanity brackets unix SECONDS between
+// by at least 30ms across sleep; wall-clock sanity brackets unix SECONDS between
 // 2026-01-01 (1_767_225_600) and ~2076 (3_350_000_000) -- a zeroed result
 // fails low, an undivided nanosecond raw (~10^18) fails high.
 // Expected exit: 70.
@@ -27,12 +20,18 @@ data Main {
 
 machine Main::main(context: &mut Main) reaches Console + TimeHost {
     let first_ticks: u64 = context.host.monotonic_ticks();
-    context.host.sleep(30);
+    block context.host.sleep(30);
     let second_ticks: u64 = context.host.monotonic_ticks();
     // 30ms of CLOCK_UPTIME_RAW nanoseconds: strictly greater, never equal.
     transition second_ticks > first_ticks {
-        true -> check_frequency(&mut context)
+        true -> check_sleep(&mut context, second_ticks - first_ticks)
         false -> fail_monotonic(&mut context)
+    }
+    state check_sleep(context: &mut Main, elapsed_ticks: u64) {
+        transition elapsed_ticks >= 30000000 {
+            true -> check_frequency(context)
+            false -> fail_monotonic(context)
+        }
     }
     state check_frequency(context: &mut Main) {
         let frequency: u64 = context.host.monotonic_ticks_per_second();

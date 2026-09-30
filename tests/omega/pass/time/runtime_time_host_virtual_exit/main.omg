@@ -19,7 +19,7 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Console + TimeHost {
     let mut first_ticks: u64 = main.host.monotonic_ticks();
-    main.host.sleep(30);
+    block main.host.sleep(30);
     main.second_ticks = main.host.monotonic_ticks();
     transition (main.second_ticks as u64 in Wrapping) == (first_ticks as u64 in Wrapping) + 30 {
         true -> check_frequency(main)

@@ -1,13 +1,12 @@
-//! Canonical toolchain-settled `TimeHost` provider plan.
+//! Fallback toolchain-settled `TimeHost` provider plan.
 //!
 //! `source/library/std/time_host.omg` declares the canonical raw clock
-//! boundary as a requirement-only surface: packages accept the exact binding
-//! (`AcceptedSemanticBindingRole::TimeHostService`), but no package may
-//! author `satisfies` conformances or `select_provider` rows for the slot —
-//! slot resolution derives only from conformance provenance, so an authored
-//! conformance would never even resolve the boundary slot. Provider
-//! settlement therefore mints the canonical realization plan itself, per
-//! selected target, from the toolchain's own reviewed realization table.
+//! boundary. Reviewed packages may supply ordinary checked implementations
+//! with explicit conformance and selection; the macOS provider does so in
+//! `targets/macos_arm64/time_host_impl.omg`. Those plans retain normal
+//! package, schema, target and body provenance. This fallback mints a plan
+//! only when no ordinary provider was selected for the accepted boundary
+//! (`AcceptedSemanticBindingRole::TimeHostService`).
 //!
 //! The minted plan deliberately covers only the leaves the toolchain can
 //! name honestly on that target: requirements whose irreducible kernel
@@ -19,8 +18,11 @@
 //! transport still rejects at lowering rather than manufacturing one. The
 //! three per-target constants (`monotonic_ticks_per_second`,
 //! `wall_clock_units_per_second`, `wall_clock_epoch_offset_seconds`) carry
-//! no kernel mechanism and stay uncovered until a constant binding kind
-//! exists. Demand-completeness never fabricates a broad union.
+//! no kernel mechanism and stay uncovered by this table. They belong in
+//! ordinary checked provider bodies, not a new constant binding kind; see
+//! `wiki/spec/build/provider_selection.md`. Linux still needs those bodies
+//! and marshalled syscall adapters. Demand-completeness never fabricates
+//! missing implementations.
 //!
 //! The plan joins the selected closure through
 //! [`effects::SelectedProviderPlanFacts::with_toolchain_settled_plan`], which
