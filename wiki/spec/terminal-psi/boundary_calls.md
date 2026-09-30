@@ -206,7 +206,7 @@ must equal the retained root declaration: missing, padded, stale, or unused rows
 reject. A primitive service use does not disappear because the service also
 appears in an abstract row's bound.
 
-An attachment retains its nominal receiver and erased provider fields.
+An attachment retains its nominal context type and erased provider fields.
 Each boundary declaration retains its authored owner kind: machine, trait
 signature, or legacy operator. Only trait signatures consume provider-field
 roots; absence of a nominal attachment does not make an operator a trait call.
@@ -222,17 +222,21 @@ attachments, duplicate/orphan roots, and roots forwarded as runtime arguments
 reject. An unused provider field keeps its type and attachment but no invented
 root. Ordinary callees retain their own direct requirements.
 
-An ordinary receiver parameter has the exact attachment type and retains access
+An ordinary explicit context parameter has the exact attachment type and retains access
 and multiplicity independently of the roots. Its signature does not construct
 storage. Generated native entry provisioning must establish and lend that
-receiver; an erased field's zero-payload layout proves no authority.
+context under the selected [entry shape](../build/entry_roots.md#entry-shape-and-arrival-bridge);
+an erased field's zero-payload layout proves no authority. A carrier-qualified
+machine name supplies neither a parameter nor permission to provision one.
 
-For a target-selected attached entry, root-establishment evidence binds the
-selected source signature and target slot, source receiver and Terminal
+For a target-selected entry with an admitted explicit context, root-establishment
+evidence binds the selected source signature and target slot, the exact ordinary
+source parameter position and symbol, its Terminal parameter/place and
 attachment, field, service carrier/base and qualification, exact requirement
 schema, and selected Fused plan. Derive rows after exact selection and replay
-their exact sorted roster at native settlement. Targetless checking, free entries,
-and same-shaped non-root owners establish no such row. Omission, duplication,
+their exact sorted roster at native settlement. Targetless checking, entries
+without the admitted context, and same-shaped non-root owners establish no such
+row. Omission, duplication,
 reordering, or source/carrier/attachment/plan substitution rejects. This evidence
 is not a runtime slot, publication event, or Independent service handle.
 

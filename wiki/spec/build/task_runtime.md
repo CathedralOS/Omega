@@ -81,13 +81,18 @@ another starter from spending that capacity.
 
 ## Linear task claim
 
-`Task<T>` is linear. `request_cancel(&self)` retains the claim; it requests a
-transition, not proof that execution stopped. `finish(self)` terminally consumes
-it and returns ordinary `TaskOutcome<T>` cases `Cancelled`, `Returned(value)`,
+`Task<T>` is linear. `Task::request_cancel(&task)` retains the claim; it requests a
+transition, not proof that execution stopped. `Task::finish(move task)` terminally
+consumes it and returns ordinary `TaskOutcome<T>` cases `Cancelled`, `Returned(value)`,
 or `Failed(receipt)`. Application-level recoverable errors remain inside `T`;
 the outer sum describes lifecycle outcomes. Trap/abort remain declared crash
 routes, not fabricated returned cases. Generic result containers retain each
 active payload's substituted linear debt.
+
+These operations declare ordinary explicit parameters: `task: &Task<T>` for
+cancellation and `task: Task<T>` for completion. Carrier qualification supplies
+no implicit argument or storage, and consuming completion retains its declared
+suspension and blocking contract.
 
 The task can move into a record, selected case, or ordinary supervisor, thereby
 transferring its obligation. Copying, overwriting, branch loss, scope drop, or

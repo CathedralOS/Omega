@@ -62,10 +62,13 @@ wire or replacement support.
 The compiler-owned Build prelude provides:
 
 ```omega
-pub machine Build::exclude_physical_authority(&mut self, authority: PhysicalAuthorityClass) {}
+pub machine Build::exclude_physical_authority(
+    builder: &mut Build,
+    authority: PhysicalAuthorityClass
+) {}
 ```
 
-For example, `builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);`
+For example, `Build::exclude_physical_authority(builder, PhysicalAuthorityClass::ProcessOutput);`
 requests absence of process-output mechanisms. `PhysicalAuthorityClass` is a
 compiler-owned `[copy]` data type with payload-free cases:
 `FilesystemContentRead`, `FilesystemContentWrite`, `FilesystemMetadataQuery`,
@@ -76,7 +79,7 @@ These cases select the existing closed terminal-authority vocabulary; they do
 not introduce new classification rules.
 
 The argument is an evaluated value, so locals and authorized helper parameters
-work just as literal cases do. The receiver must be the activation's original
+work just as literal cases do. The explicit `builder` argument must be the activation's original
 Build value. Only executed calls select exclusions. Admission retains the exact
 toolchain case identity, selecting machine, and authored source span before
 forming the canonical union; a same-spelled user declaration is not equivalent.
