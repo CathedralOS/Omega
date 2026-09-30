@@ -3,9 +3,7 @@ use super::LiveDefinitions;
 use super::observations;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{
-    AbstractDynamicDispatch, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
-};
+use abstract_operations::{AbstractDynamicDispatch, AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
@@ -15,7 +13,7 @@ use target_operations::{
     BoundaryRealization, BoundarySettlementBinding, ScalarFunctionAbi, TargetStructuralParameter,
     TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
-use terminal_psi::{StructuralAccess, StructuralTypeShape};
+use terminal_psi::StructuralTypeShape;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower_operation(
@@ -144,9 +142,8 @@ pub(super) fn lower_operation(
             Ok(())
         }
         // Descriptor dispatches and direct calls that forward descriptors lower
-        // to one `CallDynamic` row. This arm must stay ahead of the plain
-        // scalar-result and Unit-result arms below, which do not test
-        // `dynamic_arguments`.
+        // to one `CallDynamic` row. This arm must stay ahead of the direct-call
+        // arm below, which admits no forwarded descriptors.
         AbstractOperation::CallDynamic { .. } | AbstractOperation::CallStructural { .. }
             if crate::lowering::unit::dynamic::is_dynamic_call(operation) =>
         {
@@ -249,20 +246,23 @@ pub(super) fn lower_operation(
         AbstractOperation::ReleaseReference { .. } => {
             super::references::release(operation, function, live, operations, provenance)
         }
-        AbstractOperation::CallStructural {
-            result: AbstractStructuralCallResult::Structural { .. },
-            ..
-        } => super::aggregate_results::call(
-            operation,
-            function,
-            target,
-            functions,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
+        // Every other direct call, whatever its result, lowers to one `Call`
+        // row through the shared direct-call lowering.
+        AbstractOperation::CallStructural { .. } | AbstractOperation::Call { .. } => {
+            super::direct_calls::lower_direct_call(
+                operation,
+                function,
+                target,
+                functions,
+                structural_types,
+                scalar_abis,
+                prepared,
+                parameters_by_place,
+                live,
+                operations,
+                provenance,
+            )
+        }
         AbstractOperation::StructuralCaseMembership { .. } => super::structural_case::observe(
             operation,
             function,
@@ -334,57 +334,6 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::CallStructural {
-            result: AbstractStructuralCallResult::Scalar(_),
-            ..
-        } => super::borrowed_calls::lower(
-            operation,
-            function,
-            target,
-            functions,
-            structural_types,
-            prepared,
-            live,
-            operations,
-            provenance,
-        ),
-        // A borrowed view established by control flow lives in `block_views`,
-        // never in the parameter roster the unit family resolves against, so
-        // only the borrowed-call family can reconstruct its source. The same
-        // holds for a local home and for an empty-record local, whose
-        // establishment only this graph's live state records.
-        AbstractOperation::CallStructural {
-            structural_arguments,
-            result: AbstractStructuralCallResult::Unit,
-            ..
-        } if structural_arguments.iter().any(|argument| {
-            live.structural_homes.contains_key(&argument.place)
-                || live.trivial_affine_locals.contains_key(&argument.place)
-                || super::references::touches(function, structural_types, live, argument)
-                || live.block_views.contains(&argument.place)
-                || live.address_joins.contains(&argument.place)
-                || (argument.access == StructuralAccess::Owned
-                    && function.structural_parameters.iter().any(|parameter| {
-                        parameter.place == argument.place
-                            && super::owned_arguments::is_owned_parameter(
-                                parameter,
-                                structural_types,
-                            )
-                    }))
-        }) =>
-        {
-            super::borrowed_calls::lower(
-                operation,
-                function,
-                target,
-                functions,
-                structural_types,
-                prepared,
-                live,
-                operations,
-                provenance,
-            )
-        }
         AbstractOperation::StructuralByteSequenceFieldByteStore { .. } => {
             super::byte_write::replace_byte(
                 operation,
@@ -630,40 +579,6 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
-        AbstractOperation::Call { .. } => {
-            let call = crate::lowering::unit::scalar_call::lower_scalar_call(
-                operation,
-                target,
-                functions,
-                scalar_abis,
-                |value| super::scalar_sources::source(value, function, live),
-            )?;
-            let TargetUnitOperation::Call {
-                psi_operation,
-                result: target_operations::TargetCallResult::Scalar(home),
-                ..
-            } = &call
-            else {
-                unreachable!("scalar call planner returns its owned row")
-            };
-            if matches!(
-                home.scalar_type,
-                ScalarType::Boolean | ScalarType::IeeeFloat(_)
-            ) {
-                if live.scalar_homes.insert(home.source_value, *home).is_some() {
-                    return Err(LoweringError::DuplicateValue(home.source_value));
-                }
-            } else {
-                crate::lowering::unit::scalar_call::insert_known_unit_integer(
-                    &mut live.integers,
-                    home.source_value,
-                    super::KnownUnitInteger::Home(*home),
-                )?;
-            }
-            provenance.operations.push(*psi_operation);
-            operations.push(call);
-            Ok(())
-        }
         AbstractOperation::IntegerConstant {
             psi_operation,
             result,
@@ -715,39 +630,6 @@ pub(super) fn lower_operation(
                 &prepared.scalar_parameters,
                 false,
                 &mut live.integers,
-                operations,
-                provenance,
-            )
-        }
-        // Requirement obligations are proof metadata the shipped bundle
-        // already discharged; scalar `Call` and legalized calls forward them
-        // unchanged, so a Unit call carrying them lowers through the same
-        // structural-call route. Crash continuations are the call's verified
-        // surviving-route roster: they change no argument or result custody,
-        // so they lower beside the obligations and the retained row replays
-        // them exactly. Claim transfers still carry runtime custody meaning
-        // and keep refusing here.
-        AbstractOperation::CallStructural {
-            claim_transfers,
-            result: AbstractStructuralCallResult::Unit,
-            ..
-        } if claim_transfers.is_empty() => {
-            crate::lowering::unit::structural_call::lower_structural_unit_call(
-                operation,
-                function,
-                target,
-                functions,
-                structural_types,
-                parameters_by_place,
-                &BTreeMap::new(),
-                &live.views,
-                &live.integers,
-                &BTreeMap::new(),
-                &live.booleans,
-                &live.ieee_float_constants,
-                &live.scalar_block_parameters,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
                 operations,
                 provenance,
             )

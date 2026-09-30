@@ -100,8 +100,10 @@ pub(super) fn resolve(
             }
         }
         // A scalar provider is an ordinary scalar-result call. Without
-        // structural operands it takes the plain scalar call lane; otherwise
-        // the structural-scalar lane carries its borrowed operands.
+        // structural operands it is the scalar-only `Call`, whose callee must
+        // publish a standalone scalar ABI; otherwise a scalar-result
+        // `CallStructural` carries its borrowed operands. Both lower through
+        // `direct_calls`.
         (
             abstract_operations::AbstractBoundaryResult::Scalar(result),
             AbstractFunctionResult::Scalar(candidate_result),

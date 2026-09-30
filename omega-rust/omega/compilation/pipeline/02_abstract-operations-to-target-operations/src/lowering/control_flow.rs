@@ -25,6 +25,7 @@ mod borrowed_calls;
 mod borrowed_windows;
 mod byte_concatenation;
 mod byte_write;
+mod direct_calls;
 mod dominance;
 mod element_view_write;
 mod ieee_float_arithmetic;

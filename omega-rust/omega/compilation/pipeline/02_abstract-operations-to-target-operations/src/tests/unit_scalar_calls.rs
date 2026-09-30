@@ -547,3 +547,94 @@ fn unit_scalar_calls_reject_declared_result_and_argument_carrier_drift() {
         ))
     );
 }
+
+/// A Unit call whose structural arguments all resolve against the parameter
+/// roster passes a Boolean from a caller parameter, an immediate or a block
+/// parameter. A computed Boolean home is refused as an unknown value; the
+/// unified direct-call lowering keeps that route's rule rather than widening it.
+#[test]
+fn unit_roster_calls_pass_boolean_immediates_and_refuse_computed_booleans() {
+    let unit_machine = MachineId::new(3).unwrap();
+    let constant = ValueId::new(10).unwrap();
+    let flag = ValueId::new(13).unwrap();
+    let mut source = attached_unit_scalar_call_plan();
+    source.functions[0].operations = vec![
+        AbstractOperation::IntegerConstant {
+            psi_operation: OperationId::new(10).unwrap(),
+            result: constant,
+            scalar_type: ScalarType::Integer(fixed_integer(32)),
+            value: IntegerValue::Signed(17),
+        },
+        AbstractOperation::IntegerEqual {
+            psi_operation: OperationId::new(13).unwrap(),
+            result: flag,
+            left: constant,
+            right: constant,
+        },
+        AbstractOperation::CallStructural {
+            psi_operation: OperationId::new(14).unwrap(),
+            callee: unit_machine,
+            arguments: vec![flag],
+            structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            result: abstract_operations::AbstractStructuralCallResult::Unit,
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+        AbstractOperation::ReturnUnit {
+            psi_edge: EdgeId::new(1).unwrap(),
+            cleanup_actions: Vec::new(),
+        },
+    ];
+    source.functions.push(AbstractFunction {
+        machine: unit_machine,
+        attachment: None,
+        entry: BlockId::new(3).unwrap(),
+        parameters: vec![AbstractParameter {
+            value: ValueId::new(30).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        }],
+        structural_parameters: Vec::new(),
+        result: AbstractFunctionResult::Unit,
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        block_entries: vec![AbstractBlockEntry {
+            block: BlockId::new(3).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            operation_offset: 0,
+        }],
+        operations: vec![AbstractOperation::ReturnUnit {
+            psi_edge: EdgeId::new(3).unwrap(),
+            cleanup_actions: Vec::new(),
+        }],
+    });
+    let native = NativeTarget::linux_x64();
+    assert_eq!(
+        lower_to_target_operations(&source, TargetLoweringRequest::new(native)),
+        Err(LoweringError::UnknownValue(flag))
+    );
+
+    source.functions[0].operations[1] = AbstractOperation::BooleanConstant {
+        psi_operation: OperationId::new(13).unwrap(),
+        result: flag,
+        value: true,
+    };
+    let lowered = lower_to_target_operations(&source, TargetLoweringRequest::new(native)).unwrap();
+    crate::validate_abstract_to_target_translation(&source, native, &lowered).unwrap();
+    let TargetUnitOperation::Call {
+        scalar_arguments, ..
+    } = &lowered.functions[0].graph.blocks[0].operations[2]
+    else {
+        panic!("unit call")
+    };
+    assert_eq!(
+        scalar_arguments[0].source,
+        TargetUnitScalarArgumentSource::BooleanImmediate {
+            defining_operation: OperationId::new(13).unwrap(),
+            source_value: flag,
+            value: true,
+        }
+    );
+}
