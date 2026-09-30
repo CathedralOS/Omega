@@ -18,17 +18,6 @@ pub(super) fn establish(
     let (established, shape, stores) =
         crate::selection::zeroed_structural_input::storage(source, row)
             .ok_or_else(SelectedInstructionError::custody)?;
-    if shape.byte_size == 0 {
-        // The semantic result remains in the exact source frontier. No address,
-        // physical home or access exists; retain construction before the next
-        // executable instruction, including the block's terminator.
-        builder.pending_provenance.operations.push(row.operation);
-        builder
-            .pending_provenance
-            .fuel
-            .extend(row.fuel.iter().cloned());
-        return Ok(());
-    }
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: established.place,
@@ -38,12 +27,21 @@ pub(super) fn establish(
         .local_slots
         .push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: shape.byte_size,
+            byte_size: shape.byte_size.max(1),
             alignment: shape.alignment,
         });
     // The address instruction charges construction once; the payload stores
     // carry the row's provenance without introducing additional semantic work.
-    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
+    // Empty values still lend an address. Match record construction's anchor
+    // without adding semantic payload or changing the owned argument ABI.
+    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size.max(1), true)?;
+    if shape.byte_size == 0 {
+        builder
+            .transport
+            .pointers
+            .push((established.place, pointer));
+        return Ok(());
+    }
     // Every scalar zero spelling is the all-zero bit pattern, so one
     // materialization serves every leaf width.
     let zero = transport_register(builder, established.place, 0)?;
