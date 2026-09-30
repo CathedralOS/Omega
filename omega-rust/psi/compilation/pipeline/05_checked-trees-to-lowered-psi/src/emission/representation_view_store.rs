@@ -20,10 +20,13 @@ use super::{
     ValueDeclaration, ValueId, allocate_dense, emit_direct_expression, emit_u64_coordinate,
     obligation_id, terminal_scalar_type, unsupported, value_id,
 };
+use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::{LoweredDirectExpression, emit_scalar_leaf};
-use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
+use crate::emission::operation_emission::integer::{
+    LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
+};
 use crate::emission::runtime_elements::{self, ProjectionStep};
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::source_custody;
@@ -231,10 +234,6 @@ pub(crate) fn emit(
             "representation view store parameter is absent",
         ))?;
     let view_scalar = terminal_scalar_type(write.view)?;
-    let ScalarType::Integer(view_integer) = view_scalar else {
-        return unsupported("representation view store requires an integer view");
-    };
-    let view_bytes = u64::from(view_integer.bits()) / 8;
     let Some((leaf, prefix)) = write.path.split_last() else {
         return unsupported("representation view store lost its leaf segment");
     };
@@ -279,7 +278,7 @@ pub(crate) fn emit(
             )?;
             let path = runtime_elements::complete_path(steps, indexes, calls)?;
             let operand = lower_value(write, &bindings, checked, state, values, view_scalar)?;
-            let casted = wrapping_cast(operand, view_integer, leaf_scalar)?;
+            let casted = view_leaf_image(operand, view_scalar, leaf_scalar)?;
             let value = emit_direct_expression(&casted, values, next_value, operations);
             let range_obligation =
                 if matches!(field.field_type, StructuralFieldType::BoundedInteger(_)) {
@@ -305,6 +304,10 @@ pub(crate) fn emit(
             | CheckedUnitStructuralPathSegment::RuntimeIndex(_),
             walked_tail,
         ) => {
+            let ScalarType::Integer(view_integer) = view_scalar else {
+                return unsupported("representation view store requires an integer view");
+            };
+            let view_bytes = u64::from(view_integer.bits()) / 8;
             let capacity = match walked_tail {
                 Walked::Carrier(&ByteSequenceCarrier::BoundedOwned { capacity, .. }) => capacity,
                 // A plain `[u8; N]` field walks to its fixed array type; the
@@ -333,7 +336,9 @@ pub(crate) fn emit(
                     *length
                 }
                 _ => {
-                    return unsupported("representation view store requires a bounded byte carrier");
+                    return unsupported(
+                        "representation view store requires a bounded byte carrier",
+                    );
                 }
             };
             let indexes = runtime_elements::evaluate_selectors(
@@ -532,7 +537,9 @@ fn walk_carrier_prefix<'a>(
                         Walked::Carrier(carrier)
                     }
                     _ => {
-                        return unsupported("representation view store carrier has a scalar member");
+                        return unsupported(
+                            "representation view store carrier has a scalar member",
+                        );
                     }
                 };
             }
@@ -587,6 +594,77 @@ fn walk_carrier_prefix<'a>(
         }
     }
     Ok((steps, walked))
+}
+
+/// Retag the authored store value from the view's carrier onto the leaf's
+/// declared carrier. Two integer carriers spell the modular image through
+/// `wrapping_cast`, exactly like the read side's equal-width re-view.
+///
+/// An integer view reaching a Boolean leaf lands the leaf's `{0, 1}` bit
+/// image as `operand != 0` — total for every admitted operand, and exact
+/// for the bounded views the recast judgment restricts to a one-byte
+/// carrier. A Boolean view reaching an integer leaf lands `0` or `1`: a
+/// runtime Boolean needs the conditional landing only the scalar graph's
+/// branch machinery spells, so the flat form admits the `BooleanConstant`
+/// whose value folds to the literal and refuses every other Boolean
+/// expression.
+fn view_leaf_image(
+    operand: LoweredDirectExpression,
+    view: ScalarType,
+    leaf: ScalarType,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    match (view, leaf) {
+        (ScalarType::Integer(view_integer), ScalarType::Integer(_)) => {
+            wrapping_cast(operand, view_integer, leaf)
+        }
+        (ScalarType::Integer(_), ScalarType::Boolean) => {
+            let zero = match view {
+                ScalarType::Integer(integer) => match integer.sign() {
+                    semantic_vocabulary::IntegerSign::Signed => IntegerValue::Signed(0),
+                    semantic_vocabulary::IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+                },
+                _ => unreachable!("integer view checked above"),
+            };
+            Ok(LoweredDirectExpression::Boolean {
+                expression: Box::new(LoweredBooleanReturnExpression::Not {
+                    operand: Box::new(LoweredBooleanReturnExpression::IntegerComparison {
+                        kind: LoweredIntegerComparisonKind::Equal,
+                        left: Box::new(operand),
+                        right: Box::new(LoweredDirectExpression::IntegerLiteral {
+                            value: zero,
+                            scalar_type: view,
+                        }),
+                    }),
+                }),
+            })
+        }
+        (ScalarType::Boolean, ScalarType::Integer(_)) => match operand {
+            LoweredDirectExpression::Boolean { expression } => {
+                let LoweredBooleanReturnExpression::Constant { value } = *expression else {
+                    return unsupported(
+                        "representation view store cannot land a runtime Boolean on an integer leaf",
+                    );
+                };
+                let ScalarType::Integer(carrier) = leaf else {
+                    unreachable!("integer leaf checked above");
+                };
+                let value = match carrier.sign() {
+                    semantic_vocabulary::IntegerSign::Signed => IntegerValue::Signed(value.into()),
+                    semantic_vocabulary::IntegerSign::Unsigned => {
+                        IntegerValue::Unsigned(value.into())
+                    }
+                };
+                Ok(LoweredDirectExpression::IntegerLiteral {
+                    value,
+                    scalar_type: leaf,
+                })
+            }
+            _ => unsupported(
+                "representation view store cannot land a runtime Boolean on an integer leaf",
+            ),
+        },
+        _ => unsupported("representation view store pairs incompatible carriers"),
+    }
 }
 
 /// The scalar type of a primitive leaf field's declared carrier.
