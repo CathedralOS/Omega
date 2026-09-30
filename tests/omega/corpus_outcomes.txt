@@ -1399,10 +1399,8 @@ pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit rejecte
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 2, statement 0)
 pass/control_flow/runtime_string_literal_dispatch_exit rejected 745ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
-pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 720ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
-pass/control_flow/runtime_tuple_case_destructure_exit rejected 779ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
+pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit checked 1457ms @84c87cb730d8
+pass/control_flow/runtime_tuple_case_destructure_exit checked 1792ms @84c87cb730d8
 pass/control_flow/runtime_tuple_transition_exit checked 649ms @350be0d2a211+wt
 pass/control_flow/scalar_loop_interior_header_exit checked 1748ms @2d8ed253669f
 pass/control_flow/self_case_payload_both_arms_exit checked 1397ms @2d8ed253669f
