@@ -62,18 +62,18 @@ linux_x86_64 machine Filesystem::native_error_code_i64(filesystem: &mut Filesyst
     state other(filesystem: &mut Filesystem) -> i32 { filesystem.err_code }
 }
 
-pub linux_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult
+pub linux_x86_64 machine Filesystem::open_with(filesystem: &mut Filesystem, path: &[u8] in Path, options: OpenOptions) -> OpenResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.open_options = options;
-    Filesystem::encode_open_options(&mut self);
-    let fd: i32 = self.host.open_create(path, self.open_flags, 438);
-    transition fd >= 0 { true -> ok(fd) _ -> err(fd) }
+    filesystem.open_options = options;
+    Filesystem::encode_open_options(filesystem);
+    let fd: i32 = filesystem.host.open_create(path, filesystem.open_flags, 438);
+    transition fd >= 0 { true -> ok(fd) _ -> err(filesystem, fd) }
     state ok(fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, fd); OpenResult::Error { kind: kind } }
+    state err(filesystem: &mut Filesystem, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 //
 // Linux getdents64 records use d_reclen@16, d_type@18, and a NUL-terminated
@@ -91,72 +91,72 @@ invokes
 // terminal or error path. A malformed record fails as `Other` instead of making
 // the state loop stall. "." and ".." are the first two records of every real
 // directory, so the child count is `records - 2` after the complete drain.
-pub linux_x86_64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult
+pub linux_x86_64 machine Filesystem::read_dir_count(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.read_flags = 0;
-    self.rd_position = 0;
-    self.rd_off = 0;
-    self.rd_count = 0;
-    let dfd: i32 = self.host.open(path, self.read_flags);
-    transition dfd >= 0 { true -> rd_read(dfd) _ -> rd_err_i32(dfd) }
-    state rd_read(&mut self, dfd: i32) -> IoResult {
-        self.rd_off = 0;
-        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
-        self.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
-        transition total > 0 { true -> rd_walk(dfd) _ -> rd_nonpositive(dfd, total) }
+    filesystem.read_flags = 0;
+    filesystem.rd_position = 0;
+    filesystem.rd_off = 0;
+    filesystem.rd_count = 0;
+    let dfd: i32 = filesystem.host.open(path, filesystem.read_flags);
+    transition dfd >= 0 { true -> rd_read(filesystem, dfd) _ -> rd_err_i32(filesystem, dfd) }
+    state rd_read(filesystem: &mut Filesystem, dfd: i32) -> IoResult {
+        filesystem.rd_off = 0;
+        let total: i64 = filesystem.host.read_dir(dfd, &mut filesystem.dir_buf, 512, &mut filesystem.rd_position);
+        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
+        transition total > 0 { true -> rd_walk(filesystem, dfd) _ -> rd_nonpositive(filesystem, dfd, total) }
     }
-    state rd_nonpositive(dfd: i32, total: i64) -> IoResult {
-        transition total == 0 { true -> rd_finish(dfd) _ -> rd_err_i64(dfd, total) }
+    state rd_nonpositive(filesystem: &mut Filesystem, dfd: i32, total: i64) -> IoResult {
+        transition total == 0 { true -> rd_finish(filesystem, dfd) _ -> rd_err_i64(filesystem, dfd, total) }
     }
-    state rd_walk(&mut self, dfd: i32) -> IoResult {
-        transition self.rd_off < self.rd_total { true -> rd_header(dfd) _ -> rd_read(dfd) }
+    state rd_walk(filesystem: &mut Filesystem, dfd: i32) -> IoResult {
+        transition filesystem.rd_off < filesystem.rd_total { true -> rd_header(filesystem, dfd) _ -> rd_read(filesystem, dfd) }
     }
-    state rd_header(&mut self, dfd: i32) -> IoResult {
-        transition self.rd_off < 495 { true -> rd_body(dfd) _ -> rd_malformed(dfd) }
+    state rd_header(filesystem: &mut Filesystem, dfd: i32) -> IoResult {
+        transition filesystem.rd_off < 495 { true -> rd_body(filesystem, dfd) _ -> rd_malformed(filesystem, dfd) }
     }
-    state rd_body(&mut self, dfd: i32) -> IoResult {
+    state rd_body(filesystem: &mut Filesystem, dfd: i32) -> IoResult {
         // d_reclen: little-endian u16 at record offset + 16 (RUNTIME-indexed reads).
-        self.rd_idx = self.rd_off + 16;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 17;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
-        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
-        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
-        transition self.rd_reclen > 0 && self.rd_off + self.rd_reclen <= self.rd_total { true -> rd_accept(dfd) _ -> rd_malformed(dfd) }
+        filesystem.rd_idx = filesystem.rd_off + 16;
+        filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_idx = filesystem.rd_off + 17;
+        filesystem.rd_hi = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_lou = widen_u8_to_u64(filesystem.rd_lo) as u64 in Wrapping;
+        filesystem.rd_hiu = widen_u8_to_u64(filesystem.rd_hi) as u64 in Wrapping;
+        filesystem.rd_reclen = (filesystem.rd_hiu << 8) | filesystem.rd_lou;
+        transition filesystem.rd_reclen > 0 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rd_accept(filesystem, dfd) _ -> rd_malformed(filesystem, dfd) }
     }
-    state rd_accept(&mut self, dfd: i32) -> IoResult {
-        self.rd_count = self.rd_count + 1;
-        self.rd_off = self.rd_off + self.rd_reclen;
-        transition { _ -> rd_walk(dfd) }
+    state rd_accept(filesystem: &mut Filesystem, dfd: i32) -> IoResult {
+        filesystem.rd_count = filesystem.rd_count + 1;
+        filesystem.rd_off = filesystem.rd_off + filesystem.rd_reclen;
+        transition { _ -> rd_walk(filesystem, dfd) }
     }
-    state rd_finish(&mut self, dfd: i32) -> IoResult {
-        let closed: i32 = self.host.close(dfd);
+    state rd_finish(filesystem: &mut Filesystem, dfd: i32) -> IoResult {
+        let closed: i32 = filesystem.host.close(dfd);
         // Every real directory yields "." and ".." first, so children = records - 2.
-        transition self.rd_count > 2 { true -> rd_ok() _ -> rd_empty() }
+        transition filesystem.rd_count > 2 { true -> rd_ok(filesystem) _ -> rd_empty() }
     }
     state rd_empty() -> IoResult { IoResult::Ok { count: 0 } }
-    state rd_ok(&mut self) -> IoResult {
-        self.rd_lou = narrow_i32_to_u64_wrapping((self.rd_count - 2) as i32) as u64 in Wrapping;
-        let count: u64 = self.rd_lou as u64;
+    state rd_ok(filesystem: &mut Filesystem) -> IoResult {
+        filesystem.rd_lou = narrow_i32_to_u64_wrapping((filesystem.rd_count - 2) as i32) as u64 in Wrapping;
+        let count: u64 = filesystem.rd_lou as u64;
         IoResult::Ok { count: count }
     }
-    state rd_err_i32(&mut self, result: i32) -> IoResult {
-        let kind: ErrorKind = Filesystem::last_error_i32(&mut self, result);
+    state rd_err_i32(filesystem: &mut Filesystem, result: i32) -> IoResult {
+        let kind: ErrorKind = Filesystem::last_error_i32(filesystem, result);
         IoResult::Error { kind: kind }
     }
-    state rd_err_i64(&mut self, dfd: i32, result: i64) -> IoResult {
-        let kind: ErrorKind = Filesystem::last_error_i64(&mut self, result);
-        let closed: i32 = self.host.close(dfd);
+    state rd_err_i64(filesystem: &mut Filesystem, dfd: i32, result: i64) -> IoResult {
+        let kind: ErrorKind = Filesystem::last_error_i64(filesystem, result);
+        let closed: i32 = filesystem.host.close(dfd);
         IoResult::Error { kind: kind }
     }
-    state rd_malformed(&mut self, dfd: i32) -> IoResult {
-        let closed: i32 = self.host.close(dfd);
-        self.err_kind = ErrorKind::Other;
+    state rd_malformed(filesystem: &mut Filesystem, dfd: i32) -> IoResult {
+        let closed: i32 = filesystem.host.close(dfd);
+        filesystem.err_kind = ErrorKind::Other;
         IoResult::Error { kind: ErrorKind::Other }
     }
 }
@@ -269,127 +269,127 @@ reaches FilesystemHost
 // A name longer than 255 bytes is truncated (`name_len` is the copied length).
 // The descriptor cursor remains open across fills and closes at the found, EOF,
 // malformed-record, or syscall-error terminal.
-pub linux_x86_64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult
+pub linux_x86_64 machine Filesystem::read_dir_nth(filesystem: &mut Filesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.read_flags = 0;
-    self.rd_position = 0;
-    self.rd_off = 0;
-    self.rd_recno = 0;
-    self.rd_target = (n as u64 in Wrapping) + 2;
-    let dfd: i32 = self.host.open(path, self.read_flags);
-    transition dfd >= 0 { true -> rdn_read(dfd) _ -> rdn_err_i32(dfd) }
-    state rdn_read(&mut self, dfd: i32) -> DirEntryResult {
-        self.rd_off = 0;
-        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
-        self.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
-        transition total > 0 { true -> rdn_walk(dfd) _ -> rdn_nonpositive(dfd, total) }
+    filesystem.read_flags = 0;
+    filesystem.rd_position = 0;
+    filesystem.rd_off = 0;
+    filesystem.rd_recno = 0;
+    filesystem.rd_target = (n as u64 in Wrapping) + 2;
+    let dfd: i32 = filesystem.host.open(path, filesystem.read_flags);
+    transition dfd >= 0 { true -> rdn_read(filesystem, dfd) _ -> rdn_err_i32(filesystem, dfd) }
+    state rdn_read(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
+        filesystem.rd_off = 0;
+        let total: i64 = filesystem.host.read_dir(dfd, &mut filesystem.dir_buf, 512, &mut filesystem.rd_position);
+        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 in Wrapping;
+        transition total > 0 { true -> rdn_walk(filesystem, dfd) _ -> rdn_nonpositive(filesystem, dfd, total) }
     }
-    state rdn_nonpositive(dfd: i32, total: i64) -> DirEntryResult {
-        transition total == 0 { true -> rdn_finish(dfd) _ -> rdn_err_i64(dfd, total) }
+    state rdn_nonpositive(filesystem: &mut Filesystem, dfd: i32, total: i64) -> DirEntryResult {
+        transition total == 0 { true -> rdn_finish(filesystem, dfd) _ -> rdn_err_i64(filesystem, dfd, total) }
     }
-    state rdn_walk(&mut self, dfd: i32) -> DirEntryResult {
-        transition self.rd_off < self.rd_total { true -> rdn_header(dfd) _ -> rdn_read(dfd) }
+    state rdn_walk(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
+        transition filesystem.rd_off < filesystem.rd_total { true -> rdn_header(filesystem, dfd) _ -> rdn_read(filesystem, dfd) }
     }
-    state rdn_header(&mut self, dfd: i32) -> DirEntryResult {
-        transition self.rd_off < 494 { true -> rdn_at(dfd) _ -> rdn_malformed(dfd) }
+    state rdn_header(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
+        transition filesystem.rd_off < 494 { true -> rdn_at(filesystem, dfd) _ -> rdn_malformed(filesystem, dfd) }
     }
-    state rdn_at(&mut self, dfd: i32) -> DirEntryResult {
-        transition self.rd_recno == self.rd_target { true -> rdn_found(dfd) _ -> rdn_advance(dfd) }
+    state rdn_at(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
+        transition filesystem.rd_recno == filesystem.rd_target { true -> rdn_found(filesystem, dfd) _ -> rdn_advance(filesystem, dfd) }
     }
-    state rdn_advance(&mut self, dfd: i32) -> DirEntryResult {
-        self.rd_idx = self.rd_off + 16;
-        self.rd_lo = self.dir_buf[self.rd_idx];
-        self.rd_idx = self.rd_off + 17;
-        self.rd_hi = self.dir_buf[self.rd_idx];
-        self.rd_lou = widen_u8_to_u64(self.rd_lo) as u64 in Wrapping;
-        self.rd_hiu = widen_u8_to_u64(self.rd_hi) as u64 in Wrapping;
-        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
-        transition self.rd_reclen > 0 && self.rd_off + self.rd_reclen <= self.rd_total { true -> rdn_accept(dfd) _ -> rdn_malformed(dfd) }
+    state rdn_advance(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
+        filesystem.rd_idx = filesystem.rd_off + 16;
+        filesystem.rd_lo = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_idx = filesystem.rd_off + 17;
+        filesystem.rd_hi = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_lou = widen_u8_to_u64(filesystem.rd_lo) as u64 in Wrapping;
+        filesystem.rd_hiu = widen_u8_to_u64(filesystem.rd_hi) as u64 in Wrapping;
+        filesystem.rd_reclen = (filesystem.rd_hiu << 8) | filesystem.rd_lou;
+        transition filesystem.rd_reclen > 0 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rdn_accept(filesystem, dfd) _ -> rdn_malformed(filesystem, dfd) }
     }
-    state rdn_accept(&mut self, dfd: i32) -> DirEntryResult {
-        self.rd_recno = self.rd_recno + 1;
-        self.rd_off = self.rd_off + self.rd_reclen;
-        transition { _ -> rdn_walk(dfd) }
+    state rdn_accept(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
+        filesystem.rd_recno = filesystem.rd_recno + 1;
+        filesystem.rd_off = filesystem.rd_off + filesystem.rd_reclen;
+        transition { _ -> rdn_walk(filesystem, dfd) }
     }
-    state rdn_found(&mut self, dfd: i32) -> DirEntryResult {
-        let closed: i32 = self.host.close(dfd);
-        transition { _ -> rdn_extract() }
+    state rdn_found(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
+        let closed: i32 = filesystem.host.close(dfd);
+        transition { _ -> rdn_extract(filesystem) }
     }
-    state rdn_extract(&mut self) -> DirEntryResult {
-        self.rd_idx = self.rd_off + 18;
-        self.rd_dtype = self.dir_buf[self.rd_idx];
-        self.rd_j = 0;
-        transition { _ -> rdn_copy() }
+    state rdn_extract(filesystem: &mut Filesystem) -> DirEntryResult {
+        filesystem.rd_idx = filesystem.rd_off + 18;
+        filesystem.rd_dtype = filesystem.dir_buf[filesystem.rd_idx];
+        filesystem.rd_j = 0;
+        transition { _ -> rdn_copy(filesystem) }
     }
-    state rdn_copy(&mut self) -> DirEntryResult {
-        transition self.rd_j < 255 { true -> rdn_cbyte() _ -> rdn_build() }
+    state rdn_copy(filesystem: &mut Filesystem) -> DirEntryResult {
+        transition filesystem.rd_j < 255 { true -> rdn_cbyte(filesystem) _ -> rdn_build(filesystem) }
     }
-    state rdn_cbyte(&mut self) -> DirEntryResult {
-        self.rd_ridx = self.rd_off + 19 + self.rd_j;
-        transition self.rd_ridx < 512 && self.rd_ridx < self.rd_total { true -> rdn_cdo() _ -> rdn_build() }
+    state rdn_cbyte(filesystem: &mut Filesystem) -> DirEntryResult {
+        filesystem.rd_ridx = filesystem.rd_off + 19 + filesystem.rd_j;
+        transition filesystem.rd_ridx < 512 && filesystem.rd_ridx < filesystem.rd_total { true -> rdn_cdo(filesystem) _ -> rdn_build(filesystem) }
     }
-    state rdn_cdo(&mut self) -> DirEntryResult {
-        self.rd_nb = self.dir_buf[self.rd_ridx];
-        transition self.rd_nb == 0 { true -> rdn_build() _ -> rdn_store() }
+    state rdn_cdo(filesystem: &mut Filesystem) -> DirEntryResult {
+        filesystem.rd_nb = filesystem.dir_buf[filesystem.rd_ridx];
+        transition filesystem.rd_nb == 0 { true -> rdn_build(filesystem) _ -> rdn_store(filesystem) }
     }
-    state rdn_store(&mut self) -> DirEntryResult {
-        self.entry_name[self.rd_j] = self.rd_nb;
-        self.rd_j = self.rd_j + 1;
-        transition { _ -> rdn_copy() }
+    state rdn_store(filesystem: &mut Filesystem) -> DirEntryResult {
+        filesystem.entry_name[filesystem.rd_j] = filesystem.rd_nb;
+        filesystem.rd_j = filesystem.rd_j + 1;
+        transition { _ -> rdn_copy(filesystem) }
     }
-    state rdn_build(&mut self) -> DirEntryResult {
-        transition self.rd_dtype == 4 { true -> rdn_ok_dir() _ -> rdn_maybe_file() }
+    state rdn_build(filesystem: &mut Filesystem) -> DirEntryResult {
+        transition filesystem.rd_dtype == 4 { true -> rdn_ok_dir(filesystem) _ -> rdn_maybe_file(filesystem) }
     }
-    state rdn_ok_dir(&mut self) -> DirEntryResult {
-        let name_len: u64 = self.rd_j as u64;
+    state rdn_ok_dir(filesystem: &mut Filesystem) -> DirEntryResult {
+        let name_len: u64 = filesystem.rd_j as u64;
         DirEntryResult::Ok { entry: DirEntry {
-            name: self.entry_name,
+            name: filesystem.entry_name,
             name_len: name_len,
             is_dir: true,
             is_file: false,
         } }
     }
-    state rdn_maybe_file(&mut self) -> DirEntryResult {
-        transition self.rd_dtype == 8 { true -> rdn_ok_file() _ -> rdn_ok_other() }
+    state rdn_maybe_file(filesystem: &mut Filesystem) -> DirEntryResult {
+        transition filesystem.rd_dtype == 8 { true -> rdn_ok_file(filesystem) _ -> rdn_ok_other(filesystem) }
     }
-    state rdn_ok_file(&mut self) -> DirEntryResult {
-        let name_len: u64 = self.rd_j as u64;
+    state rdn_ok_file(filesystem: &mut Filesystem) -> DirEntryResult {
+        let name_len: u64 = filesystem.rd_j as u64;
         DirEntryResult::Ok { entry: DirEntry {
-            name: self.entry_name,
+            name: filesystem.entry_name,
             name_len: name_len,
             is_dir: false,
             is_file: true,
         } }
     }
-    state rdn_ok_other(&mut self) -> DirEntryResult {
-        let name_len: u64 = self.rd_j as u64;
+    state rdn_ok_other(filesystem: &mut Filesystem) -> DirEntryResult {
+        let name_len: u64 = filesystem.rd_j as u64;
         DirEntryResult::Ok { entry: DirEntry {
-            name: self.entry_name,
+            name: filesystem.entry_name,
             name_len: name_len,
             is_dir: false,
             is_file: false,
         } }
     }
-    state rdn_finish(&mut self, dfd: i32) -> DirEntryResult {
-        let closed: i32 = self.host.close(dfd);
+    state rdn_finish(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
+        let closed: i32 = filesystem.host.close(dfd);
         DirEntryResult::End
     }
-    state rdn_err_i32(&mut self, result: i32) -> DirEntryResult {
-        let kind: ErrorKind = Filesystem::last_error_i32(&mut self, result);
+    state rdn_err_i32(filesystem: &mut Filesystem, result: i32) -> DirEntryResult {
+        let kind: ErrorKind = Filesystem::last_error_i32(filesystem, result);
         DirEntryResult::Error { kind: kind }
     }
-    state rdn_err_i64(&mut self, dfd: i32, result: i64) -> DirEntryResult {
-        let kind: ErrorKind = Filesystem::last_error_i64(&mut self, result);
-        let closed: i32 = self.host.close(dfd);
+    state rdn_err_i64(filesystem: &mut Filesystem, dfd: i32, result: i64) -> DirEntryResult {
+        let kind: ErrorKind = Filesystem::last_error_i64(filesystem, result);
+        let closed: i32 = filesystem.host.close(dfd);
         DirEntryResult::Error { kind: kind }
     }
-    state rdn_malformed(&mut self, dfd: i32) -> DirEntryResult {
-        let closed: i32 = self.host.close(dfd);
-        self.err_kind = ErrorKind::Other;
+    state rdn_malformed(filesystem: &mut Filesystem, dfd: i32) -> DirEntryResult {
+        let closed: i32 = filesystem.host.close(dfd);
+        filesystem.err_kind = ErrorKind::Other;
         DirEntryResult::Error { kind: ErrorKind::Other }
     }
 }
@@ -801,49 +801,49 @@ invokes
     state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); UnitResult::Error { kind: kind } }
 }
 
-pub linux_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult
+pub linux_x86_64 machine Filesystem::lock_shared(filesystem: &mut Filesystem, file: File) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 1);
-    transition rc == 0 { true -> ok() _ -> err(rc) }
+    filesystem.file_fd = file.fd;
+    let rc: i32 = filesystem.host.lock_file(filesystem.file_fd, 1);
+    transition rc == 0 { true -> ok() _ -> err(filesystem, rc) }
     state ok() -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); UnitResult::Error { kind: kind } }
+    state err(filesystem: &mut Filesystem, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }
 
-pub linux_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult
+pub linux_x86_64 machine Filesystem::try_lock(filesystem: &mut Filesystem, file: File) -> TryLockResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 6);
-    self.lock_errno = Filesystem::native_error_code_i32(&mut self, rc);
-    transition rc == 0 { true -> acquired() _ -> contended(rc) }
+    filesystem.file_fd = file.fd;
+    let rc: i32 = filesystem.host.lock_file(filesystem.file_fd, 6);
+    filesystem.lock_errno = Filesystem::native_error_code_i32(filesystem, rc);
+    transition rc == 0 { true -> acquired() _ -> contended(filesystem, rc) }
     state acquired() -> TryLockResult { TryLockResult::Acquired }
-    state contended(&mut self, rc: i32) -> TryLockResult { transition self.lock_errno == 35 { true -> would_block() _ -> failed(rc) } }
+    state contended(filesystem: &mut Filesystem, rc: i32) -> TryLockResult { transition filesystem.lock_errno == 35 { true -> would_block() _ -> failed(filesystem, rc) } }
     state would_block() -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self, rc: i32) -> TryLockResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); TryLockResult::Error { kind: kind } }
+    state failed(filesystem: &mut Filesystem, rc: i32) -> TryLockResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); TryLockResult::Error { kind: kind } }
 }
 
-pub linux_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult
+pub linux_x86_64 machine Filesystem::try_lock_shared(filesystem: &mut Filesystem, file: File) -> TryLockResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 5);
-    self.lock_errno = Filesystem::native_error_code_i32(&mut self, rc);
-    transition rc == 0 { true -> acquired() _ -> contended(rc) }
+    filesystem.file_fd = file.fd;
+    let rc: i32 = filesystem.host.lock_file(filesystem.file_fd, 5);
+    filesystem.lock_errno = Filesystem::native_error_code_i32(filesystem, rc);
+    transition rc == 0 { true -> acquired() _ -> contended(filesystem, rc) }
     state acquired() -> TryLockResult { TryLockResult::Acquired }
-    state contended(&mut self, rc: i32) -> TryLockResult { transition self.lock_errno == 35 { true -> would_block() _ -> failed(rc) } }
+    state contended(filesystem: &mut Filesystem, rc: i32) -> TryLockResult { transition filesystem.lock_errno == 35 { true -> would_block() _ -> failed(filesystem, rc) } }
     state would_block() -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self, rc: i32) -> TryLockResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); TryLockResult::Error { kind: kind } }
+    state failed(filesystem: &mut Filesystem, rc: i32) -> TryLockResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); TryLockResult::Error { kind: kind } }
 }
 
 pub linux_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult

@@ -64,18 +64,18 @@ reaches FilesystemHost
     state other(filesystem: &mut Filesystem) -> i32 { filesystem.err_code }
 }
 
-pub windows_x86_64 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult
+pub windows_x86_64 machine Filesystem::open_with(filesystem: &mut Filesystem, path: &[u8] in Path, options: OpenOptions) -> OpenResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.open_options = options;
-    Filesystem::encode_open_options(&mut self);
-    let fd: i32 = self.host.open_create(path, self.open_flags, 438);
-    transition fd >= 0 { true -> ok(fd) _ -> err() }
-    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self) -> OpenResult { let kind: ErrorKind = Filesystem::last_error(&mut self); OpenResult::Error { kind: kind } }
+    filesystem.open_options = options;
+    Filesystem::encode_open_options(filesystem);
+    let fd: i32 = filesystem.host.open_create(path, filesystem.open_flags, 438);
+    transition fd >= 0 { true -> ok(filesystem, fd) _ -> err(filesystem) }
+    state ok(filesystem: &mut Filesystem, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(filesystem: &mut Filesystem) -> OpenResult { let kind: ErrorKind = Filesystem::last_error(filesystem); OpenResult::Error { kind: kind } }
 }
 //
 // THE WINDOWS PARADIGM: no dirfd exists -- directory listing is HANDLE
@@ -105,50 +105,50 @@ invokes
 // w_scan_step), which tallies every non-dot record. Unlike the posix walk's
 // single 512-byte fill (which undercounts a large directory), the fueled
 // enumeration counts up to 4096 records -- the fuel budget is the only cap.
-pub windows_x86_64 machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult
+pub windows_x86_64 machine Filesystem::read_dir_count(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.w_scan_count = 0;
-    self.w_scan_dirs = 0;
-    self.w_scan_files = 0;
-    self.w_scan_target = 4294967295;
-    self.w_scan_hit = 0;
-    self.w_scan_done = 0;
-    self.w_scan_pending = 0;
-    Filesystem::w_path_copy(&mut self, path, 0);
-    transition path.len < 509 { true -> rd_seal(path) _ -> rd_err(path) }
+    filesystem.w_scan_count = 0;
+    filesystem.w_scan_dirs = 0;
+    filesystem.w_scan_files = 0;
+    filesystem.w_scan_target = 4294967295;
+    filesystem.w_scan_hit = 0;
+    filesystem.w_scan_done = 0;
+    filesystem.w_scan_pending = 0;
+    Filesystem::w_path_copy(filesystem, path, 0);
+    transition path.len < 509 { true -> rd_seal(filesystem, path) _ -> rd_err(filesystem, path) }
     // `path` is threaded through every state (mostly unused) so the
     // shared-param domain grant re-establishes `path in Path` after the copy
     // value-call's conservative invalidation -- the posix impl's exact note.
     // (`w_path_len = path.len` lives in the ENTRY: a slice-length write into
     // a field does not lower from a dispatched arm state.)
-    state rd_seal(&mut self, path: &[u8] in Path) -> IoResult {
-        Filesystem::w_seal_pattern(&mut self, 0);
-        transition self.w_help_rc == 0 { true -> rd_open(path) _ -> rd_err(path) }
+    state rd_seal(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult {
+        Filesystem::w_seal_pattern(filesystem, 0);
+        transition filesystem.w_help_rc == 0 { true -> rd_open(filesystem, path) _ -> rd_err(filesystem, path) }
     }
-    state rd_open(&mut self, path: &[u8] in Path) -> IoResult {
-        Filesystem::w_find_open(&mut self, self.w_pat_len);
-        transition self.w_find >= 0 { true -> rd_scan(path) _ -> rd_nf(path) }
+    state rd_open(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult {
+        Filesystem::w_find_open(filesystem, filesystem.w_pat_len);
+        transition filesystem.w_find >= 0 { true -> rd_scan(filesystem, path) _ -> rd_nf(filesystem, path) }
     }
-    state rd_scan(&mut self, path: &[u8] in Path) -> IoResult {
-        self.w_scan_pending = 1;
-        self.rda_rc = Filesystem::w_scan_drain(&mut self, 4096);
-        self.rda_close_rc = self.host.find_close(self.w_find);
-        transition self.rda_rc == 0 { true -> rd_ok(path) _ -> rd_err(path) }
+    state rd_scan(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult {
+        filesystem.w_scan_pending = 1;
+        filesystem.rda_rc = Filesystem::w_scan_drain(filesystem, 4096);
+        filesystem.rda_close_rc = filesystem.host.find_close(filesystem.w_find);
+        transition filesystem.rda_rc == 0 { true -> rd_ok(filesystem, path) _ -> rd_err(filesystem, path) }
     }
-    state rd_ok(&mut self, path: &[u8] in Path) -> IoResult {
-        let count: u64 = self.w_scan_count as u64;
+    state rd_ok(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult {
+        let count: u64 = filesystem.w_scan_count as u64;
         IoResult::Ok { count: count }
     }
-    state rd_nf(&mut self, path: &[u8] in Path) -> IoResult {
+    state rd_nf(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult {
         let kind: ErrorKind = ErrorKind::NotFound;
         IoResult::Error { kind: kind }
     }
-    state rd_err(&mut self, path: &[u8] in Path) -> IoResult {
-        let kind: ErrorKind = Filesystem::last_error(&mut self);
+    state rd_err(filesystem: &mut Filesystem, path: &[u8] in Path) -> IoResult {
+        let kind: ErrorKind = Filesystem::last_error(filesystem);
         IoResult::Error { kind: kind }
     }
 }
@@ -205,72 +205,72 @@ reaches FilesystemHost
 // indexed; dots skipped by NAME so n counts real children). The scan core
 // captures the n-th non-dot record's name (NUL-truncated copy into
 // entry_name) and kind while the drain runs; no capture => End.
-pub windows_x86_64 machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: u64) -> DirEntryResult
+pub windows_x86_64 machine Filesystem::read_dir_nth(filesystem: &mut Filesystem, path: &[u8] in Path, n: u64) -> DirEntryResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.w_scan_count = 0;
-    self.w_scan_dirs = 0;
-    self.w_scan_files = 0;
-    self.w_scan_target = n as u64 in Wrapping;
-    self.w_scan_hit = 0;
-    self.w_hit_kind = 0;
-    self.w_scan_done = 0;
-    self.w_scan_pending = 0;
-    Filesystem::w_path_copy(&mut self, path, 0);
-    transition path.len < 509 { true -> rdn_seal(path) _ -> rdn_err(path) }
+    filesystem.w_scan_count = 0;
+    filesystem.w_scan_dirs = 0;
+    filesystem.w_scan_files = 0;
+    filesystem.w_scan_target = n as u64 in Wrapping;
+    filesystem.w_scan_hit = 0;
+    filesystem.w_hit_kind = 0;
+    filesystem.w_scan_done = 0;
+    filesystem.w_scan_pending = 0;
+    Filesystem::w_path_copy(filesystem, path, 0);
+    transition path.len < 509 { true -> rdn_seal(filesystem, path) _ -> rdn_err(filesystem, path) }
     // `path` threading: the posix impl's shared-param domain-grant note.
-    state rdn_seal(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        Filesystem::w_seal_pattern(&mut self, 0);
-        transition self.w_help_rc == 0 { true -> rdn_open(path) _ -> rdn_err(path) }
+    state rdn_seal(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
+        Filesystem::w_seal_pattern(filesystem, 0);
+        transition filesystem.w_help_rc == 0 { true -> rdn_open(filesystem, path) _ -> rdn_err(filesystem, path) }
     }
-    state rdn_open(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        Filesystem::w_find_open(&mut self, self.w_pat_len);
-        transition self.w_find >= 0 { true -> rdn_scan(path) _ -> rdn_nf(path) }
+    state rdn_open(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
+        Filesystem::w_find_open(filesystem, filesystem.w_pat_len);
+        transition filesystem.w_find >= 0 { true -> rdn_scan(filesystem, path) _ -> rdn_nf(filesystem, path) }
     }
-    state rdn_scan(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        self.w_scan_pending = 1;
-        self.rda_rc = Filesystem::w_scan_drain(&mut self, 4096);
-        self.rda_close_rc = self.host.find_close(self.w_find);
-        transition self.rda_rc == 0 { true -> rdn_check(path) _ -> rdn_err(path) }
+    state rdn_scan(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
+        filesystem.w_scan_pending = 1;
+        filesystem.rda_rc = Filesystem::w_scan_drain(filesystem, 4096);
+        filesystem.rda_close_rc = filesystem.host.find_close(filesystem.w_find);
+        transition filesystem.rda_rc == 0 { true -> rdn_check(filesystem, path) _ -> rdn_err(filesystem, path) }
     }
-    state rdn_check(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        transition self.w_scan_hit == 1 { true -> rdn_kind(path) _ -> rdn_end(path) }
+    state rdn_check(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
+        transition filesystem.w_scan_hit == 1 { true -> rdn_kind(filesystem, path) _ -> rdn_end(filesystem, path) }
     }
-    state rdn_kind(&mut self, path: &[u8] in Path) -> DirEntryResult {
+    state rdn_kind(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
         // The LATCHED kind, not the running w_scan_kind: the drain kept
         // classifying records after the hit, so the running field holds the
         // LAST record's kind (a trailing dir made every file child report
         // is_dir here).
-        transition self.w_hit_kind == 1 { true -> rdn_ok_dir(path) _ -> rdn_ok_file(path) }
+        transition filesystem.w_hit_kind == 1 { true -> rdn_ok_dir(filesystem, path) _ -> rdn_ok_file(filesystem, path) }
     }
-    state rdn_ok_dir(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        let name_len: u64 = self.w_entry_len as u64;
+    state rdn_ok_dir(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
+        let name_len: u64 = filesystem.w_entry_len as u64;
         DirEntryResult::Ok { entry: DirEntry {
-            name: self.entry_name,
+            name: filesystem.entry_name,
             name_len: name_len,
             is_dir: true,
             is_file: false,
         } }
     }
-    state rdn_ok_file(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        let name_len: u64 = self.w_entry_len as u64;
+    state rdn_ok_file(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
+        let name_len: u64 = filesystem.w_entry_len as u64;
         DirEntryResult::Ok { entry: DirEntry {
-            name: self.entry_name,
+            name: filesystem.entry_name,
             name_len: name_len,
             is_dir: false,
             is_file: true,
         } }
     }
-    state rdn_end(&mut self, path: &[u8] in Path) -> DirEntryResult { DirEntryResult::End }
-    state rdn_nf(&mut self, path: &[u8] in Path) -> DirEntryResult {
+    state rdn_end(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult { DirEntryResult::End }
+    state rdn_nf(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
         let kind: ErrorKind = ErrorKind::NotFound;
         DirEntryResult::Error { kind: kind }
     }
-    state rdn_err(&mut self, path: &[u8] in Path) -> DirEntryResult {
-        let kind: ErrorKind = Filesystem::last_error(&mut self);
+    state rdn_err(filesystem: &mut Filesystem, path: &[u8] in Path) -> DirEntryResult {
+        let kind: ErrorKind = Filesystem::last_error(filesystem);
         DirEntryResult::Error { kind: kind }
     }
 }
@@ -1054,17 +1054,17 @@ invokes
     state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind); UnitResult::Error { kind: kind } }
 }
 
-pub windows_x86_64 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult
+pub windows_x86_64 machine Filesystem::lock_shared(filesystem: &mut Filesystem, file: File) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let handle: i64 = self.host.get_osfhandle(self.file_fd);
-    let rc: i32 = self.host.lock_file_ex(handle, 0, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
-    let code: i32 = self.host.get_last_error();
-    self.win32_error_kind = match code {
+    filesystem.file_fd = file.fd;
+    let handle: i64 = filesystem.host.get_osfhandle(filesystem.file_fd);
+    let rc: i32 = filesystem.host.lock_file_ex(handle, 0, 0, 4294967295, 4294967295, &mut filesystem.lock_overlapped);
+    let code: i32 = filesystem.host.get_last_error();
+    filesystem.win32_error_kind = match code {
         2 -> ErrorKind::NotFound,
         3 -> ErrorKind::NotFound,
         5 -> ErrorKind::PermissionDenied,
@@ -1075,22 +1075,22 @@ invokes
         183 -> ErrorKind::AlreadyExists,
         _ -> ErrorKind::Other
     };
-    transition rc != 0 { true -> ok() _ -> err() }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind); UnitResult::Error { kind: kind } }
+    transition rc != 0 { true -> ok(filesystem) _ -> err(filesystem) }
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state err(filesystem: &mut Filesystem) -> UnitResult { let kind: ErrorKind = ErrorKind::reconstruct(&filesystem.win32_error_kind); UnitResult::Error { kind: kind } }
 }
 
-pub windows_x86_64 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult
+pub windows_x86_64 machine Filesystem::try_lock(filesystem: &mut Filesystem, file: File) -> TryLockResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let handle: i64 = self.host.get_osfhandle(self.file_fd);
-    let rc: i32 = self.host.lock_file_ex(handle, 3, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
-    self.lock_errno = self.host.get_last_error();
-    self.win32_error_kind = match self.lock_errno {
+    filesystem.file_fd = file.fd;
+    let handle: i64 = filesystem.host.get_osfhandle(filesystem.file_fd);
+    let rc: i32 = filesystem.host.lock_file_ex(handle, 3, 0, 4294967295, 4294967295, &mut filesystem.lock_overlapped);
+    filesystem.lock_errno = filesystem.host.get_last_error();
+    filesystem.win32_error_kind = match filesystem.lock_errno {
         2 -> ErrorKind::NotFound,
         3 -> ErrorKind::NotFound,
         5 -> ErrorKind::PermissionDenied,
@@ -1101,24 +1101,24 @@ invokes
         183 -> ErrorKind::AlreadyExists,
         _ -> ErrorKind::Other
     };
-    transition rc != 0 { true -> acquired() _ -> contended() }
-    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
-    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
-    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind); TryLockResult::Error { kind: kind } }
+    transition rc != 0 { true -> acquired(filesystem) _ -> contended(filesystem) }
+    state acquired(filesystem: &mut Filesystem) -> TryLockResult { TryLockResult::Acquired }
+    state contended(filesystem: &mut Filesystem) -> TryLockResult { transition filesystem.lock_errno == 33 { true -> would_block(filesystem) _ -> failed(filesystem) } }
+    state would_block(filesystem: &mut Filesystem) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(filesystem: &mut Filesystem) -> TryLockResult { let kind: ErrorKind = ErrorKind::reconstruct(&filesystem.win32_error_kind); TryLockResult::Error { kind: kind } }
 }
 
-pub windows_x86_64 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult
+pub windows_x86_64 machine Filesystem::try_lock_shared(filesystem: &mut Filesystem, file: File) -> TryLockResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let handle: i64 = self.host.get_osfhandle(self.file_fd);
-    let rc: i32 = self.host.lock_file_ex(handle, 1, 0, 4294967295, 4294967295, &mut self.lock_overlapped);
-    self.lock_errno = self.host.get_last_error();
-    self.win32_error_kind = match self.lock_errno {
+    filesystem.file_fd = file.fd;
+    let handle: i64 = filesystem.host.get_osfhandle(filesystem.file_fd);
+    let rc: i32 = filesystem.host.lock_file_ex(handle, 1, 0, 4294967295, 4294967295, &mut filesystem.lock_overlapped);
+    filesystem.lock_errno = filesystem.host.get_last_error();
+    filesystem.win32_error_kind = match filesystem.lock_errno {
         2 -> ErrorKind::NotFound,
         3 -> ErrorKind::NotFound,
         5 -> ErrorKind::PermissionDenied,
@@ -1129,11 +1129,11 @@ invokes
         183 -> ErrorKind::AlreadyExists,
         _ -> ErrorKind::Other
     };
-    transition rc != 0 { true -> acquired() _ -> contended() }
-    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
-    state contended(&mut self) -> TryLockResult { transition self.lock_errno == 33 { true -> would_block() _ -> failed() } }
-    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
-    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = ErrorKind::reconstruct(&self.win32_error_kind); TryLockResult::Error { kind: kind } }
+    transition rc != 0 { true -> acquired(filesystem) _ -> contended(filesystem) }
+    state acquired(filesystem: &mut Filesystem) -> TryLockResult { TryLockResult::Acquired }
+    state contended(filesystem: &mut Filesystem) -> TryLockResult { transition filesystem.lock_errno == 33 { true -> would_block(filesystem) _ -> failed(filesystem) } }
+    state would_block(filesystem: &mut Filesystem) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(filesystem: &mut Filesystem) -> TryLockResult { let kind: ErrorKind = ErrorKind::reconstruct(&filesystem.win32_error_kind); TryLockResult::Error { kind: kind } }
 }
 
 pub windows_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult

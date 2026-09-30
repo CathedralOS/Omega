@@ -126,7 +126,7 @@ machine Main::main(context: &mut Main) reaches Console {
         // 9. Compact: truncate-rewrite keeps only the header (open_with's
         // composed write+truncate word).
         let opts: OpenOptions = OpenOptions { write: true, truncate: true };
-        let open_result: OpenResult = context.fs.open_with("omega_vault/notes/current/vault.txt", opts);
+        let open_result: OpenResult = Filesystem::open_with(&mut context.fs, "omega_vault/notes/current/vault.txt", opts);
         transition open_result { OpenResult::Ok { file } -> compact_write(context, next_passed, file) _ -> done(context, next_passed) }
     }
     state compact_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
@@ -153,7 +153,7 @@ machine Main::main(context: &mut Main) reaches Console {
     state cleanup(context: &mut Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 12. Audit the vault directory: exactly the file + its backup.
-        let io_result: IoResult = context.fs.read_dir_count("omega_vault/notes/current");
+        let io_result: IoResult = Filesystem::read_dir_count(&mut context.fs, "omega_vault/notes/current");
         transition io_result { IoResult::Ok { count } -> audit_dir(context, next_passed, count) _ -> done(context, next_passed) }
     }
     state audit_dir(context: &mut Main, passed: i32 in Wrapping, count: u64) {

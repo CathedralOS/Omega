@@ -1260,21 +1260,21 @@ reaches FilesystemHost
 // `read_dir_nth(path, 0)`: `End` (no first child) => `Empty`, a first entry =>
 // `NonEmpty`, a read failure => `Error`. Commonly the guard before `remove_dir`
 // (which requires an empty directory).
-pub machine Filesystem::read_dir_is_empty(&mut self, path: &[u8] in Path) -> EmptyResult
+pub machine Filesystem::read_dir_is_empty(filesystem: &mut Filesystem, path: &[u8] in Path) -> EmptyResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    let first: DirEntryResult = self.read_dir_nth(path, 0);
+    let first: DirEntryResult = Filesystem::read_dir_nth(filesystem, path, 0);
     transition first {
-        DirEntryResult::End -> rdie_empty()
-        DirEntryResult::Ok { entry } -> rdie_non()
-        DirEntryResult::Error { kind } -> rdie_err(kind)
+        DirEntryResult::End -> rdie_empty(filesystem)
+        DirEntryResult::Ok { entry } -> rdie_non(filesystem)
+        DirEntryResult::Error { kind } -> rdie_err(filesystem, kind)
     }
-    state rdie_empty(&mut self) -> EmptyResult { EmptyResult::Empty }
-    state rdie_non(&mut self) -> EmptyResult { EmptyResult::NonEmpty }
-    state rdie_err(&mut self, kind: ErrorKind) -> EmptyResult { EmptyResult::Error { kind: kind } }
+    state rdie_empty(filesystem: &mut Filesystem) -> EmptyResult { EmptyResult::Empty }
+    state rdie_non(filesystem: &mut Filesystem) -> EmptyResult { EmptyResult::NonEmpty }
+    state rdie_err(filesystem: &mut Filesystem, kind: ErrorKind) -> EmptyResult { EmptyResult::Error { kind: kind } }
 }
 
 // Set a path's permission bits (Rust `std::fs::set_permissions`). A subsequent
