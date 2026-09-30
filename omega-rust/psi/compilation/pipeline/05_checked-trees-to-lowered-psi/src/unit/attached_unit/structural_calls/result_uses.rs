@@ -1004,6 +1004,9 @@ pub(crate) fn validate_usage(
                 projected_residual_loaned &= loaned;
                 continue;
             }
+            // A linear result moves whole like an affine one: the consuming edge
+            // carries the claim and checking already proved who retires it, so
+            // only the multiplicity differs.
             if !projected_paths.is_empty()
                 || !matches!(
                     argument.access,
@@ -1011,10 +1014,13 @@ pub(crate) fn validate_usage(
                         | checked_trees::CheckedStructuralAccess::SharedBorrow
                 )
                 || argument.type_identity != result.type_identity
-                || result.multiplicity != Multiplicity::Affine
+                || !matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Linear
+                )
             {
                 return unsupported(
-                    "Unit structural result use is not a whole affine move or shared borrow",
+                    "Unit structural result use is not a whole owned move or shared borrow",
                 );
             }
             if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow

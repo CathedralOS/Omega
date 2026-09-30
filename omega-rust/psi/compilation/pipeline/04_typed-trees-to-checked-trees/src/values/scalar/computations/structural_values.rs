@@ -1542,6 +1542,7 @@ impl Builder<'_, '_> {
         };
         if !validation::has_plain_owned_contents_with_numeric_constraints(self.program, expected)
             && !validation::has_cleanup_owned_contents(self.program, expected)
+            && !validation::has_linear_owned_contents(self.program, expected)
             && !validation::reference_result_custody::is_reference_record(self.program, expected)
             && !crate::execution::terminal_unit::types::record_with_owned_or_shared_view_fields(
                 self.program,
