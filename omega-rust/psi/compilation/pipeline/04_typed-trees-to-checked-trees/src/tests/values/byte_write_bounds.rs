@@ -23,6 +23,11 @@ fn source(increment: u64) -> String {
     )
 }
 
+/// `position + 1` is not the witness: the observed `position < out.len`
+/// also bounds the immutable `position` below `u64`'s ceiling, and that
+/// carrier consequence rightly survives any write through `out`. The length
+/// relation itself shows only in `out.len - position`, which needs
+/// `position <= out.len` after the store.
 #[test]
 fn byte_store_cannot_restore_a_length_relation_retired_by_its_rhs_call() {
     for (helper, accepted) in [
@@ -39,7 +44,10 @@ fn byte_store_cannot_restore_a_length_relation_retired_by_its_rhs_call() {
     ] {
         let program = format!(
             "{helper}\n{}",
-            source(1).replace("out[position] = byte;", "out[position] = touch(out);")
+            source(1).replace(
+                "out[position] = byte;",
+                "out[position] = touch(out); let remaining: u64 = out.len - position;"
+            )
         );
         match lower_typed_trees(typed_program(&program), &CheckingRequest::settled()) {
             Ok(_) => assert!(accepted, "overlapping RHS call retained its prior relation"),
