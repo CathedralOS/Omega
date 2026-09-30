@@ -134,7 +134,7 @@ impl RankingOrder {
     /// subjects bind in order to `Nat::BoundedDistance`'s `(lower, upper)`
     /// parameters, and the view is inferred when omitted because it is the
     /// only builtin two-subject ranking.
-    pub(super) fn resolve(
+    fn resolve(
         program: &typed_trees::TypedTrees,
         state: &typed_trees::state::State,
         subjects: &[ExpressionHandle],
@@ -192,6 +192,28 @@ impl RankingOrder {
             }
             _ => OrderResolution::Unsupported,
         }
+    }
+
+    /// Resolve the order a machine's ranking witness selects, reading its
+    /// names in `root_state`. The recorded `view_path` is the authored
+    /// `-> View` or the canonical default the syntax->resolved lowering
+    /// elaborated from the declared carrier (decision 23); an empty path is a
+    /// pending short form, which [`Self::resolve`] infers from the subject's
+    /// checked type. Every termination judgment reads the recorded view
+    /// through this one site.
+    pub(super) fn resolve_witness(
+        program: &typed_trees::TypedTrees,
+        root_state: &typed_trees::state::State,
+        witness: &language_semantics::RankingWitness,
+        subjects: &[ExpressionHandle],
+        view_arguments: &[ExpressionHandle],
+    ) -> OrderResolution {
+        let order = witness
+            .view_path
+            .split("::")
+            .filter(|member| !member.is_empty())
+            .collect::<Vec<_>>();
+        Self::resolve(program, root_state, subjects, &order, view_arguments)
     }
 
     fn from_path(

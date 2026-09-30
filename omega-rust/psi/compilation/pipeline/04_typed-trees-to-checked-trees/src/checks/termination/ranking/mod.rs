@@ -5,9 +5,9 @@
 //! `termination::check_machine_termination_with_call_frames` calls it for
 //! each terminating machine whose ranking witness must be proved locally. It
 //! resolves the witness subjects and view arguments against the root state,
-//! resolves the ranking order (`super::order`), picks the measure (one
-//! subject, or a two-subject distance), and reports a recorded view that
-//! differs from the resolved one. It then tries, in order:
+//! resolves the ranking order through `RankingOrder::resolve_witness`
+//! (`super::order`), and picks the measure (one subject, or a two-subject
+//! distance). It then tries, in order:
 //!
 //! 1. `ranges::check`, when the witness declares a rank range;
 //! 2. a strict decrease on every edge inside each cyclic component: a
@@ -64,13 +64,6 @@ pub(super) enum DecreaseOutcome {
     /// as the named bounded distance on every cyclic edge. The diagnostic
     /// names the right shape instead of a bare "cannot prove".
     InvertedDistance(InvertedDistance),
-    /// TPR3 slice 1 (decision 23): the plan's RECORDED witness view (the
-    /// canonical-default elaboration at the syntax->resolved lowering) and
-    /// the checker's independently resolved order DISAGREE. This is an
-    /// internal invariant, never a user error -- the lowering mirrors the
-    /// checker's inference exactly, so a divergence means one of them
-    /// changed without the other.
-    PlanViewDivergence { recorded: String, resolved: String },
     /// TPR3: a DIRECTED rejection from view resolution (unbounded
     /// increasing view, argument-arity mismatch, arguments on a plain
     /// view); the message names the fix and is rendered verbatim.
@@ -170,13 +163,8 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
     else {
         return None;
     };
-    let ranking_view = witness
-        .view_path
-        .split("::")
-        .filter(|member| !member.is_empty())
-        .collect::<Vec<_>>();
     let OrderResolution::Resolved(RankingOrder::NatDescending) =
-        RankingOrder::resolve(program, root_state, &[*decreases], &ranking_view, &[])
+        RankingOrder::resolve_witness(program, root_state, witness, &[*decreases], &[])
     else {
         return None;
     };
@@ -348,13 +336,8 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
         else {
             return None;
         };
-        let ranking_view = witness
-            .view_path
-            .split("::")
-            .filter(|member| !member.is_empty())
-            .collect::<Vec<_>>();
         let OrderResolution::Resolved(RankingOrder::NatDescending) =
-            RankingOrder::resolve(program, member_root, &[*decreases], &ranking_view, &[])
+            RankingOrder::resolve_witness(program, member_root, witness, &[*decreases], &[])
         else {
             return None;
         };
@@ -561,18 +544,9 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
     let root_state = states.first()?;
     let subjects = resolve_machine_witness_subjects(program, machine)?;
     let view_arguments = resolve_machine_witness_view_arguments(program, machine)?;
-    let ranking_view = witness
-        .view_path
-        .split("::")
-        .filter(|member| !member.is_empty())
-        .collect::<Vec<_>>();
-    let OrderResolution::Resolved(order) = RankingOrder::resolve(
-        program,
-        root_state,
-        &subjects,
-        &ranking_view,
-        &view_arguments,
-    ) else {
+    let OrderResolution::Resolved(order) =
+        RankingOrder::resolve_witness(program, root_state, witness, &subjects, &view_arguments)
+    else {
         return None;
     };
     // The same measures the edge prover reads: the countdown subject, or the
@@ -723,16 +697,11 @@ pub(super) fn machine_decrease_outcome(
                 .to_string(),
         );
     };
-    let ranking_view = witness
-        .view_path
-        .split("::")
-        .filter(|member| !member.is_empty())
-        .collect::<Vec<_>>();
-    let order = match RankingOrder::resolve(
+    let order = match RankingOrder::resolve_witness(
         program,
         root_state,
+        witness,
         &subjects,
-        &ranking_view,
         &view_arguments,
     ) {
         OrderResolution::Resolved(order) => order,
@@ -759,25 +728,6 @@ pub(super) fn machine_decrease_outcome(
         },
         _ => return DecreaseOutcome::Unproven,
     };
-
-    // TPR3 slice 1 (decision 23): when the plan RECORDED an elaborated view
-    // (TPR2's lowering-time canonical defaults / authored builtins) and the
-    // checker's resolution lands on a canonical builtin, the two must agree
-    // -- the recorded witness is what proof-cache keys and diagnostics will
-    // trust, so a silent divergence is unacceptable. Declared-measure orders
-    // resolve from the same authored path the plan recorded (agreement by
-    // construction), and a PENDING plan view (empty path) constrains
-    // nothing.
-    if witness.ranking_view.is_valid()
-        && let Some(recorded_path) = witness.ranking_view.canonical_path()
-        && let Some(resolved_path) = canonical_order_path(&order)
-        && recorded_path != resolved_path
-    {
-        return DecreaseOutcome::PlanViewDivergence {
-            recorded: recorded_path.to_string(),
-            resolved: resolved_path.to_string(),
-        };
-    }
 
     if let Some(range) = witness.rank_range.as_ref() {
         match ranges::check(program, machine, range, &order, measure, call_frames) {
@@ -870,28 +820,10 @@ pub(in crate::checks::termination) fn machine_resolved_view_path(
     let Some(view_arguments) = resolve_machine_witness_view_arguments(program, machine) else {
         return String::new();
     };
-    let ranking_view = witness
-        .view_path
-        .split("::")
-        .filter(|member| !member.is_empty())
-        .collect::<Vec<_>>();
-    match RankingOrder::resolve(
-        program,
-        root_state,
-        &subjects,
-        &ranking_view,
-        &view_arguments,
-    ) {
-        OrderResolution::Resolved(order) => canonical_order_path(&order)
-            .map(str::to_string)
-            .unwrap_or_else(|| {
-                machine
-                    .termination_plan
-                    .implementation_witness
-                    .as_ref()
-                    .map(|witness| witness.view_path.clone())
-                    .unwrap_or_default()
-            }),
+    match RankingOrder::resolve_witness(program, root_state, witness, &subjects, &view_arguments) {
+        OrderResolution::Resolved(order) => {
+            canonical_order_path(&order).map_or_else(|| witness.view_path.clone(), str::to_string)
+        }
         _ => String::new(),
     }
 }

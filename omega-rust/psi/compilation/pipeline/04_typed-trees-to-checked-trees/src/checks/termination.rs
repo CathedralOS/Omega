@@ -176,19 +176,6 @@ pub(crate) fn check_machine_termination_with_call_frames(
                     machine_name(program, machine.symbol)
                 )));
             }
-            ranking::DecreaseOutcome::PlanViewDivergence { recorded, resolved } => {
-                // Internal invariant (TPR3 slice 1): the lowering's recorded
-                // elaboration mirrors the checker's inference exactly; a
-                // divergence means one changed without the other. Loud and
-                // named, never silent.
-                diagnostics.push(Diagnostic::error(format!(
-                    "internal: terminating machine {}'s recorded ranking view `{recorded}` \
-                     diverges from the checker's resolved view `{resolved}` (decision 23 \
-                     firewall) -- the syntax->resolved elaboration and the checker's \
-                     inference must stay in lockstep",
-                    machine_name(program, machine.symbol)
-                )));
-            }
         }
     }
 

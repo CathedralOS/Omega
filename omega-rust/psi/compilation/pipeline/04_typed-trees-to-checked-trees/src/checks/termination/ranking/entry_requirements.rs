@@ -38,13 +38,8 @@ fn prove(
     let witness = machine.termination_plan.implementation_witness.as_ref()?;
     let subjects = resolve_machine_witness_subjects(program, machine)?;
     let arguments = resolve_machine_witness_view_arguments(program, machine)?;
-    let path = witness
-        .view_path
-        .split("::")
-        .filter(|member| !member.is_empty())
-        .collect::<Vec<_>>();
     let OrderResolution::Resolved(order) =
-        RankingOrder::resolve(program, root, &subjects, &path, &arguments)
+        RankingOrder::resolve_witness(program, root, witness, &subjects, &arguments)
     else {
         return None;
     };
