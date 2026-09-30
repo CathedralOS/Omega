@@ -71,6 +71,7 @@ mod structural_float_member_read;
 mod structural_return_cases;
 mod structural_scalar_store;
 mod suspension_call_plans;
+mod transition_arm_calls;
 mod unit_cleanup;
 mod unit_plan_omission_surface;
 mod value_case_dispatch;

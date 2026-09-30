@@ -104,11 +104,15 @@ pub(crate) fn locate_source(
             program.expression_table.expression(*expression),
             ExpressionNode::Call(_)
         ),
+        // A named target owns preorder zero when nothing precedes it: an
+        // unconditional arm has no guard, and a guarded arm whose statement
+        // records one call row makes no guard or operand call before it.
         StatementNode::Transition(transition) => {
             matches!(
                 program.statement_table.transition_target(transition.target),
                 checked_trees::statement::TransitionTargetNode::Named { .. }
-            ) && transition.guard == checked_trees::statement::TransitionGuardNode::Always
+            ) && (transition.guard == checked_trees::statement::TransitionGuardNode::Always
+                || sole_call_occurrence(checked, caller_state, coordinate.statement_index))
         }
         _ => false,
     };
@@ -303,9 +307,72 @@ pub(crate) fn locate_source(
     })
 }
 
+/// Whether the state's flow roster records exactly one live call row at
+/// `statement_index`. A transition's named target always records its own row,
+/// so a sole row is that invocation.
+fn sole_call_occurrence(
+    checked: &CheckedTrees,
+    caller_state: SymbolHandle,
+    statement_index: u32,
+) -> bool {
+    let control = &checked.facts.flow.control;
+    control
+        .states
+        .iter()
+        .find_map(|(_, state)| (state.state_symbol == caller_state).then_some(state.calls))
+        .and_then(|calls| control.calls.span(calls))
+        .is_some_and(|calls| {
+            calls
+                .iter()
+                .filter(|call| {
+                    call.statement_index == statement_index as usize
+                        && !control.is_retired(caller_state, call)
+                })
+                .count()
+                == 1
+        })
+}
+
+/// Whether `statement_index` is the state's unconditional final transition
+/// invoking another machine: the only transition call a linear operation
+/// roster may hold. A guarded arm's invocation runs in its arm's own
+/// completion block instead (Terminal calls in transition arms,
+/// state_contracts.md), so a linear roster that holds one hoisted it.
+pub(crate) fn linear_terminal_invocation(
+    checked: &CheckedTrees,
+    caller_state: SymbolHandle,
+    statement_index: u32,
+) -> Result<bool, LoweringError> {
+    use checked_trees::statement::TransitionGuardNode;
+    let (machine, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    // A paired `Always` arm is the fallthrough of a guarded tail: its call is
+    // an arm's, even though it is final and unguarded.
+    if !matches!(statements.get(statement_index as usize), Some(StatementNode::Transition(transition))
+            if transition.guard == TransitionGuardNode::Always)
+        || statement_index as usize + 1 != statements.len()
+        || statements[..statement_index as usize]
+            .iter()
+            .any(|statement| matches!(statement, StatementNode::Transition(_)))
+    {
+        return Ok(false);
+    }
+    let Ok((target, _)) = named_terminal_arguments(checked, caller_state, statement_index) else {
+        return Ok(false);
+    };
+    // Naming the enclosing machine re-enters its entry state: a state-graph
+    // edge the checker never sequences as a call.
+    Ok(target_signature(checked, machine.symbol, target)?.machine != machine.symbol)
+}
+
 /// Reconstruct a named terminal call from source, never from the operation
 /// claiming it. No expression handle exists for this syntax: the statement
 /// coordinate owns the invocation, and the explicit arguments keep theirs.
+/// The invocation is an arm of the state's closing transition run: the
+/// unconditional final arm a linear roster sequences, or a guarded arm whose
+/// call runs only in that arm's completion block. Each plan owner rejoins
+/// which placement it holds; this reconstruction checks only the source.
 pub(super) fn named_terminal_arguments(
     checked: &CheckedTrees,
     caller_state: SymbolHandle,
@@ -319,17 +386,30 @@ pub(super) fn named_terminal_arguments(
     else {
         return unsupported("named call custody has no authored transition");
     };
-    if statement_index as usize != statements.len().saturating_sub(1)
-        || transition.guard != TransitionGuardNode::Always
+    let unconditional_final = statement_index as usize == statements.len().saturating_sub(1)
+        && transition.guard == TransitionGuardNode::Always;
+    let closing_arm = statements[statement_index as usize..]
+        .iter()
+        .all(|statement| matches!(statement, StatementNode::Transition(_)));
+    if !(unconditional_final || closing_arm)
         || transition.continuation.is_valid()
         || transition.exit != TransitionExit::Ordinary
         || !checked
             .statement_table
             .transition_target_is_valid(transition.target)
     {
-        return unsupported("named call custody requires an unconditional terminal invocation");
+        return unsupported("named call custody requires a terminal invocation arm");
     }
-    named_target_arguments(checked, machine.symbol, transition.target)
+    let (source_target, explicit) =
+        named_target_arguments(checked, machine.symbol, transition.target)?;
+    // Naming the enclosing machine from a guarded arm re-enters its entry
+    // state: a state-graph edge, never an arm's invocation.
+    if !unconditional_final
+        && target_signature(checked, machine.symbol, source_target)?.machine == machine.symbol
+    {
+        return unsupported("machine re-entry in a guarded arm is a state edge");
+    }
+    Ok((source_target, explicit))
 }
 
 /// Read a selected named invocation at its exact source target. The caller's

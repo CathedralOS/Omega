@@ -209,6 +209,18 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         arms: Vec<CheckedGuardedJumpArmPlan>,
         fallback: CheckedGuardedJumpFallbackPlan,
     },
+    /// The two-way conditional whose arms both complete the machine without
+    /// a named-state transfer, at least one through a terminal machine call
+    /// (`CheckedConditionalReturnArm::Call`). Each arm runs only when its
+    /// guard outcome selects it. `guard` is the same exact checked Boolean
+    /// value `Conditional::guard` names, recorded at the true arm's
+    /// transition ordinal. (Two `(expression)` arms check as `Guarded`,
+    /// never this variant.)
+    ConditionalCompletion {
+        guard: CheckedCallScalarArgument,
+        when_true: CheckedConditionalReturnArm,
+        when_false: CheckedConditionalReturnArm,
+    },
     /// Consume one whole owned parameter or exact result from this state's
     /// operation prefix and transfer control through the exact closed case
     /// roster. Payload scalars are introduced only on their selected edge;
@@ -226,6 +238,47 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
     Crash {
         statement_ordinal: u32,
     },
+}
+
+impl CheckedComposedUnitControlTerminatorPlan {
+    /// The terminal machine calls this terminator's conditional arms run
+    /// (`CheckedConditionalReturnArm::Call`), in arm order.
+    pub fn arm_calls(&self) -> Vec<&CheckedUnitEffectOperationPlan> {
+        let arms: Vec<&CheckedConditionalReturnArm> = match self {
+            Self::ConditionalReturn { return_arm, .. } => vec![return_arm],
+            Self::ConditionalCompletion {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            _ => Vec::new(),
+        };
+        arms.into_iter()
+            .filter_map(|arm| match arm {
+                CheckedConditionalReturnArm::Call(operation) => Some(operation),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// `arm_calls`, for reconciling each call's operands in place.
+    pub fn arm_calls_mut(&mut self) -> Vec<&mut CheckedUnitEffectOperationPlan> {
+        let arms: Vec<&mut CheckedConditionalReturnArm> = match self {
+            Self::ConditionalReturn { return_arm, .. } => vec![return_arm],
+            Self::ConditionalCompletion {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            _ => Vec::new(),
+        };
+        arms.into_iter()
+            .filter_map(|arm| match arm {
+                CheckedConditionalReturnArm::Call(operation) => Some(operation),
+                _ => None,
+            })
+            .collect()
+    }
 }
 
 /// How a returning state of a scalar-result graph completes its value. These
@@ -251,36 +304,36 @@ impl CheckedComposedUnitControlStatePlan {
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
                 return_values.iter().collect()
             }
-            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-                return_arm: CheckedConditionalReturnArm::Structural(operation),
+            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { return_arm, .. } => {
+                return_arm.operation().into_iter().collect()
+            }
+            CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                when_true,
+                when_false,
                 ..
-            } => vec![operation],
+            } => when_true
+                .operation()
+                .into_iter()
+                .chain(when_false.operation())
+                .collect(),
             CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
                 let mut selected: Vec<&CheckedUnitEffectOperationPlan> = arms
                     .iter()
                     .filter_map(|arm| match arm {
-                        CheckedGuardedJumpArmPlan::Return(CheckedGuardedJumpReturnPlan {
-                            return_arm: CheckedConditionalReturnArm::Structural(operation),
-                            ..
-                        }) => Some(operation),
-                        _ => None,
+                        CheckedGuardedJumpArmPlan::Return(plan) => plan.return_arm.operation(),
+                        CheckedGuardedJumpArmPlan::Jump(_) => None,
                     })
                     .collect();
-                if let CheckedGuardedJumpFallbackPlan::Return(
-                    CheckedConditionalReturnArm::Structural(operation),
-                ) = fallback
-                {
-                    selected.push(operation);
+                if let CheckedGuardedJumpFallbackPlan::Return(return_arm) = fallback {
+                    selected.extend(return_arm.operation());
                 }
                 selected
             }
             CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => cases
                 .iter()
                 .filter_map(|case| match &case.outcome {
-                    CheckedClosedSumCaseOutcomePlan::Return(
-                        CheckedConditionalReturnArm::Structural(operation),
-                    ) => Some(operation),
-                    _ => None,
+                    CheckedClosedSumCaseOutcomePlan::Return(return_arm) => return_arm.operation(),
+                    CheckedClosedSumCaseOutcomePlan::Successor(_) => None,
                 })
                 .collect(),
             _ => Vec::new(),
@@ -301,6 +354,13 @@ impl CheckedComposedUnitControlStatePlan {
         self.operations.iter().chain(selected).chain(established)
     }
 
+    /// The terminal machine calls this state's conditional arms run
+    /// (`CheckedConditionalReturnArm::Call`). Each runs after the state's
+    /// whole operation sequence, on its selected arm only.
+    pub fn arm_calls(&self) -> Vec<&CheckedUnitEffectOperationPlan> {
+        self.terminator.arm_calls()
+    }
+
     /// Control-flow successors of this state's terminator, in terminator
     /// order. Return, crash, and value exits contribute no edges.
     pub fn successors(&self) -> Vec<&CheckedStructuralControlSuccessorPlan> {
@@ -310,7 +370,8 @@ impl CheckedComposedUnitControlStatePlan {
             | CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
             | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
             | CheckedComposedUnitControlTerminatorPlan::Crash { .. }
-            | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. } => Vec::new(),
+            | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => Vec::new(),
             CheckedComposedUnitControlTerminatorPlan::Jump { successor } => vec![successor],
             CheckedComposedUnitControlTerminatorPlan::Conditional {
                 when_true,
@@ -381,6 +442,42 @@ pub enum CheckedConditionalReturnArm {
         statement_ordinal: u32,
         primitive_type: PrimitiveType,
     },
+    /// A terminal machine invocation at this authored transition
+    /// (state_contracts.md, "Terminal calls in transition arms"): the call
+    /// operation runs only on this arm, and its normal Unit result completes
+    /// the machine with the disposal a Unit arm performs. The call's
+    /// coordinate names the arm's transition.
+    Call(CheckedUnitEffectOperationPlan),
+}
+
+impl CheckedConditionalReturnArm {
+    /// The operation this arm runs when selected: a value producer or a
+    /// terminal call. Unit and scalar arms run no operation of their own.
+    pub fn operation(&self) -> Option<&CheckedUnitEffectOperationPlan> {
+        match self {
+            Self::Structural(operation) | Self::Call(operation) => Some(operation),
+            Self::Unit { .. } | Self::Scalar { .. } => None,
+        }
+    }
+
+    /// The authored transition ordinal this arm completes at, when the arm
+    /// retains one.
+    pub fn statement_ordinal(&self) -> Option<u32> {
+        match self {
+            Self::Unit { statement_ordinal }
+            | Self::Scalar {
+                statement_ordinal, ..
+            } => Some(*statement_ordinal),
+            Self::Structural(
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
+            ) => Some(result.statement_index),
+            Self::Structural(_) => None,
+            Self::Call(operation) => operation.call().map(|call| call.coordinate.statement_index),
+        }
+    }
 }
 
 /// One guarded arm of an ordered transition chain: the exact checked scalar
@@ -467,24 +564,9 @@ impl CheckedGuardedJumpFallbackPlan {
     pub fn statement_ordinal(&self) -> u32 {
         match self {
             CheckedGuardedJumpFallbackPlan::Successor(successor) => successor.statement_ordinal,
-            CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Scalar {
-                statement_ordinal,
-                ..
-            })
-            | CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Unit {
-                statement_ordinal,
-            }) => *statement_ordinal,
-            CheckedGuardedJumpFallbackPlan::Return(CheckedConditionalReturnArm::Structural(
-                operation,
-            )) => match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
-                    result.statement_index
-                }
-                _ => 0,
-            },
+            CheckedGuardedJumpFallbackPlan::Return(return_arm) => {
+                return_arm.statement_ordinal().unwrap_or(0)
+            }
         }
     }
 }
@@ -513,24 +595,9 @@ impl CheckedClosedSumCasePlan {
     pub fn statement_ordinal(&self) -> u32 {
         match &self.outcome {
             CheckedClosedSumCaseOutcomePlan::Successor(successor) => successor.statement_ordinal,
-            CheckedClosedSumCaseOutcomePlan::Return(CheckedConditionalReturnArm::Scalar {
-                statement_ordinal,
-                ..
-            })
-            | CheckedClosedSumCaseOutcomePlan::Return(CheckedConditionalReturnArm::Unit {
-                statement_ordinal,
-            }) => *statement_ordinal,
-            CheckedClosedSumCaseOutcomePlan::Return(CheckedConditionalReturnArm::Structural(
-                operation,
-            )) => match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
-                    result.statement_index
-                }
-                _ => 0,
-            },
+            CheckedClosedSumCaseOutcomePlan::Return(return_arm) => {
+                return_arm.statement_ordinal().unwrap_or(0)
+            }
         }
     }
 }

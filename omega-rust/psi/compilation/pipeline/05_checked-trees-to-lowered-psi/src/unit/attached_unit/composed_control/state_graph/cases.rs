@@ -518,6 +518,11 @@ pub(super) fn validate(
                             return unsupported("Unit case return arm changed the result type");
                         }
                     }
+                    // A case arm's terminal call would also owe the selected
+                    // subject's disposal, which no case edge retains yet.
+                    checked_trees::CheckedConditionalReturnArm::Call(_) => {
+                        return unsupported("Unit case completion lacks subject disposal custody");
+                    }
                 }
                 None
             }

@@ -188,6 +188,45 @@ fn validate_ordinary(
     }
     crate::emission::structural_scalar_store_source::validate(checked, machine)?;
     crate::emission::call_source_custody::validate_store_and_initializer_calls(checked, machine)?;
+    validate_linear_transition_calls(checked, machine)?;
 
+    Ok(())
+}
+
+/// A linear roster's own call at a named transition is only the unconditional
+/// final invocation. A guarded arm's call runs on its selected arm alone, so a
+/// linear roster holding one would run it whichever arm is taken.
+fn validate_linear_transition_calls(
+    checked: &CheckedTrees,
+    machine: &CheckedUnitEffectMachinePlan,
+) -> Result<(), LoweringError> {
+    use checked_trees::statement::{StatementNode, TransitionTargetNode};
+    let (_, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    for call in machine
+        .operations
+        .iter()
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+    {
+        let Some(StatementNode::Transition(transition)) =
+            statements.get(call.coordinate.statement_index as usize)
+        else {
+            continue;
+        };
+        if call.coordinate.call_ordinal == 0
+            && matches!(
+                checked.statement_table.transition_target(transition.target),
+                TransitionTargetNode::Named { .. }
+            )
+            && !crate::emission::call_source_custody::authored::linear_terminal_invocation(
+                checked,
+                machine.state,
+                call.coordinate.statement_index,
+            )?
+        {
+            return unsupported("Unit body sequences a guarded arm's terminal call");
+        }
+    }
     Ok(())
 }

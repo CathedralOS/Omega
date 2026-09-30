@@ -433,6 +433,28 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             {
                 edges::return_discards(checked, plan.machine, source, state)?;
             }
+            // The unconditional terminal machine call `body::validate` rejoined
+            // as the state's last operation completes the machine with Unit.
+            (
+                CheckedComposedUnitControlTerminatorPlan::ReturnUnit,
+                [StatementNode::Transition(transition)],
+            ) if plan.result == checked_trees::CheckedControlResultPlan::Unit
+                && transition.guard == TransitionGuardNode::Always
+                && state.operations.iter().any(|operation| {
+                    operation.call().is_some_and(|call| {
+                        call.coordinate.statement_index as usize == terminator_ordinal
+                            && call.coordinate.call_ordinal == 0
+                    })
+                })
+                && crate::emission::call_source_custody::authored::linear_terminal_invocation(
+                    checked,
+                    state.state,
+                    u32::try_from(terminator_ordinal)
+                        .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?,
+                )? =>
+            {
+                edges::return_discards(checked, plan.machine, source, state)?;
+            }
             (CheckedComposedUnitControlTerminatorPlan::ReturnScalar { completion }, _) => {
                 super::returns::validate_scalar(
                     checked,
@@ -609,6 +631,17 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                             ..
                         },
                     ) => result.statement_index as usize,
+                    checked_trees::CheckedConditionalReturnArm::Call(operation) => {
+                        validate_arm_call(
+                            checked,
+                            plan,
+                            source,
+                            state,
+                            return_source,
+                            return_ordinal,
+                            operation,
+                        )?
+                    }
                     // A scalar arm returns the value checking retained under its
                     // own `Return` role: the machine's result is that scalar and
                     // the authored arm names a value, not a state.
@@ -649,6 +682,70 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     jump,
                     jump_ordinal,
                 )?;
+            }
+            // Both arms complete the machine: each is a terminal machine call
+            // or a Unit completion, and at least one is a call.
+            (
+                CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                    guard,
+                    when_true,
+                    when_false,
+                },
+                [
+                    StatementNode::Transition(true_source),
+                    StatementNode::Transition(false_source),
+                ],
+            ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
+                edges::validate_fallback(checked, state.state, terminator_ordinal, false_source)?;
+                validate_guard(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    terminator_ordinal,
+                    guard,
+                )?;
+                if !matches!(
+                    (when_true, when_false),
+                    (checked_trees::CheckedConditionalReturnArm::Call(_), _)
+                        | (_, checked_trees::CheckedConditionalReturnArm::Call(_))
+                ) {
+                    return unsupported("Unit graph conditional completion has no terminal call");
+                }
+                for (arm, arm_source, arm_ordinal) in [
+                    (when_true, true_source, terminator_ordinal),
+                    (when_false, false_source, terminator_ordinal + 1),
+                ] {
+                    match arm {
+                        checked_trees::CheckedConditionalReturnArm::Call(operation) => {
+                            validate_arm_call(
+                                checked,
+                                plan,
+                                source,
+                                state,
+                                arm_source,
+                                arm_ordinal,
+                                operation,
+                            )?;
+                        }
+                        checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal }
+                            if plan.result == checked_trees::CheckedControlResultPlan::Unit
+                                && *statement_ordinal as usize == arm_ordinal
+                                && arm_source.exit == TransitionExit::Ordinary
+                                && !arm_source.continuation.is_valid()
+                                && matches!(
+                                    checked.statement_table.transition_target(arm_source.target),
+                                    checked_trees::statement::TransitionTargetNode::Terminal
+                                ) =>
+                        {
+                            edges::return_discards(checked, plan.machine, source, state)?;
+                        }
+                        _ => {
+                            return unsupported(
+                                "Unit graph conditional completion arm does not complete the machine",
+                            );
+                        }
+                    }
+                }
             }
             (CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback }, tail)
                 if tail.len() == arms.len() + 1
@@ -1049,6 +1146,48 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
 /// pure Boolean expression with its source binding, or the unique Boolean
 /// computation root this machine owns there. Emission evaluates that root once
 /// through the shared computation expander, which rejoins its source custody.
+/// A terminal machine call on one conditional arm: the arm's own authored
+/// invocation of another machine (Terminal calls in transition arms,
+/// state_contracts.md), an ordinary Unit call that transfers no claim, run on
+/// that arm alone before its Unit completion's ordinary return disposal.
+fn validate_arm_call(
+    checked: &CheckedTrees,
+    plan: &CheckedComposedUnitControlMachinePlan,
+    source: &checked_trees::state::State,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    transition: &checked_trees::statement::TableTransition,
+    ordinal: usize,
+    operation: &checked_trees::CheckedUnitEffectOperationPlan,
+) -> Result<usize, LoweringError> {
+    let Some(call) = operation.call() else {
+        return unsupported("Unit graph call arm lost its call");
+    };
+    if plan.result != checked_trees::CheckedControlResultPlan::Unit
+        || *call.result() != checked_trees::CheckedUnitCallResult::Unit
+        || call.is_boundary()
+        || !call.claim_transfers().is_empty()
+        || call.coordinate.statement_index as usize != ordinal
+        || call.coordinate.call_ordinal != 0
+        || transition.exit != TransitionExit::Ordinary
+        || transition.continuation.is_valid()
+        || !matches!(
+            checked.statement_table.transition_target(transition.target),
+            checked_trees::statement::TransitionTargetNode::Named { .. }
+        )
+    {
+        return unsupported("Unit graph call arm is not its arm's terminal invocation");
+    }
+    crate::emission::call_source_custody::validate_operation(
+        checked,
+        plan.machine,
+        state.state,
+        operation,
+        &state.structural_parameters,
+    )?;
+    edges::return_discards(checked, plan.machine, source, state)?;
+    Ok(ordinal)
+}
+
 fn validate_guard(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,

@@ -65,6 +65,37 @@ impl StateGraphEmission<'_, '_> {
                     operations,
                 )?
             }
+            // The arm alone invokes its terminal machine call, then completes
+            // with the disposal a Unit return performs.
+            checked_trees::CheckedConditionalReturnArm::Call(operation) => {
+                super::super::super::emission::emit_call_operations(
+                    checked,
+                    plan.machine,
+                    state,
+                    std::slice::from_ref(operation),
+                    self.catalogs,
+                    state_parameters,
+                    &self.claims.source_claims,
+                    &mut arm_evaluation,
+                    &mut arm_values,
+                    &self.state_erased[position],
+                    next_value,
+                    next_block,
+                    next_edge,
+                    operations,
+                )?;
+                Terminator::ReturnUnit {
+                    edge: edge_id(allocate_dense(next_edge)?),
+                    trivial_affine_discards: super::state::return_root_discards(
+                        checked,
+                        plan,
+                        state,
+                        operations,
+                        &arm_evaluation,
+                        state_parameters,
+                    )?,
+                }
+            }
             // The arm alone evaluates the value checking retained under its
             // `Return` role, then disposes the roots a scalar return does.
             checked_trees::CheckedConditionalReturnArm::Scalar {

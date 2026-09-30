@@ -3,15 +3,16 @@
 //! Tried in order: a closed-sum dispatch over the state's final case; a
 //! scalar return's checked completion; then the state's authored tail --
 //! a Unit or structural return, a crash exit, a jump, conditional or guarded
-//! successors, or a tail call. Every successor edge is built by `successor`
-//! against the state signatures; an unsupported tail names its shape.
+//! successors, or a terminal machine call. Every successor edge is built by
+//! `successor` against the state signatures; a terminal call completes the
+//! machine instead (`terminal_calls`); an unsupported tail names its shape.
 use super::{
     CheckFacts, CheckedComposedUnitControlTerminatorPlan, CheckedGuardedJumpPlan,
     CheckedScalarExpressionRole, CheckedStructuralControlSuccessorPlan,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan, EdgeCalls,
     ScalarCalleePlans, ShapeCollector, Signature, StatementNode, SuccessorEdge, SuccessorGuard,
     TransitionExit, TransitionGuardNode, TransitionTargetNode, TypedTrees, closed_sum, control,
-    guard_is_boolean, retained_guard, return_cleanup_is_whole, returns, successor,
+    guard_is_boolean, retained_guard, return_cleanup_is_whole, returns, successor, terminal_calls,
 };
 
 /// The terminator one state's authored tail plans, after its operations.
@@ -197,6 +198,34 @@ pub(super) fn build(
                             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
                         }
                     }
+                    // An unconditional terminal machine call already ran as
+                    // this state's last operation (the sequence planned and
+                    // counted it); its normal Unit result completes here.
+                    TransitionTargetNode::Named { .. }
+                        if result == checked_trees::CheckedControlResultPlan::Unit
+                            && control::terminal_named_call(
+                                program,
+                                machine,
+                                state,
+                                terminator_index,
+                            )
+                            .is_some() =>
+                    {
+                        trace.phase("state graph: terminator: terminal call completion");
+                        if !operations.iter().any(|operation| {
+                            operation.call().is_some_and(|call| {
+                                call.coordinate.statement_index == ordinal
+                                    && call.coordinate.call_ordinal == 0
+                                    && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                            })
+                        }) {
+                            return None;
+                        }
+                        return_cleanup_is_whole(
+                            program, facts, machine, state, structural, operations, shapes,
+                        )?;
+                        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+                    }
                     _ => {
                         trace.phase("state graph: terminator: jump successor");
                         CheckedComposedUnitControlTerminatorPlan::Jump {
@@ -325,6 +354,25 @@ pub(super) fn build(
                             ))
                         });
                     }
+                    // Another machine in target position is an invocation
+                    // that completes this machine on its own arm only.
+                    if terminal_calls::invoked_machine_state(program, machine, transition).is_some()
+                    {
+                        return terminal_calls::arm_call(
+                            program,
+                            facts,
+                            scalar_callees,
+                            machine,
+                            state,
+                            structural,
+                            entry_claims,
+                            &result,
+                            transition,
+                            edge_ordinal,
+                            trace,
+                        )
+                        .map(|arm| Err((arm, Vec::new())));
+                    }
                     successor(
                         program,
                         facts,
@@ -370,7 +418,24 @@ pub(super) fn build(
                             return_when_true: true,
                         }
                     }
-                    // Both arms `(expression)` targets check as Guarded.
+                    // Both arms complete: at least one through a terminal
+                    // machine call. Two `(expression)` targets check as
+                    // Guarded instead.
+                    (Err((when_true, true_operands)), Err((when_false, false_operands)))
+                        if matches!(
+                            (&when_true, &when_false),
+                            (checked_trees::CheckedConditionalReturnArm::Call(_), _)
+                                | (_, checked_trees::CheckedConditionalReturnArm::Call(_))
+                        ) =>
+                    {
+                        operations.extend(true_operands);
+                        operations.extend(false_operands);
+                        CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                            guard,
+                            when_true,
+                            when_false,
+                        }
+                    }
                     (Err(_), Err(_)) => return None,
                 }
             }

@@ -1,55 +1,71 @@
-// A transition whose target TAIL-CALLS ANOTHER MACHINE has no route. Reduced
-// from the corpus fixtures at `scalar field store sequence: write frame
-// agreement`, found by attributing the macOS arm64 native roster.
+// A transition arm whose target calls another machine completes the caller
+// with that call (wiki/spec/language/state_contracts.md, "Terminal calls in
+// transition arms"); an internal state target stays a jump. Each machine in
+// this chain observes what reached it and tail-calls the next:
 //
-//   transition { _ -> self.pick(1) }   (another machine)   OMITTED
-//   transition { _ -> done() }         (a state here)      checks
-//   self.pick(1); transition { _ -> done() }               checks
+//   main              stores `stored = 5`, then `_ -> self.with_argument(7)`:
+//                     a tail call with an ordinary argument after a store.
+//   with_argument     checks `value == 7 && stored == 5` (else 71) and jumps
+//                     to an internal state whose `_ -> self.without_arguments()`
+//                     tail-calls with no arguments and no preceding store.
+//   without_arguments makes an ordinary call (`self.mark()`), then jumps to an
+//                     internal state that checks `marks == 1` (else 72) and
+//                     jumps again to tail-call `self.finish()`.
 //
-// So it is neither calling another machine nor transitioning -- it is the two
-// together, a cross-machine call in TARGET position. Parameters are
-// irrelevant: the bare no-argument form omits too.
+// Tail calls here sit in unconditional arms. A tail call directly in a guarded
+// arm (`true -> self.finish()`) is pinned separately by
+// `calls/conditional_arm_tail_call_to_machine_exit`.
+//   finish            exits 70.
 //
-// THE LABEL FLIPS WITH AN UNRELATED STATEMENT, which is the sharpest
-// demonstration of the phase-label hazard this corpus has produced. The same
-// program reports:
-//
-//   with `self.n = 1;` before the transition
-//                  -> `scalar field store sequence: write frame agreement`
-//   without it     -> `statement sequence: call count agreement`
-//
-// Adding a field store that the transition does not touch renames the
-// failure. Those two phases are ONE gap, and anyone triaging by string will
-// file them as two. That also means the `write frame agreement` group in the
-// native roster is not about write frames.
-//
-// NOT ALL of that group is this, though. Three of its six fixtures carry a
-// cross-machine transition target -- `collections/runtime_frame_indexed_param_read_exit`,
-// `slices/domained_runtime_end_subslice_exit`,
-// `termination/runtime_shrinking_slice_recursion_exit` -- and three do not:
-// `wire/runtime_wire_decode_byte_slice_exit`,
-// `wire/runtime_wire_utf8_edge_verdicts_exit`,
-// `filesystem/dir_walk_wrappers_exit`. Those three are UNATTRIBUTED; do not
-// assume this fixture covers them.
-//
-// One caution for the repair: `runtime_frame_indexed_param_read_exit` also
-// passes a fixed array BY VALUE to the called machine, which looks like
-// BOUNDARY-PRIMITIVE-ARRAY-PARAMETER. It is not -- the array is not what
-// carries this. The identical program with no array parameter at all omits
-// just the same, which is the control that separates them.
+// A tail call that fell through, ran an arm twice or lost its argument would
+// exit with a failure code instead.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
+    stored: i32;
+    marks: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
-    let mut count: i32 = 1;
-    transition { _ -> self.finish() }
+machine Main::main(&mut self) reaches Console {
+    self.marks = 0;
+    self.stored = 5;
+    transition { _ -> self.with_argument(7) }
+}
+
+machine Main::with_argument(&mut self, value: i32) reaches Console
+requires 0 <= value && value <= 100
+{
+    transition value == 7 && self.stored == 5 {
+        true -> accepted()
+        false -> fail(71)
+    }
+    state accepted(&mut self) {
+        transition { _ -> self.without_arguments() }
+    }
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+}
+
+machine Main::mark(&mut self) {
+    self.marks = self.marks + 1;
+}
+
+machine Main::without_arguments(&mut self) reaches Console {
+    self.mark();
+    transition { _ -> marked() }
+    state marked(&mut self) {
+        transition self.marks == 1 {
+            true -> finishing()
+            false -> fail(72)
+        }
+    }
+    state finishing(&mut self) {
+        transition { _ -> self.finish() }
+    }
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
 }
 
 machine Main::finish(&mut self) reaches Console {
-    transition { _ -> done() }
-    state done(&mut self) { self.console.exit_process(0); }
+    self.console.exit_process(70);
 }

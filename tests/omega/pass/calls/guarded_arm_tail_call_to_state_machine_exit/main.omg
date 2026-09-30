@@ -1,0 +1,47 @@
+// A guarded arm's terminal machine call invokes a multi-state machine that
+// keeps its borrowed receiver, passing a field read as an ordinary argument
+// (wiki/spec/language/state_contracts.md, "Terminal calls in transition
+// arms"). `check` tail-calls `verify(self.k)` only on its true arm; `verify`
+// exits 70 when it received 5. The false arm and a wrong value exit 71.
+//
+// The receiver-and-argument shape of `slices/domained_runtime_end_subslice_exit`
+// without its subslice: the arm call must carry the caller's receiver loan,
+// which `calls/conditional_arm_tail_call_to_machine_exit` (single-state
+// callees) never needs.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    k: u64;
+}
+
+machine Main::main(&mut self) {
+    self.k = 5;
+    transition {
+        _ -> self.check(7)
+    }
+}
+
+machine Main::check(&mut self, limit: u64) reaches Console {
+    transition self.k < limit {
+        true -> self.verify(self.k)
+        false -> bad()
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::verify(&mut self, length: u64) reaches Console {
+    transition length == 5 {
+        true -> good()
+        false -> wrong()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+}

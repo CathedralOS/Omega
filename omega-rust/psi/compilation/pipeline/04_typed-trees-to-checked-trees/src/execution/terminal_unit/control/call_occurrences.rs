@@ -15,7 +15,7 @@ use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind
 /// An unconditional named machine invocation completes this Unit body after
 /// its ordinary call operation. Internal state destinations remain control
 /// edges; guarded invocations must not be hoisted into this linear sequence.
-pub(super) fn terminal_named_call(
+pub(in crate::execution::terminal_unit) fn terminal_named_call(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,

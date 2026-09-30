@@ -92,8 +92,12 @@ pub(super) fn account(
                         })
                     })
             }
+            // Both arms of a conditional completion return: neither
+            // transfers a result, and an arm's terminal call transfers no
+            // claim, so each result dies with the state as on a Unit return.
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. } => {
+            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => {
                 local_results::permits_disposal(program, state, result, &[], disposable_locals)
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { successor } => {

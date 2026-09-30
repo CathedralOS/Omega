@@ -39,6 +39,7 @@ mod local_results;
 mod operation_custody;
 mod result_custody;
 pub(super) mod returns;
+mod terminal_calls;
 mod terminator;
 
 #[cfg(test)]
@@ -92,6 +93,9 @@ pub(super) fn build_traced(
         // authored contracts still need their own retained proof obligations.
         return None;
     }
+    // A one-state Unit body belongs to the linear sequence unless a guarded
+    // arm invokes another machine: only a graph terminator can run that call
+    // on its selected arm alone.
     if states.len() < 2
         && result == checked_trees::CheckedControlResultPlan::Unit
         && !facts
@@ -100,6 +104,7 @@ pub(super) fn build_traced(
             .roots
             .iter()
             .any(|(_, root)| root.machine == machine.symbol)
+        && !terminal_calls::has_guarded_machine_arm(program, machine, &states[0])
     {
         return None;
     }
@@ -324,6 +329,13 @@ pub(super) fn build_traced(
                 if matches!(program.expression_table.expression(*expression), ExpressionNode::Call(_)))
         {
             terminator_index.checked_add(1)?
+        } else if result == checked_trees::CheckedControlResultPlan::Unit
+            && control::terminal_named_call(program, machine, state, terminator_index).is_some()
+        {
+            // An unconditional terminal machine call is this state's last
+            // operation (`terminal_calls`): the sequence plans it and counts
+            // its occurrence, and the terminator completes after it.
+            terminator_index.checked_add(1)?
         } else {
             terminator_index
         };
@@ -412,6 +424,7 @@ pub(super) fn build_traced(
             CheckedComposedUnitControlTerminatorPlan::Jump { .. }
                 | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
+                | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. }
                 | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
