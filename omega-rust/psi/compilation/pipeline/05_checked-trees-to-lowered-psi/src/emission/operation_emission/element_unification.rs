@@ -12,7 +12,8 @@
 //! materializes an element an earlier copy already holds — same source, same
 //! static path prefix, and a selector whose producing operation is an
 //! identical leaf read — the later copy and its consumer are rewritten onto
-//! the earlier place and the redundant copy operation is dropped. Fixed-index
+//! the earlier place and the redundant copy operation is dropped, together
+//! with any `OperationResult` declaration that names it as producer. Fixed-index
 //! reads have always narrowed this way because their path is constant; the
 //! unification gives the runtime-indexed read the same constant identity.
 //!
@@ -35,7 +36,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{BlockId, PlaceId, ValueId};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, ValueId};
 use terminal_psi::{OperationKind, TerminalMachine, Terminator};
 
 /// Element-hoist places are minted in the reserved `[2^62, 2^63)` band; see
@@ -429,7 +430,101 @@ pub(crate) fn unify_hoisted_element_reads(module: &mut terminal_psi::TerminalMod
                     _ => {}
                 }
             }
-            operations.remove(operation_index);
+            let dropped = operations.remove(operation_index);
+            // Machine assembly may already have declared the dropped copy's
+            // result: the call-operand snapshot route declares every leaf
+            // copy a unit emitter produced. The producer no longer exists, so
+            // its declaration goes with it; any other declaration of that
+            // place is left for validation to judge.
+            machine.structural_places.retain(|place| {
+                place.id != superseded
+                    || !matches!(
+                        place.kind,
+                        StructuralPlaceKind::OperationResult { producer, .. }
+                            if producer == dropped.id
+                    )
+            });
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A guard read and a dominated body read of `cells[k].v` share one
+    /// hoisted copy. State-graph assembly declares every leaf copy it emits,
+    /// so the dropped copy must take its declaration with it or the module
+    /// names a missing producer.
+    #[test]
+    fn a_unified_element_hoist_retracts_the_dropped_copy_declaration() {
+        let checked = crate::front_end::checked_program(
+            "boundary trait Output { machine finish(); }
+             data Cell { v: i32 [0..=9]; }
+             data Main<'s> { output: &'s mut Output; cells: [Cell; 4]; k: u64 [0..=3]; }
+             machine Main::main(&mut self) reaches Output {
+                 self.cells[2].v = 4;
+                 self.k = 2;
+                 transition self.cells[self.k].v < 9 { true -> bump() false -> done() }
+                 state bump(&mut self) {
+                     self.cells[self.k].v = self.cells[self.k].v + 1;
+                     transition self.cells[2].v == 5 { true -> done() false -> done() }
+                 }
+                 state done(&mut self) { self.output.finish(); }
+             }",
+        );
+        let lowered = crate::lower_machine(
+            &checked,
+            crate::TerminalMachineSelection::Name("Main::main"),
+        )
+        .expect("the runtime-indexed read-modify-write lowers");
+        let machine = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .any(|operation| {
+                        operation.result.structural().is_some_and(|result| {
+                            is_hoisted_element_place(result.place)
+                                && matches!(
+                                    operation.kind,
+                                    OperationKind::StructuralLeafCopy { .. }
+                                )
+                        })
+                    })
+            })
+            .expect("the entry machine hoists its runtime-indexed element");
+        let hoists = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter(|operation| {
+                matches!(operation.kind, OperationKind::StructuralLeafCopy { .. })
+                    && operation
+                        .result
+                        .structural()
+                        .is_some_and(|result| is_hoisted_element_place(result.place))
+            })
+            .count();
+        assert_eq!(hoists, 1, "the body read shares the guard's copy");
+        for place in &machine.structural_places {
+            if let StructuralPlaceKind::OperationResult { producer, .. } = place.kind {
+                assert!(
+                    machine
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.operations)
+                        .any(|operation| operation.id == producer),
+                    "{:?} names a dropped producer {producer:?}",
+                    place.id
+                );
+            }
+        }
+        terminal_verifier::validate_module(&lowered.semantic_module)
+            .expect("the unified module validates");
     }
 }
