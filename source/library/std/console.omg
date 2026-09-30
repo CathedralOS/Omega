@@ -7,6 +7,7 @@
 // provider default. Target filtering keeps exactly one implementation closure.
 use targets::windows_x86_64::console_impl;
 use targets::macos_arm64::console_impl;
+use targets::macos_x86_64::console_impl;
 use targets::linux_x86_64::console_impl;
 use targets::linux_arm64::console_impl;
 
