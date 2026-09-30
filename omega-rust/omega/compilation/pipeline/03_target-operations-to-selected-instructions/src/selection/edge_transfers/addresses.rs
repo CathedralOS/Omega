@@ -187,12 +187,15 @@ pub(super) fn check(
         let Some((base, byte_offset, byte_count, destination)) = address(binding.transport) else {
             continue;
         };
-        if byte_count == 0
-            || destination
-                != (selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
-                    block: continuation.source_target,
-                    place: binding.semantic.parameter,
-                })
+        // Empty referents still have an address: a context containing only
+        // erased bindings is one example. This transport stores the pointer,
+        // not referent bytes, so its destination remains eight bytes even
+        // when the independently derived lent span is empty.
+        if destination
+            != (selected_instructions::LocalStorageSlotId::StructuralBlockParameter {
+                block: continuation.source_target,
+                place: binding.semantic.parameter,
+            })
             || prepared
                 .local_storage_slots
                 .iter()
