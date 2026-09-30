@@ -111,6 +111,8 @@ pub struct PureBuildCompilation {
     // Append-only: the length is the publication generation. Entries never
     // change or disappear while any consumer can hold this owner.
     completed: Arc<Mutex<Vec<Arc<CompletedPureBuild>>>>,
+    #[cfg(test)]
+    first_retention_snapshot: Option<Arc<std::sync::Barrier>>,
 }
 
 impl PureBuildCompilation {
@@ -163,6 +165,14 @@ impl PureBuildCompilation {
                 }
                 retained[compared_count..].to_vec()
             };
+            // A test may make competing writers observe the same prefix.
+            // Wait only after unlocking and only before the first comparison.
+            #[cfg(test)]
+            if compared_count == 0
+                && let Some(rendezvous) = &self.first_retention_snapshot
+            {
+                rendezvous.wait();
+            }
             compared_count += candidates.len();
             if candidates
                 .iter()
@@ -685,18 +695,20 @@ mod pure_tests {
         let inputs = inputs(build_declarations::DependencyPurpose::Product, 7);
         let configuration = completed_configuration(&inputs);
         let owner = PureBuildCompilation::default();
-        // A distinct entry makes each contender traverse the unlocked comparison
-        // path before appending. The barrier races publication without sleeps.
+        // Every writer must snapshot this same distinct prefix before any can
+        // append. Losing writers then deterministically retry on the new suffix.
         let mut distinct = inputs.clone();
         distinct.initial_build = build_time_evaluation::BuildTimeValue::Float(-0.0);
         owner
             .retain_completed(distinct, Arc::clone(&configuration))
             .unwrap();
-        let start = std::sync::Barrier::new(8);
+        let owner = PureBuildCompilation {
+            first_retention_snapshot: Some(Arc::new(std::sync::Barrier::new(8))),
+            ..owner
+        };
         std::thread::scope(|threads| {
             for _ in 0..8 {
                 threads.spawn(|| {
-                    start.wait();
                     owner
                         .retain_completed(inputs.clone(), Arc::clone(&configuration))
                         .unwrap();
