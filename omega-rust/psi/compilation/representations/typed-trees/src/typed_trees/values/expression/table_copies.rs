@@ -1,6 +1,12 @@
 //! Copying expression subtrees into a table, from another table or from the
 //! table itself, including member-suffixed copies and the symbol remap that
 //! completes a lexical-scope clone.
+//!
+//! Every subtree copy runs through [`ExpressionTable::copy_subtree`]; the
+//! public entry points differ only in the [`CopySource`] they read and the
+//! struct-literal field filter they apply. The walk appends children before
+//! their parent and reserves or inserts each span in walk order, so a copy
+//! appends the same rows whichever table it reads.
 
 use crate::name::Identifier;
 use crate::typed_trees::values::expression::{
@@ -13,13 +19,41 @@ use crate::typed_trees::values::expression::{
 use arena::{Handle, HandleSpan};
 use symbols::SymbolHandle;
 
+/// Where a subtree copy reads the rows it appends.
+#[derive(Clone, Copy)]
+enum CopySource<'source> {
+    /// The destination table itself: the copy lands beside its original.
+    Own,
+    /// A separate table, which the copy leaves untouched.
+    Table(&'source ExpressionTable),
+}
+
+impl<'source> CopySource<'source> {
+    /// The table to read. The result borrows `destination` even for a
+    /// separate table, so every read ends before the walk appends again.
+    fn table<'table>(self, destination: &'table ExpressionTable) -> &'table ExpressionTable
+    where
+        'source: 'table,
+    {
+        match self {
+            Self::Own => destination,
+            Self::Table(source) => source,
+        }
+    }
+}
+
+/// The struct-literal field filter of an unfiltered copy.
+fn retain_every_field(_: &TableStructLiteral, _: &TableStructLiteralField) -> bool {
+    true
+}
+
 impl ExpressionTable {
     pub fn copy_from(
         &mut self,
         source: &ExpressionTable,
         expression: ExpressionHandle,
     ) -> ExpressionHandle {
-        self.copy_from_filtering_struct_literal_fields(source, expression, &|_, _| true)
+        self.copy_subtree(CopySource::Table(source), expression, &retain_every_field)
     }
 
     /// Copy one expression graph while omitting rejected struct-literal fields
@@ -32,232 +66,13 @@ impl ExpressionTable {
         expression: ExpressionHandle,
         retain: &impl Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
     ) -> ExpressionHandle {
-        let source_span = source.source_span(expression);
-        let copied = match source.expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                let subject = self.copy_from_filtering_struct_literal_fields(
-                    source,
-                    dispatch.subject,
-                    retain,
-                );
-                let source_arms = source.match_arms(dispatch.arms).to_vec();
-                let mut arms = Vec::with_capacity(source_arms.len());
-                for arm in source_arms {
-                    let pattern = match arm.pattern {
-                        MatchPattern::Value(value) => MatchPattern::Value(
-                            self.copy_from_filtering_struct_literal_fields(source, value, retain),
-                        ),
-                        MatchPattern::Wildcard => MatchPattern::Wildcard,
-                    };
-                    let value =
-                        self.copy_from_filtering_struct_literal_fields(source, arm.value, retain);
-                    arms.push(TableMatchArm {
-                        pattern,
-                        value,
-                        source_span: arm.source_span,
-                    });
-                }
-                let arms = self.insert_match_arms(arms);
-                self.insert(ExpressionNode::Match(TableMatchExpression {
-                    subject,
-                    arms,
-                }))
-            }
-            ExpressionNode::ArrayLiteral(source_values) => {
-                let values = self
-                    .copy_expression_handles_from_slice_filtering_struct_literal_fields(
-                        source,
-                        source.expression_handles(*source_values),
-                        retain,
-                    );
-                self.insert(ExpressionNode::ArrayLiteral(values))
-            }
-            ExpressionNode::Atomic(atomic) => {
-                let value =
-                    self.copy_from_filtering_struct_literal_fields(source, atomic.value, retain);
-                let result = atomic
-                    .result
-                    .is_valid()
-                    .then(|| {
-                        self.copy_from_filtering_struct_literal_fields(
-                            source,
-                            atomic.result,
-                            retain,
-                        )
-                    })
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                self.insert(ExpressionNode::Atomic(TableAtomicExpression {
-                    value,
-                    result,
-                    ordering: atomic.ordering,
-                    result_custody: atomic.result_custody,
-                }))
-            }
-            ExpressionNode::Binary(binary) => {
-                let left =
-                    self.copy_from_filtering_struct_literal_fields(source, binary.left, retain);
-                let right =
-                    self.copy_from_filtering_struct_literal_fields(source, binary.right, retain);
-                self.insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left,
-                    operator: binary.operator,
-                    right,
-                }))
-            }
-            ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
-            ExpressionNode::Cast(cast) => {
-                let value =
-                    self.copy_from_filtering_struct_literal_fields(source, cast.value, retain);
-                let target_type = cast.target_type;
-                let target_label = self.copy_name_path_members(source, cast.target_label);
-                let semantic_domain = self.copy_name_path_members(source, cast.semantic_domain);
-                self.insert(ExpressionNode::Cast(TableCastExpression {
-                    value,
-                    target_type,
-                    result_type: cast.result_type,
-                    target_label,
-                    domain: cast.domain,
-                    semantic_domain,
-                    semantic_domain_arguments: cast.semantic_domain_arguments,
-                    semantic_domain_symbol: cast.semantic_domain_symbol,
-                    semantic_domain_id: cast.semantic_domain_id,
-                    form: cast.form,
-                }))
-            }
-            ExpressionNode::Call(call) => {
-                let receiver = call
-                    .receiver
-                    .is_valid()
-                    .then(|| {
-                        self.copy_from_filtering_struct_literal_fields(
-                            source,
-                            call.receiver,
-                            retain,
-                        )
-                    })
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                let arguments = self
-                    .copy_expression_handles_from_slice_filtering_struct_literal_fields(
-                        source,
-                        source.expression_handles(call.arguments),
-                        retain,
-                    );
-                self.insert(ExpressionNode::Call(TableCallExpression {
-                    receiver,
-                    target_symbol: call.target_symbol,
-                    target: call.target.clone(),
-                    static_requirement_dispatch: call.static_requirement_dispatch.clone(),
-                    static_machine_parameter: call.static_machine_parameter,
-                    machine_arguments: call.machine_arguments.clone(),
-                    quotient_operation: call.quotient_operation.clone(),
-                    private_layout_operation: call.private_layout_operation.clone(),
-                    layout_query: call.layout_query.clone(),
-                    arguments,
-                    evidence_arguments: call.evidence_arguments.clone(),
-                    operational_acknowledgement: call.operational_acknowledgement,
-                }))
-            }
-            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
-            ExpressionNode::UndeterminedNaN(format) => {
-                self.insert(ExpressionNode::UndeterminedNaN(*format))
-            }
-            ExpressionNode::Indexed(indexed) => {
-                let collection = self.copy_from_filtering_struct_literal_fields(
-                    source,
-                    indexed.collection,
-                    retain,
-                );
-                let index =
-                    self.copy_from_filtering_struct_literal_fields(source, indexed.index, retain);
-                self.insert(ExpressionNode::Indexed(TableIndexedExpression {
-                    collection,
-                    index,
-                }))
-            }
-            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value.clone())),
-            ExpressionNode::Member(member) => {
-                let receiver =
-                    self.copy_from_filtering_struct_literal_fields(source, member.receiver, retain);
-                self.insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver,
-                    member_symbol: member.member_symbol,
-                    member: member.member.clone(),
-                    case_variant: member.case_variant.clone(),
-                }))
-            }
-            ExpressionNode::Borrow(inner_expression) => {
-                let target = self.copy_from_filtering_struct_literal_fields(
-                    source,
-                    inner_expression.target,
-                    retain,
-                );
-                self.insert(ExpressionNode::Borrow(TableBorrowExpression {
-                    target,
-                    access: inner_expression.access,
-                }))
-            }
-            ExpressionNode::Name(path) => {
-                let members = self.copy_name_path_members(source, path.members);
-                let member_symbols =
-                    self.copy_name_path_member_symbols(source, path.member_symbols);
-                self.insert(ExpressionNode::Name(TableNamePath {
-                    members,
-                    member_symbols,
-                    head_symbol: path.head_symbol,
-                    symbol: path.symbol,
-                }))
-            }
-            ExpressionNode::Range(range) => {
-                let start = range
-                    .start
-                    .is_valid()
-                    .then(|| {
-                        self.copy_from_filtering_struct_literal_fields(source, range.start, retain)
-                    })
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                let end = range
-                    .end
-                    .is_valid()
-                    .then(|| {
-                        self.copy_from_filtering_struct_literal_fields(source, range.end, retain)
-                    })
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                self.insert(ExpressionNode::Range(TableRangeExpression {
-                    start,
-                    end,
-                    end_inclusive: range.end_inclusive,
-                }))
-            }
-            ExpressionNode::StructLiteral(struct_literal) => {
-                let fields =
-                    self.copy_struct_literal_fields_filtering(source, struct_literal, retain);
-                self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                    type_name: struct_literal.type_name.clone(),
-                    type_symbol: struct_literal.type_symbol,
-                    case_name: struct_literal.case_name.clone(),
-                    case_symbol: struct_literal.case_symbol,
-                    fields,
-                }))
-            }
-            ExpressionNode::String(value) => self.insert(ExpressionNode::String(value.clone())),
-            ExpressionNode::Unary(unary) => {
-                let operand =
-                    self.copy_from_filtering_struct_literal_fields(source, unary.operand, retain);
-                self.insert(ExpressionNode::Unary(TableUnaryExpression {
-                    operator: unary.operator,
-                    operand,
-                }))
-            }
-            ExpressionNode::ZeroValue(type_reference) => {
-                self.insert(ExpressionNode::ZeroValue(*type_reference))
-            }
-        };
-        self.set_source_span(copied, source_span);
-        self.attach_authored_selection_occurrences(
-            copied,
-            source.authored_selection_occurrences(expression),
-        );
-        copied
+        self.copy_subtree(CopySource::Table(source), expression, retain)
+    }
+
+    /// Copy one expression graph within this table. The copy's rows follow
+    /// every existing row and share no span with the original.
+    pub fn insert_copy(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
+        self.copy_subtree(CopySource::Own, expression, &retain_every_field)
     }
 
     /// Remap lexical identities throughout one expression graph. The graph's
@@ -391,33 +206,230 @@ impl ExpressionTable {
         source: &ExpressionTable,
         expressions: &[ExpressionHandle],
     ) -> HandleSpan<ExpressionHandle> {
-        let copied = self.reserve_expression_handles(
-            expressions
-                .len()
-                .try_into()
-                .expect("expression handle span count overflow"),
-        );
+        self.copy_expression_list(CopySource::Table(source), expressions, &retain_every_field)
+    }
 
-        for (offset, expression) in expressions.iter().enumerate() {
-            let expression = self.copy_from(source, *expression);
-            self.set_expression_handle_at_offset(
-                copied,
-                offset
-                    .try_into()
-                    .expect("expression handle span count overflow"),
-                expression,
-            );
-        }
-
+    /// The one subtree copy behind `copy_from`, the filtered copy,
+    /// `insert_copy` and the expression-handle copies. Each node and span is
+    /// cloned out of `source` before anything is appended, which lets a copy
+    /// read the table it writes. The copy keeps the node's source span and
+    /// authored-selection occurrences.
+    fn copy_subtree<RetainField>(
+        &mut self,
+        source: CopySource<'_>,
+        expression: ExpressionHandle,
+        retain: &RetainField,
+    ) -> ExpressionHandle
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
+        let origin = source.table(self);
+        let source_span = origin.source_span(expression);
+        let occurrences = origin
+            .authored_selection_occurrences(expression)
+            .collect::<Vec<_>>();
+        let copied = match origin.expression(expression).clone() {
+            ExpressionNode::Match(dispatch) => {
+                let subject = self.copy_subtree(source, dispatch.subject, retain);
+                let source_arms = source.table(self).match_arms(dispatch.arms).to_vec();
+                let mut arms = Vec::with_capacity(source_arms.len());
+                for arm in source_arms {
+                    let pattern = match arm.pattern {
+                        MatchPattern::Value(value) => {
+                            MatchPattern::Value(self.copy_subtree(source, value, retain))
+                        }
+                        MatchPattern::Wildcard => MatchPattern::Wildcard,
+                    };
+                    let value = self.copy_subtree(source, arm.value, retain);
+                    arms.push(TableMatchArm {
+                        pattern,
+                        value,
+                        source_span: arm.source_span,
+                    });
+                }
+                let arms = self.insert_match_arms(arms);
+                self.insert(ExpressionNode::Match(TableMatchExpression {
+                    subject,
+                    arms,
+                }))
+            }
+            ExpressionNode::ArrayLiteral(values) => {
+                let values = self.copy_expression_span(source, values, retain);
+                self.insert(ExpressionNode::ArrayLiteral(values))
+            }
+            ExpressionNode::Atomic(atomic) => {
+                let value = self.copy_subtree(source, atomic.value, retain);
+                let result = self.copy_optional_subtree(source, atomic.result, retain);
+                self.insert(ExpressionNode::Atomic(TableAtomicExpression {
+                    value,
+                    result,
+                    ordering: atomic.ordering,
+                    result_custody: atomic.result_custody,
+                }))
+            }
+            ExpressionNode::Binary(binary) => {
+                let left = self.copy_subtree(source, binary.left, retain);
+                let right = self.copy_subtree(source, binary.right, retain);
+                self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                }))
+            }
+            ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(value)),
+            ExpressionNode::Cast(cast) => {
+                let value = self.copy_subtree(source, cast.value, retain);
+                let target_label = self.copy_name_path_members(source, cast.target_label);
+                let semantic_domain = self.copy_name_path_members(source, cast.semantic_domain);
+                self.insert(ExpressionNode::Cast(TableCastExpression {
+                    value,
+                    target_type: cast.target_type,
+                    result_type: cast.result_type,
+                    target_label,
+                    domain: cast.domain,
+                    semantic_domain,
+                    semantic_domain_arguments: cast.semantic_domain_arguments,
+                    semantic_domain_symbol: cast.semantic_domain_symbol,
+                    semantic_domain_id: cast.semantic_domain_id,
+                    form: cast.form,
+                }))
+            }
+            ExpressionNode::Call(call) => {
+                let receiver = self.copy_optional_subtree(source, call.receiver, retain);
+                let arguments = self.copy_expression_span(source, call.arguments, retain);
+                self.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver,
+                    target_symbol: call.target_symbol,
+                    target: call.target,
+                    static_requirement_dispatch: call.static_requirement_dispatch,
+                    static_machine_parameter: call.static_machine_parameter,
+                    machine_arguments: call.machine_arguments,
+                    quotient_operation: call.quotient_operation,
+                    private_layout_operation: call.private_layout_operation,
+                    layout_query: call.layout_query,
+                    arguments,
+                    evidence_arguments: call.evidence_arguments,
+                    operational_acknowledgement: call.operational_acknowledgement,
+                }))
+            }
+            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value)),
+            ExpressionNode::UndeterminedNaN(format) => {
+                self.insert(ExpressionNode::UndeterminedNaN(format))
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let collection = self.copy_subtree(source, indexed.collection, retain);
+                let index = self.copy_subtree(source, indexed.index, retain);
+                self.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                    collection,
+                    index,
+                }))
+            }
+            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value)),
+            ExpressionNode::Member(member) => {
+                let receiver = self.copy_subtree(source, member.receiver, retain);
+                self.insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    member_symbol: member.member_symbol,
+                    member: member.member,
+                    case_variant: member.case_variant,
+                }))
+            }
+            ExpressionNode::Borrow(borrow) => {
+                let target = self.copy_subtree(source, borrow.target, retain);
+                self.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                    target,
+                    access: borrow.access,
+                }))
+            }
+            ExpressionNode::Name(path) => {
+                let members = self.copy_name_path_members(source, path.members);
+                let member_symbols =
+                    self.copy_name_path_member_symbols(source, path.member_symbols);
+                self.insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    member_symbols,
+                    head_symbol: path.head_symbol,
+                    symbol: path.symbol,
+                }))
+            }
+            ExpressionNode::Range(range) => {
+                let start = self.copy_optional_subtree(source, range.start, retain);
+                let end = self.copy_optional_subtree(source, range.end, retain);
+                self.insert(ExpressionNode::Range(TableRangeExpression {
+                    start,
+                    end,
+                    end_inclusive: range.end_inclusive,
+                }))
+            }
+            ExpressionNode::StructLiteral(literal) => {
+                let fields = self.copy_struct_literal_fields(source, &literal, retain);
+                self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                    type_name: literal.type_name,
+                    type_symbol: literal.type_symbol,
+                    case_name: literal.case_name,
+                    case_symbol: literal.case_symbol,
+                    fields,
+                }))
+            }
+            ExpressionNode::String(value) => self.insert(ExpressionNode::String(value)),
+            ExpressionNode::Unary(unary) => {
+                let operand = self.copy_subtree(source, unary.operand, retain);
+                self.insert(ExpressionNode::Unary(TableUnaryExpression {
+                    operator: unary.operator,
+                    operand,
+                }))
+            }
+            ExpressionNode::ZeroValue(type_reference) => {
+                self.insert(ExpressionNode::ZeroValue(type_reference))
+            }
+        };
+        self.set_source_span(copied, source_span);
+        self.attach_authored_selection_occurrences(copied, occurrences);
         copied
     }
 
-    fn copy_expression_handles_from_slice_filtering_struct_literal_fields(
+    /// Copies an optional child; the invalid handle marks an absent one and
+    /// stays invalid.
+    fn copy_optional_subtree<RetainField>(
         &mut self,
-        source: &ExpressionTable,
+        source: CopySource<'_>,
+        expression: ExpressionHandle,
+        retain: &RetainField,
+    ) -> ExpressionHandle
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
+        if expression.is_valid() {
+            self.copy_subtree(source, expression, retain)
+        } else {
+            ExpressionHandle::invalid()
+        }
+    }
+
+    fn copy_expression_span<RetainField>(
+        &mut self,
+        source: CopySource<'_>,
+        expressions: HandleSpan<ExpressionHandle>,
+        retain: &RetainField,
+    ) -> HandleSpan<ExpressionHandle>
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
+        let expressions = source.table(self).expression_handles(expressions).to_vec();
+        self.copy_expression_list(source, &expressions, retain)
+    }
+
+    /// Reserves the copied span before copying its elements, so the span's
+    /// rows precede every row its elements append.
+    fn copy_expression_list<RetainField>(
+        &mut self,
+        source: CopySource<'_>,
         expressions: &[ExpressionHandle],
-        retain: &impl Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
-    ) -> HandleSpan<ExpressionHandle> {
+        retain: &RetainField,
+    ) -> HandleSpan<ExpressionHandle>
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
         let copied = self.reserve_expression_handles(
             expressions
                 .len()
@@ -426,8 +438,7 @@ impl ExpressionTable {
         );
 
         for (offset, expression) in expressions.iter().enumerate() {
-            let expression =
-                self.copy_from_filtering_struct_literal_fields(source, *expression, retain);
+            let expression = self.copy_subtree(source, *expression, retain);
             self.set_expression_handle_at_offset(
                 copied,
                 offset
@@ -442,14 +453,14 @@ impl ExpressionTable {
 
     fn copy_name_path_members(
         &mut self,
-        source: &ExpressionTable,
+        source: CopySource<'_>,
         members: HandleSpan<Identifier>,
     ) -> HandleSpan<Identifier> {
+        let members = source.table(self).name_path_members(members).to_vec();
         let mut copied = HandleSpan::empty();
 
-        for member in source.name_path_members(members) {
-            self.name_path_members
-                .append_to_span(&mut copied, member.clone());
+        for member in members {
+            self.name_path_members.append_to_span(&mut copied, member);
         }
 
         copied
@@ -457,41 +468,16 @@ impl ExpressionTable {
 
     fn copy_name_path_member_symbols(
         &mut self,
-        source: &ExpressionTable,
+        source: CopySource<'_>,
         member_symbols: HandleSpan<SymbolHandle>,
     ) -> HandleSpan<SymbolHandle> {
+        let member_symbols = source
+            .table(self)
+            .name_path_member_symbols(member_symbols)
+            .to_vec();
         let mut copied = HandleSpan::empty();
 
-        for member_symbol in source.name_path_member_symbols(member_symbols) {
-            self.name_path_member_symbols
-                .append_to_span(&mut copied, *member_symbol);
-        }
-
-        copied
-    }
-
-    fn copy_own_name_path_members(
-        &mut self,
-        members: HandleSpan<Identifier>,
-    ) -> HandleSpan<Identifier> {
-        let mut copied = HandleSpan::empty();
-
-        for offset in 0..members.count() {
-            let member = self.name_path_member_at_offset(members, offset).clone();
-            self.name_path_members.append_to_span(&mut copied, member);
-        }
-
-        copied
-    }
-
-    fn copy_own_name_path_member_symbols(
-        &mut self,
-        member_symbols: HandleSpan<SymbolHandle>,
-    ) -> HandleSpan<SymbolHandle> {
-        let mut copied = HandleSpan::empty();
-
-        for offset in 0..member_symbols.count() {
-            let member_symbol = *self.name_path_member_symbol_at_offset(member_symbols, offset);
+        for member_symbol in member_symbols {
             self.name_path_member_symbols
                 .append_to_span(&mut copied, member_symbol);
         }
@@ -499,7 +485,50 @@ impl ExpressionTable {
         copied
     }
 
-    fn copy_own_name_path_members_with_index_suffix(
+    /// Filters every field before copying any value, then reserves the
+    /// retained fields' span ahead of their values' rows.
+    fn copy_struct_literal_fields<RetainField>(
+        &mut self,
+        source: CopySource<'_>,
+        literal: &TableStructLiteral,
+        retain: &RetainField,
+    ) -> HandleSpan<TableStructLiteralField>
+    where
+        RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+    {
+        let retained = source
+            .table(self)
+            .struct_fields(literal.fields)
+            .iter()
+            .filter(|field| retain(literal, field))
+            .cloned()
+            .collect::<Vec<_>>();
+        let copied = self.reserve_struct_fields(
+            retained
+                .len()
+                .try_into()
+                .expect("struct literal field span count overflow"),
+        );
+
+        for (offset, field) in retained.into_iter().enumerate() {
+            let value = self.copy_subtree(source, field.value, retain);
+            self.set_struct_field_at_offset(
+                copied,
+                offset
+                    .try_into()
+                    .expect("struct literal field span count overflow"),
+                TableStructLiteralField {
+                    name: field.name,
+                    field_symbol: field.field_symbol,
+                    value,
+                },
+            );
+        }
+
+        copied
+    }
+
+    fn copy_name_path_members_with_index_suffix(
         &mut self,
         members: HandleSpan<Identifier>,
         index: i64,
@@ -523,17 +552,6 @@ impl ExpressionTable {
         }
 
         copied
-    }
-
-    fn copy_own_name_path_member_symbols_with_index_suffix(
-        &mut self,
-        member_symbols: HandleSpan<SymbolHandle>,
-    ) -> HandleSpan<SymbolHandle> {
-        if member_symbols.is_empty() {
-            return HandleSpan::empty();
-        }
-
-        self.copy_own_name_path_member_symbols(member_symbols)
     }
 
     fn name_path_member_at_offset(
@@ -564,80 +582,6 @@ impl ExpressionTable {
                 .expect("name path member symbol index overflow"),
             member_symbols.start().generation(),
         ))
-    }
-
-    fn copy_struct_literal_fields_filtering(
-        &mut self,
-        source: &ExpressionTable,
-        literal: &TableStructLiteral,
-        retain: &impl Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
-    ) -> HandleSpan<TableStructLiteralField> {
-        let retained = source
-            .struct_fields(literal.fields)
-            .iter()
-            .filter(|field| retain(literal, field))
-            .collect::<Vec<_>>();
-        let copied = self.reserve_struct_fields(
-            retained
-                .len()
-                .try_into()
-                .expect("struct literal field span count overflow"),
-        );
-
-        for (offset, field) in retained.into_iter().enumerate() {
-            let value = self.copy_from_filtering_struct_literal_fields(source, field.value, retain);
-            self.set_struct_field_at_offset(
-                copied,
-                offset
-                    .try_into()
-                    .expect("struct literal field span count overflow"),
-                TableStructLiteralField {
-                    name: field.name.clone(),
-                    field_symbol: field.field_symbol,
-                    value,
-                },
-            );
-        }
-
-        copied
-    }
-
-    fn copy_own_expression_handles(
-        &mut self,
-        expressions: HandleSpan<ExpressionHandle>,
-    ) -> HandleSpan<ExpressionHandle> {
-        let copied = self.reserve_expression_handles(expressions.count());
-
-        for offset in 0..expressions.count() {
-            let expression = self.expression_handle_at_offset(expressions, offset);
-            let expression = self.insert_copy(expression);
-            self.set_expression_handle_at_offset(copied, offset, expression);
-        }
-
-        copied
-    }
-
-    fn copy_own_struct_literal_fields(
-        &mut self,
-        fields: HandleSpan<TableStructLiteralField>,
-    ) -> HandleSpan<TableStructLiteralField> {
-        let copied = self.reserve_struct_fields(fields.count());
-
-        for offset in 0..fields.count() {
-            let field = self.struct_field_at_offset(fields, offset).clone();
-            let value = self.insert_copy(field.value);
-            self.set_struct_field_at_offset(
-                copied,
-                offset,
-                TableStructLiteralField {
-                    name: field.name,
-                    field_symbol: field.field_symbol,
-                    value,
-                },
-            );
-        }
-
-        copied
     }
 
     pub fn copy_name_path_members_with_member_suffix(
@@ -844,185 +788,6 @@ impl ExpressionTable {
         expression
     }
 
-    pub fn insert_copy(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
-        let source_span = self.source_span(expression);
-        let occurrences = self
-            .authored_selection_occurrences(expression)
-            .collect::<Vec<_>>();
-        let copied = match self.expression(expression).clone() {
-            ExpressionNode::Match(dispatch) => {
-                let subject = self.insert_copy(dispatch.subject);
-                let source_arms = self.match_arms(dispatch.arms).to_vec();
-                let mut arms = Vec::with_capacity(source_arms.len());
-                for arm in source_arms {
-                    let pattern = match arm.pattern {
-                        MatchPattern::Value(value) => MatchPattern::Value(self.insert_copy(value)),
-                        MatchPattern::Wildcard => MatchPattern::Wildcard,
-                    };
-                    let value = self.insert_copy(arm.value);
-                    arms.push(TableMatchArm {
-                        pattern,
-                        value,
-                        source_span: arm.source_span,
-                    });
-                }
-                let arms = self.insert_match_arms(arms);
-                self.insert(ExpressionNode::Match(TableMatchExpression {
-                    subject,
-                    arms,
-                }))
-            }
-            ExpressionNode::ArrayLiteral(values) => {
-                let values = self.copy_own_expression_handles(values);
-                self.insert(ExpressionNode::ArrayLiteral(values))
-            }
-            ExpressionNode::Atomic(atomic) => {
-                let value = self.insert_copy(atomic.value);
-                let result = atomic
-                    .result
-                    .is_valid()
-                    .then(|| self.insert_copy(atomic.result))
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                self.insert(ExpressionNode::Atomic(TableAtomicExpression {
-                    value,
-                    result,
-                    ordering: atomic.ordering,
-                    result_custody: atomic.result_custody,
-                }))
-            }
-            ExpressionNode::Binary(binary) => {
-                let left = self.insert_copy(binary.left);
-                let right = self.insert_copy(binary.right);
-                self.insert(ExpressionNode::Binary(TableBinaryExpression {
-                    left,
-                    operator: binary.operator,
-                    right,
-                }))
-            }
-            ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(value)),
-            ExpressionNode::Cast(cast) => {
-                let value = self.insert_copy(cast.value);
-                let target_type = cast.target_type;
-                let target_label = self.copy_own_name_path_members(cast.target_label);
-                let semantic_domain = self.copy_own_name_path_members(cast.semantic_domain);
-                self.insert(ExpressionNode::Cast(TableCastExpression {
-                    value,
-                    target_type,
-                    result_type: cast.result_type,
-                    target_label,
-                    domain: cast.domain,
-                    semantic_domain,
-                    semantic_domain_arguments: cast.semantic_domain_arguments,
-                    semantic_domain_symbol: cast.semantic_domain_symbol,
-                    semantic_domain_id: cast.semantic_domain_id,
-                    form: cast.form,
-                }))
-            }
-            ExpressionNode::Call(call) => {
-                let receiver = call
-                    .receiver
-                    .is_valid()
-                    .then(|| self.insert_copy(call.receiver))
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                let arguments = self.copy_own_expression_handles(call.arguments);
-                self.insert(ExpressionNode::Call(TableCallExpression {
-                    receiver,
-                    target_symbol: call.target_symbol,
-                    target: call.target,
-                    static_requirement_dispatch: call.static_requirement_dispatch,
-                    static_machine_parameter: call.static_machine_parameter,
-                    machine_arguments: call.machine_arguments,
-                    quotient_operation: call.quotient_operation,
-                    private_layout_operation: call.private_layout_operation,
-                    layout_query: call.layout_query,
-                    arguments,
-                    evidence_arguments: call.evidence_arguments,
-                    operational_acknowledgement: call.operational_acknowledgement,
-                }))
-            }
-            ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value)),
-            ExpressionNode::UndeterminedNaN(format) => {
-                self.insert(ExpressionNode::UndeterminedNaN(format))
-            }
-            ExpressionNode::Indexed(indexed) => {
-                let collection = self.insert_copy(indexed.collection);
-                let index = self.insert_copy(indexed.index);
-                self.insert(ExpressionNode::Indexed(TableIndexedExpression {
-                    collection,
-                    index,
-                }))
-            }
-            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value)),
-            ExpressionNode::Member(member) => {
-                let receiver = self.insert_copy(member.receiver);
-                self.insert(ExpressionNode::Member(TableMemberExpression {
-                    receiver,
-                    member_symbol: member.member_symbol,
-                    member: member.member,
-                    case_variant: member.case_variant,
-                }))
-            }
-            ExpressionNode::Borrow(inner_expression) => {
-                let target = self.insert_copy(inner_expression.target);
-                self.insert(ExpressionNode::Borrow(TableBorrowExpression {
-                    target,
-                    access: inner_expression.access,
-                }))
-            }
-            ExpressionNode::Name(path) => {
-                let members = self.copy_own_name_path_members(path.members);
-                let member_symbols = self.copy_own_name_path_member_symbols(path.member_symbols);
-                self.insert(ExpressionNode::Name(TableNamePath {
-                    members,
-                    member_symbols,
-                    head_symbol: path.head_symbol,
-                    symbol: path.symbol,
-                }))
-            }
-            ExpressionNode::Range(range) => {
-                let start = range
-                    .start
-                    .is_valid()
-                    .then(|| self.insert_copy(range.start))
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                let end = range
-                    .end
-                    .is_valid()
-                    .then(|| self.insert_copy(range.end))
-                    .unwrap_or_else(ExpressionHandle::invalid);
-                self.insert(ExpressionNode::Range(TableRangeExpression {
-                    start,
-                    end,
-                    end_inclusive: range.end_inclusive,
-                }))
-            }
-            ExpressionNode::StructLiteral(struct_literal) => {
-                let fields = self.copy_own_struct_literal_fields(struct_literal.fields);
-                self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
-                    type_name: struct_literal.type_name,
-                    type_symbol: struct_literal.type_symbol,
-                    case_name: struct_literal.case_name,
-                    case_symbol: struct_literal.case_symbol,
-                    fields,
-                }))
-            }
-            ExpressionNode::String(value) => self.insert(ExpressionNode::String(value)),
-            ExpressionNode::Unary(unary) => {
-                let operand = self.insert_copy(unary.operand);
-                self.insert(ExpressionNode::Unary(TableUnaryExpression {
-                    operator: unary.operator,
-                    operand,
-                }))
-            }
-            ExpressionNode::ZeroValue(type_reference) => {
-                self.insert(ExpressionNode::ZeroValue(type_reference))
-            }
-        };
-        self.set_source_span(copied, source_span);
-        self.attach_authored_selection_occurrences(copied, occurrences);
-        copied
-    }
-
     fn copy_indexed_expression_path(
         &mut self,
         indexed: TableIndexedExpression,
@@ -1041,9 +806,9 @@ impl ExpressionTable {
             }
             _ => return None,
         };
-        let members = self.copy_own_name_path_members_with_index_suffix(base.members, index);
+        let members = self.copy_name_path_members_with_index_suffix(base.members, index);
         let member_symbols =
-            self.copy_own_name_path_member_symbols_with_index_suffix(base.member_symbols);
+            self.copy_name_path_member_symbols(CopySource::Own, base.member_symbols);
         if members.is_empty() {
             return None;
         }
