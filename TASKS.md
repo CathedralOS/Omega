@@ -947,7 +947,11 @@ the complete product bar; focused successes below do not establish that baseline
   general lowering through **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and
   **STATE-LOCAL-VALUE-FRONTIER**, keeping one occurrence-owned provider receiver
   across calls and nested services. Fused authority is not receiver storage;
-  do not substitute global state or weaken occurrence matching.
+  do not substitute global state or weaken occurrence matching. Design-blocked:
+  where a provider that owns resources across calls keeps its state in a fused
+  build is owner question `provider-private-state-home` in OWNER_QUESTIONS.md;
+  stage 05's installation adapter refuses every provider with fields until it
+  is answered.
 
   Stage 05's `attached_unit/call_catalog.rs` still fences write-only stores
   and atomic events in opaque callable providers. Admit them only with a
