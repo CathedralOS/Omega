@@ -152,10 +152,10 @@ pub data InterruptDescriptorTable {
 // the state parameters rather than on `self`.
 pub data DescriptorTableLayout {
 }
-machine DescriptorTableLayout::plan(&mut self, schema: Schema) -> Plan {
-    self.evaluate(schema, 128)
+machine DescriptorTableLayout::plan(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema) -> Plan {
+    DescriptorTableLayout::evaluate(descriptor_table_layout, schema, 128)
 }
-machine DescriptorTableLayout::evaluate(&mut self, schema: Schema, fuel: u64 [1..=128]) -> Plan
+machine DescriptorTableLayout::evaluate(descriptor_table_layout: &mut DescriptorTableLayout, schema: Schema, fuel: u64 [1..=128]) -> Plan
 terminates by fuel;
 {
     let entries: [FieldEntry; 64];

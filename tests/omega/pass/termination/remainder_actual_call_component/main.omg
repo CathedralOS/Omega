@@ -2,23 +2,23 @@ data Main { observed: u64; }
 
 machine Main::main() {}
 
-machine Main::first(&mut self, remaining: u64, cap: u64, step: u64, spare: u64)
+machine Main::first(main: &mut Main, remaining: u64, cap: u64, step: u64, spare: u64)
     requires 0 <= remaining && remaining <= 5 && 0 <= cap && cap <= 20 && 1 <= step && step <= 5
 terminates by remaining in 0..(cap / step + 6);
 -> u64 {
     transition remaining > 0 {
-        true -> self.second(cap, remaining - 1, step, cap % step)
+        true -> Main::second(main, cap, remaining - 1, step, cap % step)
         false -> remaining
     }
 }
 
-machine Main::second(&mut self, limit: u64, pending: u64, width: u64, extra: u64)
+machine Main::second(main: &mut Main, limit: u64, pending: u64, width: u64, extra: u64)
     requires 0 <= limit && limit <= 20 && 0 <= pending && pending <= 5 && 1 <= width && width <= 5
 requires extra <= 4;
 terminates by pending in 0..(limit / width + 6);
 -> u64 {
     transition pending > 0 {
-        true -> self.first(pending, limit, width, extra)
+        true -> Main::first(main, pending, limit, width, extra)
         false -> pending
     }
 }

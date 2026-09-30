@@ -20,8 +20,8 @@ data Client {
     net: Binding<Net>;
 }
 
-machine Client::run(&mut self) reaches Net + Allocator {
-    self.net.write_line("payload");
+machine Client::run(client: &mut Client) reaches Net + Allocator {
+    client.net.write_line("payload");
 }
 
 data Main {
@@ -29,5 +29,5 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.client.run();
+    Client::run(&mut self.client);
 }

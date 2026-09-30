@@ -40,42 +40,42 @@ data Game {
     health: i32;
 }
 
-machine Game::run(&mut self) reaches Console {
-    self.health = 10;
-    transition { _ -> prompt() }
+machine Game::run(game: &mut Game) reaches Console {
+    game.health = 10;
+    transition { _ -> prompt(game) }
 
 
-    state prompt(&mut self) {
-        transition self.health == 0 {
-            true -> dead()
-            false -> read_command()
+    state prompt(game: &mut Game) {
+        transition game.health == 0 {
+            true -> dead(game)
+            false -> read_command(game)
         }
     }
 
-    state read_command(&mut self) {
-        self.console.read_line(&mut self.line);
-        self.command = resolve(&self.line);
+    state read_command(game: &mut Game) {
+        game.console.read_line(&mut game.line);
+        game.command = resolve(&game.line);
 
-        transition self.command {
-            Command::Look -> look()
+        transition game.command {
+            Command::Look -> look(game)
             Command::Quit -> finished()
-            Command::Invalid -> invalid()
+            Command::Invalid -> invalid(game)
         }
     }
 
-    state dead(&mut self) {
-        self.console.write_line("dead");
-        self.console.exit_process(2);
+    state dead(game: &mut Game) {
+        game.console.write_line("dead");
+        game.console.exit_process(2);
     }
 
-    state look(&mut self) {
-        self.console.write_line("look");
-        transition { _ -> prompt() }
+    state look(game: &mut Game) {
+        game.console.write_line("look");
+        transition { _ -> prompt(game) }
     }
 
-    state invalid(&mut self) {
-        self.console.write_line("invalid");
-        transition { _ -> prompt() }
+    state invalid(game: &mut Game) {
+        game.console.write_line("invalid");
+        transition { _ -> prompt(game) }
     }
 
     state finished() {
@@ -91,7 +91,7 @@ machine Main::main(&mut self) -> i32 {
 
 
     state running(&mut self) {
-        self.game.run();
+        Game::run(&mut self.game);
         transition { _ -> shutdown() }
     }
 

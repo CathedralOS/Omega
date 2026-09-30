@@ -5,30 +5,30 @@
 data Main {}
 
 machine Main::main(&mut self) -> u64 {
-    transition { _ -> self.scan_a(0, 4) }
+    transition { _ -> Main::scan_a(&mut self, 0, 4) }
 }
 
 machine bump(value: &mut u64) {
     value = 0;
 }
 
-machine Main::scan_a(&mut self, mut index: u64 [0..=4], limit: u64 [0..=4])
+machine Main::scan_a(main: &mut Main, mut index: u64 [0..=4], limit: u64 [0..=4])
 requires index <= limit;
 terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
 -> u64 {
     bump(&mut index);
     transition index < limit {
-        true -> self.scan_b(index + 1, limit)
+        true -> Main::scan_b(main, index + 1, limit)
         false -> index
     }
 }
 
-machine Main::scan_b(&mut self, index: u64 [0..=4], limit: u64 [0..=4])
+machine Main::scan_b(main: &mut Main, index: u64 [0..=4], limit: u64 [0..=4])
 requires index <= limit;
 terminates by (index, limit) -> Nat::BoundedDistance in 0..=4;
 -> u64 {
     transition index < limit {
-        true -> self.scan_a(index + 1, limit)
+        true -> Main::scan_a(main, index + 1, limit)
         false -> index
     }
 }
