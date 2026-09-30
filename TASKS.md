@@ -92,18 +92,18 @@ build authority, and artifact verification remain separate obligations.
   scalar-result callees (`pass/calls/local_projected_field_shared_argument_exit`).
   A static entry forwards its lent `context: &mut Main` bare into one helper
   after another, across projected stores and state edges
-  (`pass/calls/static_context_forwarded_twice_exit`), and the fully static
-  `vending_machine` exits **70** natively; its checked interpretation still
-  declines at `cannot read field sales_count of Unit` (the context
-  interpretation gap above). The half-migrated `game_of_life`, `stack_vm` and
-  `account_ledger` still carry a `&mut self` entry and implicit `i32` to
-  `i32 in Wrapping` stores that the static route rightly rejects. Rewritten as
-  static entries with helper results typed as their `Wrapping` uses,
-  `game_of_life` stops at stage 04 `signature`
-  (`free_structural_scalar_signature` refuses the range-qualified array field
-  `board: [i32 [0..=1]; 16]` that the receiver route admits), while `stack_vm`
-  and `account_ledger` check and stop at Terminal
-  `StructuralArgumentTypeMismatch { argument_index: 0 }`.
+  (`pass/calls/static_context_forwarded_twice_exit`). A state's forwarded
+  context lends its fixed-array fields as byte and element windows to Unit-,
+  scalar- and structural-result calls, the Console reader included
+  (`pass/calls/static_state_context_field_window_exit`). The fully static
+  `vending_machine`, `stack_vm` and `account_ledger` exit **70** natively and
+  interpreted on macOS ARM64. The static `game_of_life` stops at stage 04
+  `signature`, as its receiver form did: no Terminal type shape carries the
+  range-qualified element of `board: [i32 [0..=1]; 16]`. Its canonical form
+  is the collection invariant in the integer-migration row (`[i32; 16]` with
+  a state-traversing `where` predicate). A probe declaring
+  `where cells_valid(&board) == true` still refuses the neighbor sums as
+  possibly overflowing, because no elementwise bound reaches the checker.
   `pass/time/runtime_duration_core_exit` recorded native exit **70** before
   92f378e7809 made Duration arithmetic static. It now stops at Terminal
   `InvalidStructuralLeafCopy` in `check_underflow`. There a sum result whose

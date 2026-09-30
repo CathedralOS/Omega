@@ -45,482 +45,482 @@ data Main {
 }
 
 // Initialize the board with the 2x2 block still-life at positions 5,6,9,10.
-machine Main::init_board(&mut self) {
-    self.g.board[5] = 1;
-    self.g.board[6] = 1;
-    self.g.board[9] = 1;
-    self.g.board[10] = 1;
-    self.g.offset = 66;
+machine Main::init_board(context: &mut Main) {
+    context.g.board[5] = 1;
+    context.g.board[6] = 1;
+    context.g.board[9] = 1;
+    context.g.board[10] = 1;
+    context.g.offset = 66;
 }
 
 // Cell 0 (0,0): neighbors = cells[1]+cells[4]+cells[5]
-machine Main::compute_cell_0(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[1] + self.g.board[4] + self.g.board[5]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[0] as i32 in Wrapping;
+machine Main::compute_cell_0(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[1] + context.g.board[4] + context.g.board[5]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[0] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_0()
-        _ -> check_cur_0(cur, n)
+        true -> live_0(context)
+        _ -> check_cur_0(context, cur, n)
     }
-    state live_0(&mut self) { self.g.next[0] = 1; }
-    state check_cur_0(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_0(context: &mut Main) { context.g.next[0] = 1; }
+    state check_cur_0(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_0(n)
-            _ -> die_0()
+            true -> check_two_0(context, n)
+            _ -> die_0(context)
         }
     }
-    state check_two_0(n: i32 in Wrapping) {
+    state check_two_0(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_0()
-            _ -> die_0()
+            true -> live2_0(context)
+            _ -> die_0(context)
         }
     }
-    state live2_0(&mut self) { self.g.next[0] = 1; }
-    state die_0(&mut self) { self.g.next[0] = 0; }
+    state live2_0(context: &mut Main) { context.g.next[0] = 1; }
+    state die_0(context: &mut Main) { context.g.next[0] = 0; }
 }
 
 // Cell 1 (0,1): neighbors = cells[0]+cells[2]+cells[4]+cells[5]+cells[6]
-machine Main::compute_cell_1(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[0] + self.g.board[2] + self.g.board[4] + self.g.board[5] + self.g.board[6]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[1] as i32 in Wrapping;
+machine Main::compute_cell_1(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[0] + context.g.board[2] + context.g.board[4] + context.g.board[5] + context.g.board[6]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[1] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_1()
-        _ -> check_cur_1(cur, n)
+        true -> live_1(context)
+        _ -> check_cur_1(context, cur, n)
     }
-    state live_1(&mut self) { self.g.next[1] = 1; }
-    state check_cur_1(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_1(context: &mut Main) { context.g.next[1] = 1; }
+    state check_cur_1(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_1(n)
-            _ -> die_1()
+            true -> check_two_1(context, n)
+            _ -> die_1(context)
         }
     }
-    state check_two_1(n: i32 in Wrapping) {
+    state check_two_1(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_1()
-            _ -> die_1()
+            true -> live2_1(context)
+            _ -> die_1(context)
         }
     }
-    state live2_1(&mut self) { self.g.next[1] = 1; }
-    state die_1(&mut self) { self.g.next[1] = 0; }
+    state live2_1(context: &mut Main) { context.g.next[1] = 1; }
+    state die_1(context: &mut Main) { context.g.next[1] = 0; }
 }
 
 // Cell 2 (0,2): neighbors = cells[1]+cells[3]+cells[5]+cells[6]+cells[7]
-machine Main::compute_cell_2(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[1] + self.g.board[3] + self.g.board[5] + self.g.board[6] + self.g.board[7]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[2] as i32 in Wrapping;
+machine Main::compute_cell_2(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[1] + context.g.board[3] + context.g.board[5] + context.g.board[6] + context.g.board[7]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[2] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_2()
-        _ -> check_cur_2(cur, n)
+        true -> live_2(context)
+        _ -> check_cur_2(context, cur, n)
     }
-    state live_2(&mut self) { self.g.next[2] = 1; }
-    state check_cur_2(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_2(context: &mut Main) { context.g.next[2] = 1; }
+    state check_cur_2(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_2(n)
-            _ -> die_2()
+            true -> check_two_2(context, n)
+            _ -> die_2(context)
         }
     }
-    state check_two_2(n: i32 in Wrapping) {
+    state check_two_2(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_2()
-            _ -> die_2()
+            true -> live2_2(context)
+            _ -> die_2(context)
         }
     }
-    state live2_2(&mut self) { self.g.next[2] = 1; }
-    state die_2(&mut self) { self.g.next[2] = 0; }
+    state live2_2(context: &mut Main) { context.g.next[2] = 1; }
+    state die_2(context: &mut Main) { context.g.next[2] = 0; }
 }
 
 // Cell 3 (0,3): neighbors = cells[2]+cells[6]+cells[7]
-machine Main::compute_cell_3(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[2] + self.g.board[6] + self.g.board[7]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[3] as i32 in Wrapping;
+machine Main::compute_cell_3(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[2] + context.g.board[6] + context.g.board[7]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[3] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_3()
-        _ -> check_cur_3(cur, n)
+        true -> live_3(context)
+        _ -> check_cur_3(context, cur, n)
     }
-    state live_3(&mut self) { self.g.next[3] = 1; }
-    state check_cur_3(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_3(context: &mut Main) { context.g.next[3] = 1; }
+    state check_cur_3(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_3(n)
-            _ -> die_3()
+            true -> check_two_3(context, n)
+            _ -> die_3(context)
         }
     }
-    state check_two_3(n: i32 in Wrapping) {
+    state check_two_3(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_3()
-            _ -> die_3()
+            true -> live2_3(context)
+            _ -> die_3(context)
         }
     }
-    state live2_3(&mut self) { self.g.next[3] = 1; }
-    state die_3(&mut self) { self.g.next[3] = 0; }
+    state live2_3(context: &mut Main) { context.g.next[3] = 1; }
+    state die_3(context: &mut Main) { context.g.next[3] = 0; }
 }
 
 // Cell 4 (1,0): neighbors = cells[0]+cells[1]+cells[5]+cells[8]+cells[9]
-machine Main::compute_cell_4(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[0] + self.g.board[1] + self.g.board[5] + self.g.board[8] + self.g.board[9]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[4] as i32 in Wrapping;
+machine Main::compute_cell_4(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[0] + context.g.board[1] + context.g.board[5] + context.g.board[8] + context.g.board[9]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[4] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_4()
-        _ -> check_cur_4(cur, n)
+        true -> live_4(context)
+        _ -> check_cur_4(context, cur, n)
     }
-    state live_4(&mut self) { self.g.next[4] = 1; }
-    state check_cur_4(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_4(context: &mut Main) { context.g.next[4] = 1; }
+    state check_cur_4(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_4(n)
-            _ -> die_4()
+            true -> check_two_4(context, n)
+            _ -> die_4(context)
         }
     }
-    state check_two_4(n: i32 in Wrapping) {
+    state check_two_4(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_4()
-            _ -> die_4()
+            true -> live2_4(context)
+            _ -> die_4(context)
         }
     }
-    state live2_4(&mut self) { self.g.next[4] = 1; }
-    state die_4(&mut self) { self.g.next[4] = 0; }
+    state live2_4(context: &mut Main) { context.g.next[4] = 1; }
+    state die_4(context: &mut Main) { context.g.next[4] = 0; }
 }
 
 // Cell 5 (1,1): neighbors = cells[0]+cells[1]+cells[2]+cells[4]+cells[6]+cells[8]+cells[9]+cells[10]
 // n=3 -> alive (survives)
-machine Main::compute_cell_5(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[0] + self.g.board[1] + self.g.board[2] + self.g.board[4]
-               + self.g.board[6] + self.g.board[8] + self.g.board[9] + self.g.board[10]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[5] as i32 in Wrapping;
+machine Main::compute_cell_5(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[0] + context.g.board[1] + context.g.board[2] + context.g.board[4]
+               + context.g.board[6] + context.g.board[8] + context.g.board[9] + context.g.board[10]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[5] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_5()
-        _ -> check_cur_5(cur, n)
+        true -> live_5(context)
+        _ -> check_cur_5(context, cur, n)
     }
-    state live_5(&mut self) { self.g.next[5] = 1; }
-    state check_cur_5(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_5(context: &mut Main) { context.g.next[5] = 1; }
+    state check_cur_5(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_5(n)
-            _ -> die_5()
+            true -> check_two_5(context, n)
+            _ -> die_5(context)
         }
     }
-    state check_two_5(n: i32 in Wrapping) {
+    state check_two_5(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_5()
-            _ -> die_5()
+            true -> live2_5(context)
+            _ -> die_5(context)
         }
     }
-    state live2_5(&mut self) { self.g.next[5] = 1; }
-    state die_5(&mut self) { self.g.next[5] = 0; }
+    state live2_5(context: &mut Main) { context.g.next[5] = 1; }
+    state die_5(context: &mut Main) { context.g.next[5] = 0; }
 }
 
 // Cell 6 (1,2): neighbors = cells[1]+cells[2]+cells[3]+cells[5]+cells[7]+cells[9]+cells[10]+cells[11]
 // n=3 -> alive (survives)
-machine Main::compute_cell_6(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[1] + self.g.board[2] + self.g.board[3] + self.g.board[5]
-               + self.g.board[7] + self.g.board[9] + self.g.board[10] + self.g.board[11]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[6] as i32 in Wrapping;
+machine Main::compute_cell_6(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[1] + context.g.board[2] + context.g.board[3] + context.g.board[5]
+               + context.g.board[7] + context.g.board[9] + context.g.board[10] + context.g.board[11]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[6] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_6()
-        _ -> check_cur_6(cur, n)
+        true -> live_6(context)
+        _ -> check_cur_6(context, cur, n)
     }
-    state live_6(&mut self) { self.g.next[6] = 1; }
-    state check_cur_6(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_6(context: &mut Main) { context.g.next[6] = 1; }
+    state check_cur_6(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_6(n)
-            _ -> die_6()
+            true -> check_two_6(context, n)
+            _ -> die_6(context)
         }
     }
-    state check_two_6(n: i32 in Wrapping) {
+    state check_two_6(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_6()
-            _ -> die_6()
+            true -> live2_6(context)
+            _ -> die_6(context)
         }
     }
-    state live2_6(&mut self) { self.g.next[6] = 1; }
-    state die_6(&mut self) { self.g.next[6] = 0; }
+    state live2_6(context: &mut Main) { context.g.next[6] = 1; }
+    state die_6(context: &mut Main) { context.g.next[6] = 0; }
 }
 
 // Cell 7 (1,3): neighbors = cells[2]+cells[3]+cells[6]+cells[10]+cells[11]
-machine Main::compute_cell_7(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[2] + self.g.board[3] + self.g.board[6] + self.g.board[10] + self.g.board[11]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[7] as i32 in Wrapping;
+machine Main::compute_cell_7(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[2] + context.g.board[3] + context.g.board[6] + context.g.board[10] + context.g.board[11]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[7] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_7()
-        _ -> check_cur_7(cur, n)
+        true -> live_7(context)
+        _ -> check_cur_7(context, cur, n)
     }
-    state live_7(&mut self) { self.g.next[7] = 1; }
-    state check_cur_7(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_7(context: &mut Main) { context.g.next[7] = 1; }
+    state check_cur_7(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_7(n)
-            _ -> die_7()
+            true -> check_two_7(context, n)
+            _ -> die_7(context)
         }
     }
-    state check_two_7(n: i32 in Wrapping) {
+    state check_two_7(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_7()
-            _ -> die_7()
+            true -> live2_7(context)
+            _ -> die_7(context)
         }
     }
-    state live2_7(&mut self) { self.g.next[7] = 1; }
-    state die_7(&mut self) { self.g.next[7] = 0; }
+    state live2_7(context: &mut Main) { context.g.next[7] = 1; }
+    state die_7(context: &mut Main) { context.g.next[7] = 0; }
 }
 
 // Cell 8 (2,0): neighbors = cells[4]+cells[5]+cells[9]+cells[12]+cells[13]
-machine Main::compute_cell_8(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[4] + self.g.board[5] + self.g.board[9] + self.g.board[12] + self.g.board[13]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[8] as i32 in Wrapping;
+machine Main::compute_cell_8(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[4] + context.g.board[5] + context.g.board[9] + context.g.board[12] + context.g.board[13]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[8] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_8()
-        _ -> check_cur_8(cur, n)
+        true -> live_8(context)
+        _ -> check_cur_8(context, cur, n)
     }
-    state live_8(&mut self) { self.g.next[8] = 1; }
-    state check_cur_8(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_8(context: &mut Main) { context.g.next[8] = 1; }
+    state check_cur_8(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_8(n)
-            _ -> die_8()
+            true -> check_two_8(context, n)
+            _ -> die_8(context)
         }
     }
-    state check_two_8(n: i32 in Wrapping) {
+    state check_two_8(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_8()
-            _ -> die_8()
+            true -> live2_8(context)
+            _ -> die_8(context)
         }
     }
-    state live2_8(&mut self) { self.g.next[8] = 1; }
-    state die_8(&mut self) { self.g.next[8] = 0; }
+    state live2_8(context: &mut Main) { context.g.next[8] = 1; }
+    state die_8(context: &mut Main) { context.g.next[8] = 0; }
 }
 
 // Cell 9 (2,1): neighbors = cells[4]+cells[5]+cells[6]+cells[8]+cells[10]+cells[12]+cells[13]+cells[14]
 // n=3 -> alive (survives)
-machine Main::compute_cell_9(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[4] + self.g.board[5] + self.g.board[6] + self.g.board[8]
-               + self.g.board[10] + self.g.board[12] + self.g.board[13] + self.g.board[14]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[9] as i32 in Wrapping;
+machine Main::compute_cell_9(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[4] + context.g.board[5] + context.g.board[6] + context.g.board[8]
+               + context.g.board[10] + context.g.board[12] + context.g.board[13] + context.g.board[14]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[9] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_9()
-        _ -> check_cur_9(cur, n)
+        true -> live_9(context)
+        _ -> check_cur_9(context, cur, n)
     }
-    state live_9(&mut self) { self.g.next[9] = 1; }
-    state check_cur_9(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_9(context: &mut Main) { context.g.next[9] = 1; }
+    state check_cur_9(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_9(n)
-            _ -> die_9()
+            true -> check_two_9(context, n)
+            _ -> die_9(context)
         }
     }
-    state check_two_9(n: i32 in Wrapping) {
+    state check_two_9(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_9()
-            _ -> die_9()
+            true -> live2_9(context)
+            _ -> die_9(context)
         }
     }
-    state live2_9(&mut self) { self.g.next[9] = 1; }
-    state die_9(&mut self) { self.g.next[9] = 0; }
+    state live2_9(context: &mut Main) { context.g.next[9] = 1; }
+    state die_9(context: &mut Main) { context.g.next[9] = 0; }
 }
 
 // Cell 10 (2,2): neighbors = cells[5]+cells[6]+cells[7]+cells[9]+cells[11]+cells[13]+cells[14]+cells[15]
 // n=3 -> alive (survives)
-machine Main::compute_cell_10(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[5] + self.g.board[6] + self.g.board[7] + self.g.board[9]
-               + self.g.board[11] + self.g.board[13] + self.g.board[14] + self.g.board[15]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[10] as i32 in Wrapping;
+machine Main::compute_cell_10(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[5] + context.g.board[6] + context.g.board[7] + context.g.board[9]
+               + context.g.board[11] + context.g.board[13] + context.g.board[14] + context.g.board[15]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[10] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_10()
-        _ -> check_cur_10(cur, n)
+        true -> live_10(context)
+        _ -> check_cur_10(context, cur, n)
     }
-    state live_10(&mut self) { self.g.next[10] = 1; }
-    state check_cur_10(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_10(context: &mut Main) { context.g.next[10] = 1; }
+    state check_cur_10(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_10(n)
-            _ -> die_10()
+            true -> check_two_10(context, n)
+            _ -> die_10(context)
         }
     }
-    state check_two_10(n: i32 in Wrapping) {
+    state check_two_10(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_10()
-            _ -> die_10()
+            true -> live2_10(context)
+            _ -> die_10(context)
         }
     }
-    state live2_10(&mut self) { self.g.next[10] = 1; }
-    state die_10(&mut self) { self.g.next[10] = 0; }
+    state live2_10(context: &mut Main) { context.g.next[10] = 1; }
+    state die_10(context: &mut Main) { context.g.next[10] = 0; }
 }
 
 // Cell 11 (2,3): neighbors = cells[6]+cells[7]+cells[10]+cells[14]+cells[15]
-machine Main::compute_cell_11(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[6] + self.g.board[7] + self.g.board[10] + self.g.board[14] + self.g.board[15]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[11] as i32 in Wrapping;
+machine Main::compute_cell_11(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[6] + context.g.board[7] + context.g.board[10] + context.g.board[14] + context.g.board[15]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[11] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_11()
-        _ -> check_cur_11(cur, n)
+        true -> live_11(context)
+        _ -> check_cur_11(context, cur, n)
     }
-    state live_11(&mut self) { self.g.next[11] = 1; }
-    state check_cur_11(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_11(context: &mut Main) { context.g.next[11] = 1; }
+    state check_cur_11(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_11(n)
-            _ -> die_11()
+            true -> check_two_11(context, n)
+            _ -> die_11(context)
         }
     }
-    state check_two_11(n: i32 in Wrapping) {
+    state check_two_11(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_11()
-            _ -> die_11()
+            true -> live2_11(context)
+            _ -> die_11(context)
         }
     }
-    state live2_11(&mut self) { self.g.next[11] = 1; }
-    state die_11(&mut self) { self.g.next[11] = 0; }
+    state live2_11(context: &mut Main) { context.g.next[11] = 1; }
+    state die_11(context: &mut Main) { context.g.next[11] = 0; }
 }
 
 // Cell 12 (3,0): neighbors = cells[8]+cells[9]+cells[13]
-machine Main::compute_cell_12(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[8] + self.g.board[9] + self.g.board[13]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[12] as i32 in Wrapping;
+machine Main::compute_cell_12(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[8] + context.g.board[9] + context.g.board[13]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[12] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_12()
-        _ -> check_cur_12(cur, n)
+        true -> live_12(context)
+        _ -> check_cur_12(context, cur, n)
     }
-    state live_12(&mut self) { self.g.next[12] = 1; }
-    state check_cur_12(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_12(context: &mut Main) { context.g.next[12] = 1; }
+    state check_cur_12(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_12(n)
-            _ -> die_12()
+            true -> check_two_12(context, n)
+            _ -> die_12(context)
         }
     }
-    state check_two_12(n: i32 in Wrapping) {
+    state check_two_12(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_12()
-            _ -> die_12()
+            true -> live2_12(context)
+            _ -> die_12(context)
         }
     }
-    state live2_12(&mut self) { self.g.next[12] = 1; }
-    state die_12(&mut self) { self.g.next[12] = 0; }
+    state live2_12(context: &mut Main) { context.g.next[12] = 1; }
+    state die_12(context: &mut Main) { context.g.next[12] = 0; }
 }
 
 // Cell 13 (3,1): neighbors = cells[8]+cells[9]+cells[10]+cells[12]+cells[14]
-machine Main::compute_cell_13(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[8] + self.g.board[9] + self.g.board[10] + self.g.board[12] + self.g.board[14]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[13] as i32 in Wrapping;
+machine Main::compute_cell_13(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[8] + context.g.board[9] + context.g.board[10] + context.g.board[12] + context.g.board[14]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[13] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_13()
-        _ -> check_cur_13(cur, n)
+        true -> live_13(context)
+        _ -> check_cur_13(context, cur, n)
     }
-    state live_13(&mut self) { self.g.next[13] = 1; }
-    state check_cur_13(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_13(context: &mut Main) { context.g.next[13] = 1; }
+    state check_cur_13(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_13(n)
-            _ -> die_13()
+            true -> check_two_13(context, n)
+            _ -> die_13(context)
         }
     }
-    state check_two_13(n: i32 in Wrapping) {
+    state check_two_13(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_13()
-            _ -> die_13()
+            true -> live2_13(context)
+            _ -> die_13(context)
         }
     }
-    state live2_13(&mut self) { self.g.next[13] = 1; }
-    state die_13(&mut self) { self.g.next[13] = 0; }
+    state live2_13(context: &mut Main) { context.g.next[13] = 1; }
+    state die_13(context: &mut Main) { context.g.next[13] = 0; }
 }
 
 // Cell 14 (3,2): neighbors = cells[9]+cells[10]+cells[11]+cells[13]+cells[15]
-machine Main::compute_cell_14(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[9] + self.g.board[10] + self.g.board[11] + self.g.board[13] + self.g.board[15]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[14] as i32 in Wrapping;
+machine Main::compute_cell_14(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[9] + context.g.board[10] + context.g.board[11] + context.g.board[13] + context.g.board[15]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[14] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_14()
-        _ -> check_cur_14(cur, n)
+        true -> live_14(context)
+        _ -> check_cur_14(context, cur, n)
     }
-    state live_14(&mut self) { self.g.next[14] = 1; }
-    state check_cur_14(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_14(context: &mut Main) { context.g.next[14] = 1; }
+    state check_cur_14(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_14(n)
-            _ -> die_14()
+            true -> check_two_14(context, n)
+            _ -> die_14(context)
         }
     }
-    state check_two_14(n: i32 in Wrapping) {
+    state check_two_14(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_14()
-            _ -> die_14()
+            true -> live2_14(context)
+            _ -> die_14(context)
         }
     }
-    state live2_14(&mut self) { self.g.next[14] = 1; }
-    state die_14(&mut self) { self.g.next[14] = 0; }
+    state live2_14(context: &mut Main) { context.g.next[14] = 1; }
+    state die_14(context: &mut Main) { context.g.next[14] = 0; }
 }
 
 // Cell 15 (3,3): neighbors = cells[10]+cells[11]+cells[14]
-machine Main::compute_cell_15(&mut self) {
-    let n: i32 in Wrapping = (self.g.board[10] + self.g.board[11] + self.g.board[14]) as i32 in Wrapping;
-    let cur: i32 in Wrapping = self.g.board[15] as i32 in Wrapping;
+machine Main::compute_cell_15(context: &mut Main) {
+    let n: i32 in Wrapping = (context.g.board[10] + context.g.board[11] + context.g.board[14]) as i32 in Wrapping;
+    let cur: i32 in Wrapping = context.g.board[15] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_15()
-        _ -> check_cur_15(cur, n)
+        true -> live_15(context)
+        _ -> check_cur_15(context, cur, n)
     }
-    state live_15(&mut self) { self.g.next[15] = 1; }
-    state check_cur_15(cur: i32 in Wrapping, n: i32 in Wrapping) {
+    state live_15(context: &mut Main) { context.g.next[15] = 1; }
+    state check_cur_15(context: &mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_15(n)
-            _ -> die_15()
+            true -> check_two_15(context, n)
+            _ -> die_15(context)
         }
     }
-    state check_two_15(n: i32 in Wrapping) {
+    state check_two_15(context: &mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_15()
-            _ -> die_15()
+            true -> live2_15(context)
+            _ -> die_15(context)
         }
     }
-    state live2_15(&mut self) { self.g.next[15] = 1; }
-    state die_15(&mut self) { self.g.next[15] = 0; }
+    state live2_15(context: &mut Main) { context.g.next[15] = 1; }
+    state die_15(context: &mut Main) { context.g.next[15] = 0; }
 }
 
 // Run one generation: compute next board for all 16 cells.
-machine Main::step(&mut self) {
-    self.compute_cell_0();
-    self.compute_cell_1();
-    self.compute_cell_2();
-    self.compute_cell_3();
-    self.compute_cell_4();
-    self.compute_cell_5();
-    self.compute_cell_6();
-    self.compute_cell_7();
-    self.compute_cell_8();
-    self.compute_cell_9();
-    self.compute_cell_10();
-    self.compute_cell_11();
-    self.compute_cell_12();
-    self.compute_cell_13();
-    self.compute_cell_14();
-    self.compute_cell_15();
+machine Main::step(context: &mut Main) {
+    Main::compute_cell_0(context);
+    Main::compute_cell_1(context);
+    Main::compute_cell_2(context);
+    Main::compute_cell_3(context);
+    Main::compute_cell_4(context);
+    Main::compute_cell_5(context);
+    Main::compute_cell_6(context);
+    Main::compute_cell_7(context);
+    Main::compute_cell_8(context);
+    Main::compute_cell_9(context);
+    Main::compute_cell_10(context);
+    Main::compute_cell_11(context);
+    Main::compute_cell_12(context);
+    Main::compute_cell_13(context);
+    Main::compute_cell_14(context);
+    Main::compute_cell_15(context);
 }
 
 // Compute sum of all 16 next-board cells.
-machine Main::checksum(&mut self) -> i32 {
+machine Main::checksum(context: &mut Main) -> i32 {
     transition {
         _ -> (
-            self.g.next[0] + self.g.next[1] + self.g.next[2] + self.g.next[3] +
-            self.g.next[4] + self.g.next[5] + self.g.next[6] + self.g.next[7] +
-            self.g.next[8] + self.g.next[9] + self.g.next[10] + self.g.next[11] +
-            self.g.next[12] + self.g.next[13] + self.g.next[14] + self.g.next[15]
+            context.g.next[0] + context.g.next[1] + context.g.next[2] + context.g.next[3] +
+            context.g.next[4] + context.g.next[5] + context.g.next[6] + context.g.next[7] +
+            context.g.next[8] + context.g.next[9] + context.g.next[10] + context.g.next[11] +
+            context.g.next[12] + context.g.next[13] + context.g.next[14] + context.g.next[15]
         )
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("game_of_life: one generation of a 2x2 still-life block on a 4x4 grid");
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("game_of_life: one generation of a 2x2 still-life block on a 4x4 grid");
     // Seed the board with the 2x2 block still-life.
-    self.init_board();
+    Main::init_board(context);
 
     // Run one generation (block -> same block).
-    self.step();
+    Main::step(context);
 
     // Checksum the next board: should be 4 (4 alive cells).
-    let sum: i32 in Wrapping = self.checksum();
-    let code: i32 in Wrapping = sum + self.g.offset;
+    let sum: i32 in Wrapping = Main::checksum(context) as i32 in Wrapping;
+    let code: i32 in Wrapping = sum + context.g.offset;
 
     transition code == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(context)
+        _ -> bad(context)
     }
 
-    state good(main: &mut Main) {
-        main.console.write_line("PASS: block still-life preserved, checksum 4 (exit 70)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(70);
+    state good(context: &mut Main) {
+        context.console.write_line("PASS: block still-life preserved, checksum 4 (exit 70)");
+        context.console.write_line("[press Enter to close]");
+        _ = block context.console.read_line(&mut context.pause);
+        context.console.exit_process(70);
     }
 
-    state bad(main: &mut Main) {
-        main.console.write_line("FAIL: wrong checksum after one generation (exit 71)");
-        main.console.write_line("[press Enter to close]");
-        _ = block main.console.read_line(&mut main.pause);
-        main.console.exit_process(71);
+    state bad(context: &mut Main) {
+        context.console.write_line("FAIL: wrong checksum after one generation (exit 71)");
+        context.console.write_line("[press Enter to close]");
+        _ = block context.console.read_line(&mut context.pause);
+        context.console.exit_process(71);
     }
 }

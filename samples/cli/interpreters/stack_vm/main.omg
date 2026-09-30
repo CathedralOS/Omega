@@ -8,7 +8,7 @@
 //   Dup               -- duplicate top of stack
 //   Pop               -- discard top of stack
 //
-// VM state: fixed [i32; 8] operand stack + sp (stack pointer, -1 = empty).
+// VM state: fixed [i32 in Wrapping; 8] operand stack + sp (stack pointer, -1 = empty).
 //
 // Program (hand-verified, computes (3 + 4) * 2 - 1 = 13):
 //   step 0: Push(3)  -> stack[0]=3,  sp=0
@@ -25,8 +25,8 @@
 //
 // (Formerly a documented miscompile -- native exited 71 instead of 70. FIXED:
 // the cause was argument materialization inline-folding `let new_sp =
-// self.vm.sp + 1` back into its initializer and re-evaluating it at the
-// transition AFTER `self.vm.sp = new_sp` overwrote the field, so try_push1's
+// main.vm.sp + 1` back into its initializer and re-evaluating it at the
+// transition AFTER `main.vm.sp = new_sp` overwrote the field, so try_push1's
 // guard `new_sp == 1` saw the doubly-incremented value and took the wrong arm.
 // The fix keeps the captured `new_sp` slot instead of re-folding. Regression
 // test: tests/omega/pass/control_flow/runtime_captured_local_remutated_field_exit.)
@@ -46,7 +46,7 @@ data Opcode {
 }
 
 data Vm [copy] {
-    stack: [i32; 8];
+    stack: [i32 in Wrapping; 8];
     sp: i32 in Wrapping;
 }
 
@@ -69,33 +69,33 @@ machine Main::push(main: &mut Main, value: i32 in Wrapping) {
         true -> push0(main, value)
         _ -> try_push1(main, new_sp, value)
     }
-    state push0(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[0] = value as i32; }
+    state push0(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[0] = value; }
     state try_push1(main: &mut Main, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 1 {
             true -> push1(main, value)
             _ -> try_push2(main, new_sp, value)
         }
     }
-    state push1(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[1] = value as i32; }
+    state push1(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[1] = value; }
     state try_push2(main: &mut Main, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 2 {
             true -> push2(main, value)
             _ -> try_push3(main, new_sp, value)
         }
     }
-    state push2(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[2] = value as i32; }
+    state push2(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[2] = value; }
     state try_push3(main: &mut Main, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 3 {
             true -> push3(main, value)
             _ -> push4(main, value)
         }
     }
-    state push3(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[3] = value as i32; }
-    state push4(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[4] = value as i32; }
+    state push3(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[3] = value; }
+    state push4(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[4] = value; }
 }
 
 // Read top of stack (sp slot) as a value-returning machine.
-machine Main::top(main: &mut Main) -> i32 {
+machine Main::top(main: &mut Main) -> i32 in Wrapping {
     let sp: i32 in Wrapping = main.vm.sp;
     transition sp == 0 {
         true -> (main.vm.stack[0])
@@ -123,11 +123,11 @@ machine Main::top(main: &mut Main) -> i32 {
 
 // Pop the top value off the stack (decrements sp, returns old top).
 // THIS IS THE MISCOMPILE TRIGGER when called twice sequentially.
-machine Main::pop_val(main: &mut Main) -> i32 {
+machine Main::pop_val(main: &mut Main) -> i32 in Wrapping {
     let v: i32 in Wrapping = Main::top(main);
     main.vm.sp = main.vm.sp - 1;
     transition {
-        _ -> (v as i32)
+        _ -> (v)
     }
 }
 
@@ -181,29 +181,29 @@ machine Main::step(main: &mut Main, op: Opcode) {
     state done(main: &mut Main) {}
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("stack_vm: a tiny bytecode VM runs (3 + 4) * 2 - 1 on a fixed stack");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("stack_vm: a tiny bytecode VM runs (3 + 4) * 2 - 1 on a fixed stack");
     // Initialize VM.
-    Main::init(&mut self);
+    Main::init(main);
 
     // Run program: (3 + 4) * 2 - 1 = 13.
-    Main::step(&mut self, Opcode::Push { value: 3 });
-    Main::step(&mut self, Opcode::Push { value: 4 });
-    Main::step(&mut self, Opcode::Add);
-    Main::step(&mut self, Opcode::Push { value: 2 });
-    Main::step(&mut self, Opcode::Mul);
-    Main::step(&mut self, Opcode::Push { value: 1 });
-    Main::step(&mut self, Opcode::Sub);
-    Main::step(&mut self, Opcode::Dup);
-    Main::step(&mut self, Opcode::Pop);
+    Main::step(main, Opcode::Push { value: 3 });
+    Main::step(main, Opcode::Push { value: 4 });
+    Main::step(main, Opcode::Add);
+    Main::step(main, Opcode::Push { value: 2 });
+    Main::step(main, Opcode::Mul);
+    Main::step(main, Opcode::Push { value: 1 });
+    Main::step(main, Opcode::Sub);
+    Main::step(main, Opcode::Dup);
+    Main::step(main, Opcode::Pop);
 
     // Read top-of-stack: should be 13.
-    let result: i32 in Wrapping = Main::top(&mut self);
+    let result: i32 in Wrapping = Main::top(main);
     let code: i32 in Wrapping = result + 57;
 
     transition code == 70 {
-        true -> good(&mut self)
-        _ -> bad(&mut self)
+        true -> good(main)
+        _ -> bad(main)
     }
 
     state good(main: &mut Main) {
