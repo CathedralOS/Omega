@@ -160,7 +160,7 @@ fn source() -> abstract_operations::AbstractOperationPlan {
     function.operations = vec![
         AbstractOperation::WriteOnlyPrimitiveStore {
             psi_operation: operation(STORE),
-            destination: destination.clone(),
+            destination: destination.clone().into(),
             path: vec![
                 Segment::Field("grid".into()),
                 runtime(10, 1),

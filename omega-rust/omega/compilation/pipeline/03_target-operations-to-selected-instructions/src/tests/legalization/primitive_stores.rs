@@ -237,7 +237,7 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                 else {
                     panic!("store");
                 };
-                *destination = parameter.clone();
+                *destination = parameter.clone().into();
                 *stored_path = path.clone();
                 let read = AbstractResult {
                     value: ValueId::new(7).unwrap(),
@@ -306,7 +306,10 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                 for mutation in 0..6 {
                     let mut changed = target.clone();
                     let TargetUnitOperation::WriteOnlyPrimitiveStore {
-                        destination,
+                        destination:
+                            abstract_operations::StructuralScalarStoreDestination::Parameter(
+                                destination,
+                            ),
                         path,
                         destination_type,
                         destination_storage,
@@ -342,7 +345,10 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                 for mutation in 0..5 {
                     let mut changed = legalized.plan().clone();
                     let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
-                        destination,
+                        destination:
+                            abstract_operations::StructuralScalarStoreDestination::Parameter(
+                                destination,
+                            ),
                         path,
                         byte_offset,
                         byte_size,
@@ -414,8 +420,13 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                 ] {
                     let mut changed = source.clone();
                     changed.functions[0].structural_parameters[0].access = access;
-                    let AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } =
-                        &mut changed.functions[0].operations[1]
+                    let AbstractOperation::WriteOnlyPrimitiveStore {
+                        destination:
+                            abstract_operations::StructuralScalarStoreDestination::Parameter(
+                                destination,
+                            ),
+                        ..
+                    } = &mut changed.functions[0].operations[1]
                     else {
                         panic!("store");
                     };
@@ -433,8 +444,11 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                 let mut linear = source.clone();
                 linear.functions[0].structural_parameters[0].multiplicity =
                     StructuralMultiplicity::Linear;
-                let AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } =
-                    &mut linear.functions[0].operations[1]
+                let AbstractOperation::WriteOnlyPrimitiveStore {
+                    destination:
+                        abstract_operations::StructuralScalarStoreDestination::Parameter(destination),
+                    ..
+                } = &mut linear.functions[0].operations[1]
                 else {
                     panic!("store");
                 };
@@ -629,7 +643,7 @@ fn fixture(
     operations.push(AbstractOperation::WriteOnlyPrimitiveStore {
         path: Vec::new(),
         psi_operation: OperationId::new(2).unwrap(),
-        destination,
+        destination: destination.into(),
         value: AbstractResult {
             value,
             scalar_type: scalar,

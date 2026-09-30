@@ -14,9 +14,8 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     ClaimTransfer, CompletionReceipt, CrashCause, CrashRouteBucket, StructuralArgument,
-    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalDynamicDescriptorParameter,
+    StructuralOperationResult, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalDynamicDescriptorParameter,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -208,19 +207,19 @@ pub enum AbstractOperation {
         stored: AbstractStoredDynamicDescriptor,
     },
     /// One verifier-approved non-observing replacement through an exact
-    /// primitive leaf under a mutable or write-only structural parameter.
+    /// primitive leaf under a mutable/write-only parameter or an owned aggregate.
     /// `path` is the verified Terminal projection to the leaf — fields and
     /// literal or runtime-selected elements in any order — and selects it
     /// without changing root custody; an empty path retains whole-primitive
     /// replacement. Each `RuntimeIndex` segment's bound is an obligation this
-    /// operation owns. The complete parameter row
-    /// keeps access, multiplicity, nominal type, and signature position from
+    /// operation owns. The exact parameter or owned-result destination
+    /// keeps access, multiplicity, nominal type, and storage identity from
     /// being reconstructed from physical ABI shape; `value` retains the exact
     /// preceding scalar definition and type. Target lowering must not realize
     /// this event without a separate target address/width/store model.
     WriteOnlyPrimitiveStore {
         psi_operation: OperationId,
-        destination: StructuralParameterDeclaration,
+        destination: super::StructuralScalarStoreDestination,
         path: Vec<StructuralPathSegment>,
         value: AbstractResult,
     },

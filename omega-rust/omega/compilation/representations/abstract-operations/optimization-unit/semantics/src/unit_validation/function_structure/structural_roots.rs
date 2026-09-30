@@ -84,6 +84,53 @@ pub(crate) fn validate_structural_root_operations(
             }
             _ => false,
         };
+    // Both scalar store forms reconstruct the same root authority; local
+    // results retain their exact producing operation instead of an ABI slot.
+    let exact_scalar_store_destination =
+        |destination: &abstract_operations::StructuralScalarStoreDestination| match destination {
+            abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+                exact_store_destination(parameter)
+                    && matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    )
+                    && parameter.qualifications.is_empty()
+                    && parameter.projected_qualifications.is_empty()
+            }
+            abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                producer,
+                result,
+            } => {
+                place_kinds.get(&result.place) == Some(&StructuralPlaceKind::OperationResult { producer: *producer, structural_type: result.structural_type })
+                && result.claims.is_empty()
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+                    let (operation, actual) = match &node.operation {
+                        O::EstablishRecord { psi_operation, result, .. }
+                        | O::EstablishZeroedStructural { psi_operation, result }
+                        | O::EstablishScalarArray { psi_operation, result, .. }
+                        | O::EstablishCase { psi_operation, result, .. }
+                        | O::StructuralLeafCopy { psi_operation, result, .. }
+                        | O::MoveStructuralField { psi_operation, result, .. }
+                        | O::CallStructural {
+                            psi_operation,
+                            result: AbstractStructuralCallResult::Structural { result, .. },
+                            ..
+                        }
+                        // A view local is a loan descriptor
+                        // rather than a record home, but it
+                        // is the exact authored carrier an
+                        // indexed field store writes through.
+                        | O::EstablishElementView { psi_operation, result, .. }
+                        | O::BoundaryCall { psi_operation, result: abstract_operations::AbstractBoundaryResult::Structural(result), .. } => (psi_operation, result),
+                        _ => return false,
+                    };
+                    operation == producer && actual == result
+                })
+            }
+        };
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let node_index = u32::try_from(node_index).expect("unit node index fits u32");
@@ -241,30 +288,27 @@ pub(crate) fn validate_structural_root_operations(
                     value,
                     ..
                 } => {
-                    let valid = exact_store_destination(destination)
-                        && matches!(
-                            destination.access,
-                            terminal_psi::StructuralAccess::MutableBorrow
-                                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                        )
-                        && (destination.multiplicity
+                    let valid = exact_scalar_store_destination(destination)
+                        && (!matches!(
+                            destination,
+                            abstract_operations::StructuralScalarStoreDestination::OwnedResult { .. }
+                        ) || !path.is_empty())
+                        && (destination.multiplicity()
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             || (!path.is_empty()
-                                && destination.multiplicity
+                                && destination.multiplicity()
                                     == terminal_psi::StructuralMultiplicity::Affine))
-                        && destination.qualifications.is_empty()
-                        && destination.projected_qualifications.is_empty()
                         && function
                             .entry_claim_declarations
                             .iter()
-                            .all(|claim| claim.input != destination.place)
+                            .all(|claim| claim.input != destination.place())
                         && function
                             .content_entry_claims
                             .iter()
-                            .all(|claim| claim.input.root != destination.place)
+                            .all(|claim| claim.input.root != destination.place())
                         && terminal_semantics::primitive_projection_type(
                             structural_types.values().copied(),
-                            destination.structural_type,
+                            destination.structural_type(),
                             path,
                         ) == Some(value.scalar_type);
                     if !valid {
@@ -295,52 +339,7 @@ pub(crate) fn validate_structural_root_operations(
                     // supplies its incoming permission, never an entry ABI slot.
                     // Availability above and exclusive-transfer replay below
                     // independently establish dominance and live custody.
-                    let exact_destination = match destination {
-                        abstract_operations::StructuralScalarStoreDestination::Parameter(
-                            parameter,
-                        ) => {
-                            exact_store_destination(parameter)
-                                && matches!(
-                                    parameter.access,
-                                    terminal_psi::StructuralAccess::MutableBorrow
-                                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
-                                )
-                                && parameter.qualifications.is_empty()
-                                && parameter.projected_qualifications.is_empty()
-                        }
-                        abstract_operations::StructuralScalarStoreDestination::OwnedResult {
-                            producer,
-                            result,
-                        } => {
-                            place_kinds.get(&result.place) == Some(&StructuralPlaceKind::OperationResult { producer: *producer, structural_type: result.structural_type })
-                                && result.claims.is_empty()
-                                && result.qualifications.is_empty()
-                                && result.projected_qualifications.is_empty()
-                                && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-                                    let (operation, actual) = match &node.operation {
-                                        O::EstablishRecord { psi_operation, result, .. }
-                                        | O::EstablishZeroedStructural { psi_operation, result }
-                                        | O::EstablishScalarArray { psi_operation, result, .. }
-                                        | O::EstablishCase { psi_operation, result, .. }
-                                        | O::StructuralLeafCopy { psi_operation, result, .. }
-                                        | O::MoveStructuralField { psi_operation, result, .. }
-                                        | O::CallStructural {
-                                            psi_operation,
-                                            result: AbstractStructuralCallResult::Structural { result, .. },
-                                            ..
-                                        }
-                                        // A view local is a loan descriptor
-                                        // rather than a record home, but it
-                                        // is the exact authored carrier an
-                                        // indexed field store writes through.
-                                        | O::EstablishElementView { psi_operation, result, .. }
-                                        | O::BoundaryCall { psi_operation, result: abstract_operations::AbstractBoundaryResult::Structural(result), .. } => (psi_operation, result),
-                                        _ => return false,
-                                    };
-                                    operation == producer && actual == result
-                                })
-                        }
-                    };
+                    let exact_destination = exact_scalar_store_destination(destination);
                     let valid = exact_destination
                         && matches!(
                             destination.multiplicity(),

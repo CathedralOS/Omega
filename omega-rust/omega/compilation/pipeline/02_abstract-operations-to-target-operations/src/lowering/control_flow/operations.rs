@@ -90,7 +90,7 @@ pub(super) fn lower_operation(
         AbstractOperation::StructuralLeafCopy { source, .. } => (Some(*source), false),
         AbstractOperation::PrimitiveLocalStore { destination, .. } => (Some(*destination), false),
         AbstractOperation::WriteOnlyPrimitiveStore { destination, .. } => {
-            (Some(destination.place), false)
+            (Some(destination.place()), false)
         }
         AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
             (Some(destination.place()), false)
@@ -507,6 +507,7 @@ pub(super) fn lower_operation(
                 function,
                 structural_types,
                 parameters_by_place,
+                &live.structural_homes,
                 &live.integers,
                 &live.booleans,
                 &live.ieee_float_constants,

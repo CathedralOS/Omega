@@ -450,7 +450,7 @@ pub enum LegalizedScalarInstructionKind {
     /// offset: `byte_offset` is the projection's static part and `indices`
     /// adds each runtime element's scaled selector, in path order.
     WriteOnlyPrimitiveStore {
-        destination: terminal_psi::StructuralParameterDeclaration,
+        destination: abstract_operations::StructuralScalarStoreDestination,
         path: Vec<terminal_psi::StructuralPathSegment>,
         value: abstract_operations::AbstractResult,
         byte_offset: u32,

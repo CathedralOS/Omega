@@ -126,7 +126,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                         path: Vec::new(),
                         indices: Vec::new(),
                         byte_offset: 0,
-                        destination,
+                        destination: destination.into(),
                         value: abstract_operations::AbstractResult {
                             value: ValueId::new(1).unwrap(),
                             scalar_type,
@@ -176,7 +176,10 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                     for source_mutation in 0..4 {
                         let mut changed = source.clone();
                         let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
-                            destination,
+                            destination:
+                                abstract_operations::StructuralScalarStoreDestination::Parameter(
+                                    destination,
+                                ),
                             value,
                             byte_size,
                             ..

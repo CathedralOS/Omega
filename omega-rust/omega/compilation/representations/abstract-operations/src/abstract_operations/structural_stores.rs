@@ -1,4 +1,4 @@
-//! The semantic storage authority retained by a scalar field replacement.
+//! The semantic storage authority retained by scalar field and primitive stores.
 use semantic_vocabulary::{OperationId, PlaceId, StructuralTypeId};
 use terminal_psi::{
     StructuralMultiplicity, StructuralOperationResult, StructuralParameterDeclaration,

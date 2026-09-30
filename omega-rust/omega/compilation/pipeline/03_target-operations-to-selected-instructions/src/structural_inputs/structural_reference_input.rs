@@ -106,26 +106,42 @@ fn runtime_reach(elements: &[RuntimeElement]) -> Option<u64> {
 
 /// Reconstruct a primitive write without inventing a carrier record or field.
 pub(crate) fn primitive_store(
-    destination: &terminal_psi::StructuralParameterDeclaration,
+    destination: &abstract_operations::StructuralScalarStoreDestination,
     path: &[StructuralPathSegment],
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8, Vec<RuntimeElement>)> {
-    if destination.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+    if destination.multiplicity() == terminal_psi::StructuralMultiplicity::Linear
         || (path.is_empty()
-            && destination.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
-        || !matches!(
-            destination.access,
-            terminal_psi::StructuralAccess::MutableBorrow
-                | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        )
-        || !destination.qualifications.is_empty()
-        || !destination.projected_qualifications.is_empty()
+            && destination.multiplicity() != terminal_psi::StructuralMultiplicity::Unrestricted)
         || matches!(scalar, ScalarType::Integer(integer) if integer.is_address())
     {
         return None;
     }
-    primitive_geometry(destination.structural_type, path, scalar, declarations)
+    match destination {
+        abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+            if !matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ) || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return None;
+            }
+        }
+        abstract_operations::StructuralScalarStoreDestination::OwnedResult { result, .. } => {
+            if path.is_empty()
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.qualification_establishments.is_empty()
+                || !result.claims.is_empty()
+            {
+                return None;
+            }
+        }
+    }
+    primitive_geometry(destination.structural_type(), path, scalar, declarations)
 }
 
 /// Reconstruct the selected primitive leaf and its footprint within the

@@ -22,7 +22,8 @@ fn primitive_store_plan() -> LegalizedOperationPlan {
             access: StructuralAccess::WriteOnlyBorrow,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
-        },
+        }
+        .into(),
         value: abstract_operations::AbstractResult {
             value: id(503),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
@@ -41,7 +42,8 @@ fn primitive_store_identity_binds_destination_source_type_and_width() {
     for mutation in 0..16 {
         let mut changed = plan.clone();
         let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
-            destination,
+            destination:
+                abstract_operations::StructuralScalarStoreDestination::Parameter(destination),
             path,
             value,
             byte_offset,
@@ -137,6 +139,48 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
             domain: id(998),
         });
     assert_identity_drift(field_identity, &field);
+}
+
+#[test]
+fn primitive_store_identity_binds_owned_producer_and_home() {
+    let mut plan = primitive_store_plan();
+    let borrowed_identity = legalized_operation_plan_identity(&plan);
+    let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } =
+        &mut plan.scalar_functions[0].blocks[0].instructions[0].kind
+    else {
+        panic!("primitive store fixture");
+    };
+    *destination = abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+        producer: id(505),
+        result: terminal_psi::StructuralOperationResult {
+            place: id(501),
+            structural_type: id(502),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        },
+    };
+    assert_identity_drift(borrowed_identity, &plan);
+    let identity = legalized_operation_plan_identity(&plan);
+    for mutation in 0..3 {
+        let mut changed = plan.clone();
+        let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+            destination:
+                abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result },
+            ..
+        } = &mut changed.scalar_functions[0].blocks[0].instructions[0].kind
+        else {
+            panic!("owned primitive store");
+        };
+        match mutation {
+            0 => *producer = id(999),
+            1 => result.place = id(999),
+            _ => result.structural_type = id(999),
+        }
+        assert_identity_drift(identity, &changed);
+    }
 }
 
 fn runtime_index(

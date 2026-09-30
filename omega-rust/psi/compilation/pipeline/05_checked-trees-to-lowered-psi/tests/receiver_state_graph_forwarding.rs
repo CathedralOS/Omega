@@ -9,6 +9,47 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
 
 #[test]
+fn explicit_state_parameter_can_attenuate_mutable_access_to_shared() {
+    let source = r#"
+        data Cell { value: i32; }
+        machine observe(value: i32) {}
+        machine route(cell: &mut Cell, flag: bool) {
+            transition flag {
+                true -> done(cell)
+                false -> done(cell)
+            }
+            state done(cell: &Cell) { observe(cell.value); }
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("route"),
+    )
+    .expect("ordinary state parameters retain their referent while restricting access");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the transferred shared loan independently verifies");
+
+    let invalid = source
+        .replace("route(cell: &mut Cell", "route(cell: &Cell")
+        .replace("done(cell: &Cell)", "done(cell: &mut Cell)");
+    let invalid = crate::front_end::checked_program_result(&invalid);
+    assert!(
+        invalid.is_err()
+            || checked_trees_to_lowered_psi::lower_machine(
+                &invalid.unwrap(),
+                TerminalMachineSelection::Name("route"),
+            )
+            .is_err(),
+        "an ordinary state edge cannot upgrade shared authority to mutable"
+    );
+}
+
+#[test]
 fn unread_multistate_receiver_retains_its_declared_call_signature() {
     for receiver in ["&self", "&mut self"] {
         let source = format!(

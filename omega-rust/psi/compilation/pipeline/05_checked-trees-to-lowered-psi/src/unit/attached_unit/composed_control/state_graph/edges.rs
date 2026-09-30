@@ -941,9 +941,12 @@ pub(super) fn validate_bindings(
             .ok_or(LoweringError::Unsupported(
                 "Unit graph borrowed transfer source missing",
             ))?;
+        let access_matches = source.access == target.access
+            || (source.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                && target.access == checked_trees::CheckedStructuralAccess::SharedBorrow);
         if transfer.target_parameter_index as usize != position
             || source.type_identity != target.type_identity
-            || (!target.is_self && source.access != target.access)
+            || (!target.is_self && !access_matches)
             || source.multiplicity != target.multiplicity
         {
             return unsupported("Unit graph borrowed transfer type or order drifted");

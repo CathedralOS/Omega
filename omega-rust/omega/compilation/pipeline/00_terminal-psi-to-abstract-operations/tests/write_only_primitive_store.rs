@@ -15,6 +15,78 @@ use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
+fn verified_local_array_store_retains_its_owned_producer() {
+    let source = r#"
+        machine fill() {
+            let mut values: [i32; 2];
+            values[1] = 42;
+            transition values[1] == 42 {
+                true -> done()
+                false -> done()
+            }
+            state done() {}
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("fill"),
+    )
+    .expect("local array state graph");
+    let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
+    let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
+        .expect("encode proof");
+    let plan = lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic,
+            proof_bytes: &proof,
+            obligation_ledger_bytes: None,
+        },
+        &AdmissionProfile::default(),
+    )
+    .expect("owned projected store survives artifact admission")
+    .into_plan();
+    let function = plan
+        .functions
+        .iter()
+        .find(|function| {
+            function.operations.iter().any(|operation| {
+                matches!(operation, AbstractOperation::WriteOnlyPrimitiveStore { .. })
+            })
+        })
+        .expect("store function");
+    let (producer, destination) = function
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::WriteOnlyPrimitiveStore {
+                destination:
+                    abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                        producer,
+                        result,
+                    },
+                ..
+            } => Some((*producer, result)),
+            _ => None,
+        })
+        .expect("owned destination, not a fabricated ABI parameter");
+    assert!(function.structural_parameters.is_empty());
+    assert!(
+        function
+            .operations
+            .iter()
+            .any(|operation| matches!(operation,
+                AbstractOperation::EstablishZeroedStructural { psi_operation, result }
+                if *psi_operation == producer && result == destination
+            ))
+    );
+}
+
+#[test]
 fn verified_source_store_retains_exact_mutable_parameter_and_preceding_value() {
     let source = r#"
         data Sink {}
@@ -75,6 +147,9 @@ fn verified_source_store_retains_exact_mutable_parameter_and_preceding_value() {
     else {
         unreachable!("store index selects the store")
     };
+    let destination = destination
+        .parameter()
+        .expect("borrowed parameter destination");
     assert_eq!(destination, &store_function.structural_parameters[0]);
     assert_eq!(destination.position, 0);
     assert!(!destination.is_self);
@@ -162,6 +237,9 @@ fn verified_ieee_float_store_retains_exact_write_only_parameter_and_preceding_va
     else {
         unreachable!("store index selects the store")
     };
+    let destination = destination
+        .parameter()
+        .expect("borrowed parameter destination");
     assert_eq!(destination, &store_function.structural_parameters[0]);
     assert_eq!(destination.access, StructuralAccess::WriteOnlyBorrow);
     assert_eq!(
@@ -253,9 +331,10 @@ fn verified_runtime_indexed_store_retains_index_value_and_bounds_obligation() {
             _ => None,
         })
         .expect("one runtime-indexed primitive store");
-    assert_eq!(store.0, &function.structural_parameters[0]);
-    assert_eq!(store.0.access, StructuralAccess::MutableBorrow);
-    assert_eq!(store.0.multiplicity, StructuralMultiplicity::Unrestricted);
+    let destination = store.0.parameter().expect("borrowed array parameter");
+    assert_eq!(destination, &function.structural_parameters[0]);
+    assert_eq!(destination.access, StructuralAccess::MutableBorrow);
+    assert_eq!(destination.multiplicity, StructuralMultiplicity::Unrestricted);
     let [terminal_psi::StructuralPathSegment::RuntimeIndex { index, .. }] = store.1.as_slice()
     else {
         panic!("the store path is one runtime element: {:?}", store.1)

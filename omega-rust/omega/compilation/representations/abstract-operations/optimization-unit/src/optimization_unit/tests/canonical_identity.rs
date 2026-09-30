@@ -261,6 +261,10 @@ fn write_only_store_identity_binds_destination_value_and_scalar_type() {
     else {
         panic!("first node is the store")
     };
+    let abstract_operations::StructuralScalarStoreDestination::Parameter(destination) = destination
+    else {
+        panic!("parameter destination");
+    };
     destination.position = 1;
     assert_ne!(baseline.identity, changed_identity(destination_drift));
 
@@ -269,6 +273,10 @@ fn write_only_store_identity_binds_destination_value_and_scalar_type() {
         &mut place_drift.functions[0].blocks[0].nodes[0].operation
     else {
         panic!("first node is the store")
+    };
+    let abstract_operations::StructuralScalarStoreDestination::Parameter(destination) = destination
+    else {
+        panic!("parameter destination");
     };
     destination.place = id(78, PlaceId::new);
     assert_ne!(baseline.identity, changed_identity(place_drift));

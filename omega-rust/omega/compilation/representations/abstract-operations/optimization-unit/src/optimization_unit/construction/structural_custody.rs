@@ -67,7 +67,7 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(*destination);
         }
         O::WriteOnlyPrimitiveStore { destination, .. } => {
-            places.insert(destination.place);
+            places.insert(destination.place());
         }
         O::StructuralScalarFieldStore { destination, .. } => {
             places.insert(destination.place());

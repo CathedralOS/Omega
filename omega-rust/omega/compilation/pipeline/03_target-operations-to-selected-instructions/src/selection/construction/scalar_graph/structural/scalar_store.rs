@@ -71,9 +71,7 @@ pub(super) fn emit(
                 return Err(invalid());
             }
             (
-                abstract_operations::StructuralScalarStoreDestination::Parameter(
-                    destination.clone(),
-                ),
+                destination.clone(),
                 value,
                 *byte_offset,
                 *byte_size,

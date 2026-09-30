@@ -136,7 +136,7 @@ pub(super) fn changes_length(
             // Match Terminal freshness: a sibling primitive array write cannot
             // invalidate this carrier's length or ASCII history. Prefixes and
             // possibly aliasing runtime indices still overlap.
-            destination.place == root
+            destination.place() == root
                 && terminal_semantics::structural_paths_may_overlap(path, written)
         }
         // A call that forwards descriptors keeps the conservative answer.

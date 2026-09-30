@@ -108,7 +108,7 @@ pub(super) fn runtime_footprint_retained(
             destination,
             value,
             ..
-        } => (*psi_operation, destination.place, Some(value.value)),
+        } => (*psi_operation, destination.place(), Some(value.value)),
         AbstractOperation::StructuralScalarFieldStore {
             psi_operation,
             destination,

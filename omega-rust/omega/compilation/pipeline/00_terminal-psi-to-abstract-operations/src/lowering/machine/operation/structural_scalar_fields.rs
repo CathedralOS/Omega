@@ -169,7 +169,7 @@ fn lower_store(
 }
 
 /// Retain the exact owned producer instead of manufacturing a parameter row.
-fn owned_store_destination(
+pub(super) fn owned_store_destination(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<StructuralScalarStoreDestination> {

@@ -37,30 +37,44 @@ pub(super) fn validate(
     else {
         return Err(LegalizationError::custody());
     };
-    let storage_matches = match destination_storage {
-        target_operations::TargetStructuralArgumentSource::Placement(placement) => {
-            optimized.structural_parameters.contains(destination)
+    let storage_matches = match (destination, destination_storage) {
+        (
+            abstract_operations::StructuralScalarStoreDestination::Parameter(parameter),
+            target_operations::TargetStructuralArgumentSource::Placement(placement),
+        ) => {
+            optimized.structural_parameters.contains(parameter)
                 && parameters.iter().any(|parameter| {
-                    parameter.place == destination.place && &parameter.placement == placement
+                    parameter.place == destination.place() && &parameter.placement == placement
                 })
         }
-        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place } => {
-            *place == destination.place
-                && destination.access == terminal_psi::StructuralAccess::MutableBorrow
+        (
+            abstract_operations::StructuralScalarStoreDestination::Parameter(parameter),
+            target_operations::TargetStructuralArgumentSource::BlockParameter { block, place },
+        ) => {
+            *place == parameter.place
+                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
                 && optimized.blocks.iter().any(|entry| {
-                    entry.id == *block && entry.structural_parameters.contains(destination)
+                    entry.id == *block && entry.structural_parameters.contains(parameter)
                 })
                 && abstract_operations::control_flow::address_joins::is_address_join_in(
-                    destination,
+                    parameter,
                     &unit.structural_types,
                 )
+        }
+        (
+            abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result },
+            target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation },
+        ) => {
+            psi_operation == producer
+                && super::super::super::structural_case::source_result(optimized, result.place)
+                    .is_ok_and(|(operation, declared)| operation == *producer && declared == result)
         }
         _ => false,
     };
     let declared_type = unit
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == expected_destination.structural_type)
+        .find(|declaration| declaration.id == expected_destination.structural_type())
         .ok_or(LegalizationError::custody())?;
     let (_, _, elements) = crate::structural_inputs::structural_reference_input::primitive_store(
         expected_destination,

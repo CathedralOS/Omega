@@ -43,7 +43,7 @@ fn fixture(runtime: bool) -> AbstractOperationPlan {
         AbstractOperation::WriteOnlyPrimitiveStore {
             path: Vec::new(),
             psi_operation: OperationId::new(2).unwrap(),
-            destination: destination.clone(),
+            destination: destination.clone().into(),
             value: AbstractResult {
                 value: input,
                 scalar_type: scalar,
@@ -129,7 +129,7 @@ fn scalar_primitive_store_rejects_unsupported_access_types_order_and_exits() {
                 else {
                     panic!("store")
                 };
-                *destination = parameter.clone();
+                *destination = parameter.clone().into();
             }
             "referent" => {
                 source.structural_types.make_mut()[0].shape =

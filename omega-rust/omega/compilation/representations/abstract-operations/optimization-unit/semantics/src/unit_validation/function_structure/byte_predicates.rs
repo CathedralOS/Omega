@@ -523,7 +523,7 @@ fn may_change_owned_source(operation: &Operation, source: PlaceId) -> bool {
         | Operation::StructuralByteSequenceFieldByteStore { destination, .. } => {
             *destination == source
         }
-        Operation::WriteOnlyPrimitiveStore { destination, .. } => destination.place == source,
+        Operation::WriteOnlyPrimitiveStore { destination, .. } => destination.place() == source,
         Operation::StructuralScalarFieldStore { destination, .. } => destination.place() == source,
         Operation::StoreStructuralField { destination, .. } => destination.place() == source,
         Operation::MoveStructuralField { source: moved, .. } => moved.place() == source,

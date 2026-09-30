@@ -444,7 +444,22 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     indices,
                 } => {
                     bytes.push(13);
-                    super::structural_types::encode_structural_parameter(bytes, destination);
+                    match destination {
+                        abstract_operations::StructuralScalarStoreDestination::Parameter(
+                            parameter,
+                        ) => {
+                            bytes.push(0);
+                            super::structural_types::encode_structural_parameter(bytes, parameter);
+                        }
+                        abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                            producer,
+                            result,
+                        } => {
+                            bytes.push(1);
+                            bytes.extend_from_slice(&producer.get().to_le_bytes());
+                            super::structural_result::encode_operation_result(bytes, result);
+                        }
+                    }
                     super::structural_types::encode_structural_path(bytes, path);
                     bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     bytes.extend_from_slice(&value.value.get().to_le_bytes());

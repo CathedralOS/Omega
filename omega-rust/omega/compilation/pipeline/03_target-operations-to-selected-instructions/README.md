@@ -345,6 +345,12 @@ whose referent is exactly the SSA source's primitive scalar type. Boolean and
 fixed 8/16/32/64-bit integers and IEEE binary32/binary64 are supported; no synthetic
 record, field, readable borrow, or IEEE-to-integer conversion is introduced.
 
+Projected primitive stores also address established owned aggregate homes.
+They retain the exact producing operation and structural result, never a
+fabricated ABI parameter. Receiving checks rejoin that identity and the complete
+projection; selection reuses the aggregate's activation-local pointer and checks
+the exact-width store independently. Linear or qualified homes remain excluded.
+
 Primitive locals use operation-and-place identified activation slots. Each executed
 establishment forms its frame address and performs one exact-width initializing
 store. Loop reentry reuses the activation slot and executes initialization again;

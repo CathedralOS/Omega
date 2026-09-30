@@ -28,6 +28,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
     function: &AbstractFunction,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
+    structural_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     scalar_values: &BTreeMap<ValueId, KnownUnitInteger>,
     boolean_constants: &BTreeMap<ValueId, (OperationId, bool)>,
     ieee_float_constants: &BTreeMap<ValueId, (OperationId, IeeeFloatValue)>,
@@ -50,34 +51,85 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         machine: function.machine,
         operation: *psi_operation,
     };
-    let joined = function.block_entries.iter().find(|entry| {
-        entry.structural_parameters.contains(destination)
-            && destination.access == StructuralAccess::MutableBorrow
-            && abstract_operations::control_flow::address_joins::is_address_join(
-                destination,
-                |identity| structural_types.get(&identity).copied(),
-            )
-    });
-    if !(function.structural_parameters.contains(destination) || joined.is_some())
-        || destination.multiplicity == StructuralMultiplicity::Linear
-        || (path.is_empty() && destination.multiplicity != StructuralMultiplicity::Unrestricted)
-        || !matches!(
-            destination.access,
-            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-        )
-        || !destination.qualifications.is_empty()
-        || !destination.projected_qualifications.is_empty()
-    {
-        return Err(invalid());
-    }
+    let destination_storage = match destination {
+        abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
+            if parameter.multiplicity == StructuralMultiplicity::Linear
+                || (path.is_empty()
+                    && parameter.multiplicity != StructuralMultiplicity::Unrestricted)
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                )
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+            {
+                return Err(invalid());
+            }
+            if let Some(entry) = function.block_entries.iter().find(|entry| {
+                entry.structural_parameters.contains(parameter)
+                    && parameter.access == StructuralAccess::MutableBorrow
+                    && abstract_operations::control_flow::address_joins::is_address_join(
+                        parameter,
+                        |identity| structural_types.get(&identity).copied(),
+                    )
+            }) {
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block: entry.block,
+                    place: parameter.place,
+                }
+            } else {
+                let root_shape = super::super::structural_layout::structural_shape(
+                    parameter.structural_type,
+                    structural_types,
+                    &mut BTreeMap::new(),
+                    &mut BTreeSet::new(),
+                )?;
+                let expected_shape =
+                    ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment);
+                let target_parameter = parameters_by_place
+                    .get(&parameter.place)
+                    .copied()
+                    .filter(|target| {
+                        function.structural_parameters.contains(parameter)
+                            && target.structural_type == parameter.structural_type
+                            && target.multiplicity == parameter.multiplicity
+                            && target.access == parameter.access
+                            && target.projected_qualifications == parameter.projected_qualifications
+                            && target.shape == expected_shape
+                            && target.placement.shape == expected_shape
+                    })
+                    .ok_or_else(invalid)?;
+                target_operations::TargetStructuralArgumentSource::Placement(
+                    target_parameter.placement.clone(),
+                )
+            }
+        }
+        abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
+            let home = structural_homes
+                .get(&result.place)
+                .filter(|home| home.operation_result() == Some((*producer, result)))
+                .ok_or_else(invalid)?;
+            if home.has_claims()
+                || !home.qualifications().is_empty()
+                || !home.projected_qualifications().is_empty()
+                || home.multiplicity() == StructuralMultiplicity::Linear
+                || path.is_empty()
+            {
+                return Err(invalid());
+            }
+            target_operations::TargetStructuralArgumentSource::StructuralHome {
+                psi_operation: *producer,
+            }
+        }
+    };
     let destination_type = structural_types
-        .get(&destination.structural_type)
+        .get(&destination.structural_type())
         .copied()
         .ok_or_else(invalid)?;
     // Each runtime element scales its selector's exact dominating source by
     // the array stride; its bound is the path segment's verified obligation.
     let (leaf, _, runs) = super::super::structural_layout::primitive_leaf_projection(
-        destination.structural_type,
+        destination.structural_type(),
         path,
         structural_types,
     )
@@ -239,37 +291,6 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                 )
             }
         }
-    };
-    let root_shape = super::super::structural_layout::structural_shape(
-        destination.structural_type,
-        structural_types,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )?;
-    let expected_shape = ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment);
-    // The destination is either an incoming ABI pointer or an exact state
-    // pointer slot. Both retain the original array storage and index proofs.
-    let destination_storage = if let Some(entry) = joined {
-        target_operations::TargetStructuralArgumentSource::BlockParameter {
-            block: entry.block,
-            place: destination.place,
-        }
-    } else {
-        let target_parameter = parameters_by_place
-            .get(&destination.place)
-            .copied()
-            .filter(|parameter| {
-                parameter.structural_type == destination.structural_type
-                    && parameter.multiplicity == destination.multiplicity
-                    && parameter.access == destination.access
-                    && parameter.projected_qualifications == destination.projected_qualifications
-                    && parameter.shape == expected_shape
-                    && parameter.placement.shape == expected_shape
-            })
-            .ok_or_else(invalid)?;
-        target_operations::TargetStructuralArgumentSource::Placement(
-            target_parameter.placement.clone(),
-        )
     };
     operations.push(TargetUnitOperation::WriteOnlyPrimitiveStore {
         psi_operation: *psi_operation,

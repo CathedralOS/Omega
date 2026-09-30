@@ -680,7 +680,7 @@ fn owned_record_field_store_rejoins_its_producer_and_home() {
 }
 
 #[test]
-fn local_array_primitive_read_rejoins_original_home_and_projected_offset() {
+fn local_array_primitive_store_and_read_rejoin_original_home_and_projected_offset() {
     use terminal_psi::StructuralPathSegment;
 
     let scalar = integer(IntegerSign::Unsigned, 8);
@@ -713,7 +713,7 @@ fn local_array_primitive_read_rejoins_original_home_and_projected_offset() {
             },
         },
         AbstractOperation::PrimitiveScalarRead {
-            psi_operation: OperationId::new(2).unwrap(),
+            psi_operation: OperationId::new(4).unwrap(),
             result: AbstractResult {
                 value: ValueId::new(1).unwrap(),
                 scalar_type: scalar,
@@ -723,6 +723,34 @@ fn local_array_primitive_read_rejoins_original_home_and_projected_offset() {
         },
         returned,
     ];
+    let AbstractOperation::EstablishZeroedStructural { result, .. } = &function.operations[0]
+    else {
+        panic!("local array establishment");
+    };
+    let destination = abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+        producer: OperationId::new(1).unwrap(),
+        result: result.clone(),
+    };
+    function.operations.splice(
+        1..1,
+        [
+            AbstractOperation::IntegerConstant {
+                psi_operation: OperationId::new(2).unwrap(),
+                result: ValueId::new(2).unwrap(),
+                scalar_type: scalar,
+                value: IntegerValue::Unsigned(91),
+            },
+            AbstractOperation::WriteOnlyPrimitiveStore {
+                psi_operation: OperationId::new(3).unwrap(),
+                destination,
+                path: vec![StructuralPathSegment::FixedIndex(2)],
+                value: AbstractResult {
+                    value: ValueId::new(2).unwrap(),
+                    scalar_type: scalar,
+                },
+            },
+        ],
+    );
     for native in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -760,6 +788,115 @@ fn local_array_primitive_read_rejoins_original_home_and_projected_offset() {
         )
         .unwrap();
 
+        assert!(
+            target.functions[0].graph.parameters.is_empty(),
+            "local storage is not an ABI parameter"
+        );
+        for mutation in 0..4 {
+            let mut changed = target.clone();
+            let store = changed.functions[0].graph.blocks[0]
+                .operations
+                .iter_mut()
+                .find(|operation| {
+                    matches!(
+                        operation,
+                        TargetUnitOperation::WriteOnlyPrimitiveStore { .. }
+                    )
+                })
+                .unwrap();
+            let TargetUnitOperation::WriteOnlyPrimitiveStore {
+                destination:
+                    abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                        producer,
+                        result,
+                    },
+                destination_storage,
+                path,
+                ..
+            } = store
+            else {
+                panic!("owned primitive store");
+            };
+            match mutation {
+                0 => *producer = OperationId::new(2).unwrap(),
+                1 => result.place = PlaceId::new(99).unwrap(),
+                2 => {
+                    *destination_storage =
+                        target_operations::TargetStructuralArgumentSource::StructuralHome {
+                            psi_operation: OperationId::new(2).unwrap(),
+                        }
+                }
+                _ => path[0] = StructuralPathSegment::FixedIndex(3),
+            }
+            assert!(legalize_target_operations(&changed, &source, &unit).is_err());
+            assert!(
+                validate_legalized_operations(&changed, &source, &unit, legalized.plan().clone())
+                    .is_err()
+            );
+        }
+        for mutation in 0..4 {
+            let mut changed = legalized.plan().clone();
+            let store = changed.scalar_functions[0].blocks[0]
+                .instructions
+                .iter_mut()
+                .find(|row| {
+                    matches!(
+                        row.kind,
+                        LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
+                    )
+                })
+                .unwrap();
+            let LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore {
+                destination:
+                    abstract_operations::StructuralScalarStoreDestination::OwnedResult {
+                        producer,
+                        result,
+                    },
+                path,
+                byte_offset,
+                ..
+            } = &mut store.kind
+            else {
+                panic!("owned primitive store");
+            };
+            match mutation {
+                0 => *producer = OperationId::new(2).unwrap(),
+                1 => result.place = PlaceId::new(99).unwrap(),
+                2 => path[0] = StructuralPathSegment::FixedIndex(3),
+                _ => *byte_offset += 1,
+            }
+            assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
+        }
+        let mut changed = selected.plan().clone();
+        let store = changed.functions[0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find(|row| {
+                row.provenance.operations == [OperationId::new(3).unwrap()]
+                    && matches!(
+                        row.kind,
+                        selected_instructions::SelectedInstructionKind::Store { .. }
+                    )
+            })
+            .expect("projected local byte store");
+        let selected_instructions::SelectedInstructionKind::Store { byte_offset, .. } =
+            &mut store.kind
+        else {
+            panic!("byte store");
+        };
+        *byte_offset += 1;
+        assert!(
+            crate::validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                changed
+            )
+            .is_err()
+        );
+
         for mutation in 0..3 {
             let mut changed = legalized.plan().clone();
             let row = changed.scalar_functions[0].blocks[0]
@@ -794,7 +931,7 @@ fn local_array_primitive_read_rejoins_original_home_and_projected_offset() {
             .iter_mut()
             .flat_map(|block| &mut block.instructions)
             .find(|row| {
-                row.provenance.operations == [OperationId::new(2).unwrap()]
+                row.provenance.operations == [OperationId::new(4).unwrap()]
                     && matches!(
                         row.kind,
                         selected_instructions::SelectedInstructionKind::Load8 { .. }

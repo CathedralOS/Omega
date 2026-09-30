@@ -912,7 +912,7 @@ fn scan_operation(
         } => {
             pending.attribute(
                 context,
-                destination.place,
+                destination.place(),
                 runtime_prefix(path),
                 AccessKind::Write,
             );

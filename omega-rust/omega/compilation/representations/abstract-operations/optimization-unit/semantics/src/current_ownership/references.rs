@@ -568,7 +568,7 @@ pub(super) fn apply_operation(
             check_root_access(function, block, node, live, *destination)?
         }
         O::WriteOnlyPrimitiveStore { destination, .. } => {
-            check_root_access(function, block, node, live, destination.place)?
+            check_root_access(function, block, node, live, destination.place())?
         }
         O::StructuralScalarFieldStore { destination, .. } => {
             check_root_access(function, block, node, live, destination.place())?
