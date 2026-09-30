@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 6.43, "load1_start": 6.43, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.5, "load1_start": 7.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -2042,8 +2042,7 @@ pass/termination/ranked_callee_projected_receiver_compile checked 291ms @2d8ed25
 pass/termination/remainder_actual_call_component checked 305ms @2d8ed253669f
 pass/termination/remainder_literal_call_component checked 297ms @2d8ed253669f
 pass/termination/runtime_named_state_remainder_endpoint_exit checked 1581ms @2d8ed253669f
-pass/termination/runtime_rank_range_state_call_exit rejected 1461ms @a917987f9778+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`Main::count`), which was itself omitted at local construction at `state graph: natural ranks`
+pass/termination/runtime_rank_range_state_call_exit checked 867ms @82d2bd2d7669
 pass/termination/runtime_shrinking_slice_recursion_exit rejected 1208ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("Unit graph subslice disagrees with its source argument"))
 pass/termination/runtime_stored_exclusive_endpoint_exit rejected 1212ms @2d8ed253669f
