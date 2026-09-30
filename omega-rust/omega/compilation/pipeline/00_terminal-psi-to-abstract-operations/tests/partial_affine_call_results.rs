@@ -110,9 +110,11 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous:
             .terminal_partial_affine_unit_cleanups
             .machines;
         assert_eq!(partial.len(), 1);
-        assert_eq!(
-            partial[0].machine.attachment_type_identity.is_some(),
-            attached
+        // `Root::enter` names its owner but takes no receiver: a qualification
+        // contributes no argument or storage, so neither spelling attaches.
+        assert!(
+            partial[0].machine.attachment_type_identity.is_none(),
+            "receiver-free entry retains no attachment (attached spelling: {attached})"
         );
         let mut malformed = checked.clone();
         malformed
@@ -121,11 +123,7 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous:
             .terminal_partial_affine_unit_cleanups
             .machines[0]
             .machine
-            .attachment_type_identity = if attached {
-            None
-        } else {
-            Some("invented".into())
-        };
+            .attachment_type_identity = Some("invented".into());
         assert!(matches!(
             checked_trees_to_lowered_psi::lower_machine(
                 &malformed,
