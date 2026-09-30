@@ -591,6 +591,37 @@ pub(super) fn apply_operation(
                 ));
             }
         }
+        O::StructuralLeafCopy { result, source, .. } => {
+            // A `&`-leaf copy relocates the source's existing loan
+            // descriptor: the result is a fresh live carrier rooted at that
+            // same primitive loan — no new edge, no consumption of `source`.
+            // The case-qualified variant relocates the same loan out of a
+            // proven-active case payload.
+            if structural_types
+                .get(&result.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::Reference {
+                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                            ..
+                        }
+                    )
+                })
+            {
+                let root = ReferenceOrigin::Primitive(*source);
+                live.push(LiveReference {
+                    identity: ReferenceIdentity {
+                        place: result.place,
+                        path: Vec::new(),
+                    },
+                    carrier: result.place,
+                    carrier_path: Vec::new(),
+                    root: root.clone(),
+                    parent: ReferenceParent::Root(root),
+                });
+            }
+        }
         _ => {}
     }
     let mut normalized_arguments = Vec::new();

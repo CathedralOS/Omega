@@ -516,6 +516,163 @@ fn byte_carrier_copy_retains_the_overlaid_record_type() {
 }
 
 #[test]
+fn shared_borrow_case_copy_keeps_the_referent_leaf_type() {
+    let source = r#"
+        data Info [copy] { pid: u32; }
+        data OpenResult [copy] { case Opened(info: Info); case Failed(error: Info); }
+        machine open(pid: u32) -> OpenResult {
+            OpenResult::Opened { info: Info { pid: pid } }
+        }
+        data Root {}
+        machine Root::enter() -> u32 {
+            let actual: OpenResult = open(70);
+            transition actual {
+                OpenResult::Opened { info } -> have(info)
+                OpenResult::Failed { error } -> failed()
+            }
+            state have(info: Info) -> u32 { info.pid }
+            state failed() -> u32 { 0 }
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        checked_trees_to_lowered_psi::TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
+    let mut module = lowered.semantic_module;
+    let proof = lowered.proof_bundle;
+    let profile = AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
+    // Graft the verifier's shared-loan shape onto the real copy: an `Affine`
+    // `SharedBorrow` result over the same payload leaf mints the reference
+    // descriptor, not another copy. The successor block the
+    // case dispatch proved already holds the membership fact, so a second
+    // copy of the same path verifies there; its result is a local place,
+    // never a reference-typed block parameter.
+    let (leaf, source, path) = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match (&operation.kind, &operation.result) {
+            (
+                OperationKind::StructuralCaseLeafCopy { source, path },
+                OperationResult::Structural(result),
+            ) => Some((result.structural_type, *source, path.clone())),
+            _ => None,
+        })
+        .expect("source mints a case-payload copy");
+    let reference = id::<StructuralTypeId>(240);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: reference,
+        identity: "&Info".into(),
+        shape: StructuralTypeShape::Reference {
+            referent: leaf,
+            access: StructuralAccess::SharedBorrow,
+        },
+    });
+    let loan_place = id::<PlaceId>(500);
+    let loan_operation = id::<OperationId>(500);
+    for machine in module.machines.iter_mut() {
+        if !machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(operation.kind, OperationKind::StructuralCaseLeafCopy { .. }))
+        {
+            continue;
+        }
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: loan_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: loan_operation,
+                structural_type: reference,
+            },
+        });
+        for block in machine.blocks.iter_mut() {
+            if !block
+                .operations
+                .iter()
+                .any(|operation| matches!(operation.kind, OperationKind::StructuralCaseLeafCopy { .. }))
+            {
+                continue;
+            }
+            block.operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: loan_operation,
+                result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place: loan_place,
+                    structural_type: reference,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::StructuralCaseLeafCopy {
+                    source,
+                    path: path.clone(),
+                },
+            });
+            // The loan carrier is an affine operation result: the block's
+            // exit edge releases it with the same trivial-discard machinery
+            // as any affine result, newest producer first.
+            if let Terminator::Jump {
+                trivial_affine_discards,
+                ..
+            } = &mut block.terminator
+            {
+                trivial_affine_discards.insert(0, loan_place);
+            }
+        }
+    }
+    terminal_verifier::verify_module(&module, &proof, &profile)
+        .expect("verifier admits the shared-loan case copy");
+    let semantic_bytes = encode_module(&module).unwrap();
+    let proof_bytes = encode_proof_section(&module, &proof).unwrap();
+    let admitted = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &semantic_bytes,
+            proof_bytes: &proof_bytes,
+            obligation_ledger_bytes: None,
+        },
+        &profile,
+    )
+    .expect("shared-loan case copy lowers natively");
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        admitted
+            .into_optimization_artifact()
+            .into_optimization_input(),
+        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(verified.unit())
+        .expect("replay mirrors the verifier's referent compare");
+    assert!(verified.unit().functions.iter().flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+            AbstractOperation::StructuralLeafCopy {
+                path: abstract_operations::StructuralCopyPath::Case(_),
+                result, ..
+            } if result.structural_type == reference)));
+}
+
+#[test]
 fn a_write_only_borrow_root_never_copies_a_leaf() {
     assert!(matches!(
         encode_module(&copy_module(StructuralAccess::WriteOnlyBorrow)),

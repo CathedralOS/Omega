@@ -574,7 +574,10 @@ pub(crate) fn validate_structural_root_operations(
                     // custody. The case path also carries the verifier's
                     // owned-copy shape: an `Affine` non-reference leaf minted
                     // out of a proven-active case payload transfers custody
-                    // to the successor — no stored value moves.
+                    // to the successor — no stored value moves. An `Affine`
+                    // `SharedBorrow` result is a loan relocation instead of a
+                    // copy: the verifier registers it as a live reference
+                    // carrier rooted at the source, on either path.
                     let owned_case_copy =
                         matches!(path, abstract_operations::StructuralCopyPath::Case(_))
                             && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
@@ -583,6 +586,19 @@ pub(crate) fn validate_structural_root_operations(
                                     !matches!(
                                         declaration.shape,
                                         terminal_psi::StructuralTypeShape::Reference { .. }
+                                    )
+                                },
+                            );
+                    let shared_borrow_loan =
+                        result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
+                            && structural_types.get(&result.structural_type).is_some_and(
+                                |declaration| {
+                                    matches!(
+                                        declaration.shape,
+                                        terminal_psi::StructuralTypeShape::Reference {
+                                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                                            ..
+                                        }
                                     )
                                 },
                             );
@@ -615,11 +631,28 @@ pub(crate) fn validate_structural_root_operations(
                                     selected == Some(expected)
                                         || crate::unit_validation::structural_catalog::byte_carrier_leaf_window(structural_types, signature.structural_type, path, expected)
                                 },
-                                abstract_operations::StructuralCopyPath::Case(path) => terminal_semantics::canonical_case_leaf_type(structural_types.values().copied(), signature.structural_type, path) == Some(result.structural_type),
+                                abstract_operations::StructuralCopyPath::Case(path) => {
+                                    // A `&`-leaf copy mints the reference
+                                    // descriptor over the selected payload:
+                                    // the compared type is the referent, not
+                                    // the `SharedBorrow` declaration itself.
+                                    let expected = structural_types
+                                        .get(&result.structural_type)
+                                        .and_then(|declaration| match declaration.shape {
+                                            terminal_psi::StructuralTypeShape::Reference {
+                                                referent,
+                                                access: terminal_psi::StructuralAccess::SharedBorrow,
+                                            } => Some(referent),
+                                            _ => None,
+                                        })
+                                        .unwrap_or(result.structural_type);
+                                    terminal_semantics::canonical_case_leaf_type(structural_types.values().copied(), signature.structural_type, path) == Some(expected)
+                                }
                             }
                         }) && (result.multiplicity
                             == terminal_psi::StructuralMultiplicity::Unrestricted
-                            || owned_case_copy)
+                            || owned_case_copy
+                            || shared_borrow_loan)
                             && result.qualifications.is_empty()
                             && result.projected_qualifications.is_empty()
                             && result.claims.is_empty()
