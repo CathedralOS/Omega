@@ -148,18 +148,23 @@ pub(crate) fn first_unknown_nested_field(
         let receiver_type =
             declared_place_type_raw(program, current_machine, current_state, member.receiver)?;
         let container = data_definition_for_type(program, receiver_type)?;
-        let field = super::exact_data_member_field(
-            program,
-            container,
-            if member.case_variant.is_some() {
-                member.member_symbol
-            } else {
-                symbols::SymbolHandle::invalid()
-            },
-            member.member.as_str(),
-            member.case_variant.as_ref().map(|case| case.as_str()),
-        );
-        return field.is_none().then(|| {
+        let field_exists = match member.case_variant.as_ref() {
+            // A case projection names exactly one variant's payload field.
+            Some(case_variant) => super::exact_data_member_field(
+                program,
+                container,
+                member.member_symbol,
+                member.member.as_str(),
+                Some(case_variant.as_str()),
+            )
+            .is_some(),
+            // An unprojected read (`choice.view`) names a common field or a
+            // payload field by its spelling, exactly as `declared_place_type_raw`
+            // types it. Whether that payload's case is live is the selected-case
+            // proof's question; this diagnostic reports only absent members.
+            None => data_field_or_payload(program, container, member.member.as_str()).is_some(),
+        };
+        return (!field_exists).then(|| {
             (
                 container.name.as_str().to_owned(),
                 member.member.as_str().to_owned(),

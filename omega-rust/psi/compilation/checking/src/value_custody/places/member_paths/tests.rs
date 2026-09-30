@@ -66,6 +66,33 @@ fn borrowed_case_payload_preserves_nested_member_identity() {
 }
 
 #[test]
+fn unprojected_payload_member_reads_keep_their_spelled_payload_field() {
+    // `choice.view` is a payload read without a destructure: the member names
+    // no case, so it is not a foreign-case member. The selected-case proof,
+    // not this missing-member diagnostic, owns whether `Selected` is live.
+    let program = crate::front_end::typed_program(
+        "data View { body: u64; } data Choice { case Selected(view: View); case Empty; }
+         machine write(mut choice: Choice) { choice.view.body = 255; }",
+    );
+    assert!(
+        crate::validate_program(&program).is_ok(),
+        "unprojected payload read must validate: {:?}",
+        crate::validate_program(&program)
+    );
+    let program = crate::front_end::typed_program(
+        "data View { body: u64; } data Choice { case Selected(view: View); case Empty; }
+         machine write(mut choice: Choice) { choice.view.missing = 255; }",
+    );
+    let diagnostics = crate::validate_program(&program).expect_err("missing payload member");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("data `View` has no field `missing`")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn ordinary_nested_record_diagnoses_first_missing_member() {
     let program = crate::front_end::typed_program(
         "data Inner { count: u64; } data Outer { inner: Inner; }
