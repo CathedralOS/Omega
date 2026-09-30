@@ -217,6 +217,164 @@ fn nested_observation(boolean: bool) -> CheckedScalarExpression {
     }
 }
 
+fn payload_bindings(
+    mut declarations: Vec<StructuralTypeDeclaration>,
+    member_type: StructuralTypeId,
+) -> Vec<super::StructuralScalarFieldBinding> {
+    let sum = StructuralTypeId::new(100).unwrap();
+    declarations.push(StructuralTypeDeclaration {
+        id: sum,
+        identity: "Response".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: ["Active", "Other"]
+                .into_iter()
+                .enumerate()
+                .map(
+                    |(ordinal, identity)| terminal_psi::StructuralCaseDeclaration {
+                        id: semantic_vocabulary::StructuralCaseId::new(ordinal as u64 + 1).unwrap(),
+                        identity: identity.into(),
+                        fields: vec![StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(9).unwrap(),
+                            identity: "payload".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Structural(member_type),
+                        }],
+                    },
+                )
+                .collect(),
+        },
+    });
+    super::StructuralScalarFieldBinding::collect(
+        &[(
+            3,
+            StructuralParameterDeclaration {
+                place: PlaceId::new(11).unwrap(),
+                position: 0,
+                is_self: false,
+                structural_type: sum,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            },
+        )],
+        &declarations,
+    )
+}
+
+fn payload_path(carriers: &[&str]) -> Vec<CheckedStructuralPredicatePathSegment> {
+    use CheckedStructuralPredicatePathSegment::{Case, Field};
+    let mut path = vec![Case("Active".into()), Field("payload".into())];
+    path.extend(carriers.iter().map(|identity| Field((*identity).into())));
+    path.push(Field("value".into()));
+    path
+}
+
+#[test]
+fn selected_payload_observations_preserve_full_paths_and_case_authority() {
+    use super::{CasePayloadRead, NestedEstablishedCasePayload};
+    let scalar = terminal_scalar_type(PrimitiveType::U64).unwrap();
+    let mut declarations = nested_declarations(scalar);
+    let StructuralTypeShape::Record { fields } = &mut declarations[0].shape else {
+        unreachable!()
+    };
+    let mut sibling = fields[0].clone();
+    sibling.identity = "sibling".into();
+    sibling.id = StructuralFieldId::new(8).unwrap();
+    fields.push(sibling);
+    let mut bindings = payload_bindings(declarations, StructuralTypeId::new(1).unwrap());
+    let left = payload_path(&["child"]);
+    let right = payload_path(&["sibling"]);
+    let first = super::plan_case_payload_leaf(&bindings, 3, &left).unwrap();
+    let second = super::plan_case_payload_leaf(&bindings, 3, &right).unwrap();
+    assert_eq!(first.field, second.field);
+    assert_ne!(first.path, second.path);
+    assert!(super::resolve_case_payload(&bindings, 3, &left, scalar).is_err());
+    super::defer_case_payloads(&mut bindings);
+    assert!(super::resolve_case_payload(&bindings, 3, &left, scalar).is_err());
+    let established =
+        |payload: &super::PlannedCasePayloadLeaf, position| NestedEstablishedCasePayload {
+            source: payload.source,
+            case: payload.case,
+            member: payload.member,
+            path: payload.path.clone(),
+            field: payload.field,
+            position,
+        };
+    super::establish_case_payloads(&mut bindings, &[], &[established(&first, 4)]);
+    assert!(matches!(
+        super::resolve_case_payload(&bindings, 3, &left, scalar),
+        Ok(CasePayloadRead::Established { position: 4 })
+    ));
+    assert!(super::resolve_case_payload(&bindings, 3, &right, scalar).is_err());
+    super::establish_case_payloads(
+        &mut bindings,
+        &[],
+        &[established(&first, 4), established(&second, 5)],
+    );
+    assert!(matches!(
+        super::resolve_case_payload(&bindings, 3, &right, scalar),
+        Ok(CasePayloadRead::Established { position: 5 })
+    ));
+    let mut wrong_case = left.clone();
+    wrong_case[0] = CheckedStructuralPredicatePathSegment::Case("Other".into());
+    assert!(super::resolve_case_payload(&bindings, 3, &wrong_case, scalar).is_err());
+    assert!(super::resolve_case_payload(&bindings, 0, &left, scalar).is_err());
+    assert!(super::resolve_case_payload(&bindings, 3, &left, ScalarType::Boolean).is_err());
+    assert!(super::resolve_case_payload(&bindings, 3, &payload_path(&["absent"]), scalar).is_err());
+}
+
+#[test]
+fn selected_payload_projection_uses_the_shared_carrier_walk_at_any_depth() {
+    let scalar = terminal_scalar_type(PrimitiveType::U64).unwrap();
+    for depth in [0, 1, 5, 12] {
+        let mut declarations = nested_declarations(scalar);
+        let mut member_type = StructuralTypeId::new(1).unwrap();
+        for ordinal in 0..depth {
+            let id = StructuralTypeId::new(ordinal + 3).unwrap();
+            declarations.push(StructuralTypeDeclaration {
+                id,
+                identity: format!("Wrapper{ordinal}"),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(7).unwrap(),
+                        identity: "next".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(member_type),
+                    }],
+                },
+            });
+            member_type = id;
+        }
+        let mut carriers = vec!["next"; depth as usize];
+        carriers.push("child");
+        let path = payload_path(&carriers);
+        let bindings = payload_bindings(declarations.clone(), member_type);
+        let planned = super::plan_case_payload_leaf(&bindings, 3, &path).unwrap();
+        assert_eq!(planned.path.len(), depth as usize + 1);
+        for mutation in ["erased", "duplicate", "missing"] {
+            let mut changed = declarations.clone();
+            match mutation {
+                "duplicate" => changed.push(changed[1].clone()),
+                "missing" => {
+                    changed.remove(1);
+                }
+                _ => {
+                    let StructuralTypeShape::Record { fields } = &mut changed[0].shape else {
+                        unreachable!()
+                    };
+                    fields[0].relevance = BindingRelevance::Erased;
+                }
+            }
+            assert!(
+                super::plan_case_payload_leaf(&payload_bindings(changed, member_type), 3, &path)
+                    .is_none(),
+                "{mutation} at depth {depth}"
+            );
+        }
+    }
+}
+
 #[test]
 fn nested_scalar_reads_emit_original_root_and_declaration_local_carrier_ids() {
     for boolean in [false, true] {

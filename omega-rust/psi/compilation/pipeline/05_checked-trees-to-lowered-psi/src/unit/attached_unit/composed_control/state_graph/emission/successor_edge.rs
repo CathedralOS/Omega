@@ -25,6 +25,7 @@ use crate::expression_preparation::bindings::structural_fields::{
     EstablishedCasePayload, NestedEstablishedCasePayload,
 };
 use crate::terminal_identities::value_id;
+use semantic_vocabulary::ScalarType;
 
 impl StateGraphEmission<'_, '_> {
     /// Lower one edge leaving the state at `frame.position`: dispose of the
@@ -184,13 +185,11 @@ impl StateGraphEmission<'_, '_> {
                 };
                 let mut reads = Vec::new();
                 scalars::nested_case_payload_reads(expression, &mut reads);
-                for (parameter_position, case_identity, member_identity, leaf_identity) in reads {
+                for (parameter_position, path) in reads {
                     let Some(payload) = crate::expression_preparation::bindings::structural_fields::plan_case_payload_leaf(
                         &edge_evaluation.structural_fields,
                         parameter_position,
-                        case_identity,
-                        member_identity,
-                        leaf_identity,
+                        path,
                     ) else {
                         continue;
                     };
@@ -200,6 +199,7 @@ impl StateGraphEmission<'_, '_> {
                             row.source == payload.source
                                 && row.case == payload.case
                                 && row.member == payload.member
+                                && row.path == payload.path
                                 && row.field == payload.field
                         })
                     {
@@ -255,16 +255,24 @@ impl StateGraphEmission<'_, '_> {
                         suspension_crossing: None,
                         id: leaf_producer,
                         result: OperationResult::Scalar(value),
-                        kind: OperationKind::IntegerStructuralField {
-                            source: destination,
-                            path: Vec::new(),
-                            field: payload.field,
+                        kind: match payload.scalar_type {
+                            ScalarType::Boolean => OperationKind::BooleanStructuralField {
+                                source: destination,
+                                path: payload.path.clone(),
+                                field: payload.field,
+                            },
+                            _ => OperationKind::IntegerStructuralField {
+                                source: destination,
+                                path: payload.path.clone(),
+                                field: payload.field,
+                            },
                         },
                     });
                     nested_rows.push(NestedEstablishedCasePayload {
                         source: payload.source,
                         case: payload.case,
                         member: payload.member,
+                        path: payload.path,
                         field: payload.field,
                         position,
                     });

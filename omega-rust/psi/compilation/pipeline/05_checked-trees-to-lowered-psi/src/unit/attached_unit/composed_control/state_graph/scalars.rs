@@ -305,31 +305,25 @@ pub(in crate::unit::attached_unit::composed_control) fn flat_case_payload_reads<
 }
 
 /// Reads below a case payload's record member in one successor argument: each
-/// `[Case, Field(member), Field(leaf)]` path binds `(parameter position, case,
-/// member, leaf)` so the staged block can mint the member copy and its scalar
-/// leaf read. Other shapes stay on the ordinary observation path and decline.
+/// case-qualified field path retains its whole projection so the staged block
+/// can establish the selected member and resolve its ordinary scalar leaf read.
 pub(in crate::unit::attached_unit::composed_control) fn nested_case_payload_reads<'a>(
     expression: &'a checked_trees::CheckedScalarExpression,
-    reads: &mut Vec<(u32, &'a str, &'a str, &'a str)>,
+    reads: &mut Vec<(
+        u32,
+        &'a [checked_trees::CheckedStructuralPredicatePathSegment],
+    )>,
 ) {
     use checked_trees::{
         CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar,
         CheckedStructuralPredicatePathSegment as Segment,
     };
-    fn nested(path: &[Segment]) -> Option<(&str, &str, &str)> {
-        let [
-            Segment::Case(case),
-            Segment::Field(member),
-            Segment::Field(leaf),
-        ] = path
-        else {
-            return None;
-        };
-        Some((case.as_str(), member.as_str(), leaf.as_str()))
+    fn nested(path: &[Segment]) -> bool {
+        matches!(path, [Segment::Case(_), Segment::Field(_), projection @ ..] if !projection.is_empty())
     }
     fn scalar<'a>(
         expression: &'a checked_trees::CheckedScalarExpression,
-        reads: &mut Vec<(u32, &'a str, &'a str, &'a str)>,
+        reads: &mut Vec<(u32, &'a [Segment])>,
     ) {
         match expression {
             Scalar::StructuralParameterField {
@@ -337,8 +331,8 @@ pub(in crate::unit::attached_unit::composed_control) fn nested_case_payload_read
                 path,
                 ..
             } => {
-                if let Some((case, member, leaf)) = nested(path) {
-                    reads.push((*parameter_position, case, member, leaf));
+                if nested(path) {
+                    reads.push((*parameter_position, path));
                 }
             }
             Scalar::IntegerBinary { left, right, .. } => {
@@ -358,15 +352,15 @@ pub(in crate::unit::attached_unit::composed_control) fn nested_case_payload_read
     }
     fn boolean<'a>(
         expression: &'a checked_trees::CheckedBooleanExpression,
-        reads: &mut Vec<(u32, &'a str, &'a str, &'a str)>,
+        reads: &mut Vec<(u32, &'a [Segment])>,
     ) {
         match expression {
             Boolean::StructuralParameterField {
                 parameter_position,
                 path,
             } => {
-                if let Some((case, member, leaf)) = nested(path) {
-                    reads.push((*parameter_position, case, member, leaf));
+                if nested(path) {
+                    reads.push((*parameter_position, path));
                 }
             }
             Boolean::Not(operand) => boolean(operand, reads),

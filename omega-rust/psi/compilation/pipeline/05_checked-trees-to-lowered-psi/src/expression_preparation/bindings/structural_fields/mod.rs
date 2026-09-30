@@ -1,4 +1,10 @@
 //! Bind source field identities to the exact emitted receiver declaration.
+//!
+//! Selected structural payloads use the same field-path resolver as ordinary
+//! records after their dispatch establishes the payload member. Retain the
+//! complete canonical carrier path: a leaf declaration may occur below several
+//! siblings, and its identity alone cannot select the observed value. Case
+//! membership and ownership remain obligations of the selecting edge and replay.
 
 use super::super::{
     CheckedUnitStructuralPathSegment, StructuralFieldId, StructuralFieldType, StructuralTypeId,
@@ -53,13 +59,14 @@ pub(crate) struct EstablishedCasePayload {
 
 /// One scalar leaf below a case payload's record member, observed by the
 /// dominating successor's staged block: the leaf copy of `member` and the
-/// scalar field read of `field` are minted where the case edge dominates, and
-/// the read's computed value occupies `position`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// scalar field read of `field` below `path` are minted where the case edge
+/// dominates, and the read's computed value occupies `position`.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NestedEstablishedCasePayload {
     pub(crate) source: PlaceId,
     pub(crate) case: StructuralCaseId,
     pub(crate) member: StructuralFieldId,
+    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     pub(crate) field: StructuralFieldId,
     pub(crate) position: usize,
 }
@@ -99,7 +106,7 @@ pub(crate) fn establish_case_payloads(
         let nested_rows = nested
             .iter()
             .filter(|row| row.source == field.source)
-            .copied()
+            .cloned()
             .collect::<Vec<_>>();
         if !rows.is_empty() || !nested_rows.is_empty() {
             field.case_payloads = CasePayloadAccess::Established(rows, nested_rows);
@@ -336,9 +343,9 @@ pub(crate) fn resolve_typed(
     unsupported("runtime field observation requires a nonempty field path")
 }
 
-/// Resolve `[Case(case), Field(field)]` below one sum root. The selected case
+/// Resolve a scalar read below one sum root's selected payload. The selected case
 /// must belong to the root's exact declared sum and the leaf must be a
-/// relevant scalar payload of the requested carrier; the case itself is known
+/// relevant scalar leaf of the requested carrier; the case itself is known
 /// only through the binding's `CasePayloadAccess`.
 pub(crate) fn resolve_case_payload(
     fields: &[StructuralScalarFieldBinding],
@@ -407,67 +414,18 @@ pub(crate) fn resolve_case_payload(
             (None, field.id)
         }
         [
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(member_identity),
-            checked_trees::CheckedStructuralPredicatePathSegment::Field(leaf_identity),
-        ] => {
-            let mut members = case
-                .fields
-                .iter()
-                .filter(|field| field.identity == *member_identity);
-            let member = members.next().ok_or(LoweringError::Unsupported(
-                "case payload observation lost its declared payload field",
-            ))?;
-            if members.next().is_some() || member.relevance.is_erased() {
-                return unsupported("case payload observation has an erased or ambiguous payload");
-            }
-            // The member must be a record leaf the staged block's copy can
-            // observe; a scalar leaf inside it becomes an ordinary field read
-            // on the copied place.
-            let StructuralFieldType::Structural(member_type) = member.field_type else {
-                return unsupported(
-                    "case payload observation requires a structural payload member",
-                );
-            };
-            let mut member_declarations = binding
-                .declarations
-                .iter()
-                .filter(|declaration| declaration.id == member_type);
-            let member_declaration =
-                member_declarations
-                    .next()
-                    .ok_or(LoweringError::Unsupported(
-                        "case payload observation lost its member declaration",
-                    ))?;
-            if member_declarations.next().is_some() {
-                return unsupported("case payload observation has ambiguous member declarations");
-            }
-            let StructuralTypeShape::Record { fields } = &member_declaration.shape else {
-                return unsupported("case payload observation requires a record payload member");
-            };
-            let mut leaves = fields
-                .iter()
-                .filter(|field| field.identity == *leaf_identity);
-            let leaf = leaves.next().ok_or(LoweringError::Unsupported(
-                "case payload observation lost its member field",
-            ))?;
-            if leaves.next().is_some() || leaf.relevance.is_erased() {
-                return unsupported(
-                    "case payload observation has an erased or ambiguous member field",
-                );
-            }
-            let declared = match leaf.field_type {
-                StructuralFieldType::Scalar(scalar) => scalar,
-                StructuralFieldType::BoundedInteger(integer) => {
-                    ScalarType::Integer(integer.integer_type())
-                }
-                _ => {
-                    return unsupported("case payload observation requires a scalar member field");
-                }
-            };
-            if declared != scalar_type {
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(_),
+            projection @ ..,
+        ] if !projection.is_empty() => {
+            let payload = plan_case_payload_leaf(fields, position, path).ok_or(
+                LoweringError::Unsupported(
+                    "case payload observation has no exact scalar projection",
+                ),
+            )?;
+            if payload.scalar_type != scalar_type {
                 return unsupported("case payload observation changes its declared scalar type");
             }
-            (Some(member.id), leaf.id)
+            (Some((payload.member, payload.path)), payload.field)
         }
         _ => {
             return unsupported("case payload observation requires one case and one payload field");
@@ -485,10 +443,15 @@ pub(crate) fn resolve_case_payload(
             })
         }
         CasePayloadAccess::Established(rows, nested) => {
-            if let Some(member) = member {
+            if let Some((member, path)) = member {
                 return nested
                     .iter()
-                    .find(|row| row.case == case.id && row.member == member && row.field == field)
+                    .find(|row| {
+                        row.case == case.id
+                            && row.member == member
+                            && row.path == path
+                            && row.field == field
+                    })
                     .map(|row| CasePayloadRead::Established {
                         position: row.position,
                     })
@@ -515,27 +478,37 @@ pub(crate) fn resolve_case_payload(
 /// copied where the selecting case edge dominates and `field` is read as an
 /// ordinary scalar leaf of the copy, whose value takes the read's scalar
 /// namespace position.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct PlannedCasePayloadLeaf {
     pub(crate) source: PlaceId,
     pub(crate) case: StructuralCaseId,
     pub(crate) member: StructuralFieldId,
     pub(crate) member_type: StructuralTypeId,
+    pub(crate) path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     pub(crate) field: StructuralFieldId,
     pub(crate) scalar_type: ScalarType,
 }
 
-/// Resolve a `[Case, Field(member), Field(leaf)]` read's declared identities
-/// against the binding at `position`, returning `None` whenever any step is
-/// absent, ambiguous, or not a record member carrying a scalar leaf — the
-/// ordinary observation path then declines with its own diagnostic.
+/// Resolve the selected payload member, then use ordinary field-path resolution
+/// below it. The copy is still established only on the selecting edge. Keeping
+/// the full canonical carrier path makes arbitrary record nesting compositional
+/// and distinguishes sibling occurrences of the same declared leaf field.
 pub(crate) fn plan_case_payload_leaf(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
-    case_identity: &str,
-    member_identity: &str,
-    leaf_identity: &str,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
 ) -> Option<PlannedCasePayloadLeaf> {
+    let [
+        checked_trees::CheckedStructuralPredicatePathSegment::Case(case_identity),
+        checked_trees::CheckedStructuralPredicatePathSegment::Field(member_identity),
+        projection @ ..,
+    ] = path
+    else {
+        return None;
+    };
+    if projection.is_empty() {
+        return None;
+    }
     let mut matching = fields
         .iter()
         .filter(|field| field.source_position == position);
@@ -572,35 +545,22 @@ pub(crate) fn plan_case_payload_leaf(
     let StructuralFieldType::Structural(member_type) = member.field_type else {
         return None;
     };
-    let mut member_declarations = binding
-        .declarations
-        .iter()
-        .filter(|declaration| declaration.id == member_type);
-    let member_declaration = member_declarations.next()?;
-    if member_declarations.next().is_some() {
-        return None;
-    }
-    let StructuralTypeShape::Record { fields } = &member_declaration.shape else {
-        return None;
+    let projected = StructuralScalarFieldBinding {
+        source_position: position,
+        source: binding.source,
+        structural_type: member_type,
+        declarations: std::sync::Arc::clone(&binding.declarations),
+        case_payloads: CasePayloadAccess::Unavailable,
     };
-    let mut leaves = fields
-        .iter()
-        .filter(|field| field.identity == *leaf_identity);
-    let leaf = leaves.next()?;
-    if leaves.next().is_some() || leaf.relevance.is_erased() {
-        return None;
-    }
-    let scalar_type = match leaf.field_type {
-        StructuralFieldType::Scalar(scalar) => scalar,
-        StructuralFieldType::BoundedInteger(integer) => ScalarType::Integer(integer.integer_type()),
-        _ => return None,
-    };
+    let (_, path, field, scalar_type) =
+        resolve_typed(std::slice::from_ref(&projected), position, projection).ok()?;
     Some(PlannedCasePayloadLeaf {
         source: binding.source,
         case: case.id,
         member: member.id,
         member_type,
-        field: leaf.id,
+        path,
+        field,
         scalar_type,
     })
 }
