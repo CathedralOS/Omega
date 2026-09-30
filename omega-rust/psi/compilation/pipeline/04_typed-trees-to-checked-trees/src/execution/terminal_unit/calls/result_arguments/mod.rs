@@ -431,8 +431,10 @@ pub(super) fn argument(
                                 && facts.values.structural_values.nodes.is_valid(root.root)
                                 && matches!(facts.values.structural_values.nodes.get(root.root).kind,
                                     checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. })
-                                && program.normalized_type_identity(root.type_reference).as_str()
-                                    == result.type_identity
+                                && program.normalized_type_identity(root.type_reference)
+                                    == program.normalized_type_identity(formal_type)
+                                && base_type_identity(program, root.type_reference, &[])
+                                    .is_some_and(|identity| identity == result.type_identity)
                         })
                         && validation::has_plain_owned_contents_with_represented_constraints(
                             program, storage,
@@ -738,6 +740,24 @@ pub(super) fn argument(
                 u32::try_from(call.statement_index).ok()?,
                 source,
             )?;
+            // Copy custody preserves the exact qualified source/formal type.
+            // Its result names storage, whose byte-carrier identity omits the
+            // qualification shell; comparing that shell to storage rejects
+            // an otherwise ordinary qualified byte-field snapshot.
+            let identity_matches = if matches!(
+                facts.values.structural_values.nodes.get(root.root).kind,
+                checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+            ) {
+                program.normalized_type_identity(root.type_reference)
+                    == program.normalized_type_identity(formal_type)
+                    && base_type_identity(program, root.type_reference, &[])?
+                        == result.type_identity
+            } else {
+                program
+                    .normalized_type_identity(root.type_reference)
+                    .as_str()
+                    == result.type_identity
+            };
             if root.machine != machine
                 || !matches!(
                     facts.values.structural_values.nodes.get(root.root).kind,
@@ -746,10 +766,7 @@ pub(super) fn argument(
                         | checked_trees::CheckedStructuralValueKind::Record { .. }
                         | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
                 )
-                || program
-                    .normalized_type_identity(root.type_reference)
-                    .as_str()
-                    != result.type_identity
+                || !identity_matches
             {
                 return None;
             }

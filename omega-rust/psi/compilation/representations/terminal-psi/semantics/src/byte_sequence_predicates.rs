@@ -134,6 +134,187 @@ pub fn byte_sequence_concatenation_predicates(
     )
 }
 
+/// Declared byte invariants captured by a field copy at one owned call.
+/// The snapshot observes the field's live bytes, not its spare capacity. A
+/// later legal write to the backing field preserves its declared invariants
+/// and cannot change this fresh copy. In contrast, any other possible write
+/// or exclusive alias of the copy makes this conservative query unavailable.
+/// This is not the timeless source query: only this exact consuming call is
+/// excluded from the clobber scan. Dominance and loan authority remain the
+/// receiving verifier's independent obligations.
+pub fn byte_copied_field_predicates_at_call(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+    consumer: semantic_vocabulary::OperationId,
+) -> Option<ByteSequencePredicateSet> {
+    let place = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == source)?;
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = place.kind
+    else {
+        return None;
+    };
+    let operation = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == producer)?;
+    let result = operation.result.structural()?;
+    let OperationKind::StructuralLeafCopy {
+        source: backing,
+        path,
+    } = &operation.kind
+    else {
+        return None;
+    };
+    if result.place != source
+        || result.structural_type != structural_type
+        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !result.claims.is_empty()
+    {
+        return None;
+    }
+    let carrier =
+        module
+            .structural_types
+            .iter()
+            .find_map(|declaration| match declaration.shape {
+                StructuralTypeShape::ByteSequence(
+                    carrier @ terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                ) if declaration.id == structural_type => Some(carrier),
+                _ => None,
+            })?;
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == *backing)?;
+    if !matches!(
+        parameter.access,
+        StructuralAccess::Owned | StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) {
+        return None;
+    }
+    let (terminal_psi::StructuralPathSegment::Field(identity), parent_path) = path.split_last()?
+    else {
+        return None;
+    };
+    // Crossing a reference requires its own referent access proof. This
+    // declaration-only query follows owned record/array storage, not pointers.
+    if parent_path.iter().any(|segment| {
+        !matches!(
+            segment,
+            terminal_psi::StructuralPathSegment::Field(_)
+                | terminal_psi::StructuralPathSegment::FixedIndex(_)
+        )
+    }) {
+        return None;
+    }
+    let parent = crate::runtime_structural_path_tip(
+        module.structural_types.iter(),
+        parameter.structural_type,
+        parent_path,
+    )?;
+    let StructuralTypeShape::Record { fields } = &parent.shape else {
+        return None;
+    };
+    let field = fields
+        .iter()
+        .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+    if field.field_type.byte_sequence_carrier()? != carrier {
+        return None;
+    }
+    let consuming = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == consumer)?;
+    let arguments = match &consuming.kind {
+        OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => return None,
+    };
+    if !arguments.iter().any(|argument| {
+        argument.place == source
+            && argument.path.is_empty()
+            && argument.access == StructuralAccess::Owned
+    }) || arguments.iter().any(|argument| {
+        argument.place == source
+            && (!argument.path.is_empty() || argument.access != StructuralAccess::Owned)
+    }) {
+        return None;
+    }
+    if machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .any(|candidate| {
+            candidate.id != consumer
+                && (may_change_owned_source(candidate, source)
+                    || matches!(&candidate.kind,
+                OperationKind::EstablishReference { source: argument }
+                | OperationKind::EstablishElementView { source: argument, .. }
+                | OperationKind::EstablishMutableElementView { source: argument, .. }
+                if argument.place == source)
+                    || matches!(&candidate.kind, OperationKind::ByteSequenceSubslice { source: viewed, .. }
+                        if *viewed == source))
+        })
+    {
+        return None;
+    }
+    // This bounded query does not chase renamed snapshots through block
+    // formals. Otherwise an exclusive use of the new name could evade the
+    // direct-place clobber scan while the old name still appeared pristine.
+    let carries = |arguments: &[terminal_psi::StructuralArgument]| {
+        arguments.iter().any(|argument| argument.place == source)
+    };
+    if machine.blocks.iter().any(|block| match &block.terminator {
+        terminal_psi::Terminator::Jump {
+            structural_arguments,
+            ..
+        } => carries(structural_arguments),
+        terminal_psi::Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => carries(&when_true.structural_arguments) || carries(&when_false.structural_arguments),
+        terminal_psi::Terminator::ReturnStructural {
+            source: returned, ..
+        } => *returned == source,
+        _ => false,
+    }) {
+        return None;
+    }
+    Some(field.field_type.byte_predicates())
+}
+
 fn concatenation_operand_predicates(
     module: &TerminalModule,
     machine: &TerminalMachine,

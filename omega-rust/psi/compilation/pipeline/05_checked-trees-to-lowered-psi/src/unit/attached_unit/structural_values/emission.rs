@@ -835,8 +835,21 @@ impl Emission<'_, '_, '_> {
             CheckedStructuralValueKind::ViewElementCopy { reads } => {
                 self.view_element_copy(&reads, continuation)
             }
-            CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
-                if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
+            CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf } => {
+                // Source replay retains the qualified leaf identity, while
+                // the catalog names its storage carrier. Resolve through the
+                // retained type, never by deleting text from an identity.
+                let identity = if self.checked.normalized_type_identity(leaf).as_str()
+                    == source.type_identity
+                {
+                    let carrier = super::super::structural_carrier_type(self.checked, leaf)?;
+                    self.checked.normalized_type_identity(carrier).into_string()
+                } else {
+                    // Borrowed view sources already name their projected
+                    // carrier; source custody independently checks that join.
+                    source.type_identity.clone()
+                };
+                if lookup_type_id(self.type_ids, &identity)? != self.structural_type {
                     return unsupported("copied place changed its leaf type");
                 }
                 let authored = crate::expression_preparation::source_custody::authored_state(

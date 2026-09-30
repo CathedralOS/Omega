@@ -37,8 +37,8 @@ pub use byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,
 };
 pub use byte_sequence_predicates::{
-    byte_literal_qualifications_hold, byte_literal_qualifications_hold_in,
-    byte_owned_result_predicates, byte_parameter_predicates,
+    byte_copied_field_predicates_at_call, byte_literal_qualifications_hold,
+    byte_literal_qualifications_hold_in, byte_owned_result_predicates, byte_parameter_predicates,
     byte_parameter_predicates_from_domains, byte_parameter_predicates_in,
     byte_qualification_predicates_in, byte_sequence_concatenation_predicates,
     byte_sequence_source_predicates, indexed_byte_store_goal,

@@ -924,18 +924,36 @@ pub(crate) fn validate_transfer_shape(
                                 } if type_ids.iter().any(|(identity, id)| identity == &argument.type_identity && *id == referent))
                         }))
             });
-            let unrestricted_whole = target.multiplicity == Multiplicity::Unrestricted
+            // This check owns transfer shape, not predicate establishment.
+            // Exact copied-byte qualifications are replayed against source
+            // custody and independently against the Terminal field declaration.
+            let bounded_owned_value = target.multiplicity == Multiplicity::Unrestricted
                 && argument.access == checked_trees::CheckedStructuralAccess::Owned
                 && argument.path.is_empty()
+                && !target.is_self
+                && target.projected_qualifications.is_empty()
                 && structural_types.iter().any(|declaration| {
                     declaration.id == structural_type
                         && matches!(
                             declaration.shape,
-                            StructuralTypeShape::FixedArray { .. }
-                                | StructuralTypeShape::Record { .. }
-                                | StructuralTypeShape::Sum { .. }
+                            StructuralTypeShape::ByteSequence(
+                                ByteSequenceCarrier::BoundedOwned { .. }
+                            )
                         )
                 });
+            let unrestricted_whole = bounded_owned_value
+                || target.multiplicity == Multiplicity::Unrestricted
+                    && argument.access == checked_trees::CheckedStructuralAccess::Owned
+                    && argument.path.is_empty()
+                    && structural_types.iter().any(|declaration| {
+                        declaration.id == structural_type
+                            && matches!(
+                                declaration.shape,
+                                StructuralTypeShape::FixedArray { .. }
+                                    | StructuralTypeShape::Record { .. }
+                                    | StructuralTypeShape::Sum { .. }
+                            )
+                    });
             let array_borrow = whole_array_result_borrow(
                 source.id,
                 structural_type,
@@ -1049,7 +1067,9 @@ pub(crate) fn validate_transfer_shape(
                     && !case_receiver_borrow
                     && !(argument.access == checked_trees::CheckedStructuralAccess::Owned
                         && argument.path.is_empty()))
-                || (!target.qualifications.is_empty() && !bounded_owner_borrow)
+                || (!target.qualifications.is_empty()
+                    && !bounded_owner_borrow
+                    && !bounded_owned_value)
                 || target.fused_service_erasure.is_some()
                 || transfers.iter().any(|transfer| {
                     arguments

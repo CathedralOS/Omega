@@ -293,6 +293,53 @@ fn validate_argument_construction_consumer(
     else {
         return unsupported("argument operand is not its call's own construction");
     };
+    // A copied operand keeps the declaration's exact qualification roster.
+    // This source-side join does not establish those predicates: Terminal
+    // independently reconstructs them from the copied field's declaration.
+    // Fresh constructors remain on their existing qualification-free route.
+    let copied_qualifications = match &operations[source.operation_index] {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. }
+            if checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .is_valid(*value)
+                && matches!(
+                    checked
+                        .facts
+                        .values
+                        .structural_values
+                        .nodes
+                        .get(*value)
+                        .kind,
+                    checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+                ) =>
+        {
+            let expression = checked
+                .facts
+                .values
+                .structural_values
+                .nodes
+                .get(*value)
+                .expression;
+            checked
+                .facts
+                .values
+                .structural_values
+                .root_for_expression(state, source.result.statement_index, expression)
+                .filter(|root| root.machine == machine)
+                .and_then(|root| {
+                    validation::structural_result_qualifications(
+                        &checked.typed,
+                        root.type_reference,
+                    )
+                    .ok()
+                })
+                .is_some_and(|qualifications| qualifications == parameter.qualifications)
+        }
+        _ => false,
+    };
     if source.operation_index >= consumer_index
         || !source.precedes_consumer(coordinate)
         || source.discard
@@ -302,7 +349,7 @@ fn validate_argument_construction_consumer(
         || parameter.access != argument.access
         || parameter.is_self
         || parameter.fused_service_erasure.is_some()
-        || !parameter.qualifications.is_empty()
+        || (!parameter.qualifications.is_empty() && !copied_qualifications)
         || source.result.multiplicity != parameter.multiplicity
         || argument.type_identity != source.result.type_identity
         || parameter.type_identity != source.result.type_identity
@@ -1394,10 +1441,11 @@ pub(crate) fn validate_consumer(
         }
         // A construction authored as this call's own argument moves whole
         // into the formal it was written for, and into no other consumer.
-        if matches!(
+        let argument_construction = matches!(
             producer.construction_source,
             Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
-        ) {
+        );
+        if argument_construction {
             validate_argument_construction_consumer(
                 checked,
                 caller,
@@ -1580,7 +1628,9 @@ pub(crate) fn validate_consumer(
                     } else {
                         result.multiplicity
                     }
-                || !parameter.qualifications.is_empty()
+                // Argument construction replay above already checked the
+                // copied operand's exact qualification roster.
+                || (!parameter.qualifications.is_empty() && !argument_construction)
                 || parameter.fused_service_erasure.is_some()
                 || target_entry_claims
                     .iter()
@@ -2035,6 +2085,17 @@ fn validate_operand_producers(
                     && validation::has_plain_owned_contents_with_represented_constraints(
                         &checked.typed, construction_type,
                     ));
+            // Source custody validates the complete qualified copied type.
+            // The result identity instead names its storage carrier, as it
+            // does for structural parameters; predicates remain separate.
+            let identity_type = if matches!(
+                node.kind,
+                checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+            ) {
+                crate::unit::attached_unit::structural_carrier_type(checked, construction_type)?
+            } else {
+                construction_type
+            };
             if names_result
                 && ((authored.boundary && !copied_array)
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
@@ -2042,7 +2103,7 @@ fn validate_operand_producers(
                     || !whole_owned_contents
                     || checked
                         .typed
-                        .normalized_type_identity(construction_type)
+                        .normalized_type_identity(identity_type)
                         .into_string()
                         != result.type_identity)
             {

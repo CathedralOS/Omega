@@ -979,7 +979,7 @@ impl Context<'_> {
     /// `carrier == "literal"` on a byte field or shared view local has no scalar
     /// operand pair, so checking decomposes it into the live-length comparison
     /// folded with one indexed-read equality per literal byte
-    /// (typed-trees-to-checked-trees `bounded_carrier_literal_equality`). The
+    /// (typed-trees-to-checked-trees `byte_carrier_literal_equality`). The
     /// authored expression retains no conjunct nodes, so correspondence
     /// replays that fold: the leftmost conjunct is the length equality and
     /// each subsequent right child is the byte equality at its literal index,
