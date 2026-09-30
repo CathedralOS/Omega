@@ -54,7 +54,7 @@ machine Output::forward(output: Output) -> Output {
 }
 
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let comparison: Output = Output::from_compare(
         Context { value: 30 },
         ScanCompareType::Immediate { compare_type: ScanCompareTypeImmediate::Equal }
@@ -65,11 +65,11 @@ machine Main::main(&mut self) reaches Console {
     let forwarded: Output = Output::forward(message);
     let constructed: bool = construct();
     transition comparison.value == 30 && forwarded.value == 40 && constructed {
-        true -> passed()
-        false -> failed()
+        true -> passed(main)
+        false -> failed(main)
     }
-    state passed(&mut self) { self.console.exit_process(70); }
-    state failed(&mut self) { self.console.exit_process(71); }
+    state passed(main: &mut Main) { main.console.exit_process(70); }
+    state failed(main: &mut Main) { main.console.exit_process(71); }
 }
 
 // Scalar-returning callers retain the same constructed argument occurrences
