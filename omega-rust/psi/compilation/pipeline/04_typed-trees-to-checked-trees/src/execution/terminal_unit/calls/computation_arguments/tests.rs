@@ -686,6 +686,96 @@ fn computed_receiver_alone_keeps_the_unit_callers_storage() {
     assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
 }
 
+#[test]
+fn computed_guard_receiver_retains_nested_predicate_byte_fields() {
+    let checked = checked(
+        r#"
+        domain [u8; 16]::Text requires valid_utf8(self);
+        data Cell [copy] { case Empty; case Room; }
+        data Label { text: [u8; 16] in Text; }
+        data Navigation { destination: Cell; label: Label; }
+        data Main { navigation: Navigation; }
+        machine Navigation::permits(&mut self, destination: Cell) -> bool {
+            transition { destination == Cell::Empty -> false _ -> true }
+        }
+        machine Main::run(&mut self) {
+            transition { _ -> attempt() }
+            state attempt(&mut self) {
+                let destination: Cell = self.navigation.destination;
+                transition self.navigation.permits(destination) {
+                    true -> allowed()
+                    false -> denied()
+                }
+            }
+            state allowed(&mut self) { }
+            state denied(&mut self) { }
+        }
+    "#,
+    );
+    let caller = machine(&checked.typed, "Main::run");
+    let state = &checked.machine_states(caller)[1];
+    let plans = &checked.facts.values.scalar_computations;
+    let root = plans
+        .root_at(state.symbol, 1, CheckedScalarExpressionRole::Guard)
+        .expect("borrowing a byte-bearing receiver retains the computed guard");
+    // A Boolean dispatch may wrap the call in its authored truth comparison.
+    // Follow that guard's graph, rather than requiring a call at its root.
+    let callee = machine(&checked.typed, "Navigation::permits");
+    let mut pending = vec![root.root];
+    let mut calls = Vec::new();
+    while let Some(handle) = pending.pop() {
+        use checked_trees::CheckedScalarComputationKind as Computation;
+        match plans.nodes.get(handle).kind {
+            Computation::Call {
+                target_machine,
+                structural_arguments,
+                ..
+            } if target_machine == callee.symbol => calls.push(structural_arguments),
+            Computation::Apply { operands, .. } => {
+                pending.extend(plans.operands.span(operands).unwrap().iter().copied())
+            }
+            Computation::Select {
+                condition,
+                when_true,
+                when_false,
+                ..
+            } => pending.extend([condition, when_true, when_false]),
+            Computation::SelectedComparison { left, right, .. } => pending.extend([left, right]),
+            Computation::Value(_) => {}
+            _ => panic!("unexpected computation in the Boolean receiver guard"),
+        }
+    }
+    let [structural_arguments] = calls.as_slice() else {
+        panic!("the selected guard evaluates its exact receiver call once");
+    };
+    let [
+        checked_trees::CheckedScalarComputationStructuralArgument::Place(receiver),
+        checked_trees::CheckedScalarComputationStructuralArgument::Place(destination),
+    ] = plans
+        .structural_arguments
+        .span(*structural_arguments)
+        .unwrap()
+    else {
+        panic!("the receiver loan and copied destination keep separate operands");
+    };
+    assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
+    assert_eq!(
+        receiver.path,
+        vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+            "navigation".to_owned()
+        )]
+    );
+    assert!(matches!(
+        receiver.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+    ));
+    assert_eq!(destination.access, CheckedStructuralAccess::Owned);
+    assert!(matches!(
+        destination.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+    ));
+}
+
 /// A borrowed parameter forwarded into a scalar computation names its slot in
 /// the structural roster. The roster strips `[erased]` formals, so an erased
 /// proof formal ahead of `values` must not shift the forwarded index, and
