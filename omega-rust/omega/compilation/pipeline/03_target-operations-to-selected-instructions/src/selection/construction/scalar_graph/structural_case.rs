@@ -65,17 +65,26 @@ pub(super) fn build(
                 place: declaration.place,
             },
         },
-        // The entry retains an owned parameter's value copy in its own slot.
-        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
+        // Only register-carried owned arrivals require an activation-local
+        // home. Other owned ABI arrivals already have addressable value storage.
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration }
+            if crate::selection::aggregate_result_input::owned_parameter_uses_local_home(
+                source,
+                declaration,
+            )
+            .ok_or_else(invalid)? =>
+        {
             selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::StructuralParameter {
                     place: declaration.place,
                 },
             }
         }
-        // A borrowed parameter has no activation copy; the entry-retained
-        // referent pointer addresses the caller's bytes directly.
-        legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { declaration } => {
+        // Borrow the entry-retained address for this observation. For an owned
+        // parameter it names the ABI value copy; for a loan it names the
+        // caller's referent. Neither changes the subject's semantic custody.
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration }
+        | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { declaration } => {
             let pointer = builder
                 .transport
                 .pointers

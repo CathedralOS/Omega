@@ -5,6 +5,144 @@ use super::{
 };
 
 #[test]
+fn address_carried_owned_parameter_dispatches_without_an_extra_value_copy() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let (mut abstracted, _, _) =
+            crate::tests::legalization::structural_case::parameter_fixture(native);
+        let terminal_psi::StructuralTypeShape::Sum { cases } =
+            &mut abstracted.structural_types.make_mut()[0].shape
+        else {
+            panic!("sum fixture")
+        };
+        let field = cases[1].fields[0].clone();
+        for ordinal in 0..3 {
+            cases[1]
+                .fields
+                .push(terminal_psi::StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(100 + ordinal).unwrap(),
+                    identity: format!("test::extra{ordinal}").into(),
+                    ..field.clone()
+                });
+        }
+        // Twenty bytes cross the ABI's register-carried aggregate boundary:
+        // x86-64 uses inline stack bytes, while AArch64 uses a value-copy pointer.
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstracted,
+            abstract_operations_to_target_operations::TargetLoweringRequest {
+                target: native,
+                settlements: &[abstract_operations_to_target_operations::AdmittedBoundarySettlement {
+                    boundary: semantic_vocabulary::BoundaryMachineId::new(2).unwrap(),
+                    execution: abstract_operations_to_target_operations::AdmittedBoundaryExecution::CompilerBuiltin(
+                        target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                    ),
+                    realization: target_operations::HostedWriteByteI32Realization.into(),
+                }],
+                installation: None,
+                native_callbacks: &[],
+            },
+        ).unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &abstracted,
+            semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        let legal = crate::legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .expect("owned ABI storage is already addressable");
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let place = semantic_vocabulary::PlaceId::new(1).unwrap();
+        let function = &selected.plan().functions[0];
+        assert!(
+            !function.local_storage_slots.iter().any(|slot| {
+                slot.id == selected_instructions::LocalStorageSlotId::StructuralParameter { place }
+            }),
+            "no redundant owned parameter home"
+        );
+        let entry = function
+            .blocks
+            .iter()
+            .find(|block| block.id == function.entry_block)
+            .unwrap();
+        let SelectedTerminator::ConditionalBranch {
+            when_zero,
+            when_nonzero,
+            ..
+        } = &entry.terminator
+        else {
+            panic!("case dispatch")
+        };
+        for successor in [when_zero, when_nonzero] {
+            assert!(matches!(successor.structural_case.as_ref().unwrap().source,
+                selected_instructions::SelectedCaseDispatchSource::Borrowed {
+                    place: retained, byte_size: 20, ..
+                } if retained == place));
+        }
+        for mutation in ["place", "pointer", "bound"] {
+            let mut forged = selected.plan().clone();
+            for block in &mut forged.functions[0].blocks {
+                let SelectedTerminator::ConditionalBranch {
+                    when_zero,
+                    when_nonzero,
+                    ..
+                } = &mut block.terminator
+                else {
+                    continue;
+                };
+                for successor in [when_zero, when_nonzero] {
+                    let Some(case) = &mut successor.structural_case else {
+                        continue;
+                    };
+                    let selected_instructions::SelectedCaseDispatchSource::Borrowed {
+                        place,
+                        pointer,
+                        byte_size,
+                    } = &mut case.source
+                    else {
+                        panic!("address-backed case")
+                    };
+                    match mutation {
+                        "place" => *place = semantic_vocabulary::PlaceId::new(99).unwrap(),
+                        "pointer" => pointer.0 += 1,
+                        _ => *byte_size += 1,
+                    }
+                }
+            }
+            assert!(
+                crate::validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    forged,
+                )
+                .is_err(),
+                "accepted substituted {mutation} on {native:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn joined_structural_return_rejects_owner_declaration_and_abi_substitution() {
     for native in [
         target::NativeTarget::linux_x64(),

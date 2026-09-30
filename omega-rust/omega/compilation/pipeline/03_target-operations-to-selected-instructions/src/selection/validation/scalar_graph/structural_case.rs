@@ -16,6 +16,7 @@ use selected_instructions::{
 use semantic_vocabulary::{IntegerType, PlaceId};
 
 pub(super) fn validate(
+    source: &legalized_operations::LegalizedScalarFunction,
     block: &LegalizedScalarBlock,
     replay: &mut Replay<'_>,
     catalog: &ValidatedRegisterConstraintCatalog,
@@ -58,17 +59,25 @@ pub(super) fn validate(
                 place: declaration.place,
             },
         },
-        // The entry retains an owned parameter's value copy in its own slot.
-        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
+        // Reconstruct the storage choice from the exact legalized ABI arrival,
+        // not from whether the producer happened to supply a frame slot.
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration }
+            if crate::selection::aggregate_result_input::owned_parameter_uses_local_home(
+                source,
+                declaration,
+            )
+            .ok_or_else(SelectedInstructionError::custody)? =>
+        {
             selected_instructions::SelectedCaseDispatchSource::Local {
                 slot: LocalStorageSlotId::StructuralParameter {
                     place: declaration.place,
                 },
             }
         }
-        // A borrowed parameter's referent pointer was retained at entry; the
-        // exact register is recorded on every selected case edge.
-        legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { declaration } => {
+        // Entry replay has already checked both loan pointers and addresses
+        // of owned ABI copies. Every case edge must retain that exact address.
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration }
+        | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { declaration } => {
             let SelectedTerminator::ConditionalBranch { when_zero, .. } = &replay.block.terminator
             else {
                 return Err(SelectedInstructionError::custody());
@@ -87,6 +96,13 @@ pub(super) fn validate(
             };
             if place != declaration.place
                 || byte_size != layout.shape.byte_size
+                || replay
+                    .transport
+                    .pointers
+                    .iter()
+                    .filter(|(stored, _)| *stored == place)
+                    .map(|(_, retained)| *retained)
+                    .ne(std::iter::once(pointer))
                 || !matches!(
                     replay
                         .selected

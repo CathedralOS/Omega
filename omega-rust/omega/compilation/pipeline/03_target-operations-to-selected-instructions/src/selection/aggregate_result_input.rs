@@ -5,6 +5,38 @@ use legalized_operations::{
 use semantic_vocabulary::PlaceId;
 use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
+/// Entry captures register fragments in an owned local home, but retains an
+/// address for inline-stack and indirect ABI value copies. Semantic ownership
+/// does not choose between those physical homes. Consumers must make the same
+/// distinction without requesting another copy just to observe the value.
+pub(super) fn owned_parameter_uses_local_home(
+    source: &LegalizedScalarFunction,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+) -> Option<bool> {
+    let mut parameters = source
+        .structural
+        .as_ref()?
+        .parameters
+        .iter()
+        .filter(|parameter| parameter.semantic.place == declaration.place);
+    let parameter = parameters.next()?;
+    if parameters.next().is_some()
+        || &parameter.semantic != declaration
+        || declaration.access != StructuralAccess::Owned
+    {
+        return None;
+    }
+    Some(
+        !parameter.target.placement.locations.is_empty()
+            && parameter.target.placement.locations.iter().all(|location| {
+                matches!(
+                    location,
+                    calling_conventions::ValueLocation::Register { .. }
+                )
+            }),
+    )
+}
+
 /// Owned aggregate inputs only need addressable storage when an operation observes a
 /// field, observes a projected case, lends the original value, or a case dispatch
 /// reads its tag and payloads. Pure whole-value transport keeps its ABI

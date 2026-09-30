@@ -867,7 +867,8 @@ the complete product bar; focused successes below do not establish that baseline
   The published array-shape repair gets past `Main::main`'s attached data shape
   without application changes. The application command remains `omega run
   --target linux_x86_64 --keep samples/apps/squalr/squalr-tests/main.omg`.
-  At `d06f18813f6`, it refuses `CommandDriver::run`, state 0, statement 7:
+  At `b084dba2112`, the optimized test-profile compiler returns in 156 seconds
+  and refuses `CommandDriver::run`, state 0, statement 7:
   `call operation: structural arguments: caller structural result`, at the
   `set_scan_settings(settings)` handoff after updating alignment. Unit-call
   copy classification is checkpointed separately on `repair-unit-copy`
@@ -884,19 +885,6 @@ the complete product bar; focused successes below do not establish that baseline
   Unit-call handoff or the application. Complete
   the documented native acceptance on Linux x86-64 after emission succeeds;
   cross-target compilation on macOS does not establish execution.
-  Selected record payloads now reuse stage 05's ordinary canonical field-path
-  resolver in `expression_preparation/bindings/structural_fields/`, preserving
-  full paths in successor-edge observations instead of a fixed-depth walk.
-  On macOS ARM64 atop `c32fa418799`, `python3 tools/corpus_gate.py --native
-  --filter structural/` builds five fixtures and checks three; the new
-  `runtime_selected_case_record_member_exit` reads distinct sibling counts and
-  exits 42. Its other arm also lowers a Boolean payload read. Independent
-  replay's 41 case-access/payload tests retain authority and mutation rejection.
-  Adding Boolean leaves beside the sibling integer leaves reaches a separate
-  native `SourceCustodyMismatch` at Omega stage 03's
-  `selection/construction/scalar_graph/structural_case.rs`: the owned subject
-  slot disagrees with the case layout's size/alignment. Coordinate that storage
-  repair with the live Omega compilation owner; do not weaken custody replay.
   Live reads still alias captured-current
   values and mark failure-default reads present while attached; preserve the
   seven-result delete/list oracle and add distinct recent-read presence/value.
