@@ -1568,15 +1568,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `fail/ranges/case_payload_domain_literal_out_of_range` and
   `fail/ranges/sum_payload_non_case_guard_unproven` keep rejecting.
 
-- **STATE-GRAPH-LOCAL-WHOLE-STORE.** (new-scope) Inside a multi-state graph,
-  `let v: Event = Event::Treasure { consumed: true, gold: 50 }; self.event = v;`
-  stops at stage 05 `state_graph/body.rs::validate_displaced_field_replacement`
-  with "Unit graph field replacement is not one producer and window pair": its
-  whole-value arm accepts only `Parameter` sources, while the single-state
-  `field_replacement::continues_bound_value` also accepts locals. The same holds
-  for a closed sum. Pin the two-state reduction as a runtime fixture and admit
-  the local source through the shared replacement route.
-
 - **LARGE-GRAPH-PAYLOAD-READ.** (new-scope) One 25-state graph that dispatches on
   four sums and reads their payloads fails Terminal verification of a late
   payload read (`InvalidIntegerStructuralField { operation: 114, field: 12 }`

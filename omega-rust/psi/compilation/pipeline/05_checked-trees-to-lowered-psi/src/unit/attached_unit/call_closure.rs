@@ -463,17 +463,49 @@ pub(super) fn validate_unit_operation_sequence(
                         ))?;
                 continue;
             }
-            CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-                if super::field_replacement::continues(&machine.operations, operation_index)
-                    || super::field_replacement::continues_bound_value(
+            CheckedUnitEffectOperationPlan::StoreStructuralField {
+                statement_index,
+                value,
+                ..
+            } if super::field_replacement::continues(&machine.operations, operation_index)
+                || super::field_replacement::continues_bound_value(
+                    &machine.operations,
+                    operation_index,
+                )
+                || super::field_replacement::continues_array_elements(
+                    &machine.operations,
+                    operation_index,
+                ) =>
+            {
+                if !super::field_replacement::continues(&machine.operations, operation_index)
+                    && !super::field_replacement::continues_array_elements(
                         &machine.operations,
                         operation_index,
                     )
-                    || super::field_replacement::continues_array_elements(
+                {
+                    let (_, source) =
+                        crate::expression_preparation::source_custody::authored_state(
+                            checked,
+                            machine.state,
+                        )?;
+                    let Some(checked_trees::statement::StatementNode::Assignment(assignment)) =
+                        checked
+                            .statement_table
+                            .statements(source.statement_nodes)
+                            .get(*statement_index as usize)
+                    else {
+                        return unsupported("bound field replacement has no authored assignment");
+                    };
+                    super::field_replacement::bound_value_type(
+                        checked,
+                        source,
+                        *statement_index as usize,
+                        assignment.value,
+                        value,
+                        &machine.structural_parameters,
                         &machine.operations,
-                        operation_index,
-                    ) =>
-            {
+                    )?;
+                }
                 continue;
             }
             CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {

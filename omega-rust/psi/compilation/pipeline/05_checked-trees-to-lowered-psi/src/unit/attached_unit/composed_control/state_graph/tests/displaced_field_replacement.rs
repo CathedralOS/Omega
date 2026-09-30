@@ -12,6 +12,111 @@ use checked_trees::{
 };
 use terminal_psi::{OperationKind, Terminator};
 
+#[test]
+fn bound_field_replacement_rejects_another_equal_typed_local() {
+    // Both bodies store the same declared local. Copy multiplicity makes the
+    // other local legally available too, so rejection must prove identity,
+    // not merely notice an extra affine consumption.
+    for ending in [
+        "",
+        "transition context.cell.value == 19 { true -> done(context) _ -> done(context) }
+         state done(context: &mut Context) {}",
+    ] {
+        let source = format!(
+            "data Cell [copy] {{ value: u64; }}
+             data Context {{ cell: Cell; }}
+             machine replace(context: &mut Context) {{
+                 let first: Cell = Cell {{ value: 17 }};
+                 let second: Cell = Cell {{ value: 19 }};
+                 context.cell = second;
+                 {ending}
+             }}"
+        );
+        let original = crate::front_end::checked_program(&source);
+        let machine = original
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "replace")
+            .expect("replacement machine");
+        let authored = &original.machine_states(machine)[0];
+        // Exercise the independent source replay in both consumers. The
+        // native corpus separately executes affine mixed and closed sums;
+        // this control uses two simultaneously live copy records so it tests
+        // source identity without depending on affine-use rejection.
+        let replay = |checked: &CheckedTrees| {
+            let plans = &checked.facts.flow.terminal_unit_effects;
+            if let Some(plan) = plans.for_machine(machine.symbol) {
+                crate::unit::attached_unit::call_closure::validate_unit_operation_sequence(
+                    checked, plan,
+                )
+            } else {
+                let plan = plans
+                    .composed_machines
+                    .iter()
+                    .find(|plan| plan.machine == machine.symbol)
+                    .expect("composed replacement");
+                super::super::body::validate(checked, machine.symbol, authored, &plan.states[0])
+                    .map(|_| ())
+            }
+        };
+        replay(&original).expect("both bodies rejoin their actual bound source");
+        let lowered = crate::lower_machine(&original, TerminalMachineSelection::Name("replace"))
+            .expect("bound copy storage remains executable after a construction join");
+        terminal_verifier::validate_module(&lowered.semantic_module).expect("valid owned copy");
+        let first = original
+            .statement_table
+            .statements(authored.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                checked_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+                _ => None,
+            })
+            .expect("first local");
+        for substitute in [
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: 0 },
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: first },
+        ] {
+            let mut forged = original.clone();
+            let plans = &mut forged.facts.flow.terminal_unit_effects;
+            let operations = if let Some(plan) = plans
+                .machines
+                .iter_mut()
+                .find(|plan| plan.machine == machine.symbol)
+            {
+                &mut plan.operations
+            } else {
+                &mut plans
+                    .composed_machines
+                    .iter_mut()
+                    .find(|plan| plan.machine == machine.symbol)
+                    .expect("composed replacement")
+                    .states[0]
+                    .operations
+            };
+            let value = operations
+                .iter_mut()
+                .find_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } => {
+                        Some(value)
+                    }
+                    _ => None,
+                })
+                .expect("one whole-value store");
+            value.source = substitute;
+            let error = replay(&forged)
+                .expect_err("same-carrier storage cannot replace the authored local");
+            let diagnostic = error.to_string();
+            assert!(
+                diagnostic.contains("bound field replacement substituted its local or producer")
+                    || diagnostic.contains(
+                        "Unit graph field replacement stores another value than its call"
+                    ),
+                "the bound local or its freshly copied snapshot must retain its source: {error}"
+            );
+        }
+    }
+}
+
 /// The `calls/value_call_effectful_arm_rejected` customer's shape: an
 /// effectful multi-state callee returns a record that replaces a record field
 /// of the caller's exclusive receiver, and a later guard reads it back.

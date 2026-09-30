@@ -1437,9 +1437,9 @@ fn validate_displaced_field_replacement(
                 ),
             )
         }
-        // A whole parameter moves straight into the window: no producing
-        // operation exists, the parameter itself is the value. The statement
-        // roster is only the window pair and its continuation cleanup.
+        // A bound value already has storage: no new producer belongs to this
+        // statement. Rejoin the same parameter/local registry used by ordinary
+        // field replacement, then validate this window and its cleanup below.
         [
             CheckedUnitEffectOperationPlan::MoveStructuralField {
                 result: moved,
@@ -1450,43 +1450,16 @@ fn validate_displaced_field_replacement(
             },
             cleanup @ ..,
         ] => {
-            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index,
-            } = value.source
-            else {
-                return unsupported(
-                    "Unit graph field replacement is not one producer and window pair",
-                );
-            };
-            let parameter = state
-                .structural_parameters
-                .get(parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph field replacement names no structural parameter",
-                ))?;
-            let authored = checked
-                .state_parameters(source)
-                .get(parameter.position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph field replacement parameter position is out of range",
-                ))?;
-            // The authored right-hand side must name exactly that parameter's
-            // own symbol, and the parameter must be a plain owned carrier —
-            // borrowed or qualified parameters have their own moves.
-            let rhs_symbol = match checked.expression_table.expression(assignment.value) {
-                checked_trees::expression::ExpressionNode::Name(path) => path.head_symbol,
-                _ => symbols::SymbolHandle::invalid(),
-            };
-            if authored.symbol != rhs_symbol
-                || parameter.is_self
-                || parameter.access != checked_trees::CheckedStructuralAccess::Owned
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-            {
-                return unsupported(
-                    "Unit graph field replacement parameter is not the authored value",
-                );
-            }
+            let (identity, multiplicity) =
+                crate::unit::attached_unit::field_replacement::bound_value_type(
+                    checked,
+                    source,
+                    ordinal,
+                    assignment.value,
+                    value,
+                    &state.structural_parameters,
+                    &state.operations,
+                )?;
             (
                 moved,
                 place,
@@ -1494,8 +1467,8 @@ fn validate_displaced_field_replacement(
                 value,
                 cleanup,
                 (
-                    parameter.type_identity.clone(),
-                    parameter.multiplicity,
+                    identity,
+                    multiplicity,
                     moved.statement_index,
                     value.source.clone(),
                 ),
