@@ -789,6 +789,29 @@ pub(crate) fn integer_literal_handle(
 ) -> Option<i64> {
     match proof_plan.program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => value.value_i64(),
+        // A binary of literal operands is still a literal (`0 - 10` authors
+        // the signed lower bound of a requires conjunct): fold it through the
+        // range folder and keep it only when the result is a single point.
+        ExpressionNode::Binary(binary) => {
+            let left = integer_literal_handle(proof_plan, binary.left)?;
+            let right = integer_literal_handle(proof_plan, binary.right)?;
+            let folded = integer_binary_range(
+                binary.operator,
+                IntegerRange {
+                    minimum: BigInt::from_i64(left),
+                    maximum: BigInt::from_i64(left),
+                },
+                IntegerRange {
+                    minimum: BigInt::from_i64(right),
+                    maximum: BigInt::from_i64(right),
+                },
+            )?;
+            if folded.minimum == folded.maximum {
+                folded.minimum.to_i64()
+            } else {
+                None
+            }
+        }
         ExpressionNode::Name(path)
             if proof_plan
                 .program

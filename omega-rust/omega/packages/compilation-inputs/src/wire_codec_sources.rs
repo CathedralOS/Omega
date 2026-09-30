@@ -339,12 +339,20 @@ fn constraint_facts(
                 if !domain.arguments.is_empty() {
                     return Err(());
                 }
+                // `u32 in WireValue` names the domain declared as
+                // `domain u32::WireValue`: the declaration's name is
+                // carrier-qualified while the constraint spells only its
+                // last segment. Try the authored spelling first, then its
+                // carrier-qualified form.
                 let mut matched = false;
-                if let Some(carriers) = domains.get(domain.name.as_str()) {
-                    for (carrier, span) in carriers {
-                        if carrier == base_name {
-                            facts.push(sources.text_at(*span).to_string());
-                            matched = true;
+                let qualified = format!("{base_name}::{}", domain.name.as_str());
+                for key in [domain.name.as_str(), qualified.as_str()] {
+                    if let Some(carriers) = domains.get(key) {
+                        for (carrier, span) in carriers {
+                            if carrier == base_name {
+                                facts.push(sources.text_at(*span).to_string());
+                                matched = true;
+                            }
                         }
                     }
                 }
@@ -1159,15 +1167,16 @@ fn member_facts(
             MemberShape::Scalar(kind) => (*kind, None),
             MemberShape::FixedScalarArray { element, length } => (*element, Some(*length)),
         };
-        let facts = value_field_facts(
+        let Ok(facts) = value_field_facts(
             syntax_trees,
             sources,
             domains,
             value_fields.get(member.name.as_str()).copied(),
             expected,
             array_length,
-        )
-        .ok()?;
+        ) else {
+            return None;
+        };
         if expected == ScalarKind::Bool && !facts.is_empty() {
             return None;
         }

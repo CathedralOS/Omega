@@ -9,7 +9,7 @@
 //! must be exactly the lent collection's element — an equal-shaped or
 //! same-named collection supplies no view custody.
 use super::{
-    Builder, ExpressionHandle, StatementNode, TypeReferenceNode, TypedTrees,
+    Builder, ExpressionHandle, ExpressionNode, StatementNode, TypeReferenceNode, TypedTrees,
     structural_values::canonical_place_is_borrowable,
 };
 use checked_trees::{CheckedStructuralAccess, CheckedStructuralValueKind};
@@ -55,13 +55,39 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        if local.is_mutable
-            || !local.symbol.is_valid()
-            || local.initial_value != expression
-            || local.type_reference != expected
-        {
+        if local.is_mutable || !local.symbol.is_valid() {
             return None;
         }
+        // A view that supplies one record field (`Sample { bytes:
+        // self.source[0..2] }`) forms the same loan under the literal's
+        // owner: the loan's owner path names the field it fills. Only a
+        // case-free record literal hosts a field-level view; the field's
+        // declared type is the caller's `expected`.
+        let field_symbol = if local.initial_value == expression {
+            if local.type_reference != expected {
+                return None;
+            }
+            None
+        } else {
+            let ExpressionNode::StructLiteral(literal) = self
+                .program
+                .expression_table
+                .expression(local.initial_value)
+            else {
+                return None;
+            };
+            if literal.case_symbol.is_some() {
+                return None;
+            }
+            Some(
+                self.program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .find(|initializer| initializer.value == expression)?
+                    .field_symbol,
+            )
+        };
         let borrow_state = self
             .borrow
             .states
@@ -76,7 +102,19 @@ impl Builder<'_, '_> {
             .loans
             .span_or_empty(borrow_state.loans)
             .iter()
-            .filter(|loan| loan.owner_symbol == local.symbol);
+            .filter(|loan| {
+                loan.owner_symbol == local.symbol
+                    && match field_symbol {
+                        Some(symbol) => {
+                            self.borrow
+                                .owner_segments
+                                .span_or_empty(loan.owner_path)
+                                .last()
+                                == Some(&checked_trees::BorrowLoanOwnerSegment::Field(symbol))
+                        }
+                        None => true,
+                    }
+            });
         let loan = loans.next()?;
         if loans.next().is_some() || loan.statement_index != self.statement_index {
             return None;
