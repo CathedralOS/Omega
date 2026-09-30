@@ -49,3 +49,31 @@ fn the_single_computed_join_has_exact_independent_budget_boundaries() {
     let replay = fixture.prove(SearchBudget::default());
     fixture.admit(&replay);
 }
+
+#[test]
+fn an_exhausted_search_records_its_refused_capacity_in_the_scope_ledger() {
+    use crate::lowering_error::{LoweringError, ProofSearchCapacity};
+    use crate::proofs::nonzero_divisor_certificate::search_context::SearchContext;
+
+    let fixture = outer_fork_join(IntegerSign::Unsigned, 16, false, false);
+    let search = SearchContext::enter(&fixture.context);
+    let outcome = fixture.prove(SearchBudget {
+        definition_visits: 4,
+        depth: 3,
+        computed_joins: 0,
+    });
+    assert!(outcome.exhausted);
+    assert_eq!(outcome.usage.computed_joins, 0);
+
+    // The declined join — the first refused draw — names the capacity an
+    // obligation left unmet publishes rather than a disproof.
+    let unmet = semantic_vocabulary::ObligationId::new(7).unwrap();
+    assert_eq!(
+        search.take_declines().unproved_obligation_error(unmet),
+        LoweringError::ProofSearchCapacityExhausted {
+            capacity: ProofSearchCapacity::NonzeroDivisorComputedJoins,
+            requested: 1,
+            obligation: unmet,
+        },
+    );
+}

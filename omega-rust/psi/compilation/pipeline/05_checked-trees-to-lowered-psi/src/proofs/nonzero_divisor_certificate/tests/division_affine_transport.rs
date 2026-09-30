@@ -1306,6 +1306,7 @@ fn correlated_forbidden_root_producer_is_shared_by_exact_divide_and_remainder() 
         &assumptions,
         &axioms,
         &parameters,
+        &mut crate::proofs::ProofSearchDeclines::default(),
     )
     .expect("same-root affine exact divide is certified");
     let remainder = produce_checked_canonical_integer_proof(
@@ -1314,6 +1315,7 @@ fn correlated_forbidden_root_producer_is_shared_by_exact_divide_and_remainder() 
         &assumptions,
         &axioms,
         &parameters,
+        &mut crate::proofs::ProofSearchDeclines::default(),
     )
     .expect("same-root affine exact remainder uses the same definedness certificate");
     assert_eq!(divide, remainder);

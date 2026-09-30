@@ -100,7 +100,7 @@ pub(super) fn retain_provable(
     // A valid module may have consumers that forbid additional guarantees
     // (for example, dynamic realizations). Such a proposal also declines.
     let proved = matches!(
-        proves_and_preserves_evidence(lowered, &original, &added),
+        proves_and_preserves_evidence(lowered, &original, &added, declines),
         Ok(true)
     );
     if !proved {
@@ -601,6 +601,7 @@ fn proves_and_preserves_evidence(
     lowered: &LoweredPsi,
     original: &ReconstructedTerminalObligationSet,
     added: &[ObligationId],
+    declines: &mut ProofSearchDeclines,
 ) -> Result<bool, LoweringError> {
     let validated = terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
@@ -631,6 +632,7 @@ fn proves_and_preserves_evidence(
             &site.requirements,
             &site.semantic_axioms,
             &parameters,
+            declines,
         )
         .or_else(|| {
             produce_relaxed_integer_proof(
@@ -639,6 +641,7 @@ fn proves_and_preserves_evidence(
                 &site.requirements,
                 &site.semantic_axioms,
                 &parameters,
+                declines,
             )
         })
         .is_none()

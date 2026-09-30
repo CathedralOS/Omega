@@ -18,6 +18,9 @@ use std::marker::PhantomData;
 
 use semantic_vocabulary::PropositionContext;
 
+use crate::lowering_error::ProofSearchCapacity;
+use crate::proofs::ProofSearchDeclines;
+
 thread_local! {
     /// Distinct proposition contexts this worker has proved under; a
     /// context's token is its index here.
@@ -25,6 +28,24 @@ thread_local! {
 
     /// The innermost live search's borrowed context and its resolved token.
     static ACTIVE: Cell<Option<(*const PropositionContext, usize)>> = const { Cell::new(None) };
+
+    /// One decline ledger per live search scope, innermost last. A refused
+    /// draw belongs to the scope it happened under — not to the producer
+    /// call chain between them — so a route nested arbitrarily deep in one
+    /// search records where the search's entry can drain it, exactly as
+    /// token lookups resolve against the innermost context.
+    static DECLINES: RefCell<Vec<ProofSearchDeclines>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Account one refused draw's total demand on `capacity` in the innermost
+/// live search's ledger. Route internals tested without a scope decline
+/// with no ledger to carry the refusal.
+pub(super) fn record_decline(capacity: ProofSearchCapacity, requested: u64) {
+    DECLINES.with(|cell| {
+        if let Some(ledger) = cell.borrow_mut().last_mut() {
+            ledger.record_demand(capacity, requested);
+        }
+    });
 }
 
 /// The content token for `context`.
@@ -65,15 +86,32 @@ impl<'context> SearchContext<'context> {
         let token = token(context);
         let enclosing =
             ACTIVE.with(|active| active.replace(Some((std::ptr::from_ref(context), token))));
+        DECLINES.with(|cell| cell.borrow_mut().push(ProofSearchDeclines::default()));
         Self {
             enclosing,
             context: PhantomData,
         }
+    }
+
+    /// This scope's recorded declines, moved out so the caller's own ledger
+    /// can carry them into fallback search and finalization. The scope's
+    /// cell is the innermost live one, so undrained nested scopes can only
+    /// contribute their own refusals.
+    pub(super) fn take_declines(&self) -> ProofSearchDeclines {
+        DECLINES.with(|cell| {
+            cell.borrow_mut()
+                .last_mut()
+                .map(std::mem::take)
+                .unwrap_or_default()
+        })
     }
 }
 
 impl Drop for SearchContext<'_> {
     fn drop(&mut self) {
         ACTIVE.with(|active| active.set(self.enclosing));
+        DECLINES.with(|cell| {
+            cell.borrow_mut().pop();
+        });
     }
 }

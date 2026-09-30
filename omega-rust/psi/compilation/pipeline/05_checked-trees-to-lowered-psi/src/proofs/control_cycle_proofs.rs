@@ -15,7 +15,7 @@ use terminal_psi::ControlCycleEvidence;
 /// disproof of the module.
 pub(crate) fn finalize(
     lowered: &mut LoweredPsi,
-    declines: &ProofSearchDeclines,
+    declines: &mut ProofSearchDeclines,
 ) -> Result<(), LoweringError> {
     let started = std::time::Instant::now();
     let questions =
@@ -57,8 +57,9 @@ pub(crate) fn finalize(
             .iter()
             .map(|parameter| parameter.id)
             .collect();
-        let produce = |obligation: &CertificateObligation| -> Result<EvidenceRoute, LoweringError> {
-            let proof = if obligation.semantic_axioms.first()
+        let mut produce =
+            |obligation: &CertificateObligation| -> Result<EvidenceRoute, LoweringError> {
+                let proof = if obligation.semantic_axioms.first()
                 == Some(&obligation.obligation.proposition)
             {
                 Some(ProofNode {
@@ -72,16 +73,17 @@ pub(crate) fn finalize(
                     &obligation.assumptions,
                     &obligation.semantic_axioms,
                     &parameters,
+                    declines,
                 )
             }
             .ok_or_else(|| declines.unproved_obligation_error(obligation.obligation.id))?;
-            Ok(EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity: EvidenceIdentity::new(obligation.obligation.id.get())
-                    .expect("nonzero obligation"),
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof,
-            }))
-        };
+                Ok(EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: EvidenceIdentity::new(obligation.obligation.id.get())
+                        .expect("nonzero obligation"),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof,
+                }))
+            };
         let well_foundedness = produce(&question.obligation.well_foundedness)?;
         let edges = question
             .obligation

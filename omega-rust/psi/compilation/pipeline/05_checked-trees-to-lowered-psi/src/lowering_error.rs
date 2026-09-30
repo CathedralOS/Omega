@@ -37,6 +37,17 @@ pub enum ProofSearchCapacity {
     /// nonzero identity provision, larger than any scalar-resource limit
     /// the outcome table can publish.
     TerminalObligationIdentities,
+    /// The nonzero-divisor certificate's direct-add conjunction search:
+    /// shared definition-DAG visits across one obligation
+    /// (`proof_search_divisor_definition_visits`).
+    NonzeroDivisorDefinitionVisits,
+    /// The same search's nested operand derivation depth
+    /// (`proof_search_divisor_search_depth`).
+    NonzeroDivisorSearchDepth,
+    /// The same search's add-of-adds certificate joins — each join nests
+    /// one bound certificate, so the count bounds derivation stacking
+    /// (`proof_search_divisor_computed_joins`).
+    NonzeroDivisorComputedJoins,
 }
 
 impl ProofSearchCapacity {
@@ -49,6 +60,9 @@ impl ProofSearchCapacity {
             Self::CyclicGuaranteeCandidateWork => "proof_search_cyclic_guarantee_work",
             Self::ScalarResultGuaranteeWork => "proof_search_result_guarantee_work",
             Self::TerminalObligationIdentities => "proof_obligation_identities",
+            Self::NonzeroDivisorDefinitionVisits => "proof_search_divisor_definition_visits",
+            Self::NonzeroDivisorSearchDepth => "proof_search_divisor_search_depth",
+            Self::NonzeroDivisorComputedJoins => "proof_search_divisor_computed_joins",
         }
     }
 
@@ -64,6 +78,9 @@ impl ProofSearchCapacity {
             Self::CyclicGuaranteeCandidateWork => 4096,
             Self::ScalarResultGuaranteeWork => 4096,
             Self::TerminalObligationIdentities => u64::MAX,
+            Self::NonzeroDivisorDefinitionVisits => 128,
+            Self::NonzeroDivisorSearchDepth => 32,
+            Self::NonzeroDivisorComputedJoins => 8,
         }
     }
 }

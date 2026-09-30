@@ -100,6 +100,9 @@ fn finalize_operation_proofs_inner(
         let _counted = crate::proofs::proof_timing::Counted::enter(
             crate::proofs::proof_timing::count_producer,
         );
+        // Each search records into its own ledger so workers never borrow the
+        // batch's; declines join in batch order the same way verdicts do.
+        let mut search_declines = super::ProofSearchDeclines::default();
         let owner = owners.get(&site.owner.machine());
         let assumptions = site.requirements.as_slice();
         let proof = if let Some((machine, preparation)) = owner
@@ -134,6 +137,7 @@ fn finalize_operation_proofs_inner(
                 assumptions,
                 &site.semantic_axioms,
                 machine_parameter_values,
+                &mut search_declines,
             )
             // Obligations whose operands meet cited facts only through
             // equality/definition chains outgrow the canonical custody
@@ -146,6 +150,7 @@ fn finalize_operation_proofs_inner(
                     assumptions,
                     &site.semantic_axioms,
                     machine_parameter_values,
+                    &mut search_declines,
                 )
             })
             // Contract `Atom` cites — a retained float-meaning equality row,
@@ -166,21 +171,9 @@ fn finalize_operation_proofs_inner(
                 &site.semantic_axioms,
             )
         };
-        // An unproved site is the ordinary rejection only while no named
-        // capacity declined: after a decline the refusal is the publication
-        // contract's `Incomplete` outcome, never a claim the site is false.
-        let proof = proof.ok_or_else(|| declines.unproved_obligation_error(site.obligation.id))?;
-        Ok::<_, LoweringError>(ObligationEvidence {
-            obligation: site.obligation.id,
-            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity: EvidenceIdentity::new(site.obligation.id.get())
-                    .expect("terminal obligations have nonzero identities"),
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof,
-            }),
-        })
+        Ok::<_, LoweringError>((proof, search_declines))
     };
-    let generated = if pending.len() < PARALLEL_PROOF_THRESHOLD {
+    let outcomes = if pending.len() < PARALLEL_PROOF_THRESHOLD {
         pending.iter().map(produce).collect::<Result<Vec<_>, _>>()?
     } else {
         // Certificate searches are independent and read only validated module
@@ -221,16 +214,35 @@ fn finalize_operation_proofs_inner(
             generated.sort_by_key(|(index, _)| *index);
             generated
                 .into_iter()
-                .map(|(_, evidence)| evidence)
+                .map(|(_, outcome)| outcome)
                 .collect::<Result<Vec<_>, _>>()
         })?
     };
+    let mut generated = Vec::with_capacity(outcomes.len());
+    for (site, (proof, local)) in pending.iter().zip(outcomes) {
+        // A produced site's own declines merge before its unproved verdict
+        // reads the ledger, in batch order. An unproved site is the ordinary
+        // rejection only while no named capacity declined: after a decline the
+        // refusal is the publication contract's `Incomplete` outcome, never a
+        // claim the site is false.
+        declines.extend(local);
+        let proof = proof.ok_or_else(|| declines.unproved_obligation_error(site.obligation.id))?;
+        generated.push(ObligationEvidence {
+            obligation: site.obligation.id,
+            route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                identity: EvidenceIdentity::new(site.obligation.id.get())
+                    .expect("terminal obligations have nonzero identities"),
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof,
+            }),
+        });
+    }
     lowered.proof_bundle.evidence.extend(generated);
     lowered
         .proof_bundle
         .evidence
         .sort_by_key(|evidence| evidence.obligation);
-    crate::proofs::control_cycle_proofs::finalize(lowered, &declines)?;
+    crate::proofs::control_cycle_proofs::finalize(lowered, &mut declines)?;
     crate::proofs::proof_timing::report("finalize_operation_proofs done");
     Ok(())
 }
