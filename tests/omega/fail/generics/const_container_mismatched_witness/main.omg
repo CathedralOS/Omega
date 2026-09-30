@@ -1,0 +1,12 @@
+// One const binder cannot name both the record's capacity and another extent.
+data FixedBuffer<const Capacity: u64> where Capacity >= 1 {
+    items: [i32; Capacity];
+}
+
+machine FixedBuffer::capacity<const Capacity: u64>(buffer: &FixedBuffer<Capacity>, witness: &[u8; Capacity]) -> u64 {
+    transition { _ -> Capacity }
+}
+
+machine mismatched(buffer: &FixedBuffer<2>, witness: &[u8; 4]) -> u64 {
+    transition { _ -> FixedBuffer::capacity(buffer, witness) }
+}

@@ -186,7 +186,8 @@ fn symbolic_extent_index_is_proven(
 ) -> bool {
     let collection_label = program.expression_table.display_name(collection);
     let index_label = program.expression_table.display_name(index);
-    let floor = super::types::symbolic_extent_floor(program, machine, state, extent.0, &extent.1);
+    let floor =
+        super::types::collection_symbolic_extent_floor(program, machine, state, collection, extent);
     facts.index_is_proven(&collection_label, &index_label)
         // `index` folds to `k` and `k < floor(N)` (`const N: u64[1..=18446744073709551615]` proves
         // `items[0]`); an unranged unsigned binder floors at 0 and proves none.
@@ -227,7 +228,8 @@ fn symbolic_extent_range_bound_is_proven(
 ) -> bool {
     let collection_label = program.expression_table.display_name(collection);
     let bound_label = program.expression_table.display_name(bound);
-    let floor = super::types::symbolic_extent_floor(program, machine, state, extent.0, &extent.1);
+    let floor =
+        super::types::collection_symbolic_extent_floor(program, machine, state, collection, extent);
     facts.range_bound_is_proven(&collection_label, &bound_label)
         || symbolic_extent_is_named(program, machine, state, collection, bound, extent)
         // A declared `u64[..N]` or `u64[..=N]` bound asserts `bound <= N`

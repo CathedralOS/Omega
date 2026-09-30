@@ -372,9 +372,12 @@ pub(crate) fn borrowed_nominal_argument(
         language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
         _ => return None,
     };
+    // A closed generic application is the same nominal carrier as its retained
+    // synthesized instance. Contents, exact identity and collected shape below
+    // still decide eligibility; syntax kind alone must not exclude the borrow.
     if !matches!(
         program.type_reference_table.type_reference(*referee),
-        TypeReferenceNode::Named { .. }
+        TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
     ) {
         return None;
     }
@@ -388,11 +391,7 @@ pub(crate) fn borrowed_nominal_argument(
             .find_named_type_reference(owner.attached_data_symbol)?;
         base_type_identity(program, reference, &[])?
     } else {
-        if !matches!(
-            program.type_reference_table.type_reference(*referee),
-            TypeReferenceNode::Named { .. }
-        ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, *referee)
-        {
+        if !validation::has_plain_owned_contents_with_numeric_constraints(program, *referee) {
             return None;
         }
         base_type_identity(program, *referee, &[])?
@@ -422,7 +421,7 @@ pub(crate) fn borrowed_nominal_argument(
             {
                 *referee
             }
-            TypeReferenceNode::Named { .. }
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
                 if target_access == CheckedStructuralAccess::SharedBorrow
                     || parameter.is_mutable
                     || parameter.is_self =>
@@ -513,7 +512,9 @@ pub(crate) fn borrowed_nominal_argument(
             {
                 (*referee, true)
             }
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
+            TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::FixedArray { .. }
                 if target_access == CheckedStructuralAccess::SharedBorrow || local.is_mutable =>
             {
                 (local.type_reference, false)
@@ -544,7 +545,9 @@ pub(crate) fn borrowed_nominal_argument(
     } else if whole_storage
         && (!matches!(
             program.type_reference_table.type_reference(reference),
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
+            TypeReferenceNode::Named { .. }
+                | TypeReferenceNode::Generic { .. }
+                | TypeReferenceNode::FixedArray { .. }
         ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
             || !matches!(
                 program.type_multiplicity(reference),

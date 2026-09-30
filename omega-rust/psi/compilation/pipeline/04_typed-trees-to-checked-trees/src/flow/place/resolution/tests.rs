@@ -7,6 +7,132 @@ use symbols::SymbolHandle;
 use typed_trees::expression::TableMemberExpression;
 use typed_trees::statement::StatementNode;
 
+#[test]
+fn closed_const_members_and_flat_paths_select_only_their_instance_fields() {
+    use typed_trees::expression::{Expression, NamePath};
+    let mut program = crate::tests::front_end::typed_program_with_generic_data_result(
+        "data Buffer<const Count: u64> { items: [u32 in Wrapping; Count]; }
+         data Foreign { items: [u32 in Wrapping; 2]; }
+         machine inspect(first: &Buffer<2>, second: &Buffer<4>) {}",
+    )
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "inspect")
+        .unwrap();
+    let state = &program.machine_states(machine)[0];
+    let state_symbol = state.symbol;
+    let parameters = program.state_parameters(state).to_vec();
+    let instance_fields = parameters
+        .iter()
+        .map(|parameter| {
+            let instance = super::closed_generic_owner(&program, parameter.type_reference).unwrap();
+            let typed_trees::data::DataMember::Field(field) = &program.data_members(instance)[0]
+            else {
+                panic!("array field");
+            };
+            field.symbol
+        })
+        .collect::<Vec<_>>();
+    let template = declared_field(&program, "Buffer", "items");
+    let foreign = declared_field(&program, "Foreign", "items");
+    for (ordinal, parameter) in parameters.iter().enumerate() {
+        let receiver = program
+            .expression_table
+            .insert_tree(&Expression::Name(NamePath::resolved(
+                vec![parameter.name.clone()],
+                parameter.symbol,
+                parameter.symbol,
+            )));
+        for (retained, accepted) in [
+            (template, true),
+            (instance_fields[ordinal], true),
+            (SymbolHandle::invalid(), true),
+            (foreign, false),
+            (instance_fields[1 - ordinal], false),
+        ] {
+            let member =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Member(TableMemberExpression {
+                        receiver,
+                        member: Identifier::generated("items"),
+                        member_symbol: retained,
+                        case_variant: None,
+                    }));
+            let flat = program
+                .expression_table
+                .insert_tree(&Expression::Name(NamePath::resolved(
+                    vec![parameter.name.clone(), Identifier::generated("items")],
+                    parameter.symbol,
+                    retained,
+                )));
+            for expression in [member, flat] {
+                let plain =
+                    crate::flow::canonical_place_from_expression(&program, expression).unwrap();
+                let contextual = crate::flow::contextual_canonical_place_from_expression(
+                    &program,
+                    state_symbol,
+                    0,
+                    expression,
+                )
+                .unwrap();
+                assert_eq!(plain, contextual);
+                let expected = if accepted {
+                    instance_fields[ordinal]
+                } else {
+                    SymbolHandle::invalid()
+                };
+                assert_eq!(
+                    plain.segments,
+                    [facts::PlaceSegment::Field { symbol: expected }]
+                );
+            }
+        }
+        let (field_handle, original_type) = program
+            .tables
+            .data_members
+            .iter()
+            .find_map(|(handle, member)| {
+                let typed_trees::data::DataMember::Field(field) = member else {
+                    return None;
+                };
+                (field.symbol == instance_fields[ordinal]).then_some((handle, field.type_reference))
+            })
+            .unwrap();
+        for invalid_type in [
+            typed_trees::types::TypeReferenceHandle::invalid(),
+            typed_trees::types::TypeReferenceHandle::from_parts(
+                original_type.arena_index(),
+                original_type.generation() + 1,
+            ),
+        ] {
+            let mut invalid = program.clone();
+            let typed_trees::data::DataMember::Field(field) =
+                invalid.tables.data_members.get_mut(field_handle)
+            else {
+                panic!("instance field");
+            };
+            field.type_reference = invalid_type;
+            let member = TableMemberExpression {
+                receiver,
+                member: "items".into(),
+                member_symbol: template,
+                case_variant: None,
+            };
+            assert!(!effective_member_symbol(&invalid, receiver, &member).is_valid());
+            let reference =
+                validation::unwrapped_type_reference(&invalid, parameter.type_reference).unwrap();
+            assert!(
+                invalid
+                    .closed_data_member_field(reference, instance_fields[ordinal], "items")
+                    .is_none()
+            );
+        }
+    }
+}
+
 fn fixture() -> (typed_trees::TypedTrees, TableMemberExpression) {
     let source = r#"
         pub data Cell { item: u64; }

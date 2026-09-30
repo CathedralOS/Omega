@@ -239,6 +239,12 @@ fn field_type_reference(
             arguments,
             ..
         } => {
+            if let Some(instance) = program.closed_data_definition(type_reference) {
+                // Canonical places use the selected instance's own fields.
+                // Do not reinterpret a template or sibling-instance field as
+                // though it belonged to this closed receiver.
+                return data_field_type_reference(program, instance, field_symbol);
+            }
             let data = data_definition_by_symbol_or_name(program, *base_symbol, base_name)?;
             let bindings: Vec<_> = program
                 .data_type_parameters(data)

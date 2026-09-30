@@ -978,7 +978,12 @@ pub(crate) fn structural_data(
                 base_symbol: symbol,
                 base_name: name,
                 ..
-            } => break (*symbol, name),
+            } => {
+                if let Some(instance) = program.closed_data_definition(type_reference) {
+                    return Some(instance);
+                }
+                break (*symbol, name);
+            }
             _ => return None,
         }
     };
@@ -1114,6 +1119,24 @@ pub(super) fn structural_parameter_place(
         };
         let selected = selected_fields.next()?;
         if member.member_symbol.is_valid() && selected != member.member_symbol {
+            // Specialization retains the authored template member while its
+            // canonical storage place names the closed instance's field. Only
+            // the receiver's exact origin/member correspondence can justify
+            // that change; a sibling instance or foreign field cannot.
+            let closed_field =
+                crate::flow::expression_place_type_reference(program, member.receiver, &[])
+                    .and_then(|reference| validation::unwrapped_type_reference(program, reference))
+                    .and_then(|reference| {
+                        program.closed_data_member_field(
+                            reference,
+                            member.member_symbol,
+                            member.member.as_str(),
+                        )
+                    });
+            if closed_field.is_some_and(|field| field.symbol == selected) {
+                authored = member.receiver;
+                continue;
+            }
             // Attached machines retain inherited field symbols; canonical
             // places identify the original data declaration's storage.
             let ExpressionNode::Name(receiver) =

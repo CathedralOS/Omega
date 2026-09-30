@@ -1,23 +1,27 @@
-// Parameter-free attached methods clone onto each const-specialized record,
-// preserving receiver identity and the instance's concrete fixed-array layout.
+// Explicit record parameters preserve each const application's identity and
+// concrete fixed-array layout across mutation, calls and state transitions.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 // `items[0]` reads discharge against the symbolic extent: the template must
 // declare N >= 1 so index 0 is provably inside every admissible specialization.
-data FixedBuffer<const N: u64[1..=18446744073709551615]> {
+data FixedBuffer<const N: u64> where N >= 1 {
     items: [i32 in Wrapping; N];
 }
 
-machine FixedBuffer::set_first(&mut self, value: i32 in Wrapping) {
-    self.items[0] = value;
+machine FixedBuffer::set_first<const N: u64>(buffer: &mut FixedBuffer<N>, value: i32 in Wrapping)
+requires N >= 1;
+{
+    buffer.items[0] = value;
 }
 
-machine FixedBuffer::first(&self) -> i32 in Wrapping {
-    transition { _ -> (self.items[0]) }
+machine FixedBuffer::first<const N: u64>(buffer: &FixedBuffer<N>) -> i32 in Wrapping
+requires N >= 1;
+{
+    transition { _ -> (buffer.items[0]) }
 }
 
-machine FixedBuffer::capacity<const N: u64>(&self, witness: &[u8; N]) -> u64 {
+machine FixedBuffer::capacity<const N: u64>(buffer: &FixedBuffer<N>, witness: &[u8; N]) -> u64 {
     transition { _ -> N }
 }
 
@@ -27,31 +31,31 @@ data Main {
     large: FixedBuffer<4>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.small.set_first(30);
-    self.large.set_first(40);
+machine Main::main(main: &mut Main) reaches Console {
+    FixedBuffer::set_first(&mut main.small, 30);
+    FixedBuffer::set_first(&mut main.large, 40);
     let small_witness: [u8; 2] = [0, 0];
-    let small_capacity: u64 = self.small.capacity(&small_witness);
+    let small_capacity: u64 = FixedBuffer::capacity(&main.small, &small_witness);
     transition small_capacity == 2 {
-        true -> check_large()
-        _ -> fail()
+        true -> check_large(main)
+        _ -> fail(main)
     }
 
-    state check_large(&mut self) {
+    state check_large(main: &mut Main) {
         let large_witness: [u8; 4] = [0, 0, 0, 0];
-        let large_capacity: u64 = self.large.capacity(&large_witness);
+        let large_capacity: u64 = FixedBuffer::capacity(&main.large, &large_witness);
         transition large_capacity == 4 {
-            true -> finish()
-            _ -> fail()
+            true -> finish(main)
+            _ -> fail(main)
         }
     }
 
-    state finish(&mut self) {
-        let result: i32 in Wrapping = self.small.first() + self.large.first();
-        self.console.exit_process(result as i32);
+    state finish(main: &mut Main) {
+        let result: i32 in Wrapping = FixedBuffer::first(&main.small) + FixedBuffer::first(&main.large);
+        main.console.exit_process(result as i32);
     }
 
-    state fail(&mut self) {
-        self.console.exit_process(71);
+    state fail(main: &mut Main) {
+        main.console.exit_process(71);
     }
 }

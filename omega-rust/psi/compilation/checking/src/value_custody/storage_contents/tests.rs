@@ -113,3 +113,228 @@ fn service_seam_contents_keep_the_runtime_exclusions() {
     );
     assert!(has_service_seam_contents(&program, input(&program)));
 }
+
+fn const_instances(
+    field: &str,
+) -> (
+    TypedTrees,
+    Vec<(symbols::SymbolHandle, TypeReferenceHandle)>,
+) {
+    let program = crate::front_end::typed_program_with_generic_data(&format!(
+        "data Buffer<const Count: u64> {{ items: [u8; Count]; {field} }}
+         data Foreign<const Count: u64> {{ items: [u8; Count]; }}
+         machine inspect(first: Buffer<2>, second: Buffer<4>) {{}}
+         machine open<const Capacity: u64>(value: &Buffer<Capacity>) {{}}"
+    ));
+    let instances = program
+        .data_definitions()
+        .iter()
+        .filter_map(|data| data.generic_instance.map(|origin| (data.symbol, origin)))
+        .collect::<Vec<_>>();
+    assert_eq!(instances.len(), 2);
+    (program, instances)
+}
+
+#[test]
+fn closed_const_instances_classify_their_exact_substituted_contents() {
+    let (program, instances) = const_instances("");
+    assert_ne!(
+        program.normalized_type_identity(instances[0].1),
+        program.normalized_type_identity(instances[1].1)
+    );
+    for (symbol, application) in instances {
+        assert!(
+            matches!(super::resolve(&program, application, &[], super::ContentsRequirement::NumericOwned),
+            Some(super::ContentType::Data(owner, arguments)) if owner == symbol && arguments.is_empty())
+        );
+        assert!(super::has_plain_owned_contents_with_numeric_constraints(
+            &program,
+            application
+        ));
+    }
+    let (program, instances) = const_instances("loan: &mut u64;");
+    for (_, application) in instances {
+        assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+            &program,
+            application
+        ));
+        assert!(!has_stable_observable_contents(&program, application));
+    }
+}
+
+#[test]
+fn closed_const_instances_retain_canonical_where_and_numeric_policy() {
+    let program = crate::front_end::typed_program_with_generic_data(
+        "data Buffer<const Capacity: u64> where Capacity >= 1 {
+             items: [u32 in Wrapping; Capacity];
+         }
+         machine inspect(first: Buffer<2>, second: Buffer<4>) {}",
+    );
+    let instances = program
+        .data_definitions()
+        .iter()
+        .filter_map(|data| data.generic_instance.map(|origin| (data.symbol, origin)))
+        .collect::<Vec<_>>();
+    assert_eq!(instances.len(), 2);
+    for (symbol, application) in instances {
+        assert!(
+            matches!(super::resolve(&program, application, &[], super::ContentsRequirement::NumericOwned),
+            Some(super::ContentType::Data(owner, arguments)) if owner == symbol && arguments.is_empty())
+        );
+        assert!(super::has_plain_owned_contents_with_numeric_constraints(
+            &program,
+            application
+        ));
+    }
+}
+
+#[test]
+fn closed_const_instances_reject_open_foreign_missing_and_ambiguous_origins() {
+    let (program, instances) = const_instances("");
+    let (symbol, application) = instances[0];
+    let open = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "open")
+        .unwrap();
+    let reference = program.state_parameters(&program.machine_states(open)[0])[0].type_reference;
+    let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        panic!("open borrow")
+    };
+    assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+        &program, *referee
+    ));
+
+    let TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = program
+        .type_reference_table
+        .type_reference(application)
+        .clone()
+    else {
+        panic!("generic origin")
+    };
+    let mut changed = program.clone();
+    let eight = changed
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: symbols::SymbolHandle::invalid(),
+            name: "8".into(),
+        });
+    let different_arguments = changed
+        .type_reference_table
+        .insert_type_reference_handles([eight]);
+    let mismatch = changed
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol,
+            base_name: base_name.clone(),
+            lifetime_arguments: lifetime_arguments.clone(),
+            arguments: different_arguments,
+        });
+    assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+        &changed, mismatch
+    ));
+    let foreign = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Foreign")
+        .unwrap();
+    let mismatch = changed
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol: foreign.symbol,
+            base_name: foreign.name.clone(),
+            lifetime_arguments,
+            arguments,
+        });
+    assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+        &changed, mismatch
+    ));
+
+    let owner_handle = program
+        .tables
+        .data_definitions
+        .iter()
+        .find(|(_, data)| data.symbol == symbol)
+        .unwrap()
+        .0;
+    let mut missing = program.clone();
+    missing
+        .tables
+        .data_definitions
+        .get_mut(owner_handle)
+        .generic_instance = None;
+    assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+        &missing,
+        application
+    ));
+    let mut invalid = program.clone();
+    invalid
+        .tables
+        .data_definitions
+        .get_mut(owner_handle)
+        .generic_instance = Some(TypeReferenceHandle::invalid());
+    assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+        &invalid,
+        application
+    ));
+    let mut ambiguous = program.clone();
+    ambiguous.push_data_definition(program.tables.data_definitions.get(owner_handle).clone());
+    assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+        &ambiguous,
+        application
+    ));
+}
+
+#[test]
+fn closed_const_instances_preserve_template_cleanup_and_properties() {
+    let (program, instances) = const_instances("");
+    let (symbol, application) = instances[0];
+    let TypeReferenceNode::Generic { base_symbol, .. } =
+        program.type_reference_table.type_reference(application)
+    else {
+        panic!("generic origin")
+    };
+    let mut dropped = program.clone();
+    let machine_handle = dropped
+        .tables
+        .machines
+        .iter()
+        .find(|(_, machine)| machine.name.as_str() == "inspect")
+        .unwrap()
+        .0;
+    let machine = dropped.tables.machines.get_mut(machine_handle);
+    machine.name = "Buffer::drop".into();
+    machine.attached_data_symbol = *base_symbol;
+    assert!(dropped.attached_drop_machine_exists(*base_symbol));
+    assert!(!dropped.attached_drop_machine_exists(symbol));
+    assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+        &dropped,
+        application
+    ));
+
+    let mut changed = program.clone();
+    let owner_handle = changed
+        .tables
+        .data_definitions
+        .iter()
+        .find(|(_, data)| data.symbol == symbol)
+        .unwrap()
+        .0;
+    changed
+        .tables
+        .data_definitions
+        .get_mut(owner_handle)
+        .properties
+        .multiplicity = language_semantics::Multiplicity::Unrestricted;
+    assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+        &changed,
+        application
+    ));
+}

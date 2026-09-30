@@ -14,6 +14,64 @@ use symbols::SymbolHandle;
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+#[test]
+fn closed_const_field_replay_requires_the_selected_instance_but_keeps_open_projection() {
+    let program = crate::tests::front_end::typed_program_with_generic_data_result(
+        "data Buffer<const Count: u64> { items: [u32 in Wrapping; Count]; }
+         machine inspect(first: &Buffer<2>, second: &Buffer<4>) {}
+         machine open<const Count: u64>(value: &Buffer<Count>) {}",
+    )
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let instances = program
+        .data_definitions()
+        .iter()
+        .filter_map(|data| {
+            let origin = data.generic_instance?;
+            let DataMember::Field(field) = &program.data_members(data)[0] else {
+                panic!("array field");
+            };
+            Some((origin, field.symbol, field.type_reference))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(instances.len(), 2);
+    let template = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Buffer")
+        .unwrap();
+    let DataMember::Field(template_field) = &program.data_members(template)[0] else {
+        panic!("array field");
+    };
+    for (ordinal, &(origin, symbol, field_type)) in instances.iter().enumerate() {
+        let project = |symbol| {
+            super::project_type_reference_from_segments(
+                &program,
+                origin,
+                &[facts::PlaceSegment::Field { symbol }],
+            )
+        };
+        assert_eq!(project(symbol), Some(field_type));
+        assert!(project(instances[1 - ordinal].1).is_none());
+        assert!(project(template_field.symbol).is_none());
+    }
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "open")
+        .unwrap();
+    let reference = program.state_parameters(&program.machine_states(machine)[0])[0].type_reference;
+    assert_eq!(
+        super::project_type_reference_from_segments(
+            &program,
+            reference,
+            &[facts::PlaceSegment::Field {
+                symbol: template_field.symbol
+            }],
+        ),
+        Some(template_field.type_reference)
+    );
+}
+
 /// `exercise` holds an `Outer` parameter and returns its `inner` field: the
 /// read's ownership disposition depends entirely on the field-type projection
 /// proving `inner: u64` (a copy) through the parameter's declared type.

@@ -20,6 +20,7 @@ use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::{BlockId, EdgeId, ValueId};
 use std::collections::BTreeMap;
 
+mod borrow_transport;
 mod conditional_return;
 mod guarded_chain;
 mod loaned_local_homes;

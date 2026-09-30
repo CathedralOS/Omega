@@ -118,15 +118,7 @@ fn resolve_source(
                         )?;
                         let reference =
                             validation::unwrapped_type_reference(&checked.typed, reference)?;
-                        let TypeReferenceNode::Named { symbol, .. } =
-                            checked.type_reference_table.type_reference(reference)
-                        else {
-                            return None;
-                        };
-                        let owner = checked
-                            .data_definitions()
-                            .iter()
-                            .find(|owner| owner.symbol == *symbol)?;
+                        let owner = checked.typed.closed_data_definition(reference)?;
                         validation::exact_data_member_field(
                             &checked.typed,
                             owner,
@@ -134,6 +126,17 @@ fn resolve_source(
                             member.member.as_str(),
                             None,
                         )
+                        .or_else(|| {
+                            // Checked places select the concrete field, while
+                            // authored members may retain the template symbol.
+                            // Replay the exact correspondence, never a same-name
+                            // field from another application or declaration.
+                            checked.typed.closed_data_member_field(
+                                reference,
+                                member.member_symbol,
+                                member.member.as_str(),
+                            )
+                        })
                     })
                     .ok_or(LoweringError::Unsupported(
                         "projected receiver field has no exact declaration",

@@ -28,6 +28,75 @@ machine enter(limits: Limits, marker: u64) -> u64 {
 }
 "#;
 
+#[test]
+fn projected_const_record_arguments_retain_each_closed_call_in_a_sum() {
+    for (parameters, expression) in [
+        ("pair: &Pair", "read(&pair.left) + read(&pair.right)"),
+        (
+            "left: &Buffer<2>, right: &Buffer<4>",
+            "read(left) + read(right)",
+        ),
+    ] {
+        let source = format!(
+            r#"
+        data Buffer<const Capacity: u64> where Capacity >= 1 {{
+            items: [u32 in Wrapping; Capacity];
+        }}
+        data Pair {{ left: Buffer<2>; right: Buffer<4>; }}
+        machine read<const Length: u64>(buffer: &Buffer<Length>) -> u32 in Wrapping
+        requires Length >= 1;
+        {{ buffer.items[0] }}
+        machine sum({parameters}) -> u32 in Wrapping {{
+            let total: u32 in Wrapping = {expression};
+            total
+        }}
+        "#,
+        );
+        // The product normalizes closed data applications before checking.
+        // Retain that phase here so the borrow can consume exact instances.
+        let typed = crate::tests::front_end::typed_program_with_generic_data_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+        let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+            .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+        let owner = machine(&checked.typed, "sum");
+        let state = &checked.machine_states(owner)[0];
+        let plans = &checked.facts.values.scalar_computations;
+        let root = plans.root_at(
+            state.symbol,
+            0,
+            CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+        );
+        assert!(
+            root.is_some(),
+            "{expression} retains its two borrowed call operands"
+        );
+        let calls = plans
+            .nodes
+            .iter()
+            .filter_map(|(_, node)| {
+                if let checked_trees::CheckedScalarComputationKind::Call {
+                    target_state,
+                    structural_arguments,
+                    ..
+                } = node.kind
+                {
+                    Some((target_state, structural_arguments))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2);
+        assert_ne!(
+            calls[0].0, calls[1].0,
+            "capacities retain distinct specializations"
+        );
+        for (_, arguments) in calls {
+            assert_eq!(plans.structural_arguments.span_or_empty(arguments).len(), 1);
+        }
+    }
+}
+
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     checked_program_result(source).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"))
 }

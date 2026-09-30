@@ -36,15 +36,17 @@ pub(super) enum MemberPosition {
 }
 
 /// The declaration symbol a position's leaf names. Substituted arguments are
-/// already folded into a `Reference` leaf by
-/// `super::super::project_type_reference_from_segments`, so this is the same
-/// terminal `type_symbol` mapping callers have always observed.
+/// already folded into a `Reference` leaf by the projection replay. Closed
+/// generic applications name their retained instance, not the open template;
+/// other positions retain the ordinary `type_symbol` mapping.
 pub(super) fn position_leaf_symbol(
     program: &typed_trees::TypedTrees,
     position: MemberPosition,
 ) -> SymbolHandle {
     match position {
-        MemberPosition::Reference(reference) => program.type_reference_table.type_symbol(reference),
+        MemberPosition::Reference(reference) => closed_generic_owner(program, reference)
+            .map(|owner| owner.symbol)
+            .unwrap_or_else(|| program.type_reference_table.type_symbol(reference)),
         MemberPosition::Declaration(symbol) => symbol,
         // A window's leaf is the slice, which owns no declaration identity:
         // only a further index hop names the element a member could live on.
@@ -52,12 +54,48 @@ pub(super) fn position_leaf_symbol(
     }
 }
 
+fn closed_generic_owner(
+    program: &typed_trees::TypedTrees,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<&typed_trees::data::DataDefinition> {
+    while let typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+    | typed_trees::types::TypeReferenceNode::Constrained {
+        base_type: referee, ..
+    } = program.type_reference_table.type_reference(reference)
+    {
+        reference = *referee;
+    }
+    let owner = program.closed_data_definition(reference)?;
+    owner.generic_instance.is_some().then_some(owner)
+}
+
+/// A closed instance's field is selected by its receiver application. A
+/// retained template selection may translate only along that instance's
+/// validated member correspondence; a foreign or sibling-instance symbol
+/// remains unresolved. `None` leaves the existing open-generic route intact.
+pub(super) fn closed_generic_member_symbol(
+    program: &typed_trees::TypedTrees,
+    position: Option<MemberPosition>,
+    member_name: &str,
+    retained: SymbolHandle,
+) -> Option<SymbolHandle> {
+    let MemberPosition::Reference(reference) = position? else {
+        return None;
+    };
+    let instance = closed_generic_owner(program, reference)?;
+    let selected = program
+        .closed_data_member_field(instance.generic_instance?, retained, member_name)
+        .map(|field| field.symbol);
+    Some(selected.unwrap_or_else(SymbolHandle::invalid))
+}
+
 /// One member hop through a position: the member's declared type reference
 /// with the receiver's reaching generic application still bound, so
 /// `Box<Context>::item` resumes at `Context`. Falls back to the member's own
 /// declared position when the receiver does not replay (a declaration
 /// position, an opaque leaf, or a member outside the replayed declaration) —
-/// the exact contract the bare-symbol walk had. The caller supplies the
+/// the exact contract the bare-symbol walk had. A closed generic receiver
+/// instead refuses a field outside its selected instance. The caller supplies the
 /// receiver's already-resolved position: a member chain recomputing it here
 /// would re-walk the whole receiver expression once per hop.
 fn member_type_position(
@@ -75,6 +113,11 @@ fn member_type_position(
         )
     {
         return Some(MemberPosition::Reference(projected));
+    }
+    if matches!(receiver_position, Some(MemberPosition::Reference(reference))
+        if closed_generic_owner(program, reference).is_some())
+    {
+        return None;
     }
     symbol_type_position(program, member_symbol)
 }
@@ -626,6 +669,7 @@ pub(super) fn member_position_after_segments(
                         std::slice::from_ref(segment),
                     ) {
                         Some(projected) => MemberPosition::Reference(projected),
+                        None if closed_generic_owner(program, reference).is_some() => return None,
                         None => symbol_type_position(program, *symbol)?,
                     }
                 }
@@ -726,6 +770,16 @@ pub(crate) fn effective_member_symbol_from_position(
     receiver_position: Option<MemberPosition>,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> SymbolHandle {
+    if member.case_variant.is_none()
+        && let Some(symbol) = closed_generic_member_symbol(
+            program,
+            receiver_position,
+            member.member.as_str(),
+            member.member_symbol,
+        )
+    {
+        return symbol;
+    }
     // A case-qualified projection must not select the first same-named field
     // in another case. Preserve the selected variant when reconstructing its
     // canonical place; an inconsistent retained symbol is not repairable here.

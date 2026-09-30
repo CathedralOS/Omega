@@ -287,6 +287,7 @@ fn resolve(
         TypeReferenceNode::Generic {
             base_symbol,
             arguments: source_arguments,
+            lifetime_arguments,
             ..
         } => {
             let data = definition(program, *base_symbol)?;
@@ -301,10 +302,10 @@ fn resolve(
             // owns no loans, cleanup, or contents. It is closed in the same
             // normalized form `validate_closed_const_argument` requires, a
             // symbol-free value leaf; an open binder or unevaluated expression
-            // stays unclassified. A member that sizes storage by it
-            // (`[T; Count]`) still has no literal extent and rejects below, so
-            // admitting the argument never guesses a layout. Runtime-capable
-            // value binders and machine parameters stay out.
+            // stays unclassified. A member that sizes storage by it needs an
+            // independently retained closed instance below; this classifier
+            // never evaluates const arguments or guesses array lengths.
+            // Runtime-capable value binders and machine parameters stay out.
             let resolved = parameters
                 .iter()
                 .zip(source_arguments)
@@ -323,6 +324,24 @@ fn resolve(
                     _ => None,
                 })
                 .collect::<Option<Vec<_>>>()?;
+            if lifetime_arguments.is_empty()
+                && let Some(instance) = program.closed_data_definition(reference)
+            {
+                // The retained instance's fields already contain exact
+                // substituted extents. Reuse them only under its complete
+                // original application identity, not its synthetic name.
+                // Ambiguous/stale owners cannot select arbitrary contents.
+                if instance.supply_mode != language_semantics::DataSupplyMode::CheckedShape
+                    || instance.properties != data.properties
+                    || (!matches!(
+                        requirement,
+                        ContentsRequirement::CleanupOwned | ContentsRequirement::CaseConstruction
+                    ) && owns_drop_hook(program, *base_symbol))
+                {
+                    return None;
+                }
+                return Some(ContentType::Data(instance.symbol, Vec::new()));
+            }
             Some(ContentType::Data(*base_symbol, resolved))
         }
         // Extent zero does not introduce loans or cleanup. Retain and classify

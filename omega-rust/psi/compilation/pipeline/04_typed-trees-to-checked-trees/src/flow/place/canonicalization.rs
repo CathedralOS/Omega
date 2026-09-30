@@ -77,20 +77,34 @@ pub(crate) fn canonical_place_from_expression(
         ExpressionNode::Borrow(inner) => canonical_place_from_expression(program, inner.target),
         ExpressionNode::Name(path) => {
             let root_symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
-            let mut segments = Vec::new();
-            for symbol in program
+            let mut place = CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(root_symbol),
+                segments: Vec::new(),
+            };
+            let members = program.expression_table.name_path_members(path.members);
+            for (offset, retained) in program
                 .expression_table
                 .name_path_member_symbols(path.member_symbols)
                 .iter()
                 .skip(1)
                 .copied()
+                .enumerate()
             {
-                push_field_place_segments(program, &mut segments, symbol);
+                let symbol = members
+                    .get(offset + 1)
+                    .and_then(|member| {
+                        super::contextual::resolve_member_symbol_from_place(
+                            program,
+                            &place,
+                            member.as_str(),
+                            None,
+                            retained,
+                        )
+                    })
+                    .unwrap_or(retained);
+                push_field_place_segments(program, &mut place.segments, symbol);
             }
-            Some(CanonicalPlace {
-                root: facts::PlaceRoot::Symbol(root_symbol),
-                segments,
-            })
+            Some(place)
         }
         ExpressionNode::Member(member) => {
             let mut place = canonical_place_from_expression(program, member.receiver)?;
