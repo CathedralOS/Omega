@@ -663,8 +663,13 @@ fn derive_program_entry_binding(
             standard_library_root,
             standard_library,
         )?),
-        TargetProfile::MacosX64
-        | TargetProfile::CrossPlatformCli
+        TargetProfile::MacosX64 => Some(
+            macos_entry_acceptance::candidate_macos_x86_64_entry_binding(
+                standard_library_root,
+                standard_library,
+            )?,
+        ),
+        TargetProfile::CrossPlatformCli
         | TargetProfile::LocalUnchecked
         | TargetProfile::AlphaBootstrap => None,
     })

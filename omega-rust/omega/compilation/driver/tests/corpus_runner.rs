@@ -31,7 +31,11 @@
 //! fixtures named `*_exit` or carrying `expected_native_exit.txt` (or this
 //! host's `expected_native_exit.<target>.txt`) are executed
 //! in a fresh temporary directory with
-//! `input.txt` as stdin. Their records gain `exit:<code>` (or `exit:timeout`,
+//! `input.txt` as stdin. `OMEGA_CORPUS_NATIVE_TARGET=<target>` builds for
+//! another catalogued target instead; its products execute only where this
+//! host runs them, which today means `macos_x86_64` under Rosetta
+//! (`arch -x86_64`) on an Apple-silicon host. Other foreign targets are
+//! realized without executing. Their records gain `exit:<code>` (or `exit:timeout`,
 //! `exit:signal` plus `signal:<number>`) and, beside an `expected_stdout.txt`, `stdout:match` or
 //! `stdout:differs`.
 //!
@@ -268,10 +272,32 @@ fn check_pass_fixture(
     result
 }
 
-/// The host target the native leg builds for, when `OMEGA_CORPUS_NATIVE` is set.
+/// The target the native leg builds for, when `OMEGA_CORPUS_NATIVE` is set:
+/// the catalogued target `OMEGA_CORPUS_NATIVE_TARGET` names, else the host.
 fn native_target() -> Option<&'static str> {
     env::var_os("OMEGA_CORPUS_NATIVE")?;
-    target::TargetProfile::host_if_supported().map(|profile| profile.target_name())
+    match env::var("OMEGA_CORPUS_NATIVE_TARGET") {
+        Ok(name) if !name.trim().is_empty() => {
+            target::TargetProfile::from_canonical_target_name(name.trim())
+                .ok()
+                .map(|profile| profile.target_name())
+        }
+        _ => target::TargetProfile::host_if_supported().map(|profile| profile.target_name()),
+    }
+}
+
+/// The command prefix that executes a `target` product on this host, or
+/// `None` when this host cannot run it. The host's own target runs directly;
+/// an Apple-silicon macOS host runs `macos_x86_64` images through Rosetta.
+fn native_launcher(target: &str) -> Option<Vec<&'static str>> {
+    let host = target::TargetProfile::host_if_supported().map(|profile| profile.target_name());
+    if host == Some(target) {
+        return Some(Vec::new());
+    }
+    if host == Some("macos_arm64") && target == "macos_x86_64" {
+        return Some(vec!["arch", "-x86_64"]);
+    }
+    None
 }
 
 /// Whether runnable fixtures also execute on the checked interpreter.
@@ -282,8 +308,12 @@ fn interpreter_leg() -> bool {
 /// Interpret one fixture's selected program entry, as `omega run --both`
 /// does, and report its exit and stdout facts.
 fn interpret_fixture(root_path: &Path, fixture_dir: &Path) -> Vec<String> {
-    let Some(target) = target::TargetProfile::host_if_supported()
-        .map(|profile| profile.target_name().to_owned())
+    let Some(target) = native_target()
+        .map(str::to_owned)
+        .or_else(|| {
+            target::TargetProfile::host_if_supported()
+                .map(|profile| profile.target_name().to_owned())
+        })
         .or_else(|| declared_realization_target(root_path))
     else {
         return vec!["interpreter:unchecked".to_owned()];
@@ -381,8 +411,14 @@ fn build_native_fixture(
 
 /// Run one built fixture in a fresh directory, stdin from `input.txt`, and
 /// report its exit and, beside an `expected_stdout.txt`, whether stdout
-/// matched it (line endings normalized).
-fn execute_fixture(executable: &Path, fixture_dir: &Path, sequence: usize) -> Vec<String> {
+/// matched it (line endings normalized). `launcher` prefixes the executable
+/// when the host runs the target through a translator.
+fn execute_fixture(
+    executable: &Path,
+    launcher: &[&str],
+    fixture_dir: &Path,
+    sequence: usize,
+) -> Vec<String> {
     let work = env::temp_dir().join(format!("omega-corpus-run-{}-{sequence}", process::id()));
     let _ = fs::remove_dir_all(&work);
     if fs::create_dir_all(&work).is_err() {
@@ -391,7 +427,15 @@ fn execute_fixture(executable: &Path, fixture_dir: &Path, sequence: usize) -> Ve
     let stdin = fs::File::open(fixture_dir.join("input.txt"))
         .map(std::process::Stdio::from)
         .unwrap_or_else(|_| std::process::Stdio::null());
-    let spawned = process::Command::new(executable)
+    let mut command = match launcher.split_first() {
+        Some((program, arguments)) => {
+            let mut command = process::Command::new(program);
+            command.args(arguments).arg(executable);
+            command
+        }
+        None => process::Command::new(executable),
+    };
+    let spawned = command
         .current_dir(&work)
         .stdin(stdin)
         .stdout(std::process::Stdio::piped())
@@ -527,9 +571,10 @@ fn declared_realization_target(root_path: &Path) -> Option<String> {
 }
 
 /// The target the native leg realizes one pass/run fixture for, and whether
-/// the product can also execute here. A fixture binding the host runs; one
-/// binding only foreign targets is still realized, for its declared target,
-/// because target lowering and emission are most of what the leg measures.
+/// the fixture binds the leg's own target. A fixture binding that target
+/// runs where the host can execute it; one binding only foreign targets is
+/// still realized, for its declared target, because target lowering and
+/// emission are most of what the leg measures.
 fn pass_realization_target(root_path: &Path, host: &str) -> Option<(String, bool)> {
     let declared = declared_realization_targets(root_path);
     if declared.iter().any(|target| target == host) {
@@ -616,8 +661,9 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
             if let Ok(executable) = &built
                 && *executes_here
                 && runnable
+                && let Some(launcher) = native_launcher(target)
             {
-                facts = execute_fixture(executable, &fixture_dir, sequence);
+                facts = execute_fixture(executable, &launcher, &fixture_dir, sequence);
             }
             let _ = fs::remove_dir_all(&build_dir);
             built.map(|_| ())
@@ -849,7 +895,10 @@ fn main() {
         &["pass", "fail", "run"]
     };
     if env::var_os("OMEGA_CORPUS_NATIVE").is_some() && native_target().is_none() {
-        eprintln!("corpus_runner: this host has no catalogued Omega target to build for");
+        eprintln!(
+            "corpus_runner: OMEGA_CORPUS_NATIVE_TARGET names no catalogued target, or this \
+             host has no catalogued Omega target to build for"
+        );
         process::exit(2);
     }
     for &tier in tiers {
