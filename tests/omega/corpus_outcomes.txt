@@ -31,10 +31,8 @@ pass/arithmetic/runtime_bitwise_high_ops_exit checked 1753ms
 pass/arithmetic/runtime_comparison_signedness_exit checked 1207ms
 pass/arithmetic/runtime_domain_boundaries_exit checked 1199ms
 pass/arithmetic/runtime_exact_guarded_shift_count_exit checked 1179ms
-pass/arithmetic/runtime_float_nan_comparison_exit rejected 2771ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
-pass/arithmetic/runtime_float_self_compare_nan_exit rejected 2350ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/arithmetic/runtime_float_nan_comparison_exit checked 1451ms
+pass/arithmetic/runtime_float_self_compare_nan_exit checked 1514ms
 pass/arithmetic/runtime_guard_narrowed_transition_arg_exit checked 839ms
 pass/arithmetic/runtime_integer_casts_exit checked 876ms
 pass/arithmetic/runtime_min_max_clamp_narrowing_exit checked 3159ms
@@ -50,8 +48,7 @@ pass/arithmetic/runtime_trapping_overflow_traps checked 752ms
 pass/arithmetic/runtime_trapping_shift_count_traps checked 1079ms
 pass/arithmetic/runtime_u64_guarded_cap_store_exit checked 839ms
 pass/arithmetic/runtime_wrapping_operand_truncation_exit checked 898ms
-pass/arithmetic/saturating_signed_divide_min_by_neg_one rejected 1572ms
-	native artifact identity physical pipeline failed: common physical staging failed: RegisterAllocation(RuntimeSpill(Homes(NoCompatibleHome { function: 0, register: 30 })))
+pass/arithmetic/saturating_signed_divide_min_by_neg_one checked 486ms
 pass/arithmetic/suffix_landed_operand_position_exit checked 2649ms
 pass/arithmetic/typed_integer_remainder checked 293ms
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one checked 1552ms
@@ -94,8 +91,8 @@ pass/calls/by_value_case_param_self_write_exit checked 1683ms
 pass/calls/caller_result_binding_mutable_loan_exit checked 560ms @0e894def985b+wt
 pass/calls/callback_private_materialization rejected 1645ms
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
-pass/calls/cyclic_projected_borrow_call_exit rejected 560ms
-	native artifact target lowering failed: UnsupportedControlFlow { machine: MachineId(2), site: Location { file: "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_calls.rs", line: 455, column: 20 } }
+pass/calls/cyclic_mutable_borrow_block_parameter_call checked 1529ms
+pass/calls/cyclic_projected_borrow_call_exit checked 476ms
 pass/calls/cyclic_scalar_query_reborrow_exit checked 1574ms
 pass/calls/cyclic_affine_call_result_exit checked 1572ms
 pass/calls/case_arm_payload_receiver_arg rejected 1544ms
@@ -126,16 +123,14 @@ pass/calls/runtime_constructor_computed_field_exit checked 909ms
 pass/calls/runtime_cross_machine_substate_name_exit checked 1003ms
 pass/calls/runtime_dispatch_binary_call_argument_exit rejected 1097ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Builder::build`), which was itself omitted at local construction at `state graph: terminator: conditional successors: target state` (state 1, statement 4)
-pass/calls/runtime_dispatch_float_terminal_exit rejected 2364ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/calls/runtime_dispatch_float_terminal_exit checked 1429ms
 pass/calls/runtime_dispatch_machine_array_slice_arg_exit rejected 6847ms
 	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(28)))
 pass/calls/runtime_dispatch_result_enum_case_exit checked 750ms
 pass/calls/runtime_dispatch_slice_element_terminal_exit rejected 9267ms
 	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(28)))
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 823ms
-pass/calls/runtime_enum_self_method_exit rejected 814ms
-	native artifact ProgramEntry receiver provisioning failed: hosted receiver requires a checked ZII-valid value with no executable nominal cleanup
+pass/calls/runtime_enum_self_method_exit checked 487ms
 pass/calls/runtime_explicit_discard_executes_exit checked 860ms
 pass/calls/runtime_guard_call_vs_call_exit checked 1168ms
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 1192ms @df0288f59fd+wt
@@ -146,8 +141,7 @@ pass/calls/runtime_loop_rotation_exit checked 860ms
 pass/calls/runtime_measured_tail_recursion_exit checked 884ms
 pass/calls/runtime_mut_ref_forward_exit rejected 740ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 0)
-pass/calls/runtime_mutable_call_before_transition_args_exit rejected 1187ms
-	native artifact target lowering failed: StructuralTypeTooLarge(StructuralTypeId(1))
+pass/calls/runtime_mutable_call_before_transition_args_exit checked 488ms
 pass/calls/runtime_mutable_local_parameter_write_exit rejected 793ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 2)
 pass/calls/runtime_nested_case_argument_exit checked 1225ms
@@ -211,6 +205,7 @@ pass/collections/element_view_field_write checked 6912ms @00409967bc5+wt
 pass/collections/element_view_indexed_read checked 9032ms @39705d97d7e+wt
 pass/collections/element_view_runtime_field_write checked 8685ms @2300664f60a+wt
 pass/collections/element_view_write_transition checked 1022ms @8a1b963f65f+wt
+pass/collections/indexed_row_array_literal_store checked 1377ms
 pass/collections/mutable_slice_view_edge_release checked 1012ms @f07778d7f128+wt
 pass/collections/mutable_slice_view_establishment checked 1075ms @f07778d7f128+wt
 pass/collections/owned_array_scalar_comparisons checked 307ms
@@ -221,23 +216,19 @@ pass/collections/runtime_computed_index_direct_exit checked 1109ms
 pass/collections/runtime_declared_range_index_write_exit checked 820ms
 pass/collections/runtime_double_indexed_rmw_exit rejected 768ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 3)
-pass/collections/runtime_dutch_flag_partition_exit rejected 765ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 3, statement 0)
+pass/collections/runtime_dutch_flag_partition_exit checked 494ms
 pass/collections/runtime_fixed_vec_round_trip_exit rejected 775ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`FixedVecI32x4::push`), which was itself omitted at local construction at `structural field store: destination parameter`
-pass/collections/runtime_frame_indexed_param_read_exit rejected 721ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement`
+pass/collections/runtime_frame_indexed_param_read_exit checked 477ms
 pass/collections/runtime_hoisted_index_write_exit checked 988ms
-pass/collections/runtime_indexed_struct_field_rmw_exit rejected 778ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/collections/runtime_indexed_struct_field_rmw_exit checked 523ms
 pass/collections/runtime_maze_pathfind_exit checked 2024ms
 pass/collections/runtime_nested_const_row_indexed_read_exit checked 896ms
 pass/collections/runtime_signed_element_offset_read_exit checked 844ms
 pass/collections/runtime_vec_u32_growth_exit checked 3349ms
 pass/collections/runtime_whole_array_value_copy_exit rejected 811ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: scalar field type` (state 0, statement 3)
-pass/collections/std_option_runtime_match_exit rejected 862ms
-	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
+pass/collections/std_option_runtime_match_exit checked 498ms
 pass/collections/std_option_surface checked 325ms
 pass/collections/zero_length_byte_array_admission checked 327ms
 pass/comptime/provider_boundary_range_endpoint_exit checked 1779ms
@@ -295,8 +286,7 @@ pass/control_flow/runtime_tuple_transition_exit rejected 775ms
 pass/control_flow/self_case_payload_both_arms_exit checked 1747ms
 pass/control_flow/structural_result_transition_tail rejected 753ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: guarded pair without exact false fallback` (state 0)
-pass/control_flow/sum_field_storage_roundtrip rejected 1811ms
-	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
+pass/control_flow/sum_field_storage_roundtrip checked 474ms
 pass/control_flow/termination_index_distance_compile rejected 368ms
 	native-artifact Terminal production failed: Lowering(Unsupported("scalar successor has no target machine graph"))
 pass/control_flow/transition_operand_schedule checked 333ms
@@ -314,8 +304,7 @@ pass/core/runtime_natural_termination_exit checked 405ms
 pass/core/self_read_only_receiver_compile checked 354ms
 pass/core/task_lifecycle_operations rejected 407ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 0)") })
-pass/core/zii_default_composite_exit rejected 1660ms
-	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
+pass/core/zii_default_composite_exit checked 478ms
 pass/data/case_first_payload_zero_established checked 330ms
 pass/data/case_membership_union_guard_exit checked 1802ms
 pass/data/match_exhaustive_by_case_union_domain rejected 770ms
@@ -324,11 +313,9 @@ pass/data/opaque_copy_selected checked 170ms
 pass/data/payload_less_case_equality checked 304ms
 pass/data/property_carry_declared checked 299ms
 pass/data/record_pattern_let_exit checked 1828ms
-pass/data/runtime_case_reassignment_exit rejected 851ms
-	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
+pass/data/runtime_case_reassignment_exit checked 481ms
 pass/data/runtime_data_properties_exit checked 944ms
-pass/data/runtime_mixed_shape_exit rejected 912ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
+pass/data/runtime_mixed_shape_exit checked 500ms
 pass/data/runtime_proof_only_data_declared_exit checked 866ms
 pass/data/runtime_record_field_value_pattern_exit rejected 799ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 3)
@@ -492,10 +479,8 @@ pass/float/build_runtime_semantics_twins_x86_baseline rejected 387ms
 	machine `x86_baseline_float_twin_code` state `entry`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `multiply_then_add(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
 	machine `x86_baseline_float_twin_code` state `entry`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `multiply_then_add(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
 pass/float/builtin_extrema_field_store_exit checked 1913ms @9213c1dcbe3f+wt
-pass/float/f32_arg_const_arith_landed_exit rejected 2352ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: scalar arguments` (state 0, statement 1)
-pass/float/f32_per_operation_rounding_exit rejected 2480ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/float/f32_arg_const_arith_landed_exit checked 1437ms
+pass/float/f32_per_operation_rounding_exit checked 1505ms
 pass/float/finite_core_domain_range_discharge rejected 2469ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
 pass/float/float_saturating_arithmetic_exit rejected 362ms
@@ -525,8 +510,7 @@ pass/float/float_trapping_overflow_traps rejected 339ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
 pass/float/float_trapping_propagated_nan_traps rejected 320ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
-pass/float/foreign_control_state_restore rejected 2402ms
-	unimplemented: `Main::main` applies boundary operator `F64::from_i32`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/foreign_control_state_restore checked 2196ms
 pass/float/guarded_exact_float_conversion checked 742ms
 pass/float/named_infinity_classification_exit checked 1167ms @0d9777b52aee+wt
 pass/float/named_nan_semantic_only_exit checked 4389ms @d78b523c16f5+wt
@@ -569,13 +553,10 @@ pass/generics/runtime_const_data_array_length_exit checked 856ms
 pass/generics/runtime_const_data_machine_call_exit checked 1353ms
 pass/generics/runtime_const_data_multiple_instances_exit checked 890ms
 pass/generics/runtime_const_data_symbolic_expression_exit checked 861ms
-pass/generics/runtime_const_data_where_fact_exit rejected 459ms
-	entry machine `Main::main` requests a provisioned `Main` receiver, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+pass/generics/runtime_const_data_where_fact_exit checked 485ms
 pass/generics/runtime_container_setter_matrix_exit checked 946ms
-pass/generics/runtime_generic_multiple_specializations_exit rejected 747ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`Main::pick$specialized$06d3f610208d1c9a$1`), which was itself omitted at local construction at `signature`
-pass/generics/runtime_mixed_generic_erased_sum_exit rejected 742ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
+pass/generics/runtime_generic_multiple_specializations_exit checked 479ms
+pass/generics/runtime_mixed_generic_erased_sum_exit checked 473ms
 pass/generics/runtime_nested_generic_instantiations_exit checked 817ms
 pass/generics/runtime_value_generic_subject_exit checked 855ms
 pass/host/process_exit_i32_status_mapped checked 1426ms
@@ -660,8 +641,7 @@ pass/operators/core_operator_spelling_surface checked 424ms
 pass/operators/crash_routes checked 342ms
 pass/operators/division_value_entry_selection checked 1747ms
 pass/operators/domain_operator_overload_signature_compile checked 369ms
-pass/operators/float_operator_identities rejected 2453ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
+pass/operators/float_operator_identities checked 1522ms
 pass/operators/integer_literal_suffix_exit checked 1754ms
 pass/operators/operand_requires_after_effects checked 315ms
 pass/operators/parenthesized_precedence_value checked 310ms
@@ -743,16 +723,14 @@ pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 1272ms
 pass/providers/bare_byte_array_boundary_argument checked 1134ms
 pass/providers/boundary_scalar_field_store checked 417ms
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 2177ms
-pass/providers/checked_boundary_operator_physical_custody rejected 837ms
-	unimplemented: `Main::main` applies boundary operator `CheckedMath::offset_zero`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/providers/checked_boundary_operator_physical_custody checked 487ms
 pass/providers/checked_boundary_requirement_dispatch_exit checked 1659ms
 pass/providers/checked_fixed_operator_dispatch_exit checked 1705ms
 pass/providers/checked_fixed_operator_physical_custody checked 987ms
 pass/providers/component_owner_provider_override_compile checked 407ms
 pass/providers/external_boundary_requirement_via_exit rejected 440ms
 	receiving terminal-authority policy version 7 does not classify normalized foreign mechanism NormalizedForeign(NormalizedForeignTerminalMechanismIdentity { target: LinuxX64, locator_identity: ForeignLocatorIdentityDigest([207, 106, 217, 28, 93, 126, 42, 25, 168, 74, 218, 139, 225, 66, 106, 194, 137, 112, 122, 58, 241, 157, 61, 15, 232, 78, 62, 161, 126, 140, 38, 86]), implementation_contract: BoundaryCallingPlanCommitment([66, 199, 182, 195, 208, 31, 174, 52, 152, 244, 227, 92, 207, 224, 80, 57, 103, 31, 37, 51, 195, 246, 255, 104, 164, 89, 52, 245, 188, 46, 229, 157]), argument_contract: AdmittedPlan }) required by `named-callable(path(ForeignMath::absolute),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())`
-pass/providers/external_leaf_dllimport_compile rejected 370ms
-	receiving terminal-authority policy version 7 does not classify normalized foreign mechanism NormalizedForeign(NormalizedForeignTerminalMechanismIdentity { target: MacosArm64, locator_identity: ForeignLocatorIdentityDigest([120, 80, 212, 181, 194, 52, 107, 68, 155, 21, 83, 254, 196, 16, 155, 140, 86, 162, 174, 91, 167, 193, 40, 200, 27, 94, 48, 92, 70, 31, 147, 178]), implementation_contract: BoundaryCallingPlanCommitment([100, 127, 65, 179, 42, 227, 132, 173, 168, 236, 52, 5, 147, 67, 19, 22, 235, 237, 190, 224, 153, 43, 207, 66, 109, 249, 97, 58, 110, 129, 229, 171]), argument_contract: AdmittedPlan }) required by `named-callable(path(Leaf::exit),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())`
+pass/providers/external_leaf_dllimport_compile checked 674ms
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1646ms
 pass/providers/provider_type_target_default_override checked 406ms
 pass/providers/runtime_adapter_dispatch_exit checked 834ms
@@ -763,10 +741,8 @@ pass/providers/specialized_mixed_structural_result_operator_hosted_native checke
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 429ms
 pass/providers/token_machine_family_override_exit checked 1690ms
 pass/range/runtime_funnel_guard_agreement_exit checked 855ms
-pass/range/runtime_guarded_runtime_index_increment_exit rejected 718ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: contract shape unadmitted` (state 1)
-pass/ranges/sum_payload_range_arith_narrowed_exit rejected 722ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
+pass/range/runtime_guarded_runtime_index_increment_exit checked 487ms
+pass/ranges/sum_payload_range_arith_narrowed_exit checked 499ms
 pass/recast/nested_operand_view_compile checked 280ms
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 759ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 4)
@@ -795,8 +771,7 @@ pass/recast/runtime_shared_domain_weakening_recast_exit rejected 738ms
 pass/recast/runtime_shared_record_float_range_weakening_exit rejected 2426ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
 pass/references/runtime_shared_ref_param_guard_exit checked 902ms
-pass/relevance/erased_case_payload_field_exit rejected 835ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
+pass/relevance/erased_case_payload_field_exit checked 511ms
 pass/relevance/erased_formal_before_borrowed_argument_exit checked 768ms @7552efd7b9fc+wt
 pass/relevance/erased_parameter_named_transition_forward checked 331ms
 pass/relevance/erased_parameter_proof_only checked 1664ms
@@ -820,31 +795,21 @@ pass/slices/runtime_bounded_fixed_array_subslice_arg_exit rejected 796ms
 pass/slices/runtime_join_meet_bound_exit checked 989ms
 pass/slices/runtime_mutable_slice_element_write_exit rejected 843ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 0, statement 1)
-pass/slices/runtime_nested_subslice_fixed_index_exit rejected 840ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 7)
-pass/slices/runtime_saturating_array_element_guard_exit rejected 859ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: contract shape unadmitted` (state 1)
-pass/slices/runtime_slice_element_runtime_index_read_exit rejected 859ms
-	native-artifact Terminal production failed: Lowering(OperationProofUnavailable(ObligationId(12)))
-pass/slices/runtime_slice_fixed_index_guard_exit rejected 821ms
-	native-artifact Terminal production failed: Lowering(OperationProofUnavailable(ObligationId(7)))
-pass/slices/runtime_slice_index_copy_dispatch_exit rejected 788ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 1, statement 3)
-pass/slices/runtime_slice_index_copy_exit rejected 811ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 3)
+pass/slices/runtime_nested_subslice_fixed_index_exit checked 492ms
+pass/slices/runtime_saturating_array_element_guard_exit checked 487ms
+pass/slices/runtime_slice_element_runtime_index_read_exit checked 489ms
+pass/slices/runtime_slice_fixed_index_guard_exit checked 518ms
+pass/slices/runtime_slice_index_copy_dispatch_exit checked 507ms
+pass/slices/runtime_slice_index_copy_exit checked 475ms
 pass/slices/runtime_slice_index_read_dispatch_exit checked 505ms
-pass/slices/runtime_slice_index_transition_exit rejected 779ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 1, statement 0)
+pass/slices/runtime_slice_index_transition_exit checked 474ms
 pass/slices/runtime_slice_indexed_read_exit checked 874ms
-pass/slices/runtime_slice_iteration_exit rejected 1328ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 1, statement 0)
+pass/slices/runtime_slice_iteration_exit checked 487ms
 pass/slices/runtime_slice_record_field_offset_exit checked 509ms
-pass/slices/runtime_subslice_dynamic_index_exit rejected 737ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::main`), which was itself omitted at an unavailable callee (`Main::main`) (dependency cycle)
+pass/slices/runtime_subslice_dynamic_index_exit checked 474ms
 pass/slices/runtime_subslice_len_exit rejected 721ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 2)
-pass/slices/runtime_subslice_range_pointer_exit rejected 739ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 4)
+pass/slices/runtime_subslice_range_pointer_exit checked 474ms
 pass/slices/signed_index_and_range_lower_bounds checked 316ms
 pass/slices/subslice_folded_bound_facts_compile checked 307ms
 pass/slices/subslice_literal_bounds_compile checked 305ms
@@ -860,9 +825,9 @@ pass/storage/runtime_machine_owned_indexed_struct_copy_exit rejected 741ms
 pass/storage/runtime_primitive_local_literal_composition_exit checked 579ms @e75f61cc4333+wt
 pass/structs/affine_record_state_clone checked 1864ms
 pass/structs/affine_result_constructor checked 1042ms
+pass/structs/case_field_type_store_shapes checked 1421ms
 pass/structs/copied_array_field_shared_record checked 1559ms
-pass/structs/deep_nested_write_paths_exit rejected 1555ms
-	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
+pass/structs/deep_nested_write_paths_exit checked 496ms
 pass/structs/mutable_array_record_state_transfer checked 1762ms
 pass/structs/mutable_record_state_transfer checked 1737ms
 pass/structs/nested_unused_provider_fields checked 1575ms
@@ -960,8 +925,7 @@ pass/termination/runtime_stored_exclusive_endpoint_exit rejected 4588ms
 pass/termination/stored_reference_endpoint_arrivals checked 307ms
 pass/termination/symbolic_quotient_endpoints checked 333ms
 pass/termination/unsigned_identity_measure_rank_range checked 305ms
-pass/text/runtime_alias_string_write rejected 363ms
-	native-artifact Terminal production failed: Lowering(Unsupported("projected receiver has no exact parameter root"))
+pass/text/runtime_alias_string_write checked 192ms
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1167ms
 pass/text/runtime_bounded_carrier_concat_exit checked 1072ms
 pass/text/runtime_bounded_carrier_copy_exit checked 4313ms
@@ -996,8 +960,7 @@ pass/text/utf8_boundary_established checked 311ms
 pass/text/zii_default_string_equality_exit rejected 837ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::build`), which was itself omitted at local construction at `state graph: prefix initializers: bound expression` (state 2, statement 0)
 pass/time/runtime_checked_time_arith_exit checked 1376ms
-pass/time/runtime_duration_core_exit rejected 1346ms
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(InvalidStructuralLeafCopy { operation: OperationId(66), source: PlaceId(1) }))
+pass/time/runtime_duration_core_exit checked 712ms
 pass/time/runtime_fs_mtime_system_time_interop_exit rejected 1326ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: call result: result type` (state 0)
 pass/time/runtime_time_elapsed_since_exit rejected 1350ms
@@ -1005,11 +968,9 @@ pass/time/runtime_time_elapsed_since_exit rejected 1350ms
 pass/time/runtime_time_host_native_darwin_exit rejected 768ms
 	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `TimeHost`
 pass/time/runtime_time_host_virtual_exit checked 796ms
-pass/traits/boundary_trait_effects_host_call rejected 359ms
-	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs", line: 144, column: 20 } }))
+pass/traits/boundary_trait_effects_host_call checked 329ms
 pass/traits/dyn_finite_family_dispatch checked 297ms
-pass/traits/equatable_mixed_shape_equality_exit rejected 758ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
+pass/traits/equatable_mixed_shape_equality_exit checked 483ms
 pass/traits/equatable_record_equality_exit checked 2363ms
 pass/traits/equatable_string_field_equality_exit rejected 826ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
