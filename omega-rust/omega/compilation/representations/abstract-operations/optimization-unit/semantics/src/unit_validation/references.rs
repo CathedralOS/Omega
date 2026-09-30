@@ -211,15 +211,16 @@ pub(crate) fn leaf_referent(
 ) -> Option<StructuralTypeId> {
     let current = leaf_type(types, current, fields)?;
     // A referent projection over a leaf that is not itself a reference names
-    // that leaf's own storage, mirroring the codec's structural-path arm.
+    // that leaf's own storage, mirroring the codec's structural-path arm. A
+    // reference leaf over a record names its whole referent the same way: the
+    // mapped source's type is the referent declaration, primitive or not.
     referent(types, current).or_else(|| {
-        types.get(&current).and_then(|declaration| {
-            (!matches!(
-                declaration.shape,
-                terminal_psi::StructuralTypeShape::Reference { .. }
-            ))
-            .then_some(current)
-        })
+        types
+            .get(&current)
+            .and_then(|declaration| match declaration.shape {
+                terminal_psi::StructuralTypeShape::Reference { referent, .. } => Some(referent),
+                _ => Some(current),
+            })
     })
 }
 
@@ -619,8 +620,18 @@ pub(crate) fn validate_function_references(
             Err(invalid())
         };
     }
+    let constructible_result = match types
+        .get(&result.structural_type)
+        .map(|declaration| &declaration.shape)
+    {
+        Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) => {
+            constructible(types, *referent)
+        }
+        _ => false,
+    };
     if referent(types, result.structural_type).is_none()
         && !constructible(types, result.structural_type)
+        && !constructible_result
     {
         return Err(invalid());
     }

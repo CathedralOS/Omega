@@ -5,7 +5,7 @@ use crate::lowering::function_signature::PreparedFunctionSignature;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{
-    IeeeFloatFormat, IntegerSign, IntegerType, OperationId, ScalarType, StructuralTypeId,
+    IeeeFloatFormat, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, StructuralTypeId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
@@ -245,48 +245,103 @@ pub(super) fn lower(
             field,
         } => {
             let (psi_operation, result, place, field) = (*psi_operation, *result, *source, *field);
-            let (structural_type, access) =
-                if let Some((_, structural_type)) = live.views.get(&place) {
-                    // A field read through a view place observes one element:
-                    // the descriptor root is the carrier, the index step stays in
-                    // the path, and either view family lends a shared read. An
-                    // affine view is also a structural home, so views win first.
-                    (*structural_type, StructuralAccess::SharedBorrow)
-                } else if let Some(home) = live.structural_homes.get(&place) {
-                    if home.has_claims()
-                        || home.multiplicity() == StructuralMultiplicity::Linear
-                        || !home.qualifications().is_empty()
-                        || !home.projected_qualifications().is_empty()
-                    {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    (home.structural_type(), StructuralAccess::Owned)
-                } else {
-                    let source = function
-                        .structural_parameters
-                        .iter()
-                        .chain(
-                            function
-                                .block_entries
-                                .iter()
-                                .flat_map(|entry| &entry.structural_parameters)
-                                .filter(|parameter| live.address_joins.contains(&parameter.place)),
-                        )
-                        .find(|parameter| parameter.place == place)
-                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                    if !matches!(
-                        source.access,
-                        StructuralAccess::Owned
-                            | StructuralAccess::SharedBorrow
-                            | StructuralAccess::MutableBorrow
-                    ) || source.multiplicity == StructuralMultiplicity::Linear
-                        || !source.qualifications.is_empty()
-                        || !source.projected_qualifications.is_empty()
-                    {
-                        return Err(LoweringError::unsupported_control_flow(function.machine));
-                    }
-                    (source.structural_type, source.access)
+            let mut rebase: Option<(
+                PlaceId,
+                StructuralAccess,
+                Vec<terminal_psi::StructuralPathSegment>,
+            )> = None;
+            let (structural_type, access) = if let Some((_, structural_type)) =
+                live.views.get(&place)
+            {
+                // A field read through a view place observes one element:
+                // the descriptor root is the carrier, the index step stays in
+                // the path, and either view family lends a shared read. An
+                // affine view is also a structural home, so views win first.
+                (*structural_type, StructuralAccess::SharedBorrow)
+            } else if let Some(home) = live.structural_homes.get(&place) {
+                if home.has_claims()
+                    || home.multiplicity() == StructuralMultiplicity::Linear
+                    || !home.qualifications().is_empty()
+                    || !home.projected_qualifications().is_empty()
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                (home.structural_type(), StructuralAccess::Owned)
+            } else if let Some(custody) = live.references.get(&(place, Vec::new())).and_then(
+                |custody| match types
+                    .get(&custody.result.structural_type)
+                    .map(|declaration| &declaration.shape)
+                {
+                    Some(StructuralTypeShape::Reference {
+                        access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+                        ..
+                    }) => Some(custody),
+                    _ => None,
+                },
+            ) {
+                // A field read spelled on a live reference carrier
+                // observes through the loan: the referent's own
+                // declaration resolves the path, and the argument re-bases
+                // onto the referent root the custody names — a `&` result
+                // never materializes its own pointer.
+                let referent = match types
+                    .get(&custody.result.structural_type)
+                    .map(|declaration| &declaration.shape)
+                {
+                    Some(StructuralTypeShape::Reference { referent, .. }) => *referent,
+                    _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
                 };
+                let (root_place, root_path) = match &custody.root {
+                    super::references::ReferenceRoot::Place(place) => (*place, Vec::new()),
+                    super::references::ReferenceRoot::Ingress(place, path) => {
+                        (*place, path.clone())
+                    }
+                };
+                let root_access = function
+                    .structural_parameters
+                    .iter()
+                    .chain(
+                        function
+                            .block_entries
+                            .iter()
+                            .flat_map(|entry| &entry.structural_parameters),
+                    )
+                    .find(|parameter| parameter.place == root_place)
+                    .map(|parameter| parameter.access)
+                    .or_else(|| {
+                        live.structural_homes
+                            .get(&root_place)
+                            .map(|_| StructuralAccess::Owned)
+                    })
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                rebase = Some((root_place, root_access, root_path));
+                (referent, StructuralAccess::SharedBorrow)
+            } else {
+                let source = function
+                    .structural_parameters
+                    .iter()
+                    .chain(
+                        function
+                            .block_entries
+                            .iter()
+                            .flat_map(|entry| &entry.structural_parameters)
+                            .filter(|parameter| live.address_joins.contains(&parameter.place)),
+                    )
+                    .find(|parameter| parameter.place == place)
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                if !matches!(
+                    source.access,
+                    StructuralAccess::Owned
+                        | StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                ) || source.multiplicity == StructuralMultiplicity::Linear
+                    || !source.qualifications.is_empty()
+                    || !source.projected_qualifications.is_empty()
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                (source.structural_type, source.access)
+            };
             let mut carrier = structural_type;
             let mut runtime_path = Vec::with_capacity(path.len());
             let mut case = None;
@@ -406,10 +461,20 @@ pub(super) fn lower(
                 TargetUnitOperation::StructuralScalarFieldRead {
                     psi_operation,
                     result,
-                    source: terminal_psi::StructuralArgument {
-                        place,
-                        access,
-                        path: runtime_path,
+                    source: match rebase {
+                        Some((root_place, root_access, mut root_path)) => {
+                            root_path.extend(runtime_path.iter().cloned());
+                            terminal_psi::StructuralArgument {
+                                place: root_place,
+                                access: root_access,
+                                path: root_path,
+                            }
+                        }
+                        None => terminal_psi::StructuralArgument {
+                            place,
+                            access,
+                            path: runtime_path,
+                        },
                     },
                     case,
                     field,

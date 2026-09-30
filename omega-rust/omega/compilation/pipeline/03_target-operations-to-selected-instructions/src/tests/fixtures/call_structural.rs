@@ -641,6 +641,9 @@ pub(in crate::tests) fn sum_reference_fixture(
                                 reference_results: vec![target_operations::TargetReferenceResult {
                                     path: leaf_path(),
                                     root: caller_place,
+                                    root_path: vec![StructuralPathSegment::Field(
+                                        "reference".into(),
+                                    )],
                                 }],
                                 returned_claim_transfers: Vec::new(),
                             },

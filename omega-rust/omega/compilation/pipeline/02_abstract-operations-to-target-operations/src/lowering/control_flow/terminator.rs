@@ -130,6 +130,20 @@ pub(super) fn plain_home_cleanup(
                 if !discarded_roots.insert(*place) {
                     return Ok(false);
                 }
+                // A bare `&` local's root discard names its loan carrier:
+                // the ordered pass below releases the carrier's own leaf
+                // through `discard_owned`, which suspends-loan semantics
+                // already enforce. A root a sibling edge already drained
+                // re-admits for the same roster. Only owned homes take the
+                // early check.
+                if live
+                    .references
+                    .keys()
+                    .any(|(carrier, _)| *carrier == *place)
+                    || live.drained_loan_roots.contains(place)
+                {
+                    continue;
+                }
                 if !live_home_or_arrival(live, function, *place)
                     || super::references::is_suspended_root(live, *place)
                 {

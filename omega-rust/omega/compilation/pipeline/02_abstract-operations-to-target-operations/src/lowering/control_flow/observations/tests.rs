@@ -45,6 +45,7 @@ fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
         lengths: BTreeMap::new(),
         trivial_affine_locals: BTreeMap::new(),
         references: BTreeMap::new(),
+        drained_loan_roots: BTreeSet::new(),
     };
     let plan = evaluate_call_plan(
         CallingPolicy::native_for_target(NativeTarget::linux_x64()),

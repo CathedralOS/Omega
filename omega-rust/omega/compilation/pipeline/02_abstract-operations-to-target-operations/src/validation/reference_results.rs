@@ -48,13 +48,13 @@ pub(super) enum BoundaryCallRow {
 #[derive(Clone)]
 enum Root {
     Place(PlaceId),
-    Ingress(PlaceId),
+    Ingress(PlaceId, Vec<StructuralPathSegment>),
 }
 
 impl Root {
     fn place(&self) -> PlaceId {
         match self {
-            Self::Place(place) | Self::Ingress(place) => *place,
+            Self::Place(place) | Self::Ingress(place, _) => *place,
         }
     }
 }
@@ -365,7 +365,7 @@ fn normalized_source(
             leaf_type(declarations, carrier, carrier_path).and_then(|leaf| {
                 match &lookup(declarations, leaf)?.shape {
                     StructuralTypeShape::Reference { .. } => None,
-                    _ => Some(Root::Ingress(source.place)),
+                    _ => Some(Root::Ingress(source.place, carrier_path.to_vec())),
                 }
             })
         }
@@ -407,13 +407,13 @@ fn formal_origin(function: &AbstractFunction, source: &StructuralArgument) -> Op
         )
     {
         Some(Root::Place(source.place))
-    } else if let Some((StructuralPathSegment::Referent, _)) = source.path.split_last()
+    } else if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last()
         && matches!(
             parameter.access,
             StructuralAccess::Owned | StructuralAccess::SharedBorrow
         )
     {
-        Some(Root::Ingress(source.place))
+        Some(Root::Ingress(source.place, carrier_path.to_vec()))
     } else {
         None
     }
@@ -451,9 +451,9 @@ fn entry(
         )?;
         for path in paths {
             custody.leaves.insert(
-                (parameter.place, path),
+                (parameter.place, path.clone()),
                 Leaf {
-                    root: Root::Ingress(parameter.place),
+                    root: Root::Ingress(parameter.place, path),
                     structural_type: parameter.structural_type,
                     multiplicity: parameter.multiplicity,
                 },
@@ -553,7 +553,7 @@ fn call_result_leaves(
         let source = call_source(callee, structural_arguments, mapping)?;
         let leaf = if matches!(
             formal_origin(callee, &mapping.source),
-            Some(Root::Ingress(_))
+            Some(Root::Ingress(..))
                 if mapping
                     .source
                     .path
@@ -594,6 +594,10 @@ fn call_result_leaves(
         roster.push(TargetReferenceResult {
             path: mapping.path.clone(),
             root: leaf.root.place(),
+            root_path: match &leaf.root {
+                Root::Place(_) => Vec::new(),
+                Root::Ingress(_, path) => path.clone(),
+            },
         });
         established.push(((result.place, mapping.path.clone()), leaf));
     }

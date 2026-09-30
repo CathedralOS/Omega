@@ -389,7 +389,20 @@ pub(crate) fn validate_structural_root_operations(
                         result.scalar_type,
                         ScalarType::Boolean | ScalarType::Integer(_)
                     ) && readable_field_type(function, *source).is_some_and(|root| {
-                        observed_scalar_field(structural_types, root, path, *field)
+                        // A call result's `Reference` shell keeps the loan's
+                        // access on the type; the observed record is its
+                        // referent, the peel every read-side validator shares.
+                        let observed_root = match structural_types
+                            .iter()
+                            .find(|(id, _)| **id == root)
+                            .map(|(_, declaration)| &declaration.shape)
+                        {
+                            Some(terminal_psi::StructuralTypeShape::Reference {
+                                referent, ..
+                            }) => *referent,
+                            _ => root,
+                        };
+                        observed_scalar_field(structural_types, observed_root, path, *field)
                             == Some(result.scalar_type)
                     });
                     if !valid {
@@ -414,7 +427,21 @@ pub(crate) fn validate_structural_root_operations(
                     let expected = crate::unit_validation::references::referent(
                         structural_types,
                         result.structural_type,
-                    );
+                    )
+                    // A record referent is equally the whole established
+                    // carrier: `&Node` binds the source naming its referent,
+                    // primitive or not.
+                    .or_else(|| {
+                        match structural_types
+                            .get(&result.structural_type)
+                            .map(|declaration| &declaration.shape)
+                        {
+                            Some(terminal_psi::StructuralTypeShape::Reference {
+                                referent, ..
+                            }) => Some(*referent),
+                            _ => None,
+                        }
+                    });
                     let valid = expected.is_some()
                         && result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                         && result.qualifications.is_empty()

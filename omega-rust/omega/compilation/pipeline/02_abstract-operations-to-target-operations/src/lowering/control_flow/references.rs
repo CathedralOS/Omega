@@ -174,11 +174,14 @@ pub(super) fn leaf_referent(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     let leaf = leaf_type(types, current, fields)?;
+    // A reference leaf over a record names its whole referent the same way a
+    // primitive referent does: the mapped source's type is the referent
+    // declaration itself, not the `Reference` shell.
     referent(types, leaf).or_else(|| {
         types
             .get(&leaf)
             .and_then(|declaration| match declaration.shape {
-                StructuralTypeShape::Reference { .. } => None,
+                StructuralTypeShape::Reference { referent, .. } => Some(referent),
                 _ => Some(leaf),
             })
     })
@@ -620,6 +623,23 @@ pub(super) fn establish(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let referent = referent(types, result.structural_type)
+        // A record referent is equally the whole established carrier: `&Node`
+        // binds the source naming its referent, primitive or not.
+        .or_else(|| {
+            match types
+                .get(&result.structural_type)
+                .map(|declaration| &declaration.shape)
+            {
+                Some(StructuralTypeShape::Reference {
+                    referent,
+                    access:
+                        StructuralAccess::SharedBorrow
+                        | StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow,
+                }) => Some(*referent),
+                _ => None,
+            }
+        })
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if result.multiplicity != StructuralMultiplicity::Affine
         || !result.claims.is_empty()
@@ -712,6 +732,11 @@ pub(super) fn discard_owned(
     if !contains_reference(types, contract) {
         return Ok(false);
     }
+    if live.drained_loan_roots.contains(&source) {
+        // A sibling edge already released this root's leaves: every edge
+        // cleanup roster declares the same places.
+        return Ok(true);
+    }
     let paths = leaf_paths(types, contract, live.references.len())
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let mut released = BTreeSet::new();
@@ -736,6 +761,7 @@ pub(super) fn discard_owned(
     }
     live.references
         .retain(|_, leaf| !released.contains(&leaf.identity));
+    live.drained_loan_roots.insert(source);
     Ok(true)
 }
 
@@ -895,6 +921,10 @@ pub(super) fn call_results(
         reference_results.push(target_operations::TargetReferenceResult {
             path: mapping.path.clone(),
             root: leaf.root.place(),
+            root_path: match &leaf.root {
+                ReferenceRoot::Place(_) => Vec::new(),
+                ReferenceRoot::Ingress(_, path) => path.clone(),
+            },
         });
         established.push(((result.place, mapping.path.clone()), leaf));
     }
