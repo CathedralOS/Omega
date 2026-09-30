@@ -169,8 +169,8 @@ construction, match, coverage, and custody acceptance.
 Each case also names the domain of values inhabiting it:
 
 ```omega
-domain Command::Interactive
-    requires self in Command::Move | Command::Say;
+domain Command::Interactive(command)
+    requires command in Command::Move | Command::Say;
 ```
 
 This is a subset of `Command`, not another enum with copied cases. Case

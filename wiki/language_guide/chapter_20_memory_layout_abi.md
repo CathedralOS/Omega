@@ -54,9 +54,9 @@ data Command {
     case Say(text: [u8; 256]);
 }
 
-pub domain Command::Inert
+pub domain Command::Inert(value)
 requires
-    self in Command::None;
+    value in Command::None;
 
 pub machine Command::empty() -> Command in Command::Inert {
     Command::None
