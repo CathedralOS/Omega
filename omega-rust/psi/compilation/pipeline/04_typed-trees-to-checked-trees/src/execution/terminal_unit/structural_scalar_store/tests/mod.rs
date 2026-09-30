@@ -82,12 +82,17 @@ fn array_stores_before_terminal_machine_call_keep_a_complete_write_frame() {
 
 #[test]
 fn array_byte_fields_do_not_admit_stored_borrows_or_nominal_drop() {
-    for extra in ["view: &[u8];", "reference: &i32;", ""] {
-        let drop = if extra.is_empty() {
-            "machine Cell::drop(&mut self) {}"
-        } else {
-            ""
-        };
+    // An array layout describes storage only; each operation keeps its own
+    // ownership decision. Every `[Cell; 2]` layout composes, partial-affine
+    // disposal refuses stored borrows, and automatic disposal refuses a
+    // nominal `drop` reachable through the elements. The last row is the
+    // owned control without `drop`.
+    for (extra, drop, owned_contents, nominal_drop) in [
+        ("view: &[u8];", "", false, false),
+        ("reference: &i32;", "", false, false),
+        ("", "machine Cell::drop(&mut self) {}", true, true),
+        ("", "", true, false),
+    ] {
         let source = format!(
             r#"
             domain [u8;3]::Utf8 requires valid_utf8(self);
@@ -103,11 +108,57 @@ fn array_byte_fields_do_not_admit_stored_borrows_or_nominal_drop() {
             .iter()
             .find(|definition| definition.name.as_str() == "Record")
             .unwrap();
+        let [typed_trees::data::DataMember::Field(cells)] = program.data_members(record) else {
+            panic!("one array field");
+        };
+        let mut shapes = ShapeCollector::new(&program);
         assert!(
-            ShapeCollector::new(&program)
-                .add_attached_data(record, &[])
-                .is_none(),
-            "array ownership stays unsupported: {extra} {drop}"
+            shapes.add_attached_data(record, &[]).is_some(),
+            "array layout composes: {extra} {drop}"
+        );
+        assert_eq!(
+            shapes
+                .add_partial_affine_type(cells.type_reference, &[])
+                .is_some(),
+            owned_contents,
+            "a layout cannot authorize partial disposal of stored borrows: {extra} {drop}"
+        );
+        assert_eq!(
+            crate::execution::terminal_unit::types::type_graph_requires_nominal_drop(
+                &program,
+                cells.type_reference
+            ),
+            nominal_drop,
+            "element cleanup reaches the nominal drop: {extra} {drop}"
+        );
+        if !extra.is_empty() {
+            continue;
+        }
+        // Discarding the whole record must run each element's cleanup: with
+        // a nominal `drop` there is no Unit plan, only a recorded omission.
+        let checked = checked_program(&format!("{source}\nmachine discard(record: Record) {{}}"));
+        let discard = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "discard")
+            .unwrap()
+            .symbol;
+        let effects = &checked.facts.flow.terminal_unit_effects;
+        assert_eq!(
+            effects.machines.iter().any(|plan| plan.machine == discard),
+            !nominal_drop,
+            "{drop}: {:?}",
+            effects.omissions
+        );
+        assert_eq!(
+            effects
+                .omissions
+                .iter()
+                .any(|omission| omission.machine == discard),
+            nominal_drop,
+            "{drop}: {:?}",
+            effects.omissions
         );
     }
 }
