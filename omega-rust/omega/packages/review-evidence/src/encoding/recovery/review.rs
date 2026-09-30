@@ -442,6 +442,7 @@ fn callable(reader: &mut Reader<'_>) -> Result<CheckedPackageCallableReview, Err
             2 => PackageReviewCallableSupply::Boundary,
             3 => PackageReviewCallableSupply::AdmissionClaim,
             4 => PackageReviewCallableSupply::ExternalRealization,
+            5 => PackageReviewCallableSupply::TopLevelRequirement,
             _ => return Err(Error::InvalidTag),
         },
         spelling: reader.option(operator_spelling)?,
