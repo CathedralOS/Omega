@@ -316,9 +316,29 @@ pub(super) fn validate(
     };
     let (result_symbol, declaration, expected_provenance) =
         result_source(checked, plan.machine, source, state)?;
-    if state.structural_parameters.iter().enumerate().any(|(index, parameter)| {
-        !(matches!(subject.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } if parameter_index as usize == index)) && (parameter.multiplicity != Multiplicity::Unrestricted || !matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
-    }) { return unsupported("Unit case has unrelated owned parameter cleanup"); }
+    // Every parameter beside the dispatched subject must need no cleanup on
+    // an arm that leaves it unconsumed. A shared or mutable loan is restored
+    // at return, and an owned unrestricted value, such as the by-value `[copy]`
+    // `other: Duration` of `Duration::is_less_than`, carries no drop
+    // obligation. Affine or linear owned parameters and write-only loans need
+    // a routed disposition that this reconstruction does not supply.
+    if state
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .any(|(index, parameter)| {
+            !(matches!(subject.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } if parameter_index as usize == index))
+                && (parameter.multiplicity != Multiplicity::Unrestricted
+                    || !matches!(
+                        parameter.access,
+                        checked_trees::CheckedStructuralAccess::Owned
+                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                            | checked_trees::CheckedStructuralAccess::MutableBorrow
+                    ))
+        })
+    {
+        return unsupported("Unit case has unrelated owned parameter cleanup");
+    }
     let needs_discard = declaration.properties.multiplicity == Multiplicity::Affine;
     let mut has_result_discard = false;
     super::result_custody::validate_disposition_roster(checked, plan.machine, source, state)?;
