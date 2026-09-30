@@ -211,6 +211,7 @@ pub(crate) fn build_check_facts(
         crate::execution::terminal_scalar::build_checked_terminal_machine_selections(
             program,
             call_frames.as_ref(),
+            &flow.terminal_scalar_graphs,
         );
     flow.terminal_debug =
         crate::execution::terminal_debug::build_checked_terminal_debug_plans(program);

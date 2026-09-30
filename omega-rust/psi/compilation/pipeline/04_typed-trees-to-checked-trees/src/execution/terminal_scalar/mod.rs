@@ -38,6 +38,7 @@ use checked_trees::{
 pub(crate) fn build_checked_terminal_machine_selections(
     program: &TypedTrees,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
+    scalar_graphs: &CheckedScalarGraphPlans,
 ) -> CheckedTerminalMachineSelections {
     CheckedTerminalMachineSelections {
         machines: program
@@ -56,6 +57,13 @@ pub(crate) fn build_checked_terminal_machine_selections(
                 } else if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()
                     || (machine.termination_plan.implementation_witness.is_some()
+                        // The graph already projects the shared runtime rank
+                        // judgment, including weak edges across machines.
+                        // Legacy machine-local rank recognizers cannot veto
+                        // that retained proof. Finalization and Terminal replay
+                        // still validate the exact graph and every cyclic edge.
+                        && !scalar_graphs.for_machine(machine.symbol)
+                            .is_some_and(|graph| graph.ranked_scc.is_some())
                         && crate::checks::termination::proven_slice_length_ranks_with_call_frames(
                             program,
                             machine,

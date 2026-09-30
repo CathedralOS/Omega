@@ -293,7 +293,6 @@ fn validate_structural_parameter(
             checked_trees::CheckedStructuralAccess::SharedBorrow
                 | checked_trees::CheckedStructuralAccess::MutableBorrow
         ) || !retained.projected_qualifications.is_empty()
-            || !validation::has_plain_owned_contents_with_numeric_constraints(checked, *referee)
         {
             return unsupported("scalar graph record reference has unsupported source custody");
         }

@@ -6,6 +6,9 @@
 //! comparing catalogs; agreement between retained catalogs cannot replace this.
 //! Borrowed referents use the same reconstruction as owned parameters:
 //! borrowing changes access, not the referent's fields or numeric restrictions.
+//! A borrowed provider field retains its exact Binding carrier and selected
+//! Fused receipt. That loan never grants the owned path permission to copy,
+//! erase, or establish a service value.
 
 use checked_trees::TypeIdentityRequest;
 use checked_trees::data::{DataDefinition, DataField, DataMember};
@@ -22,6 +25,8 @@ use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
 
 mod scalar_fields;
+#[cfg(test)]
+mod tests;
 
 pub(super) fn validate_referent_type(
     checked: &CheckedTrees,
@@ -30,6 +35,7 @@ pub(super) fn validate_referent_type(
 ) -> Result<(), LoweringError> {
     let mut source = SourceTypes {
         checked,
+        borrowed_referent: true,
         active: Vec::new(),
         complete: Vec::new(),
     };
@@ -49,6 +55,7 @@ pub(super) fn validate(
 ) -> Result<(), LoweringError> {
     let mut source = SourceTypes {
         checked,
+        borrowed_referent: false,
         active: Vec::new(),
         complete: Vec::new(),
     };
@@ -71,6 +78,7 @@ pub(super) fn validate(
 
 struct SourceTypes<'checked> {
     checked: &'checked CheckedTrees,
+    borrowed_referent: bool,
     active: Vec<String>,
     complete: Vec<String>,
 }
@@ -217,6 +225,8 @@ impl SourceTypes<'_> {
                     })
                     .into_string(),
             }
+        } else if let Some(provider) = self.provider_field(field.type_reference, substitutions)? {
+            provider
         } else if let Some(primitive) = self.checked.primitive_type_reference(reference) {
             scalar_fields::reconstruct(self.checked, field.type_reference, substitutions, primitive)
                 .ok_or(LoweringError::Unsupported(
@@ -232,6 +242,74 @@ impl SourceTypes<'_> {
             relevance: field.relevance,
             field_type,
         })
+    }
+
+    fn provider_field(
+        &self,
+        mut reference: TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Result<Option<CheckedUnitStructuralFieldType>, LoweringError> {
+        if !self.borrowed_referent {
+            return Ok(None);
+        }
+        // Substitute a bare formal without unwrapping constraints: the exact
+        // Binding carrier rejects authored qualifications on its source shell.
+        let mut active = Vec::new();
+        loop {
+            if !self
+                .checked
+                .type_reference_table
+                .contains_type_reference(reference)
+                || active.contains(&reference)
+            {
+                return unsupported("borrowed provider field has a stale or cyclic type reference");
+            }
+            active.push(reference);
+            let TypeReferenceNode::Named { symbol, .. } =
+                self.checked.type_reference_table.type_reference(reference)
+            else {
+                break;
+            };
+            let Some((_, replacement)) = substitutions
+                .iter()
+                .rev()
+                .find(|(parameter, _)| parameter == symbol)
+            else {
+                break;
+            };
+            reference = *replacement;
+        }
+        let carrier = typed_trees::service::classify_exact_bound_service_carrier(
+            &self.checked.typed,
+            reference,
+        )
+        .map_err(|_| {
+            LoweringError::Unsupported("borrowed provider field has an invalid Binding carrier")
+        })?;
+        let Some(carrier) = carrier else {
+            return Ok(None);
+        };
+        if self
+            .checked
+            .fused_service_erasure(carrier.requirement)
+            .is_none()
+        {
+            return unsupported("borrowed provider field lacks its exact Fused authorization");
+        }
+        // This reconstructs the borrowed field's existing erased shape. It
+        // grants no provisioning or transfer authority to the ordinary call.
+        Ok(Some(CheckedUnitStructuralFieldType::FusedServiceBacked {
+            provider_type_identity: self
+                .checked
+                .type_identity(TypeIdentityRequest {
+                    substitutions,
+                    ..TypeIdentityRequest::ordinary(reference)
+                })
+                .into_string(),
+            erasure: checked_trees::CheckedFusedServiceErasureReceipt {
+                requirement: carrier.requirement,
+            },
+        }))
     }
 }
 

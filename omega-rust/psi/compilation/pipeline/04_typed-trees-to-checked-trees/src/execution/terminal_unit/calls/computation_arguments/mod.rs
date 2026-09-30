@@ -391,9 +391,6 @@ pub(crate) fn borrowed_nominal_argument(
             .find_named_type_reference(owner.attached_data_symbol)?;
         base_type_identity(program, reference, &[])?
     } else {
-        if !validation::has_plain_owned_contents_with_numeric_constraints(program, *referee) {
-            return None;
-        }
         base_type_identity(program, *referee, &[])?
     };
     let mut receiver_argument = false;
@@ -535,7 +532,7 @@ pub(crate) fn borrowed_nominal_argument(
     if receiver_argument {
         // The receiver's storage is the attachment itself: its declaration's
         // multiplicity is the whole-storage evidence, and the shape collected
-        // below from the same declaration carries the plain-contents check.
+        // below from the same declaration retains its complete field closure.
         if !matches!(
             self_attached.map(|data| data.properties.multiplicity),
             Some(Multiplicity::Affine | Multiplicity::Unrestricted)
@@ -548,11 +545,10 @@ pub(crate) fn borrowed_nominal_argument(
             TypeReferenceNode::Named { .. }
                 | TypeReferenceNode::Generic { .. }
                 | TypeReferenceNode::FixedArray { .. }
-        ) || !validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
-            || !matches!(
-                program.type_multiplicity(reference),
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            ))
+        ) || !matches!(
+            program.type_multiplicity(reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        ))
     {
         return None;
     }
@@ -565,11 +561,10 @@ pub(crate) fn borrowed_nominal_argument(
     // Root membership/access and the exact authored receiver loan are retained
     // independently; this never constructs or copies the enclosing record.
     if !path.is_empty()
-        && (!validation::has_plain_owned_contents_with_numeric_constraints(program, reference)
-            || !matches!(
-                program.type_multiplicity(reference),
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            ))
+        && !matches!(
+            program.type_multiplicity(reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        )
     {
         return None;
     }
@@ -586,19 +581,24 @@ pub(crate) fn borrowed_nominal_argument(
     // type its transitive structural fields name, so the loan observes that
     // whole closure in place: the referent itself must be a record, a
     // non-empty sum or mixed sum, or a fixed array, and each collected member
-    // type must be one of those or a primitive scalar leaf — scalar members
-    // carry no fields of their own, and the plain-owned-contents gate upstream
-    // refused reference, slice, and non-plain members before a shape was ever
-    // collected. A scalar root is not structural: it stays with the primitive
+    // type must be one of those or a primitive scalar leaf. A provider field
+    // stays part of the borrowed record: this operation neither copies its
+    // value nor establishes a binding. Shape collection retains its exact
+    // provider identity and selected erasure receipt; source replay and entry
+    // establishment independently check those obligations. Requiring plain
+    // owned contents here would wrongly distinguish an explicit context loan
+    // from the same loan spelled `self`. A scalar root stays with the primitive
     // scalar/local source plans below. A borrow projected into a payload
     // keeps requiring its own channel.
-    let plain_field = |field: &CheckedUnitStructuralFieldPlan| {
+    let borrowed_field = |field: &CheckedUnitStructuralFieldPlan| {
         !field.relevance.is_erased()
             && matches!(
                 field.field_type,
                 CheckedUnitStructuralFieldType::Scalar(_)
                     | CheckedUnitStructuralFieldType::BoundedInteger(_)
                     | CheckedUnitStructuralFieldType::Structural { .. }
+                    | CheckedUnitStructuralFieldType::ProviderBacked { .. }
+                    | CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
             )
     };
     let structural_root = shapes.types.get(&identity).is_some_and(|shape| {
@@ -613,7 +613,7 @@ pub(crate) fn borrowed_nominal_argument(
     // A projected receiver still loans the complete selected referent. Its
     // transitive field closure is identical to a whole parameter's; the exact
     // root/path checks above retain custody of the enclosing storage.
-    let plain_structural_referent = structural_root
+    let structural_referent = structural_root
         && matches!(
             program.type_multiplicity(reference),
             Multiplicity::Affine | Multiplicity::Unrestricted
@@ -624,16 +624,16 @@ pub(crate) fn borrowed_nominal_argument(
                     && cases
                         .iter()
                         .flat_map(|case| case.fields.iter())
-                        .all(&plain_field)
+                        .all(&borrowed_field)
             }
             CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
                 !cases.is_empty()
                     && fields
                         .iter()
                         .chain(cases.iter().flat_map(|case| case.fields.iter()))
-                        .all(&plain_field)
+                        .all(&borrowed_field)
             }
-            CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(&plain_field),
+            CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(&borrowed_field),
             CheckedUnitStructuralTypeShape::FixedArray { .. }
             | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => true,
             _ => false,
@@ -657,18 +657,17 @@ pub(crate) fn borrowed_nominal_argument(
     // A whole-attachment receiver loan forwards the caller's `self` as the
     // callee's borrowed receiver: custody stays with the machine's storage.
     // The statement lane performs the same receiver-to-receiver binding without
-    // reading a plain-field closure. The is_self tail below still verifies
-    // the authored receiver place and rules out an overlapping exclusive
-    // actual, so capability (non-plain) members of the attachment do not
-    // disqualify this loan the way they would an observed record borrow.
+    // reading the field closure. The is_self tail below still verifies the
+    // authored receiver place and rules out an overlapping exclusive actual;
+    // other loans retain the supported closure checked above.
     if identity != target_identity
         || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
         || (!receiver_argument
-            && !plain_structural_referent
+            && !structural_referent
             && !whole_primitive_scalar
             && !shapes.types.values().all(|shape| {
                 matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }
-                if fields.iter().all(&plain_field))
+                if fields.iter().all(&borrowed_field))
             }))
     {
         return None;

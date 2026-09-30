@@ -1060,7 +1060,10 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
                 }
                 // Borrowed records carry caller-owned storage, not an owned
                 // payload. Signature construction validates their exact shape
-                // and access; successor replay retains the same loan.
+                // and access; successor replay retains the same loan. In
+                // particular a Binding field does not prevent lending the
+                // record: its provider receipt remains in the shape catalog,
+                // and this signature grants no construction or copy authority.
                 if program.primitive_type_reference(*referee).is_none() {
                     let TypeReferenceNode::Named { symbol, .. } =
                         program.type_reference_table.type_reference(*referee)
@@ -1078,8 +1081,6 @@ pub(crate) fn structural_scalar_graph_parameter_admission(
                         access,
                         language_semantics::ReferenceAccess::Shared
                             | language_semantics::ReferenceAccess::Mutable
-                    ) || !validation::has_plain_owned_contents_with_numeric_constraints(
-                        program, *referee,
                     ) || !matches!(
                         typed_trees::data::DataDefinition::shape_kind_from_members(
                             program.data_members(data)
