@@ -119,7 +119,7 @@ fn whole_owned_array_read_uses_its_declared_carrier_not_a_borrowed_view() {
             primitive_type: PrimitiveType::U64,
         }),
     };
-    let bindings = ScalarBindings::new(1)
+    let bindings = ScalarBindings::new([terminal_scalar_type(PrimitiveType::U64).unwrap()])
         .with_structural_parameters(&[(3, parameter.clone())])
         .with_structural_observations(&declarations);
     assert!(matches!(bindings.expression(&expression).unwrap(),
@@ -136,7 +136,7 @@ fn whole_owned_array_read_uses_its_declared_carrier_not_a_borrowed_view() {
     let mut unreadable = parameter;
     unreadable.access = StructuralAccess::WriteOnlyBorrow;
     assert!(
-        ScalarBindings::new(1)
+        ScalarBindings::new([terminal_scalar_type(PrimitiveType::U64).unwrap()])
             .with_structural_parameters(&[(3, unreadable)])
             .with_structural_observations(&declarations)
             .expression(&expression)
@@ -168,7 +168,7 @@ fn bindings(access: StructuralAccess, relevance: BindingRelevance) -> ScalarBind
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
-    ScalarBindings::new(0)
+    ScalarBindings::new([])
         .with_structural_parameters(&[(3, parameter)])
         .with_structural_observations(&[declaration])
 }

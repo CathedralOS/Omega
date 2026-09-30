@@ -54,6 +54,7 @@ pub(crate) fn lower_checked_scalar_expression(
         &std::collections::BTreeMap::new(),
         &[],
         &[],
+        None,
     )
 }
 
@@ -84,6 +85,7 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
         &std::collections::BTreeMap::new(),
         &[],
         &[],
+        None,
     )?;
     source_custody::validate_pure(checked, binding, expression.scalar_type())?;
     Ok(expression)
@@ -171,6 +173,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
     element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
     view_locals: &[ViewLocalBinding],
     structural_locals: &[(symbols::SymbolHandle, StructuralArgument)],
+    scalar_bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength { root, path } => {
@@ -385,6 +388,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?;
             let right = lower_checked_scalar_expression_with_parameters(
                 right,
@@ -395,6 +399,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?;
             Ok(LoweredDirectExpression::IntegerBinary {
                 kind: match kind {
@@ -500,6 +505,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
         }),
         CheckedScalarExpression::IntegerWiden {
@@ -516,6 +522,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
         }),
         CheckedScalarExpression::StructuralParameterIndexedRead {
@@ -526,18 +533,18 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             element_path,
             primitive_type,
         } => {
-            // Nested selectors (`self.a[i][k]`) read only below a structural
-            // parameter's static field path; every selector keeps its own
+            // Nested selectors read a structural parameter or its static
+            // projection; every selector keeps its own
             // `RuntimeIndex` segment and obligation.
             if !inner_indexes.is_empty() {
                 let checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
                 } = *root
                 else {
-                    return unsupported("nested element reads select below a parameter field");
+                    return unsupported("nested element reads require a parameter root");
                 };
-                if path.is_empty() || !element_path.is_empty() {
-                    return unsupported("nested element reads take a field path and a scalar leaf");
+                if !element_path.is_empty() {
+                    return unsupported("nested element reads require a scalar leaf");
                 }
                 if inner_indexes.len()
                     > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
@@ -554,6 +561,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         element_views,
                         view_locals,
                         structural_locals,
+                        scalar_bindings,
                     )
                     .and_then(exact_u64_index)
                 };
@@ -619,6 +627,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     element_views,
                     view_locals,
                     structural_locals,
+                    scalar_bindings,
                 )?;
                 if view_locals.iter().any(|local| local.symbol == symbol) {
                     let local = crate::expression_preparation::bindings::view_locals::resolve(
@@ -663,7 +672,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             *position == parameter_position
                                 && parameter.access == StructuralAccess::Owned
                         });
-                    if !path.is_empty() || owned_parameter {
+                    if !path.is_empty() || !element_path.is_empty() || owned_parameter {
                         let index = lower_checked_scalar_expression_with_parameters(
                             index,
                             structural_parameters,
@@ -673,6 +682,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             element_views,
                             view_locals,
                             structural_locals,
+                            scalar_bindings,
                         )?;
                         let index = exact_u64_index(index)?;
                         // A scalar field of a record element (`cells[i].hp`)
@@ -715,6 +725,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                     ) => LoweredElementPathSegment::RuntimeIndex(
                                         exact_u64_index(element_path_runtime_selector(
                                             structural_fields,
+                                            scalar_bindings,
                                             &index,
                                         )?)?,
                                     ),
@@ -898,6 +909,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         element_views,
                         view_locals,
                         structural_locals,
+                        scalar_bindings,
                     )?;
                     return Ok(LoweredDirectExpression::ElementViewRead {
                         source,
@@ -922,6 +934,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?;
             let index = exact_u64_index(index)?;
             match element_scalar {
@@ -959,6 +972,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
             let ScalarType::Integer(source_type) = operand.scalar_type() else {
@@ -982,6 +996,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?;
             crate::expression_preparation::representation_view::replay(
                 operand,
@@ -1001,6 +1016,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
             let ScalarType::Integer(source_type) = operand.scalar_type() else {
@@ -1021,6 +1037,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?;
             crate::expression_preparation::trapping_cast::trapping_cast(
                 operand,
@@ -1042,6 +1059,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
         }),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
@@ -1054,6 +1072,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
         }),
     }
@@ -1072,6 +1091,7 @@ pub(crate) fn lower_checked_boolean_expression(
         &std::collections::BTreeMap::new(),
         &[],
         &[],
+        None,
     )
 }
 
@@ -1084,6 +1104,7 @@ fn lower_checked_boolean_expression_with_parameters(
     element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
     view_locals: &[ViewLocalBinding],
     structural_locals: &[(symbols::SymbolHandle, StructuralArgument)],
+    scalar_bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     Ok(match expression {
         CheckedBooleanExpression::Constant(value) => {
@@ -1198,6 +1219,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
         },
         CheckedBooleanExpression::Equal { left, right } => LoweredBooleanReturnExpression::Equal {
@@ -1210,6 +1232,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
@@ -1220,6 +1243,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
         },
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
@@ -1242,6 +1266,7 @@ fn lower_checked_boolean_expression_with_parameters(
                     element_views,
                     view_locals,
                     structural_locals,
+                    scalar_bindings,
                 )?),
                 right: Box::new(lower_checked_scalar_expression_with_parameters(
                     right,
@@ -1252,6 +1277,7 @@ fn lower_checked_boolean_expression_with_parameters(
                     element_views,
                     view_locals,
                     structural_locals,
+                    scalar_bindings,
                 )?),
             }
         }
@@ -1281,6 +1307,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
@@ -1291,6 +1318,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
         },
         CheckedBooleanExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
@@ -1303,6 +1331,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
@@ -1313,6 +1342,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
+                scalar_bindings,
             )?),
         },
     })
@@ -1324,13 +1354,19 @@ fn lower_checked_boolean_expression_with_parameters(
 /// nonnegative, so it never silently becomes unsigned.
 /// The direct expression one element-path runtime selector evaluates to:
 /// `cells[i].data[j]`'s `j` rides the same structural field bindings a
-/// carrier path's `CheckedRuntimeIndex` spells. Only a program-point field
-/// read is admitted — the checked side mints no other coordinate here.
+/// carrier path's `CheckedRuntimeIndex` spells. Parameter selectors resolve
+/// through the typed authored namespace before emission.
 fn element_path_runtime_selector(
     structural_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+    scalar_bindings: Option<&crate::expression_preparation::bindings::ScalarBindings>,
     index: &checked_trees::CheckedRuntimeIndex,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match index {
+        checked_trees::CheckedRuntimeIndex::Parameter { position } => scalar_bindings
+            .ok_or(LoweringError::Unsupported(
+                "element selector has no typed scalar namespace",
+            ))?
+            .runtime_index_parameter(*position),
         checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
             let (source, path, field, scalar_type) =
                 crate::expression_preparation::bindings::structural_fields::resolve_typed(
@@ -1348,7 +1384,7 @@ fn element_path_runtime_selector(
                 scalar_type,
             })
         }
-        _ => unsupported("element path runtime selector is not a field read"),
+        _ => unsupported("element path runtime selector is not a parameter or field read"),
     }
 }
 

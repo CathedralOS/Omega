@@ -70,6 +70,11 @@ pub(crate) fn collect_statement_borrow_calls(
                     statement_call_receiver_path(program, state, statement_index, call);
                 let accesses = collection.collect_call_argument_accesses(
                     program.statement_table.expression_handles(call.arguments),
+                    if resolved_target.is_valid() {
+                        resolved_target
+                    } else {
+                        call.target_symbol
+                    },
                 );
                 collection.append_borrow_call(
                     call.receiver_symbol,

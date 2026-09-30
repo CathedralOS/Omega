@@ -112,6 +112,9 @@ pub(crate) fn checked_scalar_term_with_views(
     structural_parameters: &[(u32, StructuralParameterDeclaration)],
     element_views: &std::collections::BTreeMap<StructuralTypeId, Option<ScalarType>>,
 ) -> Result<ScalarTerm, LoweringError> {
+    let scalar_bindings = crate::expression_preparation::bindings::ScalarBindings::new(
+        values.iter().map(|value| value.scalar_type),
+    );
     let expression = lower_checked_scalar_expression_with_parameters(
         expression,
         structural_parameters,
@@ -121,6 +124,7 @@ pub(crate) fn checked_scalar_term_with_views(
         element_views,
         &[],
         &[],
+        Some(&scalar_bindings),
     )?;
     lowered_direct_scalar_term(&expression, values, erased)
 }

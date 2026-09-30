@@ -57,7 +57,9 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| {
-                crate::expression_preparation::bindings::ScalarBindings::new(values.len())
+                crate::expression_preparation::bindings::ScalarBindings::new(
+                    values.iter().map(|value| value.scalar_type),
+                )
             })
             .with_primitive_storage(&self.primitive_storage)
             .with_local_cases(&self.local_cases)
@@ -236,7 +238,12 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| {
-                crate::expression_preparation::bindings::ScalarBindings::new(source_value_count)
+                crate::expression_preparation::bindings::ScalarBindings::new(
+                    values
+                        .iter()
+                        .take(source_value_count)
+                        .map(|value| value.scalar_type),
+                )
             })
             .with_primitive_storage(&self.primitive_storage)
             .with_local_cases(&self.local_cases)

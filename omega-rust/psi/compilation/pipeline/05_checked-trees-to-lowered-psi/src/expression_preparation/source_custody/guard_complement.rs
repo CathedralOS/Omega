@@ -9,11 +9,8 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, authored_state,
     unsupported, validate_pure,
 };
-use checked_trees::data::{DataDefinition, DataMember};
-use checked_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
-use checked_trees::{
-    CheckedScalarExpression, CheckedStructuralParameterField, CheckedStructuralPredicatePathSegment,
-};
+use checked_trees::data::DataMember;
+use checked_trees::{CheckedScalarExpression, CheckedStructuralParameterField};
 
 #[cfg(test)]
 mod tests;
@@ -60,124 +57,16 @@ fn declared_cases(
     state: &checked_trees::state::State,
     subject: &CheckedStructuralParameterField,
 ) -> Option<Vec<String>> {
-    let parameter = checked
-        .state_parameters(state)
-        .get(usize::try_from(subject.parameter_position).ok()?)?;
-    let mut reference = parameter.type_reference;
-    let mut selected_case = None;
-    for segment in &subject.path {
-        match segment {
-            CheckedStructuralPredicatePathSegment::Field(identity) => {
-                let field = match selected_case.take() {
-                    Some(case) => checked
-                        .data_payload_fields(case)
-                        .iter()
-                        .find(|field| field.path_identity() == *identity)?,
-                    None => checked
-                        .data_members(nominal(checked, reference)?)
-                        .iter()
-                        .find_map(|member| match member {
-                            DataMember::Field(field) if field.path_identity() == *identity => {
-                                Some(field)
-                            }
-                            _ => None,
-                        })?,
-                };
-                if field.relevance.is_erased() {
-                    return None;
-                }
-                reference = field.type_reference;
-            }
-            CheckedStructuralPredicatePathSegment::Case(identity) => {
-                if selected_case.is_some() {
-                    return None;
-                }
-                selected_case = Some(
-                    checked
-                        .data_members(nominal(checked, reference)?)
-                        .iter()
-                        .find_map(|member| match member {
-                            DataMember::Variant(case) if case.path_identity() == *identity => {
-                                Some(case)
-                            }
-                            _ => None,
-                        })?,
-                );
-            }
-            CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
-                if selected_case.is_some() {
-                    return None;
-                }
-                reference = fixed_element(checked, reference, *index)?;
-            }
-            // A runtime-selected element is not a fact key; a subject path
-            // through one names no fixed case set for complement.
-            CheckedStructuralPredicatePathSegment::RuntimeIndex(_) => return None,
-        }
-    }
-    if selected_case.is_some() {
-        return None;
-    }
+    let reference =
+        super::structural_places::declared_parameter_path_type(checked, state, subject)?;
     checked
-        .data_members(nominal(checked, reference)?)
+        .data_members(super::structural_places::declared_nominal(
+            checked, reference,
+        )?)
         .iter()
         .map(|member| match member {
             DataMember::Variant(case) => Some(case.path_identity()),
             DataMember::Field(_) => None,
         })
         .collect()
-}
-
-/// The data declaration a structural type names through references and
-/// constraints. A machine's `Self` names its attached data.
-fn nominal(checked: &CheckedTrees, mut reference: TypeReferenceHandle) -> Option<&DataDefinition> {
-    let (symbol, name) = loop {
-        match checked.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => reference = *referee,
-            TypeReferenceNode::Named { symbol, name }
-            | TypeReferenceNode::Generic {
-                base_symbol: symbol,
-                base_name: name,
-                ..
-            } => break (*symbol, name),
-            _ => return None,
-        }
-    };
-    let symbol = checked
-        .machines()
-        .iter()
-        .find(|machine| {
-            symbol.is_valid() && machine.symbol == symbol && machine.attached_data_symbol.is_valid()
-        })
-        .map_or(symbol, |machine| machine.attached_data_symbol);
-    checked.data_definitions().iter().find(|data| {
-        if symbol.is_valid() {
-            data.symbol == symbol
-        } else {
-            data.name == *name
-        }
-    })
-}
-
-fn fixed_element(
-    checked: &CheckedTrees,
-    mut reference: TypeReferenceHandle,
-    index: u64,
-) -> Option<TypeReferenceHandle> {
-    loop {
-        match checked.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => reference = *referee,
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length: FixedArrayLength::Literal(length),
-            } => return (index < u64::try_from(*length).ok()?).then_some(*element_type),
-            _ => return None,
-        }
-    }
 }

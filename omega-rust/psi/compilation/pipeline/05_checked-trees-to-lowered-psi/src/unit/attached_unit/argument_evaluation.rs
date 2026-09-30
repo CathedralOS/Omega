@@ -784,7 +784,12 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| {
-                crate::expression_preparation::bindings::ScalarBindings::new(source_value_count)
+                crate::expression_preparation::bindings::ScalarBindings::new(
+                    values
+                        .iter()
+                        .take(source_value_count)
+                        .map(|value| value.scalar_type),
+                )
             })
             .with_structural_parameters(&self.structural_parameters)
             .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
@@ -924,7 +929,9 @@ impl Evaluation {
             .scalar_bindings
             .clone()
             .unwrap_or_else(|| {
-                crate::expression_preparation::bindings::ScalarBindings::new(values.len())
+                crate::expression_preparation::bindings::ScalarBindings::new(
+                    values.iter().map(|value| value.scalar_type),
+                )
             })
             .with_primitive_storage(&self.primitive_storage)
             .with_view_locals(&self.view_locals)

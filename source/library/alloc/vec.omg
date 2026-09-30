@@ -76,16 +76,16 @@ pub data Pool {
 
 // Declare the supply the caller minted: how many stores of each rung
 // exist for the strategy to issue grants against.
-pub machine Pool::open(&mut self, supply4: u64, supply8: u64, supply16: u64) {
-    self.free4 = supply4;
-    self.free8 = supply8;
-    self.free16 = supply16;
-    self.supply4 = supply4;
-    self.supply8 = supply8;
-    self.supply16 = supply16;
-    self.over4 = 0;
-    self.over8 = 0;
-    self.over16 = 0;
+pub machine Pool::open(pool: &mut Pool, supply4: u64, supply8: u64, supply16: u64) {
+    pool.free4 = supply4;
+    pool.free8 = supply8;
+    pool.free16 = supply16;
+    pool.supply4 = supply4;
+    pool.supply8 = supply8;
+    pool.supply16 = supply16;
+    pool.over4 = 0;
+    pool.over8 = 0;
+    pool.over16 = 0;
 }
 
 // The fallible request's outcome: `rung` on a grant is the backing class

@@ -210,9 +210,10 @@ pub(super) fn prepare(
                 if local.name.as_str().starts_with("__arm_destructure#")
         )
     });
-    let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len())
-        .with_structural_parameters(structural_namespace)
-        .with_structural_observations(structural_types);
+    let mut scalar_bindings =
+        storage::ScalarBindings::new(parameter_types.iter().map(|value| value.scalar_type))
+            .with_structural_parameters(structural_namespace)
+            .with_structural_observations(structural_types);
     if destructures {
         scalar_bindings = scalar_bindings.with_deferred_case_payloads();
     }

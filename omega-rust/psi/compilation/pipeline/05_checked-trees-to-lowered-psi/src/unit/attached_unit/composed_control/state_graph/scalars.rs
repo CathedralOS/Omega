@@ -175,7 +175,7 @@ pub(super) fn emit_prefix(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<ScalarBindings, LoweringError> {
-    let mut bindings = ScalarBindings::new(values.len())
+    let mut bindings = ScalarBindings::new(values.iter().map(|value| value.scalar_type))
         .with_structural_parameters(parameters)
         .with_structural_observations(structural_types);
     let (_, authored) =

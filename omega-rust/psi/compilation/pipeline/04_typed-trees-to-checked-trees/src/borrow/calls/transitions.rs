@@ -15,6 +15,7 @@ pub(super) fn collect_transition_target_borrow_calls(
                     .program
                     .statement_table
                     .expression_handles(*arguments),
+                path.symbol,
             );
             collection.append_borrow_call(
                 path.head_symbol,

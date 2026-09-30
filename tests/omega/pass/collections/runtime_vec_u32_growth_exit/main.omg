@@ -62,7 +62,7 @@ machine Main::main(&mut self) reaches Console {
 
     // Declare the supply to the strategy: two 4-stores (eb + b4), one
     // 8-store, one 16-store. The denied request must not touch it.
-    self.pool.open(2, 1, 1);
+    Pool::open(&mut self.pool, 2, 1, 1);
 
     // ---- empty-vector lifecycle: grant, open, drain, release ----
     // `self.v` is the receiver-held linear handle; it names no storage yet.

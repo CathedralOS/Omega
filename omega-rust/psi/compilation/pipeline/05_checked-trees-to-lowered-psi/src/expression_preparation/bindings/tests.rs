@@ -10,6 +10,81 @@ use checked_trees::CheckedScalarBindingDestination;
 use checked_trees::types::PrimitiveType;
 
 #[test]
+fn runtime_parameter_selectors_retain_declared_type_and_mapped_position() {
+    use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+    use crate::expression_preparation::prepare_expression::exact_u64_index;
+    let unsigned = terminal_scalar_type(PrimitiveType::U16).unwrap();
+    let signed = terminal_scalar_type(PrimitiveType::I32).unwrap();
+    let address = terminal_scalar_type(PrimitiveType::Addr).unwrap();
+    let bindings = ScalarBindings::for_computation_operands(
+        7,
+        [unsigned, signed, ScalarType::Boolean, address],
+    );
+    assert!(matches!(bindings.runtime_index_parameter(0).unwrap(),
+        LoweredDirectExpression::Parameter { position: 7, scalar_type } if scalar_type == unsigned));
+    assert!(matches!(
+        exact_u64_index(bindings.runtime_index_parameter(0).unwrap()).unwrap(),
+        LoweredDirectExpression::IntegerWiden { .. }
+    ));
+    assert!(matches!(
+        exact_u64_index(bindings.runtime_index_parameter(1).unwrap()).unwrap(),
+        LoweredDirectExpression::IntegerExactCast { .. }
+    ));
+    for position in [2, 3, 4, u32::MAX] {
+        assert!(bindings.runtime_index_parameter(position).is_err());
+    }
+    let mut bindings = ScalarBindings::new([unsigned]);
+    bindings
+        .initialize_parameter(symbols::SymbolHandle::from_arena_index(1), unsigned, 0)
+        .unwrap();
+    assert!(bindings.runtime_index_parameter(0).is_err());
+    bindings
+        .append(CheckedScalarBindingDestination::Immutable, unsigned, 1)
+        .unwrap();
+    assert!(
+        bindings.runtime_index_parameter(1).is_err(),
+        "locals cannot impersonate parameters"
+    );
+}
+
+#[test]
+fn nested_selectors_remap_each_scalar_operand_once() {
+    let scalar_type = terminal_scalar_type(PrimitiveType::U64).unwrap();
+    let bindings = ScalarBindings::for_computation_operands(9, [scalar_type, scalar_type]);
+    let mut expression = CheckedScalarExpression::StructuralParameterIndexedRead {
+        root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
+        path: Vec::new(),
+        index: Box::new(CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U64,
+        }),
+        inner_indexes: vec![CheckedScalarExpression::Parameter {
+            position: 1,
+            primitive_type: PrimitiveType::U64,
+        }],
+        element_path: Vec::new(),
+        primitive_type: PrimitiveType::I32,
+    };
+    bindings.scalar(&mut expression).unwrap();
+    let CheckedScalarExpression::StructuralParameterIndexedRead {
+        index,
+        inner_indexes,
+        ..
+    } = expression
+    else {
+        panic!("read shape is retained");
+    };
+    assert!(matches!(
+        *index,
+        CheckedScalarExpression::Parameter { position: 9, .. }
+    ));
+    assert!(matches!(
+        inner_indexes[0],
+        CheckedScalarExpression::Parameter { position: 10, .. }
+    ));
+}
+
+#[test]
 fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
     use checked_trees::expression::ExpressionNode;
     let source = "data Config [copy] { size: u64; enabled: bool; }
@@ -50,7 +125,7 @@ fn closed_record_projections_replay_exact_sources_carriers_and_all_siblings() {
         validation::closed_record_scalar_projection(&original.typed, read_source).is_some(),
         "authored constructor projection selects a closed scalar leaf"
     );
-    let bindings = ScalarBindings::new(0);
+    let bindings = ScalarBindings::new([]);
     let validate = |checked: &CheckedTrees, state| {
         bindings.expression_at(checked, state, 0, CheckedScalarExpressionRole::Return)
     };
@@ -306,7 +381,7 @@ fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_cus
         source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
         ..Default::default()
     };
-    let bindings = ScalarBindings::new(0).with_structural_locals(&[(symbol, source.clone())]);
+    let bindings = ScalarBindings::new([]).with_structural_locals(&[(symbol, source.clone())]);
     for _ in 0..2 {
         assert_eq!(bindings.owned_argument(&argument).unwrap(), source);
     }
@@ -330,7 +405,7 @@ fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_cus
         )],
     ] {
         assert!(
-            ScalarBindings::new(0)
+            ScalarBindings::new([])
                 .with_structural_locals(&locals)
                 .owned_argument(&argument)
                 .is_err()
@@ -352,7 +427,7 @@ fn owned_structural_locals_reuse_exact_published_payloads_and_reject_invalid_cus
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: invalid };
     changed.access = checked_trees::CheckedStructuralAccess::Owned;
     assert!(
-        ScalarBindings::new(0)
+        ScalarBindings::new([])
             .with_structural_locals(&[(invalid, source)])
             .owned_argument(&changed)
             .is_err()
@@ -379,7 +454,7 @@ fn primitive_storage_reads_reject_missing_duplicate_invalid_and_wrong_type_rows(
         ],
     ] {
         assert!(
-            ScalarBindings::new(0)
+            ScalarBindings::new([])
                 .with_primitive_storage(&storage)
                 .expression(&boolean_read)
                 .is_err()
@@ -387,7 +462,7 @@ fn primitive_storage_reads_reject_missing_duplicate_invalid_and_wrong_type_rows(
     }
     let invalid = symbols::SymbolHandle::invalid();
     let bindings =
-        ScalarBindings::new(0).with_primitive_storage(&[(invalid, source, ScalarType::Boolean)]);
+        ScalarBindings::new([]).with_primitive_storage(&[(invalid, source, ScalarType::Boolean)]);
     assert!(
         bindings
             .expression(&CheckedScalarExpression::Boolean(Box::new(
@@ -397,7 +472,7 @@ fn primitive_storage_reads_reject_missing_duplicate_invalid_and_wrong_type_rows(
     );
 
     // A matching old SSA type cannot rescue a wrong primitive place type.
-    let mut bindings = ScalarBindings::new(0);
+    let mut bindings = ScalarBindings::new([]);
     bindings
         .append(
             CheckedScalarBindingDestination::StorageInitialize { symbol },
@@ -420,7 +495,7 @@ fn primitive_storage_reads_reject_missing_duplicate_invalid_and_wrong_type_rows(
 #[test]
 fn mutable_parameters_have_current_storage_without_an_immutable_entry_alias() {
     let symbol = symbols::SymbolHandle::from_arena_index(1);
-    let mut bindings = ScalarBindings::new(3);
+    let mut bindings = ScalarBindings::new([ScalarType::Boolean; 3]);
     bindings
         .initialize_parameter(symbol, ScalarType::Boolean, 1)
         .unwrap();
@@ -474,7 +549,7 @@ fn storage_mapping_rejects_missing_duplicate_and_wrong_type_custody() {
     let symbol = symbols::SymbolHandle::from_arena_index(1);
     let other = symbols::SymbolHandle::from_arena_index(2);
     let integer = terminal_scalar_type(typed_trees::types::PrimitiveType::U8).unwrap();
-    let mut bindings = ScalarBindings::new(0);
+    let mut bindings = ScalarBindings::new([]);
     assert!(
         bindings
             .append(
@@ -564,7 +639,7 @@ fn borrowed_structural_operands_cannot_upgrade_emitted_source_access() {
             StructuralAccess::WriteOnlyBorrow,
         ] {
             let bindings = if local {
-                ScalarBindings::new(0).with_structural_locals(&[(
+                ScalarBindings::new([]).with_structural_locals(&[(
                     symbol,
                     StructuralArgument {
                         place,
@@ -573,7 +648,7 @@ fn borrowed_structural_operands_cannot_upgrade_emitted_source_access() {
                     },
                 )])
             } else {
-                ScalarBindings::new(0).with_structural_parameters(&[(
+                ScalarBindings::new([]).with_structural_parameters(&[(
                     0,
                     super::StructuralParameterDeclaration {
                         place,
@@ -645,7 +720,7 @@ fn borrowed_structural_operands_cannot_upgrade_emitted_source_access() {
 #[test]
 fn unnamed_call_results_keep_authored_local_reads_on_their_locals() {
     let integer = terminal_scalar_type(PrimitiveType::I32).unwrap();
-    let mut bindings = ScalarBindings::new(1);
+    let mut bindings = ScalarBindings::new([integer]);
     // Dense value 1 is a call result stored into a field; value 2 is the
     // next declared immutable local.
     bindings.append_unnamed_result(1);

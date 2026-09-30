@@ -331,7 +331,7 @@ fn primitive_store_value(
 }
 
 /// The stores of a closed array literal written whole into a primitive-array
-/// field of an exclusive borrowed parameter: one `WriteOnlyPrimitiveStore`
+/// field of exclusive borrowed or owned local storage: one `WriteOnlyPrimitiveStore`
 /// per row-major element, over the field's path plus that element's literal
 /// indices. Every element must be a closed value -- literals, parameters,
 /// locals and their compositions -- so no element observes a store the
@@ -380,8 +380,18 @@ pub(super) fn array_literal_stores(
     {
         return None;
     }
-    let (destination, _) =
-        borrowed_parameter_destination(program, state, structural_parameters, symbol, false)?;
+    let destination = if structural_local_before(
+        program,
+        state,
+        usize::try_from(statement_index).ok()?,
+        symbol,
+    )
+    .is_some()
+    {
+        checked_trees::CheckedStoreRoot::Local { symbol }
+    } else {
+        borrowed_parameter_destination(program, state, structural_parameters, symbol, false)?.0
+    };
     let selectors = super::selectors::TargetSelectors::resolve(
         program,
         facts,

@@ -621,9 +621,31 @@ pub(super) fn build_traced(
                                 TypeReferenceNode::Named { .. }
                             )
                     );
+                    // Fixed arrays have structural rather than nominal
+                    // identity. Their registered shape and plain owned
+                    // contents admit the same loan across a state edge as
+                    // across an ordinary call; access and qualifications
+                    // remain checked above and by each successor transfer.
+                    let borrowed_array_referent = matches!(
+                        program.type_reference_table.type_reference(reference),
+                        TypeReferenceNode::Reference { referee, .. }
+                            if matches!(
+                                program.type_reference_table.type_reference(*referee),
+                                TypeReferenceNode::FixedArray { .. }
+                            ) && validation::has_plain_owned_contents_with_numeric_constraints(
+                                program, *referee,
+                            )
+                    ) && matches!(
+                        shapes
+                            .types
+                            .get(&parameter.type_identity)
+                            .map(|plan| &plan.shape),
+                        Some(checked_trees::CheckedUnitStructuralTypeShape::FixedArray { .. })
+                    );
                     // A borrowed bounded owner (`&[u8; N] in Utf8`) names the
                     // owner's carrier; the reference is this parameter's loan.
                     if !borrowed_named_referent
+                        && !borrowed_array_referent
                         && parameter.fused_service_erasure.is_none()
                         && !byte_sequence_carrier(program, reference, &[]).is_some_and(|carrier| {
                             carrier.is_borrowed()

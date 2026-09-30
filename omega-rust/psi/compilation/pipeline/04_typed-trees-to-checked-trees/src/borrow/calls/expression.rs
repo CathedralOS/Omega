@@ -91,6 +91,11 @@ pub(super) fn collect_expression_borrow_calls(
                         .program
                         .expression_table
                         .expression_handles(call.arguments),
+                    if resolved_target.is_valid() {
+                        resolved_target
+                    } else {
+                        call.target_symbol
+                    },
                 );
                 collection.append_borrow_call(
                     receiver_symbol,
