@@ -500,7 +500,7 @@ zero for `coverage_empty_subject`, which reports a subject with no compilable
 root declaration. `coverage_source_forms` names the parser's unretained source
 shapes; the remaining codes name retained-but-unimplemented checking coverage:
 non-machine roots, machine header forms, entry and authored-state signatures,
-non-call statement kinds, call shapes (receivers, `self`, static arguments),
+non-call statement kinds, call shapes (explicit value and static arguments),
 expression forms (unsupported operators and literal spellings), and
 transition forms (multi-arm subjectless blocks, non-`Always` subjectless
 guards, guard/subject class mismatches, post-block statements, and mixed

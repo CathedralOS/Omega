@@ -414,7 +414,7 @@ This first slice has no build-time request that pauses to solicit arbitrary new
 host access. A missing input is an explicit failure and a changed invocation.
 
 The compiler-owned source interface exposes the roster as `Build.inputs`.
-`BuildInputs::get(&self, name: &[u8]) -> BuildSource` selects one captured slot;
+`BuildInputs::get(inputs: &BuildInputs, name: &[u8]) -> BuildSource` selects one captured slot;
 a missing slot fails the activation explicitly. The returned `BuildSource`
 uses the same read-only logical-path protocol as the package source facet,
 with its own root and inventory. Constructing `BuildInputs {}` supplies no

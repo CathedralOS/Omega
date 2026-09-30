@@ -27,6 +27,15 @@ semantic changes move producer, codec, verifier, interpreter, and lowerers
 together. Current golden bytes establish the current format, not historical
 acceptance.
 
+The `self` flags still listed below describe legacy fields in the current
+implementation's encoding, not an accepted source receiver feature or a second
+source contract. [Static machines](../language/machines.md#static-declarations-and-explicit-state)
+use ordinary explicit parameter positions and identities. Removing these fields
+requires the coordinated producer, codec, verifier and consumer migration tracked
+by `STATIC-MACHINE-MIGRATION`; deleting a table column alone would misdescribe
+the bytes. Do not introduce new receiver-specific authority or dependencies on
+those flags while completing that migration.
+
 Operation variants are closed and typed. Their referenced values must be
 available under the operation's definition/dominance rules. Each reconstructs
 its logical result and obligations; an encoded proof cannot select them.

@@ -243,7 +243,7 @@ Stable read cannot duplicate non-copy custody. Stable write requires discarded
 content to be discardable; swap returns it. Ordinary Stable mutation requires
 plan permission plus both an exclusive active borrow and exclusive source
 borrow; reborrowing a shared-source view cannot upgrade authority. External
-write's exclusive accessor receiver serializes that value, not the device or
+write's exclusive accessor parameter serializes that value, not the device or
 all other views. Shared-source External views may perform admitted complete
 transfers because Omega aliasing is distinct from external mutability.
 
@@ -251,10 +251,12 @@ Conflict checks use the physical footprint: reads may share; destructive reads
 and read-patch-write reserve the whole container. Logically disjoint bitfields
 therefore cannot acquire overlapping exclusive RMW access. A destructive read
 returns one whole owned snapshot before pure field projection; it derives
-`DestructiveRead`, not `Readable`. Granular accessor requirements are
-`Readable::read(&self)`, `DestructiveRead::take(&mut self)`,
-`Writable::write(&mut self, value)`, `Swappable::swap(&mut self, value)`, and
-the exact atomic families.
+`DestructiveRead`, not `Readable`. Granular accessor requirements take explicit
+borrowed subjects: `Readable::read(accessor: &Self)`,
+`DestructiveRead::take(accessor: &mut Self)`, and mutable accessor parameters
+followed by the value parameter for `Writable::write` and `Swappable::swap`.
+The exact atomic families likewise declare their subject explicitly. `Self`
+denotes the selected conformance's type, not an implicit machine argument.
 
 External guarantees a non-elided transfer at its declared width and preserves
 relative External order within one region and activation. It does not guarantee
@@ -269,7 +271,7 @@ protocol. View-to-view recast is not an establishment route: request another
 placement explicitly through the underlying qualified authority.
 
 Each atomic primitive has an independent sealed core requirement shared by
-ordinary atomics and placed accessors. Receivers are shared and ordering is
+ordinary atomics and placed accessors. Subject parameters are shared and ordering is
 explicit proof-static operation data. Only exact forwarding derives wrappers
 automatically; other implementations need checked proof or admitted evidence.
 Every operation fits one admitted fixed width/alignment. Load needs duplication,
