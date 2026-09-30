@@ -174,6 +174,136 @@ fn interpreter_selection_is_bound_into_emitted_dynamic_bytes() {
     );
 }
 
+/// The exact `PT_INTERP` segment contents of one ELF64 image, `None` when the
+/// image has no interpreter program header. Parsed from the emitted bytes, so
+/// the check sees what a Linux loader would read, not a writer-side record.
+fn pt_interp(bytes: &[u8]) -> Option<Vec<u8>> {
+    const PT_INTERP: u32 = 3;
+    let read_u16 =
+        |offset: usize| u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
+    let read_u32 =
+        |offset: usize| u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
+    let read_u64 =
+        |offset: usize| u64::from_le_bytes(bytes[offset..offset + 8].try_into().unwrap());
+    assert!(
+        bytes.starts_with(b"\x7fELF\x02\x01"),
+        "ELF64 little-endian image"
+    );
+    let program_headers = read_u64(0x20) as usize;
+    let entry_size = usize::from(read_u16(0x36));
+    let count = usize::from(read_u16(0x38));
+    (0..count).find_map(|index| {
+        let header = program_headers + index * entry_size;
+        (read_u32(header) == PT_INTERP).then(|| {
+            let offset = read_u64(header + 8) as usize;
+            let size = read_u64(header + 32) as usize;
+            bytes[offset..offset + size].to_vec()
+        })
+    })
+}
+
+#[test]
+fn build_loader_settles_import_bearing_elf_output_into_dynamic_pt_interp() {
+    let artifact = linux_import_artifact(91);
+    let musl = target::normalize_elf_interpreter_plan(
+        b"/lib/ld-musl-x86_64.so.1".to_vec(),
+        TargetProfile::LinuxX64,
+    )
+    .expect("musl interpreter");
+    for (loader, expected) in [
+        (
+            target::declared_elf_interpreter_default(TargetProfile::LinuxX64)
+                .expect("Linux x86-64 environment default"),
+            b"/lib64/ld-linux-x86-64.so.2\0".as_slice(),
+        ),
+        (musl, b"/lib/ld-musl-x86_64.so.1\0".as_slice()),
+    ] {
+        let request = ExecutableImageEmissionRequest::direct(3)
+            .settle_elf_loader(&artifact, Some(&loader))
+            .expect("an import-bearing ELF object accepts the configured loader");
+        let ExecutableImageEmissionRequest::DynamicElf { interpreter } = &request else {
+            panic!("an import-bearing ELF object settles into a dynamic request");
+        };
+        assert_eq!(interpreter, &loader);
+        let image = emit_executable_image(&artifact, request).expect("dynamic image");
+        let RequestedExecutableImage::DynamicElf(dynamic) = &image else {
+            panic!("the settled request selects dynamic custody");
+        };
+        assert_eq!(
+            pt_interp(&dynamic.output().bytes).as_deref(),
+            Some(expected),
+            "PT_INTERP carries exactly the configured loader and its terminator",
+        );
+        validate_executable_image(&artifact, &image).expect("dynamic image replays");
+    }
+}
+
+#[test]
+fn build_loader_never_makes_static_output_dynamic() {
+    let artifact = build_object_artifact(&port_effect_plan(&WriteExitProvider(970)))
+        .expect("non-import Linux object");
+    let loader = target::declared_elf_interpreter_default(TargetProfile::LinuxX64)
+        .expect("Linux x86-64 environment default");
+    let request = ExecutableImageEmissionRequest::direct(3)
+        .settle_elf_loader(&artifact, Some(&loader))
+        .expect("a static object keeps its direct request");
+    assert!(matches!(
+        request,
+        ExecutableImageEmissionRequest::Direct { subsystem: 3, .. }
+    ));
+    let image = emit_executable_image(&artifact, request).expect("static image");
+    let RequestedExecutableImage::Direct(direct) = &image else {
+        panic!("a loader alone must not select dynamic linking");
+    };
+    assert_eq!(
+        pt_interp(&direct.output().bytes),
+        None,
+        "static output has no PT_INTERP"
+    );
+
+    // Non-ELF objects ignore the loader configuration the same way.
+    let windows = windows_object();
+    assert!(matches!(
+        ExecutableImageEmissionRequest::direct(3)
+            .settle_elf_loader(&windows, Some(&loader))
+            .expect("a COFF object keeps its direct request"),
+        ExecutableImageEmissionRequest::Direct { subsystem: 3, .. }
+    ));
+}
+
+#[test]
+fn import_bearing_elf_output_without_loader_rejects_as_missing_configuration() {
+    let artifact = linux_import_artifact(91);
+    let error = ExecutableImageEmissionRequest::direct(3)
+        .settle_elf_loader(&artifact, None)
+        .expect_err("dynamic output without a loader lacks output configuration");
+    assert!(matches!(
+        *error,
+        RequestedExecutableImageError::MissingDynamicElfInterpreter {
+            target,
+            subsystem: 3,
+            ..
+        } if target == NativeTarget::linux_x64()
+    ));
+    assert!(
+        error
+            .diagnostic()
+            .message
+            .contains("missing output configuration"),
+        "unexpected diagnostic: {}",
+        error.diagnostic().message,
+    );
+
+    // A loader for another target is refused with its custody intact rather
+    // than written into this object's PT_INTERP.
+    let arm64 = target::declared_elf_interpreter_default(TargetProfile::LinuxArm64)
+        .expect("Linux ARM64 environment default");
+    let error = ExecutableImageEmissionRequest::direct(3)
+        .settle_elf_loader(&artifact, Some(&arm64))
+        .expect_err("a foreign-target loader cannot serve this object");
+    assert_eq!(error.into_unexpected_interpreter(), Some(arm64));
+}
+
 fn windows_object() -> image_emission::ObjectArtifact {
     let mut plan = two_function_plan();
     plan.target = NativeTarget::windows_x64();
