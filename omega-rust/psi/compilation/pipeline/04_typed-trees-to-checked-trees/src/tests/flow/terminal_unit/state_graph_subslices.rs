@@ -1,4 +1,4 @@
-//! Borrowed-byte edges retain source ranges and exact authored endpoint roles.
+//! Borrowed edges retain source ranges, rooted projections, and exact access.
 use super::CheckedScalarExpressionRole;
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
@@ -18,6 +18,104 @@ const SOURCE: &str = r#"
         state done() {}
     }
 "#;
+
+#[test]
+fn borrowed_root_projection_successors_keep_referent_custody() {
+    for access in ["&", "&mut "] {
+        let source = format!(
+            r#"
+            boundary trait Output {{ machine write(value: u64); }}
+            data Buffer {{ value: u64; }}
+            data Parser {{ output: Buffer; }}
+            machine parse(parser: {access}Parser, accepted: bool) reaches Output {{
+                transition accepted {{
+                    true -> observe(&parser.output)
+                    false -> observe(&parser.output)
+                }}
+                state observe(output: &Buffer) {{ Output::write(output.value); }}
+            }}
+            "#,
+        );
+        let checked = checked(&source);
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine_named(&checked, "parse"))
+            .expect("an outer parameter loan does not make its referent reference-bearing");
+        let CheckedComposedUnitControlTerminatorPlan::Conditional {
+            when_true,
+            when_false,
+            ..
+        } = &plan.states[0].terminator
+        else {
+            panic!("the authored conditional survives")
+        };
+        for successor in [when_true, when_false] {
+            let [transfer] = successor.transfers.as_slice() else {
+                panic!("exactly one projected parameter loan")
+            };
+            let CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                subject,
+                carrier_identity,
+            } = &transfer.source
+            else {
+                panic!("the edge retains the rooted projection")
+            };
+            assert_eq!(
+                subject.access,
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+            );
+            assert!(matches!(
+                subject.source,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: 0
+                }
+            ));
+            assert!(matches!(
+                subject.path.as_slice(),
+                [checked_trees::CheckedUnitStructuralPathSegment::Field(_)]
+            ));
+            assert!(!carrier_identity.is_empty());
+        }
+    }
+}
+
+#[test]
+fn borrowed_root_projection_cannot_upgrade_shared_authority() {
+    let source = r#"
+        data Buffer { value: u64; }
+        data Parser { output: Buffer; }
+        machine parse(parser: &Parser) {
+            transition { _ -> observe(&mut parser.output) }
+            state observe(output: &mut Buffer) { output.value = 1; }
+        }
+    "#;
+    let result = crate::tests::front_end::typed_program_result(source)
+        .and_then(|typed| crate::lower_typed_trees(typed, &crate::CheckingRequest::settled()));
+    assert!(result.is_err());
+}
+
+#[test]
+fn borrowed_root_projection_rejects_reference_bearing_storage() {
+    let checked = checked(
+        r#"
+        data Buffer { value: u64; }
+        data Parser<'a> { output: Buffer; retained: &'a Buffer; }
+        machine parse<'a>(parser: &Parser<'a>) {
+            transition { _ -> observe(&parser.output) }
+            state observe(output: &Buffer) {}
+        }
+    "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    assert!(
+        plans
+            .composed_for_machine(machine_named(&checked, "parse"))
+            .is_none(),
+        "a nested reference is storage, unlike the parameter's outer loan"
+    );
+}
 
 fn range_source(
     checked: &checked_trees::CheckedTrees,

@@ -85,6 +85,7 @@ pass/calls/cyclic_projected_borrow_call_exit built 1337ms @0484de104502
 pass/calls/cyclic_scalar_query_reborrow_exit built 1329ms @0484de104502
 pass/calls/guard_call_scalar_argument_exit checked 409ms @0484de104502
 pass/calls/guarded_value_call_arm_exit built 1655ms exit:70 @0484de104502
+pass/calls/local_nested_record_call_then_state_exit built 3836ms exit:70 @e72f620f1da8+wt
 pass/calls/machine_self_call_recursion_compile built 668ms @0484de104502
 pass/calls/mutable_output_host_call rejected 1584ms @0484de104502
 	selected compiler intrinsic `<selected target>::ConsoleNativeProvider::satisfies::Console` for Terminal boundary `named-callable(path(Console::read_byte),parameters(),result-dispatch())` has no closed native catalog identity

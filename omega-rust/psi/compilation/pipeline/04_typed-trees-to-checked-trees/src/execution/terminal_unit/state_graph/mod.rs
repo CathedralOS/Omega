@@ -1755,16 +1755,14 @@ fn successor_bindings(
                                     == root_symbol
                                     || parameter.symbol == root_symbol
                             })
-                            .and_then(|(position, typed_parameter)| {
+                            .and_then(|(position, _)| {
                                 source_structural
                                     .iter()
                                     .enumerate()
                                     .find(|(_, candidate)| {
                                         candidate.position as usize == position
                                     })
-                                    .map(|(index, structural)| {
-                                        (index, structural, typed_parameter)
-                                    })
+                                    .map(|(index, structural)| (index, structural))
                             })
                     });
                     let result_subject = |local_index: usize| {
@@ -1806,8 +1804,7 @@ fn successor_bindings(
                         }
                         _ => |_| true,
                     };
-                    if let Some((source_index, source_parameter, _typed_parameter)) =
-                        parameter_subject
+                    if let Some((source_index, source_parameter)) = parameter_subject
                     {
                         if mutable_loan_permitted(source_parameter.access)
                             && source_parameter.access != CheckedStructuralAccess::WriteOnlyBorrow
@@ -1840,33 +1837,22 @@ fn successor_bindings(
                                 .into_string()
                                 == target.type_identity
                             && {
-                                // The loan's custody is the projected
-                                // subtree: a member projection inside an
-                                // owned root borrows only that leaf, so
-                                // the reference-bearing law applies to the
-                                // projected type rather than the whole
-                                // root. A borrowed root loans its whole
-                                // carrier either way — its referent
-                                // already rides an outstanding loan.
-                                let declared = match source_parameter.access {
+                                // Owned roots lend only the projected subtree.
+                                // Borrowed roots retain their existing referent
+                                // custody: inspect that storage, not the outer
+                                // reference shell representing the parameter's
+                                // loan. References stored inside the referent
+                                // still make it ineligible for this transfer.
+                                let identity = match source_parameter.access {
                                     CheckedStructuralAccess::SharedBorrow
                                     | CheckedStructuralAccess::MutableBorrow => {
-                                        // The parameter already retains its
-                                        // referent type separately from access.
-                                        // Wrapping it in Reference here would
-                                        // reject every borrowed root as though
-                                        // its storage contained another loan.
-                                        Some(source_parameter.type_identity.clone())
+                                        source_parameter.type_identity.clone()
                                     }
-                                    _ => Some(
-                                        program
-                                            .normalized_type_identity(projected_type)
-                                            .into_string(),
-                                    ),
+                                    _ => program
+                                        .normalized_type_identity(projected_type)
+                                        .into_string(),
                                 };
-                                declared.is_some_and(|identity| {
-                                    !declared_contains_reference(shapes, &identity)
-                                })
+                                !declared_contains_reference(shapes, &identity)
                             }
                         {
                             let carrier_identity = if path.is_empty() {

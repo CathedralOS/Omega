@@ -84,7 +84,12 @@ pub fn local_scalar_record_field(
             member.member.as_str(),
             None,
         )?;
-        if field.relevance.is_erased() {
+        if field.relevance.is_erased()
+            || program.symbols.get(field.symbol).kind != symbols::SymbolKind::Field
+            || program.symbols.get(field.symbol).parent != record.symbol
+            || !program.data_type_parameters(record).is_empty()
+            || program.data_members(record).iter().filter(|member| matches!(member, DataMember::Field(candidate) if candidate.symbol == field.symbol)).count() != 1
+        {
             return None;
         }
         path.push(field.path_identity());
@@ -271,6 +276,10 @@ fn local_plain_record(
         } => *referee,
         _ => local.type_reference,
     };
+    // The storage judgment owns the complete record's custody restrictions.
+    // Observation only selects a scalar path: unrelated arrays and sums do
+    // not need to satisfy a second, scalar-record-only construction roster.
+    // Their establishment remains the producer's independently checked work.
     if !crate::has_plain_owned_contents_with_numeric_constraints(program, carrier) {
         return None;
     }
@@ -287,10 +296,7 @@ fn local_plain_record(
         .iter()
         .filter(|record| record.symbol == *symbol);
     let record = records.next()?;
-    if records.next().is_some()
-        || !program.data_type_parameters(record).is_empty()
-        || !has_realized_record_fields(program, record, &mut Vec::new())
-    {
+    if records.next().is_some() || !program.data_type_parameters(record).is_empty() {
         return None;
     }
     Some(LocalRecordSource {
@@ -298,62 +304,6 @@ fn local_plain_record(
         local_statement_ordinal: u32::try_from(ordinal).ok()?,
         type_reference: carrier,
     })
-}
-
-/// Construction retains the entire nested record, including unread siblings.
-/// Validate their declaration rosters as well; selecting a scalar cannot erase
-/// an unsupported sibling, an ownership shell or a recursive storage cycle.
-fn has_realized_record_fields(
-    program: &TypedTrees,
-    record: &typed_trees::data::DataDefinition,
-    active: &mut Vec<SymbolHandle>,
-) -> bool {
-    if active.contains(&record.symbol)
-        || !program.data_type_parameters(record).is_empty()
-        || program.symbols.get(record.symbol).kind != symbols::SymbolKind::Data
-        || program
-            .data_definitions()
-            .iter()
-            .filter(|candidate| candidate.symbol == record.symbol)
-            .count()
-            != 1
-    {
-        return false;
-    }
-    active.push(record.symbol);
-    let members = program.data_members(record);
-    let valid = members.len() == record.members.count() as usize
-        && members.iter().enumerate().all(|(ordinal, member)| {
-            let DataMember::Field(field) = member else {
-                return false;
-            };
-            !field.relevance.is_erased()
-            && program.symbols.get(field.symbol).kind == symbols::SymbolKind::Field
-            && program.symbols.get(field.symbol).parent == record.symbol
-            && !members[..ordinal].iter().any(
-                |prior| matches!(prior, DataMember::Field(prior) if prior.symbol == field.symbol),
-            )
-            && (matches!(
-                realized_scalar_carrier(program, field.type_reference),
-                Some(
-                    typed_trees::types::PrimitiveType::Bool
-                        | typed_trees::types::PrimitiveType::I8
-                        | typed_trees::types::PrimitiveType::I16
-                        | typed_trees::types::PrimitiveType::I32
-                        | typed_trees::types::PrimitiveType::I64
-                        | typed_trees::types::PrimitiveType::U8
-                        | typed_trees::types::PrimitiveType::U16
-                        | typed_trees::types::PrimitiveType::U32
-                        | typed_trees::types::PrimitiveType::U64
-                        | typed_trees::types::PrimitiveType::F32
-                        | typed_trees::types::PrimitiveType::F64
-                )
-            ) || matches!(program.type_reference_table.type_reference(field.type_reference),
-                TypeReferenceNode::Named { symbol, .. } if crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
-                    .is_some_and(|nested| has_realized_record_fields(program, nested, active))))
-        });
-    active.pop();
-    valid
 }
 
 /// Policy-only integer fields use their ordinary scalar storage, while the
