@@ -1491,10 +1491,12 @@ crash and native exit behavior. Use affected check/native corpus slices under
   and [ownership establishment](wiki/spec/language/ownership.md#establishment-and-erasure);
   reject premature observation and do not mint linear obligations from zero.
   Acceptance uses the actual Build entries and ordinary corpus execution:
-  retain `structs/runtime_declared_record_member_fill_exit` exit 70 and
-  `structs/uninit_record_member_store` exit 77; restore an executable
-  `let mut total: i32; total = 1;` control with exit 1 (the former pending
-  fixture is absent). Execute the wire customer with interpreter/native exit 70.
+  retain `structs/runtime_declared_record_member_fill_exit` exit 70,
+  `structs/uninit_record_member_store` exit 77 and the `let mut total: i32;
+  total = 1;` control `locals/runtime_deferred_scalar_initialization_exit`
+  exit 1, each with native/interpreter agreement on macOS ARM64. Execute the
+  wire customer with interpreter/native exit 70; it currently stops at
+  `scalar field store sequence: write frame agreement` (state 0).
   Euro must decode successfully; overlong, surrogate, out-of-range and truncated
   UTF-8 must fail. Clearing an omission phase alone does not close the task.
 
