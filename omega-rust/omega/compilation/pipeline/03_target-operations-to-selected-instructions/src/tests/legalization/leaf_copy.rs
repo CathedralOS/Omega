@@ -746,6 +746,29 @@ fn copied_leaf_feeds_an_owned_call_through_selection_and_replay() {
         .unwrap();
         let legal = legalize_target_operations(&target, &source, &unit)
             .expect("the copied operand retains its establishing operation");
+        // Legalization rebuilds the owned operand from the copy's own home,
+        // so a shifted offset or a borrowed transport of it rejects here.
+        for mutation in 0..2 {
+            let mut changed = target.clone();
+            let argument = changed
+                .functions
+                .iter_mut()
+                .flat_map(|function| &mut function.graph.blocks)
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::Call { arguments, .. } => arguments.first_mut(),
+                    _ => None,
+                })
+                .expect("owned copy operand");
+            match mutation {
+                0 => argument.source_byte_offset += 1,
+                _ => argument.access = StructuralAccess::SharedBorrow,
+            }
+            assert!(
+                legalize_target_operations(&changed, &source, &unit).is_err(),
+                "{native:?}: copied operand mutation {mutation}"
+            );
+        }
         let environment =
             register_environment::baseline_target_register_environment(native).unwrap();
         let constraints = selection_constraints(&legal, &environment);

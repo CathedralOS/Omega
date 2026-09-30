@@ -74,40 +74,85 @@ fn owned_state_argument_retains_destination_storage_and_rejects_substitution() {
             crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
                 .expect("owned state argument lowers from its destination home");
         crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
-        let argument = target
+        // A value argument is snapshotted where it is evaluated: the call
+        // passes a fresh copy, and that copy reads the state's destination
+        // home, the structural parameter its arrival edge bound.
+        let (function, argument) = target
             .functions
             .iter()
-            .flat_map(|function| &function.graph.blocks)
-            .flat_map(|block| &block.operations)
-            .find_map(|operation| match operation {
-                TargetUnitOperation::Call { arguments, .. } => arguments.first(),
-                _ => None,
+            .find_map(|function| {
+                function
+                    .graph
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .find_map(|operation| match operation {
+                        TargetUnitOperation::Call { arguments, .. } => arguments.first(),
+                        _ => None,
+                    })
+                    .map(|argument| (function, argument))
             })
             .expect("owned call argument");
-        assert!(matches!(argument.source,
-            target_operations::TargetStructuralArgumentSource::BlockParameter { place, .. }
-            if place == argument.place));
-        for mutation in 0..5 {
-            let changed = mutate_call_arguments(&target, |argument| {
-                let target_operations::TargetStructuralArgumentSource::BlockParameter {
-                    block,
-                    place,
-                } = &mut argument.source
-                else {
-                    panic!("state destination home");
-                };
-                match mutation {
-                    0 => *block = BlockId::new(999_999).unwrap(),
-                    1 => *place = PlaceId::new(999_999).unwrap(),
-                    2 => {
-                        argument.source =
-                            target_operations::TargetStructuralArgumentSource::StructuralHome {
-                                psi_operation: OperationId::new(999_999).unwrap(),
-                            }
-                    }
-                    3 => argument.source_byte_offset += 1,
-                    _ => argument.access = StructuralAccess::SharedBorrow,
+        let target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: copy,
+        } = argument.source
+        else {
+            panic!("owned argument passes its snapshot: {:?}", argument.source);
+        };
+        let copied_from = function
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::StructuralLeafCopy {
+                    psi_operation,
+                    source,
+                    path,
+                    ..
+                } if *psi_operation == copy => {
+                    assert_eq!(
+                        *path,
+                        abstract_operations::StructuralCopyPath::Ordinary(Vec::new())
+                    );
+                    Some(*source)
                 }
+                _ => None,
+            })
+            .expect("the snapshot is established in the calling function");
+        let arrival = function
+            .graph
+            .blocks
+            .iter()
+            .find(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == copied_from)
+            })
+            .expect("the snapshot reads the state's destination home")
+            .block;
+        // Stage 02 settles which home the argument names. The copy row and
+        // the copied operand's byte geometry are body replay: legalization
+        // rebuilds them from the copy producer (`leaf_copy` legalization
+        // tests reject a substituted copy source or shifted operand offset).
+        for mutation in 0..3 {
+            let changed = mutate_call_arguments(&target, |argument| match mutation {
+                0 => {
+                    argument.source =
+                        target_operations::TargetStructuralArgumentSource::StructuralHome {
+                            psi_operation: OperationId::new(999_999).unwrap(),
+                        }
+                }
+                // Passing the destination home itself would skip the snapshot.
+                1 => {
+                    argument.source =
+                        target_operations::TargetStructuralArgumentSource::BlockParameter {
+                            block: arrival,
+                            place: copied_from,
+                        }
+                }
+                _ => argument.access = StructuralAccess::SharedBorrow,
             });
             assert!(
                 crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
