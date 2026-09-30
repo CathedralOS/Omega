@@ -144,4 +144,63 @@ its owning task.
 
 
 
-No numbered questions remain.
+### Q1 - Where does a selected provider's private state live in a fused native build?
+
+Named decision: `provider-private-state-home`.
+
+**Context:** the macOS GUI samples select nominal providers that own
+resources across calls. `samples/gui/window_demo`'s `DemoGuiProvider` creates
+its window, image view, application, device colorspace, run-loop date/mode
+selectors and rolling autorelease pool in `window_create`, then reuses them in
+every `blit` and `msg_peek`; `window_app`, `windowed_calculator` and
+`image_viewer` follow the same pattern. Stage 05's installation adapter
+(`unit/attached_unit/providers.rs::realize_receiver_adapters`) constructs a
+fresh empty provider for each requirement call and refuses a provider with
+fields: "checked provider receiver requires installation storage or
+qualification provisioning". Pure call scratch is already answered by the
+static-machine contract (invocation scratch belongs in locals) and nine Clock
+samples moved their provider scratch to locals that way; these providers hold
+state whose lifetime is the installation, not the call.
+
+**Contracts checked and found silent:**
+- [Bindings](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md#bindings):
+  "The public service receiver is distinct from the provider's private state
+  receiver" and "A fused build may erase the carrier and dispatch directly".
+- [Component publication](wiki/spec/build/component_publication.md): "installation
+  may retain one linear provider value while exposing affine bindings that
+  route calls into its era".
+- [Static declarations](wiki/spec/language/machines.md#static-declarations-and-explicit-state):
+  every argument is explicit and "retain data in a record only when that record
+  actually owns the required state or resource lifetime"; requirements and
+  satisfiers use the same explicit parameter correspondence.
+- [Boundary calls](wiki/spec/terminal-psi/boundary_calls.md): an attachment
+  retains its "erased provider fields"; "an erased field's zero-payload layout
+  proves no authority".
+- The **MACOS-APPLICATION-PUBLICATION** item: keep "one occurrence-owned
+  provider receiver across calls and nested services. Fused authority is not
+  receiver storage; do not substitute global state".
+
+**Problem:** none of these says which storage holds the one provider value an
+installation retains when the binding is fused and its carrier erased, what
+establishes that value's initial contents, or how a satisfier's explicit
+provider parameter is supplied at a requirement call whose caller holds only
+the erased service binding.
+
+**Proposed solution:** installation-owned storage in the program root. The
+entry bridge reserves one value per selected provider that has fields, beside
+the entry context, establishes it through an ordinary checked establishment
+(its authored initial value, or ZII when every field admits zero), and a
+fused requirement call lends that value (`&mut`, exact provider type) as the
+satisfier's provider parameter. The erased `Binding<R>` carrier stays
+zero-payload; the installation occurrence owns the provider value and its
+teardown, matching "installation may retain one linear provider value".
+
+**Alternatives:**
+- Store the provider value inline in the binding field. It gives each
+  occurrence its own state, but makes a record's layout depend on build
+  provider selection and contradicts the zero-payload erased carrier.
+- Global static storage per provider. Ruled out by the task's "do not
+  substitute global state".
+- Require stateful services to pass their state through requirement
+  parameters. It moves provider-private state into the portable contract that
+  every consumer spells.
