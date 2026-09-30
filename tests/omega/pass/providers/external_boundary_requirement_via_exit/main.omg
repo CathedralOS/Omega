@@ -40,12 +40,12 @@ linux_x86_64 machine foreign_abs_binding() -> ForeignBinding<9, 3, 11> {
     }
 }
 
-linux_arm64 machine foreign_abs_binding() -> ForeignBinding<9, 3, 11> {
+linux_arm64 machine foreign_abs_binding() -> ForeignBinding<9, 3, 10> {
     ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "abs",
-            version: "GLIBC_2.2.5",
+            version: "GLIBC_2.17",
         },
     }
 }
@@ -87,12 +87,12 @@ linux_x86_64 machine foreign_exit_binding() -> ForeignBinding<9, 4, 11> {
     }
 }
 
-linux_arm64 machine foreign_exit_binding() -> ForeignBinding<9, 4, 11> {
+linux_arm64 machine foreign_exit_binding() -> ForeignBinding<9, 4, 10> {
     ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "exit",
-            version: "GLIBC_2.2.5",
+            version: "GLIBC_2.17",
         },
     }
 }

@@ -5409,8 +5409,8 @@ their existing owners.
   `PT_INTERP`. Remaining acceptance: a Linux x86-64 host run of
   `providers/external_boundary_requirement_via_exit` (libc.so.6 `abs`/`exit` at
   GLIBC_2.2.5) records `built … exit:21` in `corpus_native_linux_x86_64.txt`.
-  Its `linux_arm64` bindings request GLIBC_2.2.5, which aarch64 glibc (from
-  GLIBC_2.17) does not define; fix the fixture before an arm64 run. The
+  A Linux AArch64 run of the same fixture binds `abs`/`exit` at GLIBC_2.17,
+  the first version aarch64 glibc defines. The
   dynamic writer resolves image-local relocations (internal calls, callback
   addresses, `.text` references into `.data`/`.bss`, data pointers) at its load
   layout and names `.shstrtab` in `e_shstrndx`;
