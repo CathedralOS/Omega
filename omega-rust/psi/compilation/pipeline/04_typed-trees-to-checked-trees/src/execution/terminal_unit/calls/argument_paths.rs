@@ -782,10 +782,13 @@ pub(crate) fn ordinary_projected_call_is_supported(
     if target_parameters.len() != arguments.len() {
         return false;
     }
-    // A live result binding lends a record subtree through an exclusive
-    // borrow: the binding itself is not moved, the checked loan evidence was
-    // already rejoined by the result-argument builder, and lowering replays
-    // the same projected place against its own result roster.
+    // A live result binding lends a record subtree through a borrow: the
+    // binding itself is not moved, the checked loan evidence was already
+    // rejoined by the result-argument builder, and lowering replays the same
+    // projected place against its own result roster. A shared loan
+    // (`&dash.engine`) is admitted alongside the exclusive ones; the equality
+    // with the callee parameter's own access below keeps a shared loan from
+    // reaching a mutable parameter or the reverse.
     if target_machine.supply_mode == MachineSupplyMode::CheckedBody
         && arguments
             .iter()
@@ -808,7 +811,8 @@ pub(crate) fn ordinary_projected_call_is_supported(
                     })
                     && matches!(
                         argument.access,
-                        CheckedStructuralAccess::MutableBorrow
+                        CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::MutableBorrow
                             | CheckedStructuralAccess::WriteOnlyBorrow
                     )
                     && structural_access_for_type_reference(program, target.type_reference)
