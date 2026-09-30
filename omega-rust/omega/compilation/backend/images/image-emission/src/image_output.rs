@@ -32,7 +32,9 @@ use super::{
 /// A normalized interpreter is consumed only when the object itself retains
 /// versioned ELF imports.  Supplying one cannot force an otherwise direct
 /// image through the dynamic ELF path, and omitting one cannot make an
-/// unresolved ELF import fall back to the direct writer.
+/// unresolved ELF import fall back to the direct writer. Build output
+/// configuration's effective loader reaches a direct request only through
+/// [`Self::settle_elf_loader`], once the emitted object is known.
 #[derive(Debug, Clone)]
 pub enum ExecutableImageEmissionRequest {
     Direct {
@@ -84,6 +86,62 @@ impl ExecutableImageEmissionRequest {
     pub const fn dynamic_elf(interpreter: NormalizedElfInterpreterPlan) -> Self {
         Self::DynamicElf { interpreter }
     }
+
+    /// Settle build output configuration's effective ELF loader against the
+    /// exact emitted object
+    /// (wiki/spec/build/configuration.md#elf-executable-loader-selection).
+    ///
+    /// An object that retains normalized ELF imports links dynamically, so a
+    /// direct request becomes [`Self::DynamicElf`] carrying that loader; with
+    /// no loader the output lacks required configuration and rejects. Every
+    /// other object keeps the request unchanged: a loader alone never selects
+    /// dynamic linking, and static output carries no `PT_INTERP`. A caller's
+    /// explicit dynamic request is retained as supplied. The loader is borrowed
+    /// and cloned only into the selected request, so this reads no host state.
+    pub fn settle_elf_loader(
+        self,
+        artifact: &ObjectArtifact,
+        elf_interpreter: Option<&NormalizedElfInterpreterPlan>,
+    ) -> Result<Self, Box<RequestedExecutableImageError>> {
+        if !requires_dynamic_elf(artifact) {
+            return Ok(self);
+        }
+        let Self::Direct { subsystem, .. } = self else {
+            return Ok(self);
+        };
+        match elf_interpreter {
+            Some(interpreter) if interpreter.target().native_target() == artifact.target() => {
+                Ok(Self::dynamic_elf(interpreter.clone()))
+            }
+            Some(interpreter) => Err(Box::new(
+                RequestedExecutableImageError::UnexpectedDynamicElfInterpreter {
+                    interpreter: interpreter.clone(),
+                    diagnostic: Diagnostic::error(format!(
+                        "ELF interpreter selected for target `{}` cannot load an object emitted for {:?}",
+                        interpreter.target().target_name(),
+                        artifact.target(),
+                    )),
+                },
+            )),
+            None => Err(Box::new(
+                RequestedExecutableImageError::MissingDynamicElfInterpreter {
+                    target: artifact.target(),
+                    subsystem,
+                    diagnostic: Diagnostic::error(
+                        "missing output configuration: dynamically linked ELF output requires an interpreter pathname; select `Build.elf_interpreter` for the target, whose environment declares no default",
+                    ),
+                },
+            )),
+        }
+    }
+}
+
+/// Whether the object's own contents select the dynamic ELF writer: an ELF
+/// object that retains normalized imports. Request routing, loader settlement
+/// and replay all read this one predicate.
+fn requires_dynamic_elf(artifact: &ObjectArtifact) -> bool {
+    artifact.target().object_format == ObjectFormat::Elf
+        && !artifact.object().layout.normalized_imports.is_empty()
 }
 
 /// Result of the image-bound request router.
@@ -160,10 +218,7 @@ pub fn emit_executable_image(
     artifact: &ObjectArtifact,
     request: ExecutableImageEmissionRequest,
 ) -> Result<RequestedExecutableImage, Box<RequestedExecutableImageError>> {
-    let has_normalized_imports = !artifact.object().layout.normalized_imports.is_empty();
-    let requires_dynamic_elf =
-        artifact.target().object_format == ObjectFormat::Elf && has_normalized_imports;
-    match (requires_dynamic_elf, request) {
+    match (requires_dynamic_elf(artifact), request) {
         (true, ExecutableImageEmissionRequest::DynamicElf { interpreter }) => {
             emit_dynamic_elf_image(artifact, interpreter)
                 .map(|emission| {
@@ -215,10 +270,9 @@ pub fn validate_executable_image(
     artifact: &ObjectArtifact,
     image: &RequestedExecutableImage,
 ) -> Result<(), Diagnostic> {
-    let has_normalized_imports = !artifact.object().layout.normalized_imports.is_empty();
     match image {
         RequestedExecutableImage::Direct(image) => {
-            if artifact.target().object_format == ObjectFormat::Elf && has_normalized_imports {
+            if requires_dynamic_elf(artifact) {
                 return Err(Diagnostic::error(
                     "import-bearing ELF object was substituted into direct image custody",
                 ));
