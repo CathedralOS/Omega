@@ -14,8 +14,9 @@ pub(super) use calls::{CallerView, admit as admit_call};
 use super::bodies::{UnitBody, UnitPlans};
 use super::composed_control::{self, callable::CallableBody};
 use super::{
-    RuntimeRequirementOwner, reference_results, retain_exact_unit_boundary, scalar_completion,
-    structural_completion, validate_unit_operation_sequence,
+    RuntimeRequirementOwner, reference_results, retain_admitted_unit_boundary,
+    retain_exact_unit_boundary, scalar_completion, structural_completion,
+    validate_unit_operation_sequence,
 };
 use checked_trees::{CheckedBoundaryMachinePlan, CheckedComposedUnitControlMachinePlan};
 use symbols::SymbolHandle;
@@ -57,17 +58,10 @@ pub(super) fn admit<'a>(
         let admitted = match UnitBody::find(plans, *source)? {
             UnitBody::Composed(plan) => {
                 let body = composed_control::admit_callable(checked, plan)?;
+                // `admit_callable` matched each call against its exact
+                // target; the closure roster retains those targets.
                 for (boundary, _) in body.boundaries() {
-                    retain_exact_unit_boundary(
-                        checked,
-                        plans,
-                        boundaries,
-                        boundary.machine,
-                        boundary.state,
-                        boundary.contract_report_fingerprint,
-                        boundary.service_reach,
-                        boundary.result.clone(),
-                    )?;
+                    retain_admitted_unit_boundary(checked, plans, boundaries, boundary)?;
                 }
                 AdmittedBody::Composed { source: plan, body }
             }

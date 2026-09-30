@@ -59,6 +59,7 @@ pass/borrows/borrow_guarded_window_write_and_call checked 210ms
 pass/borrows/borrow_returned_window_write_and_call checked 181ms
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
+pass/boundary/later_state_requirement_scalar_result_exit built 3738ms exit:70 @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 4150ms exit:70 @44d31b02f28e+wt
 pass/build/conditional_root_binding built 283ms
 pass/build/described_runner_entry_left_exit built 2056ms exit:11

@@ -1136,6 +1136,7 @@ pass/borrows/projected_mut_member_loan checked 2147ms @8778c440081
 pass/borrows/projected_param_member_loan checked 1338ms @2d8ed253669f
 pass/borrows/projected_scalar_member_loan checked 1316ms @2d8ed253669f
 pass/borrows/shared_recast_loan_member_read checked 1387ms @2d8ed253669f
+pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit checked 3779ms @44d31b02f28e+wt
 pass/build/conditional_root_binding checked 389ms @2d8ed253669f
 pass/build/described_runner_entry_left_exit rejected 1343ms @2d8ed253669f
