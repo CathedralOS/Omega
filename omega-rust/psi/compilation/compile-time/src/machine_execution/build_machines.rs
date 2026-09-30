@@ -10,7 +10,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 pub use checked_interpreter::{
-    BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
+    BuildEvaluationConsumptionReceipt, BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
     FilesystemAccess as BuildMachineFilesystemAccess,
     FilesystemGrantRoot as BuildMachineFilesystemGrantRoot,
     FilesystemGrantRootIdentity as BuildMachineFilesystemGrantRootIdentity,
@@ -78,7 +78,15 @@ pub struct PreparedBuildMachineProgram {
 
 enum PreparedBuildMachineBody {
     Typed(Box<TypedTrees>),
-    Checked(Box<checked_trees::CheckedTrees>),
+    Checked(Arc<checked_trees::CheckedTrees>),
+}
+
+/// Immutable checked execution content, including all CheckFacts. Equality
+/// compares the complete checked value, not typed trees or arena token identity.
+/// It contains no executable prepared entry and no host authority.
+#[derive(Clone, PartialEq, Eq)]
+pub struct CheckedBuildProgram {
+    checked: Arc<checked_trees::CheckedTrees>,
 }
 
 /// Exact build-machine entry owned by one prepared program.
@@ -112,7 +120,7 @@ impl PreparedBuildMachineProgram {
     /// Host grants and the exact entry's operational contract remain caller duties.
     pub fn from_checked(program: checked_trees::CheckedTrees) -> Self {
         Self {
-            program: PreparedBuildMachineBody::Checked(Box::new(program)),
+            program: PreparedBuildMachineBody::Checked(Arc::new(program)),
             identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
         }
     }
@@ -135,6 +143,17 @@ impl PreparedBuildMachineProgram {
         match &self.program {
             PreparedBuildMachineBody::Typed(typed) => typed,
             PreparedBuildMachineBody::Checked(checked) => &checked.typed,
+        }
+    }
+
+    /// Retain the complete immutable checked program, including CheckFacts.
+    /// This is content only, never the preparation's executable entry token.
+    pub fn checked_program(&self) -> Option<CheckedBuildProgram> {
+        match &self.program {
+            PreparedBuildMachineBody::Checked(checked) => Some(CheckedBuildProgram {
+                checked: Arc::clone(checked),
+            }),
+            PreparedBuildMachineBody::Typed(_) => None,
         }
     }
 
@@ -235,5 +254,34 @@ pub fn evaluate_build_machine_measured(
             },
         )
         .map_err(BuildMachineEvaluationError::Granted),
+    }
+}
+
+#[cfg(test)]
+mod completed_program_tests {
+    use super::*;
+
+    #[test]
+    fn completed_checked_program_equality_includes_check_facts() {
+        let baseline = checked_trees::CheckedTrees::default();
+        let mut changed = baseline.clone();
+        changed.facts.boundary_adapter_dispatch.push(
+            checked_trees::CheckedBoundaryAdapterDispatch {
+                receiver: SymbolHandle::from_arena_index(1),
+                requirement: SymbolHandle::from_arena_index(2),
+                realization_state: SymbolHandle::from_arena_index(3),
+                forward_receiver: false,
+                family_tuple: Box::new([]),
+            },
+        );
+        assert_eq!(baseline.typed, changed.typed);
+        let first = PreparedBuildMachineProgram::from_checked(baseline)
+            .checked_program()
+            .unwrap();
+        let second = PreparedBuildMachineProgram::from_checked(changed)
+            .checked_program()
+            .unwrap();
+        assert!(first == first.clone());
+        assert!(first != second);
     }
 }

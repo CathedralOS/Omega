@@ -21,8 +21,8 @@ pub use crate::checked::{
     CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
     PreparedCheckedSource, RestrictedBuildGrants, checked_compilation_call_count, compile_checked,
-    compile_to_checked, preliminary_check_totals, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
+    compile_checked_reusing_builds, compile_to_checked, preliminary_check_totals,
+    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use crate::native::realize_retained_native_artifact;
 pub use build_evaluation::BuildSnapshotRequest;
@@ -38,8 +38,7 @@ pub use compilation_products::{
 pub use compilation_products::{
     CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome, CompilerRequestOutcome,
     RequestedCompileProduct, TargetCompileConfiguration,
-    validate_lowered_ieee_float_comparison_custody,
-    validate_lowered_integer_comparison_custody,
+    validate_lowered_ieee_float_comparison_custody, validate_lowered_integer_comparison_custody,
 };
 pub use compiler::compile;
 pub use compiler::package::retained_terminal_artifact_from_checked_package;

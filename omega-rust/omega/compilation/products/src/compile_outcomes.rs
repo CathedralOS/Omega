@@ -64,6 +64,8 @@ pub struct CheckedCompileOutcome {
     pub result: Result<crate::CheckedCompilation, Vec<Diagnostic>>,
     pub prepared_source: Option<crate::PreparedCheckedSource>,
     pub independent_components: crate::IndependentComponentDiscovery,
+    /// Build completion survives failed product settlement without granting it.
+    pub build_accounting: crate::BuildEvaluationAccounting,
 }
 
 /// An ordinary target product or its diagnostics. None identifies target-neutral

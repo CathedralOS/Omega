@@ -18,6 +18,10 @@ impl PackageFixture {
             .expect("test directory")
             .canonicalize()
             .expect("canonical test directory");
+        Self::in_directory(text, directory)
+    }
+
+    fn in_directory(text: &str, directory: std::path::PathBuf) -> Self {
         let root = directory.join("activation_fixture.omg");
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32])
             .expect("package identity");
@@ -66,6 +70,7 @@ impl PackageFixture {
 
     fn request(&self, has_companion: bool) -> BuildEvaluationRequest<'_> {
         BuildEvaluationRequest {
+            pure_build_compilation: None,
             root_path: &self.root,
             typed: &self.typed,
             target_machine_declarations: &self.target_machine_declarations,
@@ -90,6 +95,7 @@ fn no_build_evaluation_preserves_default_configuration_and_evidence() {
     let sources = source::SourceMap::default();
     let evaluated = evaluate_build(
         BuildEvaluationRequest {
+            pure_build_compilation: None,
             root_path: std::path::Path::new("main.omg"),
             typed: &typed,
             target_machine_declarations: &Default::default(),
@@ -129,6 +135,7 @@ fn absent_build_does_not_capture_an_execution_snapshot() {
     let snapshot = package_compilation::BuildSnapshotRequest::new([]);
     let evaluated = evaluate_build(
         BuildEvaluationRequest {
+            pure_build_compilation: None,
             root_path: std::path::Path::new("main.omg"),
             typed: &typed,
             target_machine_declarations: &Default::default(),
@@ -335,4 +342,179 @@ fn required_outputs_and_artifact_only_still_require_an_activation() {
             "{errors:#?}"
         );
     }
+}
+
+fn pure_sponsor() -> build_time_evaluation::BuildEvaluationSponsor {
+    build_time_evaluation::BuildEvaluationSponsor::new(
+        build_time_evaluation::BuildEvaluationSponsorLimits::new(
+            1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
+        )
+        .unwrap(),
+    )
+}
+
+#[test]
+fn completed_pure_build_consumes_one_value_with_fresh_policy_charges() {
+    let fixture = PackageFixture::new(
+        "data Build { freestanding: bool; } machine build(builder: &mut Build) { builder.freestanding = true; }",
+    );
+    let owner = crate::PureBuildCompilation::default();
+    let producing_sponsor = pure_sponsor();
+    let mut request = fixture.request(true);
+    request.evaluation_sponsor = Some(producing_sponsor.clone());
+    request.pure_build_compilation = Some(&owner);
+    let produced = evaluate_build(request, &mut Default::default()).unwrap();
+    assert!(matches!(
+        produced.accounting,
+        compilation_products::BuildEvaluationAccounting::Executed(_)
+    ));
+    let historical = produced.configuration.evaluation_usage.unwrap();
+
+    let consuming_sponsor = pure_sponsor();
+    let mut request = fixture.request(true);
+    request.evaluation_sponsor = Some(consuming_sponsor.clone());
+    request.pure_build_compilation = Some(&owner);
+    let consumed = evaluate_build(request, &mut Default::default()).unwrap();
+    assert!(std::sync::Arc::ptr_eq(
+        &produced.configuration,
+        &consumed.configuration
+    ));
+    assert_eq!(consumed.configuration.evaluation_usage, Some(historical));
+    assert_eq!(
+        consuming_sponsor.consumed_fuel_units(),
+        historical.fuel_units
+    );
+    assert_eq!(consuming_sponsor.peak_live_cells(), 0);
+    assert_eq!(consuming_sponsor.peak_live_text_bytes(), 0);
+    let compilation_products::BuildEvaluationAccounting::Consumed(receipt) = consumed.accounting
+    else {
+        panic!("must report consumption separately from execution");
+    };
+    consuming_sponsor
+        .verify_retained_consumptions(&[receipt])
+        .unwrap();
+}
+
+#[test]
+fn completed_pure_build_keeps_fresh_admission_and_changed_program_execution() {
+    let fixture = PackageFixture::new(
+        "data Build { freestanding: bool; } machine build(builder: &mut Build) { builder.freestanding = true; }",
+    );
+    let owner = crate::PureBuildCompilation::default();
+    let mut request = fixture.request(true);
+    request.evaluation_sponsor = Some(pure_sponsor());
+    request.pure_build_compilation = Some(&owner);
+    evaluate_build(request, &mut Default::default()).unwrap();
+    let changed = PackageFixture::new(
+        "data Build { freestanding: bool; } machine build(builder: &mut Build) { builder.freestanding = false; }",
+    );
+    let mut request = changed.request(true);
+    request.evaluation_sponsor = Some(pure_sponsor());
+    request.pure_build_compilation = Some(&owner);
+    let evaluated = evaluate_build(request, &mut Default::default()).unwrap();
+    assert!(matches!(
+        evaluated.accounting,
+        compilation_products::BuildEvaluationAccounting::Executed(_)
+    ));
+    assert!(!evaluated.configuration.config.settings.freestanding);
+    let invalid = PackageFixture::new(
+        "data Build { freestanding: bool; } machine forbidden() -> bool requires false { true } machine build(builder: &mut Build) { builder.freestanding = forbidden(); }",
+    );
+    let sponsor = pure_sponsor();
+    let mut request = invalid.request(true);
+    request.evaluation_sponsor = Some(sponsor.clone());
+    request.pure_build_compilation = Some(&owner);
+    assert!(evaluate_build(request, &mut Default::default()).is_err());
+    assert_eq!(sponsor.consumed_fuel_units(), 0);
+    sponsor.verify_retained_consumptions(&[]).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn rejected_pure_consumption_releases_fresh_captured_snapshot() {
+    use std::os::unix::fs::PermissionsExt;
+    fn snapshots() -> std::collections::BTreeSet<std::path::PathBuf> {
+        let prefix = format!("omega-captured-source-session-{}-", std::process::id());
+        std::fs::read_dir(std::env::temp_dir())
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| entry.file_name().to_string_lossy().starts_with(&prefix))
+            .map(|entry| entry.path())
+            .collect()
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!(
+        "omega-pure-charge-cleanup-{}-{stamp}",
+        std::process::id()
+    ));
+    let source = root.join("source");
+    std::fs::create_dir_all(&source).unwrap();
+    let text = "data Build { freestanding: bool; } machine build(builder: &mut Build) { builder.freestanding = true; }";
+    let file = source.join("activation_fixture.omg");
+    std::fs::write(&file, text).unwrap();
+    let mut fixture = PackageFixture::in_directory(text, source.canonicalize().unwrap());
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o444)).unwrap();
+    std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let package = fixture.packages.root();
+    fixture.packages = package_compilation::PackageCompilationInputs::new_package(
+        package,
+        vec![
+            package_compilation::PackageSourceBinding::new(package, "fixture", source.clone())
+                .with_canonical_source_metadata()
+                .unwrap(),
+        ],
+        Vec::new(),
+    )
+    .unwrap();
+    let filesystem =
+        build_time_evaluation::BuildMachineFilesystemSponsor::create_private(root.join("staging"))
+            .unwrap();
+    let output = filesystem.session_root().unwrap().join("output");
+    let owner = crate::PureBuildCompilation::default();
+    let snapshot = package_compilation::BuildSnapshotRequest::new([]);
+    let before = snapshots();
+    let mut request = fixture.request(true);
+    request.filesystem_sponsor = Some(filesystem.clone());
+    request.build_directory = Some(&output);
+    request.evaluation_sponsor = Some(pure_sponsor());
+    request.pure_build_compilation = Some(&owner);
+    request.snapshot = Some(&snapshot);
+    evaluate_build(request, &mut Default::default()).unwrap();
+    assert_eq!(snapshots(), before);
+    let low = build_time_evaluation::BuildEvaluationSponsor::new(
+        build_time_evaluation::BuildEvaluationSponsorLimits::new(
+            1, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
+        )
+        .unwrap(),
+    );
+    let mut request = fixture.request(true);
+    request.filesystem_sponsor = Some(filesystem.clone());
+    request.build_directory = Some(&output);
+    request.evaluation_sponsor = Some(low.clone());
+    request.pure_build_compilation = Some(&owner);
+    request.snapshot = Some(&snapshot);
+    let errors = match evaluate_build(request, &mut Default::default()) {
+        Err(errors) => errors,
+        Ok(_) => panic!("lower current provision must reject"),
+    };
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.message.contains("current fuel provision")),
+        "{errors:?}"
+    );
+    assert_eq!(
+        snapshots(),
+        before,
+        "rejected charge must release its fresh capture parent"
+    );
+    assert_eq!(low.consumed_fuel_units(), 0);
+    low.verify_retained_consumptions(&[]).unwrap();
+    filesystem.dispose_private_staging().unwrap();
+    std::fs::set_permissions(&source, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
+    std::fs::remove_dir_all(root).unwrap();
 }

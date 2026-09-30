@@ -45,6 +45,32 @@ impl AdmittedBuildProgram {
         )
     }
 
+    /// Fresh admission may identify an output-free Pure consumption candidate.
+    /// This records immutable content only; it retains neither our entry token
+    /// nor filesystem/evaluation grants. Restricted requests never qualify.
+    pub fn pure_consumption_inputs(
+        &self,
+        packages: Option<&package_compilation::PackageCompilationInputs>,
+        snapshot: Option<&package_compilation::BuildSnapshotRequest>,
+    ) -> Option<crate::completed_pure_build::CompletedPureBuildInputs> {
+        if self.machine.filesystem_reachable
+            || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
+            || !self.restricted_build_requests().is_empty()
+            || self.evaluation_sponsor.is_none()
+        {
+            return None;
+        }
+        crate::completed_pure_build::CompletedPureBuildInputs::from_admitted(
+            self.prepared.checked_program()?,
+            self.machine.symbol,
+            self.machine.initial_build.clone(),
+            packages?,
+            snapshot,
+            &self.filesystem_scope,
+            self.artifact_only,
+        )
+    }
+
     /// Consume the exact admitted program through one evaluation.
     pub fn execute(self) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
         execute_admitted_build_program(self)

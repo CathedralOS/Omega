@@ -955,6 +955,55 @@ reaches
         0,
     );
     let accepted = fixture.accepted_files();
+    let measured_cache = fixture.path("pure-build-measurement-cache");
+    std::fs::create_dir(&measured_cache).unwrap();
+    let measured_directory = fixture.path("pure-build-measurement-native");
+    let measured_cache = measured_cache.to_str().unwrap();
+    let measured = fixture.omega_with_env(
+        &[
+            "--target",
+            execution.target_name(),
+            "--target",
+            foreign.target_name(),
+            "--build-dir",
+            measured_directory.to_str().unwrap(),
+            "--offline",
+            "main.omg",
+        ],
+        &[
+            ("XDG_CACHE_HOME", measured_cache),
+            ("LOCALAPPDATA", measured_cache),
+            ("HOME", measured_cache),
+        ],
+    );
+    assert_status(&measured, 0);
+    let measured_output = String::from_utf8_lossy(&measured.stdout);
+    assert_eq!(
+        measured_output
+            .lines()
+            .filter(|line| *line == "consumer received generated answer")
+            .count(),
+        1,
+        "the cold root Pure activation executes once, not once per target/pass: {measured_output}"
+    );
+    let measured_products = measured_output
+        .lines()
+        .filter_map(|line| line.strip_prefix("published native output to "))
+        .map(std::path::PathBuf::from)
+        .collect::<Vec<_>>();
+    assert_eq!(measured_products.len(), 2, "{measured_output}");
+    for path in &measured_products {
+        assert!(path.metadata().unwrap().len() > 0);
+    }
+    let measured_host = measured_products
+        .iter()
+        .find(|path| path.starts_with(measured_directory.join(execution.target_name())))
+        .expect("measured host artifact");
+    assert_status(
+        &std::process::Command::new(measured_host).output().unwrap(),
+        7,
+    );
+
     let build_directory = fixture.path("union-native");
     let mut request = CompileProjectRequest::new(CompileOptions {
         root_path: fixture.path("root/main.omg"),

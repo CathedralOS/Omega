@@ -15,7 +15,15 @@ pub(crate) fn evaluate_build_and_continue(
     child: CheckedExecutionRequest<'_>,
     frontier: TypedCompilationFrontier,
     timings: &mut CompileTimings,
-) -> Result<(BuiltTypedProgram, BuildSourceCustody), Vec<Diagnostic>> {
+    pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+) -> Result<
+    (
+        BuiltTypedProgram,
+        BuildSourceCustody,
+        compilation_products::BuildEvaluationAccounting,
+    ),
+    Vec<Diagnostic>,
+> {
     let CheckedExecutionRequest {
         selected_target_profile: _,
         build_execution_profile,
@@ -40,10 +48,12 @@ pub(crate) fn evaluate_build_and_continue(
     } = frontier;
     let build_evaluation::EvaluatedBuild {
         configuration: computed_build_config,
+        accounting,
         restricted_build_requests,
         base_source_consumption_commitment,
     } = build_evaluation::evaluate_build(
         build_evaluation::BuildEvaluationRequest {
+            pure_build_compilation,
             root_path,
             typed: typing.typed(),
             target_machine_declarations: &selected_target_machine_declarations,
@@ -95,12 +105,13 @@ pub(crate) fn evaluate_build_and_continue(
             typed,
             selected_target_machine_declarations,
             pending_pre_checks,
-            computed_build_config: Arc::new(computed_build_config),
+            computed_build_config,
             restricted_build_requests,
             application,
             selected_build_machine_identity,
         },
         sources,
+        accounting,
     ))
 }
 

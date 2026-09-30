@@ -50,6 +50,10 @@
 //!   remain under their separate admitted target roster.
 //!
 //! Start at `build_evaluation.rs` for the complete activation protocol.
+//! `completed_pure_build` owns invocation-local completed Pure values. Its
+//! insertion boundary is private to this evaluator: fresh admission precedes
+//! consumption, and each replaced evaluation receives a current-account logical
+//! charge without fabricating interpreter execution or live-resource peaks.
 //! `admitted_build_program.rs` fixes its private checkpoint; `execution` runs
 //! that checkpoint and assembles its checked result. `compilation_products` owns the
 //! retained Build records; admission and execution produce them without making
@@ -71,6 +75,7 @@
 mod admission;
 mod admitted_build_program;
 mod build_evaluation;
+mod completed_pure_build;
 mod execution;
 #[cfg(test)]
 mod tests;
@@ -83,6 +88,7 @@ pub use build_evaluation::{
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::WireCompatibilityDemand;
 pub use compilation_products::{BuildConfig, ComputedBuildConfig};
+pub use completed_pure_build::PureBuildCompilation;
 pub use effects::AuthoredBehaviorExclusion;
 use execution::execute_admitted_build_program;
 pub use package_compilation::build_execution::{
