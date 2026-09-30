@@ -67,10 +67,59 @@ pub(crate) struct StructuralRuntimePlace {
     pub(crate) path: Vec<StructuralPathSegment>,
 }
 
+/// The declaration namespace a runtime scalar cell's field identity belongs
+/// to. A record's fields and a mixed shape's common fields sit directly on
+/// their parent place. A case payload overlays that same place -- the stored
+/// discriminator names which case is live -- but Terminal declares its field
+/// identities apart from the common ones, so a verified mixed shape may
+/// number a payload field exactly like a common field (`Event { consumed:
+/// bool; case Treasure(gold: i32); }` may give both id 1; verification
+/// matches the establishment roster by position). The namespace keeps those
+/// two cells apart; the field identity alone cannot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum ScalarFieldNamespace {
+    /// A record field or a mixed shape's common field.
+    Member,
+    /// A payload field of the case active at the parent place.
+    CasePayload,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct StructuralScalarRuntimeField {
     pub(crate) parent: StructuralRuntimePlace,
+    pub(crate) namespace: ScalarFieldNamespace,
     pub(crate) field: StructuralFieldId,
+}
+
+impl StructuralScalarRuntimeField {
+    /// A record field, or a mixed shape's common field, of `parent`.
+    pub(crate) fn member(parent: StructuralRuntimePlace, field: StructuralFieldId) -> Self {
+        Self {
+            parent,
+            namespace: ScalarFieldNamespace::Member,
+            field,
+        }
+    }
+
+    /// A payload field of the case active at `parent`.
+    pub(crate) fn case_payload(parent: StructuralRuntimePlace, field: StructuralFieldId) -> Self {
+        Self {
+            parent,
+            namespace: ScalarFieldNamespace::CasePayload,
+            field,
+        }
+    }
+
+    /// The same cell under a relocated parent. Copies and moves of a
+    /// subtree keep each cell's namespace; rebuilding the key from the field
+    /// identity alone would fold a payload cell onto a common one.
+    pub(crate) fn relocated(&self, parent: StructuralRuntimePlace) -> Self {
+        Self {
+            parent,
+            namespace: self.namespace,
+            field: self.field,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

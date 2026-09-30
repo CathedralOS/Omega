@@ -464,14 +464,27 @@ impl TerminalExecution {
         let Terminator::StructuralCase { source, cases } = terminator else {
             unreachable!("dispatched settle_structural_case")
         };
-        // Only internally established values carry a discriminator
-        // and scalar payload. Opaque host roots remain unsupported.
-        let value = self.scalar_case_values.get(source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
-        )?;
+        // Only internally established values carry a discriminator and
+        // payload; opaque host roots remain unsupported. A scalar case holds
+        // its tag and payload as one value. A structurally established case
+        // (a mixed shape's, or one with a non-scalar member) keeps its tag
+        // in `structural_cases` at its root and each scalar payload member
+        // in that root's payload cells, apart from any common field.
+        let scalar_case = self.scalar_case_values.get(source);
+        let active_case = match scalar_case {
+            Some(value) => value.result_case,
+            None => self.observe_structural_case(*source, &[])?,
+        };
+        let payload_root = match scalar_case {
+            Some(_) => None,
+            None => self
+                .structural_values
+                .get(source)
+                .map(crate::values::StructuralRuntimePlace::from),
+        };
         let successor = cases
             .iter()
-            .find(|successor| successor.case == value.result_case)
+            .find(|successor| successor.case == active_case)
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         let target = self
             .program
@@ -488,12 +501,22 @@ impl TerminalExecution {
         }
         let mut bindings = Vec::with_capacity(target.parameters.len());
         for (parameter, field) in target.parameters.iter().zip(&successor.payload_fields) {
-            let scalar = value
-                .fields
-                .iter()
-                .find(|(identity, _)| identity == field)
-                .map(|(_, scalar)| *scalar)
-                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            let scalar = match (scalar_case, &payload_root) {
+                (Some(value), _) => value
+                    .fields
+                    .iter()
+                    .find(|(identity, _)| identity == field)
+                    .map(|(_, scalar)| *scalar),
+                (None, Some(root)) => self
+                    .structural_scalar_fields
+                    .get(&crate::values::StructuralScalarRuntimeField::case_payload(
+                        root.clone(),
+                        *field,
+                    ))
+                    .copied(),
+                (None, None) => None,
+            }
+            .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
             if scalar.scalar_type() != parameter.scalar_type {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }

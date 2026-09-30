@@ -292,6 +292,15 @@ projected case arguments remain unsupported; this scalar-only representation has
 no case-payload mutation route. Scalar and borrowed-view inputs with a scalar-case
 result use the existing call path.
 
+`EstablishStructuralCase` builds a case with a non-scalar payload member, or a
+mixed shape's case beside its common fields, as runtime cells under a fresh
+root: the discriminator in the root's case contents, common fields as member
+cells, and scalar payload members as case-payload cells. Terminal numbers common
+and payload fields in separate namespaces (verification matches the roster by
+position), so a cell key carries its namespace and every subtree copy or move
+keeps it. A `StructuralCase` dispatch over such a root reads the stored
+discriminator and binds the selected payload's scalars from those cells.
+
 Host response validation is not allocation or freshness verification. The host
 must return a legitimate owned value. Rejection preserves interpreter bookkeeping,
 not effects the host already performed. Completion followed by budget suspension

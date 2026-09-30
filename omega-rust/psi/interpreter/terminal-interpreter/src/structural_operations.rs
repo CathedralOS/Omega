@@ -9,7 +9,7 @@ use crate::errors::TerminalInterpretError;
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
 use crate::structural_inputs::case_membership::StructuralCaseContents;
-use crate::values::StructuralScalarRuntimeField;
+use crate::values::{ScalarFieldNamespace, StructuralScalarRuntimeField};
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType, StructuralTypeId};
@@ -162,10 +162,18 @@ impl TerminalExecution {
         Ok(OperationFlow::Advance)
     }
 
-    /// Stage a sum's non-scalar case payload the way `establish_record` stages
+    /// Stage a case's non-scalar payload the way `establish_record` stages
     /// record members: every child subtree copies (or, for affine children,
     /// moves) into the fresh identity under `Field(member)` prefixes, and the
     /// selected case's discriminator lands on the new root.
+    ///
+    /// The roster is the one Terminal verification checks
+    /// (`validation/structural/case.rs`): a mixed shape's runtime common
+    /// fields in declaration order, then the selected case's runtime payload.
+    /// Erased members take no position. Common and payload identities are
+    /// separate declaration namespaces, so a roster entry's position, not its
+    /// field identity, names its declaration, and each scalar lands in its
+    /// own cell namespace on the new root.
     fn establish_structural_case(
         &mut self,
         result: &terminal_psi::StructuralOperationResult,
@@ -185,17 +193,35 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
-        let Some(StructuralTypeDeclaration {
-            shape: StructuralTypeShape::Sum { cases },
-            ..
-        }) = self.program.structural_types.get(&result.structural_type)
-        else {
-            return Err(invalid());
+        let (common, cases) = match self
+            .program
+            .structural_types
+            .get(&result.structural_type)
+            .map(|declaration| &declaration.shape)
+        {
+            Some(StructuralTypeShape::Sum { cases }) => (&[][..], cases),
+            Some(StructuralTypeShape::Mixed { fields, cases }) => (fields.as_slice(), cases),
+            _ => return Err(invalid()),
         };
         let Some(selected) = cases.iter().find(|case| case.id == result_case) else {
             return Err(invalid());
         };
-        if selected.fields.len() != fields.len() {
+        let roster = common
+            .iter()
+            .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
+            .map(|declaration| (declaration, ScalarFieldNamespace::Member))
+            .chain(
+                selected
+                    .fields
+                    .iter()
+                    .filter(|field| {
+                        !(field.relevance.is_erased()
+                            && matches!(field.field_type, StructuralFieldType::Erased { .. }))
+                    })
+                    .map(|declaration| (declaration, ScalarFieldNamespace::CasePayload)),
+            )
+            .collect::<Vec<_>>();
+        if roster.len() != fields.len() {
             return Err(invalid());
         }
         let value = TerminalStructuralValue {
@@ -218,7 +244,7 @@ impl TerminalExecution {
         let mut staged_referents: BTreeMap<StructuralRuntimePlace, TerminalStructuralValue> =
             BTreeMap::new();
         let mut consumed = BTreeSet::new();
-        for (declaration, binding) in selected.fields.iter().zip(fields) {
+        for ((declaration, namespace), binding) in roster.into_iter().zip(fields) {
             if binding.field != declaration.id || declaration.relevance.is_erased() {
                 return Err(invalid());
             }
@@ -243,13 +269,19 @@ impl TerminalExecution {
                     staged_scalars.insert(
                         StructuralScalarRuntimeField {
                             parent: member_root.clone(),
+                            namespace,
                             field: binding.field,
                         },
                         scalar,
                     );
                 }
                 terminal_psi::RecordFieldValue::Structural(argument) => {
-                    if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                    // Verification refuses a structural common field, so
+                    // only a payload member nests a child subtree.
+                    if namespace != ScalarFieldNamespace::CasePayload
+                        || argument.access != StructuralAccess::Owned
+                        || !argument.path.is_empty()
+                    {
                         return Err(invalid());
                     }
                     let member = StructuralRuntimePlace {
@@ -281,10 +313,7 @@ impl TerminalExecution {
                         );
                         for (field, scalar) in &case.fields {
                             staged_scalars.insert(
-                                StructuralScalarRuntimeField {
-                                    parent: member.clone(),
-                                    field: *field,
-                                },
+                                StructuralScalarRuntimeField::case_payload(member.clone(), *field),
                                 *scalar,
                             );
                         }
@@ -325,13 +354,7 @@ impl TerminalExecution {
                     }
                     for (cell, scalar) in &self.structural_scalar_fields {
                         if let Some(parent) = retarget(&cell.parent) {
-                            staged_scalars.insert(
-                                StructuralScalarRuntimeField {
-                                    parent,
-                                    field: cell.field,
-                                },
-                                *scalar,
-                            );
+                            staged_scalars.insert(cell.relocated(parent), *scalar);
                         }
                     }
                     for (carrier, contents) in &self.structural_cases {
@@ -520,6 +543,16 @@ impl TerminalExecution {
             result.structural_type,
         )
         .ok_or_else(invalid)?;
+        // The walk mints a sum's first-case payload as `RecordField` leaves at
+        // the sum's own path, beside its `SumSelection`: those are payload
+        // cells, not members of a record at that path.
+        let selected_sums = leaves
+            .iter()
+            .filter_map(|leaf| match leaf {
+                terminal_semantics::ZeroedStructuralLeaf::SumSelection { path, .. } => Some(path),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
         let value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
@@ -555,16 +588,17 @@ impl TerminalExecution {
                     field,
                     scalar_type,
                 } => {
-                    self.structural_scalar_fields.insert(
-                        StructuralScalarRuntimeField {
-                            parent: StructuralRuntimePlace {
-                                opaque_identity: value.opaque_identity,
-                                path: path.clone(),
-                            },
-                            field: *field,
-                        },
-                        zero(*scalar_type).ok_or_else(invalid)?,
-                    );
+                    let parent = StructuralRuntimePlace {
+                        opaque_identity: value.opaque_identity,
+                        path: path.clone(),
+                    };
+                    let cell = if selected_sums.contains(path) {
+                        StructuralScalarRuntimeField::case_payload(parent, *field)
+                    } else {
+                        StructuralScalarRuntimeField::member(parent, *field)
+                    };
+                    self.structural_scalar_fields
+                        .insert(cell, zero(*scalar_type).ok_or_else(invalid)?);
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { path, scalar_type } => {
                     // Byte views and scalar indexing must share one backing.
@@ -785,11 +819,10 @@ impl TerminalExecution {
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
+        // The store's path names no `Case` step: it writes a record field or a
+        // mixed shape's common field, never a payload cell.
         self.structural_scalar_fields.insert(
-            StructuralScalarRuntimeField {
-                parent: StructuralRuntimePlace::from(&parent),
-                field,
-            },
+            StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&parent), field),
             source,
         );
         Ok(OperationFlow::Advance)
@@ -893,10 +926,7 @@ impl TerminalExecution {
             );
             for (payload_field, scalar) in case.fields {
                 self.structural_scalar_fields.insert(
-                    StructuralScalarRuntimeField {
-                        parent: hole.clone(),
-                        field: payload_field,
-                    },
+                    StructuralScalarRuntimeField::case_payload(hole.clone(), payload_field),
                     scalar,
                 );
             }
@@ -1039,15 +1069,7 @@ impl TerminalExecution {
             .structural_scalar_fields
             .iter()
             .filter_map(|(cell, scalar)| {
-                retarget(&cell.parent).map(|parent| {
-                    (
-                        StructuralScalarRuntimeField {
-                            parent,
-                            field: cell.field,
-                        },
-                        *scalar,
-                    )
-                })
+                retarget(&cell.parent).map(|parent| (cell.relocated(parent), *scalar))
             })
             .collect();
         let staged_byte_fields: Vec<_> = self
@@ -1136,15 +1158,7 @@ impl TerminalExecution {
             .structural_scalar_fields
             .iter()
             .filter_map(|(cell, scalar)| {
-                retarget(&cell.parent).map(|parent| {
-                    (
-                        StructuralScalarRuntimeField {
-                            parent,
-                            field: cell.field,
-                        },
-                        *scalar,
-                    )
-                })
+                retarget(&cell.parent).map(|parent| (cell.relocated(parent), *scalar))
             })
             .collect();
         let staged_byte_fields: Vec<_> = self
@@ -1343,10 +1357,7 @@ impl TerminalExecution {
         let parent = StructuralRuntimePlace::from(&copied);
         for (field, scalar) in leaves {
             self.structural_scalar_fields.insert(
-                StructuralScalarRuntimeField {
-                    parent: parent.clone(),
-                    field,
-                },
+                StructuralScalarRuntimeField::member(parent.clone(), field),
                 scalar,
             );
         }
@@ -1374,17 +1385,19 @@ impl TerminalExecution {
         Ok(OperationFlow::Advance)
     }
 
-    /// The runtime place owning one observed scalar field: the record a
-    /// record-only path reaches, or the sum a final `Case` step qualifies. A
-    /// payload lives at its sum's own place, overlaid by case, so the stored
-    /// discriminator must name the observed case. Verification proves that
-    /// case active before the read; a mismatch here is a malformed module,
-    /// never a read of another case's overlay.
-    pub(crate) fn observed_field_parent(
+    /// The runtime cell one observed scalar field names: a field of the
+    /// record (or a common field of the mixed shape) a record-only path
+    /// reaches, or a payload field of the case a final `Case` step qualifies.
+    /// A payload lives at its sum's own place, overlaid by case, so the
+    /// stored discriminator must name the observed case. Verification proves
+    /// that case active before the read; a mismatch here is a malformed
+    /// module, never a read of another case's overlay.
+    pub(crate) fn observed_field_cell(
         &self,
         source: semantic_vocabulary::PlaceId,
         path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-    ) -> Result<StructuralRuntimePlace, TerminalInterpretError> {
+        field: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<StructuralScalarRuntimeField, TerminalInterpretError> {
         let structural_value = self.structural_values.get(&source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
@@ -1402,7 +1415,7 @@ impl TerminalExecution {
             if contents.structural_type != carrier.sum || contents.case != carrier.case {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);
             }
-            return Ok(parent);
+            return Ok(StructuralScalarRuntimeField::case_payload(parent, field));
         }
         let carrier = terminal_semantics::record_field_carrier(
             self.program.structural_types.values(),
@@ -1411,7 +1424,7 @@ impl TerminalExecution {
         )
         .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         parent.path.extend(carrier.path);
-        Ok(parent)
+        Ok(StructuralScalarRuntimeField::member(parent, field))
     }
 
     pub(crate) fn execute_boolean_structural_field(
@@ -1429,10 +1442,10 @@ impl TerminalExecution {
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let parent = self.observed_field_parent(source, path)?;
+        let cell = self.observed_field_cell(source, path, field)?;
         let value = self
             .structural_scalar_fields
-            .get(&StructuralScalarRuntimeField { parent, field })
+            .get(&cell)
             .copied()
             .ok_or(TerminalInterpretError::StructuralBooleanFieldMissing { source, field })?;
         let TerminalScalarValue::Boolean(value) = value else {
@@ -1475,10 +1488,10 @@ impl TerminalExecution {
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let parent = self.observed_field_parent(source, path)?;
+        let cell = self.observed_field_cell(source, path, field)?;
         let value = self
             .structural_scalar_fields
-            .get(&StructuralScalarRuntimeField { parent, field })
+            .get(&cell)
             .copied()
             .ok_or(TerminalInterpretError::StructuralScalarFieldMissing { source, field })?;
         if value.scalar_type() != result.scalar_type {

@@ -73,10 +73,10 @@ impl TerminalExecution {
                         return Err(invalid());
                     }
                     staged.insert(
-                        StructuralScalarRuntimeField {
-                            parent: StructuralRuntimePlace::from(&value),
-                            field: binding.field,
-                        },
+                        StructuralScalarRuntimeField::member(
+                            StructuralRuntimePlace::from(&value),
+                            binding.field,
+                        ),
                         scalar,
                     );
                 }
@@ -136,13 +136,10 @@ impl TerminalExecution {
                                 vec![StructuralPathSegment::Field(declaration.identity.clone())];
                             path.extend_from_slice(&field.parent.path[child.path.len()..]);
                             staged.insert(
-                                StructuralScalarRuntimeField {
-                                    parent: StructuralRuntimePlace {
-                                        opaque_identity: value.opaque_identity,
-                                        path,
-                                    },
-                                    field: field.field,
-                                },
+                                field.relocated(StructuralRuntimePlace {
+                                    opaque_identity: value.opaque_identity,
+                                    path,
+                                }),
                                 *scalar,
                             );
                         }
@@ -224,13 +221,10 @@ impl TerminalExecution {
                     })
                     .map(|(field, scalar)| {
                         (
-                            StructuralScalarRuntimeField {
-                                parent: StructuralRuntimePlace {
-                                    opaque_identity: identity,
-                                    path: field.parent.path[source.path.len()..].to_vec(),
-                                },
-                                field: field.field,
-                            },
+                            field.relocated(StructuralRuntimePlace {
+                                opaque_identity: identity,
+                                path: field.parent.path[source.path.len()..].to_vec(),
+                            }),
                             *scalar,
                         )
                     }),

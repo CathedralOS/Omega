@@ -59,10 +59,7 @@ fn validate_type(
                 }
                 match field.field_type {
                     StructuralFieldType::BoundedInteger(bounds) => {
-                        let key = StructuralScalarRuntimeField {
-                            parent: parent.clone(),
-                            field: field.id,
-                        };
+                        let key = StructuralScalarRuntimeField::member(parent.clone(), field.id);
                         if !matches!(
                             values.get(&key),
                             Some(TerminalScalarValue::Integer { scalar_type, value })

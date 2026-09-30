@@ -84,10 +84,8 @@ impl TerminalExecution {
             field,
         )
         .ok_or_else(malformed)?;
-        let cell = StructuralScalarRuntimeField {
-            parent: StructuralRuntimePlace::from(&parent),
-            field,
-        };
+        let cell =
+            StructuralScalarRuntimeField::member(StructuralRuntimePlace::from(&parent), field);
         let operand = |value| {
             self.values
                 .get(&value)
