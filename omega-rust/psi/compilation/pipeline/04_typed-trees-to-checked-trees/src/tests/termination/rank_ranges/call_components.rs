@@ -87,8 +87,8 @@ fn recursive_quotient_endpoints_follow_nested_terms_and_record_coordinates() {
                 ("cap / 5", "cap.bound / 5"),
                 ("limit / 5", "limit.bound / 5"),
                 (
-                    "self.second(cap, remaining)",
-                    "self.second(Limits { bound: cap.bound, other: 0 }, remaining)"
+                    "Main::second(main, cap, remaining)",
+                    "Main::second(main, Limits { bound: cap.bound, other: 0 }, remaining)"
                 ),
             ]
         )
@@ -115,8 +115,8 @@ fn recursive_quotient_endpoints_follow_nested_terms_and_record_coordinates() {
                 ("cap / 5", "cap.inner.bound / 5"),
                 ("limit / 5", "limit.inner.bound / 5"),
                 (
-                    "self.second(cap, remaining)",
-                    "self.second(Envelope { inner: cap.inner, sibling: cap.sibling }, remaining)"
+                    "Main::second(main, cap, remaining)",
+                    "Main::second(main, Envelope { inner: cap.inner, sibling: cap.sibling }, remaining)"
                 ),
             ]
         )
@@ -558,12 +558,12 @@ fn symbolic_division_endpoints_cross_recursive_components() {
             ("cap / 5", "cap / divisor"),
             ("limit / 5", "limit / width"),
             (
-                "self.second(cap, remaining)",
-                "self.second(cap, remaining, divisor)",
+                "Main::second(main, cap, remaining)",
+                "Main::second(main, cap, remaining, divisor)",
             ),
             (
-                "self.first(pending - 1, limit)",
-                "self.first(pending - 1, limit, width)",
+                "Main::first(main, pending - 1, limit)",
+                "Main::first(main, pending - 1, limit, width)",
             ),
         ],
     );

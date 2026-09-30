@@ -629,13 +629,35 @@ fn a_view_result_keeps_its_local_loan_out_of_the_plain_result_lane() {
         "#,
     );
     let machine = machine_named(&checked, "run");
+    // A plan may take the call only through reference-result custody: the
+    // call mints a result loan over the lent local and a later release ends
+    // it, so the storage stays borrowed past the call.
+    let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+    else {
+        return;
+    };
+    let call = plan
+        .operations
+        .iter()
+        .find_map(CheckedUnitEffectOperationPlan::call)
+        .expect("the view call is planned");
+    let loan = call
+        .structural_custody()
+        .map(|custody| custody.reference_loan)
+        .filter(|loan| loan.is_valid())
+        .unwrap_or_else(|| {
+            panic!("a view result retained a local loan through the plain-result lane: {call:#?}")
+        });
     assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(machine)
-            .is_none(),
-        "a view result retained a local loan through the plain-result lane"
+        plan.operations.iter().any(|operation| matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::ReleaseReference { loan: released, .. }
+                if *released == loan
+        )),
+        "the view result keeps the lent local borrowed until its loan is released"
     );
 }
