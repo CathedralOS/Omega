@@ -70,6 +70,13 @@ pub fn aarch64_machine_effect_catalog(
                         ),
                     );
                 }
+                if let MachineSemanticKind::FloatResultPolicy(form) = semantic {
+                    return Ok(
+                        crate::selected_form_encoding::float_result_policy::declaration(
+                            form, constraint,
+                        ),
+                    );
+                }
                 if semantic == MachineSemanticKind::Crash {
                     return Ok(crate::selected_form_encoding::crash::declaration(
                         constraints
@@ -326,6 +333,8 @@ fn selected_keys(
         ieee_float_unary: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
         ieee_float_conversion_control: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
         ieee_float_ternary: Some(crate::AARCH64_IEEE_FLOAT_TERNARY),
+        float_result_trapping: Some(crate::AARCH64_FLOAT_RESULT_TRAPPING),
+        float_result_saturating: Some(crate::AARCH64_FLOAT_RESULT_SATURATING),
         bits_to_float32: Some(crate::AARCH64_BITS_TO_FLOAT32),
         bits_to_float64: Some(crate::AARCH64_BITS_TO_FLOAT64),
         add_i64: AARCH64_ADD_I64,
@@ -463,6 +472,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         }
         MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
             return crate::selected_form_encoding::ieee_float_arithmetic::effects(form);
+        }
+        MachineSemanticKind::FloatResultPolicy(form) => {
+            return crate::selected_form_encoding::float_result_policy::effects(form);
         }
         MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CopyBytes => (vec![0, 1, 2], vec![3, 4]),

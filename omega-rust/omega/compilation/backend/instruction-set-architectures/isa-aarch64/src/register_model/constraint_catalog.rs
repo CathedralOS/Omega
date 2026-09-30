@@ -914,6 +914,29 @@ pub fn aarch64_register_constraint_catalog(
             ),
         });
     }
+    // Save every GPR input before using the output as scratch; output/input
+    // aliasing is safe without early-clobber or another GPR temporary.
+    for (key, inputs) in [
+        (crate::AARCH64_FLOAT_RESULT_TRAPPING, 1),
+        (crate::AARCH64_FLOAT_RESULT_SATURATING, 3),
+    ] {
+        let mut operands = (0..inputs)
+            .map(|position| allocatable(position, RegisterOperandAccess::Use, GPR64))
+            .collect::<Vec<_>>();
+        operands.push(allocatable(inputs, RegisterOperandAccess::Def, GPR64));
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands,
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: sorted_units(
+                ["q16", "q17", "q18", "nzcv"]
+                    .into_iter()
+                    .flat_map(|name| view(name).units.iter().copied()),
+            ),
+        });
+    }
     for (key, restore) in [
         (crate::AARCH64_SAVE_FLOATING_CONTROL, false),
         (crate::AARCH64_RESTORE_FLOATING_CONTROL, true),

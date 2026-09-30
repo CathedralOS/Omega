@@ -674,6 +674,7 @@ pub(crate) fn validate_decoded(
         SelectedInstructionKind::AtomicAccess { .. } => false,
         // Float arithmetic bytes have their own field decoder.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => false,
+        SelectedInstructionKind::FloatResultPolicy { .. } => false,
         SelectedInstructionKind::Crash => registers.is_empty() && decoded == [DecodedWord::Crash],
         SelectedInstructionKind::TrappingInteger { form } => {
             decoded == super::trapping_forms::realization(form, registers)
@@ -1100,6 +1101,9 @@ pub(crate) fn footprint(
         }
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             return super::ieee_float_arithmetic::footprint(form, operands);
+        }
+        SelectedInstructionKind::FloatResultPolicy { form } => {
+            return super::float_result_policy::footprint(form, operands);
         }
         SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
         // Every Trapping realization leaves NZCV unspecified; the encoded
