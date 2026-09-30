@@ -43,6 +43,12 @@ id_constructor!(contract_id, ContractId);
 id_constructor!(obligation_id, ObligationId);
 id_constructor!(proposition_id, PropositionId);
 
+/// The checked type identity of the `u8` scalar a borrowed `&[u8]` view
+/// establishes through the element-view op family. The byte carrier keeps no
+/// element field, so the catalog roots this row at that establishment and the
+/// emitter resolves the op's element through it.
+pub(crate) const BYTE_VIEW_ELEMENT_TYPE_IDENTITY: &str = "named(name(u8))";
+
 pub(crate) fn lookup_type_id(
     ids: &[(String, StructuralTypeId)],
     identity: &str,

@@ -22,6 +22,7 @@ use super::{
 use crate::terminal_identities::{
     StructuralDomainBinding, lookup_domain_id_for_carrier, structural_domain_identity,
 };
+use crate::terminal_identities::BYTE_VIEW_ELEMENT_TYPE_IDENTITY;
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 
 /// Root the leaf type identity of every structural argument plan reachable
@@ -100,6 +101,45 @@ fn collect_value_roots(
         }
         _ => {}
     }
+}
+
+/// A borrowed `&[u8]` view established through the element-view op family
+/// names the `u8` row that op's element resolves. The byte carrier keeps no
+/// element field, so the establishment roots that row: a slice-view value,
+/// directly or in a selection arm, whose result is a borrowed byte carrier.
+/// A byte view reached any other way (a parameter, a literal, a subslice)
+/// lowers without it, so its module keeps exactly its own rows.
+fn establishes_byte_element_view(
+    checked: &CheckedTrees,
+    plans: UnitPlans<'_>,
+    result_identity: &str,
+    value: checked_trees::CheckedStructuralValueHandle,
+) -> Result<bool, LoweringError> {
+    fn establishes_element_view(
+        checked: &CheckedTrees,
+        value: checked_trees::CheckedStructuralValueHandle,
+    ) -> bool {
+        let values = &checked.facts.values.structural_values;
+        match &values.nodes.get(value).kind {
+            checked_trees::CheckedStructuralValueKind::BorrowedSliceView { .. }
+            | checked_trees::CheckedStructuralValueKind::MutableSliceView { .. } => true,
+            checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => values
+                .dispatch_arms
+                .span_or_empty(*arms)
+                .iter()
+                .any(|arm| establishes_element_view(checked, arm.value)),
+            _ => false,
+        }
+    }
+    if !establishes_element_view(checked, value) {
+        return Ok(false);
+    }
+    Ok(matches!(
+        selected_declaration(checked, plans, result_identity)?.shape,
+        CheckedUnitStructuralTypeShape::ByteSequence(
+            checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
+        )
+    ))
 }
 
 pub(super) fn lower_program_local_root_introductions(
@@ -287,6 +327,10 @@ pub(super) fn lower_unit_structural_types_including(
                 } => {
                     roots.push(result.type_identity.clone());
                     collect_value_roots(checked, *value, &mut roots);
+                    if establishes_byte_element_view(checked, plans, &result.type_identity, *value)?
+                    {
+                        roots.push(BYTE_VIEW_ELEMENT_TYPE_IDENTITY.to_owned());
+                    }
                 }
                 CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                     type_identity, ..
@@ -394,6 +438,71 @@ pub(super) fn lower_unit_structural_types_including(
     lower_unit_structural_type_roots(checked, plans, &roots)
 }
 
+fn select_from<'a>(
+    roster: impl Iterator<Item = &'a CheckedUnitStructuralTypePlan>,
+    identity: &str,
+    selected: &mut Option<&'a CheckedUnitStructuralTypePlan>,
+) -> Result<(), LoweringError> {
+    let mut matches = roster.filter(|plan| plan.identity == identity);
+    let Some(plan) = matches.next() else {
+        return Ok(());
+    };
+    if matches.next().is_some() {
+        return unsupported("Unit closure contains a duplicate or empty structural type identity");
+    }
+    if selected.is_some_and(|previous| previous != plan) {
+        return unsupported("Unit closure structural type declarations conflict across owners");
+    }
+    *selected = Some(plan);
+    Ok(())
+}
+
+/// The one checked declaration of `identity` that every roster able to own
+/// it agrees on.
+fn selected_declaration<'a>(
+    checked: &'a CheckedTrees,
+    plans: UnitPlans<'a>,
+    identity: &str,
+) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {
+    if identity.is_empty() {
+        return unsupported("Unit closure contains a duplicate or empty structural type identity");
+    }
+    let mut selected = None;
+    select_from(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_types
+            .iter(),
+        identity,
+        &mut selected,
+    )?;
+    select_from(plans.structural_types(), identity, &mut selected)?;
+    for roster in [
+        &checked
+            .facts
+            .flow
+            .terminal_structural_returns
+            .structural_types,
+        &checked
+            .facts
+            .flow
+            .terminal_boundary_scalar_returns
+            .structural_types,
+        &checked
+            .facts
+            .flow
+            .terminal_structural_scalar_returns
+            .structural_types,
+    ] {
+        select_from(roster.iter(), identity, &mut selected)?;
+    }
+    selected.ok_or(LoweringError::Unsupported(
+        "Unit closure references a missing structural type",
+    ))
+}
+
 pub(crate) fn lower_unit_structural_type_roots(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
@@ -405,73 +514,6 @@ pub(crate) fn lower_unit_structural_type_roots(
     ),
     LoweringError,
 > {
-    fn select_from<'a>(
-        roster: impl Iterator<Item = &'a CheckedUnitStructuralTypePlan>,
-        identity: &str,
-        selected: &mut Option<&'a CheckedUnitStructuralTypePlan>,
-    ) -> Result<(), LoweringError> {
-        let mut matches = roster.filter(|plan| plan.identity == identity);
-        let Some(plan) = matches.next() else {
-            return Ok(());
-        };
-        if matches.next().is_some() {
-            return unsupported(
-                "Unit closure contains a duplicate or empty structural type identity",
-            );
-        }
-        if selected.is_some_and(|previous| previous != plan) {
-            return unsupported("Unit closure structural type declarations conflict across owners");
-        }
-        *selected = Some(plan);
-        Ok(())
-    }
-
-    fn selected_declaration<'a>(
-        checked: &'a CheckedTrees,
-        plans: UnitPlans<'a>,
-        identity: &str,
-    ) -> Result<&'a CheckedUnitStructuralTypePlan, LoweringError> {
-        if identity.is_empty() {
-            return unsupported(
-                "Unit closure contains a duplicate or empty structural type identity",
-            );
-        }
-        let mut selected = None;
-        select_from(
-            checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .structural_types
-                .iter(),
-            identity,
-            &mut selected,
-        )?;
-        select_from(plans.structural_types(), identity, &mut selected)?;
-        for roster in [
-            &checked
-                .facts
-                .flow
-                .terminal_structural_returns
-                .structural_types,
-            &checked
-                .facts
-                .flow
-                .terminal_boundary_scalar_returns
-                .structural_types,
-            &checked
-                .facts
-                .flow
-                .terminal_structural_scalar_returns
-                .structural_types,
-        ] {
-            select_from(roster.iter(), identity, &mut selected)?;
-        }
-        selected.ok_or_else(|| {
-            LoweringError::Unsupported("Unit closure references a missing structural type")
-        })
-    }
-
     fn collect<'a>(
         checked: &'a CheckedTrees,
         plans: UnitPlans<'a>,
@@ -496,19 +538,11 @@ pub(crate) fn lower_unit_structural_type_roots(
             } => {
                 collect(checked, plans, referent_identity, active, selected)?;
             }
-            CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => {}
-            CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
-                // A borrowed `&[u8]` view's element is always the `u8`
-                // scalar, spelled through an `ElementView`-family op — the
-                // carrier keeps no element field, so its element row is
-                // collected here like a `BorrowedSliceView`'s.
-                if matches!(
-                    carrier,
-                    checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
-                ) {
-                    collect(checked, plans, "named(name(u8))", active, selected)?;
-                }
-            }
+            // A byte carrier keeps no element field. The `u8` row a borrowed
+            // view's element-view establishment resolves is rooted by that
+            // operation (`establishes_byte_element_view`), not by the type.
+            CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+            | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
             // A borrowed `&[T]` view is the runtime-length descriptor over an
             // element type that must itself reach the catalog.
             CheckedUnitStructuralTypeShape::BorrowedSliceView {
