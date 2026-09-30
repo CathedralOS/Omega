@@ -115,12 +115,27 @@ fn a_nonzero_guard_survives_a_second_read_of_the_same_field() {
         observed(6),
     ));
     let goal = nonzero(observed(2));
-    let proof = produce_relaxed_integer_proof(&context, &goal, &[], &axioms, &BTreeSet::new())
-        .expect("a guarded field read and later unchanged read share the nonzero proof");
+    let proof = produce_relaxed_integer_proof(
+        &context,
+        &goal,
+        &[],
+        &axioms,
+        &BTreeSet::new(),
+        &mut crate::proofs::ProofSearchDeclines::default(),
+    )
+    .expect("a guarded field read and later unchanged read share the nonzero proof");
     proof_admission::accept_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
     axioms[6] = Proposition::Truth;
     assert!(
-        produce_relaxed_integer_proof(&context, &goal, &[], &axioms, &BTreeSet::new()).is_none()
+        produce_relaxed_integer_proof(
+            &context,
+            &goal,
+            &[],
+            &axioms,
+            &BTreeSet::new(),
+            &mut crate::proofs::ProofSearchDeclines::default()
+        )
+        .is_none()
     );
     assert!(proof_admission::accept_certificate(&context, &goal, &[], &axioms, &proof).is_err());
 }
@@ -172,8 +187,15 @@ fn strict_bounds_reuse_the_derived_store_and_read_chain() {
     ];
     let parameters = BTreeSet::new();
     let nonstrict = Proposition::LessOrEqual(observed(5), literal(4));
-    produce_relaxed_integer_proof(&context, &nonstrict, &[], &axioms, &parameters)
-        .expect("the existing closure proves the inclusive endpoint");
+    produce_relaxed_integer_proof(
+        &context,
+        &nonstrict,
+        &[],
+        &axioms,
+        &parameters,
+        &mut crate::proofs::ProofSearchDeclines::default(),
+    )
+    .expect("the existing closure proves the inclusive endpoint");
     let goals = [
         Proposition::LessThan(observed(5), literal(5)),
         Proposition::LessThan(observed(5), observed(6)),
@@ -182,8 +204,15 @@ fn strict_bounds_reuse_the_derived_store_and_read_chain() {
     let proofs = goals
         .iter()
         .map(|goal| {
-            produce_relaxed_integer_proof(&context, goal, &[], &axioms, &parameters)
-                .expect("strict bounds retain the same field and definition evidence")
+            produce_relaxed_integer_proof(
+                &context,
+                goal,
+                &[],
+                &axioms,
+                &parameters,
+                &mut crate::proofs::ProofSearchDeclines::default(),
+            )
+            .expect("strict bounds retain the same field and definition evidence")
         })
         .collect::<Vec<_>>();
     assert!(
@@ -193,13 +222,24 @@ fn strict_bounds_reuse_the_derived_store_and_read_chain() {
             &[],
             &axioms,
             &parameters,
+            &mut crate::proofs::ProofSearchDeclines::default(),
         )
         .is_none(),
         "discreteness cannot strengthen the proved endpoint"
     );
     axioms[2] = Proposition::Truth;
     for (goal, proof) in goals.iter().zip(&proofs).take(2) {
-        assert!(produce_relaxed_integer_proof(&context, goal, &[], &axioms, &parameters).is_none());
+        assert!(
+            produce_relaxed_integer_proof(
+                &context,
+                goal,
+                &[],
+                &axioms,
+                &parameters,
+                &mut crate::proofs::ProofSearchDeclines::default()
+            )
+            .is_none()
+        );
         assert!(
             proof_admission::accept_certificate(&context, goal, &[], &axioms, proof).is_err(),
             "the weaker invariant alone cannot replace the removed guard"
@@ -313,7 +353,8 @@ fn product_endpoints_preserve_signed_corners_and_prior_definition_identity() {
             let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
                 .or_else(|| super::super::produce_relaxed_integer_proof(
                     &context, &goal, &assumptions, &axioms, &Default::default(),
-                ))
+                                    &mut crate::proofs::ProofSearchDeclines::default(),
+))
                 .unwrap_or_else(|| panic!(
                     "both signed endpoints: [{left_lower}, {left_upper}] * [{right_lower}, {right_upper}], reversed={reversed}",
                 ));

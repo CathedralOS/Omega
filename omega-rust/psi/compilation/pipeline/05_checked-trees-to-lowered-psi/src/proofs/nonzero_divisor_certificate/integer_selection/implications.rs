@@ -400,6 +400,7 @@ mod tests {
             &[],
             &axioms,
             &BTreeSet::new(),
+            &mut crate::proofs::ProofSearchDeclines::default(),
         )
         .expect("the retained alternative proves the compound result");
         check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
@@ -415,6 +416,7 @@ mod tests {
                 &[],
                 &axioms,
                 &BTreeSet::new(),
+                &mut crate::proofs::ProofSearchDeclines::default(),
             )
             .is_none()
         );

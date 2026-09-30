@@ -207,6 +207,7 @@ fn uncached_reference(lowered: &mut LoweredPsi) -> usize {
             &site.requirements,
             &site.semantic_axioms,
             &parameters,
+            &mut crate::proofs::ProofSearchDeclines::default(),
         )
         .unwrap();
         lowered.proof_bundle.evidence.push(ObligationEvidence {
@@ -224,7 +225,7 @@ fn uncached_reference(lowered: &mut LoweredPsi) -> usize {
         .sort_by_key(|evidence| evidence.obligation);
     crate::proofs::control_cycle_proofs::finalize(
         lowered,
-        &crate::proofs::ProofSearchDeclines::default(),
+        &mut crate::proofs::ProofSearchDeclines::default(),
     )
     .unwrap();
     preparations

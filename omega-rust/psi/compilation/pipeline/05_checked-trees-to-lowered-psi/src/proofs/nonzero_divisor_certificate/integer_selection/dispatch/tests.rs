@@ -66,6 +66,7 @@ fn non_strict_endpoint_certificates_cannot_change_the_value_carrier() {
             &[],
             &axioms,
             &BTreeSet::new(),
+            &mut crate::proofs::ProofSearchDeclines::default(),
         )
         .is_none()
     );
@@ -77,6 +78,7 @@ fn non_strict_endpoint_certificates_cannot_change_the_value_carrier() {
             &[],
             &axioms,
             &BTreeSet::new(),
+            &mut crate::proofs::ProofSearchDeclines::default(),
         )
         .is_none()
     );
@@ -125,6 +127,7 @@ fn add_carrier_bounds_land_on_computed_multiply_operands() {
                     &[],
                     &axioms,
                     &BTreeSet::new(),
+                    &mut crate::proofs::ProofSearchDeclines::default(),
                 )
                 .unwrap_or_else(|| panic!("{sign:?}{width}: computed multiply addend {goal:?}"));
                 assert_eq!(proof.conclusion, goal);

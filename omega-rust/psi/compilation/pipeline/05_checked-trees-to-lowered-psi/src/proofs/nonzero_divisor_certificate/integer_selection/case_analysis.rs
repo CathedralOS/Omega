@@ -166,6 +166,7 @@ mod tests {
             &[],
             &axioms,
             &BTreeSet::new(),
+            &mut crate::proofs::ProofSearchDeclines::default(),
         )
         .expect("both original and newly implied alternatives establish the goal");
         check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
@@ -184,6 +185,7 @@ mod tests {
                 &[],
                 &axioms,
                 &BTreeSet::new(),
+                &mut crate::proofs::ProofSearchDeclines::default(),
             )
             .is_none(),
             "the missing nested alternative cannot escape its branch"

@@ -86,8 +86,9 @@ fn run_verdict_searches(
     goals: &[VerdictKey],
     contexts: &BTreeMap<MachineId, PropositionContext>,
     verdicts: &mut BTreeMap<VerdictKey, bool>,
+    declines: &mut ProofSearchDeclines,
 ) {
-    let produce = |key: &VerdictKey| -> bool {
+    let produce = |key: &VerdictKey| -> (bool, ProofSearchDeclines) {
         let counted = crate::proofs::proof_timing::Counted::enter(
             crate::proofs::proof_timing::count_producer,
         );
@@ -95,12 +96,17 @@ fn run_verdict_searches(
         let context = contexts
             .get(machine)
             .expect("verdict search's machine context is resolved before it queues");
+        // Each search records into its own ledger so workers on shared
+        // threads never borrow the batch's; declines join in batch order
+        // the same way verdicts do.
+        let mut search_declines = ProofSearchDeclines::default();
         let verdict = produce_checked_canonical_integer_proof(
             context,
             goal,
             requirements,
             semantic_axioms,
             parameters,
+            &mut search_declines,
         )
         // Arrival obligations can outgrow the canonical custody envelope the
         // same way operation obligations do: an endpoint that meets cited facts
@@ -110,15 +116,23 @@ fn run_verdict_searches(
         // certificate before the candidate is retained. Guarded `Implication`
         // premises keep their scope.
         .or_else(|| {
-            produce_relaxed_integer_proof(context, goal, requirements, semantic_axioms, parameters)
+            produce_relaxed_integer_proof(
+                context,
+                goal,
+                requirements,
+                semantic_axioms,
+                parameters,
+                &mut search_declines,
+            )
         })
         .is_some();
         drop(counted);
-        verdict
+        (verdict, search_declines)
     };
     if goals.len() < super::operation_proofs::PARALLEL_PROOF_THRESHOLD {
         for key in goals {
-            let verdict = produce(key);
+            let (verdict, local) = produce(key);
+            declines.extend(local);
             verdicts.insert(key.clone(), verdict);
         }
         return;
@@ -155,7 +169,8 @@ fn run_verdict_searches(
             );
         }
         generated.sort_by_key(|(index, _)| *index);
-        for (index, verdict) in generated {
+        for (index, (verdict, local)) in generated {
+            declines.extend(local);
             verdicts.insert(goals[index].clone(), verdict);
         }
     });
@@ -556,7 +571,7 @@ fn retain_provable_roster_bounded(
             crate::proofs::proof_timing::count_verdict_miss();
             pending_goals.push(key);
         }
-        run_verdict_searches(&pending_goals, &contexts, &mut verdicts);
+        run_verdict_searches(&pending_goals, &contexts, &mut verdicts, declines);
         let mut rejected = BTreeSet::new();
         // Members of a rejected header's conjunction that fail on their own at
         // some arrival, by position, with the conjunction's arity at that arrival.
@@ -581,7 +596,7 @@ fn retain_provable_roster_bounded(
                 }
             }
         }
-        run_verdict_searches(&member_goals, &contexts, &mut verdicts);
+        run_verdict_searches(&member_goals, &contexts, &mut verdicts, declines);
         for (machine, header, site, parameters) in &pending {
             let key = verdict_key(*machine, &site.obligation.proposition, site, parameters);
             if verdicts[&key] {

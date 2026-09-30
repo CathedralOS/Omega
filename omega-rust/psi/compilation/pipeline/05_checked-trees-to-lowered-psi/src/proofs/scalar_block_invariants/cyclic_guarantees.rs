@@ -62,7 +62,7 @@ pub(super) fn strengthen(
         let Ok(validated) = terminal_verifier::validate_module(module) else {
             return Ok(());
         };
-        let demanding = unproved_cyclic_guarantees(module, validated, original);
+        let demanding = unproved_cyclic_guarantees(module, validated, original, declines);
         let mut remaining = BUDGET;
         let mut candidates = Vec::new();
         for machine in module
@@ -93,7 +93,7 @@ pub(super) fn strengthen(
     }
     let baseline = lowered.semantic_module.scalar_block_invariants.clone();
     if merge(&mut lowered.semantic_module, candidates, declines)?
-        && proves(lowered, original, &demanding)?
+        && proves(lowered, original, &demanding, declines)?
     {
         return Ok(());
     }
@@ -106,6 +106,7 @@ fn unproved_cyclic_guarantees(
     module: &TerminalModule,
     validated: terminal_verifier::ValidatedTerminalModule<'_>,
     questions: &ReconstructedTerminalObligationSet,
+    declines: &mut ProofSearchDeclines,
 ) -> BTreeSet<MachineId> {
     let mut demanding = BTreeSet::new();
     for site in questions.obligations() {
@@ -139,6 +140,7 @@ fn unproved_cyclic_guarantees(
             &site.requirements,
             &site.semantic_axioms,
             &parameters,
+            declines,
         )
         .is_none()
         {
@@ -433,6 +435,7 @@ fn proves(
     lowered: &LoweredPsi,
     original: &ReconstructedTerminalObligationSet,
     demanding: &BTreeSet<MachineId>,
+    declines: &mut ProofSearchDeclines,
 ) -> Result<bool, LoweringError> {
     let module = &lowered.semantic_module;
     let Ok(validated) = terminal_verifier::validate_module(module) else {
@@ -476,6 +479,7 @@ fn proves(
             &site.requirements,
             &site.semantic_axioms,
             parameters,
+            declines,
         )
         .is_none()
         {

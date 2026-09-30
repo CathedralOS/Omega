@@ -3,7 +3,9 @@
 use proof_admission::ProofNode;
 use semantic_vocabulary::{IntegerType, Proposition, PropositionContext, ScalarTerm};
 
+use crate::lowering_error::ProofSearchCapacity;
 use crate::proofs::nonzero_divisor_certificate::affine_custody::DefinitionIndex;
+use crate::proofs::nonzero_divisor_certificate::search_context;
 use proof_admission::ProofRule;
 use semantic_vocabulary::IntegerValue;
 use std::collections::{BTreeMap, BTreeSet};
@@ -37,8 +39,7 @@ pub(super) fn prove(
         definitions,
         SearchBudget::default(),
     );
-    let _usage = outcome.usage;
-    (!outcome.exhausted).then_some(outcome.proof).flatten()
+    outcome.proof
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -69,7 +70,15 @@ fn prove_with_budget(
         definitions,
         &mut state,
     );
-    state.finish(proof)
+    let outcome = state.finish(proof);
+    if let Some((capacity, requested)) = outcome.refusal {
+        // An exhausted search's decline belongs to the obligation's outcome:
+        // the refusal reaches the scope's ledger so the caller can carry it
+        // through fallback routes and finalization instead of an unproved
+        // site reading as a disproof of the module.
+        search_context::record_decline(capacity, requested);
+    }
+    outcome
 }
 
 #[cfg(test)]
@@ -83,14 +92,17 @@ struct SearchBudget {
 }
 
 impl Default for SearchBudget {
+    /// The production provisions: the named capacities the search declines
+    /// against carry these same numbers, so a published `(limit, requested)
+    /// pair compares like quantities.
     fn default() -> Self {
         Self {
-            definition_visits: 128,
-            depth: 32,
+            definition_visits: ProofSearchCapacity::NonzeroDivisorDefinitionVisits.limit() as usize,
+            depth: ProofSearchCapacity::NonzeroDivisorSearchDepth.limit() as usize,
             // Bounded compositions of computed sums: each join nests one
             // `IntegerExactAddDefinitionBound` certificate, so the count tracks
             // how deep add-of-adds chains may stack inside one obligation.
-            computed_joins: 8,
+            computed_joins: ProofSearchCapacity::NonzeroDivisorComputedJoins.limit() as usize,
         }
     }
 }
@@ -106,8 +118,15 @@ struct SearchUsage {
 #[derive(Debug, Clone)]
 struct SearchOutcome {
     proof: Option<ProofNode>,
+    // Search accounting only the budget fixtures read; the entry point
+    // consumes `proof`/`refusal` alone.
+    #[allow(dead_code)]
     usage: SearchUsage,
+    #[allow(dead_code)]
     exhausted: bool,
+    /// The named capacity and demand the search first declined against;
+    /// `exhausted` without it is unreachable while every refusal names one.
+    refusal: Option<(ProofSearchCapacity, u64)>,
 }
 
 #[derive(Debug, Clone)]
@@ -137,6 +156,9 @@ struct SearchState {
     budget: SearchBudget,
     usage: SearchUsage,
     exhausted: bool,
+    /// The first refused draw's capacity and its total demand — the pool
+    /// already consumed plus the refused amount.
+    refusal: Option<(ProofSearchCapacity, u64)>,
     active: BTreeSet<Query>,
     memo: BTreeMap<Query, Option<EndpointProof>>,
 }
@@ -147,6 +169,7 @@ impl SearchState {
             budget,
             usage: SearchUsage::default(),
             exhausted: false,
+            refusal: None,
             active: BTreeSet::new(),
             memo: BTreeMap::new(),
         }
@@ -155,6 +178,10 @@ impl SearchState {
     fn enter(&mut self, query: &Query, depth: usize) -> bool {
         if depth > self.budget.depth {
             self.exhausted = true;
+            self.refusal = self.refusal.or(Some((
+                ProofSearchCapacity::NonzeroDivisorSearchDepth,
+                depth as u64,
+            )));
             return false;
         }
         self.usage.peak_depth = self.usage.peak_depth.max(depth);
@@ -179,6 +206,10 @@ impl SearchState {
     fn visit_definition(&mut self) -> bool {
         if self.usage.definition_visits >= self.budget.definition_visits {
             self.exhausted = true;
+            self.refusal = self.refusal.or(Some((
+                ProofSearchCapacity::NonzeroDivisorDefinitionVisits,
+                self.usage.definition_visits as u64 + 1,
+            )));
             return false;
         }
         self.usage.definition_visits += 1;
@@ -188,6 +219,10 @@ impl SearchState {
     fn visit_computed_join(&mut self) -> bool {
         if self.usage.computed_joins >= self.budget.computed_joins {
             self.exhausted = true;
+            self.refusal = self.refusal.or(Some((
+                ProofSearchCapacity::NonzeroDivisorComputedJoins,
+                self.usage.computed_joins as u64 + 1,
+            )));
             return false;
         }
         self.usage.computed_joins += 1;
@@ -203,6 +238,7 @@ impl SearchState {
             proof: (!self.exhausted).then_some(proof).flatten(),
             usage: self.usage,
             exhausted: self.exhausted,
+            refusal: self.refusal,
         }
     }
 }

@@ -10,6 +10,8 @@ use std::collections::BTreeSet;
 use proof_admission::{ProofNode, accept_certificate_with_machine_parameters};
 use semantic_vocabulary::{Proposition, PropositionContext, ValueId};
 
+use super::ProofSearchDeclines;
+
 mod affine_custody;
 mod cast_custody;
 mod certificate_entry;
@@ -42,21 +44,28 @@ pub(crate) fn prove_canonical_integer_proposition(
 /// This is a proof-search boundary, not an admission boundary. The returned
 /// proof has already passed the proof kernel, and consumers must still submit
 /// it through their normal artifact verification path.
-pub fn produce_checked_canonical_integer_proof(
+///
+/// `declines` carries every named search capacity this production declined
+/// against into the caller's ledger, so a later unmet obligation can report
+/// the refused resource rather than a disproof of the module.
+pub(crate) fn produce_checked_canonical_integer_proof(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     machine_parameter_values: &BTreeSet<ValueId>,
+    declines: &mut ProofSearchDeclines,
 ) -> Option<ProofNode> {
-    let _search = search_context::SearchContext::enter(context);
-    certificate_entry::prove_with_machine_parameters(
+    let search = search_context::SearchContext::enter(context);
+    let proof = certificate_entry::prove_with_machine_parameters(
         context,
         goal,
         assumptions,
         semantic_axioms,
         machine_parameter_values,
-    )
+    );
+    declines.extend(search.take_declines());
+    proof
 }
 
 /// Produce a kernel-checked proof through relaxed integer selection.
@@ -75,15 +84,18 @@ pub(crate) fn produce_relaxed_integer_proof(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     machine_parameter_values: &BTreeSet<ValueId>,
+    declines: &mut ProofSearchDeclines,
 ) -> Option<ProofNode> {
-    let _search = search_context::SearchContext::enter(context);
+    let search = search_context::SearchContext::enter(context);
     let proof = integer_selection::prove_relaxed_with_machine_parameters(
         context,
         goal,
         assumptions,
         semantic_axioms,
         machine_parameter_values,
-    )?;
+    );
+    declines.extend(search.take_declines());
+    let proof = proof?;
     accept_certificate_with_machine_parameters(
         context,
         goal,
