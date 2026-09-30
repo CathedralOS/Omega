@@ -476,8 +476,9 @@ pub(crate) fn validate_structural_root_operations(
                             function, *source, false,
                         )
                         .is_some_and(|signature| {
-                            structural_types.get(&signature.structural_type).is_some_and(
-                                |declaration| {
+                            structural_types
+                                .get(&signature.structural_type)
+                                .is_some_and(|declaration| {
                                     matches!(
                                         declaration.shape,
                                         terminal_psi::StructuralTypeShape::Reference {
@@ -487,8 +488,7 @@ pub(crate) fn validate_structural_root_operations(
                                             ..
                                         }
                                     )
-                                },
-                            )
+                                })
                         });
                     if !valid {
                         return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
@@ -601,19 +601,19 @@ pub(crate) fn validate_structural_root_operations(
                                     )
                                 },
                             );
-                    let shared_borrow_loan =
-                        result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                            && structural_types.get(&result.structural_type).is_some_and(
-                                |declaration| {
-                                    matches!(
-                                        declaration.shape,
-                                        terminal_psi::StructuralTypeShape::Reference {
-                                            access: terminal_psi::StructuralAccess::SharedBorrow,
-                                            ..
-                                        }
-                                    )
-                                },
-                            );
+                    let shared_borrow_loan = result.multiplicity
+                        == terminal_psi::StructuralMultiplicity::Affine
+                        && structural_types.get(&result.structural_type).is_some_and(
+                            |declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    terminal_psi::StructuralTypeShape::Reference {
+                                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                                        ..
+                                    }
+                                )
+                            },
+                        );
                     let valid =
                         crate::unit_validation::operation_contracts::structural_source_contract(
                             function, *source, false,
