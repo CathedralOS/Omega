@@ -3,8 +3,10 @@
 //! Compilation requests, retained products, identities, and publication receipts.
 //!
 //! `compile_request` validates target configurations and product eligibility
-//! without executing a compiler phase. `compile_outcomes` retains every result
-//! and binds its batch commitment; the compiler owns the target execution loop.
+//! without executing a compiler phase. `compile_outcomes` retains every result,
+//! classifies each as the compiler request's `Complete`, `Reject` or
+//! `Incomplete` outcome, and binds its batch commitment; the compiler owns the
+//! target execution loop.
 //! `prepared_source` retains exact parsed/typed work and selects reuse without
 //! invoking assembly, resolution, typing or Build execution.
 //! `prepared_build` retains completed typed Build continuations by exact inputs;
@@ -47,7 +49,9 @@ pub use checked_compilation::{
     validate_lowered_ieee_float_comparison_custody, validate_lowered_integer_comparison_custody,
 };
 pub use compilation_products::{CompileOutputKind, CompileReport};
-pub use compile_outcomes::{CheckedCompileOutcome, CompileOutcomes, CompileTargetOutcome};
+pub use compile_outcomes::{
+    CheckedCompileOutcome, CompileOutcomes, CompileTargetOutcome, CompilerRequestOutcome,
+};
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{
     CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeProductRequest,

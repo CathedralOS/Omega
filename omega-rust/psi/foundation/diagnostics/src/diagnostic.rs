@@ -6,9 +6,32 @@ use source::SourceSpan;
 pub struct Diagnostic {
     pub severity: DiagnosticSeverity,
     pub message: String,
+    /// Present when this refusal stopped at a named private provision instead
+    /// of finding the source invalid: the compiler request's `Incomplete`
+    /// outcome. The message still renders the refusal for people; outcome
+    /// publication reads this record, never the wording.
+    pub exceeded_provision: Option<ExceededProvision>,
     /// Optional authored source location. Semantic phases may attach this
     /// after frontend lowering when the relevant declaration span survives.
     pub source_span: Option<SourceSpan>,
+}
+
+/// A named private provision a compilation exceeded — the
+/// [compiler request](../../../../../wiki/spec/build/compiler_request.md#validation-and-failures)'s
+/// `Incomplete` outcome: a resource or search bound declined, which is no
+/// verdict on the source it left unexamined.
+///
+/// `resource` is the scalar-resource name the outcome table publishes. `limit`
+/// is the provisioned bound and `requested` the total demand the declined draw
+/// placed on it, so a refusal has `requested > limit`. `coordinate` is the
+/// primary coordinate in the space the resource's table row assigns — for the
+/// proof-search provisions, the identity of the obligation left unproved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExceededProvision {
+    pub resource: &'static str,
+    pub limit: u64,
+    pub requested: u64,
+    pub coordinate: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +49,16 @@ impl Diagnostic {
         Self {
             severity: DiagnosticSeverity::Error,
             message: message.into(),
+            exceeded_provision: None,
             source_span: None,
+        }
+    }
+
+    /// An error that stopped at `provision` rather than refuting the source.
+    pub fn incomplete(message: impl Into<String>, provision: ExceededProvision) -> Self {
+        Self {
+            exceeded_provision: Some(provision),
+            ..Self::error(message)
         }
     }
 
@@ -34,6 +66,7 @@ impl Diagnostic {
         Self {
             severity: DiagnosticSeverity::Warning,
             message: message.into(),
+            exceeded_provision: None,
             source_span: None,
         }
     }

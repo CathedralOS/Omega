@@ -5,8 +5,57 @@ use crate::{
     BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
     ProductionArtifactIdentity,
 };
-use diagnostics::Diagnostic;
+use diagnostics::{Diagnostic, ExceededProvision};
 use target::TargetProfile;
+
+#[cfg(test)]
+mod tests;
+
+/// The [compiler request](../../../../../wiki/spec/build/compiler_request.md#validation-and-failures)
+/// outcome one compilation publishes; its halt value is the process exit
+/// status a compiler command reports.
+///
+/// A refusal's diagnostics decide its class. It is `Incomplete` only when every
+/// error names an exceeded private provision — a resource or search bound
+/// declined, with no verdict on the source — and it names the first such
+/// provision in diagnostic order. One ordinary error makes the refusal a
+/// `Reject`: an established violation is a verdict an unfinished search
+/// cannot soften, and missing evidence never authorizes acceptance. The
+/// reference compiler reports its own malfunctions as rejections or panics,
+/// so it publishes no `InternalFailure` (halt value 3) through this type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompilerRequestOutcome {
+    Complete,
+    Reject,
+    Incomplete(ExceededProvision),
+}
+
+impl CompilerRequestOutcome {
+    /// Classify a failed compilation from its diagnostics. A refusal with no
+    /// error diagnostic names no provision and rejects.
+    pub fn of_refusal(diagnostics: &[Diagnostic]) -> Self {
+        let mut errors = diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.is_error());
+        let Some(first) = errors.next().and_then(|error| error.exceeded_provision) else {
+            return Self::Reject;
+        };
+        if errors.all(|error| error.exceeded_provision.is_some()) {
+            Self::Incomplete(first)
+        } else {
+            Self::Reject
+        }
+    }
+
+    /// The contract's halt tag, which is also the process exit status.
+    pub const fn halt_value(self) -> u8 {
+        match self {
+            Self::Complete => 0,
+            Self::Reject => 1,
+            Self::Incomplete(_) => 2,
+        }
+    }
+}
 
 /// One checked attempt retains observations even when later settlement rejects.
 /// Rejected attempts publish no reusable preparation or output artifact.
@@ -45,6 +94,13 @@ impl CompileTargetOutcome {
     }
     pub const fn succeeded(&self) -> bool {
         self.result.is_ok()
+    }
+    /// The compiler-request outcome this target's result publishes.
+    pub fn outcome(&self) -> CompilerRequestOutcome {
+        match &self.result {
+            Ok(_) => CompilerRequestOutcome::Complete,
+            Err(diagnostics) => CompilerRequestOutcome::of_refusal(diagnostics),
+        }
     }
     pub fn into_result(self) -> Result<CompileReport, Vec<Diagnostic>> {
         self.result
@@ -137,11 +193,18 @@ impl CompileOutcomes {
 fn batch_child_outcome(
     outcome: &CompileTargetOutcome,
 ) -> Result<BatchChildOutcome, Vec<Diagnostic>> {
-    match &outcome.result {
-        Ok(report) => Ok(BatchChildOutcome::Succeeded {
-            commitment: CompileOutcomes::report_commitment(report),
-        }),
-        Err(diagnostics) => BatchChildOutcome::rejected(diagnostics)
-            .map_err(|message| vec![Diagnostic::error(message)]),
-    }
+    let refusal = match &outcome.result {
+        Ok(report) => {
+            return Ok(BatchChildOutcome::Succeeded {
+                commitment: CompileOutcomes::report_commitment(report),
+            });
+        }
+        Err(diagnostics) => match CompilerRequestOutcome::of_refusal(diagnostics) {
+            CompilerRequestOutcome::Incomplete(provision) => {
+                BatchChildOutcome::incomplete(provision, diagnostics)
+            }
+            _ => BatchChildOutcome::rejected(diagnostics),
+        },
+    };
+    refusal.map_err(|message| vec![Diagnostic::error(message)])
 }
