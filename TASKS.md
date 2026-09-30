@@ -701,8 +701,10 @@ the complete product bar; focused successes below do not establish that baseline
   harness repair would duplicate existing work. A rootless fixture still only
   checks declarations; `checked` is never proof of execution. Native execution
   requires a matching bound host and a run-tier fixture, `_exit` suffix or
-  `expected_native_exit.txt`. Explicit exit/trap oracles are enforced before
-  recording; `input.txt` and `expected_stdout.txt` supply input/output evidence.
+  `expected_native_exit.txt`. Explicit exit/trap and authored stdout oracles
+  are enforced before comparison or recording; missing execution cannot satisfy
+  an output promise, and duplicate execution facts reject as malformed evidence.
+  `input.txt` and `expected_stdout.txt` supply input/output evidence.
   See [test workflow](tools/testing.md#attributing-a-move) for attribution.
 
   Finish coverage and roster accounting here; the old

@@ -32,6 +32,12 @@ diffing against this host's golden `tests/omega/corpus_native_<target>.txt`:
 
     python3 tools/corpus_gate.py --native --filter providers/
 
+An authored `expected_stdout.txt` requires a completed native execution with
+`stdout:match`, independently of any exit oracle. These promises are checked
+before golden comparison and recording, so `--record` cannot bless wrong or
+missing output. A declaration-only or foreign-target build supplies no runtime
+evidence and cannot satisfy that promise; use a matching bound host.
+
 Interpreted leg — also execute each runnable fixture on the checked
 interpreter `omega run --both` uses, diffing against
 `tests/omega/corpus_interpreted.txt`; `--both` runs the native and
@@ -89,7 +95,7 @@ a full verdict document with `--json PATH`):
     1  moved: structural or perf moves, but no regression
     2  usage error: bad arguments, missing golden, no host target
     3  regressed: at least one fixture verdict is "regressed", or an
-       authored exit oracle failed (also the `--record` refusal)
+       authored exit or stdout oracle failed (also the `--record` refusal)
     4  infrastructure failure: runner build failed, no binary produced,
        runner exited nonzero, or its records were unreadable
 
@@ -183,6 +189,30 @@ def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list
         if record["status"] != "built" or not matches:
             failures.append(f"{record['fixture']}: expected native {expectation}, "
                             f"observed {record['status']} {facts}")
+    return failures
+
+
+def native_stdout_failures(records: list[dict], corpus: Path) -> list[str]:
+    """Enforce authored output even without an exit oracle or a prior golden.
+
+    The runner compares output after normalizing line endings. Require its
+    match fact rather than accepting an absent observation: unreadable oracle
+    files, skipped execution and compile-only rows cannot establish a match.
+    A timed-out process can print all expected bytes before hanging, so output
+    also needs completed execution. This does not invent an expected exit code;
+    only an authored exit/trap oracle constrains how the process terminates.
+    """
+    failures = []
+    for record in records:
+        if not (corpus / record["fixture"] / "expected_stdout.txt").exists():
+            continue
+        facts = record.get("facts", {})
+        completed = facts.get("exit") not in (None, "timeout", "unrunnable")
+        if (record["status"] != "built" or not completed
+                or facts.get("stdout") != "match"):
+            failures.append(
+                f"{record['fixture']}: expected native stdout match from completed "
+                f"execution, observed {record['status']} {facts}")
     return failures
 
 
@@ -823,6 +853,7 @@ def main() -> int:
         return code
     if options.native:
         failures = native_exit_failures(records, ROOT / "tests" / "omega", target)
+        failures.extend(native_stdout_failures(records, ROOT / "tests" / "omega"))
         if failures:
             for failure in failures:
                 print(f"corpus_gate: {failure}", file=sys.stderr)
