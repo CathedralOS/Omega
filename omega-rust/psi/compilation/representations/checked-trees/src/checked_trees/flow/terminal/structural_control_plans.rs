@@ -323,6 +323,17 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     /// its entry place, so the edge forwards the machine's receiver
     /// descriptor rather than a source parameter.
     MachineReceiver,
+    /// A copyable leaf projected out of a source parameter — `param.field`.
+    /// The target owns its storage, so the edge mints one
+    /// `StructuralLeafCopy` operation reading the projected subtree into a
+    /// fresh place: copying is an observation the source survives intact,
+    /// admitted only for leaves whose declaration carries `Unrestricted`
+    /// multiplicity. `subject` describes the rooted place end to end —
+    /// source parameter, the field/index projection below it, and the
+    /// leaf's normalized type identity; its access is `Owned`.
+    ProjectedCopy {
+        subject: CheckedUnitStructuralArgumentPlan,
+    },
     /// A fresh composite argument with no prior custody root: an inline
     /// record, case, or fixed-array literal supplied directly to the
     /// successor. `value` is the checked structural construction the edge

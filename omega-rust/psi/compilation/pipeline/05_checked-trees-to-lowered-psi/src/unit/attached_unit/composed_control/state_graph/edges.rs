@@ -738,6 +738,105 @@ pub(super) fn validate_bindings(
             }
             continue;
         }
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy {
+            subject,
+        } = &transfer.source
+        {
+            // The authored operand is the projected place itself —
+            // `param.field` — reading a copyable subtree out of a live
+            // parameter root. The subject names the root and the member
+            // path; the authored operand must walk exactly that path
+            // below that root, the leaf's identity and `Unrestricted`
+            // declaration must match the `Owned` target's, and every
+            // segment must be a field or fixed index.
+            let argument_position = explicit_argument_position(target.position);
+            let expression = arguments
+                .get(argument_position)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph projected argument missing",
+                ))?;
+            let root_symbol = match subject.source {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                } => {
+                    let retained = state
+                        .structural_parameters
+                        .get(parameter_index as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "Unit graph projected subject missing",
+                        ))?;
+                    let parameter = source_parameters.get(retained.position as usize).ok_or(
+                        LoweringError::Unsupported("Unit graph projected parameter missing"),
+                    )?;
+                    if parameter.is_self {
+                        plan.machine
+                    } else {
+                        parameter.symbol
+                    }
+                }
+                _ => return unsupported("Unit graph projected subject unsupported"),
+            };
+            let mut tested_root = *expression;
+            let mut member_symbols = Vec::new();
+            while let ExpressionNode::Member(member) =
+                checked.expression_table.expression(tested_root)
+            {
+                if member.case_variant.is_some() {
+                    return unsupported("Unit graph projected argument has a case projection");
+                }
+                member_symbols.push(member.member_symbol);
+                tested_root = member.receiver;
+            }
+            member_symbols.reverse();
+            let field_identity = |symbol: symbols::SymbolHandle| {
+                checked.data_definitions().iter().find_map(|definition| {
+                    checked.data_members(definition).iter().find_map(|member| {
+                        let checked_trees::data::DataMember::Field(field) = member else {
+                            return None;
+                        };
+                        (field.symbol == symbol).then(|| field.path_identity())
+                    })
+                })
+            };
+            let path_matches = subject
+                .path
+                .iter()
+                .zip(&member_symbols)
+                .all(|(segment, symbol)| match segment {
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+                        field_identity(*symbol).as_deref() == Some(identity.as_str())
+                    }
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_) => true,
+                    _ => false,
+                });
+            if transfer.target_parameter_index as usize != position
+                || !matches!(
+                    checked.expression_table.expression(tested_root),
+                    ExpressionNode::Name(name)
+                        if name.symbol == root_symbol
+                            && name.head_symbol == root_symbol
+                            && name.members.count() == 1
+                )
+                || member_symbols.len() != subject.path.len()
+                || !path_matches
+                || subject.access != checked_trees::CheckedStructuralAccess::Owned
+                || subject.type_identity != target.type_identity
+                || target.access != checked_trees::CheckedStructuralAccess::Owned
+                || target.multiplicity != Multiplicity::Unrestricted
+                || target.is_self
+                || subject.path.is_empty()
+                || !subject.path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                            | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                    )
+                })
+            {
+                return unsupported("Unit graph projected argument custody drifted");
+            }
+            continue;
+        }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
             bytes,
         } = &transfer.source
@@ -799,6 +898,9 @@ pub(super) fn validate_bindings(
             checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
                 return unsupported("Unit graph machine receiver was not independently rejoined");
             }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. } => {
+                return unsupported("Unit graph projected argument was not independently rejoined");
+            }
         };
         let source = state
             .structural_parameters
@@ -852,6 +954,9 @@ pub(super) fn validate_bindings(
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
                 return unsupported("Unit graph machine receiver was not independently rejoined");
+            }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. } => {
+                return unsupported("Unit graph projected argument was not independently rejoined");
             }
         }
     }
