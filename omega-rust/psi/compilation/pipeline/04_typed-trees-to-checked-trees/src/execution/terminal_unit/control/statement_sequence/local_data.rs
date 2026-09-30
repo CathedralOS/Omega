@@ -821,13 +821,14 @@ fn established_record_borrow(
             })
 }
 
-/// A `let` binding an exclusive `&mut`-view result of a call that left no
-/// flow call row: `let slots: &mut [Cell] = self.cells.as_mut_slice()`.
-/// Collection-view openers mint the binding's loan directly into the borrow
-/// ledger — the name then denotes that loaned place for its whole scope,
-/// the same compile-time carrier as a `&mut place` borrow local, so the
-/// statement plans no operation. Calls that did leave a flow row are
-/// ordinary call results and still plan a call with a structural result.
+/// A `let` binding a borrowed-view result of a call that left no flow call
+/// row: `let slots: &mut [Cell] = self.cells.as_mut_slice()` or
+/// `let view: &[u8] = self.buf.as_slice()`. Collection-view openers mint the
+/// binding's loan directly into the borrow ledger — the name then denotes
+/// that loaned place for its whole scope, the same compile-time carrier as a
+/// `&place`/`&mut place` borrow local, so the statement plans no operation.
+/// Calls that did leave a flow row are ordinary call results and still plan
+/// a call with a structural result.
 fn is_call_view_loan_binding(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -841,14 +842,26 @@ fn is_call_view_loan_binding(
             program.expression_table.expression(local.initial_value),
             ExpressionNode::Call(_)
         )
-        || super::super::super::reference_results::mutable_borrowed_parts(
-            program,
-            local.type_reference,
-        )
-        .is_none()
     {
         return false;
     }
+    let expected_loan_kind = if super::super::super::reference_results::mutable_borrowed_parts(
+        program,
+        local.type_reference,
+    )
+    .is_some()
+    {
+        checked_trees::BorrowAccessKind::Mutable
+    } else if super::super::super::reference_results::shared_place_borrowed_parts(
+        program,
+        local.type_reference,
+    )
+    .is_some()
+    {
+        checked_trees::BorrowAccessKind::Read
+    } else {
+        return false;
+    };
     let index = usize::try_from(statement_index).ok();
     let Some(index) = index else { return false };
     let flow =
@@ -880,7 +893,7 @@ fn is_call_view_loan_binding(
         facts.borrow.state_owns_loan(borrow_state, *handle)
             && loan.owner_symbol == local.symbol
             && loan.statement_index == index
-            && loan.kind == checked_trees::BorrowAccessKind::Mutable
+            && loan.kind == expected_loan_kind
             && facts.borrow.loan_owner_path(loan).is_empty()
     });
     loans.next().is_some() && loans.next().is_none()
