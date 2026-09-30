@@ -537,6 +537,8 @@ fail/domains/routed_domain_as_rejected rejected 256ms expected @2d8ed253669f
 	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 fail/domains/semantic_cast_fact_false rejected 280ms expected @2d8ed253669f
 	`as ... in Km` cannot mint: a `Km` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
+fail/domains/unit_membership_postcondition_unestablished rejected 323ms expected @45c8d6b8b1ce+wt
+	cannot prove ensures contract for exit from Main::spoil at statement 1: self.raw in [u8; N]::Utf8
 fail/drops/authored_cleanup_static_argument_rejected rejected 116ms expected @2d8ed253669f
 	machine argument `Resource::drop` for `accept` does not refine `Selected`: parameter 0 has a different calling mode
 fail/drops/drop_ensures_unlocked_predicate rejected 703ms expected @2d8ed253669f
@@ -1498,6 +1500,7 @@ pass/domains/runtime_result_domain_machine_overload_exit rejected 1241ms @2d8ed2
 pass/domains/semantic_cast_guard_chain_mint checked 341ms @2d8ed253669f
 pass/domains/slice_domain_validator checked 1242ms @2d8ed253669f
 pass/domains/transparent_alias_expansion checked 332ms @2d8ed253669f
+pass/domains/unit_membership_postcondition_exit checked 3141ms @45c8d6b8b1ce+wt
 pass/domains/user_authored_predicate_machine checked 306ms @2d8ed253669f
 pass/domains/utf8_equals_literal_exit rejected 755ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::classify`), which was itself omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
