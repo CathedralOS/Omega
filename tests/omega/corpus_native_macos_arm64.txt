@@ -250,8 +250,8 @@ pass/control_flow/runtime_integer_literal_dispatch_exit built 591ms exit:22
 pass/control_flow/runtime_loop_patterns_exit built 729ms exit:70
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit rejected 295ms @ed218c8b1f5+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 2, statement 0)
-pass/control_flow/runtime_string_literal_dispatch_exit rejected 433ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
+pass/control_flow/runtime_string_literal_dispatch_exit rejected 1153ms @569fd648944c
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 488ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
 pass/control_flow/runtime_tuple_case_destructure_exit rejected 458ms
@@ -351,8 +351,8 @@ pass/domains/unit_membership_postcondition_exit built 5301ms exit:70 @45c8d6b8b1
 pass/domains/user_authored_predicate_machine checked 185ms
 pass/domains/utf8_equals_literal_exit rejected 454ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::classify`), which was itself omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
-pass/domains/utf8_field_read_carries_domain_exit rejected 435ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field`
+pass/domains/utf8_field_read_carries_domain_exit rejected 1209ms @569fd648944c
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field`
 pass/domains/utf8_field_write_from_param rejected 192ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at signature)") })
 pass/domains/vacuous_domain_qualification checked 203ms
@@ -949,8 +949,8 @@ pass/text/runtime_bounded_carrier_normal_status_exit built 1644ms exit:70 stdout
 pass/text/runtime_bounded_carrier_write_read_exit built 638ms exit:70
 pass/text/runtime_carrier_indexed_read_exit built 681ms exit:70
 pass/text/runtime_chained_string_append_exit built 1941ms exit:70 @fb2178def922
-pass/text/runtime_local_struct_string_field_concat_exit rejected 429ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
+pass/text/runtime_local_struct_string_field_concat_exit rejected 1089ms @569fd648944c
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/text/runtime_mutable_string_parameter_concat_write_line rejected 475ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: parameter qualifications` (state 1)
 pass/text/runtime_number_to_decimal_exit built 1061ms exit:70
@@ -958,18 +958,15 @@ pass/text/runtime_owned_string_byte_view_exit rejected 465ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 1)
 pass/text/runtime_param_domain_forward_exit rejected 487ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 0)
-pass/text/runtime_slice_indexed_string_guard_exit rejected 215ms
-	cannot prove default-domain field requirement for call fail from Main::main::main: parameter self.rooms[0].name requires [u8]::Utf8
-	cannot prove default-domain field requirement for call fail from Main::main::main: parameter self.rooms[1].name requires [u8]::Utf8
-	cannot prove default-domain field requirement for call check_match from Main::main::main: parameter self.rooms[0].name requires [u8]::Utf8
-	cannot prove default-domain field requirement for call check_match from Main::main::main: parameter self.rooms[1].name requires [u8]::Utf8
+pass/text/runtime_slice_indexed_string_guard_exit rejected 1105ms @569fd648944c
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 4)
 pass/text/runtime_stdin_command_branch_exit rejected 470ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Parser::resolve`), which was itself omitted at local construction at `result ownership`
 pass/text/runtime_stdin_line_buffering_exit rejected 452ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::echo_line`), which was itself omitted at local construction at `call operation: structural arguments: parameter path` (state 6, statement 0)
 pass/text/runtime_string_concat_two_fields_exit built 1859ms exit:70 @fb2178def922
-pass/text/runtime_string_stored_suffix_exit rejected 493ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
+pass/text/runtime_string_stored_suffix_exit rejected 1087ms @569fd648944c
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: borrowed view field` (state 0, statement 0)
 pass/text/runtime_text_builder built 1544ms @fb2178def922
 pass/text/runtime_text_not_equals_exit rejected 569ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::build`), which was itself omitted at local construction at `state graph: prefix initializers: bound expression` (state 1, statement 0)
