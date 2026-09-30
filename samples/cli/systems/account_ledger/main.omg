@@ -2,7 +2,7 @@
 //
 // Exercises: multi-field case payload dispatch (3 payload variants + 3 no-payload
 // variants, no-payload AFTER payload), fixed [Account; 4] record array, frozen
-// flag gate, value-returning helpers (balance_of with self-mutation, total()),
+// flag gate, value-returning helpers (balance_of mutating the ledger, total()),
 // and sequential value-call results combined in arithmetic.
 //
 // *** MISCOMPILE FIXED (historical; verified native==interp==70 on 2026-07-01) ***
@@ -25,22 +25,22 @@
 //     case Freeze;                   // 4th - no payload
 //     ...
 //   }
-//   machine M::apply(&mut self, idx: i32, tx: Transaction) {
+//   machine M::apply(main: &mut M, idx: i32, tx: Transaction) {
 //     transition tx {
-//       Transaction::Transfer { to, amount } -> check_xfer(idx, to, amount)
+//       Transaction::Transfer { to, amount } -> check_xfer(main, idx, to, amount)
 //       ...
 //     }
-//     state check_xfer(&mut self, idx: i32, to: i32, amount: i32) {
+//     state check_xfer(main: &mut M, idx: i32, to: i32, amount: i32) {
 //       // In native: `amount` == `to` (3 instead of 40).
 //       // Confirmed: `to`==3 passes, `amount`==3 passes, `amount`==40 fails.
 //     }
 //   }
-//   // Call: self.apply(0, Transaction::Transfer { to: 3, amount: 40 });
+//   // Call: M::apply(main, 0, Transaction::Transfer { to: 3, amount: 40 });
 //   // Expected: check_xfer(0, 3, 40) -- `to`=3, `amount`=40.
 //   // Actual:   check_xfer(0, 3, 3)  -- `amount` reads first-field slot (3).
 //
 // This is a different bug from the stack_vm sequential-value-call slot reuse.
-// That bug requires a value-returning callee that captures+mutates+returns self.
+// That bug requires a value-returning callee that captures+mutates+returns main.
 // This bug is purely in case-payload argument extraction for the 3rd+ variant
 // with 2+ payload fields.
 //
@@ -210,32 +210,32 @@ machine Main::do_unfreeze(main: &mut Main, idx: i32 in Wrapping) {
 }
 
 // Read frozen flag (value-returning).
-machine Main::is_frozen(main: &mut Main, idx: i32 in Wrapping) -> i32 {
+machine Main::is_frozen(main: &mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
     transition idx == 0 {
-        true -> (main.accounts[0].frozen as i32)
+        true -> (main.accounts[0].frozen)
         _ -> try_f1(main, idx)
     }
     state try_f1(main: &mut Main, idx: i32 in Wrapping) {
         transition idx == 1 {
-            true -> (main.accounts[1].frozen as i32)
+            true -> (main.accounts[1].frozen)
             _ -> try_f2(main, idx)
         }
     }
     state try_f2(main: &mut Main, idx: i32 in Wrapping) {
         transition idx == 2 {
-            true -> (main.accounts[2].frozen as i32)
-            _ -> (main.accounts[3].frozen as i32)
+            true -> (main.accounts[2].frozen)
+            _ -> (main.accounts[3].frozen)
         }
     }
 }
 
-// ── value-returning: balance_of (capture+mutate self+return) ──────────────────
+// ── value-returning: balance_of (capture+mutate main+return) ──────────────────
 // The query_count bump lives in the ENTRY (one bump per query, before the
 // dispatch): inline value-call ARM bodies run for every arm and re-emit, so a
 // per-arm mutation fired 3x per call natively (interp 1x -- unobserved by the
 // exit checks until the effectful-arm fence caught it 2026-07-07). Entry
 // effects are ordered by the deferral machinery and safe.
-machine Main::balance_of(main: &mut Main, idx: i32 in Wrapping) -> i32 {
+machine Main::balance_of(main: &mut Main, idx: i32 in Wrapping) -> i32 in Wrapping {
     main.query_count = main.query_count + 1;
     transition idx == 0 {
         true -> read0(main)
@@ -243,7 +243,7 @@ machine Main::balance_of(main: &mut Main, idx: i32 in Wrapping) -> i32 {
     }
     state read0(main: &mut Main) {
         let b: i32 in Wrapping = main.accounts[0].balance;
-        transition { _ -> (b as i32) }
+        transition { _ -> (b) }
     }
     state try1(main: &mut Main, idx: i32 in Wrapping) {
         transition idx == 1 {
@@ -253,7 +253,7 @@ machine Main::balance_of(main: &mut Main, idx: i32 in Wrapping) -> i32 {
     }
     state read1(main: &mut Main) {
         let b: i32 in Wrapping = main.accounts[1].balance;
-        transition { _ -> (b as i32) }
+        transition { _ -> (b) }
     }
     state try2(main: &mut Main, idx: i32 in Wrapping) {
         transition idx == 2 {
@@ -263,21 +263,21 @@ machine Main::balance_of(main: &mut Main, idx: i32 in Wrapping) -> i32 {
     }
     state read2(main: &mut Main) {
         let b: i32 in Wrapping = main.accounts[2].balance;
-        transition { _ -> (b as i32) }
+        transition { _ -> (b) }
     }
     state read3(main: &mut Main) {
         let b: i32 in Wrapping = main.accounts[3].balance;
-        transition { _ -> (b as i32) }
+        transition { _ -> (b) }
     }
 }
 
 // ── value-returning: sum all four balances ────────────────────────────────────
-machine Main::total(main: &mut Main) -> i32 {
+machine Main::total(main: &mut Main) -> i32 in Wrapping {
     let t: i32 in Wrapping = main.accounts[0].balance
                + main.accounts[1].balance
                + main.accounts[2].balance
                + main.accounts[3].balance;
-    transition { _ -> (t as i32) }
+    transition { _ -> (t) }
 }
 
 // ── case dispatcher: apply a transaction to an account index ──────────────────
@@ -386,25 +386,25 @@ machine Main::apply(main: &mut Main, idx: i32 in Wrapping, tx: Transaction) reac
 }
 
 // ── main: scripted transaction sequence + multi-layer verification ─────────────
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
+machine Main::main(main: &mut Main) reaches Console {
+    main.console.write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
     // 10 apply calls. `apply` acknowledges `block` transitively (its failure
     // arms call `block console.read_line`), so each call site repeats it.
-    block Main::apply(&mut self, 0, Transaction::Deposit { amount: 100 });
-    block Main::apply(&mut self, 1, Transaction::Deposit { amount: 200 });
-    block Main::apply(&mut self, 1, Transaction::Withdraw { amount: 80 });
-    block Main::apply(&mut self, 2, Transaction::Freeze);
-    block Main::apply(&mut self, 2, Transaction::Deposit { amount: 50 });
-    block Main::apply(&mut self, 0, Transaction::Transfer { to: 3, amount: 40 });
-    block Main::apply(&mut self, 2, Transaction::Unfreeze);
-    block Main::apply(&mut self, 2, Transaction::Deposit { amount: 30 });
-    block Main::apply(&mut self, 1, Transaction::Query);
-    block Main::apply(&mut self, 0, Transaction::Withdraw { amount: 20 });
+    block Main::apply(main, 0, Transaction::Deposit { amount: 100 });
+    block Main::apply(main, 1, Transaction::Deposit { amount: 200 });
+    block Main::apply(main, 1, Transaction::Withdraw { amount: 80 });
+    block Main::apply(main, 2, Transaction::Freeze);
+    block Main::apply(main, 2, Transaction::Deposit { amount: 50 });
+    block Main::apply(main, 0, Transaction::Transfer { to: 3, amount: 40 });
+    block Main::apply(main, 2, Transaction::Unfreeze);
+    block Main::apply(main, 2, Transaction::Deposit { amount: 30 });
+    block Main::apply(main, 1, Transaction::Query);
+    block Main::apply(main, 0, Transaction::Withdraw { amount: 20 });
 
     // Layer 1: raw field guards (bypass value-call entirely).
-    transition self.accounts[0].balance == 40 {
-        true -> raw_check_acc2(&mut self)
-        _ -> bad_raw0(&mut self)
+    transition main.accounts[0].balance == 40 {
+        true -> raw_check_acc2(main)
+        _ -> bad_raw0(main)
     }
 
     state bad_raw0(main: &mut Main) {
@@ -458,7 +458,7 @@ machine Main::main(&mut self) reaches Console {
 
     // Layer 2: value-call reads (balance_of captures+mutates+returns).
     state vcall_check_b0(main: &mut Main) {
-        let b0: i32 in Wrapping = Main::balance_of(&mut main, 0);
+        let b0: i32 in Wrapping = Main::balance_of(main, 0);
         transition b0 == 40 {
             true -> vcall_check_b2(main, b0)
             _ -> bad_vcall0(main)
@@ -473,7 +473,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state vcall_check_b2(main: &mut Main, b0: i32 in Wrapping) {
-        let b2: i32 in Wrapping = Main::balance_of(&mut main, 2);
+        let b2: i32 in Wrapping = Main::balance_of(main, 2);
         transition b2 == 30 {
             true -> vcall_check_sum(main, b0, b2)
             _ -> bad_vcall2(main)
@@ -508,7 +508,7 @@ machine Main::main(&mut self) reaches Console {
 
     // Layer 4: total() value-call.
     state check_total(main: &mut Main) {
-        let t: i32 in Wrapping = Main::total(&mut main);
+        let t: i32 in Wrapping = Main::total(main);
         transition t == 230 {
             true -> good(main)
             _ -> bad_total(main)
