@@ -11,6 +11,7 @@ use super::{
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boundary_calls::LoweredBoundaryCallBinding;
+use crate::emission::operation_emission::boundary_calls::result_policy::BoundaryResultPolicy;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use arena::HandleSpan;
 
@@ -89,6 +90,15 @@ impl Expansion<'_> {
                 source_expression: source.authored_expression,
                 target_machine,
                 result_type,
+                result_policy: BoundaryResultPolicy::prepare(
+                    self.checked,
+                    self.machine,
+                    coordinate,
+                    Some(checked_trees::NominalMachineUseSite::Expression(
+                        source.authored_expression,
+                    )),
+                    target_machine,
+                )?,
                 arguments: parameters(&operand_types)
                     .into_iter()
                     .skip(input_types.len())

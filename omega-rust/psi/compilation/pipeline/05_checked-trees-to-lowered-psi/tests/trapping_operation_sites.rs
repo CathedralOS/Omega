@@ -218,8 +218,14 @@ fn the_operation_crash_site_row_carries_the_exact_primitive_denotation() {
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     assert_eq!(row.operation, operation);
     assert_eq!(row.cause, CrashCause::Trap);
-    assert_eq!(row.primitive, TrappingIntegerPrimitive::Add);
-    assert_eq!((row.result_type, row.operand_type), (u8_type, u8_type));
+    assert_eq!(
+        row.denotation,
+        terminal_psi::TerminalOperationCrashDenotation::Integer {
+            primitive: TrappingIntegerPrimitive::Add,
+            result_type: u8_type,
+            operand_type: u8_type,
+        }
+    );
     // No edge row is fabricated for the operation-level trap.
     assert!(profile.crash_sites.is_empty());
 

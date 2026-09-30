@@ -14,6 +14,9 @@ use super::{
     StructuralTypeId, argument_evaluation, checked_requirements, content_conservation,
     terminal_scalar_type, unsupported, validate_boundary_scalar_return,
 };
+use crate::emission::operation_emission::boundary_calls::result_policy::{
+    self, BoundaryResultPolicy,
+};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::terminal_identities::lookup_attachment_type_id;
@@ -199,7 +202,7 @@ pub(crate) fn emit_boundary_scalar_return(
         argument_evaluation::validated_values(arguments.as_deref(), &boundary_scalar_parameters)?
             .into_iter()
             .map(|value| value.id)
-            .collect();
+            .collect::<Vec<_>>();
     let scalar_type = terminal_scalar_type(plan.result_type)?;
     let call_result = ValueDeclaration {
         qualifications: Default::default(),
@@ -212,6 +215,18 @@ pub(crate) fn emit_boundary_scalar_return(
             "result-bearing boundary value identity space is exhausted",
         ))?;
     let operation_id = operations.allocate();
+    let policy = BoundaryResultPolicy::prepare(
+        checked,
+        plan.machine,
+        SourceCallCoordinate {
+            state: plan.state,
+            statement_index: coordinate.statement_index as usize,
+            call_ordinal: coordinate.call_ordinal as usize,
+        },
+        source_site,
+        *target_machine,
+    )?
+    .bind(call_result, &arguments)?;
     operations.record_source_call(
         SourceCallCoordinate {
             state: plan.state,
@@ -278,6 +293,12 @@ pub(crate) fn emit_boundary_scalar_return(
         },
     };
     operations.push(operation);
+    let call_result = result_policy::emit(
+        policy,
+        call_result,
+        &mut next_value_identity,
+        &mut operations,
+    )?;
     let machine_result = ValueDeclaration {
         qualifications: Default::default(),
         id: value_id(next_value_identity),

@@ -3,6 +3,7 @@
 mod dynamic_calls;
 mod float_comparisons;
 mod integer_comparisons;
+mod result_policies;
 
 use checked_trees::CheckedTrees;
 use lowered_psi::LoweredPsi;
@@ -165,6 +166,7 @@ pub fn checked_boundary_operator_scope(
     if semantic != artifact.manifest().semantic() {
         return Err("checked boundary-operator scope semantics differ from the published artifact");
     }
+    result_policies::replay(checked, lowered)?;
     Ok(CheckedBoundaryOperatorApplicationScope {
         terminal_artifact_identity: artifact.manifest().identity(),
         applications: checked.facts.operators.boundary_applications.clone(),

@@ -1893,15 +1893,20 @@ crash and native exit behavior. Use affected check/native corpus slices under
     Bound requirements retain arithmetic policy through the same checked
     expression-selection projection as legacy named and spelled operators;
     the interpreter rejects missing, substituted or duplicate selections.
-    Native policy-result adaptation remains unfinished. At `6303d5b2a2d5`
-    on macOS ARM64, `python3 tools/corpus_gate.py --interpret --filter
-    float/float_saturating_arithmetic_exit` still rejects the policy-qualified
-    field store in stage 04 (`pure source: scalar expression row`), before
-    interpretation. An unpublished same-carrier cast probe reaches execution
-    but exposes native exit **78** against the authored **77**, while the
-    interpreter returns **77**. Complete the shared cast/result join and
-    checked result-policy adapter; require saturation **77** and the authored
-    overflow/non-finite traps without changing program source.
+    Native policy-result adaptation remains unfinished. The unpublished
+    policy-call-results candidate based on `f136a75fbbc` retains same-carrier
+    policy casts and emits one checked `FloatResultPolicy` after the original
+    boundary call through the shared nested, statement and direct-return paths.
+    Source replay checks exact occurrence, format, raw result, ordered operands
+    and saturation rule; it rejects missing or substituted adapters and raw-result
+    bypass. Serialized Terminal execution checks adapted consumers and retained
+    traps even when the result is unused. Native lowering, current-only format
+    integration and trusted-site inventory integration remain required. The last
+    native run before adding this operation returned **78** instead of authored
+    **77**, and **70** instead of trapping in the overflow and propagated-NaN
+    controls. Acceptance remains `python3 tools/corpus_gate.py --native --filter
+    float/float_saturating_arithmetic_exit,float/float_trapping_overflow_traps,float/float_trapping_propagated_nan_traps`
+    on macOS ARM64: **77**, **trap**, **trap**, with program sources unchanged.
     A `let` after a call-result field store keeps its own value and source:
     source roles key it by its authored local ordinal
     (`TypedTrees::immutable_scalar_locals_before`), while its plan keeps the

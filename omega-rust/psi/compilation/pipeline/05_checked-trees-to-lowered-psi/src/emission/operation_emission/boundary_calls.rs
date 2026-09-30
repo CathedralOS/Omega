@@ -8,11 +8,14 @@
 //! does, so stage 07 rejoins it to one checked operator application and
 //! provider selection stays one-to-one with Terminal operations.
 
+pub(crate) mod result_policy;
+
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::calls::CallEmissionContext;
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::lowering_error::{LoweringError, unsupported};
 use crate::terminal_identities::value_id;
+use result_policy::BoundaryResultPolicy;
 use semantic_vocabulary::{QualifiedScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
@@ -25,6 +28,7 @@ pub(crate) struct LoweredBoundaryCallBinding {
     pub(crate) source_expression: typed_trees::expression::ExpressionHandle,
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) result_type: QualifiedScalarType,
+    pub(crate) result_policy: BoundaryResultPolicy,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
 }
 
@@ -91,15 +95,17 @@ pub(super) fn emit_boundary_call_binding(
         operation,
         call.target_machine,
     )?;
+    let raw = ValueDeclaration {
+        id: result,
+        scalar_type: call.result_type.scalar_type,
+        qualifications: Default::default(),
+    };
+    let policy = call.result_policy.bind(raw, &arguments)?;
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
         id: operation,
-        result: OperationResult::Scalar(ValueDeclaration {
-            id: result,
-            scalar_type: call.result_type.scalar_type,
-            qualifications: Default::default(),
-        }),
+        result: OperationResult::Scalar(raw),
         kind: OperationKind::BoundaryCall {
             boundary: target.id,
             arguments,
@@ -108,5 +114,5 @@ pub(super) fn emit_boundary_call_binding(
             requirement_obligations: Vec::new(),
         },
     });
-    Ok(result)
+    Ok(result_policy::emit(policy, raw, next_value_identity, operations)?.id)
 }
