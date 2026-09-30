@@ -4,16 +4,173 @@ use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_selected_instructions,
 };
-use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractResult};
+use abstract_operations::{
+    AbstractFunctionResult, AbstractOperation, AbstractResult, AbstractStructuralCallResult,
+};
+use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
 use semantic_vocabulary::{
-    FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
-    StructuralFieldId, StructuralTypeId, ValueId,
+    EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId, PlaceId,
+    ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-    StructuralOperationResult, StructuralTypeDeclaration, StructuralTypeShape,
+    BindingRelevance, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
+    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
+    StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalAffineCleanupAction,
 };
+
+#[test]
+fn zeroed_empty_record_borrowed_calls_replay_the_exact_address_anchor() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+    ] {
+        for access in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+        ] {
+            let (mut source, _, _) = plain_unit_fixture();
+            let structural_type = StructuralTypeId::new(1).unwrap();
+            let place = PlaceId::new(1).unwrap();
+            let producer = OperationId::new(1).unwrap();
+            source.structural_types = vec![StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "test::Empty".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            }]
+            .into();
+            let mut callee = source.functions[0].clone();
+            callee.machine = MachineId::new(2).unwrap();
+            callee.structural_parameters = vec![StructuralParameterDeclaration {
+                place: PlaceId::new(2).unwrap(),
+                position: 0,
+                is_self: false,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }];
+            source.functions[0].operations = vec![
+                AbstractOperation::EstablishZeroedStructural {
+                    psi_operation: producer,
+                    result: StructuralOperationResult {
+                        place,
+                        structural_type,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        qualification_establishments: Vec::new(),
+                        claims: Vec::new(),
+                    },
+                },
+                AbstractOperation::CallStructural {
+                    psi_operation: OperationId::new(2).unwrap(),
+                    callee: callee.machine,
+                    arguments: Vec::new(),
+                    structural_arguments: vec![StructuralArgument {
+                        place,
+                        access,
+                        path: Vec::new(),
+                    }],
+                    dynamic_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                    result: AbstractStructuralCallResult::Unit,
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: EdgeId::new(1).unwrap(),
+                    cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(place)],
+                },
+            ];
+            source.functions.push(callee);
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &source,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+                .expect("borrowing the zeroed empty record retains its owner's cleanup");
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let target_operations::TargetUnitOperation::Call { arguments, .. } =
+                &target.functions[0].graph.blocks[0].operations[1]
+            else {
+                unreachable!()
+            };
+            assert_eq!(
+                arguments[0].shape,
+                calling_conventions::ValueShape::borrowed_reference(0, 1)
+            );
+            assert_eq!(arguments[0].access, access);
+            let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = selection_constraints(&legal, &environment);
+            let selected = select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .expect("a zeroed empty record retains a borrowable address");
+            assert_eq!(
+                selected.plan().functions[0].local_storage_slots,
+                vec![SelectedLocalStorageSlot {
+                    id: LocalStorageSlotId::Structural {
+                        operation: producer,
+                        place
+                    },
+                    byte_size: 1,
+                    alignment: 1,
+                }]
+            );
+            validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .expect("independent replay reconstructs the same anchor and borrowed pointer");
+            for mutation in 0..4 {
+                let mut hostile = selected.plan().clone();
+                let slots = &mut hostile.functions[0].local_storage_slots;
+                match mutation {
+                    0 => slots.clear(),
+                    1 => slots[0].byte_size = 0,
+                    2 => {
+                        slots[0].id = LocalStorageSlotId::Structural {
+                            operation: producer,
+                            place: PlaceId::new(99).unwrap(),
+                        }
+                    }
+                    _ => {
+                        slots[0].id = LocalStorageSlotId::Structural {
+                            operation: OperationId::new(99).unwrap(),
+                            place,
+                        }
+                    }
+                }
+                assert!(
+                    validate_selected_instructions(
+                        &legal,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                        hostile,
+                    )
+                    .is_err(),
+                    "missing, resized, or foreign-owner anchors must not replay"
+                );
+            }
+        }
+    }
+}
 
 #[test]
 fn zeroed_records_and_array_leaves_select_exact_stores_and_reads() {
