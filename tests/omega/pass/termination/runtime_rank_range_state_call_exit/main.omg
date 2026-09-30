@@ -1,0 +1,53 @@
+// RUN CANARY (exit 70). A member may issue a component call from a
+// subordinate state: `hold -> step(pending)` transports `pending` to its
+// discovered entry role `remaining`, so the edge is weak (`remaining`
+// unchanged) and the strict `step -> count(n - 1)` edge completes every
+// cycle's descent. Starting at 5, the cycle runs five times and returns 0;
+// `main` exits 70 on that result and 71 otherwise.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let result: u32 = Main::count(&mut self, 5);
+    transition result == 0 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::count(main: &mut Main, remaining: u32)
+terminates by remaining in 0..=9;
+-> u32
+requires remaining <= 9
+{
+    transition remaining > 0 {
+        true -> hold(main, remaining)
+        false -> remaining
+    }
+    state hold(main: &mut Main, pending: u32)
+    requires pending <= 9
+    {
+        transition pending > 0 {
+            true -> Main::step(main, pending)
+            false -> pending
+        }
+    }
+}
+
+machine Main::step(main: &mut Main, n: u32)
+terminates by n in 0..=9;
+-> u32
+requires n <= 9
+{
+    transition n > 0 {
+        true -> Main::count(main, n - 1)
+        false -> n
+    }
+}

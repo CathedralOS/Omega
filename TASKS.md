@@ -410,9 +410,10 @@ the complete product bar; focused successes below do not establish that baseline
     builds and exits 70 on macOS ARM64; preserve both separator-count effects
     and result 2. Connect `termination/rank_range_state_call`'s
     count/step cycle through its subordinate state with **GENERAL-CYCLIC-EXECUTION**
-    and **TRANSITION-TAIL-CALL-TO-MACHINE**. It has no Build entry; its native
-    golden says `checked`, which does not prove execution. Bind an executable
-    customer preserving the weak/strict cycle and result 0.
+    and **TRANSITION-TAIL-CALL-TO-MACHINE**: its runtime twin
+    `termination/runtime_rank_range_state_call_exit` expects
+    result 0 (exit 70) and rejects at `state graph: natural ranks`, leaving
+    `Main::count` an unavailable scalar target.
   - **Results and control.** `calls/runtime_dispatch_float_terminal_exit` and
     `calls/runtime_dispatch_result_enum_case_exit` (score 15) exit 70 on macOS
     ARM64. Finish receiver transfer through
@@ -420,14 +421,12 @@ the complete product bar; focused successes below do not establish that baseline
     `unit_state_graph/scalars.rs`; the old prefix-initializer refusal has been
     replaced by ordinary conditional sequencing.
   - **Borrowed arguments.** `calls/runtime_param_receiver_second_instance_exit`
-    exits 70 on macOS ARM64 (value 9 versus 7). Reconcile source admission and
-    independent loan replay for
-    `calls/runtime_dispatch_{slice_element_terminal,machine_array_slice_arg}_exit`,
-    following the current provider-erasure native blocker under
-    **TERMINAL-SLICE-VIEW-VOCABULARY**. Preserve slice element 7, with exit 70;
-    **BORROW-PROOF-CONVERGENCE** owns compatibility evidence. Genuine conflicting
-    parent/child loans must still reject; widening the verifier's pair check
-    does not supply missing authority.
+    (value 9 versus 7) and
+    `calls/runtime_dispatch_{slice_element_terminal,machine_array_slice_arg}_exit`
+    (slice element 7) exit 70 on macOS ARM64. **BORROW-PROOF-CONVERGENCE** owns
+    compatibility evidence. Genuine conflicting parent/child loans must still
+    reject; widening the verifier's pair check does not supply missing
+    authority.
 
   Account for deleted customers through equivalent current coverage or recover
   their distinct behavior: `runtime_trailing_state_mut_param_phase_exit` at
