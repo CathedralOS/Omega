@@ -65,16 +65,8 @@ pub(crate) fn build(
             diagnostics.push(invalid());
             continue;
         };
-        let Some(operator) = program
-            .operators()
-            .iter()
-            .chain(
-                program
-                    .domain_definitions()
-                    .iter()
-                    .flat_map(|domain| program.domain_operators(domain).iter()),
-            )
-            .find(|operator| operator.symbol == selected.operator_symbol)
+        let Some(operator) =
+            typed_trees::operator::declaration_by_symbol(program, selected.operator_symbol)
         else {
             diagnostics.push(invalid());
             continue;
