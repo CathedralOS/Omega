@@ -69,6 +69,49 @@ fn record_fixture(native: target::NativeTarget) -> LegalizedScalarFunction {
 }
 
 #[test]
+fn copied_aggregate_home_rejoins_its_exact_producer_and_type() {
+    let mut source = record_fixture(target::NativeTarget::macos_arm64());
+    let row = &mut source.blocks[0].instructions[1];
+    let LegalizedScalarInstructionKind::EstablishRecord { result, shape, .. } = row.kind.clone()
+    else {
+        panic!("record constructor");
+    };
+    let place = result.place;
+    let operation = row.operation;
+    row.kind = LegalizedScalarInstructionKind::StructuralLeafCopy {
+        result,
+        source: PlaceId::new(2).unwrap(),
+        path: abstract_operations::StructuralCopyPath::Ordinary(Vec::new()),
+        byte_offset: 0,
+        shape,
+        indices: Vec::new(),
+    };
+    // This query owns result identity and layout, not the source copy's
+    // liveness. Independent instruction replay checks the copy itself.
+    let home = crate::selection::aggregate_result_input::home(&source, place).unwrap();
+    assert_eq!(home.0, operation);
+    assert_eq!(home.1.place, place);
+    let mut duplicate = source.clone();
+    duplicate.blocks[0]
+        .instructions
+        .push(source.blocks[0].instructions[1].clone());
+    assert!(crate::selection::aggregate_result_input::home(&duplicate, place).is_none());
+    let signature = source.structural.as_mut().unwrap();
+    let declared = signature
+        .structural_places
+        .iter_mut()
+        .find(|declaration| declaration.id == place)
+        .unwrap();
+    let semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } =
+        &mut declared.kind
+    else {
+        panic!("operation result declaration");
+    };
+    *producer = semantic_vocabulary::OperationId::new(operation.get() + 1).unwrap();
+    assert!(crate::selection::aggregate_result_input::home(&source, place).is_none());
+}
+
+#[test]
 fn owned_record_read_rejects_wrong_root_offset_and_unavailable_home() {
     for native in [
         target::NativeTarget::linux_x64(),

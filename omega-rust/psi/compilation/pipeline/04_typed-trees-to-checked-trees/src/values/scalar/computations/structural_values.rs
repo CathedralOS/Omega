@@ -4,6 +4,9 @@
 //! Record and case literals share the structural-construction contents rule:
 //! exact interval-qualified scalar members use the existing bounded carrier
 //! and per-member establishment proof, not a constructor-specific exception.
+//! Closed primitive arrays select their scalar-array producer at the value
+//! boundary, independent of whether a record, case, or other value consumes it.
+//! The array occurrence owns its row-major leaf roots and independent replay.
 use super::{
     Builder, CheckedScalarComputationRoot, CheckedScalarExpressionPlans,
     CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType, StatementNode,
@@ -879,7 +882,11 @@ impl Builder<'_, '_> {
         } else if let ExpressionNode::ArrayLiteral(literal) =
             self.program.expression_table.expression(expression)
         {
-            self.fixed_array_value(expected, *literal, values, pure)?
+            if validation::is_closed_primitive_array_type(self.program, expected) {
+                self.scalar_array_value(expression, expected)?
+            } else {
+                self.fixed_array_value(expected, *literal, values, pure)?
+            }
         } else if let Some(symbol) =
             validation::scalar_case_value_source(self.program, expression, expected)
         {
@@ -1519,8 +1526,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
-        values: &mut CheckedStructuralValuePlans,
-    ) -> Option<CheckedStructuralValueHandle> {
+    ) -> Option<CheckedStructuralValueKind> {
         if !matches!(
             self.program.expression_table.expression(expression),
             ExpressionNode::ArrayLiteral(_)
@@ -1549,10 +1555,7 @@ impl Builder<'_, '_> {
             });
             elements.push(root);
         }
-        Some(values.nodes.append(CheckedStructuralValue {
-            expression,
-            kind: CheckedStructuralValueKind::ScalarArray { elements },
-        }))
+        Some(CheckedStructuralValueKind::ScalarArray { elements })
     }
 
     fn record_value(
@@ -1724,18 +1727,6 @@ impl Builder<'_, '_> {
                         root,
                     });
                     checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
-                } else if matches!(
-                    self.program.expression_table.expression(initializer.value),
-                    ExpressionNode::ArrayLiteral(_)
-                ) && validation::is_closed_primitive_array_type(
-                    self.program,
-                    field.type_reference,
-                ) {
-                    // Only a supplied literal is a fresh scalar array; a named
-                    // or projected array source keeps its place/copy owner.
-                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                        self.scalar_array_value(initializer.value, field.type_reference, values)?,
-                    )
                 } else {
                     checked_trees::CheckedStructuralRecordFieldValue::Structural(
                         self.structural_value(

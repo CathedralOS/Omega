@@ -1950,6 +1950,7 @@ pass/structs/mutable_record_state_transfer checked 1392ms @2d8ed253669f
 pass/structs/nested_unused_provider_fields checked 1269ms @2d8ed253669f
 pass/structs/record_literal_array_field checked 7790ms @2d8ed253669f
 pass/structs/runtime_array_member_snapshot_exit checked 927ms @a951f37ea156+wt
+pass/structs/runtime_case_array_payload_exit checked 916ms @605c339eaa84
 pass/structs/runtime_composed_case_payload_reads_exit checked 28214ms @773e546aed6e+wt
 pass/structs/runtime_declared_record_member_fill_exit checked 1370ms @2d8ed253669f
 pass/structs/runtime_local_record_policy_exit checked 1712ms @2d8ed253669f

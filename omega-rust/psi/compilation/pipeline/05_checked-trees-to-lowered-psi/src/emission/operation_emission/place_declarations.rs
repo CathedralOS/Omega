@@ -1,7 +1,7 @@
 //! Derive the `OperationResult` place declarations a leaf copy needs from the
 //! operations themselves.
 //!
-//! `StructuralLeafCopy` producers mint their result places inside operation
+//! Leaf-copy producers can mint their result places inside operation
 //! emission — after the machine frames have already reserved declaration
 //! identities — so no frame channel can carry them. Rather than threading a
 //! private drain through every machine assembly, this pass materializes the
@@ -29,7 +29,11 @@ pub(crate) fn reconcile_leaf_copy_place_declarations(module: &mut TerminalModule
         let mut additions = Vec::new();
         for block in &machine.blocks {
             for operation in &block.operations {
-                if !matches!(operation.kind, OperationKind::StructuralLeafCopy { .. }) {
+                if !matches!(
+                    operation.kind,
+                    OperationKind::StructuralLeafCopy { .. }
+                        | OperationKind::StructuralCaseLeafCopy { .. }
+                ) {
                     continue;
                 }
                 let Some(result) = operation.result.structural() else {

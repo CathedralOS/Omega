@@ -232,7 +232,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 scalar_type,
             )?;
             Ok(LoweredDirectExpression::PrimitiveRead {
-                source,
+                source: source.into(),
                 path: Vec::new(),
                 scalar_type,
             })
@@ -968,7 +968,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 ScalarType::Boolean,
             )?;
             LoweredBooleanReturnExpression::PrimitiveRead {
-                source,
+                source: source.into(),
                 path: Vec::new(),
             }
         }

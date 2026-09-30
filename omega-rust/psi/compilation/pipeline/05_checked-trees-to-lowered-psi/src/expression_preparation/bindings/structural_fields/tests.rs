@@ -15,6 +15,72 @@ use terminal_psi::OperationKind;
 use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
 
 #[test]
+fn primitive_payload_reads_resolve_each_projection_and_reject_substitution() {
+    use CheckedStructuralPredicatePathSegment::{Case, Field, FixedIndex};
+    let scalar = terminal_scalar_type(PrimitiveType::I32).unwrap();
+    let primitive = StructuralTypeId::new(1).unwrap();
+    let array = StructuralTypeId::new(2).unwrap();
+    let declarations = vec![
+        StructuralTypeDeclaration {
+            id: primitive,
+            identity: "i32".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(scalar),
+        },
+        StructuralTypeDeclaration {
+            id: array,
+            identity: "[i32;2]".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: primitive,
+                length: 2,
+            },
+        },
+    ];
+    let bindings = payload_bindings(declarations, array);
+    let path = vec![
+        Case("Active".into()),
+        Field("payload".into()),
+        FixedIndex(1),
+    ];
+    let (source, remainder) = super::resolve_primitive(&bindings, 3, &path, scalar).unwrap();
+    assert_eq!(
+        remainder,
+        vec![terminal_psi::StructuralPathSegment::FixedIndex(1)]
+    );
+    assert!(
+        matches!(source, crate::emission::operation_emission::expressions::PrimitiveReadSource::CaseLeaf { structural_type, path, .. }
+        if structural_type == array && path.len() == 2)
+    );
+    // Type resolution preserves a different declared case's identity; only
+    // independent control-flow replay can decide whether that case is active.
+    let mut other = path.clone();
+    other[0] = Case("Other".into());
+    assert_ne!(
+        super::resolve_primitive(&bindings, 3, &path, scalar)
+            .unwrap()
+            .0,
+        super::resolve_primitive(&bindings, 3, &other, scalar)
+            .unwrap()
+            .0
+    );
+    for replacement in [
+        Case("Absent".into()),
+        Field("missing".into()),
+        FixedIndex(2),
+    ] {
+        let mut wrong = path.clone();
+        let position = match &replacement {
+            Case(_) => 0,
+            Field(_) => 1,
+            FixedIndex(_) => 2,
+        };
+        wrong[position] = replacement;
+        assert!(super::resolve_primitive(&bindings, 3, &wrong, scalar).is_err());
+    }
+    assert!(super::resolve_primitive(&bindings, 0, &path, scalar).is_err());
+    assert!(super::resolve_primitive(&bindings, 3, &path, ScalarType::Boolean).is_err());
+}
+
+#[test]
 fn whole_owned_array_read_uses_its_declared_carrier_not_a_borrowed_view() {
     let scalar_type = terminal_scalar_type(PrimitiveType::I32).unwrap();
     let element = StructuralTypeDeclaration {

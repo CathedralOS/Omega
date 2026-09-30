@@ -11,6 +11,109 @@ fn checked() -> CheckedTrees {
 }
 
 #[test]
+fn projected_array_reads_require_their_dominating_case_selection() {
+    let checked = crate::front_end::checked_program(
+        "data Packet { case Empty; case Samples(values: [[i32; 2]; 2]); }
+        data Root { packet: Packet; }
+        machine read(root: &Root) -> i32 {
+            transition root.packet {
+                Packet::Empty -> finish(0)
+                Packet::Samples { values } -> finish(values[1][0])
+            }
+            state finish(value: i32) -> i32 { value }
+        }",
+    );
+    let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("read"))
+        .expect("nested arrays compose with payload selection");
+    let verify = |module: &terminal_psi::TerminalModule| {
+        terminal_verifier::verify_module(
+            module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .map(|_| ())
+    };
+    verify(&lowered.semantic_module).expect("selected payload copy and primitive read verify");
+    let mut hoisted = lowered.semantic_module.clone();
+    let machine = hoisted
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == hoisted.entry)
+        .unwrap();
+    let (block, ordinal) = machine
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, candidate)| {
+            candidate
+                .operations
+                .iter()
+                .position(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::StructuralCaseLeafCopy { .. }
+                    )
+                })
+                .map(|ordinal| (block, ordinal))
+        })
+        .expect("case-authorized carrier copy");
+    let copy = machine.blocks[block].operations.remove(ordinal);
+    let entry = machine
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == machine.entry)
+        .unwrap();
+    entry.operations.insert(0, copy);
+    assert!(
+        verify(&hoisted).is_err(),
+        "copying above the case test cannot grant payload authority"
+    );
+}
+
+#[test]
+fn case_array_operands_rejoin_their_authored_declaration_and_leaf_order() {
+    let original = crate::front_end::checked_program(
+        "data Packet { case Empty; case Samples(values: [[i32; 2]; 2]); }
+        machine make(seed: i32) -> Packet {
+            Packet::Samples { values: [[seed, 20], [30, 40]] }
+        }",
+    );
+    let lowered = crate::lower_machine(&original, crate::TerminalMachineSelection::Name("make"))
+        .expect("array construction does not depend on its enclosing constructor");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("case array verifies independently");
+
+    let mut forged = original.clone();
+    let (array, _) = forged
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .iter()
+        .find(|(_, node)| matches!(node.kind, CheckedStructuralValueKind::ScalarArray { .. }))
+        .expect("scalar array producer");
+    let CheckedStructuralValueKind::ScalarArray { elements } = &mut forged
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get_mut(array)
+        .kind
+    else {
+        unreachable!()
+    };
+    elements.swap(0, 3);
+    assert!(
+        crate::lower_machine(&forged, crate::TerminalMachineSelection::Name("make")).is_err(),
+        "same-type leaf substitution must not pass replay"
+    );
+}
+
+#[test]
 fn assignment_replay_rejects_erased_arithmetic_policy() {
     let original = crate::front_end::checked_program(
         "data Buffers {

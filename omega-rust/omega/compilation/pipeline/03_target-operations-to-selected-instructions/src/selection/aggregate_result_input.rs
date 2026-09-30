@@ -752,6 +752,8 @@ pub(super) fn indirect_result(
 
 /// Locate a nominal aggregate's original operation-result home. This is a
 /// declaration/layout rejoin; source replay separately establishes availability.
+/// A copied aggregate owns the same readable home as a constructed value;
+/// how its bytes were initialized does not change primitive-read geometry.
 pub(super) fn home(
     source: &LegalizedScalarFunction,
     place: semantic_vocabulary::PlaceId,
@@ -772,6 +774,7 @@ pub(super) fn home(
                 }
                 | LegalizedScalarInstructionKind::EstablishZeroedStructural { result, .. }
                 | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
+                | LegalizedScalarInstructionKind::StructuralLeafCopy { result, .. }
                 | LegalizedScalarInstructionKind::EstablishCase { result, .. } => result,
                 LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
                 _ => return None,

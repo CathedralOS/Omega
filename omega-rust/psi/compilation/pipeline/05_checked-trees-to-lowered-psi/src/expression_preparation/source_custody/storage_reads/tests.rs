@@ -6,6 +6,73 @@ use super::{
 use checked_trees::CheckedStructuralPredicatePathSegment;
 
 #[test]
+fn case_array_payload_element_reads_retain_their_projected_storage() {
+    let checked = crate::front_end::checked_program(
+        "data Packet { case Empty; case Samples(values: [i32; 2]); }
+         machine read(packet: &Packet) -> i32 {
+             transition packet {
+                 Packet::Empty -> 0
+                 Packet::Samples { values } -> finish(values[0], values[1])
+             }
+             state finish(first: i32, second: i32) -> i32 { first }
+         }",
+    );
+    let plans = &checked.facts.values.scalar_expressions;
+    let mut indexed_reads = 0;
+    for (_, binding) in plans.source_bindings.iter() {
+        let Some((_, retained)) =
+            plans.bound_expression_at(binding.state, binding.statement_ordinal, binding.role)
+        else {
+            continue;
+        };
+        if !matches!(retained, CheckedScalarExpression::StructuralParameterField { path, .. }
+            if path.iter().any(|segment| matches!(segment, CheckedStructuralPredicatePathSegment::FixedIndex(_))))
+        {
+            continue;
+        }
+        indexed_reads += 1;
+        validate_expression(
+            &checked,
+            binding.state,
+            binding.statement_ordinal,
+            binding.expression,
+            retained,
+        )
+        .expect("the authored case payload owns the indexed read");
+        for component in 0..5 {
+            let mut changed = retained.clone();
+            let CheckedScalarExpression::StructuralParameterField {
+                parameter_position,
+                path,
+                primitive_type,
+            } = &mut changed
+            else {
+                panic!("projected payload element");
+            };
+            match component {
+                0 => *parameter_position = 1,
+                1 => path[0] = CheckedStructuralPredicatePathSegment::Case("Empty".into()),
+                2 => path[1] = CheckedStructuralPredicatePathSegment::Field("other".into()),
+                3 => path[2] = CheckedStructuralPredicatePathSegment::FixedIndex(2),
+                _ => *primitive_type = PrimitiveType::U32,
+            }
+            assert!(
+                validate_expression(
+                    &checked,
+                    binding.state,
+                    binding.statement_ordinal,
+                    binding.expression,
+                    &changed
+                )
+                .is_err(),
+                "changed component {component}"
+            );
+        }
+    }
+    assert_eq!(indexed_reads, 2);
+}
+
+#[test]
 fn runtime_array_read_retains_its_exact_selector_binding() {
     let checked = crate::front_end::checked_program(
         r#"
