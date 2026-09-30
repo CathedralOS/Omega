@@ -474,8 +474,9 @@ fn linear_owned_selection_rejects_reusing_the_consumed_claim() {
              }",
             "linear match transfer consumed this exact claim on every edge",
         ),
-        // An argument move of the dead claim hits the general
-        // moved-place fence before the selection-use fence can run.
+        // A call argument is a selection use like any other: the fence reads
+        // call and transition arguments from the statement arena that owns
+        // them, so an argument move of the consumed claim reports it too.
         (
             "projected child move",
             "data Pair { first: Token; second: Token; }
@@ -486,7 +487,7 @@ fn linear_owned_selection_rejects_reusing_the_consumed_claim() {
                  picked.settle();
                  0
              }",
-            "was already transferred or consumed",
+            "linear match transfer consumed this exact claim on every edge",
         ),
     ] {
         let errors = lower_linear_program(source)

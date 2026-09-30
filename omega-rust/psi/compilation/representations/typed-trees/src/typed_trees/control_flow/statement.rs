@@ -509,6 +509,60 @@ impl StatementTable {
         self.transition_targets.is_valid(handle)
     }
 
+    /// Every expression root `statement` carries, in authored order, with
+    /// the part of the statement it fills. A root the statement may omit (a
+    /// static binding's implementation operand, an absent initializer) keeps
+    /// its invalid handle; callers filter by role and validity as they need.
+    pub fn expression_roots(
+        &self,
+        statement: &StatementNode,
+    ) -> Vec<(StatementRootRole, crate::expression::ExpressionHandle)> {
+        use StatementRootRole as Role;
+        let mut roots = Vec::new();
+        match statement {
+            StatementNode::RootBinding(binding) => {
+                roots.push((Role::BindingReceiver, binding.receiver));
+                roots.push((Role::BindingImplementation, binding.implementation_operand));
+            }
+            StatementNode::AssemblyFact(fact) => roots.push((Role::AssemblyFact, fact.expression)),
+            StatementNode::Assignment(assignment) => {
+                roots.push((Role::AssignmentTarget, assignment.target));
+                roots.push((Role::AssignmentValue, assignment.value));
+            }
+            StatementNode::Call(call) => roots.extend(
+                self.expression_handles(call.arguments)
+                    .iter()
+                    .map(|argument| (Role::CallArgument, *argument)),
+            ),
+            StatementNode::Expression(expression) => roots.push((Role::Expression, *expression)),
+            StatementNode::LocalData(local) => {
+                roots.push((Role::LocalInitializer, local.initial_value));
+            }
+            StatementNode::Transition(transition) => {
+                if let TransitionGuardNode::When(guard) = transition.guard {
+                    roots.push((Role::TransitionGuard, guard));
+                }
+                for target in [transition.target, transition.continuation] {
+                    if !self.transition_target_is_valid(target) {
+                        continue;
+                    }
+                    match self.transition_target(target) {
+                        TransitionTargetNode::Named { arguments, .. } => roots.extend(
+                            self.expression_handles(*arguments)
+                                .iter()
+                                .map(|argument| (Role::TransitionArgument, *argument)),
+                        ),
+                        TransitionTargetNode::Value(value) => {
+                            roots.push((Role::TransitionValue, *value));
+                        }
+                        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
+                    }
+                }
+            }
+        }
+        roots
+    }
+
     pub fn statement_count(&self) -> usize {
         self.statements.len()
     }
@@ -542,6 +596,23 @@ fn remapped(symbol: SymbolHandle, symbols: &[(SymbolHandle, SymbolHandle)]) -> S
         .iter()
         .find_map(|(source, target)| (*source == symbol).then_some(*target))
         .unwrap_or(symbol)
+}
+
+/// The part of a statement an expression root fills
+/// ([`StatementTable::expression_roots`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StatementRootRole {
+    BindingReceiver,
+    BindingImplementation,
+    AssemblyFact,
+    AssignmentTarget,
+    AssignmentValue,
+    CallArgument,
+    Expression,
+    LocalInitializer,
+    TransitionGuard,
+    TransitionArgument,
+    TransitionValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

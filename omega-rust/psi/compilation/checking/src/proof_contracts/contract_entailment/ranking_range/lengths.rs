@@ -13,7 +13,7 @@ use symbols::SymbolHandle;
 use typed_trees::data::DataField;
 use typed_trees::expression::TableCallExpression;
 use typed_trees::signature::StateParameter;
-use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+use typed_trees::statement::StatementNode;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 
 pub(super) fn is_slice(program: &TypedTrees, mut reference: TypeReferenceHandle) -> bool {
@@ -470,50 +470,13 @@ fn call_receiver_is_mutable(program: &TypedTrees, target_symbol: SymbolHandle) -
 /// Every expression root a statement of `state` can carry: the channels a
 /// nested borrow or receiver call could reach an observed carrier through.
 fn statement_expression_roots(program: &TypedTrees, state: &State) -> Vec<ExpressionHandle> {
-    let mut roots = Vec::new();
-    for statement in program
+    program
         .statement_table
         .statements(state.statement_nodes)
         .iter()
-    {
-        match statement {
-            StatementNode::RootBinding(binding) => {
-                roots.extend([binding.receiver, binding.implementation_operand]);
-            }
-            StatementNode::AssemblyFact(fact) => roots.push(fact.expression),
-            StatementNode::Assignment(assignment) => {
-                roots.extend([assignment.target, assignment.value]);
-            }
-            StatementNode::Call(call) => roots.extend(
-                program
-                    .statement_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .copied(),
-            ),
-            StatementNode::Expression(expression) => roots.push(*expression),
-            StatementNode::LocalData(local) => roots.push(local.initial_value),
-            StatementNode::Transition(transition) => {
-                if let TransitionGuardNode::When(guard) = transition.guard {
-                    roots.push(guard);
-                }
-                for target in [transition.target, transition.continuation] {
-                    match program.statement_table.transition_target(target) {
-                        TransitionTargetNode::Named { arguments, .. } => roots.extend(
-                            program
-                                .statement_table
-                                .expression_handles(*arguments)
-                                .iter()
-                                .copied(),
-                        ),
-                        TransitionTargetNode::Value(expression) => roots.push(*expression),
-                        _ => {}
-                    }
-                }
-            }
-        }
-    }
-    roots
+        .flat_map(|statement| program.statement_table.expression_roots(statement))
+        .map(|(_, root)| root)
+        .collect()
 }
 
 /// The root symbol a borrowable place path descends from: `view`, `view.field`,

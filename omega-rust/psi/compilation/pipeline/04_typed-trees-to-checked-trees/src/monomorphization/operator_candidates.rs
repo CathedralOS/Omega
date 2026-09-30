@@ -552,39 +552,15 @@ pub(super) fn executable_statement_expression_roots(
     program: &TypedTrees,
     statement: &StatementNode,
 ) -> Vec<typed_trees::expression::ExpressionHandle> {
-    let mut roots = Vec::new();
-    match statement {
-        StatementNode::Assignment(assignment) => {
-            roots.extend([assignment.target, assignment.value]);
-        }
-        StatementNode::Call(call) => {
-            roots.extend_from_slice(program.statement_table.expression_handles(call.arguments))
-        }
-        StatementNode::Expression(expression) => roots.push(*expression),
-        StatementNode::LocalData(local) => roots.push(local.initial_value),
-        StatementNode::Transition(transition) => {
-            if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
-                roots.push(guard);
-            }
-            for target in [transition.target, transition.continuation] {
-                match program.statement_table.transition_target(target) {
-                    typed_trees::statement::TransitionTargetNode::Named { arguments, .. } => roots
-                        .extend_from_slice(program.statement_table.expression_handles(*arguments)),
-                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                        roots.push(*expression)
-                    }
-                    typed_trees::statement::TransitionTargetNode::SelfTarget
-                    | typed_trees::statement::TransitionTargetNode::Terminal => {}
-                }
-            }
-        }
-        StatementNode::RootBinding(binding) => {
-            roots.extend([binding.receiver, binding.implementation_operand]);
-        }
-        StatementNode::AssemblyFact(_) => {}
-    }
-    roots.retain(|expression| expression.is_valid());
-    roots
+    program
+        .statement_table
+        .expression_roots(statement)
+        .into_iter()
+        .filter(|(role, root)| {
+            *role != typed_trees::statement::StatementRootRole::AssemblyFact && root.is_valid()
+        })
+        .map(|(_, root)| root)
+        .collect()
 }
 
 fn selected_operator_application_at_expression(
