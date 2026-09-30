@@ -44,3 +44,40 @@ pub fn candidate_macos_entry_binding(
         )
         .map_err(|diagnostic| vec![diagnostic])
 }
+
+// Shared across test targets; not every consumer of this module selects the
+// Intel macOS slot.
+#[allow(dead_code)]
+pub fn candidate_macos_x86_64_entry_binding(
+    standard_library_root: &Path,
+    package: PackageKeyIdentity,
+) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
+    let inputs = PackageCompilationInputs::new_package(
+        package,
+        vec![PackageSourceBinding::new(
+            package,
+            "omega_language_std",
+            standard_library_root.to_path_buf(),
+        )],
+        Vec::new(),
+    )
+    .map_err(|errors| {
+        vec![Diagnostic::error(format!(
+            "entry fixture inputs: {errors:?}"
+        ))]
+    })?;
+    let checked = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs),
+        ..CheckedCompileRequest::new(
+            &standard_library_root.join("targets/macos_x86_64/entry.omg"),
+            Some("macos_x86_64"),
+        )
+    })?;
+    checked
+        .candidate_service_binding(
+            AcceptedSemanticBindingRole::MacosX64ProgramEntry,
+            package,
+            "MacosX64Application",
+        )
+        .map_err(|diagnostic| vec![diagnostic])
+}
