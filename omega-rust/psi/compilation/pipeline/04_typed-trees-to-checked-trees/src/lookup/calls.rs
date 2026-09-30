@@ -214,6 +214,24 @@ pub(crate) fn resolve_state_call_target(
         return resolve_state_symbol_in_machine(program, target_machine, target_symbol);
     }
 
+    // A call spelled `Data::method(...)`: the receiver symbol is the data
+    // declaration itself — a type namespace, not a value — so `type_symbol`
+    // lookups below cannot help it. The method state lives in the machine
+    // attached to that data, the same place a `&mut Data` receiver resolves.
+    // A data receiver cannot fall through to a state of an unrelated machine.
+    if program
+        .data_definitions()
+        .iter()
+        .any(|data| data.symbol == receiver_symbol)
+    {
+        return attached_machine_state_symbol(
+            program,
+            receiver_symbol,
+            target_symbol,
+            target_state,
+        );
+    }
+
     let type_symbol = program
         .state_parameters(state)
         .iter()
@@ -397,6 +415,9 @@ pub(crate) fn receiver_can_dispatch_to_machine(
     machine_by_symbol(program, receiver_symbol).is_some()
         || (type_symbol.is_valid() && machine_by_symbol(program, type_symbol).is_some())
         || data_type_has_attached_machine(program, type_symbol)
+        // A `Data::method` receiver names the data type itself; dispatch is
+        // possible when a machine is attached to it.
+        || data_type_has_attached_machine(program, receiver_symbol)
 }
 
 fn receiver_field_type_machine_symbol(

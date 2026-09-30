@@ -195,6 +195,17 @@ fn apply_condition(
         apply_right_literal_guard(proof_plan, range, binary.operator, binary.right)
     } else if same_place(proof_plan, binary.right, value) {
         apply_left_literal_guard(proof_plan, range, binary.left, binary.operator)
+    } else if let ExpressionNode::Cast(cast) = table.expression(value) {
+        // A checked `x as T` result equals `x` wherever the cast is defined,
+        // so a same-place bound on the operand narrows the cast's range
+        // identically (`raw <= 100` bounds `raw as u32` at 100).
+        if same_place(proof_plan, binary.left, cast.value) {
+            apply_right_literal_guard(proof_plan, range, binary.operator, binary.right)
+        } else if same_place(proof_plan, binary.right, cast.value) {
+            apply_left_literal_guard(proof_plan, range, binary.left, binary.operator)
+        } else {
+            range
+        }
     } else {
         range
     }
