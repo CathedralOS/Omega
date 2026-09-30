@@ -9,11 +9,12 @@
 //! obligation, and the verifier reconstructs it as `index < extent` for the
 //! array that step selects from.
 use super::{
-    CheckedScalarExpressionRole, CheckedTrees, LoweringError, StructuralPathSegment,
+    CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, StructuralPathSegment,
     ValueDeclaration, ValueId, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 
 /// One resolved step of a destination path: a static Terminal segment, or a
 /// runtime element whose selector the emitter evaluates.
@@ -30,6 +31,43 @@ pub(crate) enum ProjectionStep {
     RuntimeIndexParameter {
         position: u32,
     },
+    /// A runtime element whose selector is an immutable integer local of the
+    /// calling state — the dense position after its scalar parameters, the
+    /// coordinate `CheckedScalarExpression::Local` uses. The scalar source
+    /// frame reads it directly, like a parameter position.
+    RuntimeIndexLocal {
+        position: u32,
+    },
+    /// A runtime element whose selector is a stored-field snapshot — one
+    /// integer scalar read below a structural entry parameter of the calling
+    /// state. The emitter mints the field read at the program point and
+    /// selects with its value.
+    RuntimeIndexField(checked_trees::CheckedStructuralParameterField),
+}
+
+/// The step one checked runtime element lowers through. Assignment selectors
+/// evaluate the retained bound expression or computation; parameter and
+/// local positions read the dense scalar frame directly; a stored-field
+/// selector emits the field read at the program point.
+pub(crate) fn selector_step(runtime: &checked_trees::CheckedRuntimeIndex) -> ProjectionStep {
+    match runtime {
+        checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth } => {
+            ProjectionStep::AssignmentIndex { depth: *depth }
+        }
+        checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+            ProjectionStep::RuntimeIndexParameter {
+                position: *position,
+            }
+        }
+        checked_trees::CheckedRuntimeIndex::Local { position } => {
+            ProjectionStep::RuntimeIndexLocal {
+                position: *position,
+            }
+        }
+        checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+            ProjectionStep::RuntimeIndexField(field.clone())
+        }
+    }
 }
 
 /// The steps as a static Terminal path, for routes that evaluate no selector.
@@ -41,7 +79,9 @@ pub(crate) fn static_segments(
         .map(|step| match step {
             ProjectionStep::Static(segment) => Ok(segment),
             ProjectionStep::AssignmentIndex { .. }
-            | ProjectionStep::RuntimeIndexParameter { .. } => {
+            | ProjectionStep::RuntimeIndexParameter { .. }
+            | ProjectionStep::RuntimeIndexLocal { .. }
+            | ProjectionStep::RuntimeIndexField(_) => {
                 unsupported("this route evaluates no assignment runtime element")
             }
         })
@@ -69,11 +109,11 @@ pub(crate) fn evaluate_selectors(
 ) -> Result<Vec<ValueId>, LoweringError> {
     let mut indexes = Vec::new();
     for step in steps {
-        let index = match step {
+        let (index, scalar_type) = match step {
             ProjectionStep::AssignmentIndex { depth } => {
                 let role = CheckedScalarExpressionRole::AssignmentIndex { depth: *depth };
                 let source = selector_source(checked, state, statement_index, role)?;
-                evaluation.source_value(
+                let index = evaluation.source_value(
                     checked,
                     machine,
                     state,
@@ -87,25 +127,52 @@ pub(crate) fn evaluate_selectors(
                     next_edge,
                     operations,
                     calls,
-                )?
+                )?;
+                (index.id, index.scalar_type)
             }
-            ProjectionStep::RuntimeIndexParameter { position } => {
-                // A parameter selector is already a scalar source value of
-                // the calling state: the dense source prefix holds it, in
-                // the same order the checker numbers `RuntimeIndex`
-                // positions.
+            ProjectionStep::RuntimeIndexParameter { position }
+            | ProjectionStep::RuntimeIndexLocal { position } => {
+                // A parameter or immutable-local selector is already a scalar
+                // source value of the calling state: the dense source prefix
+                // holds it, in the same order the checker numbers
+                // `RuntimeIndex` positions.
                 let Some(index) = values.get(*position as usize) else {
                     return unsupported(
                         "store runtime index position exceeds the scalar source frame",
                     );
                 };
-                index.clone()
+                (index.id, index.scalar_type)
+            }
+            ProjectionStep::RuntimeIndexField(field) => {
+                let (source, path, field, scalar_type) =
+                    crate::expression_preparation::bindings::structural_fields::resolve_typed(
+                        &evaluation.structural_fields,
+                        field.parameter_position,
+                        &field.path,
+                    )?;
+                if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+                    return unsupported(
+                        "store runtime index field selector is not an integer read",
+                    );
+                }
+                let index = super::emit_direct_expression(
+                    &LoweredDirectExpression::StructuralField {
+                        source,
+                        path,
+                        field,
+                        scalar_type,
+                    },
+                    values,
+                    next_value,
+                    operations,
+                );
+                (index, scalar_type)
             }
             _ => continue,
         };
         indexes.push(super::emit_u64_coordinate(
-            index.id,
-            index.scalar_type,
+            index,
+            scalar_type,
             next_value,
             &mut calls.next_obligation_identity,
             operations,
@@ -128,14 +195,14 @@ pub(crate) fn complete_path(
         .map(|step| match step {
             ProjectionStep::Static(segment) => Ok(segment),
             ProjectionStep::AssignmentIndex { .. }
-            | ProjectionStep::RuntimeIndexParameter { .. } => {
-                Ok(StructuralPathSegment::RuntimeIndex {
-                    index: indexes.next().ok_or(LoweringError::Unsupported(
-                        "store path lost an evaluated runtime element",
-                    ))?,
-                    obligation: calls.allocate_requirement()?,
-                })
-            }
+            | ProjectionStep::RuntimeIndexParameter { .. }
+            | ProjectionStep::RuntimeIndexLocal { .. }
+            | ProjectionStep::RuntimeIndexField(_) => Ok(StructuralPathSegment::RuntimeIndex {
+                index: indexes.next().ok_or(LoweringError::Unsupported(
+                    "store path lost an evaluated runtime element",
+                ))?,
+                obligation: calls.allocate_requirement()?,
+            }),
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     if indexes.next().is_some() {

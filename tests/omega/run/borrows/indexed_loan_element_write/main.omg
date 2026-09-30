@@ -1,0 +1,27 @@
+// Whole-element store through an indexed admitted loan.
+// `borrowed` captures `self.buf[self.off]` — the canonical place ends in a
+// stored-field runtime index, and the store's primitive projection must
+// evaluate the field selector and bound it against the array's extent.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+    off: u32 [0..=47];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.off = 3;
+    let borrowed: &mut u8 = &mut self.buf[self.off];
+    borrowed = 9;
+    transition self.buf[3] == 9 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
