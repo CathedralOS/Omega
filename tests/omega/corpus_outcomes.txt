@@ -242,8 +242,7 @@ pass/collections/std_option_surface checked 325ms
 pass/collections/zero_length_byte_array_admission checked 327ms
 pass/comptime/provider_boundary_range_endpoint_exit checked 1779ms
 pass/comptime/runtime_const_array_length_transitive_exit checked 997ms
-pass/comptime/runtime_const_measured_recursion_exit rejected 160ms
-	machine `triangle` state `entry` argument `acc` stores a value not provably within its declared range: the range is a store-enforced invariant every read trusts (indexes, exact arithmetic), so the stored value must be proven to honor it. Narrow the value with a dominating guard, a dependent bound, or a requires coupling -- or widen/remove the range
+pass/comptime/runtime_const_measured_recursion_exit checked 1074ms @090ae6660c7+wt
 pass/comptime/selected_float_array_length_exit checked 3080ms
 pass/concurrency/suspend_after_last_use_compile checked 390ms
 pass/constants/lexical_aggregate_values checked 354ms
@@ -1321,6 +1320,8 @@ fail/comptime/fuel_exhausted_const_array_length rejected 89ms expected
 	fixed-array length `[i64; table_size()]`: const evaluation of `table_size` failed: step budget exceeded
 fail/comptime/negative_const_array_length rejected 31ms expected
 	fixed-array length `[i64; shrunk_size()]`: const evaluation of `shrunk_size` failed: the call returned -5, but an array length must be a non-negative integer
+fail/comptime/recursive_accumulator_requires_coupling rejected 165ms expected @090ae6660c7+wt
+	cannot prove requires contract for call triangle from triangle: acc + n <= 5050 (needs fact `acc <= 5050` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/concurrency/suspend_later_operand_rejected rejected 149ms expected
 	suspending call to `park` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning
 fail/concurrency/suspend_live_value_rejected rejected 305ms expected

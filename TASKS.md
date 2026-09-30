@@ -58,6 +58,12 @@ build authority, and artifact verification remain separate obligations.
     [entry shape](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge),
     preserving ZII eligibility, selected bindings, root lineage, stack/storage
     partitioning and cleanup. Remove attachment/`is_self` as authority inputs.
+    Checked-interpreter context execution remains incomplete: on macOS ARM64
+    at `090ae6660c7`, `omega run --both
+    tests/omega/pass/comptime/runtime_const_measured_recursion_exit/main.omg`
+    exits 70 natively but declines interpretation with `cannot read field
+    buf of Unit`. Preserve its explicit `Main` parameter, array storage and
+    state transitions; require interpreted exit 70 as well.
   - Move scratch fields to ordinary locals/local records and pass only genuinely
     live values across states. Repair local construction, loans and cleanup rather
     than moving scratch back into context. Temporary-scoping language design is
@@ -1093,10 +1099,6 @@ the complete product bar; focused successes below do not establish that baseline
     cross-state index proof. Migrate `fail/wire/wire_policy_plan_disagrees`
     while preserving its actual plan/schema disagreement rejection; its
     recorded diagnostic already reaches that mismatch.
-    `comptime/runtime_const_measured_recursion_exit` needs an inductive
-    relational accumulator bound: `acc <= 5050` alone does not justify
-    `acc + n` at the recursive call. Moving that bound into `requires`
-    cannot repair the contract.
 
   Owners: Rust `type_syntax/parse_type.rs`, syntax/resolved/typed constraint
   representations, generic matching, checked contract/default-domain facts
