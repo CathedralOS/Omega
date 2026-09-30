@@ -42,11 +42,11 @@
 //! `CompareI64Zero = 0` through `CallScalar = 13`. A zero byte is a legal family
 //! tag there and an invalid tag in these object-format tables.
 //!
-//! `validate_relocation_free_object` admits four of the six architecture and
-//! object-format combinations - Aarch64 with Elf or MachO, X86_64 with Elf or
-//! Coff - each additionally requiring `pointer_size` and `pointer_alignment` of
-//! exactly 8. Aarch64 with Coff and X86_64 with MachO reject as
-//! `NonCanonicalTarget`. Those four pairs are the declared object target
+//! `validate_relocation_free_object` admits five of the six architecture and
+//! object-format combinations - Aarch64 with Elf or MachO, X86_64 with Elf,
+//! Coff or MachO - each additionally requiring `pointer_size` and
+//! `pointer_alignment` of exactly 8. Aarch64 with Coff rejects as
+//! `NonCanonicalTarget`. Those five pairs are the declared object target
 //! matrix in `target_matrix`: every target-derived spelling (entry symbol,
 //! section names) and the canonical text alignment resolve through
 //! `object_target_policy`, and an undeclared pair answers `None` there rather

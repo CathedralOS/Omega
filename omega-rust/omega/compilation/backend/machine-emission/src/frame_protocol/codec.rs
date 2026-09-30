@@ -43,21 +43,20 @@ pub(super) enum FrameProtocolCodec {
 /// Resolve one declared (architecture, object-format) pair to its frame
 /// protocol codec.
 ///
-/// Declared rows are the same four pairs the unwind matrix admits: x86-64
-/// with ELF or COFF selects the x86-64 codec, and AArch64 with ELF or
-/// Mach-O selects the AArch64 codec. (x86-64, Mach-O) and (Aarch64, COFF)
-/// are undeclared and answer `None`, so a new supported target extends
-/// this matrix deliberately rather than inheriting a codec through a
+/// Declared rows are the same five pairs the unwind matrix admits: x86-64
+/// with ELF, COFF or Mach-O selects the x86-64 codec, and AArch64 with ELF
+/// or Mach-O selects the AArch64 codec. (Aarch64, COFF) is undeclared and
+/// answers `None`, so a new supported target extends this matrix
+/// deliberately rather than inheriting a codec through a
 /// continuation-mechanism match arm.
 pub(super) const fn frame_protocol_codec(target: NativeTarget) -> Option<FrameProtocolCodec> {
     match (target.architecture, target.object_format) {
-        (Architecture::X86_64, ObjectFormat::Elf) | (Architecture::X86_64, ObjectFormat::Coff) => {
-            Some(FrameProtocolCodec::X86_64)
-        }
+        (Architecture::X86_64, ObjectFormat::Elf)
+        | (Architecture::X86_64, ObjectFormat::Coff)
+        | (Architecture::X86_64, ObjectFormat::MachO) => Some(FrameProtocolCodec::X86_64),
         (Architecture::Aarch64, ObjectFormat::Elf)
         | (Architecture::Aarch64, ObjectFormat::MachO) => Some(FrameProtocolCodec::Aarch64),
-        (Architecture::X86_64, ObjectFormat::MachO)
-        | (Architecture::Aarch64, ObjectFormat::Coff) => None,
+        (Architecture::Aarch64, ObjectFormat::Coff) => None,
     }
 }
 
@@ -71,6 +70,7 @@ mod tests {
     fn codec_matrix_declares_one_row_per_supported_pair() {
         for (target, expected) in [
             (NativeTarget::linux_x64(), FrameProtocolCodec::X86_64),
+            (NativeTarget::macos_x64(), FrameProtocolCodec::X86_64),
             (NativeTarget::windows_x64(), FrameProtocolCodec::X86_64),
             (NativeTarget::uefi_x64(), FrameProtocolCodec::X86_64),
             (NativeTarget::linux_arm64(), FrameProtocolCodec::Aarch64),
@@ -82,18 +82,11 @@ mod tests {
 
     #[test]
     fn codec_matrix_fails_closed_on_undeclared_pairs() {
-        for target in [
-            NativeTarget {
-                object_format: ObjectFormat::MachO,
-                ..NativeTarget::linux_x64()
-            },
-            NativeTarget {
-                object_format: ObjectFormat::Coff,
-                ..NativeTarget::linux_arm64()
-            },
-        ] {
-            assert_eq!(frame_protocol_codec(target), None, "{target:?}");
-        }
+        let target = NativeTarget {
+            object_format: ObjectFormat::Coff,
+            ..NativeTarget::linux_arm64()
+        };
+        assert_eq!(frame_protocol_codec(target), None, "{target:?}");
     }
 
     #[test]

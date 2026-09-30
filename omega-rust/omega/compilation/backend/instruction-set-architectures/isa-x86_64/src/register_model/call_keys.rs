@@ -24,9 +24,9 @@ pub fn x86_64_preservation_convention_for_target(
         return None;
     }
     let name = match target.object_format {
-        ObjectFormat::Elf => "system-v-amd64",
+        // Intel macOS preserves the System V AMD64 callee-saved set.
+        ObjectFormat::Elf | ObjectFormat::MachO => "system-v-amd64",
         ObjectFormat::Coff => "microsoft-x64",
-        ObjectFormat::MachO => return None,
     };
     model
         .model()

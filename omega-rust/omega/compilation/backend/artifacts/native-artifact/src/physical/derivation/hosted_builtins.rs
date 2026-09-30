@@ -205,6 +205,10 @@ fn read_byte_result_bytes(
         .checked_add(result.layout.payload_byte_offset)
         .ok_or("hosted read-byte physical child result home overflow")?;
     match target.architecture {
+        Architecture::X86_64 if target == NativeTarget::macos_x64() => {
+            isa_x86_64::encode_darwin_read_byte_to_stack(result.home_byte_offset, payload_offset)
+                .map_err(|_| "macOS read-byte x86-64 encoding is not reproducible")
+        }
         Architecture::X86_64 => {
             isa_x86_64::encode_linux_read_byte_to_stack(result.home_byte_offset, payload_offset)
                 .map_err(|_| "Linux read-byte x86-64 encoding is not reproducible")

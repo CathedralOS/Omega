@@ -25,7 +25,9 @@ pub(in crate::exit_contract) fn target_contract_inputs(
     WholeFunctionExitContractError,
 > {
     match (target.architecture, target.object_format) {
-        (Architecture::X86_64, ObjectFormat::Elf) => Ok((
+        // Intel macOS completes frameless leaves under the same System V
+        // AMD64 return contract as Linux.
+        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => Ok((
             WholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1,
             x86_64_preservation_convention_for_target(physical, target)
                 .ok_or(WholeFunctionExitContractError::UnsupportedTargetPolicy)?,
@@ -130,7 +132,11 @@ mod tests {
 
     #[test]
     fn scalar_exit_rejoins_float_type_class_and_abi_home() {
-        for target in [NativeTarget::linux_x64(), NativeTarget::macos_arm64()] {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::macos_x64(),
+            NativeTarget::macos_arm64(),
+        ] {
             let environment =
                 register_environment::baseline_target_register_environment(target).unwrap();
             let physical = environment.physical();

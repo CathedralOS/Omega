@@ -280,6 +280,11 @@ fn validate_terminal_image_with_import_count(
                     artifact, object, text_bytes, symbol, offset, output,
                 )?
             }
+            super::hosted_unit_entry::EntryShim::DarwinX86_64Unit { symbol, offset } => {
+                super::hosted_unit_entry::validate_darwin_x86_64(
+                    artifact, object, text_bytes, symbol, offset, output,
+                )?
+            }
             super::hosted_unit_entry::EntryShim::WindowsUnit { symbol, offset } => {
                 super::hosted_unit_entry::validate_windows(
                     artifact, object, text_bytes, symbol, offset, output,

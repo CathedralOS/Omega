@@ -12,6 +12,7 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 fn every_supported_native_target_builds_a_matching_closed_environment() {
     for target in [
         NativeTarget::linux_x64(),
+        NativeTarget::macos_x64(),
         NativeTarget::windows_x64(),
         NativeTarget::uefi_x64(),
         NativeTarget::linux_arm64(),
@@ -90,15 +91,16 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
             (Architecture::X86_64, ObjectFormat::Coff)
         );
         let unit_keys = &environment.selected_keys().call_unit;
-        let expected_exit = if target == NativeTarget::linux_x64() {
-            Some(isa_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32)
-        } else if target == NativeTarget::linux_arm64() {
-            Some(isa_aarch64::AARCH64_HOSTED_EXIT_PROCESS_I32)
-        } else if target == NativeTarget::macos_arm64() {
-            Some(isa_aarch64::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32)
-        } else {
-            None
-        };
+        let expected_exit =
+            if target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64() {
+                Some(isa_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32)
+            } else if target == NativeTarget::linux_arm64() {
+                Some(isa_aarch64::AARCH64_HOSTED_EXIT_PROCESS_I32)
+            } else if target == NativeTarget::macos_arm64() {
+                Some(isa_aarch64::AARCH64_DARWIN_HOSTED_EXIT_PROCESS_I32)
+            } else {
+                None
+            };
         assert_eq!(
             environment.selected_keys().hosted_exit_process_i32,
             expected_exit
@@ -120,7 +122,7 @@ fn every_supported_native_target_builds_a_matching_closed_environment() {
             assert!(!row.clobbers.is_empty());
         }
         let expected_write = match (target.architecture, target.object_format) {
-            (Architecture::X86_64, ObjectFormat::Elf) => {
+            (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
                 Some(isa_x86_64::X86_64_HOSTED_WRITE_BYTE_I32)
             }
             (Architecture::Aarch64, ObjectFormat::Elf) => {

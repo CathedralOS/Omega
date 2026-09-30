@@ -82,20 +82,22 @@ pub(crate) struct FrameUnwindPolicy {
 /// Resolve one declared (architecture, object-format) pair to its frame
 /// unwind policy.
 ///
-/// Declared rows are x86-64 with ELF or COFF and AArch64 with ELF or
-/// Mach-O — the same four pairs the ABI preservation matrix admits.
-/// (x86-64, Mach-O) and (Aarch64, COFF) are undeclared and answer `None`,
-/// so a new supported target extends this matrix deliberately instead of
-/// widening a wildcard arm.
+/// Declared rows are x86-64 with ELF, COFF or Mach-O and AArch64 with ELF
+/// or Mach-O — the same five pairs the ABI preservation matrix admits.
+/// Intel macOS shares the System V AMD64 row. (Aarch64, COFF) is undeclared
+/// and answers `None`, so a new supported target extends this matrix
+/// deliberately instead of widening a wildcard arm.
 pub(crate) const fn frame_unwind_policy(target: NativeTarget) -> Option<FrameUnwindPolicy> {
     match (target.architecture, target.object_format) {
-        (Architecture::X86_64, ObjectFormat::Elf) => Some(FrameUnwindPolicy {
-            abi: FrameAbiPreservationConvention::SystemVAMD64,
-            stack_pointer_view: "rsp",
-            continuation: FrameContinuationCustody::CallerActivationStack {
-                return_address_size_bytes: 8,
-            },
-        }),
+        (Architecture::X86_64, ObjectFormat::Elf) | (Architecture::X86_64, ObjectFormat::MachO) => {
+            Some(FrameUnwindPolicy {
+                abi: FrameAbiPreservationConvention::SystemVAMD64,
+                stack_pointer_view: "rsp",
+                continuation: FrameContinuationCustody::CallerActivationStack {
+                    return_address_size_bytes: 8,
+                },
+            })
+        }
         (Architecture::X86_64, ObjectFormat::Coff) => Some(FrameUnwindPolicy {
             abi: FrameAbiPreservationConvention::MicrosoftX64,
             stack_pointer_view: "rsp",
@@ -119,8 +121,7 @@ pub(crate) const fn frame_unwind_policy(target: NativeTarget) -> Option<FrameUnw
                 saved_size_bytes: 8,
             },
         }),
-        (Architecture::X86_64, ObjectFormat::MachO)
-        | (Architecture::Aarch64, ObjectFormat::Coff) => None,
+        (Architecture::Aarch64, ObjectFormat::Coff) => None,
     }
 }
 
@@ -142,6 +143,14 @@ mod tests {
         for (target, expected) in [
             (
                 NativeTarget::linux_x64(),
+                FrameUnwindPolicy {
+                    abi: FrameAbiPreservationConvention::SystemVAMD64,
+                    stack_pointer_view: "rsp",
+                    continuation: caller_stack,
+                },
+            ),
+            (
+                NativeTarget::macos_x64(),
                 FrameUnwindPolicy {
                     abi: FrameAbiPreservationConvention::SystemVAMD64,
                     stack_pointer_view: "rsp",
@@ -187,18 +196,11 @@ mod tests {
 
     #[test]
     fn unwind_matrix_fails_closed_on_undeclared_pairs() {
-        for target in [
-            NativeTarget {
-                object_format: ObjectFormat::MachO,
-                ..NativeTarget::linux_x64()
-            },
-            NativeTarget {
-                object_format: ObjectFormat::Coff,
-                ..NativeTarget::linux_arm64()
-            },
-        ] {
-            assert_eq!(frame_unwind_policy(target), None, "{target:?}");
-        }
+        let target = NativeTarget {
+            object_format: ObjectFormat::Coff,
+            ..NativeTarget::linux_arm64()
+        };
+        assert_eq!(frame_unwind_policy(target), None, "{target:?}");
     }
 
     #[test]

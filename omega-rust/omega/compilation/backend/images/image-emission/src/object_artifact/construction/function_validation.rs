@@ -1502,7 +1502,8 @@ fn validate_boundary_settlements(
                     };
                 let expected = value.and_then(|value| match plan.target.architecture {
                     Architecture::X86_64 => {
-                        Some(isa_x86_64::encode_hosted_exit_process_i32(value))
+                        isa_x86_64::encode_hosted_exit_process_i32_for_target(plan.target, value)
+                            .ok()
                     }
                     Architecture::Aarch64 => {
                         isa_aarch64::encode_hosted_exit_process_i32(plan.target, value).ok()
@@ -1572,6 +1573,11 @@ fn validate_boundary_settlements(
                         .checked_add(result.layout.payload_byte_offset)?;
                     match plan.target {
                         target if target == NativeTarget::linux_x64() => isa_x86_64::encode_linux_read_byte_to_stack(
+                            result.home_byte_offset,
+                            payload,
+                        )
+                        .ok(),
+                        target if target == NativeTarget::macos_x64() => isa_x86_64::encode_darwin_read_byte_to_stack(
                             result.home_byte_offset,
                             payload,
                         )

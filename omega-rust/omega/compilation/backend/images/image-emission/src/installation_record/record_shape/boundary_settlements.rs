@@ -214,7 +214,12 @@ pub(super) fn validate_boundary_settlements(
                 let expected_byte_count = value
                     .and_then(|value| match record.target.architecture {
                         Architecture::X86_64 => {
-                            Some(isa_x86_64::encode_hosted_exit_process_i32(value).len())
+                            isa_x86_64::encode_hosted_exit_process_i32_for_target(
+                                record.target,
+                                value,
+                            )
+                            .ok()
+                            .map(|bytes| bytes.len())
                         }
                         Architecture::Aarch64 => {
                             isa_aarch64::encode_hosted_exit_process_i32(record.target, value)

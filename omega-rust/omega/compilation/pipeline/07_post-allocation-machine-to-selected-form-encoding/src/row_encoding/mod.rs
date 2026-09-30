@@ -173,6 +173,7 @@ fn encode_address_routed(
                 ),
                 HostedChannel::WriteByteI32 => {
                     isa_x86_64::encode_x86_64_selected_hosted_write_byte_form(
+                        target,
                         physical,
                         kind,
                         alternative,
@@ -182,6 +183,7 @@ fn encode_address_routed(
                 }
                 HostedChannel::ReadByte => {
                     isa_x86_64::encode_x86_64_selected_hosted_read_byte_form(
+                        target,
                         physical,
                         kind,
                         alternative,

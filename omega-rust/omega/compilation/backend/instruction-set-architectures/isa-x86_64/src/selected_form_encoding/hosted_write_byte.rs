@@ -1,4 +1,6 @@
 //! Hosted write-one-byte leaf: caller frame storage, no hidden stack adjustment.
+//! Linux and Intel macOS share the leaf; Darwin enters the Unix-class
+//! `write` and adds one `jc` that traps on the carry-reported failure.
 use super::{
     RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
@@ -13,6 +15,18 @@ use selected_instructions::{
     MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
     MachineSizeKnowledge, MachineTrapBehavior, SelectedInstructionKind,
 };
+use target::NativeTarget;
+
+/// Exact leaf width: 40 bytes on Linux, 42 with Darwin's carry branch.
+fn leaf_bytes(target: NativeTarget) -> u16 {
+    if crate::hosted_kernel::hosted_kernel(target)
+        .is_some_and(|kernel| kernel.carry_reports_failure)
+    {
+        42
+    } else {
+        40
+    }
+}
 
 pub(crate) fn effects() -> MachineEncodedEffects {
     let physical = crate::x86_64_physical_register_model_ref();
@@ -46,7 +60,10 @@ pub(crate) fn effects() -> MachineEncodedEffects {
     }
 }
 
-pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDeclaration {
+pub(crate) fn declaration(
+    target: NativeTarget,
+    constraint: RegisterConstraintKey,
+) -> MachineEffectDeclaration {
     MachineEffectDeclaration {
         semantic: MachineSemanticKind::HostedWriteByteI32,
         constraint,
@@ -61,7 +78,7 @@ pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDec
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(40),
+            size: MachineSizeKnowledge::ExactBytes(leaf_bytes(target)),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: effects(),
         }],
@@ -69,6 +86,7 @@ pub(crate) fn declaration(constraint: RegisterConstraintKey) -> MachineEffectDec
 }
 
 fn request(
+    target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
@@ -77,7 +95,8 @@ fn request(
 ) -> Result<u8, X86_64SelectedFormEncodingError> {
     // Hosted boundary storage is committed caller frame space: its
     // displacement is always a nonnegative offset below the incoming args.
-    if physical.identity() != crate::canonical_x86_64_physical_register_model_identity()
+    if !crate::hosted_syscall_target(target)
+        || physical.identity() != crate::canonical_x86_64_physical_register_model_identity()
         || !matches!(
             kind,
             SelectedInstructionKind::HostedWriteByteI32 {
@@ -101,13 +120,16 @@ fn request(
 }
 
 pub fn encode_x86_64_selected_hosted_write_byte_form(
+    target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
     displacement: i64,
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-    let register = request(physical, kind, alternative, operands, displacement)?;
+    let register = request(target, physical, kind, alternative, operands, displacement)?;
+    let kernel = crate::hosted_kernel::hosted_kernel(target)
+        .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
     let displacement = i32::try_from(displacement)
         .map_err(|_| X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
     let mut bytes = vec![
@@ -119,10 +141,16 @@ pub fn encode_x86_64_selected_hosted_write_byte_form(
     bytes.extend_from_slice(&displacement.to_le_bytes());
     bytes.extend_from_slice(&[0xbf, 1, 0, 0, 0, 0x48, 0x8d, 0xb4, 0x24]);
     bytes.extend_from_slice(&displacement.to_le_bytes());
-    bytes.extend_from_slice(&[
-        0xba, 1, 0, 0, 0, 0xb8, 1, 0, 0, 0, 0x0f, 0x05, 0x48, 0x85, 0xc0, 0x7f, 0x02, 0x0f, 0x0b,
-    ]);
+    bytes.extend_from_slice(&[0xba, 1, 0, 0, 0, 0xb8]);
+    bytes.extend_from_slice(&kernel.write.to_le_bytes());
+    bytes.extend_from_slice(&[0x0f, 0x05]);
+    if kernel.carry_reports_failure {
+        // jc ud2: Darwin's positive errno must not reach the count test.
+        bytes.extend_from_slice(&[0x72, 0x05]);
+    }
+    bytes.extend_from_slice(&[0x48, 0x85, 0xc0, 0x7f, 0x02, 0x0f, 0x0b]);
     validate_x86_64_selected_hosted_write_byte_form(
+        target,
         physical,
         kind,
         alternative,
@@ -133,6 +161,7 @@ pub fn encode_x86_64_selected_hosted_write_byte_form(
 }
 
 pub fn validate_x86_64_selected_hosted_write_byte_form(
+    target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
@@ -140,8 +169,8 @@ pub fn validate_x86_64_selected_hosted_write_byte_form(
     displacement: i64,
     bytes: &[u8],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
-    let register = request(physical, kind, alternative, operands, displacement)?;
-    if decode(bytes).map(|(register, offset)| (register, i64::from(offset)))
+    let register = request(target, physical, kind, alternative, operands, displacement)?;
+    if decode(target, bytes).map(|(register, offset)| (register, i64::from(offset)))
         != Some((register, displacement))
     {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
@@ -157,8 +186,23 @@ pub fn validate_x86_64_selected_hosted_write_byte_form(
     })
 }
 
-fn decode(bytes: &[u8]) -> Option<(u8, u32)> {
-    if bytes.len() != 40 {
+fn decode(target: NativeTarget, bytes: &[u8]) -> Option<(u8, u32)> {
+    // The syscall tail is the literal Linux or Darwin spelling, never
+    // derived from the encoder's kernel table.
+    let tail: &[u8] = if target == NativeTarget::linux_x64() {
+        &[
+            0xba, 1, 0, 0, 0, 0xb8, 1, 0, 0, 0, 0x0f, 0x05, 0x48, 0x85, 0xc0, 0x7f, 0x02, 0x0f,
+            0x0b,
+        ]
+    } else if target == NativeTarget::macos_x64() {
+        &[
+            0xba, 1, 0, 0, 0, 0xb8, 4, 0, 0, 2, 0x0f, 0x05, 0x72, 0x05, 0x48, 0x85, 0xc0, 0x7f,
+            0x02, 0x0f, 0x0b,
+        ]
+    } else {
+        return None;
+    };
+    if bytes.len() != 21 + tail.len() {
         return None;
     }
     let stored_offset = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
@@ -172,11 +216,7 @@ fn decode(bytes: &[u8]) -> Option<(u8, u32)> {
         || stored_offset > i32::MAX as u32
         || addressed_offset != stored_offset
         || bytes[8..17] != [0xbf, 1, 0, 0, 0, 0x48, 0x8d, 0xb4, 0x24]
-        || bytes[21..]
-            != [
-                0xba, 1, 0, 0, 0, 0xb8, 1, 0, 0, 0, 0x0f, 0x05, 0x48, 0x85, 0xc0, 0x7f, 0x02, 0x0f,
-                0x0b,
-            ]
+        || bytes[21..] != *tail
     {
         return None;
     }
@@ -185,9 +225,10 @@ fn decode(bytes: &[u8]) -> Option<(u8, u32)> {
 
 /// Independently decode the complete returning write leaf for object custody replay.
 pub fn decode_x86_64_selected_hosted_write_byte_i32(
+    target: NativeTarget,
     bytes: &[u8],
 ) -> Option<(calling_conventions::MachineRegister, u32)> {
-    let (register, displacement) = decode(bytes)?;
+    let (register, displacement) = decode(target, bytes)?;
     use calling_conventions::MachineRegister::*;
     let registers = [
         X86Rax, X86Rcx, X86Rdx, X86Rbx, X86Rsp, X86Rbp, X86Rsi, X86Rdi, X86R8, X86R9, X86R10,
@@ -199,7 +240,8 @@ pub fn decode_x86_64_selected_hosted_write_byte_i32(
 #[cfg(test)]
 mod tests {
     use super::{
-        effects, encode_x86_64_selected_hosted_write_byte_form,
+        NativeTarget, decode_x86_64_selected_hosted_write_byte_i32, effects,
+        encode_x86_64_selected_hosted_write_byte_form,
         validate_x86_64_selected_hosted_write_byte_form,
     };
     use selected_instructions::{
@@ -223,112 +265,140 @@ mod tests {
             family: MachineAlternativeFamily::HostedWriteByteI32,
             variant: 0,
         };
-        for name in ["rax", "rbp", "rsi", "rdx", "r11", "r15"] {
-            let operands = [physical.model().view_named(name).unwrap().id];
-            for displacement in [0, 31, 2147483647] {
-                let encoded = encode_x86_64_selected_hosted_write_byte_form(
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    displacement,
-                )
-                .unwrap();
-                assert_eq!(encoded.footprint().encoded, effects());
-                assert!(encoded.footprint().register_writes.is_empty());
-                assert_eq!(
-                    encoded.footprint().encoded.stack,
-                    MachineEncodedStackEffect::UnchangedV1
-                );
-                for bit in 0..encoded.bytes().len() * 8 {
-                    let mut changed = encoded.bytes().to_vec();
-                    changed[bit / 8] ^= 1 << (bit % 8);
+        for (target, other_kernel, width) in [
+            (NativeTarget::linux_x64(), NativeTarget::macos_x64(), 40),
+            (NativeTarget::macos_x64(), NativeTarget::linux_x64(), 42),
+        ] {
+            for name in ["rax", "rbp", "rsi", "rdx", "r11", "r15"] {
+                let operands = [physical.model().view_named(name).unwrap().id];
+                for displacement in [0, 31, 2147483647] {
+                    let encoded = encode_x86_64_selected_hosted_write_byte_form(
+                        target,
+                        &physical,
+                        kind,
+                        alternative,
+                        &operands,
+                        displacement,
+                    )
+                    .unwrap();
+                    assert_eq!(encoded.footprint().encoded, effects());
+                    assert_eq!(encoded.bytes().len(), width);
+                    assert_eq!(
+                        decode_x86_64_selected_hosted_write_byte_i32(target, encoded.bytes())
+                            .map(|(_, offset)| i64::from(offset)),
+                        Some(displacement)
+                    );
+                    // The other kernel's syscall number never replays.
+                    assert!(
+                        decode_x86_64_selected_hosted_write_byte_i32(other_kernel, encoded.bytes())
+                            .is_none()
+                    );
+                    assert!(encoded.footprint().register_writes.is_empty());
+                    assert_eq!(
+                        encoded.footprint().encoded.stack,
+                        MachineEncodedStackEffect::UnchangedV1
+                    );
+                    for bit in 0..encoded.bytes().len() * 8 {
+                        let mut changed = encoded.bytes().to_vec();
+                        changed[bit / 8] ^= 1 << (bit % 8);
+                        assert!(
+                            validate_x86_64_selected_hosted_write_byte_form(
+                                target,
+                                &physical,
+                                kind,
+                                alternative,
+                                &operands,
+                                displacement,
+                                &changed
+                            )
+                            .is_err(),
+                            "encoded bit {bit}"
+                        );
+                    }
                     assert!(
                         validate_x86_64_selected_hosted_write_byte_form(
+                            target,
+                            &physical,
+                            kind,
+                            alternative,
+                            &operands,
+                            displacement ^ 1,
+                            encoded.bytes()
+                        )
+                        .is_err()
+                    );
+                    assert!(
+                        validate_x86_64_selected_hosted_write_byte_form(
+                            target,
                             &physical,
                             kind,
                             alternative,
                             &operands,
                             displacement,
-                            &changed
+                            &encoded.bytes()[1..]
                         )
-                        .is_err(),
-                        "encoded bit {bit}"
+                        .is_err()
+                    );
+                    let mut trailing = encoded.bytes().to_vec();
+                    trailing.push(0);
+                    assert!(
+                        validate_x86_64_selected_hosted_write_byte_form(
+                            target,
+                            &physical,
+                            kind,
+                            alternative,
+                            &operands,
+                            displacement,
+                            &trailing
+                        )
+                        .is_err()
+                    );
+                    let wrong_slot = SelectedInstructionKind::HostedWriteByteI32 {
+                        slot: LocalStorageSlotId::Structural {
+                            operation: OperationId::new(7).unwrap(),
+                            place: PlaceId::new(1).unwrap(),
+                        },
+                    };
+                    assert!(
+                        validate_x86_64_selected_hosted_write_byte_form(
+                            target,
+                            &physical,
+                            wrong_slot,
+                            alternative,
+                            &operands,
+                            displacement,
+                            encoded.bytes()
+                        )
+                        .is_err()
+                    );
+                    assert!(
+                        encode_x86_64_selected_hosted_write_byte_form(
+                            target,
+                            &physical,
+                            kind,
+                            alternative,
+                            &operands,
+                            2147483648
+                        )
+                        .is_err()
+                    );
+                    assert!(
+                        encode_x86_64_selected_hosted_write_byte_form(
+                            target,
+                            &physical,
+                            kind,
+                            alternative,
+                            &[],
+                            displacement
+                        )
+                        .is_err()
                     );
                 }
-                assert!(
-                    validate_x86_64_selected_hosted_write_byte_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement ^ 1,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                assert!(
-                    validate_x86_64_selected_hosted_write_byte_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                        &encoded.bytes()[1..]
-                    )
-                    .is_err()
-                );
-                let mut trailing = encoded.bytes().to_vec();
-                trailing.push(0);
-                assert!(
-                    validate_x86_64_selected_hosted_write_byte_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        displacement,
-                        &trailing
-                    )
-                    .is_err()
-                );
-                let wrong_slot = SelectedInstructionKind::HostedWriteByteI32 {
-                    slot: LocalStorageSlotId::Structural {
-                        operation: OperationId::new(7).unwrap(),
-                        place: PlaceId::new(1).unwrap(),
-                    },
-                };
-                assert!(
-                    validate_x86_64_selected_hosted_write_byte_form(
-                        &physical,
-                        wrong_slot,
-                        alternative,
-                        &operands,
-                        displacement,
-                        encoded.bytes()
-                    )
-                    .is_err()
-                );
-                assert!(
-                    encode_x86_64_selected_hosted_write_byte_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &operands,
-                        2147483648
-                    )
-                    .is_err()
-                );
-                assert!(
-                    encode_x86_64_selected_hosted_write_byte_form(
-                        &physical,
-                        kind,
-                        alternative,
-                        &[],
-                        displacement
-                    )
-                    .is_err()
-                );
             }
         }
+        assert!(
+            decode_x86_64_selected_hosted_write_byte_i32(NativeTarget::windows_x64(), &[0; 40])
+                .is_none()
+        );
     }
 }

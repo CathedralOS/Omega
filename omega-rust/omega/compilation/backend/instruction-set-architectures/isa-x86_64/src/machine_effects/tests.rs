@@ -726,6 +726,12 @@ fn selected_keys_declare_the_supported_x86_64_pairs() {
             sysv_call,
         ),
         (
+            NativeTarget::macos_x64(),
+            X86_64_SYSTEM_V_RETURN,
+            X86_64_SYSTEM_V_RETURN_UNIT,
+            sysv_call,
+        ),
+        (
             NativeTarget::windows_x64(),
             X86_64_MICROSOFT_RETURN,
             X86_64_MICROSOFT_RETURN_UNIT,
@@ -744,28 +750,32 @@ fn selected_keys_declare_the_supported_x86_64_pairs() {
         assert_eq!(keys.return_unit, return_unit);
         assert!(keys.call_scalar.contains(&call));
         assert_eq!(keys.call_scalar[0], call);
-        let linux = target == NativeTarget::linux_x64();
+        let hosted = target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64();
         assert_eq!(
             keys.hosted_write_byte_i32.is_some(),
-            linux,
-            "hosted write byte is declared only for the exact Linux x86-64 target"
+            hosted,
+            "hosted write byte is declared only for the exact Linux and Intel macOS targets"
         );
-        assert_eq!(keys.hosted_read_byte.is_some(), linux);
-        assert_eq!(keys.hosted_exit_process_i32.is_some(), linux);
+        assert_eq!(keys.hosted_read_byte.is_some(), hosted);
+        assert_eq!(keys.hosted_exit_process_i32.is_some(), hosted);
     }
 }
 
 #[test]
 fn selected_keys_fail_closed_on_undeclared_pairs() {
     let constraints = constraints();
-    let macho = NativeTarget {
-        architecture: Architecture::X86_64,
-        object_format: ObjectFormat::MachO,
+    let aarch64_elf = NativeTarget {
+        architecture: Architecture::Aarch64,
+        object_format: ObjectFormat::Elf,
         pointer_size: 8,
         pointer_alignment: 8,
     };
     assert_eq!(
-        x86_64_machine_effect_catalog(macho, &constraints),
+        x86_64_machine_effect_catalog(aarch64_elf, &constraints),
+        Err(X86_64MachineEffectCatalogValidationError::TargetArchitectureMismatch)
+    );
+    assert_eq!(
+        crate::machine_effects::x86_64_selected_abi(aarch64_elf),
         Err(X86_64MachineEffectCatalogValidationError::UnsupportedTargetAbi)
     );
 }

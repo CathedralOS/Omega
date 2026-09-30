@@ -25,10 +25,15 @@ pub fn selected_abi_preservation(
 ) -> Result<SelectedAbiPreservation<'_>, AbiPreservationSelectionError> {
     let target = environment.target();
     let (kind, convention) = match (target.architecture, target.object_format) {
-        (target::Architecture::X86_64, target::ObjectFormat::Elf) => (
-            FrameAbiPreservationConvention::SystemVAMD64,
-            isa_x86_64::x86_64_preservation_convention_for_target(environment.physical(), target),
-        ),
+        (target::Architecture::X86_64, target::ObjectFormat::Elf | target::ObjectFormat::MachO) => {
+            (
+                FrameAbiPreservationConvention::SystemVAMD64,
+                isa_x86_64::x86_64_preservation_convention_for_target(
+                    environment.physical(),
+                    target,
+                ),
+            )
+        }
         (target::Architecture::X86_64, target::ObjectFormat::Coff) => (
             FrameAbiPreservationConvention::MicrosoftX64,
             isa_x86_64::x86_64_preservation_convention_for_target(environment.physical(), target),

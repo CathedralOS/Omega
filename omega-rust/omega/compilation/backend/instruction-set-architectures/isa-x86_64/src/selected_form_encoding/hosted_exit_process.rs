@@ -1,4 +1,6 @@
 //! Exact hosted exit: normalize the low i32 carrier, invoke the kernel, trap if it returns.
+//! Linux enters `exit_group` (231); Intel macOS enters the BSD-class `exit`
+//! (`0x2000001`). Both leaves share one byte shape and register contract.
 use super::{
     RegisterViewId, ValidatedPhysicalRegisterModel, ValidatedX86_64SelectedFormEncoding,
     X86_64SelectedFormEncodingError, X86_64SelectedFormFootprint,
@@ -76,7 +78,7 @@ fn request(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<u8, X86_64SelectedFormEncodingError> {
-    if target != NativeTarget::linux_x64()
+    if crate::hosted_exit_syscall_number(target).is_none()
         || physical.identity() != crate::canonical_x86_64_physical_register_model_identity()
         || kind != SelectedInstructionKind::HostedExitProcessI32
         || alternative
@@ -102,20 +104,16 @@ pub fn encode_x86_64_selected_hosted_exit_process_form(
     operands: &[RegisterViewId],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
     let register = request(target, physical, kind, alternative, operands)?;
-    let bytes = vec![
+    let syscall = crate::hosted_exit_syscall_number(target)
+        .ok_or(X86_64SelectedFormEncodingError::EncodedFormMismatch)?;
+    let mut bytes = vec![
         0x40 | ((register >> 3) << 2),
         0x89,
         0xc7 | ((register & 7) << 3),
         0xb8,
-        0xe7,
-        0,
-        0,
-        0,
-        0x0f,
-        0x05,
-        0x0f,
-        0x0b,
     ];
+    bytes.extend_from_slice(&syscall.to_le_bytes());
+    bytes.extend_from_slice(&[0x0f, 0x05, 0x0f, 0x0b]);
     validate_x86_64_selected_hosted_exit_process_form(
         target,
         physical,
@@ -151,7 +149,8 @@ pub fn validate_x86_64_selected_hosted_exit_process_form(
 
 /// Decode every opcode and fixed immediate independently of the producer.
 fn decode(target: NativeTarget, bytes: &[u8]) -> Option<u8> {
-    if target != NativeTarget::linux_x64() || bytes.len() != 12 {
+    let syscall = crate::hosted_exit_syscall_number(target)?;
+    if bytes.len() != 12 {
         return None;
     }
     let register = ((bytes[2] >> 3) & 7) | ((bytes[0] & 4) << 1);
@@ -159,7 +158,9 @@ fn decode(target: NativeTarget, bytes: &[u8]) -> Option<u8> {
         || bytes[1] != 0x89
         || bytes[2] & 0xc7 != 0xc7
         || register == 4
-        || bytes[3..] != [0xb8, 0xe7, 0, 0, 0, 0x0f, 0x05, 0x0f, 0x0b]
+        || bytes[3] != 0xb8
+        || bytes[4..8] != syscall.to_le_bytes()
+        || bytes[8..] != [0x0f, 0x05, 0x0f, 0x0b]
     {
         return None;
     }
@@ -201,7 +202,7 @@ mod tests {
             family: MachineAlternativeFamily::HostedExitProcessI32,
             variant: 0,
         };
-        for target in [NativeTarget::linux_x64()] {
+        for target in [NativeTarget::linux_x64(), NativeTarget::macos_x64()] {
             for name in ["rax", "rdi", "rcx", "r8", "r11", "r15"] {
                 let operands = [physical.model().view_named(name).unwrap().id];
                 let encoded = encode_x86_64_selected_hosted_exit_process_form(
@@ -275,6 +276,12 @@ mod tests {
                     )
                     .is_err()
                 );
+                // The other hosted kernel's syscall number must not replay.
+                let other_kernel = if target == NativeTarget::linux_x64() {
+                    NativeTarget::macos_x64()
+                } else {
+                    NativeTarget::linux_x64()
+                };
                 for wrong_target in [
                     NativeTarget::windows_x64(),
                     NativeTarget {
@@ -282,6 +289,7 @@ mod tests {
                         ..target
                     },
                     NativeTarget::macos_arm64(),
+                    other_kernel,
                 ] {
                     assert!(
                         validate_x86_64_selected_hosted_exit_process_form(

@@ -6,6 +6,7 @@
 
 mod fma;
 mod frame_protocol;
+mod hosted_kernel;
 mod hosted_linux_encoding;
 mod ieee_float;
 mod import_thunk;
@@ -191,6 +192,10 @@ pub use semantic_unit_wrapper_encoding::{
     validate_x86_64_resolved_semantic_unit_wrapper, validate_x86_64_semantic_unit_wrapper_template,
 };
 
+pub use hosted_kernel::{
+    encode_darwin_read_byte_to_stack, encode_hosted_exit_process_i32_for_target,
+};
+pub(crate) use hosted_kernel::{hosted_exit_syscall_number, hosted_syscall_target};
 pub use hosted_linux_encoding::{
     encode_hosted_exit_process_i32, encode_hosted_write_byte_i32_from_r11,
     encode_linux_read_byte_to_stack, encode_linux_write_line_literal,

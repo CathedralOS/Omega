@@ -747,14 +747,7 @@ mod tests {
             ),
             Err(X86_64NormalizedForeignCallTemplateError::InstructionKindMismatch)
         );
-        for target in [
-            NativeTarget::macos_arm64(),
-            NativeTarget::linux_arm64(),
-            NativeTarget {
-                object_format: target::ObjectFormat::MachO,
-                ..NativeTarget::linux_x64()
-            },
-        ] {
+        for target in [NativeTarget::macos_arm64(), NativeTarget::linux_arm64()] {
             assert_eq!(
                 encode_x86_64_selected_normalized_foreign_call_template(
                     target,

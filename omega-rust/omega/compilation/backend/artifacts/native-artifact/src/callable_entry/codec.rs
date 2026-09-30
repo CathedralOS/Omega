@@ -285,11 +285,13 @@ pub(super) fn decode_target(
         || target.pointer_alignment != 8
         || !matches!(
             (target.architecture, target.object_format),
-            (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::Coff)
-                | (
-                    Architecture::Aarch64,
-                    ObjectFormat::Elf | ObjectFormat::MachO
-                )
+            (
+                Architecture::X86_64,
+                ObjectFormat::Elf | ObjectFormat::Coff | ObjectFormat::MachO
+            ) | (
+                Architecture::Aarch64,
+                ObjectFormat::Elf | ObjectFormat::MachO
+            )
         )
     {
         return Err(OptimizedOrdinaryCallableEntryDecodeError::InvalidTarget);

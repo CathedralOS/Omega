@@ -371,10 +371,15 @@ fn bundled_console_source(bundle: HostedIntrinsicBundle) -> &'static [u8] {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../source/library/std/targets/macos_arm64/console_impl.omg"
     ));
+    const MACOS_X64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/std/targets/macos_x86_64/console_impl.omg"
+    ));
     match bundle {
         HostedIntrinsicBundle::LinuxArm64 => LINUX_ARM64,
         HostedIntrinsicBundle::LinuxX64 => LINUX_X64,
         HostedIntrinsicBundle::MacosArm64 => MACOS_ARM64,
+        HostedIntrinsicBundle::MacosX64 => MACOS_X64,
     }
 }
 
@@ -393,10 +398,15 @@ fn bundled_process_exit_source(bundle: HostedIntrinsicBundle) -> &'static [u8] {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../source/library/std/targets/macos_arm64/process_exit_impl.omg"
     ));
+    const MACOS_X64: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/std/targets/macos_x86_64/process_exit_impl.omg"
+    ));
     match bundle {
         HostedIntrinsicBundle::LinuxArm64 => LINUX_ARM64,
         HostedIntrinsicBundle::LinuxX64 => LINUX_X64,
         HostedIntrinsicBundle::MacosArm64 => MACOS_ARM64,
+        HostedIntrinsicBundle::MacosX64 => MACOS_X64,
     }
 }
 
@@ -883,19 +893,23 @@ mod tests {
     #[test]
     fn bundled_but_unadmitted_targets_select_no_hosted_row() {
         let std_root = bundled_std_root();
-        for unadmitted in ["macos_x86_64", "windows_x86_64"] {
-            assert!(
-                std_root
-                    .join(format!("targets/{unadmitted}/console_impl.omg"))
-                    .is_file(),
-                "{unadmitted} bundle must still exist on disk for this control to mean anything"
-            );
-            assert_eq!(selected_hosted_bundle(Some(unadmitted)), None);
-        }
+        // Windows reaches kernel32 through DLL imports, never hosted syscalls.
+        let unadmitted = "windows_x86_64";
+        assert!(
+            std_root
+                .join(format!("targets/{unadmitted}/console_impl.omg"))
+                .is_file(),
+            "{unadmitted} bundle must still exist on disk for this control to mean anything"
+        );
+        assert_eq!(selected_hosted_bundle(Some(unadmitted)), None);
         assert_eq!(selected_hosted_bundle(None), None);
         assert_eq!(
             selected_hosted_bundle(Some("linux_x86_64")),
             Some(("linux_x86_64", HostedIntrinsicBundle::LinuxX64))
+        );
+        assert_eq!(
+            selected_hosted_bundle(Some("macos_x86_64")),
+            Some(("macos_x86_64", HostedIntrinsicBundle::MacosX64))
         );
     }
 }

@@ -134,87 +134,101 @@ pub(super) fn selected_environment_keys(
     }
 }
 
+/// The x86-64 targets whose hosted byte and exit leaves enter the kernel
+/// directly: Linux and Intel macOS. Both use `syscall` with the same argument
+/// and clobber registers, so they share one constraint row per leaf.
+fn x86_64_hosted_syscall_target(target: NativeTarget) -> bool {
+    target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64()
+}
+
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     match (target.architecture, target.object_format) {
-        (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
-            atomic_load: Some(isa_x86_64::X86_64_ATOMIC_LOAD),
-            atomic_store: Some(isa_x86_64::X86_64_ATOMIC_STORE),
-            atomic_update: Some(isa_x86_64::X86_64_ATOMIC_UPDATE),
-            atomic_compare_exchange: Some(isa_x86_64::X86_64_ATOMIC_COMPARE_EXCHANGE),
-            crash: isa_x86_64::X86_64_CRASH,
-            call_aggregate: isa_x86_64::x86_64_system_v_aggregate_call_keys()
-                .into_iter()
-                .chain(isa_x86_64::x86_64_system_v_mixed_aggregate_call_keys())
-                .chain(isa_x86_64::x86_64_indirect_aggregate_call_keys(false))
-                .collect(),
-            return_aggregate: isa_x86_64::x86_64_system_v_aggregate_return_keys(),
-            hosted_read_byte: (target == NativeTarget::linux_x64())
-                .then_some(isa_x86_64::X86_64_HOSTED_READ_BYTE),
-            hosted_write_byte_i32: Some(isa_x86_64::X86_64_HOSTED_WRITE_BYTE_I32),
-            hosted_exit_process_i32: (target == NativeTarget::linux_x64())
-                .then_some(isa_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32),
-            load64: Some(isa_x86_64::X86_64_LOAD64),
-            load8: Some(isa_x86_64::X86_64_LOAD8),
-            load16: Some(isa_x86_64::X86_64_LOAD16),
-            load32: Some(isa_x86_64::X86_64_LOAD32),
-            load_packed: Some(isa_x86_64::X86_64_LOAD_PACKED),
-            store_packed: Some(isa_x86_64::X86_64_STORE_PACKED),
-            load8_indexed: Some(isa_x86_64::X86_64_LOAD8_INDEXED),
-            copy_bytes: Some(isa_x86_64::X86_64_COPY_BYTES),
-            save_floating_control: Some(isa_x86_64::X86_64_SAVE_FLOATING_CONTROL),
-            restore_floating_control: Some(isa_x86_64::X86_64_RESTORE_FLOATING_CONTROL),
-            store: Some(isa_x86_64::X86_64_STORE),
-            address_offset: Some(isa_x86_64::X86_64_ADDRESS_OFFSET),
-            store64: Some(isa_x86_64::X86_64_STORE64),
-            frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
-            call_unit: isa_x86_64::x86_64_system_v_register_unit_call_keys(),
-            call_unit_mixed: isa_x86_64::x86_64_system_v_mixed_unit_call_keys(),
-            call_scalar: isa_x86_64::x86_64_system_v_register_call_keys()
-                .into_iter()
-                .chain(isa_x86_64::x86_64_float_scalar_call_keys(false))
-                .collect(),
-            call_normalized_foreign: isa_x86_64::x86_64_system_v_normalized_foreign_call_keys(),
-            materialize_i64: X86_64_MATERIALIZE_I64,
-            materialize_boolean: isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
-            copy_i64: X86_64_COPY_I64,
-            float32_to_bits: Some(isa_x86_64::X86_64_FLOAT32_TO_BITS),
-            float64_to_bits: Some(isa_x86_64::X86_64_FLOAT64_TO_BITS),
-            bits_to_float32: Some(isa_x86_64::X86_64_BITS_TO_FLOAT32),
-            bits_to_float64: Some(isa_x86_64::X86_64_BITS_TO_FLOAT64),
-            ieee_float_arithmetic: Some(isa_x86_64::X86_64_IEEE_FLOAT_ARITHMETIC),
-            ieee_float_unary: Some(isa_x86_64::X86_64_IEEE_FLOAT_UNARY),
-            ieee_float_conversion_control: Some(isa_x86_64::X86_64_IEEE_FLOAT_CONVERSION_CONTROL),
-            ieee_float_ternary: Some(isa_x86_64::X86_64_IEEE_FLOAT_TERNARY),
-            add_i64: X86_64_ADD_I64,
-            add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
-            subtract_i64: X86_64_SUBTRACT_I64,
-            multiply_i64: isa_x86_64::X86_64_MULTIPLY_I64,
-            saturating_subtract_unsigned: isa_x86_64::X86_64_SATURATING_SUBTRACT_UNSIGNED,
-            saturating_add_u64: isa_x86_64::X86_64_SATURATING_ADD_U64,
-            divide_u64: isa_x86_64::X86_64_DIVIDE_U64,
-            remainder_u64: isa_x86_64::X86_64_REMAINDER_U64,
-            remainder_i64: isa_x86_64::X86_64_REMAINDER_I64,
-            divide_i64: isa_x86_64::X86_64_DIVIDE_I64,
-            shift_i64: isa_x86_64::X86_64_SHIFT_I64,
-            saturating_add_clamped: isa_x86_64::X86_64_SATURATING_ADD_CLAMPED,
-            saturating_subtract_clamped: isa_x86_64::X86_64_SATURATING_SUBTRACT_CLAMPED,
-            saturating_divide_signed: isa_x86_64::X86_64_SATURATING_DIVIDE_SIGNED,
-            saturating_multiply_clamped: isa_x86_64::X86_64_SATURATING_MULTIPLY_CLAMPED,
-            saturating_multiply_u64: isa_x86_64::X86_64_SATURATING_MULTIPLY_U64,
-            trapping_binary: isa_x86_64::X86_64_TRAPPING_BINARY,
-            trapping_fixed_pair: isa_x86_64::X86_64_TRAPPING_FIXED_PAIR,
-            trapping_shift: isa_x86_64::X86_64_TRAPPING_SHIFT,
-            trapping_convert: isa_x86_64::X86_64_TRAPPING_CONVERT,
-            subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
-            compare_i64_zero: X86_64_COMPARE_I64_ZERO,
-            compare_i64: isa_x86_64::X86_64_COMPARE_I64,
-            compare_i64_immediate: isa_x86_64::X86_64_COMPARE_I64_IMMEDIATE,
-            conditional_branch: X86_64_CONDITIONAL_BRANCH,
-            jump: isa_x86_64::X86_64_JUMP,
-            return_i64: X86_64_SYSTEM_V_RETURN,
-            return_float: isa_x86_64::x86_64_float_scalar_return_keys(false),
-            return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
-        }),
+        // Intel macOS shares the System V AMD64 call roster with Linux; only
+        // the hosted syscall encodings differ, and those select by exact target.
+        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
+            Some(SelectedConstraintKeys {
+                atomic_load: Some(isa_x86_64::X86_64_ATOMIC_LOAD),
+                atomic_store: Some(isa_x86_64::X86_64_ATOMIC_STORE),
+                atomic_update: Some(isa_x86_64::X86_64_ATOMIC_UPDATE),
+                atomic_compare_exchange: Some(isa_x86_64::X86_64_ATOMIC_COMPARE_EXCHANGE),
+                crash: isa_x86_64::X86_64_CRASH,
+                call_aggregate: isa_x86_64::x86_64_system_v_aggregate_call_keys()
+                    .into_iter()
+                    .chain(isa_x86_64::x86_64_system_v_mixed_aggregate_call_keys())
+                    .chain(isa_x86_64::x86_64_indirect_aggregate_call_keys(false))
+                    .collect(),
+                return_aggregate: isa_x86_64::x86_64_system_v_aggregate_return_keys(),
+                hosted_read_byte: x86_64_hosted_syscall_target(target)
+                    .then_some(isa_x86_64::X86_64_HOSTED_READ_BYTE),
+                hosted_write_byte_i32: x86_64_hosted_syscall_target(target)
+                    .then_some(isa_x86_64::X86_64_HOSTED_WRITE_BYTE_I32),
+                hosted_exit_process_i32: x86_64_hosted_syscall_target(target)
+                    .then_some(isa_x86_64::X86_64_HOSTED_EXIT_PROCESS_I32),
+                load64: Some(isa_x86_64::X86_64_LOAD64),
+                load8: Some(isa_x86_64::X86_64_LOAD8),
+                load16: Some(isa_x86_64::X86_64_LOAD16),
+                load32: Some(isa_x86_64::X86_64_LOAD32),
+                load_packed: Some(isa_x86_64::X86_64_LOAD_PACKED),
+                store_packed: Some(isa_x86_64::X86_64_STORE_PACKED),
+                load8_indexed: Some(isa_x86_64::X86_64_LOAD8_INDEXED),
+                copy_bytes: Some(isa_x86_64::X86_64_COPY_BYTES),
+                save_floating_control: Some(isa_x86_64::X86_64_SAVE_FLOATING_CONTROL),
+                restore_floating_control: Some(isa_x86_64::X86_64_RESTORE_FLOATING_CONTROL),
+                store: Some(isa_x86_64::X86_64_STORE),
+                address_offset: Some(isa_x86_64::X86_64_ADDRESS_OFFSET),
+                store64: Some(isa_x86_64::X86_64_STORE64),
+                frame_address: Some(isa_x86_64::X86_64_FRAME_ADDRESS),
+                call_unit: isa_x86_64::x86_64_system_v_register_unit_call_keys(),
+                call_unit_mixed: isa_x86_64::x86_64_system_v_mixed_unit_call_keys(),
+                call_scalar: isa_x86_64::x86_64_system_v_register_call_keys()
+                    .into_iter()
+                    .chain(isa_x86_64::x86_64_float_scalar_call_keys(false))
+                    .collect(),
+                call_normalized_foreign: isa_x86_64::x86_64_system_v_normalized_foreign_call_keys(),
+                materialize_i64: X86_64_MATERIALIZE_I64,
+                materialize_boolean: isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
+                copy_i64: X86_64_COPY_I64,
+                float32_to_bits: Some(isa_x86_64::X86_64_FLOAT32_TO_BITS),
+                float64_to_bits: Some(isa_x86_64::X86_64_FLOAT64_TO_BITS),
+                bits_to_float32: Some(isa_x86_64::X86_64_BITS_TO_FLOAT32),
+                bits_to_float64: Some(isa_x86_64::X86_64_BITS_TO_FLOAT64),
+                ieee_float_arithmetic: Some(isa_x86_64::X86_64_IEEE_FLOAT_ARITHMETIC),
+                ieee_float_unary: Some(isa_x86_64::X86_64_IEEE_FLOAT_UNARY),
+                ieee_float_conversion_control: Some(
+                    isa_x86_64::X86_64_IEEE_FLOAT_CONVERSION_CONTROL,
+                ),
+                ieee_float_ternary: Some(isa_x86_64::X86_64_IEEE_FLOAT_TERNARY),
+                add_i64: X86_64_ADD_I64,
+                add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
+                subtract_i64: X86_64_SUBTRACT_I64,
+                multiply_i64: isa_x86_64::X86_64_MULTIPLY_I64,
+                saturating_subtract_unsigned: isa_x86_64::X86_64_SATURATING_SUBTRACT_UNSIGNED,
+                saturating_add_u64: isa_x86_64::X86_64_SATURATING_ADD_U64,
+                divide_u64: isa_x86_64::X86_64_DIVIDE_U64,
+                remainder_u64: isa_x86_64::X86_64_REMAINDER_U64,
+                remainder_i64: isa_x86_64::X86_64_REMAINDER_I64,
+                divide_i64: isa_x86_64::X86_64_DIVIDE_I64,
+                shift_i64: isa_x86_64::X86_64_SHIFT_I64,
+                saturating_add_clamped: isa_x86_64::X86_64_SATURATING_ADD_CLAMPED,
+                saturating_subtract_clamped: isa_x86_64::X86_64_SATURATING_SUBTRACT_CLAMPED,
+                saturating_divide_signed: isa_x86_64::X86_64_SATURATING_DIVIDE_SIGNED,
+                saturating_multiply_clamped: isa_x86_64::X86_64_SATURATING_MULTIPLY_CLAMPED,
+                saturating_multiply_u64: isa_x86_64::X86_64_SATURATING_MULTIPLY_U64,
+                trapping_binary: isa_x86_64::X86_64_TRAPPING_BINARY,
+                trapping_fixed_pair: isa_x86_64::X86_64_TRAPPING_FIXED_PAIR,
+                trapping_shift: isa_x86_64::X86_64_TRAPPING_SHIFT,
+                trapping_convert: isa_x86_64::X86_64_TRAPPING_CONVERT,
+                subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
+                compare_i64_zero: X86_64_COMPARE_I64_ZERO,
+                compare_i64: isa_x86_64::X86_64_COMPARE_I64,
+                compare_i64_immediate: isa_x86_64::X86_64_COMPARE_I64_IMMEDIATE,
+                conditional_branch: X86_64_CONDITIONAL_BRANCH,
+                jump: isa_x86_64::X86_64_JUMP,
+                return_i64: X86_64_SYSTEM_V_RETURN,
+                return_float: isa_x86_64::x86_64_float_scalar_return_keys(false),
+                return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
+            })
+        }
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
             atomic_load: Some(isa_x86_64::X86_64_ATOMIC_LOAD),
             atomic_store: Some(isa_x86_64::X86_64_ATOMIC_STORE),
@@ -467,7 +481,9 @@ pub(super) const fn scalar_call_constraint_key(
     target: NativeTarget,
 ) -> Option<RegisterConstraintKey> {
     match (target.architecture, target.object_format) {
-        (Architecture::X86_64, ObjectFormat::Elf) => Some(X86_64_SYSTEM_V_CALL),
+        (Architecture::X86_64, ObjectFormat::Elf | ObjectFormat::MachO) => {
+            Some(X86_64_SYSTEM_V_CALL)
+        }
         (Architecture::X86_64, ObjectFormat::Coff) => Some(X86_64_MICROSOFT_CALL),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(AARCH64_AAPCS64_CALL),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(AARCH64_DARWIN_CALL),
