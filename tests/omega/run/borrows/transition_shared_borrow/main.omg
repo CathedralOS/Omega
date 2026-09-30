@@ -1,0 +1,30 @@
+// Shared `&` returned at a transition tail: `first` borrows
+// `&self.buf[0]` through its transition's exit arm, and `main` reads the
+// referent back after the call.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+}
+
+machine Main::first(&self) -> &u8 {
+    transition {
+        _ -> &self.buf[0]
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.buf[0] = 7;
+    _ = self.first();
+    transition self.buf[0] == 7 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

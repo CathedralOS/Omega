@@ -140,6 +140,21 @@ pub(super) fn validate_establishment(
             && parameter.qualifications.is_empty()
             && source.path.is_empty()
             && authored_tail
+    } else if let Some(expected) = (|| {
+        let expression =
+            validation::reference_result_custody::tail_return_expression(&checked.typed, state)?;
+        validation::reference_result_custody::borrowed_initializer_source(
+            &checked.typed,
+            state,
+            expression,
+            state.return_type,
+        )
+    })() {
+        // `&receiver.field[i]` loan tails spell the same reconstruction the
+        // record-completion roster uses: one projected source naming the
+        // receiver position, the member and literal-index hops, and the
+        // `Referent` segment — compared whole against the minted plan.
+        expected == *source
     } else if let CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } = source.source {
         // A `collection[0..collection.len]` completion names the carrier
         // parameter itself — or, for `self.field[0..len]`, the projected

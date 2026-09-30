@@ -136,9 +136,6 @@ pub(super) fn validate(
     {
         return unsupported("structural completion coordinate differs from source");
     }
-    let Some(StatementNode::Expression(expression)) = statements.last() else {
-        return unsupported("structural result source has no completion value");
-    };
     let whole_reference =
         validation::reference_result_custody::parts(&checked.typed, state.return_type).is_some()
             || validation::reference_result_custody::shared_borrowed_parts(
@@ -147,6 +144,16 @@ pub(super) fn validate(
             )
             .is_some()
             || shared_borrowed_slice_view(checked, state.return_type);
+    // A `&` result returned at a tail transition mints through the
+    // transition's exit arm, not a tail expression statement — the
+    // completion value exists only for ordinary structural results.
+    let expression = match statements.last() {
+        Some(StatementNode::Expression(expression)) => Some(*expression),
+        Some(StatementNode::Transition(_)) if whole_reference => {
+            validation::reference_result_custody::tail_return_expression(&checked.typed, state)
+        }
+        _ => return unsupported("structural result source has no completion value"),
+    };
     if validation::reference_result_custody::is_reference_record(&checked.typed, state.return_type)
     {
         let expected =
@@ -222,8 +229,11 @@ pub(super) fn validate(
                 {
                     return unsupported("returned structural producer is ambiguous or changed");
                 }
+                let Some(expression) = expression else {
+                    return unsupported("structural result source has no completion value");
+                };
                 if let ExpressionNode::Name(path) =
-                    checked.typed.expression_table.expression(*expression)
+                    checked.typed.expression_table.expression(expression)
                 {
                     let Some(StatementNode::LocalData(local)) =
                         statements.get(binding.statement_index as usize)
@@ -253,6 +263,9 @@ pub(super) fn validate(
                 .ok_or(LoweringError::Unsupported(
                     "returned structural parameter is absent",
                 ))?;
+            let Some(expression) = expression else {
+                return unsupported("structural result source has no completion value");
+            };
             let source_parameter = checked
                 .typed
                 .state_parameters(state)
@@ -278,7 +291,7 @@ pub(super) fn validate(
                     .normalized_type_identity(source_parameter.type_reference)
                     .as_str()
                     != result.type_identity
-                || !matches!(checked.typed.expression_table.expression(*expression),
+                || !matches!(checked.typed.expression_table.expression(expression),
                     ExpressionNode::Name(path) if path.symbol == source_parameter.symbol
                         && path.head_symbol == source_parameter.symbol
                         && checked.typed.expression_table.name_path_members(path.members).len() == 1)
@@ -303,7 +316,7 @@ pub(super) fn validate(
                     u32::try_from(statements.len() - 1).map_err(|_| {
                         LoweringError::Unsupported("return statement ordinal exceeds u32")
                     })?,
-                    *expression,
+                    expression,
                     state.return_type,
                     &checked_trees::CheckedUnitStructuralArgumentPlan {
                         source: result.source.clone(),
@@ -319,10 +332,12 @@ pub(super) fn validate(
     // Every authored statement owes an operation, except a final binding use.
     for index in 0..statements.len() {
         if index + 1 == statements.len()
-            && matches!(
-                checked.typed.expression_table.expression(*expression),
-                ExpressionNode::Name(_)
-            )
+            && expression.is_some_and(|expression| {
+                matches!(
+                    checked.typed.expression_table.expression(expression),
+                    ExpressionNode::Name(_)
+                )
+            })
         {
             continue;
         }
