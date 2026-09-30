@@ -2,8 +2,7 @@
 use super::LegalizationError;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-    AbstractStructuralCallResult, IntegerArithmeticOperator, IntegerOverflowPolicy,
-    IntegerShiftPolicy,
+    AbstractStructuralCallResult, IntegerShiftPolicy,
 };
 use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
@@ -378,8 +377,7 @@ pub(super) fn match_input(
                     if *referenced == obligation && *support == psi_operation)
             })
         };
-        // Every obligation-bearing integer pair keeps accepted custody,
-        // except saturating remainder, which this check has never named.
+        // Every obligation-bearing integer operation keeps accepted custody.
         let integer_obligation = match &node.operation {
             AbstractOperation::IntegerShift {
                 psi_operation,
@@ -390,15 +388,9 @@ pub(super) fn match_input(
                 psi_operation,
                 arithmetic,
                 ..
-            } if !arithmetic.is(
-                IntegerOverflowPolicy::Saturating,
-                IntegerArithmeticOperator::Remainder,
-            ) =>
-            {
-                arithmetic
-                    .obligation()
-                    .map(|obligation| (*psi_operation, obligation))
-            }
+            } => arithmetic
+                .obligation()
+                .map(|obligation| (*psi_operation, obligation)),
             _ => None,
         };
         if let Some((psi_operation, obligation)) = integer_obligation
