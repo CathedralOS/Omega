@@ -1,10 +1,10 @@
 //! A bare reference parameter reads its carrier without weakening its referent.
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::ExpressionNode;
-use typed_trees::statement::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
+use typed_trees::statement::StatementNode;
 
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 
@@ -169,6 +169,17 @@ fn exact_mutable_referent(
     Some(())
 }
 
+/// Whether the carrier still names the referent it arrived with at this call.
+///
+/// A `record: &mut Record` parameter is a reference value; forwarding it bare
+/// reborrows whatever referent that value names now. Contents changing is not
+/// the hazard: a projected store (`record.field = ..`) or a completed call
+/// that reborrowed the bare carrier writes through the referent and leaves the
+/// carrier naming the same storage. Only a write to the whole parameter place
+/// can replace the carrier, so only such a write refuses. The static-machine
+/// contract spells every helper call this way (`Record::step(record)` then
+/// `Record::step(record)` again), so refusing referent writes would refuse
+/// the second call of every such sequence.
 fn prefix_preserves_parameter(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
@@ -194,7 +205,7 @@ fn prefix_preserves_parameter(
         )?;
         if writes
             .iter()
-            .any(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
+            .any(|place| replaces_carrier(place, source_symbol))
         {
             return None;
         }
@@ -228,9 +239,9 @@ fn prefix_preserves_parameter(
         )?;
         if writes
             .iter()
-            .any(|place| place.root == facts::PlaceRoot::Symbol(source_symbol))
+            .any(|place| replaces_carrier(place, source_symbol))
             && !(preceding.statement_index < call.statement_index
-                && preceding_byte_loan_preserves_carrier(
+                && preceding_reborrow_preserves_carrier(
                     program,
                     borrow,
                     borrow_state,
@@ -244,9 +255,18 @@ fn prefix_preserves_parameter(
     Some(())
 }
 
-/// A completed call through a byte view can change elements, not the caller's
-/// reference carrier. This does not admit assignments or restore live loans.
-fn preceding_byte_loan_preserves_carrier(
+/// A write rooted at the parameter replaces its carrier only when it names
+/// the whole parameter place; a projected write lands inside the referent.
+fn replaces_carrier(place: &crate::flow::CanonicalPlace, source_symbol: SymbolHandle) -> bool {
+    place.root == facts::PlaceRoot::Symbol(source_symbol) && place.segments.is_empty()
+}
+
+/// A completed call that received the bare carrier through a borrowed formal
+/// held only a reborrow of the referent: it can change the referent, whole or
+/// in part, but has no route to the caller's carrier binding. Byte views are
+/// the same case through their view formals. This does not admit assignments
+/// or restore live loans.
+fn preceding_reborrow_preserves_carrier(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
     state: &checked_trees::StateBorrowFact,
@@ -312,7 +332,17 @@ fn preceding_byte_loan_preserves_carrier(
                     == Some(CheckedStructuralAccess::MutableBorrow)
                     && byte_sequence_carrier(program, reference, &[])
                         .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
-            }))
+            })
+            || (structural_access_for_type_reference(program, source.type_reference)
+                == Some(CheckedStructuralAccess::MutableBorrow)
+                && matches!(
+                    structural_access_for_type_reference(program, parameter.type_reference),
+                    Some(
+                        CheckedStructuralAccess::MutableBorrow
+                            | CheckedStructuralAccess::SharedBorrow
+                            | CheckedStructuralAccess::WriteOnlyBorrow
+                    )
+                )))
     {
         return false;
     }
