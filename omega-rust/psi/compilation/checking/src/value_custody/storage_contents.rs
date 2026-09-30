@@ -415,9 +415,16 @@ fn resolve(
                         // storage, custody or cleanup to its scalar: the
                         // bounded carrier represents membership completely,
                         // and construction proves it through the member's own
-                        // range obligation.
-                        || (requirement == ContentsRequirement::StructuralConstruction
-                            && matches!(contents, ContentType::Scalar(_))
+                        // range obligation. `NumericOwned` callers admit the
+                        // same interval-valued domain for the same reason —
+                        // the range judgment already tolerates primitive
+                        // numeric restrictions whose correspondence the
+                        // caller rechecks exactly.
+                        || (matches!(
+                            requirement,
+                            ContentsRequirement::NumericOwned
+                                | ContentsRequirement::StructuralConstruction
+                        ) && matches!(contents, ContentType::Scalar(_))
                             && is_plain_value_domain(program, domain)
                             && crate::exact_declared_domain_interval(program, domain).is_some())
                 }
