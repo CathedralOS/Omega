@@ -2,6 +2,10 @@
 //!
 //! Paths are write-frame metadata only. Equality uses resolved declarations and
 //! the complete argument tree of an eligible normal-return call.
+//! Observed comparisons also retain consequences of finite integer carriers:
+//! a ceiling may disappear at a state edge without losing its bound on a
+//! surviving scalar. This is not repeated-call equality. Effects invalidate
+//! mutable subjects; only exact immutable copied values survive unknown writes.
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
     PrimitiveType, State, TypeReferenceNode, TypedTrees, ValueEnvironment, declared_place_type_raw,
@@ -60,6 +64,51 @@ impl Operand {
 
     pub(super) fn survives(&self, written: &[String]) -> bool {
         self.survives_preserving_length(written, None)
+    }
+
+    pub(super) fn is_immutable_snapshot(&self, program: &TypedTrees, state: &State) -> bool {
+        match self {
+            Self::Integer(..) => true,
+            Self::Place { root, fields, .. } => {
+                if !root.is_valid() || !fields.is_empty() {
+                    return false;
+                }
+                // Display paths are invalidation metadata, never declaration
+                // authority. Only an exact immutable copied scalar survives an
+                // unknown write; an immutable reference does not freeze storage.
+                let parameters = program
+                    .state_parameters(state)
+                    .iter()
+                    .filter_map(|parameter| {
+                        (parameter.symbol == *root).then_some((
+                            !parameter.is_mutable && !parameter.is_self,
+                            parameter.type_reference,
+                        ))
+                    });
+                let locals = program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .filter_map(|statement| {
+                        let typed_trees::statement::StatementNode::LocalData(local) = statement
+                        else {
+                            return None;
+                        };
+                        (local.symbol == *root).then_some((!local.is_mutable, local.type_reference))
+                    });
+                let mut declarations = parameters.chain(locals);
+                declarations.next().is_some_and(|(immutable, reference)| {
+                    immutable && program.primitive_type_reference(reference).is_some()
+                }) && declarations.next().is_none()
+            }
+            Self::Call { arguments, .. } => arguments
+                .iter()
+                .all(|value| value.is_immutable_snapshot(program, state)),
+            Self::Binary { operands, .. } => operands
+                .iter()
+                .all(|value| value.is_immutable_snapshot(program, state)),
+            Self::CollectionLength(_) => false,
+        }
     }
 
     fn survives_preserving_length(&self, written: &[String], preserved: Option<&Operand>) -> bool {
@@ -450,10 +499,26 @@ fn integer_meaning(
         "ordered operand type",
         &mut Vec::new(),
     );
-    let primitive = analysis.primitive?;
+    // Ordinary call arithmetic deliberately leaves an unconstrained result
+    // neutral. Ordering still knows the exact selected declaration's carrier;
+    // querying it here does not grant repeat-call equality or a body-derived
+    // range contract.
+    let declared_call = match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => super::return_ranges::call_return_type(program, call),
+        _ => None,
+    };
+    let primitive = analysis.primitive.or_else(|| {
+        declared_call.and_then(|reference| program.primitive_type_reference(reference))
+    })?;
     (primitive != PrimitiveType::Addr && primitive_range(primitive).is_some()).then_some((
         primitive,
-        analysis.domain.unwrap_or(ArithmeticDomain::Exact),
+        analysis
+            .domain
+            .or_else(|| {
+                declared_call
+                    .map(|reference| program.arithmetic_domain_for_type_reference(reference))
+            })
+            .unwrap_or(ArithmeticDomain::Exact),
     ))
 }
 
@@ -483,8 +548,10 @@ pub(super) fn record(
         }
         _ => return,
     };
-    let bounded_integer = |expression| {
-        integer_meaning(program, machine, state, expression).is_some()
+    let left_meaning = integer_meaning(program, machine, state, left);
+    let right_meaning = integer_meaning(program, machine, state, right);
+    let bounded_integer = |expression, meaning: Option<(PrimitiveType, ArithmeticDomain)>| {
+        meaning.is_some()
             || matches!(program.expression_table.expression(expression),
                 ExpressionNode::Integer(literal)
                     if literal.landing().is_none()
@@ -493,35 +560,57 @@ pub(super) fn record(
     // An anonymous comparison literal has no carrier yet, but its exact value
     // can still be an ordered operand if it lies in the fixed-integer window.
     // Retain its anonymous identity: this does not stamp a guessed width.
-    if !bounded_integer(left) || !bounded_integer(right) {
+    if !bounded_integer(left, left_meaning) || !bounded_integer(right, right_meaning) {
         return;
     }
-    let (Some(left), Some(right)) = (
-        operand(program, machine, state, left),
-        operand(program, machine, state, right),
-    ) else {
-        return;
-    };
-    let relation = Relation {
-        left,
-        right,
-        floor: i64::from(strict),
-    };
     // Builtin integer equality contributes both non-strict orders. Keep them
     // in the same relation store as guards, rather than unifying symbol atoms:
     // a write to either operand must retire the equality before a later use.
     // The guard owner checks selected operator meaning before calling here;
     // bounded_integer above excludes float equality and its NaN semantics.
-    let reverse = equal.then(|| Relation {
-        left: relation.right.clone(),
-        right: relation.left.clone(),
-        floor: 0,
-    });
-    for relation in std::iter::once(relation).chain(reverse) {
-        if !environment.ordered_values.contains(&relation) {
-            environment.ordered_values.push(relation);
+    for (ceiling_expression, ceiling_meaning, value_expression) in std::iter::once((
+        left,
+        left_meaning,
+        right,
+    ))
+    .chain(equal.then_some((right, right_meaning, left)))
+    {
+        let Some(value) = operand(program, machine, state, value_expression) else {
+            continue;
+        };
+        // An observed ceiling need not have a repeatable identity. Its finite
+        // carrier still bounds this observation, so retain that consequence
+        // when a call temporary disappears at a state edge. This says nothing
+        // about the value returned by any subsequent invocation. The subject
+        // retains its exact identity and ordinary write invalidation.
+        let carrier_ceiling =
+            ceiling_meaning.and_then(|(primitive, _)| integer_carrier_ceiling(primitive));
+        for ceiling in operand(program, machine, state, ceiling_expression)
+            .into_iter()
+            .chain(carrier_ceiling)
+        {
+            let relation = Relation {
+                left: ceiling,
+                right: value.clone(),
+                floor: i64::from(strict),
+            };
+            if !environment.ordered_values.contains(&relation) {
+                environment.ordered_values.push(relation);
+            }
         }
     }
+}
+
+fn integer_carrier_ceiling(primitive: PrimitiveType) -> Option<Operand> {
+    use numerics::literals::{IntegerLiteral, IntegerRadix};
+
+    let literal = if primitive == PrimitiveType::U64 {
+        // The interval owner's i64 endpoint cannot represent this finite bound.
+        IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551615").ok()?
+    } else {
+        IntegerLiteral::from_value(primitive_range(primitive)?.high?)
+    };
+    Some(Operand::Integer(literal, None))
 }
 
 /// Two reads of the same resolved place at one subtraction have equal values.

@@ -168,11 +168,11 @@ impl ValueEnvironment {
         self.known_u64_values.clear();
         self.float_intervals.clear();
         self.non_nan.clear();
-        self.clear_relations();
+        self.ordered_values.clear();
+        self.clear_joint_relations();
     }
 
-    fn clear_relations(&mut self) {
-        self.ordered_values.clear();
+    fn clear_joint_relations(&mut self) {
         self.joint_add_upper_bounds.clear();
         self.joint_add_lower_bounds.clear();
         self.joint_subtract_bounds.clear();
@@ -185,7 +185,7 @@ impl ValueEnvironment {
     }
 
     /// An unknown write can change aliased storage, but cannot change a copied
-    /// immutable scalar binding. Keep only its already established unary facts;
+    /// immutable scalar binding. Keep only its already established scalar facts;
     /// never reread an initializer whose source may since have changed. References
     /// (including immutable bindings of mutable references) and aggregate paths
     /// are excluded. Control-flow joins must still use their ordinary merge or
@@ -226,7 +226,11 @@ impl ValueEnvironment {
         self.known_u64_values.retain(|path, _| retained(path));
         self.float_intervals.retain(|path, _| retained(path));
         self.non_nan.retain(|path| retained(path));
-        self.clear_relations();
+        self.ordered_values.retain(|relation| {
+            relation.left.is_immutable_snapshot(program, state)
+                && relation.right.is_immutable_snapshot(program, state)
+        });
+        self.clear_joint_relations();
     }
 
     /// Invalidate only facts overlapping a callee's known may-write paths.

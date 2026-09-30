@@ -858,19 +858,19 @@ the complete product bar; focused successes below do not establish that baseline
   that route and delegates listing to Snapshot's deletion-aware page/count APIs,
   retaining global IDs and the eight/seven-result oracle. On macOS ARM64,
   `omega update --project samples/apps/squalr/squalr-tests --target linux_x86_64`
-  passes nested-receiver typing and the list executor's authored nested scalar
-  call in a local field assignment. The candidate atop `75aed6405b` removes
-  duplicated member-store signature/path planning; existing checked assignment
-  computations and independent storage replay own that operation. Native
-  `calls/runtime_nested_local_field_store_exit` exits 42 and counts each call
-  once; 656 validation tests, eight replay tests, and 148 checked corpus cases
-  preserve the relevant acceptance and rejection controls.
-  Package checking now reports only the `element` state's Exact increment at
-  this frontier. Even `requires position < selected.count(); { position + 1 }`
-  fails without intervening writes: ordered arithmetic's call operand identity
-  currently accepts free primitive-input calls, not receiver calls. Repair
-  bound transport with STATE-LOCAL-VALUE-FRONTIER; do not weaken Exact arithmetic
-  or rewrite the application around the missing proof mechanism.
+  checks all 17 source packages with the observed-carrier-bound repair atop
+  `0376680ac29`. Nested member stores and the list executor's Exact increment
+  now check without changing the application. Arithmetic's ordered facts retain
+  the consequence of observing `position < result:u64` across state edges and
+  unrelated writes, without assuming repeated receiver calls return equal values.
+  Native `arithmetic/runtime_observed_call_bound_exit` exits 42 at the u64
+  endpoint; 659 validation tests preserve width, polarity, exact declaration,
+  state argument and within-guard mutation controls. Direct receiver-call
+  requirements still have their separate denotational-call admission boundary.
+  Package preparation now awaits explicit decisions in the generated
+  `squalr-tests/build/package-manager/review-linux_x86_64.txt`; accepted project
+  files remain unchanged. Review the local-source and execution-host changes,
+  resume the update, then run the application's documented native acceptance.
   Before the listing change, the restored entry checked 282 sources but native
   emission stopped at `Main::main`'s missing checked transitive machine plan
   (`state signature: parameter signature: attached data shape, state 0`).
