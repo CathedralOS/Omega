@@ -593,9 +593,30 @@ pub(crate) fn validate_structural_root_operations(
                         .is_some_and(|signature| {
                             signature.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
                             && match path {
-                                abstract_operations::StructuralCopyPath::Ordinary(path) => crate::unit_validation::structural_catalog::resolve_structural_path(structural_types, signature.structural_type, path),
-                                abstract_operations::StructuralCopyPath::Case(path) => terminal_semantics::canonical_case_leaf_type(structural_types.values().copied(), signature.structural_type, path),
-                            } == Some(result.structural_type)
+                                abstract_operations::StructuralCopyPath::Ordinary(path) => {
+                                    // A `&`-leaf copy mints the reference
+                                    // descriptor over the selected storage:
+                                    // the compared type is the referent, not
+                                    // the `SharedBorrow` declaration itself.
+                                    // A byte-carrier copy mints the overlaid
+                                    // record out of a `u8` element window
+                                    // instead of the spelled leaf type.
+                                    let expected = structural_types
+                                        .get(&result.structural_type)
+                                        .and_then(|declaration| match declaration.shape {
+                                            terminal_psi::StructuralTypeShape::Reference {
+                                                referent,
+                                                access: terminal_psi::StructuralAccess::SharedBorrow,
+                                            } => Some(referent),
+                                            _ => None,
+                                        })
+                                        .unwrap_or(result.structural_type);
+                                    let selected = crate::unit_validation::structural_catalog::resolve_structural_path(structural_types, signature.structural_type, path);
+                                    selected == Some(expected)
+                                        || crate::unit_validation::structural_catalog::byte_carrier_leaf_window(structural_types, signature.structural_type, path, expected)
+                                },
+                                abstract_operations::StructuralCopyPath::Case(path) => terminal_semantics::canonical_case_leaf_type(structural_types.values().copied(), signature.structural_type, path) == Some(result.structural_type),
+                            }
                         }) && (result.multiplicity
                             == terminal_psi::StructuralMultiplicity::Unrestricted
                             || owned_case_copy)

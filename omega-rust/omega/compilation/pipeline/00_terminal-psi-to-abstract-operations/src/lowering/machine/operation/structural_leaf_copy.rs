@@ -12,7 +12,9 @@
 //! lowering-side reconstruction.
 
 use abstract_operations::{AbstractOperation, StructuralCopyPath};
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId,
+};
 use terminal_psi::{
     Operation, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
@@ -83,7 +85,28 @@ pub(super) fn lower(
         ),
     }
     .ok_or_else(invalid)?;
-    if selected_type != result.structural_type {
+    // A `&`-leaf copy mints the reference descriptor over the selected
+    // storage, so its result is the `SharedBorrow` declaration whose
+    // referent is the leaf — not the leaf storage itself.
+    let expected_type = structural_types
+        .iter()
+        .find(|declaration| declaration.id == result.structural_type)
+        .and_then(|declaration| match declaration.shape {
+            StructuralTypeShape::Reference {
+                referent,
+                access: StructuralAccess::SharedBorrow,
+            } => Some(referent),
+            _ => None,
+        })
+        .unwrap_or(result.structural_type);
+    if selected_type != expected_type
+        && !byte_carrier_leaf_copy(
+            structural_types,
+            signature.structural_type,
+            &path,
+            expected_type,
+        )
+    {
         return Err(invalid());
     }
     Ok(AbstractOperation::StructuralLeafCopy {
@@ -137,4 +160,54 @@ fn resolve_copyable_path(
         };
     }
     Some(structural_type)
+}
+
+/// Whether a leaf copy mints a record out of a byte carrier: `path` ends at a
+/// literal index inside a `u8` fixed array, and `expected` is a plain record
+/// whose fixed scalar layout fits the elements remaining at that index. This
+/// mirrors the verifier's `byte_carrier_leaf_copy` admission — the source
+/// recast judgment already proved the representation, so the lowering
+/// re-checks the same static window instead of requiring the spelled leaf
+/// type. A runtime-selected index cannot prove the wider `index + extent`
+/// bound, so it stays outside this arm.
+fn byte_carrier_leaf_copy(
+    structural_types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &StructuralCopyPath,
+    expected: StructuralTypeId,
+) -> bool {
+    let StructuralCopyPath::Ordinary(path) = path else {
+        return false;
+    };
+    let Some((StructuralPathSegment::FixedIndex(index), prefix)) = path.split_last() else {
+        return false;
+    };
+    let Some(parent) = resolve_copyable_path(structural_types, root, prefix) else {
+        return false;
+    };
+    let Some(declaration) = structural_types
+        .iter()
+        .find(|candidate| candidate.id == parent)
+    else {
+        return false;
+    };
+    let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+        return false;
+    };
+    let byte_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"));
+    if !structural_types.iter().any(|candidate| {
+        candidate.id == *element
+            && candidate.shape == StructuralTypeShape::PrimitiveScalar(byte_type)
+    }) {
+        return false;
+    };
+    let Some(layout) =
+        terminal_semantics::byte_carrier_scalar_layout(structural_types.iter(), expected)
+    else {
+        return false;
+    };
+    index
+        .checked_add(layout.size)
+        .is_some_and(|end| end <= *length)
 }
