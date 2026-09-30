@@ -444,7 +444,15 @@ pub(crate) fn substitute_direct(
                 .into_iter()
                 .map(|inner| substitute_direct(inner, bound))
                 .collect(),
-            element_path,
+            element_path: element_path
+                .into_iter()
+                .map(|segment| match segment {
+                    crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex(selector) => {
+                        crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex(substitute_direct(selector, bound))
+                    }
+                    segment => segment,
+                })
+                .collect(),
             scalar_type,
         },
         Direct::IndexedElementFieldRead {

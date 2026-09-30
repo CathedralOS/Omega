@@ -2,8 +2,8 @@
 
 use crate::record::{
     PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,
-    PackageReviewIntegerComparisonKind, PackageReviewStructuralParameterField,
-    PackageReviewStructuralPredicatePathSegment,
+    PackageReviewIntegerComparisonKind, PackageReviewRuntimeIndex,
+    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
 pub(in crate::encoding::recovery) mod scalars;
 pub(in crate::encoding::recovery) mod tags;
@@ -114,7 +114,27 @@ pub(in crate::encoding::recovery) fn structural_path(
             0 => PackageReviewStructuralPredicatePathSegment::Field(reader.string()?),
             1 => PackageReviewStructuralPredicatePathSegment::Case(reader.string()?),
             2 => PackageReviewStructuralPredicatePathSegment::FixedIndex(reader.u64()?),
+            3 => PackageReviewStructuralPredicatePathSegment::RuntimeIndex(runtime_index(reader)?),
             _ => return Err(Error::InvalidTag),
         })
+    })
+}
+
+fn runtime_index(reader: &mut Reader<'_>) -> Result<PackageReviewRuntimeIndex, Error> {
+    Ok(match reader.byte()? {
+        0 => PackageReviewRuntimeIndex::Parameter {
+            position: reader.u32()?,
+        },
+        1 => PackageReviewRuntimeIndex::AssignmentIndex {
+            depth: reader.u32()?,
+        },
+        2 => PackageReviewRuntimeIndex::StructuralField(PackageReviewStructuralParameterField {
+            parameter_position: reader.u32()?,
+            path: structural_path(reader)?,
+        }),
+        3 => PackageReviewRuntimeIndex::Local {
+            position: reader.u32()?,
+        },
+        _ => return Err(Error::InvalidTag),
     })
 }

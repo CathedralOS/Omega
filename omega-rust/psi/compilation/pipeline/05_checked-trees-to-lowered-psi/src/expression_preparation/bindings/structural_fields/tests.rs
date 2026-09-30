@@ -72,6 +72,7 @@ fn primitive_payload_reads_resolve_each_projection_and_reject_substitution() {
             Case(_) => 0,
             Field(_) => 1,
             FixedIndex(_) => 2,
+            CheckedStructuralPredicatePathSegment::RuntimeIndex(_) => 0,
         };
         wrong[position] = replacement;
         assert!(super::resolve_primitive(&bindings, 3, &wrong, scalar).is_err());

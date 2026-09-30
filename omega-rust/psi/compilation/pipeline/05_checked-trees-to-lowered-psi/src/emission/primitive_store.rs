@@ -739,6 +739,14 @@ pub(crate) enum IndexedElementLeaf {
         carrier: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
     },
+    /// The element path's leaf is a runtime selection into a fixed-array
+    /// member — `cells[i].data[j]` names `data`'s element. The path's
+    /// static steps resolve exactly like `Flat`'s; its `RuntimeIndex` steps
+    /// keep their checked coordinate, which the caller lowers into the
+    /// read's evaluated selectors.
+    RuntimeTail {
+        element_path: Vec<CheckedUnitStructuralPathSegment>,
+    },
 }
 
 /// The static prefix and leaf of a scalar field inside a runtime-selected
@@ -875,6 +883,101 @@ fn canonical_carrier(
         }
     }
     Ok(result)
+}
+
+/// The runtime-tail element path's leaf walk (`cells[i].data[j]`): the same
+/// member-resolution walk `lower_indexed_element_field_path`'s carrier
+/// takes, with each `RuntimeIndex` step selecting into a fixed array and
+/// the path ending at one primitive scalar. The leaf keeps the checked
+/// path verbatim — its runtime coordinates lower beside the read's other
+/// selectors, each re-proven against the array it selects from.
+pub(crate) fn lower_indexed_element_runtime_path(
+    structural_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    element_path: &[CheckedUnitStructuralPathSegment],
+    types: &[StructuralTypeDeclaration],
+) -> Result<
+    (
+        Vec<terminal_psi::StructuralPathSegment>,
+        IndexedElementLeaf,
+        ScalarType,
+    ),
+    LoweringError,
+> {
+    let (steps, walked) = walk_path(structural_type, path, types)?;
+    let Walked::Declared(structural_type) = walked else {
+        return unsupported("indexed element runtime projection does not end at a fixed array");
+    };
+    let StructuralTypeShape::FixedArray { element, .. } =
+        unique_type(types, structural_type)?.shape
+    else {
+        return unsupported("indexed element runtime projection does not end at a fixed array");
+    };
+    let mut structural_type = element;
+    let mut runtime_segments = 0_usize;
+    for segment in element_path {
+        let declaration = unique_type(types, structural_type)?;
+        match (segment, &declaration.shape) {
+            (
+                CheckedUnitStructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields },
+            ) => {
+                let mut matching = fields.iter().filter(|field| field.identity == *identity);
+                let field = matching.next().ok_or(LoweringError::Unsupported(
+                    "indexed element runtime carrier field is absent",
+                ))?;
+                if matching.next().is_some() || field.relevance.is_erased() {
+                    return unsupported(
+                        "indexed element runtime carrier field is erased or ambiguous",
+                    );
+                }
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return unsupported(
+                        "indexed element runtime carrier descends through a scalar field",
+                    );
+                };
+                structural_type = child;
+            }
+            (
+                CheckedUnitStructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => {
+                structural_type = *element;
+            }
+            (
+                CheckedUnitStructuralPathSegment::RuntimeIndex(_),
+                StructuralTypeShape::FixedArray { element, .. },
+            ) => {
+                runtime_segments += 1;
+                structural_type = *element;
+            }
+            _ => {
+                return unsupported("indexed element runtime path is not structural");
+            }
+        }
+    }
+    if runtime_segments == 0 {
+        return unsupported("indexed element runtime path has no runtime selector");
+    }
+    let StructuralTypeShape::PrimitiveScalar(scalar_type) =
+        unique_type(types, structural_type)?.shape
+    else {
+        return unsupported("indexed element runtime path does not end at a scalar");
+    };
+    match scalar_type {
+        ScalarType::Boolean | ScalarType::IeeeFloat(_) => {}
+        ScalarType::Integer(integer) if !integer.is_address() => {}
+        _ => {
+            return unsupported("indexed element runtime leaf is not a readable scalar");
+        }
+    }
+    Ok((
+        super::runtime_elements::static_segments(steps)?,
+        IndexedElementLeaf::RuntimeTail {
+            element_path: element_path.to_vec(),
+        },
+        scalar_type,
+    ))
 }
 
 /// Walk the checked segments from the destination root, resolving each field

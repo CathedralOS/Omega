@@ -75,12 +75,19 @@ pub(crate) fn validate_direct_parameter_types(
         LoweredDirectExpression::IndexedPrimitiveRead {
             index,
             inner_indexes,
+            element_path,
             ..
         } => {
             validate_direct_parameter_types(index, parameter_types)?;
             inner_indexes
                 .iter()
-                .try_for_each(|inner| validate_direct_parameter_types(inner, parameter_types))
+                .try_for_each(|inner| validate_direct_parameter_types(inner, parameter_types))?;
+            element_path.iter().try_for_each(|segment| match segment {
+                crate::emission::operation_emission::expressions::LoweredElementPathSegment::RuntimeIndex(selector) => {
+                    validate_direct_parameter_types(selector, parameter_types)
+                }
+                _ => Ok(()),
+            })
         }
         LoweredDirectExpression::ByteSequenceRead { index, .. }
         | LoweredDirectExpression::ByteSequenceFieldRead { index, .. }

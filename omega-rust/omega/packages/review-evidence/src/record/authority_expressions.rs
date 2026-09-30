@@ -23,6 +23,19 @@ pub enum PackageReviewStructuralPredicatePathSegment {
     Field(String),
     Case(String),
     FixedIndex(u64),
+    RuntimeIndex(PackageReviewRuntimeIndex),
+}
+
+/// The runtime coordinate one element-path selector evaluates to — the same
+/// vocabulary `CheckedRuntimeIndex` spells on carrier paths, projected
+/// verbatim: a scalar parameter, an assignment's indexed step, a
+/// program-point field read, or an immutable integer local.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageReviewRuntimeIndex {
+    Parameter { position: u32 },
+    AssignmentIndex { depth: u32 },
+    StructuralField(PackageReviewStructuralParameterField),
+    Local { position: u32 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

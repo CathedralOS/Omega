@@ -110,6 +110,9 @@ fn declared_cases(
                 }
                 reference = fixed_element(checked, reference, *index)?;
             }
+            // A runtime-selected element is not a fact key; a subject path
+            // through one names no fixed case set for complement.
+            CheckedStructuralPredicatePathSegment::RuntimeIndex(_) => return None,
         }
     }
     if selected_case.is_some() {

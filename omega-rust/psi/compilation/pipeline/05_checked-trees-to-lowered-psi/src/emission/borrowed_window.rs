@@ -615,6 +615,9 @@ fn spell_place(
                             checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
                                 index,
                             ) => index.to_string(),
+                            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(
+                                _,
+                            ) => "rt".to_string(),
                         })
                         .collect::<Vec<_>>()
                         .join(".")

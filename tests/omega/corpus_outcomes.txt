@@ -1329,8 +1329,7 @@ pass/collections/runtime_argmax_index_exit checked 1390ms @2d8ed253669f
 pass/collections/runtime_case_array_element_write_exit checked 2347ms @2d8ed253669f
 pass/collections/runtime_computed_index_direct_exit checked 1505ms @2d8ed253669f
 pass/collections/runtime_declared_range_index_write_exit checked 1216ms @2d8ed253669f
-pass/collections/runtime_double_indexed_rmw_exit rejected 748ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 1, statement 4)
+pass/collections/runtime_double_indexed_rmw_exit built 2524ms @2a68bc887d9+wt
 pass/collections/runtime_dutch_flag_partition_exit checked 3118ms @2d8ed253669f
 pass/collections/runtime_fixed_vec_round_trip_exit rejected 1217ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("scalar completion lacks complete entry requirements"))

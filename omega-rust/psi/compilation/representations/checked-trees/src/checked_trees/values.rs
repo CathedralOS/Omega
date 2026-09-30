@@ -818,6 +818,12 @@ pub enum CheckedStructuralPredicatePathSegment {
     Field(String),
     Case(String),
     FixedIndex(u64),
+    /// One runtime element selection inside a member's element path —
+    /// `cells[i].data[j]` names `data`'s element through the `Field` step's
+    /// own array. The coordinate is the same `CheckedRuntimeIndex` a store
+    /// carrier path spells; a runtime-selected element is not a fact key, so
+    /// fact and roster consumers decline it.
+    RuntimeIndex(crate::checked_trees::CheckedRuntimeIndex),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

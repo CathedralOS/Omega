@@ -2,7 +2,7 @@ pub use super::authority_expressions::{
     PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,
     PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
     PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
-    PackageReviewPrimitiveType, PackageReviewScalarExpression,
+    PackageReviewPrimitiveType, PackageReviewRuntimeIndex, PackageReviewScalarExpression,
     PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
 use super::{contracts::PackageReviewContractExpression, identity::PackageReviewNominalIdentity};
