@@ -2,7 +2,257 @@
 use super::{CLOSED_SUM_UNIT_SOURCE, checked_source_with_core_service, lower_machine, roundtrip};
 use crate::TerminalMachineSelection;
 use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
+use semantic_vocabulary::PlaceId;
 use terminal_psi::Terminator;
+
+fn case_return_source(copy: bool) -> String {
+    let source = r#"
+pub boundary trait Console {
+    machine exit_process(value: i32) reaches Console;
+}
+data Choice { case First; case Second; }
+data Output { value: i32; }
+machine Output::from_choice(choice: Choice) -> Output {
+    transition choice {
+        Choice::First -> (Output { value: 70 })
+        Choice::Second -> (Output { value: 71 })
+    }
+}
+data Main { console: Binding<Console>; }
+machine Main::main(main: &mut Main) reaches Console {
+    let output: Output = Output::from_choice(Choice::First);
+    main.console.exit_process(output.value);
+}
+"#;
+    if copy {
+        source.replace("data Choice {", "data Choice [copy] {")
+    } else {
+        source.to_owned()
+    }
+}
+
+#[test]
+fn closed_sum_return_cleanup_follows_subject_multiplicity() {
+    for copy in [false, true] {
+        let source = case_return_source(copy);
+        let lowered = roundtrip(&checked_source_with_core_service(&source));
+        let (machine, subject, cases) = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .find_map(|block| match &block.terminator {
+                        Terminator::StructuralCase { source, cases } => {
+                            Some((machine, *source, cases))
+                        }
+                        _ => None,
+                    })
+            })
+            .expect("the parameter dispatch retains its structural subject");
+        assert_eq!(cases.len(), 2);
+        for case in cases {
+            assert_eq!(
+                case.trivial_affine_discards,
+                if copy { Vec::new() } else { vec![subject] }
+            );
+        }
+        let mut returns = 0;
+        for block in &machine.blocks {
+            if let Terminator::ReturnStructural {
+                trivial_affine_discards,
+                ..
+            } = &block.terminator
+            {
+                returns += 1;
+                assert!(
+                    !trivial_affine_discards.contains(&subject),
+                    "the case edge already settled the affine subject"
+                );
+            }
+        }
+        assert_eq!(returns, 2);
+        // Independent verification must reject missing or repeated affine
+        // cleanup. A copy parameter may legally be discarded in Terminal,
+        // but dispatch must still name an established subject.
+        for duplicate in [false, true] {
+            let mut changed = lowered.semantic_module.clone();
+            let changed_machine = changed
+                .machines
+                .iter_mut()
+                .find(|candidate| candidate.id == machine.id)
+                .unwrap();
+            let cases = changed_machine
+                .blocks
+                .iter_mut()
+                .find_map(|block| match &mut block.terminator {
+                    Terminator::StructuralCase { source, cases } => {
+                        if copy {
+                            *source = PlaceId::new(u64::MAX).unwrap();
+                        }
+                        Some(cases)
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            if !copy && duplicate {
+                cases[0].trivial_affine_discards.push(subject);
+            } else if !copy {
+                cases[0].trivial_affine_discards.clear();
+            }
+            assert!(
+                terminal_verifier::verify_module(
+                    &changed,
+                    &lowered.proof_bundle,
+                    &proof_admission::AdmissionProfile::default(),
+                )
+                .is_err(),
+                "copy {copy}, duplicate {duplicate}"
+            );
+        }
+    }
+}
+
+#[test]
+fn closed_sum_parameter_return_rejects_forged_disposal_evidence() {
+    let affine = checked_source_with_core_service(&case_return_source(false));
+    roundtrip(&affine);
+    let (handle, original) = affine
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .iter()
+        .find(|(_, event)| {
+            event.source == PermissionEventSource::StateExit
+                && event.kind == PermissionEventKind::AffineDrop
+                && affine
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_machines
+                    .iter()
+                    .any(|plan| {
+                        plan.machine == event.machine_symbol
+                            && plan.states.iter().any(|state| {
+                                state.state == event.state_symbol
+                                    && matches!(state.terminator,
+                        checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. })
+                            })
+                    })
+        })
+        .map(|(handle, event)| (handle, event.clone()))
+        .expect("affine subject exit receipt");
+    for mutation in 0..3 {
+        let mut changed = affine.clone();
+        match mutation {
+            0 => {
+                changed
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(handle)
+                    .source = PermissionEventSource::StateEntry
+            }
+            1 => {
+                changed
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .insert(original.clone());
+            }
+            2 => {
+                changed
+                    .facts
+                    .flow
+                    .ownership
+                    .permissions
+                    .get_mut(handle)
+                    .root = facts::PlaceRoot::Unknown
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
+            "affine receipt mutation {mutation}"
+        );
+    }
+    let copy = checked_source_with_core_service(&case_return_source(true));
+    roundtrip(&copy);
+    let plan = copy
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| {
+            plan.states.iter().any(|state| {
+                matches!(
+                    state.terminator,
+                    checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+                )
+            })
+        })
+        .unwrap();
+    let state = plan
+        .states
+        .iter()
+        .find(|state| {
+            matches!(
+                state.terminator,
+                checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+            )
+        })
+        .unwrap();
+    let machine = copy
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == plan.machine)
+        .unwrap();
+    let source_state = copy
+        .machine_states(machine)
+        .iter()
+        .find(|source| source.symbol == state.state)
+        .unwrap();
+    let mut forged = original;
+    forged.machine_symbol = plan.machine;
+    forged.state_symbol = state.state;
+    forged.root = facts::PlaceRoot::Symbol(copy.state_parameters(source_state)[0].symbol);
+    let mut changed = copy.clone();
+    changed.facts.flow.ownership.permissions.insert(forged);
+    assert!(
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
+        "a copy subject cannot acquire affine disposal evidence"
+    );
+    let mut changed = copy.clone();
+    let changed_plan = changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter_mut()
+        .find(|candidate| candidate.machine == plan.machine)
+        .unwrap();
+    let changed_state = changed_plan
+        .states
+        .iter_mut()
+        .find(|candidate| candidate.state == state.state)
+        .unwrap();
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } =
+        &mut changed_state.terminator
+    else {
+        unreachable!()
+    };
+    subject.type_identity.push_str("::forged");
+    assert!(
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
+        "an unrestricted subject still requires its exact type identity"
+    );
+}
 
 fn source(transfer_before: bool) -> String {
     let source = CLOSED_SUM_UNIT_SOURCE

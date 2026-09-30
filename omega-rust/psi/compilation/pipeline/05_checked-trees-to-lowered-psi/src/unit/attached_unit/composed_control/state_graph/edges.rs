@@ -1334,10 +1334,12 @@ pub(super) fn return_discards(
             return unsupported("Unit return parameter cleanup roster drifted");
         }
     }
-    // A closed-sum edge disposes its whole subject before entering the arm's
+    // A closed-sum edge disposes an affine subject before entering the arm's
     // return block. Its checked exit drop remains required evidence, but must
-    // not become a second disposal at that return. Boolean guard observations
-    // have no such consuming edge and retain their ordinary return cleanup.
+    // not become a second disposal at that return. A copyable subject has no
+    // disposal debt: it must not acquire an affine-drop receipt just because
+    // the same case route also handles affine values. Boolean guard
+    // observations retain their ordinary return cleanup.
     if let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } = &state.terminator
         && let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
             subject.source
@@ -1353,14 +1355,16 @@ pub(super) fn return_discards(
         if subject.access != checked_trees::CheckedStructuralAccess::Owned
             || !subject.path.is_empty()
             || parameter.access != checked_trees::CheckedStructuralAccess::Owned
-            || parameter.multiplicity != Multiplicity::Affine
             || parameter.type_identity != subject.type_identity
-            || !drops.contains(&index)
             || consumed.contains(&index)
         {
             return unsupported("case return changed its subject disposal custody");
         }
-        consumed.push(index);
+        match parameter.multiplicity {
+            Multiplicity::Affine if drops.contains(&index) => consumed.push(index),
+            Multiplicity::Unrestricted if !drops.contains(&index) => {}
+            _ => return unsupported("case return changed its subject disposal custody"),
+        }
     }
     drops.retain(|index| !consumed.contains(index));
     Ok(drops)
