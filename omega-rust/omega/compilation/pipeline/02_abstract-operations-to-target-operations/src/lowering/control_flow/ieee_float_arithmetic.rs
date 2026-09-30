@@ -116,10 +116,10 @@ pub(super) fn lower(
     // result home does, so integer comparisons and stores observe it; an
     // IEEE result stays an ordinary scalar home.
     if matches!(scalar, semantic_vocabulary::ScalarType::Integer(_)) {
-        crate::lowering::unit::scalar_call::insert_known_unit_integer(
+        crate::lowering::unit::known_integers::insert_known_unit_integer(
             &mut live.integers,
             result.value,
-            crate::lowering::unit::scalar_call::KnownUnitInteger::Home(result_home),
+            crate::lowering::unit::known_integers::KnownUnitInteger::Home(result_home),
         )?;
     } else if live
         .scalar_homes

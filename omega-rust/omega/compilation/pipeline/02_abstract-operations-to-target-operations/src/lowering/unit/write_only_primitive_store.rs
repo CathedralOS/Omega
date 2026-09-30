@@ -7,7 +7,7 @@
 //! copies scale theirs; the bound stays the segment's verified obligation.
 
 use super::super::scalar_abi::fixed_native_integer_shape;
-use super::scalar_call::KnownUnitInteger;
+use super::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};

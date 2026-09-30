@@ -175,10 +175,12 @@ pub(super) fn leaf_referent(
 ) -> Option<StructuralTypeId> {
     let leaf = leaf_type(types, current, fields)?;
     referent(types, leaf).or_else(|| {
-        types.get(&leaf).and_then(|declaration| match declaration.shape {
-            StructuralTypeShape::Reference { .. } => None,
-            _ => Some(leaf),
-        })
+        types
+            .get(&leaf)
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::Reference { .. } => None,
+                _ => Some(leaf),
+            })
     })
 }
 
@@ -331,20 +333,19 @@ fn normalized_source(
     source: &StructuralArgument,
 ) -> Result<(ReferenceRoot, Option<(PlaceId, Vec<StructuralPathSegment>)>), LoweringError> {
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
-        let Some(leaf) = live
-            .references
-            .get(&(source.place, carrier_path.to_vec()))
-        else {
+        let Some(leaf) = live.references.get(&(source.place, carrier_path.to_vec())) else {
             // The member leaf of a carrier never held as a live reference
             // borrows that carrier's own storage; only a non-reference member
             // may root there — a missing reference carrier is a custody gap.
             let (carrier, _) = source_contract(function, live, source.place)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             return match leaf_type(types, carrier, carrier_path).and_then(|leaf| {
-                types.get(&leaf).and_then(|declaration| match declaration.shape {
-                    StructuralTypeShape::Reference { .. } => None,
-                    _ => Some(()),
-                })
+                types
+                    .get(&leaf)
+                    .and_then(|declaration| match declaration.shape {
+                        StructuralTypeShape::Reference { .. } => None,
+                        _ => Some(()),
+                    })
             }) {
                 Some(()) => Ok((
                     ReferenceRoot::Ingress(source.place, carrier_path.to_vec()),

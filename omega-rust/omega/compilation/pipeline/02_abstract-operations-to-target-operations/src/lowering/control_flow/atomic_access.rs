@@ -179,7 +179,7 @@ pub(super) fn lower(
         })
         .transpose()?;
     if let Some(home) = result_home {
-        crate::lowering::unit::scalar_call::insert_known_unit_integer(
+        crate::lowering::unit::known_integers::insert_known_unit_integer(
             &mut live.integers,
             home.source_value,
             KnownUnitInteger::Home(home),

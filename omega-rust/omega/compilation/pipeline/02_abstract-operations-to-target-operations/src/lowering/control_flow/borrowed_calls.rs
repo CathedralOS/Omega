@@ -364,7 +364,7 @@ pub(super) fn byte_argument(
         ) else {
             return Err(unsupported());
         };
-        return crate::lowering::unit::structural_call::fixed_array_view_argument(
+        return crate::lowering::unit::roster_arguments::fixed_array_view_argument(
             argument,
             declaration,
             destination.shape,
@@ -382,7 +382,7 @@ pub(super) fn byte_argument(
     // A home that is no whole plain array (a mutable view's affine custody
     // home, for one) keeps the descriptor routes below.
     if let Some(home) = live.structural_homes.get(&argument.place)
-        && let Some(loan) = crate::lowering::unit::structural_call::local_array_loan(
+        && let Some(loan) = crate::lowering::unit::roster_arguments::local_array_loan(
             argument,
             declaration,
             destination.shape,

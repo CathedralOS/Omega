@@ -27,7 +27,7 @@ use crate::lowering::scalar::element_views::is_element_view_parameter;
 use crate::lowering::scalar_abi::fixed_native_scalar_shape;
 use crate::lowering::structural_signature::StructuralCallSignature;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use crate::lowering::unit::structural_call::lower_structural_argument;
+use crate::lowering::unit::roster_arguments::lower_structural_argument;
 use abstract_operations::{
     AbstractDynamicDescriptorArgument, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractResult, AbstractStructuralCallResult,

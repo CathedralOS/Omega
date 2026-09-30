@@ -4,7 +4,7 @@ use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
 use super::super::control_flow::scalar_sources::ScalarSources;
 use super::super::scalar_abi::fixed_native_integer_shape;
 use super::super::structural_layout::structural_sum_layout;
-use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
+use super::known_integers::{KnownUnitInteger, insert_known_unit_integer};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};

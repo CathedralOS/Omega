@@ -2,7 +2,7 @@
 
 use super::scalar_abi::fixed_native_integer_shape;
 use super::structural_signature::StructuralCallSignature;
-use super::unit::scalar_call::KnownUnitInteger;
+use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
