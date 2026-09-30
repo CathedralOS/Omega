@@ -684,3 +684,36 @@ thread correctly, and `Pool`'s call sites in
 same file do not. The receiver types resolve (`Main.v` is `Vec`, `Main.pool`
 is `Pool`) and none of the guards excludes `open4`, so the cause is not yet
 isolated. 33 declarations.
+
+## Three guard bugs, worth 260 declarations between them
+
+Each of these looked like a language limit and was a defect in the rewrite's
+own guards. All three were found by tracing the resolver at one failing call
+site rather than reasoning about the diagnostic.
+
+**Field types keyed by bare data name collide across the corpus.** A single
+map built over every sibling file resolves `Main.v` to whichever file was read
+last, because nearly every program declares its own `data Main`. Tracing
+printed `kind='i32'` for a field whose type is `Vec`, which is why
+`self.v.open4(..)` would not requalify while `self.pool.request4()` three
+tokens away would. Scope the map to the package's own types overlaid with each
+file's own.
+
+**The per-target variant rule must look only inside the package.** Evaluated
+over the sibling set -- which includes every consumer added so call sites can
+move -- a canary declaring a machine named `rd` counts as another target's
+variant of `Verify::rd`, and the whole `topology` package is skipped. That one
+was worth 225 declarations.
+
+**Skipping an entry from threading is not enough; it must be skipped from
+requalification too.** Otherwise `self.main()` becomes `Main::main(&mut self)`,
+handing a data argument to an entry that never took one.
+
+## `source/library` after all of it
+
+276 declarations remain. `core` (12) is a method-call surface and migrates
+after its callers. The rest are the `std` filesystem and GUI operations whose
+names a `boundary` or `trait` block also declares -- `open`, `close`, `read`,
+`write`, `create`, `remove`, `sleep` and their kin -- plus `rda_step` and
+`rda_drain`, which index `self.rda_stack[self.rda_depth - 1]` and the compiler
+accepts that rooted in a receiver and refuses rooted in a parameter.
