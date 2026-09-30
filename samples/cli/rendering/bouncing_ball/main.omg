@@ -38,36 +38,36 @@ data Main {
 
 // Perform one step of the simulation.
 // Computes new_pos = pos + vel, then applies bounce rules.
-machine Main::step(&mut self) {
-    let new_pos: i32 in Wrapping = self.s.pos + self.s.vel;
+machine Main::step(main: &mut Main) {
+    let new_pos: i32 in Wrapping = main.s.pos + main.s.vel;
     transition new_pos > 9 {
-        true -> upper_bounce(new_pos)
-        _ -> check_lower(new_pos)
+        true -> upper_bounce(main, new_pos)
+        _ -> check_lower(main, new_pos)
     }
 
-    state upper_bounce(&mut self, new_pos: i32 in Wrapping) {
+    state upper_bounce(main: &mut Main, new_pos: i32 in Wrapping) {
         // Reflect off upper wall: pos = 18 - new_pos, vel = -vel.
-        self.s.pos = 18 - new_pos;
-        let old_vel: i32 in Wrapping = self.s.vel;
-        self.s.vel = 0 - old_vel;
+        main.s.pos = 18 - new_pos;
+        let old_vel: i32 in Wrapping = main.s.vel;
+        main.s.vel = 0 - old_vel;
     }
 
-    state check_lower(&mut self, new_pos: i32 in Wrapping) {
+    state check_lower(main: &mut Main, new_pos: i32 in Wrapping) {
         transition new_pos < 0 {
-            true -> lower_bounce(new_pos)
-            _ -> move_normal(new_pos)
+            true -> lower_bounce(main, new_pos)
+            _ -> move_normal(main, new_pos)
         }
     }
 
-    state lower_bounce(&mut self, new_pos: i32 in Wrapping) {
+    state lower_bounce(main: &mut Main, new_pos: i32 in Wrapping) {
         // Reflect off lower wall: pos = -new_pos, vel = -vel.
-        self.s.pos = 0 - new_pos;
-        let old_vel: i32 in Wrapping = self.s.vel;
-        self.s.vel = 0 - old_vel;
+        main.s.pos = 0 - new_pos;
+        let old_vel: i32 in Wrapping = main.s.vel;
+        main.s.vel = 0 - old_vel;
     }
 
-    state move_normal(&mut self, new_pos: i32 in Wrapping) {
-        self.s.pos = new_pos;
+    state move_normal(main: &mut Main, new_pos: i32 in Wrapping) {
+        main.s.pos = new_pos;
     }
 }
 
@@ -78,14 +78,14 @@ machine Main::main(&mut self) reaches Console {
     self.s.vel = 3;
 
     // Run 8 steps.
-    self.step();
-    self.step();
-    self.step();
-    self.step();
-    self.step();
-    self.step();
-    self.step();
-    self.step();
+    Main::step(&mut self);
+    Main::step(&mut self);
+    Main::step(&mut self);
+    Main::step(&mut self);
+    Main::step(&mut self);
+    Main::step(&mut self);
+    Main::step(&mut self);
+    Main::step(&mut self);
 
     // After 8 steps: pos=6, vel=3.
     // Exit code = pos + 64 = 70.

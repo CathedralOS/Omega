@@ -39,12 +39,12 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("score_tracker: replays score/bonus/reset events for two players");
-    self.apply(Event::Score { player: 0, points: 30 });
-    self.apply(Event::Score { player: 1, points: 20 });
-    self.apply(Event::Bonus { player: 0 });
-    self.apply(Event::Score { player: 1, points: 10 });
-    self.apply(Event::Reset { player: 1 });
-    self.apply(Event::Score { player: 1, points: 10 });
+    Main::apply(&mut self, Event::Score { player: 0, points: 30 });
+    Main::apply(&mut self, Event::Score { player: 1, points: 20 });
+    Main::apply(&mut self, Event::Bonus { player: 0 });
+    Main::apply(&mut self, Event::Score { player: 1, points: 10 });
+    Main::apply(&mut self, Event::Reset { player: 1 });
+    Main::apply(&mut self, Event::Score { player: 1, points: 10 });
 
     // player[0] = 60, player[1] = 10, total = 70
     self.tracker.total = self.scores[0] + self.scores[1];
@@ -70,59 +70,59 @@ machine Main::main(&mut self) reaches Console {
 }
 
 // Apply one event to the scores array.
-machine Main::apply(&mut self, event: Event) {
+machine Main::apply(main: &mut Main, event: Event) {
     transition event {
-        Event::Score { player, points } -> add_score(player, points)
-        Event::Bonus { player } -> double_score(player)
-        Event::Reset { player } -> reset_score(player)
-        _ -> done()
+        Event::Score { player, points } -> add_score(main, player, points)
+        Event::Bonus { player } -> double_score(main, player)
+        Event::Reset { player } -> reset_score(main, player)
+        _ -> done(main)
     }
 
-    state add_score(&mut self, player: i32 in Saturating, points: i32 in Saturating) {
+    state add_score(main: &mut Main, player: i32 in Saturating, points: i32 in Saturating) {
         transition player == 0 {
-            true -> add_p0(points)
-            _ -> add_p1(points)
+            true -> add_p0(main, points)
+            _ -> add_p1(main, points)
         }
     }
 
-    state add_p0(&mut self, points: i32 in Saturating) {
-        self.scores[0] = self.scores[0] + points;
+    state add_p0(main: &mut Main, points: i32 in Saturating) {
+        main.scores[0] = main.scores[0] + points;
     }
 
-    state add_p1(&mut self, points: i32 in Saturating) {
-        self.scores[1] = self.scores[1] + points;
+    state add_p1(main: &mut Main, points: i32 in Saturating) {
+        main.scores[1] = main.scores[1] + points;
     }
 
-    state double_score(&mut self, player: i32 in Saturating) {
+    state double_score(main: &mut Main, player: i32 in Saturating) {
         transition player == 0 {
-            true -> double_p0()
-            _ -> double_p1()
+            true -> double_p0(main)
+            _ -> double_p1(main)
         }
     }
 
-    state double_p0(&mut self) {
-        self.scores[0] = self.scores[0] * 2;
+    state double_p0(main: &mut Main) {
+        main.scores[0] = main.scores[0] * 2;
     }
 
-    state double_p1(&mut self) {
-        self.scores[1] = self.scores[1] * 2;
+    state double_p1(main: &mut Main) {
+        main.scores[1] = main.scores[1] * 2;
     }
 
-    state reset_score(&mut self, player: i32 in Saturating) {
+    state reset_score(main: &mut Main, player: i32 in Saturating) {
         transition player == 0 {
-            true -> reset_p0()
-            _ -> reset_p1()
+            true -> reset_p0(main)
+            _ -> reset_p1(main)
         }
     }
 
-    state reset_p0(&mut self) {
-        self.scores[0] = 0;
+    state reset_p0(main: &mut Main) {
+        main.scores[0] = 0;
     }
 
-    state reset_p1(&mut self) {
-        self.scores[1] = 0;
+    state reset_p1(main: &mut Main) {
+        main.scores[1] = 0;
     }
 
-    state done(&mut self) {
+    state done(main: &mut Main) {
     }
 }

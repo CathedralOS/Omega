@@ -36,9 +36,9 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
-    self.apply(Event::Insert { cents: 50 });
-    self.apply(Event::Insert { cents: 25 });
-    self.apply(Event::Press { slot: 1 });
+    Main::apply(&mut self, Event::Insert { cents: 50 });
+    Main::apply(&mut self, Event::Insert { cents: 25 });
+    Main::apply(&mut self, Event::Press { slot: 1 });
 
     // After the press the balance should be spent and 75c of product
     // dispensed; encode "balance 0 and dispensed 75" as exit 70.
@@ -78,28 +78,28 @@ machine Main::main(&mut self) reaches Console {
 
 // Fold one event into the register. Coins add to the balance; a press that
 // the balance covers dispenses the price and spends the balance.
-machine Main::apply(&mut self, event: Event) {
+machine Main::apply(main: &mut Main, event: Event) {
     transition event {
-        Event::Insert { cents } -> add_balance(cents)
-        Event::Press { slot } -> try_dispense(slot)
+        Event::Insert { cents } -> add_balance(main, cents)
+        Event::Press { slot } -> try_dispense(main, slot)
         _ -> idle()
     }
 
-    state add_balance(&mut self, cents: i32 in Saturating) {
-        self.register.balance = self.register.balance + cents;
+    state add_balance(main: &mut Main, cents: i32 in Saturating) {
+        main.register.balance = main.register.balance + cents;
     }
 
-    state try_dispense(&mut self, slot: i32 in Saturating) {
+    state try_dispense(main: &mut Main, slot: i32 in Saturating) {
         let price: i32 in Saturating = Main::price_of(slot);
-        transition self.register.balance >= price {
-            true -> dispense(price)
+        transition main.register.balance >= price {
+            true -> dispense(main, price)
             false -> idle()
         }
     }
 
-    state dispense(&mut self, price: i32 in Saturating) {
-        self.register.dispensed = self.register.dispensed + price;
-        self.register.balance = 0;
+    state dispense(main: &mut Main, price: i32 in Saturating) {
+        main.register.dispensed = main.register.dispensed + price;
+        main.register.balance = 0;
     }
 
     state idle() {

@@ -57,148 +57,148 @@ data Main {
 }
 
 // Initialize VM: sp = -1 (empty stack).
-machine Main::init(&mut self) {
-    self.vm.sp = 0 - 1;
+machine Main::init(main: &mut Main) {
+    main.vm.sp = 0 - 1;
 }
 
 // Push a value onto the stack.
-machine Main::push(&mut self, value: i32 in Wrapping) {
-    let new_sp: i32 in Wrapping = self.vm.sp + 1;
-    self.vm.sp = new_sp;
+machine Main::push(main: &mut Main, value: i32 in Wrapping) {
+    let new_sp: i32 in Wrapping = main.vm.sp + 1;
+    main.vm.sp = new_sp;
     transition new_sp == 0 {
-        true -> push0(value)
-        _ -> try_push1(new_sp, value)
+        true -> push0(main, value)
+        _ -> try_push1(main, new_sp, value)
     }
-    state push0(&mut self, value: i32 in Wrapping) { self.vm.stack[0] = value as i32; }
-    state try_push1(&mut self, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
+    state push0(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[0] = value as i32; }
+    state try_push1(main: &mut Main, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 1 {
-            true -> push1(value)
-            _ -> try_push2(new_sp, value)
+            true -> push1(main, value)
+            _ -> try_push2(main, new_sp, value)
         }
     }
-    state push1(&mut self, value: i32 in Wrapping) { self.vm.stack[1] = value as i32; }
-    state try_push2(&mut self, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
+    state push1(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[1] = value as i32; }
+    state try_push2(main: &mut Main, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 2 {
-            true -> push2(value)
-            _ -> try_push3(new_sp, value)
+            true -> push2(main, value)
+            _ -> try_push3(main, new_sp, value)
         }
     }
-    state push2(&mut self, value: i32 in Wrapping) { self.vm.stack[2] = value as i32; }
-    state try_push3(&mut self, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
+    state push2(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[2] = value as i32; }
+    state try_push3(main: &mut Main, new_sp: i32 in Wrapping, value: i32 in Wrapping) {
         transition new_sp == 3 {
-            true -> push3(value)
-            _ -> push4(value)
+            true -> push3(main, value)
+            _ -> push4(main, value)
         }
     }
-    state push3(&mut self, value: i32 in Wrapping) { self.vm.stack[3] = value as i32; }
-    state push4(&mut self, value: i32 in Wrapping) { self.vm.stack[4] = value as i32; }
+    state push3(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[3] = value as i32; }
+    state push4(main: &mut Main, value: i32 in Wrapping) { main.vm.stack[4] = value as i32; }
 }
 
 // Read top of stack (sp slot) as a value-returning machine.
-machine Main::top(&mut self) -> i32 {
-    let sp: i32 in Wrapping = self.vm.sp;
+machine Main::top(main: &mut Main) -> i32 {
+    let sp: i32 in Wrapping = main.vm.sp;
     transition sp == 0 {
-        true -> (self.vm.stack[0])
-        _ -> try1(sp)
+        true -> (main.vm.stack[0])
+        _ -> try1(main, sp)
     }
-    state try1(&mut self, sp: i32 in Wrapping) {
+    state try1(main: &mut Main, sp: i32 in Wrapping) {
         transition sp == 1 {
-            true -> (self.vm.stack[1])
-            _ -> try2(sp)
+            true -> (main.vm.stack[1])
+            _ -> try2(main, sp)
         }
     }
-    state try2(&mut self, sp: i32 in Wrapping) {
+    state try2(main: &mut Main, sp: i32 in Wrapping) {
         transition sp == 2 {
-            true -> (self.vm.stack[2])
-            _ -> try3(sp)
+            true -> (main.vm.stack[2])
+            _ -> try3(main, sp)
         }
     }
-    state try3(&mut self, sp: i32 in Wrapping) {
+    state try3(main: &mut Main, sp: i32 in Wrapping) {
         transition sp == 3 {
-            true -> (self.vm.stack[3])
-            _ -> (self.vm.stack[4])
+            true -> (main.vm.stack[3])
+            _ -> (main.vm.stack[4])
         }
     }
 }
 
 // Pop the top value off the stack (decrements sp, returns old top).
 // THIS IS THE MISCOMPILE TRIGGER when called twice sequentially.
-machine Main::pop_val(&mut self) -> i32 {
-    let v: i32 in Wrapping = self.top();
-    self.vm.sp = self.vm.sp - 1;
+machine Main::pop_val(main: &mut Main) -> i32 {
+    let v: i32 in Wrapping = Main::top(main);
+    main.vm.sp = main.vm.sp - 1;
     transition {
         _ -> (v as i32)
     }
 }
 
 // Execute one opcode: multi-arm case dispatch.
-machine Main::step(&mut self, op: Opcode) {
+machine Main::step(main: &mut Main, op: Opcode) {
     transition op {
-        Opcode::Push { value } -> do_push(value)
-        Opcode::Add -> do_add()
-        Opcode::Sub -> do_sub()
-        Opcode::Mul -> do_mul()
-        Opcode::Dup -> do_dup()
-        Opcode::Pop -> do_pop()
-        _ -> done()
+        Opcode::Push { value } -> do_push(main, value)
+        Opcode::Add -> do_add(main)
+        Opcode::Sub -> do_sub(main)
+        Opcode::Mul -> do_mul(main)
+        Opcode::Dup -> do_dup(main)
+        Opcode::Pop -> do_pop(main)
+        _ -> done(main)
     }
 
-    state do_push(&mut self, value: i32 in Wrapping) {
-        self.push(value);
+    state do_push(main: &mut Main, value: i32 in Wrapping) {
+        Main::push(main, value);
     }
 
-    state do_add(&mut self) {
-        let b: i32 in Wrapping = self.pop_val();
-        let a: i32 in Wrapping = self.pop_val();
+    state do_add(main: &mut Main) {
+        let b: i32 in Wrapping = Main::pop_val(main);
+        let a: i32 in Wrapping = Main::pop_val(main);
         let result: i32 in Wrapping = a + b;
-        self.push(result);
+        Main::push(main, result);
     }
 
-    state do_sub(&mut self) {
+    state do_sub(main: &mut Main) {
         // Sub: second - top (i.e. a - b where b was pushed last).
-        let b: i32 in Wrapping = self.pop_val();
-        let a: i32 in Wrapping = self.pop_val();
+        let b: i32 in Wrapping = Main::pop_val(main);
+        let a: i32 in Wrapping = Main::pop_val(main);
         let result: i32 in Wrapping = a - b;
-        self.push(result);
+        Main::push(main, result);
     }
 
-    state do_mul(&mut self) {
-        let b: i32 in Wrapping = self.pop_val();
-        let a: i32 in Wrapping = self.pop_val();
+    state do_mul(main: &mut Main) {
+        let b: i32 in Wrapping = Main::pop_val(main);
+        let a: i32 in Wrapping = Main::pop_val(main);
         let result: i32 in Wrapping = a * b;
-        self.push(result);
+        Main::push(main, result);
     }
 
-    state do_dup(&mut self) {
-        let v: i32 in Wrapping = self.top();
-        self.push(v);
+    state do_dup(main: &mut Main) {
+        let v: i32 in Wrapping = Main::top(main);
+        Main::push(main, v);
     }
 
-    state do_pop(&mut self) {
-        self.vm.sp = self.vm.sp - 1;
+    state do_pop(main: &mut Main) {
+        main.vm.sp = main.vm.sp - 1;
     }
 
-    state done(&mut self) {}
+    state done(main: &mut Main) {}
 }
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("stack_vm: a tiny bytecode VM runs (3 + 4) * 2 - 1 on a fixed stack");
     // Initialize VM.
-    self.init();
+    Main::init(&mut self);
 
     // Run program: (3 + 4) * 2 - 1 = 13.
-    self.step(Opcode::Push { value: 3 });
-    self.step(Opcode::Push { value: 4 });
-    self.step(Opcode::Add);
-    self.step(Opcode::Push { value: 2 });
-    self.step(Opcode::Mul);
-    self.step(Opcode::Push { value: 1 });
-    self.step(Opcode::Sub);
-    self.step(Opcode::Dup);
-    self.step(Opcode::Pop);
+    Main::step(&mut self, Opcode::Push { value: 3 });
+    Main::step(&mut self, Opcode::Push { value: 4 });
+    Main::step(&mut self, Opcode::Add);
+    Main::step(&mut self, Opcode::Push { value: 2 });
+    Main::step(&mut self, Opcode::Mul);
+    Main::step(&mut self, Opcode::Push { value: 1 });
+    Main::step(&mut self, Opcode::Sub);
+    Main::step(&mut self, Opcode::Dup);
+    Main::step(&mut self, Opcode::Pop);
 
     // Read top-of-stack: should be 13.
-    let result: i32 in Wrapping = self.top();
+    let result: i32 in Wrapping = Main::top(&mut self);
     let code: i32 in Wrapping = result + 57;
 
     transition code == 70 {

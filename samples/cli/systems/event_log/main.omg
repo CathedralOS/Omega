@@ -54,27 +54,27 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::apply(&mut self, event: Event) {
-    self.log.event_count = self.log.event_count + 1;
+machine Main::apply(main: &mut Main, event: Event) {
+    main.log.event_count = main.log.event_count + 1;
     transition event {
-        Event::Deposit { amount } -> do_deposit(amount)
-        Event::Withdraw { amount } -> do_withdraw(amount)
-        Event::Reset -> do_reset()
+        Event::Deposit { amount } -> do_deposit(main, amount)
+        Event::Withdraw { amount } -> do_withdraw(main, amount)
+        Event::Reset -> do_reset(main)
         _ -> done()
     }
 
-    state do_deposit(&mut self, amount: i32 in Saturating) {
-        self.log.stats.balance = self.log.stats.balance + amount;
-        self.log.stats.deposits = self.log.stats.deposits + 1;
+    state do_deposit(main: &mut Main, amount: i32 in Saturating) {
+        main.log.stats.balance = main.log.stats.balance + amount;
+        main.log.stats.deposits = main.log.stats.deposits + 1;
     }
 
-    state do_withdraw(&mut self, amount: i32 in Saturating) {
-        self.log.stats.balance = self.log.stats.balance - amount;
-        self.log.stats.withdrawals = self.log.stats.withdrawals + 1;
+    state do_withdraw(main: &mut Main, amount: i32 in Saturating) {
+        main.log.stats.balance = main.log.stats.balance - amount;
+        main.log.stats.withdrawals = main.log.stats.withdrawals + 1;
     }
 
-    state do_reset(&mut self) {
-        self.log.stats.balance = 0;
+    state do_reset(main: &mut Main) {
+        main.log.stats.balance = 0;
     }
 
     state done() {}
@@ -82,11 +82,11 @@ machine Main::apply(&mut self, event: Event) {
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
-    self.apply(Event::Deposit { amount: 100 });
-    self.apply(Event::Deposit { amount: 50 });
-    self.apply(Event::Withdraw { amount: 30 });
-    self.apply(Event::Deposit { amount: 20 });
-    self.apply(Event::Withdraw { amount: 70 });
+    Main::apply(&mut self, Event::Deposit { amount: 100 });
+    Main::apply(&mut self, Event::Deposit { amount: 50 });
+    Main::apply(&mut self, Event::Withdraw { amount: 30 });
+    Main::apply(&mut self, Event::Deposit { amount: 20 });
+    Main::apply(&mut self, Event::Withdraw { amount: 70 });
 
     // Verify balance == 70.
     transition self.log.stats.balance == 70 {
