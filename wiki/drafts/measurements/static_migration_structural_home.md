@@ -570,28 +570,48 @@ wrong place in the captured copy and resolves to the wrong enclosing machine.
 The symptom is a scattering of call sites left unrewritten with no pattern to
 them. Resolve against `m.string`, the text actually being scanned.
 
-## Where `source/library/std` stops
+## `source/library/std` after four more defects
 
-`std` migrates as one package -- excluding a file still rewrites it as a
-sibling -- and the whole-package pass is net positive but not clean: 9 fixtures
-newly check, 6 more return to matching the golden, against one regression,
-`pass/filesystem/cross_linux_value_syscalls` (checked to rejected). The cause
-was a chain of separate defects, each hiding the next. Three are fixed and
-worth keeping: a per-machine type scope instead of a package-wide one keyed by
-bare name (`filesystem` denotes two types across the package); stripping
-`self.<state>(..)`, which is a transition to a sibling state spelled through
-the receiver rather than a call on the data; and the position drift above.
+The earlier reading of this package was wrong twice over: the improvements it
+reported came from a stale baseline, and the reasons it gave for stopping were
+tool defects, not language limits. Gating one fixture at a time -- 81 seconds
+against `pass/filesystem/cross_linux_value_syscalls`, not 40 minutes against
+the corpus -- found four more:
 
-Three constructs remain, and they are where the next pass should start:
+- A machine's **own tail recursion** is spelled unqualified in a transition
+  arm (`true -> mkall_walk(path, i + 1)`) and needs the data exactly as a
+  receiving state does.
+- `self.step(..)` is a **transition to a sibling state** spelled through the
+  receiver, not a call on the data; renaming `self` turns it into a value call
+  that resolves to nothing.
+- An operation the rewrite **skips keeps its receiver**, so its call sites must
+  keep the attached spelling. Requalifying them anyway draws "explicit self
+  argument for attached call `read_dir_nth` does not belong to the receiver's
+  exact data type".
+- **Position drift**: resolving each match against a captured copy of the file
+  while `re.sub` scans the accumulating string. Once a replacement changes the
+  length, every later lookup lands in the wrong machine. The symptom is call
+  sites missed in no discernible pattern.
 
-- `state mkall_walk expects 3 argument(s), got 2` and the same for
-  `mkall_copy` -- a transition into a threaded state that the receiving-set
-  closure does not reach, so some transition spelling is still unrecognised.
-- `explicit self argument for attached call read_dir_nth does not belong to
-  the receiver's exact data type` -- requalification lends `&mut self` where
-  the attached call wants the exact nominal type.
+One genuine compiler gap remains and is excluded rather than worked around:
+`Filesystem::rda_step` and `rda_drain` index `self.rda_stack[self.rda_depth -
+1]`, which the compiler accepts rooted in a receiver and refuses rooted in a
+parameter -- "index `filesystem.rda_depth - 1` is a computed expression, not
+yet supported as an indexed operand".
 
-Measured against a baseline taken immediately before it, the whole-package
-pass is one regression (`pass/filesystem/cross_linux_value_syscalls`, checked
-to rejected), five changed diagnostics on already-red `pass/filesystem`
-fixtures, and no improvements. Not landed.
+Landed with 0 new regressions against a baseline captured immediately before,
+in the same command. It costs diagnostic quality on five already-red programs,
+which now fail at a unit-plan omission rather than at provider selection --
+and that is itself a finding: these `Filesystem` machines do not yet lower in
+static form, which the provider failure had been hiding.
+
+## What now bounds the remainder
+
+`source/library` holds 791 declarations that the rewrite deliberately will not
+touch, because the operation is called method-style from a program outside its
+package. Those callers are the canaries and samples, and they are waiting on
+the hosted entry. The library is therefore no longer independently blocked --
+it is downstream of the same dependency.
+
+`source/library/core` is the extreme case: every one of its operations is a
+method-call surface, so it migrates last, after its callers, not first.
