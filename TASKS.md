@@ -1569,14 +1569,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `fail/ranges/case_payload_domain_literal_out_of_range` and
   `fail/ranges/sum_payload_non_case_guard_unproven` keep rejecting.
 
-- **LARGE-GRAPH-PAYLOAD-READ.** (new-scope) One 25-state graph that dispatches on
-  four sums and reads their payloads fails Terminal verification of a late
-  payload read (`InvalidIntegerStructuralField { operation: 114, field: 12 }`
-  from the verifier's case-hop check in `case_hops.rs`), while each half of the
-  graph builds and exits 70. Reproduce by joining the four check machines of
-  `pass/structs/case_field_type_store_shapes` into one graph, find which fact
-  the late hop loses, and repair its transport rather than raising a budget.
-
 - **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied borrowed-slice fields and
   the remaining owned-array producers into record literals.
   Literal closed primitive array members already compose at local, nested,

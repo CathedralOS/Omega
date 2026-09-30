@@ -1,0 +1,324 @@
+// The existing case-field observations compose in one graph. Keep every
+// failure code and payload check; splitting the graph must not change validity.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain i32::Ten requires 0 <= self && self <= 10;
+
+data Evidence { case Only; }
+data Point [copy] { x: i32; y: i32; }
+
+data Event {
+    consumed: bool;
+    bonus: i32;
+    case Nothing;
+    case Treasure(gold: i32);
+    case Fight(strength: i32, speed: i32);
+}
+
+data Command {
+    case Off;
+    case Dim(amount: i32);
+    case Pair(low: i32, high: i32);
+    case Place(at: Point);
+}
+
+data Certified {
+    case Pending;
+    case Proven(value: i32, proof [erased]: Evidence);
+}
+
+data Level {
+    case Dark;
+    case Lit(amount: i32 in Ten);
+}
+
+data Main {
+    console: Binding<Console>;
+    event: Event;
+    command: Command;
+    certified: Certified;
+    level: Level;
+}
+
+
+machine Main::main(&mut self) reaches Console {
+
+    self.event = Event::Treasure { consumed: true, gold: 50 };
+    transition self.event.consumed {
+        true -> check_common_fields_unnamed_common_zero()
+        false -> check_common_fields_fail(1)
+    }
+
+    state check_common_fields_unnamed_common_zero(&mut self) {
+        transition self.event.bonus == 0 {
+            true -> check_common_fields_payload_beside_common()
+            false -> check_common_fields_fail(2)
+        }
+    }
+
+    state check_common_fields_payload_beside_common(&mut self) {
+        transition self.event {
+            Event::Treasure { gold } -> check_common_fields_treasure_gold(gold)
+            _ -> check_common_fields_fail(3)
+        }
+    }
+
+    state check_common_fields_treasure_gold(&mut self, gold: i32) {
+        transition gold == 50 {
+            true -> check_common_fields_store_common()
+            false -> check_common_fields_fail(4)
+        }
+    }
+
+    state check_common_fields_store_common(&mut self) {
+        self.event.bonus = 9;
+        transition self.event {
+            Event::Treasure { gold } -> check_common_fields_stored_common(gold)
+            _ -> check_common_fields_fail(5)
+        }
+    }
+
+    state check_common_fields_stored_common(&mut self, gold: i32) {
+        transition gold == 50 && self.event.bonus == 9 && self.event.consumed {
+            true -> check_common_fields_replace_case()
+            false -> check_common_fields_fail(6)
+        }
+    }
+
+    // The replacement names no common field: both read zero afterwards.
+    state check_common_fields_replace_case(&mut self) {
+        self.event = Event::Fight { strength: 3, speed: 4 };
+        transition self.event.bonus == 0 && !self.event.consumed {
+            true -> check_common_fields_fight_payload()
+            false -> check_common_fields_fail(7)
+        }
+    }
+
+    state check_common_fields_fight_payload(&mut self) {
+        transition self.event {
+            Event::Fight { strength, speed } -> check_common_fields_fight_values(strength, speed)
+            _ -> check_common_fields_fail(8)
+        }
+    }
+
+    state check_common_fields_fight_values(&mut self, strength: i32, speed: i32) {
+        transition strength == 3 && speed == 4 {
+            true -> check_common_fields_payload_free_bare()
+            false -> check_common_fields_fail(8)
+        }
+    }
+
+    state check_common_fields_payload_free_bare(&mut self) {
+        self.event = Event::Nothing;
+        transition self.event {
+            Event::Nothing -> check_common_fields_payload_free_named()
+            _ -> check_common_fields_fail(9)
+        }
+    }
+
+    state check_common_fields_payload_free_named(&mut self) {
+        self.event = Event::Nothing { bonus: 12 };
+        transition self.event {
+            Event::Nothing -> check_common_fields_payload_free_common(self.event.bonus)
+            _ -> check_common_fields_fail(10)
+        }
+    }
+
+    state check_common_fields_payload_free_common(&mut self, bonus: i32) {
+        transition bonus == 12 {
+            true -> check_common_fields_done()
+            false -> check_common_fields_fail(10)
+        }
+    }
+
+    state check_common_fields_done(&mut self) { transition { _ -> check_closed_payloads_entry() } }
+    state check_common_fields_fail(&mut self, code: i32) { self.console.exit_process(code); }
+
+
+    state check_closed_payloads_entry(&mut self) {
+    self.command = Command::Dim { amount: 7 };
+    transition self.command {
+        Command::Dim { amount } -> check_closed_payloads_scalar_value(amount)
+        _ -> check_closed_payloads_fail(11)
+    }
+
+    }
+
+    state check_closed_payloads_scalar_value(&mut self, amount: i32) {
+        transition amount == 7 {
+            true -> check_closed_payloads_payload_free()
+            false -> check_closed_payloads_fail(11)
+        }
+    }
+
+    state check_closed_payloads_payload_free(&mut self) {
+        self.command = Command::Off;
+        transition self.command {
+            Command::Off -> check_closed_payloads_multiple()
+            _ -> check_closed_payloads_fail(12)
+        }
+    }
+
+    state check_closed_payloads_multiple(&mut self) {
+        self.command = Command::Pair { low: 1, high: 2 };
+        transition self.command {
+            Command::Pair { low, high } -> check_closed_payloads_multiple_values(low, high)
+            _ -> check_closed_payloads_fail(13)
+        }
+    }
+
+    state check_closed_payloads_multiple_values(&mut self, low: i32, high: i32) {
+        transition low == 1 && high == 2 {
+            true -> check_closed_payloads_record()
+            false -> check_closed_payloads_fail(13)
+        }
+    }
+
+    state check_closed_payloads_record(&mut self) {
+        self.command = Command::Place { at: Point { x: 5, y: 6 } };
+        transition self.command {
+            Command::Place { at } -> check_closed_payloads_record_values(at)
+            _ -> check_closed_payloads_fail(14)
+        }
+    }
+
+    state check_closed_payloads_record_values(&mut self, at: Point) {
+        transition at.x == 5 && at.y == 6 {
+            true -> check_closed_payloads_done()
+            false -> check_closed_payloads_fail(15)
+        }
+    }
+
+    state check_closed_payloads_done(&mut self) { transition { _ -> check_local_stores_entry() } }
+    state check_closed_payloads_fail(&mut self, code: i32) { self.console.exit_process(code); }
+
+
+    state check_local_stores_entry(&mut self) {
+    self.store_local_event();
+    transition self.event {
+        Event::Treasure { gold } -> check_local_stores_mixed_values(gold)
+        _ -> check_local_stores_fail(16)
+    }
+
+    }
+
+    state check_local_stores_mixed_values(&mut self, gold: i32) {
+        transition gold == 8 && self.event.bonus == 3 && self.event.consumed {
+            true -> check_local_stores_closed_scalar()
+            false -> check_local_stores_fail(17)
+        }
+    }
+
+    state check_local_stores_closed_scalar(&mut self) {
+        self.store_local_dim();
+        transition self.command {
+            Command::Dim { amount } -> check_local_stores_closed_value(amount)
+            _ -> check_local_stores_fail(18)
+        }
+    }
+
+    state check_local_stores_closed_value(&mut self, amount: i32) {
+        transition amount == 21 {
+            true -> check_local_stores_closed_multiple()
+            false -> check_local_stores_fail(18)
+        }
+    }
+
+    state check_local_stores_closed_multiple(&mut self) {
+        self.store_local_pair();
+        transition self.command {
+            Command::Pair { low, high } -> check_local_stores_multiple_values(low, high)
+            _ -> check_local_stores_fail(19)
+        }
+    }
+
+    state check_local_stores_multiple_values(&mut self, low: i32, high: i32) {
+        transition low == 30 && high == 40 {
+            true -> check_local_stores_done()
+            false -> check_local_stores_fail(19)
+        }
+    }
+
+    state check_local_stores_done(&mut self) { transition { _ -> check_erased_member_entry() } }
+    state check_local_stores_fail(&mut self, code: i32) { self.console.exit_process(code); }
+
+
+    state check_erased_member_entry(&mut self) {
+    self.certified = Certified::Proven { value: 44 };
+    transition self.certified {
+        Certified::Proven { value, proof as _ } -> check_erased_member_erased_value(value)
+        Certified::Pending -> check_erased_member_fail(20)
+    }
+
+    }
+
+    state check_erased_member_erased_value(&mut self, value: i32) {
+        transition value == 44 {
+            true -> check_erased_member_done()
+            false -> check_erased_member_fail(20)
+        }
+    }
+
+    state check_erased_member_done(&mut self) { transition { _ -> check_interval_member_entry() } }
+    state check_erased_member_fail(&mut self, code: i32) { self.console.exit_process(code); }
+
+
+    state check_interval_member_entry(&mut self) {
+    self.level = Level::Lit { amount: 7 };
+    transition self.level {
+        Level::Lit { amount } -> check_interval_member_scale(amount)
+        Level::Dark -> check_interval_member_fail(21)
+    }
+
+    // `amount` reaches `scale` through its payload domain alone: no guard
+    // bounds it, so the requires is discharged by `Ten` membership.
+    }
+
+    state check_interval_member_scale(&mut self, amount: i32) requires amount >= 0 && amount <= 10 {
+        let scaled: i32 = amount * 10;
+        transition scaled == 70 {
+            true -> check_interval_member_through_local()
+            false -> check_interval_member_fail(22)
+        }
+    }
+
+    state check_interval_member_through_local(&mut self) {
+        self.store_local_level();
+        transition self.level {
+            Level::Lit { amount } -> check_interval_member_local_value(amount)
+            Level::Dark -> check_interval_member_fail(23)
+        }
+    }
+
+    state check_interval_member_local_value(&mut self, amount: i32) {
+        transition amount == 4 {
+            true -> check_interval_member_done()
+            false -> check_interval_member_fail(23)
+        }
+    }
+
+    state check_interval_member_done(&mut self) { self.console.exit_process(70); }
+    state check_interval_member_fail(&mut self, code: i32) { self.console.exit_process(code); }
+
+}
+
+machine Main::store_local_event(&mut self) {
+    let replacement: Event = Event::Treasure { consumed: true, bonus: 3, gold: 8 };
+    self.event = replacement;
+}
+
+machine Main::store_local_dim(&mut self) {
+    let dimmed: Command = Command::Dim { amount: 21 };
+    self.command = dimmed;
+}
+
+machine Main::store_local_pair(&mut self) {
+    let paired: Command = Command::Pair { low: 30, high: 40 };
+    self.command = paired;
+}
+
+machine Main::store_local_level(&mut self) {
+    let lit: Level = Level::Lit { amount: 4 };
+    self.level = lit;
+}

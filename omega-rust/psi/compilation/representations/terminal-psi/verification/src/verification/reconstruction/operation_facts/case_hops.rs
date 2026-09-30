@@ -26,10 +26,16 @@
 //! producer's implication (a callee guarantee, say) refutes nothing. The
 //! exhaustion step has no kernel rule: it is this module's procedural judgment,
 //! bound in the trusted-surface ledger beside the membership observation row.
+//!
+//! Conversion sees only this sum's surviving membership premises and their
+//! equality dependencies. Normalizing the whole accumulated machine history
+//! makes an unrelated earlier computation spend this observation's proof
+//! budget. Selecting original premises changes no authority: conversion and
+//! certificate checking still decide the same membership judgment.
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, PlaceId, Proposition, ScalarTerm, StructuralCaseId,
-    StructuralCaseSubject, ValueId,
+    CanonicalStructuralPathSegment, PlaceId, Proposition, PropositionContext, ScalarTerm,
+    StructuralCaseId, StructuralCaseSubject, ValueId,
 };
 use terminal_psi::{OperationKind, StructuralTypeShape, TerminalMachine, TerminalModule};
 
@@ -54,15 +60,16 @@ pub(super) fn active(
             subject: subject.clone(),
             case: *case,
         };
+        let selected = membership_axioms(axioms, &subject);
         let Ok(converted) = proof_admission::check_predicate_denotations_with_value_equalities(
             context.proposition_context(),
             &membership,
             &[],
-            axioms,
+            &selected,
         ) else {
             return false;
         };
-        if certified(context, &converted) {
+        if certified(context.proposition_context(), &converted) {
             return true;
         }
         // Exhaustion: every other declared case of this exact sum is refuted.
@@ -73,7 +80,7 @@ pub(super) fn active(
             refuted(
                 module,
                 machine,
-                axioms,
+                &selected,
                 converted.semantic_axioms(),
                 &subject,
                 *other,
@@ -82,10 +89,79 @@ pub(super) fn active(
     })
 }
 
+/// Select existing premises, never manufacture a membership or recover an
+/// invalidated observation from operation history. Preserve roster order and
+/// every definition of a reached value so conversion's equation choice stays
+/// unchanged. A reached storage observation conservatively includes storage
+/// equations too; the value-only visitor cannot distinguish their identities.
+fn membership_axioms(axioms: &[Proposition], subject: &StructuralCaseSubject) -> Vec<Proposition> {
+    let is_membership = |fact: &Proposition| {
+        matches!(fact, Proposition::StructuralCaseMembership { subject: actual, .. }
+            if actual == subject)
+    };
+    let mut selected = vec![false; axioms.len()];
+    let mut values = Vec::new();
+    let mut storage_equations = false;
+    for (position, axiom) in axioms.iter().enumerate() {
+        if is_membership(axiom) {
+            selected[position] = true;
+        } else if let Proposition::Implication {
+            premise,
+            conclusion,
+        } = axiom
+            && is_membership(conclusion)
+        {
+            selected[position] = true;
+            storage_equations |= !premise.visit_value_ids(|value| {
+                if !values.contains(&value) {
+                    values.push(value);
+                }
+            });
+        }
+    }
+    loop {
+        let mut changed = false;
+        for (position, axiom) in axioms.iter().enumerate() {
+            if selected[position] {
+                continue;
+            }
+            let Proposition::Equal(left, _) = axiom else {
+                continue;
+            };
+            let reached = match left {
+                ScalarTerm::Value { id, .. } => values.contains(id),
+                ScalarTerm::BooleanField { .. }
+                | ScalarTerm::IntegerField { .. }
+                | ScalarTerm::IeeeFloatField { .. } => storage_equations,
+                _ => false,
+            };
+            if !reached {
+                continue;
+            }
+            selected[position] = true;
+            changed = true;
+            storage_equations |= !axiom.visit_value_ids(|value| {
+                if !values.contains(&value) {
+                    values.push(value);
+                }
+            });
+        }
+        if !changed {
+            break;
+        }
+    }
+    axioms
+        .iter()
+        .zip(selected)
+        .filter(|(_, selected)| *selected)
+        .map(|(axiom, _)| axiom.clone())
+        .collect()
+}
+
 /// A kernel-checked citation of the goal's membership fact, directly or as the
 /// conclusion of an implication whose premise converted to `Truth`.
 fn certified(
-    context: &MachineReconstructionContext<'_>,
+    context: &PropositionContext,
     converted: &proof_admission::CheckedPredicateDenotations<'_>,
 ) -> bool {
     let certificate = converted
@@ -120,11 +196,8 @@ fn certified(
             }
             None
         });
-    certificate.is_some_and(|certificate| {
-        converted
-            .check_certificate(context.proposition_context(), &certificate)
-            .is_ok()
-    })
+    certificate
+        .is_some_and(|certificate| converted.check_certificate(context, &certificate).is_ok())
 }
 
 /// The declared cases of the sum that `sum_path` (ending in a `Case` step)
@@ -220,4 +293,145 @@ fn observes(
                 && crate::validation::canonical_field_path(module, machine, *source, path)
                     .is_some_and(|prefix| prefix == subject.path())
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
+
+    fn fixture() -> (
+        PropositionContext,
+        StructuralCaseSubject,
+        Proposition,
+        Vec<Proposition>,
+    ) {
+        let place = PlaceId::new(1).unwrap();
+        let subject = StructuralCaseSubject::new(place, Vec::new());
+        let membership = Proposition::StructuralCaseMembership {
+            subject: subject.clone(),
+            case: StructuralCaseId::new(1).unwrap(),
+        };
+        let value =
+            |ordinal| ScalarTerm::value(ValueId::new(ordinal).unwrap(), ScalarType::Boolean);
+        let context = PropositionContext::from_value_types_and_places(
+            (1..=3).map(|ordinal| (ValueId::new(ordinal).unwrap(), ScalarType::Boolean)),
+            [(
+                place,
+                StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            )],
+        )
+        .unwrap();
+        let axioms = vec![
+            Proposition::Equal(value(2), ScalarTerm::Boolean(true)),
+            Proposition::Equal(value(1), value(2)),
+            Proposition::Implication {
+                premise: Box::new(Proposition::Equal(value(1), ScalarTerm::Boolean(true))),
+                conclusion: Box::new(membership.clone()),
+            },
+        ];
+        (context, subject, membership, axioms)
+    }
+
+    fn proves(
+        context: &PropositionContext,
+        subject: &StructuralCaseSubject,
+        goal: &Proposition,
+        axioms: &[Proposition],
+    ) -> bool {
+        let selected = membership_axioms(axioms, subject);
+        let Ok(converted) = proof_admission::check_predicate_denotations_with_value_equalities(
+            context,
+            goal,
+            &[],
+            &selected,
+        ) else {
+            return false;
+        };
+        certified(context, &converted)
+    }
+
+    #[test]
+    fn membership_ignores_unrelated_history_without_raising_conversion_budget() {
+        let (context, subject, goal, mut axioms) = fixture();
+        let expected = axioms.clone();
+        let irrelevant = Proposition::Equal(
+            ScalarTerm::value(ValueId::new(3).unwrap(), ScalarType::Boolean),
+            ScalarTerm::Boolean(true),
+        );
+        axioms.extend(std::iter::repeat_n(irrelevant, 1500));
+        assert!(matches!(
+            proof_admission::check_predicate_denotations_with_value_equalities(
+                &context,
+                &goal,
+                &[],
+                &axioms
+            ),
+            Err(proof_admission::PredicateDenotationError::ResourceLimitExceeded)
+        ));
+        assert_eq!(membership_axioms(&axioms, &subject), expected);
+        assert!(proves(&context, &subject, &goal, &axioms));
+    }
+
+    #[test]
+    fn selection_preserves_equation_order_and_rejects_missing_or_cyclic_support() {
+        let (context, subject, goal, mut axioms) = fixture();
+        // Both definitions survive; selecting only a convenient true equation
+        // would change the denotation checker's first-definition discipline.
+        axioms.insert(
+            0,
+            Proposition::Equal(
+                ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean),
+                ScalarTerm::Boolean(false),
+            ),
+        );
+        assert_eq!(membership_axioms(&axioms, &subject), axioms);
+        assert!(!proves(&context, &subject, &goal, &axioms));
+        axioms.remove(0);
+        axioms.remove(0);
+        assert!(!proves(&context, &subject, &goal, &axioms));
+        axioms.insert(
+            0,
+            Proposition::Equal(
+                ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean),
+                ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Boolean),
+            ),
+        );
+        assert!(!proves(&context, &subject, &goal, &axioms));
+    }
+
+    #[test]
+    fn retired_or_different_membership_cannot_be_recreated_from_value_truth() {
+        let (context, subject, goal, mut axioms) = fixture();
+        axioms.pop();
+        assert!(!proves(&context, &subject, &goal, &axioms));
+        let other = StructuralCaseSubject::new(PlaceId::new(2).unwrap(), Vec::new());
+        axioms.push(Proposition::StructuralCaseMembership {
+            subject: other,
+            case: StructuralCaseId::new(1).unwrap(),
+        });
+        assert!(membership_axioms(&axioms, &subject).is_empty());
+        assert!(!proves(&context, &subject, &goal, &axioms));
+    }
+
+    #[test]
+    fn membership_dependencies_retain_live_storage_equations() {
+        let (context, subject, goal, mut axioms) = fixture();
+        let field = ScalarTerm::BooleanField {
+            root: subject.root(),
+            path: vec![CanonicalStructuralPathSegment::Field(
+                semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+            )],
+        };
+        axioms[0] = Proposition::Equal(
+            ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean),
+            field.clone(),
+        );
+        axioms.push(Proposition::Equal(field, ScalarTerm::Boolean(true)));
+        assert_eq!(membership_axioms(&axioms, &subject), axioms);
+        assert!(proves(&context, &subject, &goal, &axioms));
+    }
 }
