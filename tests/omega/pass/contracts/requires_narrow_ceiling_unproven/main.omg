@@ -1,5 +1,6 @@
-// `s <= 5` on u64 is not vacuous -- the ceiling sits inside the carrier
-// and unguarded evidence cannot reach it.
+// `s <= 5` on u64 is not vacuous -- the ceiling sits inside the carrier --
+// but the argument is a call whose result constant-folds, so the
+// instantiated premise `4 <= 5` is decided-true and the call discharges.
 use omega_language_std::console;
 use omega::language::core::binding;
 
