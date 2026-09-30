@@ -25,7 +25,8 @@ mod x86_features;
 
 pub use application::{ApplicationIdentifier, HostedApplicationIntent, NativeApplicationMetadata};
 pub use elf_loader::{
-    ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, normalize_elf_interpreter_plan,
+    ELF_INTERPRETER_TARGET_PROFILES, ElfInterpreterPlanValidationError,
+    NormalizedElfInterpreterPlan, declared_elf_interpreter_default, normalize_elf_interpreter_plan,
 };
 pub use explicit_target_set::ExplicitTargetSet;
 pub use foreign_locator::{
