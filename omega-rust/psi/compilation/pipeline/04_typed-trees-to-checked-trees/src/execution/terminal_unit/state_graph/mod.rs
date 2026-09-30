@@ -1561,7 +1561,7 @@ fn successor_bindings(
                         if mutable_local {
                             let StatementNode::LocalData(local) = program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize)? else { return None; };
                             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else { return None; };
-                            if !local.is_mutable
+                            if (!local.is_mutable && local.initial_value.is_valid())
                                 || !matches!(program.expression_table.expression(borrow.target), ExpressionNode::Name(name)
                                     if name.symbol == local.symbol && name.head_symbol == local.symbol
                                         && program.expression_table.name_path_members(name.members).len() == 1)
