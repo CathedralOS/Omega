@@ -46,14 +46,14 @@ pub(super) fn plan(
     let store_root = checked_trees::CheckedStoreRoot::Parameter {
         position: destination.root.parameter_position()?,
     };
-    let view_bytes = integer_bytes(view)?;
+    let view_bytes = store_width(view)?;
     let (leaf, carriers) = destination.place.segments.split_last()?;
     let (path, element) = match leaf {
         facts::PlaceSegment::Field { symbol } => {
             let carrier = destination.leaf_carrier(program, carriers)?;
             let field = super::destination::exact_relevant_field(program, carrier.owner, *symbol)?;
             let element = program.primitive_type_reference(field.type_reference)?;
-            if integer_bytes(element)? != view_bytes {
+            if store_width(element)? != view_bytes {
                 return None;
             }
             let mut path = carrier.path;
@@ -88,7 +88,7 @@ pub(super) fn plan(
     };
     // Only a `u8` leaf decomposes into footprint bytes; every other leaf
     // must re-cover the view's whole width.
-    if element != PrimitiveType::U8 && integer_bytes(element)? != view_bytes {
+    if element != PrimitiveType::U8 && store_width(element)? != view_bytes {
         return None;
     }
     let value = value::assignment_value(
@@ -162,11 +162,14 @@ fn byte_field(
     Some(path)
 }
 
-/// The byte width of one integer primitive carrier: the only family a
-/// little-endian byte decomposition names.
-fn integer_bytes(primitive_type: PrimitiveType) -> Option<u64> {
+/// The storage width of one primitive carrier the store decomposes
+/// against: a Boolean rides one byte beside the integers, so the view and
+/// the leaf compare by footprint rather than by arithmetic family. Wider
+/// than the element's own width the little-endian byte decomposition still
+/// names only a bounded-owned `u8` carrier.
+fn store_width(primitive_type: PrimitiveType) -> Option<u64> {
     Some(match primitive_type {
-        PrimitiveType::U8 | PrimitiveType::I8 => 1,
+        PrimitiveType::Bool | PrimitiveType::U8 | PrimitiveType::I8 => 1,
         PrimitiveType::U16 | PrimitiveType::I16 => 2,
         PrimitiveType::U32 | PrimitiveType::I32 => 4,
         PrimitiveType::U64 | PrimitiveType::I64 => 8,
