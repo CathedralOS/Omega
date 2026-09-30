@@ -151,27 +151,32 @@ def records_at(repository, golden, revision):
     return corpus_records.parse(text) if text is not None else None
 
 
-def oracle_lookup(repository, golden, revision):
+def oracle_lookup(repository, golden, revision, target=None):
     """`oracle_for(fixture)` reading the authored exit oracle from the
-    working tree, or from `revision` when one is given."""
+    working tree, or from `revision` when one is given. A target-specific
+    `expected_native_exit.<target>.txt` overrides the portable oracle."""
     corpus = golden.resolve().parent
 
-    def oracle_for(fixture):
-        path = corpus / fixture / ORACLE
+    def read(path):
         if revision is None:
             if not path.is_file():
                 return None
-            text = path.read_text(encoding="utf-8",
-                                  errors="replace").strip()
-        else:
-            try:
-                relative = path.relative_to(repository).as_posix()
-            except ValueError:
-                return None
-            shown = git_show(repository, revision, relative)
-            if shown is None:
-                return None
-            text = shown.strip()
+            return path.read_text(encoding="utf-8", errors="replace").strip()
+        try:
+            relative = path.relative_to(repository).as_posix()
+        except ValueError:
+            return None
+        shown = git_show(repository, revision, relative)
+        return None if shown is None else shown.strip()
+
+    def oracle_for(fixture):
+        text = None
+        if target is not None:
+            text = read(corpus / fixture / f"expected_native_exit.{target}.txt")
+        if text is None:
+            text = read(corpus / fixture / ORACLE)
+        if text is None:
+            return None
         return text.splitlines()[0].strip() if text else None
 
     return oracle_for
@@ -234,7 +239,7 @@ def collect(repository, golden=None, base_rev=None, head_rev=None,
             raise ScoreboardError(f"{golden} does not exist")
         head = corpus_records.read(golden)
     head_board = native_scoreboard(
-        head, oracle_lookup(repository, golden, head_rev))
+        head, oracle_lookup(repository, golden, head_rev, target))
     board = {"target": target, "golden": relative,
              "head_rev": head_rev, "head": head_board,
              # Rows merged forward by subset re-records keep the stamp of
@@ -257,7 +262,7 @@ def collect(repository, golden=None, base_rev=None, head_rev=None,
         # The authored oracle lives with the fixture, not the golden; use
         # the head-revision oracle for both sides so a new oracle does not
         # manufacture a false delta.
-        oracles = oracle_lookup(repository, golden, head_rev)
+        oracles = oracle_lookup(repository, golden, head_rev, target)
         diff = diff_scoreboards(base, head, oracles)
         board.update({"base_rev": base_rev,
                       "base_golden": str(base_golden) if base_golden else None,

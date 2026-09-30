@@ -28,7 +28,8 @@
 //! `OMEGA_CORPUS_NATIVE=1` switches to the native leg for the host target:
 //! every pass and run fixture is built as a published native executable
 //! (status `built`), fail fixtures are skipped, and run fixtures and pass
-//! fixtures named `*_exit` or carrying `expected_native_exit.txt` are executed
+//! fixtures named `*_exit` or carrying `expected_native_exit.txt` (or this
+//! host's `expected_native_exit.<target>.txt`) are executed
 //! in a fresh temporary directory with
 //! `input.txt` as stdin. Their records gain `exit:<code>` (or `exit:timeout`,
 //! `exit:signal` plus `signal:<number>`) and, beside an `expected_stdout.txt`, `stdout:match` or
@@ -327,17 +328,25 @@ fn interpret_fixture(root_path: &Path, fixture_dir: &Path) -> Vec<String> {
     facts
 }
 
-/// With both legs, whether the native and interpreted exit codes agree.
+/// With both legs, whether the native exit is this host's presentation of
+/// the interpreter's exact status. Unix wait status keeps the low eight bits
+/// and Windows the full i32, the rule `omega run --both` applies in the CLI's
+/// `ProcessExitObservation::matches_host_presentation`.
 fn interpreter_agreement(facts: &[String]) -> Option<String> {
     let native = facts.iter().find_map(|fact| fact.strip_prefix("exit:"))?;
     let interpreted = facts
         .iter()
         .find_map(|fact| fact.strip_prefix("interpreter-exit:"))?;
-    Some(if native == interpreted {
-        "interpreter:agrees".to_owned()
-    } else {
-        "interpreter:disagrees".to_owned()
-    })
+    let presented = interpreted
+        .parse::<i32>()
+        .map(|status| if cfg!(unix) { status & 255 } else { status });
+    Some(
+        if presented.is_ok_and(|status| native == status.to_string()) {
+            "interpreter:agrees".to_owned()
+        } else {
+            "interpreter:disagrees".to_owned()
+        },
+    )
 }
 
 /// Build one fixture as a published native executable for `target`.
@@ -583,9 +592,16 @@ fn run_one(tier: &str, base: &Path, main: &Path, sequence: usize) -> (String, u1
         .to_string_lossy()
         .replace('\\', "/");
     let mut facts = Vec::new();
+    // A host-specific oracle promises this host's physical presentation of
+    // the exit status; it overrides the portable one in `tools/corpus_gate.py`.
     let runnable = tier == "run"
         || rel.ends_with("_exit")
-        || fixture_dir.join("expected_native_exit.txt").is_file();
+        || fixture_dir.join("expected_native_exit.txt").is_file()
+        || target::TargetProfile::host_if_supported().is_some_and(|host| {
+            fixture_dir
+                .join(format!("expected_native_exit.{}.txt", host.target_name()))
+                .is_file()
+        });
     // A pass/run fixture is realized only for a target it binds a program
     // entry for. Realizing one that binds none, or binding the host in its
     // place, reports this harness's own selection rather than the fixture's

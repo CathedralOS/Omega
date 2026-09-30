@@ -26,7 +26,8 @@ Subsets — the inner-loop mode:
     python3 tools/corpus_gate.py --filter fail/proofs,wire/ # several fragments
 
 Native leg — build every pass and run fixture for this host and execute the
-run tier, `*_exit` fixtures and fixtures with `expected_native_exit.txt`,
+run tier, `*_exit` fixtures and fixtures with `expected_native_exit.txt` (or
+a host-specific `expected_native_exit.<target>.txt`, which overrides it),
 diffing against this host's golden `tests/omega/corpus_native_<target>.txt`:
 
     python3 tools/corpus_gate.py --native --filter providers/
@@ -132,6 +133,22 @@ def host_target() -> str | None:
     return HOST_TARGETS.get((platform.system().lower(), platform.machine().lower()))
 
 
+NATIVE_EXIT_ORACLE = "expected_native_exit.txt"
+
+
+def native_exit_oracle(fixture: Path, target: str) -> Path:
+    """The fixture's authored exit promise for `target`.
+
+    `expected_native_exit.<target>.txt` overrides the portable
+    `expected_native_exit.txt`: a status's physical presentation belongs to
+    the target contract (wiki/spec/language/process_exit.md), so one program
+    may promise 212 on a Unix host for the semantic status -44 while another
+    target keeps no promise at all.
+    """
+    specific = fixture / f"expected_native_exit.{target}.txt"
+    return specific if specific.is_file() else fixture / NATIVE_EXIT_ORACLE
+
+
 def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list[str]:
     """Check authored runtime oracles before comparing or recording observations.
 
@@ -146,7 +163,7 @@ def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list
              "windows_x86_64": {"exit": str(-1073741795)}}
     failures = []
     for record in records:
-        path = corpus / record["fixture"] / "expected_native_exit.txt"
+        path = native_exit_oracle(corpus / record["fixture"], target)
         if not path.exists():
             continue
         try:

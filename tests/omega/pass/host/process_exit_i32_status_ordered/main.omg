@@ -1,5 +1,5 @@
 // Canonical `ProcessExit::exit_process` behind ordered console output and a
-// conditional helper chain, observed by the checked interpreter.
+// conditional helper chain, observed natively and by the checked interpreter.
 //
 // `Main` declares `reaches Console + ProcessExit`: Console grants output
 // authority only, and the terminal outcome still passes through the exact
@@ -7,9 +7,8 @@
 // `write_line` bytes precede the terminal event; the conditional helper
 // states each exit with their own exact status and no continuation runs.
 //
-// This fixture is interpreter-scoped: the transitional native entry envelope
-// admits one provider-backed service carrier per attachment root, so the
-// companion `process_exit_i32_status` fixture carries the native legs.
+// Both legs exit 70 after printing exactly one line; `Console` and
+// `ProcessExit` are separate provider-backed carriers on the same root.
 use omega::language::core::process_exit;
 use omega_language_std::process_exit;
 use omega_language_std::console;

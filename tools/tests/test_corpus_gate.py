@@ -62,6 +62,23 @@ class NativeExitExpectations(unittest.TestCase):
         for expectation in ("", "signal", "70\n7", "2147483648"):
             self.assertTrue(self.failures(expectation, {"exit": "70"}))
 
+    def test_target_specific_oracle_overrides_the_portable_one(self):
+        (self.fixture / "expected_native_exit.txt").write_text("70\n")
+        (self.fixture / "expected_native_exit.linux_x86_64.txt").write_text("212\n")
+        self.record.update(facts={"exit": "212"})
+        self.assertEqual(corpus_gate.native_exit_failures(
+            [self.record], self.root, "linux_x86_64"), [])
+        self.assertTrue(corpus_gate.native_exit_failures(
+            [self.record], self.root, "macos_arm64"))
+
+    def test_target_specific_oracle_alone_promises_only_its_target(self):
+        (self.fixture / "expected_native_exit.macos_arm64.txt").write_text("212\n")
+        self.record.update(facts={"exit": "-44"})
+        self.assertTrue(corpus_gate.native_exit_failures(
+            [self.record], self.root, "macos_arm64"))
+        self.assertEqual(corpus_gate.native_exit_failures(
+            [self.record], self.root, "windows_x86_64"), [])
+
     def test_unannotated_fixture_preserves_observation_only_behavior(self):
         self.assertEqual(corpus_gate.native_exit_failures(
             [self.record], self.root, "macos_arm64"), [])
