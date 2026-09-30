@@ -730,8 +730,8 @@ static FACT_TRAPPING_NORMAL_RETURN: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:trapping-normal-return",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "a validated Trapping primitive whose denotation is reconstructed from its operand and result carriers",
-    conclusion: "only the normal continuation gains result = the primitive's exact term, without an Exact safety obligation; crash coverage is separately checked before this equation is available",
+    premises: "a validated Trapping integer primitive or IEEE result policy whose failure predicate is reconstructed from its operand and result carriers",
+    conclusion: "only the normal continuation gains the integer primitive's exact result equation, or the IEEE policy's finite-result bounds and equality to its raw payload; crash coverage is checked under pre-operation facts before these normal-return facts become available, without an Exact safety obligation",
     dependencies: &[
         "fact:semantic-axiom-roster",
         "formation:operation-validation",
@@ -739,6 +739,7 @@ static FACT_TRAPPING_NORMAL_RETURN: TrustedSurfaceEntry = TrustedSurfaceEntry {
     implementation: &[
         OPERATION_FACTS,
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/trapping_integer.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/float_result_policy.rs",
     ],
     soundness: TRUSTED,
 };

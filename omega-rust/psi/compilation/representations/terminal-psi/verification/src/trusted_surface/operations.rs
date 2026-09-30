@@ -11,6 +11,7 @@ use terminal_semantics::OperationSemanticTag;
 use super::{CoveredSurface, EntryBinding, LedgerFamily, SoundnessStatus, TrustedSurfaceEntry};
 
 const VOCAB: &str = "omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/operations.rs";
+const FLOAT_POLICY: &str = "omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/float_result_policy.rs";
 const TS_ROWS: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/semantic_rows.rs";
 const TS_LEAF_SCHEMA: &str =
@@ -935,10 +936,18 @@ static OP_FLOAT_RESULT_POLICY: TrustedSurfaceEntry = entry(
     "an already evaluated IEEE result and, for saturation, its finite-overflow inputs, all in one exact format",
     "Trapping owns a Trap site under the complement of IEEE finiteness and establishes finite unchanged payload only on normal return; saturation establishes no unconditional finiteness or raw-result equality",
     &[
+        "fact:trapping-normal-return",
         "formation:operation-validation",
         "formation:crash-entry-requirements",
     ],
-    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_FLOAT_POLICY],
+    &[
+        VOCAB,
+        FLOAT_POLICY,
+        TS_ROWS,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_FLOAT_POLICY,
+    ],
 );
 
 static OP_ATOMIC_ACCESS: TrustedSurfaceEntry = entry(
