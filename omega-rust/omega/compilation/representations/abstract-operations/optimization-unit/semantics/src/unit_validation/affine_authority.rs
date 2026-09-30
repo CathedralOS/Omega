@@ -203,6 +203,12 @@ pub(crate) fn valid_edge_affine_transition(
     {
         return false;
     }
+    // With no cleanup transaction, exact frontier equality is the complete
+    // remaining judgment. Computing the eligible discard order would rebuild
+    // whole-function dominance for every edge without consuming that order.
+    if discards.is_empty() {
+        return entry.owned_places == exit.owned_places;
+    }
     let live = entry
         .owned_places
         .iter()
