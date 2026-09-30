@@ -81,12 +81,63 @@ fn identity_width_changing_and_cross_family_views_reject() {
         ))
         .contains("no Terminal Psi vocabulary")
     );
+    // The inverse landing needs branch machinery: a Boolean source cannot
+    // re-view as an integer carrier yet.
     assert!(
         error(replay(
-            field_read(integer(IntegerSign::Unsigned, 8)),
-            ScalarType::Boolean
+            field_read(ScalarType::Boolean),
+            integer(IntegerSign::Unsigned, 8)
         ))
         .contains("no Terminal Psi vocabulary")
+    );
+}
+
+#[test]
+fn a_bool_view_reads_the_integer_place_as_its_nonzero_image() {
+    let unsigned = integer(IntegerSign::Unsigned, 8);
+    let lowered = replay(field_read(unsigned), ScalarType::Boolean)
+        .expect("u8 re-views as its nonzero bool image");
+    assert_eq!(lowered.scalar_type(), ScalarType::Boolean);
+    let LoweredDirectExpression::Boolean { expression } = lowered else {
+        panic!("a bool view reads through the boolean lane: {lowered:?}");
+    };
+    let crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression::Not {
+        operand,
+    } = *expression
+    else {
+        panic!("the bit image negates the zero comparison: {expression:?}");
+    };
+    let crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression::IntegerComparison {
+        left,
+        right,
+        ..
+    } = *operand
+    else {
+        panic!("the image compares the viewed place to zero: {operand:?}");
+    };
+    // The comparison still observes the field at its declared carrier.
+    assert!(matches!(
+        *left,
+        LoweredDirectExpression::StructuralField { scalar_type, .. } if scalar_type == unsigned
+    ));
+    assert!(matches!(
+        *right,
+        LoweredDirectExpression::IntegerLiteral {
+            value: IntegerValue::Unsigned(0),
+            ..
+        }
+    ));
+
+    // A runtime-selected byte element re-views the same way.
+    let offset = LoweredDirectExpression::Local {
+        position: 2,
+        scalar_type: integer(IntegerSign::Unsigned, 64),
+    };
+    assert_eq!(
+        replay(byte_element_read(offset), ScalarType::Boolean)
+            .expect("an indexed byte re-views as bool")
+            .scalar_type(),
+        ScalarType::Boolean
     );
 }
 

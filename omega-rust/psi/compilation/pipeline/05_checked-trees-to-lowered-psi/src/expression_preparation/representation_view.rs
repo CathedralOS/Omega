@@ -23,18 +23,25 @@
 //! - A retained view must change its carrier. A same-carrier recast only
 //!   changes facts and stage 04 reads the place directly, so an identity pair
 //!   here is a malformed judgment rather than a no-op to accept silently.
-//! - Any other width change, and every pairing of a Boolean or IEEE float carrier
-//!   with another carrier, reject. Equal byte counts do not make `bool` and
-//!   `u8` or `f32` and `u32` interchangeable values: those views need a
-//!   Terminal re-view vocabulary (bit reinterpretation, 0/1 landing) that
-//!   Terminal Psi does not have yet, and no arithmetic spelling may stand in
-//!   for it.
+//! - An integer carrier re-viewed as `bool` lands the byte's {0, 1} bit
+//!   image as `operand != 0` — the same flat spelling the store side uses
+//!   for the inverse landing, and total for every integer source.
+//! - Any other width change, and every other pairing of a Boolean or IEEE
+//!   float carrier with another carrier, reject. A `bool` re-viewed as an
+//!   integer needs the 0/1 landing only branch-level conditional landing
+//!   can mint — no flat operation stands in for it — and equal byte counts
+//!   do not make `f32` and `u32` interchangeable values either: those views
+//!   need a Terminal re-view vocabulary (bit reinterpretation) that Terminal
+//!   Psi does not have yet.
 //!
 //! The operand must observe one place. A re-view of a computed value would be
 //! a conversion, which the recast contract forbids a cast to perform.
 
+use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
+use crate::emission::operation_emission::integer::{
+    LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
+};
 use crate::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
@@ -62,6 +69,30 @@ pub(crate) fn replay(
                 return unsupported("a representation re-view must observe one scalar place");
             }
             crate::expression_preparation::wrapping_cast::wrapping_cast(operand, source_type, view)
+        }
+        // A `bool` view reads the integer's nonzero image: the recast
+        // contract admits the pairing only for a declared {0, 1} bit set,
+        // so `operand != 0` reproduces the byte the view names.
+        (ScalarType::Integer(source_type), ScalarType::Boolean) => {
+            if !observes_one_place(&operand) {
+                return unsupported("a representation re-view must observe one scalar place");
+            }
+            let zero = match source_type.sign() {
+                IntegerSign::Signed => IntegerValue::Signed(0),
+                IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+            };
+            Ok(LoweredDirectExpression::Boolean {
+                expression: Box::new(LoweredBooleanReturnExpression::Not {
+                    operand: Box::new(LoweredBooleanReturnExpression::IntegerComparison {
+                        kind: LoweredIntegerComparisonKind::Equal,
+                        left: Box::new(operand),
+                        right: Box::new(LoweredDirectExpression::IntegerLiteral {
+                            value: zero,
+                            scalar_type: source,
+                        }),
+                    }),
+                }),
+            })
         }
         _ => unsupported(
             "a representation re-view between Boolean or IEEE float and other carriers has no \
