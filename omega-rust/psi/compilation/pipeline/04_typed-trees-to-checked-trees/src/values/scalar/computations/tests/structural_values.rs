@@ -7,6 +7,36 @@ use checked_trees::{
 };
 
 #[test]
+fn closed_scalar_arrays_have_one_producer_inside_case_payloads() {
+    let checked = checked_source(
+        "data Packet { case Empty; case Samples(values: [i32; 2]); }
+         machine make(seed: i32) -> Packet { Packet::Samples { values: [seed, 40] } }",
+        false,
+    );
+    let values = &checked.facts.values.structural_values;
+    let arrays = values
+        .nodes
+        .iter()
+        .filter_map(|(_, value)| match &value.kind {
+            CheckedStructuralValueKind::ScalarArray { elements } => Some(elements.len()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        arrays,
+        [2],
+        "array construction does not depend on its enclosing aggregate"
+    );
+    assert!(
+        !values
+            .nodes
+            .iter()
+            .any(|(_, value)| matches!(value.kind, CheckedStructuralValueKind::FixedArray { .. })),
+        "closed primitive arrays retain their existing scalar-array producer"
+    );
+}
+
+#[test]
 fn primitive_reference_leaves_compose_under_store_operands_and_completion() {
     let checked = checked_source(
         r#"

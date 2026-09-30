@@ -30,7 +30,7 @@ pub(crate) enum LoweredBooleanReturnExpression {
         case: semantic_vocabulary::StructuralCaseId,
     },
     PrimitiveRead {
-        source: PlaceId,
+        source: super::expressions::PrimitiveReadSource,
         path: Vec<terminal_psi::StructuralPathSegment>,
     },
     Constant {
@@ -130,12 +130,13 @@ pub(crate) fn emit_boolean_expression(
         }
         LoweredBooleanReturnExpression::Parameter { position }
         | LoweredBooleanReturnExpression::Local { position } => parameters[*position].id,
-        LoweredBooleanReturnExpression::PrimitiveRead { source, path } => emit_scalar_leaf(
-            OperationKind::PrimitiveScalarRead {
-                source: *source,
+        LoweredBooleanReturnExpression::PrimitiveRead { source, path } => emit_direct_expression(
+            &LoweredDirectExpression::PrimitiveRead {
+                source: source.clone(),
                 path: path.clone(),
+                scalar_type: ScalarType::Boolean,
             },
-            ScalarType::Boolean,
+            parameters,
             next_value_identity,
             operations,
         ),

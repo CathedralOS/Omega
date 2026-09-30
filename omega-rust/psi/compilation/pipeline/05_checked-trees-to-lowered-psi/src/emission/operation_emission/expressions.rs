@@ -32,10 +32,29 @@ const TERMINAL_NESTED_SELECTOR_OBLIGATION_BASE: u64 = 1 << 61;
 pub(crate) const TERMINAL_NESTED_SELECTOR_LIMIT: usize = 7;
 const TERMINAL_NESTED_SELECTOR_STRIDE: u64 = 8;
 
+/// Case-qualified storage must first be observed under its selecting edge's
+/// authority. Copying the leaf's immediate carrier preserves that authority without
+/// extending the ordinary primitive projection grammar across overlaid payloads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PrimitiveReadSource {
+    Place(PlaceId),
+    CaseLeaf {
+        source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        structural_type: StructuralTypeId,
+    },
+}
+
+impl From<PlaceId> for PrimitiveReadSource {
+    fn from(place: PlaceId) -> Self {
+        Self::Place(place)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredDirectExpression {
     PrimitiveRead {
-        source: PlaceId,
+        source: PrimitiveReadSource,
         path: Vec<terminal_psi::StructuralPathSegment>,
         scalar_type: ScalarType,
     },
@@ -339,15 +358,53 @@ pub(crate) fn emit_direct_expression(
             source,
             path,
             scalar_type,
-        } => emit_scalar_leaf(
-            OperationKind::PrimitiveScalarRead {
-                source: *source,
-                path: path.clone(),
-            },
-            *scalar_type,
-            next_value_identity,
-            operations,
-        ),
+        } => {
+            let source = match source {
+                PrimitiveReadSource::Place(place) => *place,
+                PrimitiveReadSource::CaseLeaf {
+                    source,
+                    path,
+                    structural_type,
+                } => {
+                    let producer = operations.allocate();
+                    let place = place_id(
+                        TERMINAL_HOISTED_ELEMENT_PLACE_BASE
+                            .checked_add(producer.get())
+                            .expect("hoisted leaf places admit a reserved namespace"),
+                    );
+                    operations.push(Operation {
+                        static_reach_binding: None,
+                        suspension_crossing: None,
+                        id: producer,
+                        result: OperationResult::Structural(
+                            terminal_psi::StructuralOperationResult {
+                                qualification_establishments: Vec::new(),
+                                place,
+                                structural_type: *structural_type,
+                                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                                qualifications: Vec::new(),
+                                projected_qualifications: Vec::new(),
+                                claims: Vec::new(),
+                            },
+                        ),
+                        kind: OperationKind::StructuralCaseLeafCopy {
+                            source: *source,
+                            path: path.clone(),
+                        },
+                    });
+                    place
+                }
+            };
+            emit_scalar_leaf(
+                OperationKind::PrimitiveScalarRead {
+                    source,
+                    path: path.clone(),
+                },
+                *scalar_type,
+                next_value_identity,
+                operations,
+            )
+        }
         LoweredDirectExpression::StructuralField {
             source,
             path,

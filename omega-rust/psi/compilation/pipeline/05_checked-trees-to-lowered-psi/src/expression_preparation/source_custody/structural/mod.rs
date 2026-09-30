@@ -1404,8 +1404,9 @@ pub(crate) fn operand_source(
             checked.expression_table.expression(expression)
         {
             // A supplied array member's leaves belong to that array occurrence.
-            // Only its enclosing record declares the closed carrier that
-            // flattens it, so the lookup happens at the owning field.
+            // Its authored member declares the closed carrier, whether the
+            // constructor selects a record or a case. Resolve that declaration
+            // once rather than giving each enclosing shape an array producer.
             if let CheckedScalarExpressionRole::StructuralArrayElement {
                 expression: array,
                 element_ordinal,
@@ -1421,18 +1422,15 @@ pub(crate) fn operand_source(
                     .iter()
                     .find(|data| data.symbol == literal.type_symbol)
                     .and_then(|data| {
-                        checked
-                            .data_members(data)
-                            .iter()
-                            .find_map(|member| match member {
-                                checked_trees::data::DataMember::Field(declaration)
-                                    if declaration.symbol == field.field_symbol
-                                        && !declaration.relevance.is_erased() =>
-                                {
-                                    Some(declaration.type_reference)
-                                }
-                                _ => None,
-                            })
+                        validation::exact_data_member_field(
+                            &checked.typed,
+                            data,
+                            field.field_symbol,
+                            field.name.as_str(),
+                            literal.case_name.as_ref().map(|name| name.as_str()),
+                        )
+                        .filter(|declaration| !declaration.relevance.is_erased())
+                        .map(|declaration| declaration.type_reference)
                     })
                     .ok_or(LoweringError::Unsupported(
                         "scalar array member declaration missing",

@@ -1587,7 +1587,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
 - **RECORD-LITERAL-ARRAY-FIELD.** Compose supplied borrowed-slice fields and
   the remaining owned-array producers into record literals.
   Literal closed primitive array members already compose at local, nested,
-  return and field-store sites: stage 04 `record_value` sends them to
+  return and field-store sites: stage 04's shared `structural_value` sends them to
   `CheckedStructuralValueKind::ScalarArray`, whose row-major leaves are keyed
   `StructuralArrayElement { expression, element_ordinal }`, and stage 05
   replays each leaf and emits `EstablishScalarArray` as the record's field.
@@ -1600,8 +1600,14 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `pass/structs/runtime_named_array_record_member_exit` exits 70 natively and
   on the checked interpreter. Copy permission is separate from root discovery,
   where whole-array call arguments already have a payload producer.
-  Remaining owned producers: array payloads of a case literal
-  (`structural_case_value`), and element-policy
+  Case payloads now use that same producer and authored member replay.
+  `pass/structs/runtime_case_array_payload_exit` exits 70 with `omega run --both`
+  on macOS ARM64: construction stores [30, 40], and selected payload reads
+  observe both elements. Case-qualified reads compose an independently checked
+  payload-carrier copy with an ordinary primitive read; copied aggregate homes
+  retain their producer/type custody in native selection. Nested-array reads
+  verify, while leaf substitution and copies above their selecting case reject.
+  Remaining owned producers: element-policy
   or structural-element arrays, which still meet `FixedArray`'s "fixed array
   literal has no Terminal establishment" refusal (pinned by
   `folded_index_faces_the_literal_lowering_boundary`).

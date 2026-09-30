@@ -13,7 +13,7 @@ fn primitive_read_values_cannot_be_recovered_from_known_ssa_inputs() {
     let source = PlaceId::new(1).unwrap();
     let scalar_type = terminal_scalar_type(PrimitiveType::U64).unwrap();
     let integer_read = LoweredDirectExpression::PrimitiveRead {
-        source,
+        source: source.into(),
         path: Vec::new(),
         scalar_type,
     };
@@ -25,7 +25,7 @@ fn primitive_read_values_cannot_be_recovered_from_known_ssa_inputs() {
         None,
     );
     let boolean_read = LoweredBooleanReturnExpression::PrimitiveRead {
-        source,
+        source: source.into(),
         path: Vec::new(),
     };
     assert_eq!(

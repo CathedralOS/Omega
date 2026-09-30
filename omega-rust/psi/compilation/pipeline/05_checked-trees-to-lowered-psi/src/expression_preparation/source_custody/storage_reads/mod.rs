@@ -639,9 +639,11 @@ fn authored_read_path(
             else {
                 return Ok(None);
             };
-            // Element reads root at a local fixed carrier: parameter roots
-            // keep their retained selector-only occurrences.
-            if fixed_carrier_local(checked, state, scope, root).is_none() {
+            // A projected aggregate's element retains the whole storage path,
+            // including any case/field coordinates already established above.
+            // Only a bare parameter collection uses selector-only custody;
+            // local fixed carriers retain their binding even with no prefix.
+            if path.is_empty() && fixed_carrier_local(checked, state, scope, root).is_none() {
                 return Ok(None);
             }
             let Some(index) = constant_index_u64(checked, indexed.index) else {

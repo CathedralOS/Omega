@@ -5,6 +5,9 @@
 //! complete canonical carrier path: a leaf declaration may occur below several
 //! siblings, and its identity alone cannot select the observed value. Case
 //! membership and ownership remain obligations of the selecting edge and replay.
+//! Primitive elements below a case use a checked carrier copy followed by the
+//! ordinary primitive read. This keeps case authority at the copy operation;
+//! the primitive path does not acquire an unchecked case projection grammar.
 
 use super::super::{
     CheckedUnitStructuralPathSegment, StructuralFieldId, StructuralFieldType, StructuralTypeId,
@@ -788,7 +791,13 @@ pub(crate) fn resolve_primitive(
     position: u32,
     path: &[checked_trees::CheckedStructuralPredicatePathSegment],
     scalar_type: ScalarType,
-) -> Result<(PlaceId, Vec<terminal_psi::StructuralPathSegment>), LoweringError> {
+) -> Result<
+    (
+        crate::emission::operation_emission::expressions::PrimitiveReadSource,
+        Vec<terminal_psi::StructuralPathSegment>,
+    ),
+    LoweringError,
+> {
     let mut matching = fields
         .iter()
         .filter(|field| field.source_position == position);
@@ -797,6 +806,14 @@ pub(crate) fn resolve_primitive(
     ))?;
     if matching.next().is_some() {
         return unsupported("primitive observation has ambiguous bindings");
+    }
+    if path.iter().any(|segment| {
+        matches!(
+            segment,
+            checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
+        )
+    }) {
+        return resolve_case_primitive(binding, path, scalar_type);
     }
     let path = path
         .iter()
@@ -818,5 +835,118 @@ pub(crate) fn resolve_primitive(
     if declared_type != scalar_type {
         return unsupported("primitive observation changes its declared scalar type");
     }
-    Ok((binding.source, path))
+    Ok((binding.source.into(), path))
+}
+
+/// Resolve each declared projection independently; no source arrangement grants
+/// case membership. The emitted case-leaf copy still owes a dominating fact for
+/// every case crossed, checked again by Terminal verification.
+fn resolve_case_primitive(
+    binding: &StructuralScalarFieldBinding,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    scalar_type: ScalarType,
+) -> Result<
+    (
+        crate::emission::operation_emission::expressions::PrimitiveReadSource,
+        Vec<terminal_psi::StructuralPathSegment>,
+    ),
+    LoweringError,
+> {
+    use checked_trees::CheckedStructuralPredicatePathSegment as Segment;
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Canonical;
+    let Some((Segment::FixedIndex(index), carrier)) = path.split_last() else {
+        return unsupported("case primitive observation requires an indexed primitive carrier");
+    };
+    let mut structural_type = binding.structural_type;
+    let mut canonical = Vec::with_capacity(path.len());
+    let mut case_fields = None;
+    for segment in carrier {
+        let mut matching = binding
+            .declarations
+            .iter()
+            .filter(|declaration| declaration.id == structural_type);
+        let (Some(declaration), None) = (matching.next(), matching.next()) else {
+            return unsupported("primitive observation requires a unique carrier declaration");
+        };
+        match segment {
+            Segment::Case(identity) => {
+                if case_fields.is_some() {
+                    return unsupported("primitive observation requires a field after its case");
+                }
+                let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                    &declaration.shape
+                else {
+                    return unsupported("primitive observation selects a case of a non-sum");
+                };
+                let mut matching = cases.iter().filter(|case| case.identity == *identity);
+                let (Some(case), None) = (matching.next(), matching.next()) else {
+                    return unsupported("primitive observation requires a unique case");
+                };
+                canonical.push(Canonical::Case(case.id));
+                case_fields = Some(case.fields.as_slice());
+            }
+            Segment::Field(identity) => {
+                let fields = match case_fields.take() {
+                    Some(fields) => fields,
+                    None => match &declaration.shape {
+                        StructuralTypeShape::Record { fields }
+                        | StructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+                        _ => {
+                            return unsupported(
+                                "primitive observation field has no declared carrier",
+                            );
+                        }
+                    },
+                };
+                let mut matching = fields.iter().filter(|field| field.identity == *identity);
+                let (Some(field), None) = (matching.next(), matching.next()) else {
+                    return unsupported("primitive observation requires a unique field");
+                };
+                if field.relevance.is_erased() {
+                    return unsupported("primitive observation cannot read an erased field");
+                }
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return unsupported("primitive observation requires a structural leaf carrier");
+                };
+                canonical.push(Canonical::Field(field.id));
+                structural_type = child;
+            }
+            Segment::FixedIndex(index) => {
+                let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+                    return unsupported("primitive observation indexes a non-array");
+                };
+                if case_fields.is_some() || index >= length {
+                    return unsupported("primitive observation index lacks its array or bound");
+                }
+                canonical.push(Canonical::FixedIndex(*index));
+                structural_type = *element;
+            }
+        }
+    }
+    // Canonical lookup also rejects duplicate declaration-local identities;
+    // source spellings above select identities but cannot certify them.
+    if terminal_semantics::canonical_case_leaf_type(
+        binding.declarations.iter(),
+        binding.structural_type,
+        &canonical,
+    ) != Some(structural_type)
+    {
+        return unsupported("primitive observation lost its canonical carrier");
+    }
+    let (path, declared) = crate::emission::primitive_store::lower_path(
+        structural_type,
+        &[CheckedUnitStructuralPathSegment::FixedIndex(*index)],
+        &binding.declarations,
+    )?;
+    if declared != scalar_type {
+        return unsupported("primitive observation changes its declared scalar type");
+    }
+    Ok((
+        crate::emission::operation_emission::expressions::PrimitiveReadSource::CaseLeaf {
+            source: binding.source,
+            path: canonical,
+            structural_type,
+        },
+        path,
+    ))
 }
