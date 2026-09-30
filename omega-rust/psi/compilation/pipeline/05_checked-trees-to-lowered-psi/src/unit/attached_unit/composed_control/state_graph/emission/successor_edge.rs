@@ -585,6 +585,72 @@ impl StateGraphEmission<'_, '_> {
                             });
                             destination
                         }
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy {
+                            ref subject,
+                        } => {
+                            // A copyable leaf has no custody root of its
+                            // own: the edge mints one StructuralLeafCopy
+                            // reading the projected subtree off its live
+                            // parameter root into fresh owned storage the
+                            // target parameter takes.
+                            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                parameter_index,
+                            } = subject.source
+                            else {
+                                return unsupported(
+                                    "Unit graph projected copy subject unsupported",
+                                );
+                            };
+                            let source = edge_evaluation.current_structural_place(
+                                state_parameters.get(parameter_index as usize).ok_or(
+                                    LoweringError::Unsupported(
+                                        "Unit graph projected subject descriptor disappeared",
+                                    ),
+                                )?.place,
+                            );
+                            let path = subject.path.iter().map(|segment| match segment {
+                                checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
+                                    terminal_psi::StructuralPathSegment::Field(identity.clone())),
+                                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Some(
+                                    terminal_psi::StructuralPathSegment::FixedIndex(*index)),
+                                _ => None,
+                            }).collect::<Option<Vec<_>>>().ok_or(
+                                LoweringError::Unsupported("Unit graph projected path segment unsupported"),
+                            )?;
+                            let destination = place_id(allocate_dense(&mut self.catalogs.next_place)?);
+                            let structural_type = crate::terminal_identities::lookup_type_id(
+                                &self.catalogs.type_ids,
+                                &target_parameter.type_identity,
+                            )?;
+                            let producer = operations.allocate();
+                            operations.push(Operation {
+                                static_reach_binding: None,
+                                suspension_crossing: None,
+                                id: producer,
+                                result: OperationResult::Structural(
+                                    terminal_psi::StructuralOperationResult {
+                                        qualification_establishments: Vec::new(),
+                                        place: destination,
+                                        structural_type,
+                                        multiplicity: StructuralMultiplicity::Unrestricted,
+                                        qualifications: Vec::new(),
+                                        projected_qualifications: Vec::new(),
+                                        claims: Vec::new(),
+                                    },
+                                ),
+                                kind: OperationKind::StructuralLeafCopy { source, path },
+                            });
+                            self.catalogs.temporary_places.push(
+                                StructuralPlaceDeclaration {
+                                    id: destination,
+                                    kind: StructuralPlaceKind::OperationResult {
+                                        producer,
+                                        structural_type,
+                                    },
+                                },
+                            );
+                            destination
+                        }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
                             return unsupported(
                                 "Unit graph machine receiver has no argument place",
