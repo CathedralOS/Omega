@@ -786,6 +786,72 @@ pub(crate) fn resolve_indexed_element_field(
     Ok((binding.source, path, leaf, scalar_type))
 }
 
+/// A member element read whose element path carries a runtime selector —
+/// `cells[i].data[j]` spells `data`'s element through the `Field` step's own
+/// array. The `path` resolves exactly like `resolve_indexed_element_field`;
+/// the element path's checked segments keep their `RuntimeIndex` payloads
+/// for the caller to lower beside the read's other selectors.
+pub(crate) fn resolve_indexed_element_runtime_path(
+    fields: &[StructuralScalarFieldBinding],
+    position: u32,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+) -> Result<
+    (
+        PlaceId,
+        Vec<terminal_psi::StructuralPathSegment>,
+        crate::emission::primitive_store::IndexedElementLeaf,
+        ScalarType,
+    ),
+    LoweringError,
+> {
+    let mut matching = fields
+        .iter()
+        .filter(|field| field.source_position == position);
+    let binding = matching.next().ok_or(LoweringError::Unsupported(
+        "indexed element runtime path read has no readable binding",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("indexed element runtime path read has ambiguous bindings");
+    }
+    let static_segments = |path: &[checked_trees::CheckedStructuralPredicatePathSegment]| {
+        path.iter()
+            .map(|segment| match segment {
+                checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                    Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
+                }
+                checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                    Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
+                }
+                _ => unsupported("indexed element runtime read has an unsupported case path"),
+            })
+            .collect::<Result<Vec<_>, _>>()
+    };
+    let element_path = element_path
+        .iter()
+        .map(|segment| match segment {
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
+            }
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
+            }
+            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => Ok(
+                CheckedUnitStructuralPathSegment::RuntimeIndex(index.clone()),
+            ),
+            _ => unsupported("indexed element runtime path has an unsupported case path"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (path, leaf, scalar_type) =
+        crate::emission::primitive_store::lower_indexed_element_runtime_path(
+            binding.structural_type,
+            &static_segments(path)?,
+            &element_path,
+            &binding.declarations,
+        )?;
+    Ok((binding.source, path, leaf, scalar_type))
+}
+
 pub(crate) fn resolve_primitive(
     fields: &[StructuralScalarFieldBinding],
     position: u32,
@@ -920,6 +986,11 @@ fn resolve_case_primitive(
                 }
                 canonical.push(Canonical::FixedIndex(*index));
                 structural_type = *element;
+            }
+            // A runtime element selector carries no canonical segment: the
+            // case-primitive observation is contract vocabulary.
+            Segment::RuntimeIndex(_) => {
+                return unsupported("primitive observation selects no runtime element");
             }
         }
     }

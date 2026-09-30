@@ -1,7 +1,8 @@
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
-    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
+    PackageReviewRuntimeIndex, PackageReviewStructuralParameterField,
+    PackageReviewStructuralPredicatePathSegment,
 };
 
 mod boolean;
@@ -52,7 +53,37 @@ pub(crate) fn encode_structural_path(
                     Ok(())
                 })?;
             }
+            PackageReviewStructuralPredicatePathSegment::RuntimeIndex(index) => {
+                encoder.tag("runtime_index", 3);
+                encoder.field("index", |encoder| encode_runtime_index(encoder, index))?;
+            }
         }
         Ok(())
     })
+}
+
+fn encode_runtime_index(
+    encoder: &mut Encoder,
+    index: &PackageReviewRuntimeIndex,
+) -> Result<(), PackageReviewEncodingError> {
+    match index {
+        PackageReviewRuntimeIndex::Parameter { position } => {
+            encoder.tag("parameter", 0);
+            encoder.u32(*position);
+        }
+        PackageReviewRuntimeIndex::AssignmentIndex { depth } => {
+            encoder.tag("assignment_index", 1);
+            encoder.u32(*depth);
+        }
+        PackageReviewRuntimeIndex::StructuralField(field) => {
+            encoder.tag("structural_field", 2);
+            encoder.u32(field.parameter_position);
+            encode_structural_path(encoder, &field.path)?;
+        }
+        PackageReviewRuntimeIndex::Local { position } => {
+            encoder.tag("local", 3);
+            encoder.u32(*position);
+        }
+    }
+    Ok(())
 }

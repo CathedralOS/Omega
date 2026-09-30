@@ -19,7 +19,7 @@ use super::{
 };
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::{
-    LoweredDirectExpression, PrimitiveReadSource,
+    LoweredDirectExpression, LoweredElementPathSegment, PrimitiveReadSource,
 };
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
@@ -991,7 +991,12 @@ pub(super) fn observation(
                 path: binding.carrier_path.clone(),
                 index: Box::new(index),
                 inner_indexes: Vec::new(),
-                element_path: binding.element_path.clone(),
+                element_path: binding
+                    .element_path
+                    .iter()
+                    .cloned()
+                    .map(LoweredElementPathSegment::Static)
+                    .collect(),
                 scalar_type,
             }
         });

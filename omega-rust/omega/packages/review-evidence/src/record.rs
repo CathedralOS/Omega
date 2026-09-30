@@ -56,9 +56,9 @@ pub use authority::{
     PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
     PackageReviewMutation, PackageReviewPermissionClaim, PackageReviewPermissionSource,
     PackageReviewPrimitiveType, PackageReviewProgressPremise, PackageReviewProgressSubject,
-    PackageReviewScalarExpression, PackageReviewStructuralParameterField,
-    PackageReviewStructuralPredicatePathSegment, PackageReviewTermination,
-    PackageReviewWriteFrameCompleteness,
+    PackageReviewRuntimeIndex, PackageReviewScalarExpression,
+    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
+    PackageReviewTermination, PackageReviewWriteFrameCompleteness,
 };
 pub use calling::{
     PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,

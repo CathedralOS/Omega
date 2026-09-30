@@ -51,6 +51,19 @@ impl From<PlaceId> for PrimitiveReadSource {
     }
 }
 
+/// One element-path step of an `IndexedPrimitiveRead` after lowering: a
+/// static segment spelled verbatim, or a runtime selector evaluated like an
+/// `inner_indexes` operand and emitted as its own `RuntimeIndex` segment in
+/// the read's path — `cells[i].data[j]` keeps `data`'s `Field` step between
+/// the two runtime selectors.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum LoweredElementPathSegment {
+    /// A statically spelled path step.
+    Static(terminal_psi::StructuralPathSegment),
+    /// A runtime selector emitted with its own `index < extent` obligation.
+    RuntimeIndex(LoweredDirectExpression),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredDirectExpression {
     PrimitiveRead {
@@ -101,7 +114,7 @@ pub(crate) enum LoweredDirectExpression {
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
         inner_indexes: Vec<LoweredDirectExpression>,
-        element_path: Vec<terminal_psi::StructuralPathSegment>,
+        element_path: Vec<LoweredElementPathSegment>,
         scalar_type: ScalarType,
     },
     /// A bounded-leaf field of a runtime-selected record element
@@ -572,6 +585,7 @@ pub(crate) fn emit_direct_expression(
             );
             let mut path = path.clone();
             path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
+            let inner_count = inner_indexes.len();
             for (ordinal, index) in inner_indexes.into_iter().enumerate() {
                 assert!(
                     ordinal < TERMINAL_NESTED_SELECTOR_LIMIT,
@@ -589,7 +603,43 @@ pub(crate) fn emit_direct_expression(
                 );
                 path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
             }
-            path.extend(element_path.iter().cloned());
+            // Element-path runtime selectors share the nested-selector
+            // namespace, their ordinals continuing past the inner indexes.
+            let mut runtime_ordinal = inner_count;
+            for segment in element_path {
+                match segment {
+                    LoweredElementPathSegment::Static(segment) => {
+                        path.push(segment.clone());
+                    }
+                    LoweredElementPathSegment::RuntimeIndex(selector) => {
+                        assert!(
+                            runtime_ordinal < TERMINAL_NESTED_SELECTOR_LIMIT,
+                            "preparation bounds the nested selector count"
+                        );
+                        let index = emit_direct_expression(
+                            selector,
+                            parameters,
+                            next_value_identity,
+                            operations,
+                        );
+                        let obligation = obligation_id(
+                            operations
+                                .next_identity
+                                .checked_mul(TERMINAL_NESTED_SELECTOR_STRIDE)
+                                .and_then(|offset| {
+                                    offset.checked_add(TERMINAL_NESTED_SELECTOR_OBLIGATION_BASE)
+                                })
+                                .and_then(|base| base.checked_add(runtime_ordinal as u64 + 1))
+                                .expect("nested selector obligations fit their reserved namespace"),
+                        );
+                        path.push(terminal_psi::StructuralPathSegment::RuntimeIndex {
+                            index,
+                            obligation,
+                        });
+                        runtime_ordinal += 1;
+                    }
+                }
+            }
             emit_scalar_leaf(
                 OperationKind::PrimitiveScalarRead {
                     source: *source,

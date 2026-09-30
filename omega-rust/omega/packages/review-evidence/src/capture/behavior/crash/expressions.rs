@@ -5,8 +5,8 @@ use crate::record::{
     PackageReviewIeeeFloatComparisonKind, PackageReviewIntegerBinaryKind,
     PackageReviewIntegerComparisonKind, PackageReviewIntegerLiteral,
     PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange, PackageReviewPrimitiveType,
-    PackageReviewScalarExpression, PackageReviewStructuralParameterField,
-    PackageReviewStructuralPredicatePathSegment,
+    PackageReviewRuntimeIndex, PackageReviewScalarExpression,
+    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
 
 pub(in crate::capture::behavior) fn project_boolean_expression(
@@ -261,8 +261,34 @@ fn project_structural_path(
             checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(element_index) => {
                 PackageReviewStructuralPredicatePathSegment::FixedIndex(*element_index)
             }
+            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(index) => {
+                PackageReviewStructuralPredicatePathSegment::RuntimeIndex(project_runtime_index(
+                    index,
+                ))
+            }
         })
         .collect()
+}
+
+fn project_runtime_index(index: &checked_trees::CheckedRuntimeIndex) -> PackageReviewRuntimeIndex {
+    match index {
+        checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+            PackageReviewRuntimeIndex::Parameter {
+                position: *position,
+            }
+        }
+        checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth } => {
+            PackageReviewRuntimeIndex::AssignmentIndex { depth: *depth }
+        }
+        checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+            PackageReviewRuntimeIndex::StructuralField(project_structural_field(field))
+        }
+        checked_trees::CheckedRuntimeIndex::Local { position } => {
+            PackageReviewRuntimeIndex::Local {
+                position: *position,
+            }
+        }
+    }
 }
 
 const fn project_primitive_type(

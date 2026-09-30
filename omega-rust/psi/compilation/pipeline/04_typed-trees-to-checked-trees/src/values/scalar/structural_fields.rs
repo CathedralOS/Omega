@@ -970,6 +970,10 @@ pub(crate) fn resolve_structural_parameter_path(
                 });
                 receiver = field.type_reference;
             }
+            // A runtime selector names no authored place segment: the
+            // canonical place's `Index` step spells the authored selector
+            // expression, which the checked coordinate does not retain.
+            CheckedStructuralPredicatePathSegment::RuntimeIndex(_) => return None,
         }
         if exclusive_reference(program, receiver) {
             frozen = false;
@@ -1027,6 +1031,38 @@ pub(super) fn fixed_index_element_type(
                     return None;
                 };
                 return (element_index < u64::try_from(*length).ok()?).then_some(*element_type);
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// The element type a runtime selector reaches inside a fixed array: the
+/// same unwrap `fixed_index_element_type` walks, with no literal to prove
+/// against the extent — the read's own obligation checks the bound.
+pub(super) fn runtime_index_element_type(
+    program: &TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Constrained { .. }
+                if validation::loaned_bounded_byte_buffer_capacity(program, reference)
+                    .is_some() =>
+            {
+                return None;
+            }
+            TypeReferenceNode::Reference { referee, .. }
+            | TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => reference = *referee,
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+                ..
+            } => {
+                return matches!(length, typed_trees::types::FixedArrayLength::Literal(_))
+                    .then_some(*element_type);
             }
             _ => return None,
         }

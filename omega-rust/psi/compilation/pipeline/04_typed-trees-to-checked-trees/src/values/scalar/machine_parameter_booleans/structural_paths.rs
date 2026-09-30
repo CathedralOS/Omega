@@ -46,6 +46,12 @@ pub(super) fn path_type_reference(
                 receiver =
                     structural_fields::fixed_index_element_type(program, receiver, *element_index)?;
             }
+            CheckedStructuralPredicatePathSegment::RuntimeIndex(_) => {
+                if selected_case.is_some() {
+                    return None;
+                }
+                receiver = structural_fields::runtime_index_element_type(program, receiver)?;
+            }
             CheckedStructuralPredicatePathSegment::Case(case) => {
                 if selected_case.is_some() {
                     return None;

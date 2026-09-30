@@ -1,7 +1,9 @@
 //! Lowering checked scalar and boolean expressions.
 
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
-use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::operation_emission::expressions::{
+    LoweredDirectExpression, LoweredElementPathSegment,
+};
 use crate::emission::operation_emission::integer::{
     LoweredIntegerBinaryKind, LoweredIntegerComparisonKind,
 };
@@ -654,6 +656,73 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         // A scalar field of a record element (`cells[i].hp`)
                         // follows the selector with the element path; the
                         // array's declared extent still bounds the selector.
+                        if element_path.iter().any(|segment| {
+                            matches!(
+                                segment,
+                                checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(
+                                    _
+                                )
+                            )
+                        }) {
+                            // `cells[i].data[j]`: the element path carries
+                            // its own runtime selector beside the member
+                            // steps. Each `RuntimeIndex` payload lowers to
+                            // a direct expression through the same field
+                            // bindings the carrier paths use.
+                            let (source, path, leaf, scalar_type) =
+                                crate::expression_preparation::bindings::structural_fields::resolve_indexed_element_runtime_path(
+                                    structural_fields,
+                                    parameter_position,
+                                    path,
+                                    element_path,
+                                )?;
+                            if scalar_type != terminal_scalar_type(*primitive_type)? {
+                                return unsupported(
+                                    "indexed element read drifted from its element type",
+                                );
+                            }
+                            use crate::emission::primitive_store::IndexedElementLeaf;
+                            let IndexedElementLeaf::RuntimeTail { element_path, .. } = leaf else {
+                                return unsupported("indexed element runtime path did not lower");
+                            };
+                            let mut lowered_path = Vec::with_capacity(element_path.len());
+                            for segment in element_path {
+                                let segment = match segment {
+                                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                                        index,
+                                    ) => LoweredElementPathSegment::RuntimeIndex(
+                                        exact_u64_index(element_path_runtime_selector(
+                                            structural_fields,
+                                            &index,
+                                        )?)?,
+                                    ),
+                                    checked_trees::CheckedUnitStructuralPathSegment::Field(
+                                        identity,
+                                    ) => LoweredElementPathSegment::Static(
+                                        terminal_psi::StructuralPathSegment::Field(identity),
+                                    ),
+                                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                                        index,
+                                    ) => LoweredElementPathSegment::Static(
+                                        terminal_psi::StructuralPathSegment::FixedIndex(index),
+                                    ),
+                                    _ => {
+                                        return unsupported(
+                                            "indexed element runtime path has an unsupported segment",
+                                        );
+                                    }
+                                };
+                                lowered_path.push(segment);
+                            }
+                            return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+                                source,
+                                path,
+                                index: Box::new(index),
+                                inner_indexes: Vec::new(),
+                                element_path: lowered_path,
+                                scalar_type,
+                            });
+                        }
                         if !element_path.is_empty() {
                             let (source, path, leaf, scalar_type) =
                                 crate::expression_preparation::bindings::structural_fields::resolve_indexed_element_field(
@@ -675,7 +744,10 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                         path,
                                         index: Box::new(index),
                                         inner_indexes: Vec::new(),
-                                        element_path,
+                                        element_path: element_path
+                                            .into_iter()
+                                            .map(LoweredElementPathSegment::Static)
+                                            .collect(),
                                         scalar_type,
                                     }
                                 }
@@ -692,6 +764,11 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                     field,
                                     scalar_type,
                                 },
+                                IndexedElementLeaf::RuntimeTail { .. } => {
+                                    return unsupported(
+                                        "static element path minted a runtime tail",
+                                    );
+                                }
                             });
                         }
                         // A path ending at a fixed array declares its extent
@@ -782,6 +859,12 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             checked_trees::CheckedStructuralPredicatePathSegment::Case(_) => {
                                 unsupported("an element field path selects no case")
                             }
+                            // A runtime selector inside a view local's
+                            // element path stays out of this read's scope:
+                            // element-view paths carry no runtime steps.
+                            checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(
+                                _,
+                            ) => unsupported("an element field path selects no runtime element"),
                         })
                         .collect::<Result<Vec<_>, _>>()?;
                     let index = lower_checked_scalar_expression_with_parameters(
@@ -1072,7 +1155,8 @@ fn lower_checked_boolean_expression_with_parameters(
                         Ok(identity.clone())
                     }
                     checked_trees::CheckedStructuralPredicatePathSegment::Case(_)
-                    | checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_) => {
+                    | checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(_)
+                    | checked_trees::CheckedStructuralPredicatePathSegment::RuntimeIndex(_) => {
                         unsupported("case-payload predicates are contract-only")
                     }
                 })
@@ -1216,6 +1300,36 @@ fn lower_checked_boolean_expression_with_parameters(
 /// once its bounds are proven: a narrower unsigned index widens totally, and a
 /// signed index lands through an exact cast whose Terminal obligation proves it
 /// nonnegative, so it never silently becomes unsigned.
+/// The direct expression one element-path runtime selector evaluates to:
+/// `cells[i].data[j]`'s `j` rides the same structural field bindings a
+/// carrier path's `CheckedRuntimeIndex` spells. Only a program-point field
+/// read is admitted — the checked side mints no other coordinate here.
+fn element_path_runtime_selector(
+    structural_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
+    index: &checked_trees::CheckedRuntimeIndex,
+) -> Result<LoweredDirectExpression, LoweringError> {
+    match index {
+        checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+            let (source, path, field, scalar_type) =
+                crate::expression_preparation::bindings::structural_fields::resolve_typed(
+                    structural_fields,
+                    field.parameter_position,
+                    &field.path,
+                )?;
+            if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+                return unsupported("element path runtime selector is not an integer read");
+            }
+            Ok(LoweredDirectExpression::StructuralField {
+                source,
+                path,
+                field,
+                scalar_type,
+            })
+        }
+        _ => unsupported("element path runtime selector is not a field read"),
+    }
+}
+
 pub(crate) fn exact_u64_index(
     index: LoweredDirectExpression,
 ) -> Result<LoweredDirectExpression, LoweringError> {
