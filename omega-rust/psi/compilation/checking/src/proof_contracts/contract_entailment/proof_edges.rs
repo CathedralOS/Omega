@@ -14,7 +14,9 @@ use crate::proof_contracts::contract_entailment::citations::{
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     StructuralJudge, StructuralJudgment, StructuralTerm,
 };
-use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
+use crate::proof_contracts::contract_entailment::structural_terms::{
+    structural_term, structural_term_in_scope,
+};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
@@ -225,11 +227,17 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                     intake_citation_for_edge(
                         program,
                         &mut judge,
+                        machine,
+                        state,
                         call,
                         Some(local.name.as_str()),
                         local.initial_value,
                     );
-                } else if let Some(term) = structural_term(program, local.initial_value) {
+                } else if let Some(term) = structural_term_in_scope(
+                    program,
+                    Some((machine, state, local.type_reference)),
+                    local.initial_value,
+                ) {
                     judge.intake_equation(
                         StructuralTerm::Variable(local.name.as_str().to_owned()),
                         term,
@@ -242,7 +250,7 @@ pub(crate) fn proof_edge_strict_decrease_judged(
                 if !receiver_members.is_empty() {
                     continue;
                 }
-                intake_statement_citation_for_edge(program, &mut judge, call);
+                intake_statement_citation_for_edge(program, &mut judge, machine, state, call);
             }
             _ => {}
         }

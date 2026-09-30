@@ -16,7 +16,9 @@ use crate::proof_contracts::contract_entailment::refuted_requires::collect_insta
 use crate::proof_contracts::contract_entailment::structural_judgment::{
     CaseGuarantee, StructuralJudge, StructuralJudgment, StructuralTerm,
 };
-use crate::proof_contracts::contract_entailment::structural_terms::structural_term;
+use crate::proof_contracts::contract_entailment::structural_terms::{
+    structural_term, structural_term_in_scope,
+};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -420,6 +422,8 @@ pub(crate) fn citation_call_in_statement<'program>(
 pub(crate) fn intake_citation_for_edge(
     program: &TypedTrees,
     judge: &mut StructuralJudge<'_>,
+    machine: &Machine,
+    state: &typed_trees::state::State,
     call: &typed_trees::expression::TableCallExpression,
     binder: Option<&str>,
     _call_expression: ExpressionHandle,
@@ -436,8 +440,12 @@ pub(crate) fn intake_citation_for_edge(
         return;
     }
     let mut argument_terms = Vec::with_capacity(argument_handles.len());
-    for argument in argument_handles {
-        let Some(term) = structural_term(program, *argument) else {
+    for (position, argument) in argument_handles.iter().enumerate() {
+        let Some(term) = structural_term_in_scope(
+            program,
+            Some((machine, state, parameters[position].type_reference)),
+            *argument,
+        ) else {
             return;
         };
         argument_terms.push(term);
@@ -539,6 +547,8 @@ pub(crate) fn intake_citation_for_edge(
 pub(crate) fn intake_statement_citation_for_edge(
     program: &TypedTrees,
     judge: &mut StructuralJudge<'_>,
+    machine: &Machine,
+    state: &typed_trees::state::State,
     call: &typed_trees::statement::TableCall,
 ) {
     let Some(callee) = selected_citation_machine(program, call.target_symbol) else {
@@ -553,8 +563,12 @@ pub(crate) fn intake_statement_citation_for_edge(
         return;
     }
     let mut argument_terms = Vec::with_capacity(argument_handles.len());
-    for argument in argument_handles {
-        let Some(term) = structural_term(program, *argument) else {
+    for (position, argument) in argument_handles.iter().enumerate() {
+        let Some(term) = structural_term_in_scope(
+            program,
+            Some((machine, state, parameters[position].type_reference)),
+            *argument,
+        ) else {
             return;
         };
         argument_terms.push(term);
