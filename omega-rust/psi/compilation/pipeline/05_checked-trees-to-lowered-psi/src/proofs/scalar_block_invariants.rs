@@ -21,10 +21,14 @@
 //! every other machine's proved inference through the mandatory-roster check.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use semantic_vocabulary::{MachineId, ObligationId, Proposition, ValueId};
+use semantic_vocabulary::{MachineId, ObligationId, Proposition, PropositionContext, ValueId};
 use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
-use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
+use terminal_verifier::{
+    ReconstructedTerminalObligation, ReconstructedTerminalObligationOwner,
+    ReconstructedTerminalObligationSet,
+};
 
 use crate::lowering_error::{LoweringError, ProofSearchCapacity};
 use crate::proofs::ProofSearchDeclines;
@@ -61,6 +65,100 @@ fn queried_site(site: &terminal_verifier::ReconstructedTerminalObligation) -> Qu
         site.requirements.clone(),
         site.semantic_axioms.clone(),
     )
+}
+
+/// A verdict's full search inputs: the machine-local context owner plus the
+/// question's own content. Two sites whose inputs agree get one search.
+type VerdictKey = (
+    MachineId,
+    Proposition,
+    Vec<Proposition>,
+    Vec<Proposition>,
+    BTreeSet<ValueId>,
+);
+
+/// Run each pending verdict search, sharing the host across bounded workers
+/// once the batch is large enough to justify them. Searches read only the
+/// resolved inputs — a machine context, the goal, and the reconstructed
+/// requirements and axioms — so work-stealing over the batch cannot change
+/// any answer, and results join in batch order.
+fn run_verdict_searches(
+    goals: &[VerdictKey],
+    contexts: &BTreeMap<MachineId, PropositionContext>,
+    verdicts: &mut BTreeMap<VerdictKey, bool>,
+) {
+    let produce = |key: &VerdictKey| -> bool {
+        let counted = crate::proofs::proof_timing::Counted::enter(
+            crate::proofs::proof_timing::count_producer,
+        );
+        let (machine, goal, requirements, semantic_axioms, parameters) = key;
+        let context = contexts
+            .get(machine)
+            .expect("verdict search's machine context is resolved before it queues");
+        let verdict = produce_checked_canonical_integer_proof(
+            context,
+            goal,
+            requirements,
+            semantic_axioms,
+            parameters,
+        )
+        // Arrival obligations can outgrow the canonical custody envelope the
+        // same way operation obligations do: an endpoint that meets cited facts
+        // only through equality/definition chains. The relaxed search is the
+        // named last resort here too — canonical producers first, the bounded
+        // derived closure only at unproven leaves, and the kernel re-checks the
+        // certificate before the candidate is retained. Guarded `Implication`
+        // premises keep their scope.
+        .or_else(|| {
+            produce_relaxed_integer_proof(context, goal, requirements, semantic_axioms, parameters)
+        })
+        .is_some();
+        drop(counted);
+        verdict
+    };
+    if goals.len() < super::operation_proofs::PARALLEL_PROOF_THRESHOLD {
+        for key in goals {
+            let verdict = produce(key);
+            verdicts.insert(key.clone(), verdict);
+        }
+        return;
+    }
+    let worker_count = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .min(super::operation_proofs::MAX_PROOF_WORKERS)
+        .min(goals.len());
+    let next = AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        let produce = &produce;
+        let mut workers = Vec::with_capacity(worker_count);
+        for _ in 0..worker_count {
+            let next = &next;
+            workers.push(scope.spawn(move || {
+                let mut generated = Vec::new();
+                loop {
+                    let index = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(key) = goals.get(index) else {
+                        break;
+                    };
+                    generated.push((index, produce(key)));
+                }
+                generated
+            }));
+        }
+        let mut generated = Vec::with_capacity(goals.len());
+        for worker in workers {
+            generated.extend(
+                worker
+                    .join()
+                    .expect("scalar-invariant verdict worker does not panic"),
+            );
+        }
+        generated.sort_by_key(|(index, _)| *index);
+        for (index, verdict) in generated {
+            verdicts.insert(goals[index].clone(), verdict);
+        }
+    });
 }
 
 #[cfg(test)]
@@ -384,10 +482,12 @@ fn retain_provable_roster_bounded(
         let questions = terminal_verifier::reconstruct_terminal_obligations(module)
             .map_err(LoweringError::InvalidTerminalModule)?;
         crate::proofs::proof_timing::count_reconstruct(started.elapsed());
-        let mut rejected = BTreeSet::new();
-        // Members of a rejected header's conjunction that fail on their own at
-        // some arrival, by position, with the conjunction's arity at that arrival.
-        let mut refuted = BTreeMap::<_, (usize, BTreeSet<usize>)>::new();
+        // Certificate verdicts are pure in (context, goal, requirements,
+        // axioms, parameters), so sites this round resolve eligibility and
+        // share machine contexts sequentially, then their missing searches run
+        // across bounded workers and join back by key. Rejected-header member
+        // probes get a second pass only for conjunctions that failed.
+        let mut pending = Vec::new();
         for site in questions.obligations() {
             let ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
                 machine, header, ..
@@ -418,82 +518,89 @@ fn retain_provable_roster_bounded(
                 ))?;
             // A value context is machine-local; sites on one machine share
             // it instead of rebuilding the machine's proposition context.
-            let context = match contexts.entry(owner.id) {
-                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
-                std::collections::btree_map::Entry::Vacant(entry) => {
-                    let vc_started = std::time::Instant::now();
-                    let context = validated
-                        .value_context(owner)
-                        .map_err(LoweringError::InvalidTerminalModule)?;
-                    crate::proofs::proof_timing::count_value_context(vc_started.elapsed());
-                    entry.insert(context)
-                }
-            };
-            let context = &*context;
+            if let std::collections::btree_map::Entry::Vacant(entry) = contexts.entry(owner.id) {
+                let vc_started = std::time::Instant::now();
+                let context = validated
+                    .value_context(owner)
+                    .map_err(LoweringError::InvalidTerminalModule)?;
+                crate::proofs::proof_timing::count_value_context(vc_started.elapsed());
+                entry.insert(context);
+            }
             let parameters = owner
                 .parameters
                 .iter()
                 .map(|value| value.id)
                 .collect::<BTreeSet<ValueId>>();
-            let mut proves = |goal: &Proposition| {
-                let key = (
-                    machine,
-                    goal.clone(),
-                    site.requirements.clone(),
-                    site.semantic_axioms.clone(),
-                    parameters.clone(),
-                );
-                if let Some(verdict) = verdicts.get(&key) {
-                    crate::proofs::proof_timing::count_verdict_hit();
-                    return *verdict;
-                }
-                crate::proofs::proof_timing::count_verdict_miss();
-                let counted = crate::proofs::proof_timing::Counted::enter(
-                    crate::proofs::proof_timing::count_producer,
-                );
-                let verdict = produce_checked_canonical_integer_proof(
-                    context,
-                    goal,
-                    &site.requirements,
-                    &site.semantic_axioms,
-                    &parameters,
-                )
-                // Arrival obligations can outgrow the canonical custody envelope
-                // the same way operation obligations do: an endpoint that meets
-                // cited facts only through equality/definition chains. The relaxed
-                // search is the named last resort here too — canonical producers
-                // first, the bounded derived closure only at unproven leaves, and
-                // the kernel re-checks the certificate before the candidate is
-                // retained. Guarded `Implication` premises keep their scope.
-                .or_else(|| {
-                    produce_relaxed_integer_proof(
-                        context,
-                        goal,
-                        &site.requirements,
-                        &site.semantic_axioms,
-                        &parameters,
-                    )
-                })
-                .is_some();
-                drop(counted);
-                verdicts.insert(key, verdict);
-                verdict
-            };
-            if !proves(&site.obligation.proposition) {
-                rejected.insert((machine, header));
-                if let Proposition::Conjunction(members) = &site.obligation.proposition {
-                    let (arity, failing) = refuted
-                        .entry((machine, header))
-                        .or_insert_with(|| (members.len(), BTreeSet::new()));
-                    if *arity == members.len() {
-                        failing.extend(
-                            members
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, member)| !proves(member))
-                                .map(|(index, _)| index),
-                        );
+            pending.push((machine, header, site, parameters));
+        }
+        let verdict_key = |machine: MachineId,
+                           goal: &Proposition,
+                           site: &ReconstructedTerminalObligation,
+                           parameters: &BTreeSet<ValueId>| {
+            (
+                machine,
+                goal.clone(),
+                site.requirements.clone(),
+                site.semantic_axioms.clone(),
+                parameters.clone(),
+            )
+        };
+        let mut pending_goals = Vec::new();
+        let mut seen = BTreeSet::new();
+        for (machine, _header, site, parameters) in &pending {
+            let key = verdict_key(*machine, &site.obligation.proposition, site, parameters);
+            if verdicts.contains_key(&key) || !seen.insert(key.clone()) {
+                crate::proofs::proof_timing::count_verdict_hit();
+                continue;
+            }
+            crate::proofs::proof_timing::count_verdict_miss();
+            pending_goals.push(key);
+        }
+        run_verdict_searches(&pending_goals, &contexts, &mut verdicts);
+        let mut rejected = BTreeSet::new();
+        // Members of a rejected header's conjunction that fail on their own at
+        // some arrival, by position, with the conjunction's arity at that arrival.
+        let mut refuted = BTreeMap::<_, (usize, BTreeSet<usize>)>::new();
+        let mut member_goals = Vec::new();
+        let mut seen = BTreeSet::new();
+        for (machine, header, site, parameters) in &pending {
+            let key = verdict_key(*machine, &site.obligation.proposition, site, parameters);
+            if verdicts[&key] {
+                continue;
+            }
+            rejected.insert((*machine, *header));
+            if let Proposition::Conjunction(members) = &site.obligation.proposition {
+                for member in members {
+                    let member_key = verdict_key(*machine, member, site, parameters);
+                    if verdicts.contains_key(&member_key) || !seen.insert(member_key.clone()) {
+                        crate::proofs::proof_timing::count_verdict_hit();
+                        continue;
                     }
+                    crate::proofs::proof_timing::count_verdict_miss();
+                    member_goals.push(member_key);
+                }
+            }
+        }
+        run_verdict_searches(&member_goals, &contexts, &mut verdicts);
+        for (machine, header, site, parameters) in &pending {
+            let key = verdict_key(*machine, &site.obligation.proposition, site, parameters);
+            if verdicts[&key] {
+                continue;
+            }
+            if let Proposition::Conjunction(members) = &site.obligation.proposition {
+                let (arity, failing) = refuted
+                    .entry((*machine, *header))
+                    .or_insert_with(|| (members.len(), BTreeSet::new()));
+                if *arity == members.len() {
+                    failing.extend(
+                        members
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, member)| {
+                                !verdicts[&verdict_key(*machine, member, site, parameters)]
+                            })
+                            .map(|(index, _)| index),
+                    );
                 }
             }
         }
