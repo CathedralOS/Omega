@@ -1,0 +1,155 @@
+//! Fixed-depth value-alias transport of one cited bound.
+//!
+//! The one- and two-alias walks are intentionally separate sources. Neither
+//! takes a hop count or searches an alias graph: each follows exactly the
+//! number of distinct cited equalities its shape names.
+
+use proof_admission::{ProofNode, ProofRule};
+use semantic_vocabulary::{Proposition, ScalarType};
+
+use super::super::integer_evidence::{cited_facts, closed_integer_relation, literal_value};
+use super::literal::goal_literal_at;
+use super::roster::{
+    EndpointBounds, EndpointEqualities, distinct_same_carrier_subjects, ordered_at,
+    substitute_subject,
+};
+use super::{Complete, Request};
+
+/// A cited bound on `alias` renamed to `root` through one cited equality
+/// `root == alias`.
+pub(super) fn one_alias(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+    let bounds_by_endpoint = EndpointBounds::new(request);
+    for (equality_citation, equality) in cited_facts(request.assumptions, request.semantic_axioms) {
+        let Proposition::Equal(left, right) = equality else {
+            continue;
+        };
+        for (root, alias) in [(left, right), (right, left)] {
+            if !distinct_same_carrier_subjects(root, alias) {
+                continue;
+            }
+            for (relation_citation, relation, bound, endpoint) in
+                bounds_by_endpoint.value_candidates(alias)
+            {
+                let root_bound = substitute_subject(
+                    relation_citation.proof(relation),
+                    bound,
+                    endpoint,
+                    [(root, equality_citation.proof(equality))],
+                );
+                if let Some(proof) = complete(root, root_bound) {
+                    return Some(proof);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// A cited bound on `bound_alias` renamed to `middle_alias` and then to `root`
+/// through two distinct cited equalities `middle_alias == bound_alias` and
+/// `root == middle_alias`.
+pub(super) fn two_alias(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+    let bounds_by_endpoint = EndpointBounds::new(request);
+    let aliases_by_endpoint = EndpointEqualities::new(request);
+    for (outer_citation, outer_equality) in
+        cited_facts(request.assumptions, request.semantic_axioms)
+    {
+        let Proposition::Equal(outer_left, outer_right) = outer_equality else {
+            continue;
+        };
+        for (root, middle_alias) in [(outer_left, outer_right), (outer_right, outer_left)] {
+            if !distinct_same_carrier_subjects(root, middle_alias) {
+                continue;
+            }
+            for (inner_citation, inner_equality, bound_alias) in
+                aliases_by_endpoint.candidates(middle_alias)
+            {
+                if std::ptr::eq(outer_equality, inner_equality) {
+                    continue;
+                }
+                if bound_alias == root || !distinct_same_carrier_subjects(middle_alias, bound_alias)
+                {
+                    continue;
+                }
+                for (relation_citation, relation, bound, endpoint) in
+                    bounds_by_endpoint.value_candidates(bound_alias)
+                {
+                    let root_bound = substitute_subject(
+                        relation_citation.proof(relation),
+                        bound,
+                        endpoint,
+                        [
+                            (middle_alias, inner_citation.proof(inner_equality)),
+                            (root, outer_citation.proof(outer_equality)),
+                        ],
+                    );
+                    if let Some(proof) = complete(root, root_bound) {
+                        return Some(proof);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// A cited `alias` bound whose literal is at least as strong as the goal's
+/// literal side, closed against it and renamed to `root` through one cited
+/// equality `root == alias`.
+pub(super) fn stronger_alias_bound(request: Request, complete: &mut Complete) -> Option<ProofNode> {
+    let relations_by_endpoint = EndpointBounds::new(request);
+    for (equality_citation, equality) in cited_facts(request.assumptions, request.semantic_axioms) {
+        let Proposition::Equal(equality_left, equality_right) = equality else {
+            continue;
+        };
+        for (root, alias) in [
+            (equality_left, equality_right),
+            (equality_right, equality_left),
+        ] {
+            if !distinct_same_carrier_subjects(root, alias) {
+                continue;
+            }
+            for (bound_citation, bound_fact, retained_literal, endpoint) in
+                relations_by_endpoint.candidates(alias)
+            {
+                let Some((integer_type, _)) = literal_value(retained_literal) else {
+                    continue;
+                };
+                if root.scalar_type() != ScalarType::Integer(integer_type) {
+                    continue;
+                }
+                let Some(goal_literal) = goal_literal_at(request.goal, root, endpoint) else {
+                    continue;
+                };
+                let Some(closed_bridge) =
+                    closed_integer_relation(ordered_at(retained_literal, &goal_literal, endpoint))
+                else {
+                    continue;
+                };
+                let retained_bound = bound_citation.proof(bound_fact);
+                let (left_less_or_equal_middle, middle_less_or_equal_right) = if endpoint == 1 {
+                    (closed_bridge, retained_bound)
+                } else {
+                    (retained_bound, closed_bridge)
+                };
+                let alias_bound = ProofNode {
+                    conclusion: ordered_at(alias, &goal_literal, endpoint),
+                    rule: ProofRule::IntegerLessOrEqualTransitivity {
+                        left_less_or_equal_middle: Box::new(left_less_or_equal_middle),
+                        middle_less_or_equal_right: Box::new(middle_less_or_equal_right),
+                    },
+                };
+                let root_bound = substitute_subject(
+                    alias_bound,
+                    &goal_literal,
+                    endpoint,
+                    [(root, equality_citation.proof(equality))],
+                );
+                if let Some(proof) = complete(root, root_bound) {
+                    return Some(proof);
+                }
+            }
+        }
+    }
+    None
+}

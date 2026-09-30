@@ -13,7 +13,7 @@ use crate::proofs::nonzero_divisor_certificate::integer_selection::multiply::tar
     targeted_multiply_operand_witness, targeted_prefix_boundary,
 };
 use crate::proofs::nonzero_divisor_certificate::integer_selection::{derived, range};
-use crate::proofs::nonzero_divisor_certificate::{cast_custody, cast_selection};
+use crate::proofs::nonzero_divisor_certificate::{cast_custody, root_selection};
 use proof_admission::{
     IntegerAffineWitness, ProofNode, ProofRule, check_integer_affine_witness,
     map_integer_affine_bound,
@@ -451,7 +451,7 @@ fn direct_cast_operand_endpoints(
         } else {
             Proposition::LessOrEqual(operand.clone(), literal)
         };
-        cast_selection::prove(context, &goal, assumptions, semantic_axioms)
+        root_selection::prove_cast_bound(context, &goal, assumptions, semantic_axioms)
     }));
     proofs
 }

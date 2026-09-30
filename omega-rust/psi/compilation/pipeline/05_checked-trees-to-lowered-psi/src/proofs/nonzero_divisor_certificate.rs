@@ -11,14 +11,12 @@ use proof_admission::{ProofNode, accept_certificate_with_machine_parameters};
 use semantic_vocabulary::{Proposition, PropositionContext, ValueId};
 
 mod affine_custody;
-mod affine_selection;
-mod alias_transport;
 mod cast_custody;
-mod cast_selection;
 mod certificate_entry;
 mod integer_evidence;
 mod integer_selection;
 mod predicate_conversion;
+mod root_selection;
 mod scope_identity;
 mod search_context;
 mod value_transport;

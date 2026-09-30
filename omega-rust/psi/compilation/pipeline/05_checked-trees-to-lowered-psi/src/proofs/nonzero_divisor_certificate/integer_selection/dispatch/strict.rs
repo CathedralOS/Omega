@@ -23,7 +23,7 @@ pub(super) fn prove(
 ) -> Option<ProofNode> {
     prove_without_subtract(context, goal, assumptions, semantic_axioms)
         .or_else(|| {
-            super::super::super::cast_selection::relational::prove(
+            super::super::super::root_selection::prove_relational_cast_bound(
                 context,
                 goal,
                 assumptions,
