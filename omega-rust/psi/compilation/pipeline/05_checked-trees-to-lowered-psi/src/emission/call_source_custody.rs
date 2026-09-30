@@ -100,6 +100,13 @@ pub(crate) fn validate_store_and_initializer_calls(
                         result,
                         value: checked_trees::CheckedCallScalarArgument::Computation(_),
                     } => result.statement_index == statement_index,
+                    // A mutable local's storage initializer computation owns
+                    // its outer call exactly as an immutable local's does.
+                    CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                        statement_index: established,
+                        value: checked_trees::CheckedCallScalarArgument::Computation(_),
+                        ..
+                    } => *established == statement_index,
                     // A structural local whose initializer vocabulary produces
                     // a value (a view, aggregate, or alias) rather than a call
                     // op is established by this operation; it owns the authored
@@ -131,6 +138,10 @@ pub(crate) fn validate_store_and_initializer_calls(
             return unsupported("Unit body omits or duplicates an authored call");
         }
         if let CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+            value: checked_trees::CheckedCallScalarArgument::Computation(computation),
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
             value: checked_trees::CheckedCallScalarArgument::Computation(computation),
             ..
         } = owner
