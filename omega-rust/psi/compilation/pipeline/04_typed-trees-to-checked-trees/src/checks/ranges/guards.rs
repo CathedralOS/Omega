@@ -13,13 +13,13 @@ use bounds::{
     seed_less_than_len_fact, seed_non_negative_fact, seed_successor_at_most_len_fact,
 };
 
-/// R1 value-vs-value endpoint mints: a guard comparing two PLACES
-/// transfers the RHS's ENFORCED declared range endpoint onto the LHS
-/// (`i < k` with `k: u32 [0..=8]` proves `i < 8`; `<=` shifts by one;
-/// `>`/`>=` mirror). Store-enforced Exact ranges only (the resolver's
-/// gate); literal RHS comparisons stay with the literal seeders. Needs
-/// machine/state context, so it runs beside `seed_guard_facts` at the
-/// sites that have it (the co-located transition arm).
+/// A selected comparison transfers a proven endpoint onto its lower operand:
+/// `i < k` with `k <= 8` proves `i < 8`; `<=` shifts by one and `>`/`>=`
+/// mirror. Read live bounds, legacy store-enforced ranges, or an immutable
+/// parameter's own declaration facts; mutable default-domain text is not a
+/// premise during an open invariant window. Literal RHS comparisons stay
+/// with the literal seeders. This needs machine/state context, so it runs
+/// beside `seed_guard_facts` at the co-located transition arm.
 pub(super) fn seed_value_vs_value_endpoints(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -80,18 +80,54 @@ pub(super) fn seed_value_vs_value_endpoints(
     {
         return;
     }
-    let Some((_, high)) = crate::checks::ranges::types::expression_enforced_declared_range(
-        program,
-        machine,
-        state,
-        bound_source,
-    ) else {
+    let high = [
+        facts
+            .proven_index_upper_bound(&program.expression_table.display_name(bound_source))
+            .and_then(|exclusive| exclusive.checked_sub(1)),
+        crate::checks::ranges::types::expression_enforced_declared_range(
+            program,
+            machine,
+            state,
+            bound_source,
+        )
+        .map(|(_, high)| high),
+        immutable_parameter_endpoint(program, machine, state, bound_source),
+    ]
+    .into_iter()
+    .flatten()
+    .min();
+    let Some(high) = high else {
         return;
     };
     let Some(exclusive) = high.checked_add(inclusive_shift) else {
         return;
     };
     facts.prove_index_upper_bound(program.expression_table.display_name(bounded), exclusive);
+}
+
+fn immutable_parameter_endpoint(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let facts::PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    let parameter = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == root)?;
+    // The general declaration reader also accepts mutable self storage. That
+    // is not invocation-fixed: its where clause may be temporarily broken.
+    // Only an immutable non-receiver input can contribute declaration bounds
+    // here without separate statement-local establishment evidence.
+    if parameter.is_self || parameter.is_mutable || parameter.is_const {
+        return None;
+    }
+    validation::immutable_integer_expression_bounds(program, machine, state, expression)
+        .map(|(_, high)| high)
 }
 
 pub(super) fn seed_guard_facts(

@@ -6,14 +6,17 @@ use omega_language_std::console;
 use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
-data SchemaField {
+data SchemaField where size >= 0 && size <= 4096 && align >= 1 && align <= 16 {
     key: u64;
-    size: u64 [0..=4096];
-    align: u64 [1..=16];
+    size: u64;
+    align: u64;
     number: i64;
     kind: FieldKind;
 }
-data Schema { fields: [SchemaField; 32]; field_count: u64 [0..=32]; }
+data Schema where field_count >= 0 && field_count <= 32 {
+    fields: [SchemaField; 32];
+    field_count: u64;
+}
 data FieldPlan {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, destination_lsb: u64, source_lsb: u64, width: u64);
@@ -33,19 +36,22 @@ data Spread16 { index: u64 in Wrapping; }
 machine Spread16::plan(&mut self, schema: Schema) -> Plan {
     self.evaluate(schema, 128)
 }
-machine Spread16::evaluate(&mut self, schema: Schema, fuel: u64 [1..=128]) -> Plan
+machine Spread16::evaluate(&mut self, schema: Schema, fuel: u64) -> Plan
+requires fuel >= 1 && fuel <= 128
 terminates by fuel;
 {
     let mut entries: [FieldEntry; 64];
     self.index = 0;
     transition { _ -> fill(schema, fuel, entries) }
-    state fill(&mut self, schema: Schema, fuel: u64 [1..=128], entries: [FieldEntry; 64]) {
+    state fill(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    requires fuel >= 1 && fuel <= 128 {
         transition fuel > 1 && self.index < schema.field_count {
             true -> place(schema, fuel - 1, entries)
             _ -> done(schema, entries)
         }
     }
-    state place(&mut self, schema: Schema, fuel: u64 [1..=128], entries: [FieldEntry; 64]) {
+    state place(&mut self, schema: Schema, fuel: u64, entries: [FieldEntry; 64])
+    requires fuel >= 1 && fuel <= 128 {
         let mut updated: [FieldEntry; 64] = entries;
         let offset: u64 = (self.index * 16) as u64;
         updated[self.index] = FieldEntry {

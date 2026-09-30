@@ -120,6 +120,135 @@ fn projected_bounds_cross_states_that_do_not_read_the_projection() {
     }
 }
 
+#[test]
+fn receiver_bounds_from_parameter_contracts_cross_states_with_exact_write_invalidation() {
+    for (comparison, statement, accepted) in [
+        ("<", "", true),
+        ("<", "self.other = 4;", true),
+        ("<", "self.index = 4;", false),
+        ("<", "self.overwrite();", false),
+        ("<=", "", false),
+    ] {
+        let source = format!(
+            "data Context {{ items: [u8; 3]; index: u64; other: u64; }}
+             machine Context::overwrite(&mut self) {{ self.index = 4; }}
+             machine Context::read(&mut self, bound: u64) -> u8
+             requires bound <= 3u64; {{
+                 transition self.index {comparison} bound {{
+                     true -> relay()
+                     _ -> (0)
+                 }}
+                 state relay(&mut self) -> u8 {{
+                     {statement}
+                     transition {{ _ -> finish() }}
+                 }}
+                 state finish(&mut self) -> u8 {{ self.items[self.index] }}
+             }}"
+        );
+        let outcome = check_source(&source);
+        if accepted {
+            assert!(outcome.is_ok(), "{comparison} | {statement}: {outcome:?}");
+        } else {
+            assert!(
+                outcome
+                    .unwrap_err()
+                    .iter()
+                    .any(|message| message.contains("cannot prove index")),
+                "{comparison} | {statement}: expected an index rejection"
+            );
+        }
+    }
+}
+
+#[test]
+fn receiver_bounds_from_parameter_contracts_meet_every_incoming_edge() {
+    let source = "data Context { items: [u8; 3]; index: u64; }
+         machine Context::read(&mut self, bound: u64) -> u8
+         requires bound <= 3u64; {
+             transition self.index < bound {
+                 true -> relay()
+                 _ -> unguarded()
+             }
+             state unguarded(&mut self) -> u8 {
+                 transition { _ -> relay() }
+             }
+             state relay(&mut self) -> u8 {
+                 transition { _ -> finish() }
+             }
+             state finish(&mut self) -> u8 { self.items[self.index] }
+         }";
+    let diagnostics = check_source(source).unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|message| message.contains("cannot prove index")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn receiver_bounds_from_parameter_contracts_use_immutable_record_where_facts() {
+    let source = "data Limit where count <= 3u64 { count: u64; }
+         data Context { items: [u8; 3]; index: u64; }
+         machine Context::read(&mut self, limit: Limit) -> u8 {
+             transition self.index < limit.count {
+                 true -> relay()
+                 _ -> (0)
+             }
+             state relay(&mut self) -> u8 {
+                 transition { _ -> finish() }
+             }
+             state finish(&mut self) -> u8 { self.items[self.index] }
+         }";
+    let outcome = check_source(source);
+    assert!(outcome.is_ok(), "{outcome:?}");
+}
+
+#[test]
+fn receiver_bounds_from_parameter_contracts_do_not_assume_open_receiver_domain() {
+    let source = "data Context where bound <= 3u64 {
+             items: [u8; 3]; index: u64; bound: u64;
+         }
+         machine Context::read(&mut self) -> u8 {
+             self.bound = 4;
+             transition self.index < self.bound {
+                 true -> relay()
+                 _ -> (0)
+             }
+             state relay(&mut self) -> u8 { self.items[self.index] }
+         }";
+    assert!(check_source(source).is_err());
+    // Integer default-domain checking currently rejects the store before the
+    // range pass runs. Exercise that pass independently with its ordinary fact
+    // producers so the earlier refusal cannot conceal an admitted stale bound.
+    let program = typed_program(source);
+    let borrows = crate::borrow::build_borrow_facts(&program);
+    let proof_plan = proof::obligations::build_proof_plan(&program);
+    let values = crate::values::build_value_facts(&program, &proof_plan);
+    let operators = crate::operators::build_operator_facts(&program, &values);
+    let flow = super::super::cache_tests::range_flow_fixture(&program, &borrows);
+    let frames = validation::CallFrameResolver::new(&program).unwrap();
+    let incoming =
+        super::super::incoming_guards::IncomingGuardIndex::build(&program, Some(&frames));
+    let summaries = crate::flow::StateMutationSummaryCache::default();
+    let diagnostics = super::super::check_indexed_accesses(
+        &program,
+        &operators,
+        &borrows,
+        &flow,
+        Some(&frames),
+        &incoming,
+        &summaries,
+    )
+    .unwrap_err();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove index")),
+        "{diagnostics:?}"
+    );
+}
+
 /// An ensured call result handed across a transition substitutes the callee's
 /// discharged exit proof for the destination parameter's bounds: the consumer
 /// reads the contract (`ensures result < K` bounds this occurrence below `K`)
