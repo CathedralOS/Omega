@@ -1,9 +1,9 @@
 //! One-to-one lowering of statement nodes, transition guards and targets.
 
 use crate::lowering::expression::lower_private_expression_into_table;
+use crate::lowering::statement::hoist_temps::hoist_into_temp;
 use crate::lowering::statement::indexed_read_hoisting::{
-    OperandHoisting, hoist_child, hoist_into_temp, hoist_operand_indexed_reads,
-    hoist_target_computed_indices,
+    OperandHoisting, hoist_child, hoist_operand_indexed_reads, hoist_target_computed_indices,
 };
 use crate::lowering::statement::match_subject_hoisting::{
     guard_hoists_operands, hoist_comparison_match_subject, hoist_membership_match_subject,

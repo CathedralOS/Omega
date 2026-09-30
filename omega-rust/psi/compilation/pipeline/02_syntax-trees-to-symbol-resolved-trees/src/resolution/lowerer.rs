@@ -129,9 +129,9 @@ pub(crate) struct Lowerer {
     pub(crate) sources: Option<Arc<SourceMap>>,
     pub(crate) source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     /// Per-lowering counter that mints unique names for synthetic `let`
-    /// temporaries hoisted out of operand-position indexed reads (see
-    /// `statement::hoist_indexed_operands`). `__hoist_` prefixed so the
-    /// generated names cannot collide with source identifiers.
+    /// temporaries hoisted out of operands, calls and match subjects (see
+    /// `statement::hoist_temps`). `__hoist_` prefixed so the generated names
+    /// cannot collide with source identifiers.
     hoist_counter: u32,
     /// Names of the CURRENT state's parameters declared as a shared reference
     /// to a NAMED type (`table: &EfiSystemTable`). A member read through one
@@ -386,7 +386,7 @@ impl Lowerer {
     }
 
     /// The shared hoist-temp name for a match subject syntax handle, if the first arm already
-    /// minted one; otherwise records `name` as the temp for later arms and returns None.
+    /// minted one.
     pub(crate) fn match_subject_temp(&mut self, subject_arena_index: u32) -> Option<String> {
         self.match_subject_temps.get(&subject_arena_index).cloned()
     }
