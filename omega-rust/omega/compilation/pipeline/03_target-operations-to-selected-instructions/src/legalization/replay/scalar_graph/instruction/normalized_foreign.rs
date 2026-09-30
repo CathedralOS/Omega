@@ -154,7 +154,6 @@ pub(super) fn validate(
             if *declared != result.scalar_type
                 || scalar_graph_input::value_type(optimized, result.value)
                     != Some(result.scalar_type)
-                || function.attachment.is_none()
             {
                 return Err(invalid);
             }

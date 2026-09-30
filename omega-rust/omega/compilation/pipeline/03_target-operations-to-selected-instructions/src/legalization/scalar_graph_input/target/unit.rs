@@ -761,7 +761,7 @@ pub(super) fn validate_operation(
             AbstractOperation::BoundaryCall { .. },
         ) => {
             super::normalized_foreign::validate(
-                target, abstracted, function, parameters, native, optimized, plan, unit, sources,
+                target, abstracted, parameters, native, optimized, plan, unit, sources,
             )?;
         }
         (

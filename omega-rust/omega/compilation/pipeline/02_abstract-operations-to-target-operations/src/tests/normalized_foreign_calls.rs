@@ -193,7 +193,8 @@ fn empty_plan(machine: MachineId) -> AbstractOperationPlan {
 
 /// One scalar-lane leaf: `Foreign::leaf(i32) -> Unit` over an authored
 /// constant, then `Foreign::relay(i32) -> i32` producing a scalar-result home
-/// that a second leaf call consumes as a `Home` argument.
+/// that a second leaf call consumes as a `Home` argument. The caller is free:
+/// a foreign result is an ordinary SSA home, not attachment storage.
 fn scalar_fixture() -> (AbstractOperationPlan, Execution) {
     let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
     let value = ValueId::new(5).unwrap();
@@ -213,15 +214,6 @@ fn scalar_fixture() -> (AbstractOperationPlan, Execution) {
                 Vec::new(),
                 terminal_psi::BoundaryMachineResult::Scalar(i32_type),
             )
-        });
-    source.functions[0].attachment = Some(StructuralTypeId::new(9).unwrap());
-    source
-        .structural_types
-        .make_mut()
-        .push(StructuralTypeDeclaration {
-            id: StructuralTypeId::new(9).unwrap(),
-            identity: "probe::Attached".into(),
-            shape: StructuralTypeShape::Record { fields: Vec::new() },
         });
     source.functions[0].operations.insert(
         0,

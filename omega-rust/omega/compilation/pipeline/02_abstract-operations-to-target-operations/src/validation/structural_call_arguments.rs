@@ -1041,10 +1041,11 @@ impl Replay<'_> {
                 AbstractBoundaryResult::Scalar(result),
                 terminal_psi::BoundaryMachineResult::Scalar(declared),
             ) => {
-                // A scalar result needs the attached Unit frame to retain the
-                // home, and the declared result must be the same fixed-native
-                // scalar the abstract result names.
-                if *declared != result.scalar_type || self.source.attachment.is_none() {
+                // The declared result must be the same fixed-native scalar the
+                // abstract result names. Its home is the ordinary SSA value the
+                // caller's body defines, so a receiverless static body retains
+                // it exactly as an attached one does.
+                if *declared != result.scalar_type {
                     return Err(psi_operation);
                 }
                 let shape = structural_signatures::fixed_native_scalar_shape(*declared)

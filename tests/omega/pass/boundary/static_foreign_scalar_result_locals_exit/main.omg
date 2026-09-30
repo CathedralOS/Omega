@@ -1,0 +1,41 @@
+// A static entry with an explicit context parameter calls a bodyless foreign
+// leaf that returns a scalar and binds the result to an ordinary local, and
+// a receiverless helper binds the same leaf's result and returns it.
+// `darwin_clock_ns(6)` reads CLOCK_MONOTONIC in nanoseconds before and after
+// a 20 ms std `Clock::sleep`; the program exits 70 only when the second read
+// is at least 20,000,000 nanoseconds after the first, 71 when the clock did
+// not advance that far, and 72 when it went backwards.
+// Expected exit: 70.
+use omega_language_std::console;
+use omega_language_std::clock;
+use omega_language_std::macos_gui;
+use omega::language::core::binding;
+
+machine monotonic_nanoseconds() -> u64 reaches DarwinClock {
+    let now: u64 = darwin_clock_ns(6);
+    now
+}
+
+data Main {
+    console: Binding<Console>;
+    clock: Binding<Clock>;
+}
+
+machine Main::main(context: &mut Main) reaches Console + Clock + DarwinClock {
+    let before: u64 = darwin_clock_ns(6);
+    context.clock.sleep(20);
+    let after: u64 = monotonic_nanoseconds();
+    transition after >= before {
+        true -> measure(&mut context, after - before)
+        false -> backwards(&mut context)
+    }
+    state measure(context: &mut Main, elapsed: u64) {
+        transition elapsed >= 20000000 {
+            true -> slept(&mut context)
+            false -> early(&mut context)
+        }
+    }
+    state slept(context: &mut Main) { context.console.exit_process(70); }
+    state early(context: &mut Main) { context.console.exit_process(71); }
+    state backwards(context: &mut Main) { context.console.exit_process(72); }
+}
