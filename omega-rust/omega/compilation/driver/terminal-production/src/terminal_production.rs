@@ -8,7 +8,8 @@ use checked_trees_to_lowered_psi::{
 use diagnostics::{Diagnostic, ExceededProvision};
 use lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{
-    PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
+    PsiOptimizationStageError, PsiOptimizationStageResult, PsiRewriteRefusalReason,
+    run_psi_optimization,
 };
 use lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope;
 
@@ -70,6 +71,7 @@ impl<'a> TerminalProductionRequest<'a> {
                     .selected_ieee_float_comparison_occurrences,
                 selected_integer_comparison_occurrences: produced
                     .selected_integer_comparison_occurrences,
+                withheld_rewrites: produced.withheld_rewrites,
             }),
             Err(error) => Err(CallbackCustodyTerminalArtifactProductionError {
                 error,
@@ -113,6 +115,10 @@ impl<'a> TerminalProductionRequest<'a> {
             ),
             _ => None,
         };
+        // Publication consumes the stage result, so the pass decisions are read
+        // off it first. They explain the published module rather than changing
+        // it: a withheld rewrite leaves the artifact exactly as authored.
+        let withheld_rewrites = withheld_rewrites(&optimized);
         let (artifact, lowered) = timings
             .record_result(TerminalProductionStage::Publication, || {
                 publish_terminal_artifact(optimized, checked)
@@ -141,6 +147,7 @@ impl<'a> TerminalProductionRequest<'a> {
                 .selected_ieee_float_comparison_occurrences,
             selected_integer_comparison_occurrences: lowered
                 .selected_integer_comparison_occurrences,
+            withheld_rewrites,
         })
     }
 
@@ -165,6 +172,35 @@ impl<'a> TerminalProductionRequest<'a> {
             .map_err(TerminalArtifactProductionError::Optimization)?;
         Ok((unoptimized, optimized))
     }
+}
+
+/// Project stage 06's refusal records onto the shared optimization decision
+/// vocabulary reports already speak.
+///
+/// A refusal is a skipped decision with a reason, which is the shape
+/// [optimization reporting](../../../../../../wiki/spec/build/optimizations.md)
+/// defines; the stage's own reasons name how the proposal failed, so each maps
+/// onto the reason code that already means it. A changed proof question is the
+/// independent validator rejecting the proposal; dangling proof context is an
+/// incomplete proof for the proposed module.
+fn withheld_rewrites(
+    optimized: &PsiOptimizationStageResult,
+) -> Vec<optimization_core::WithheldRewrite> {
+    optimized
+        .refusals()
+        .iter()
+        .map(|refusal| {
+            let reason = match refusal.reason() {
+                PsiRewriteRefusalReason::ChangedProofQuestion => {
+                    optimization_core::OptimizationReasonCode::ValidationFailed
+                }
+                PsiRewriteRefusalReason::ProposalLeftProofContextDangling => {
+                    optimization_core::OptimizationReasonCode::ProofIncomplete
+                }
+            };
+            optimization_core::WithheldRewrite::new(refusal.optimization(), reason)
+        })
+        .collect()
 }
 
 /// Publication consumes exactly the validated optimization result; retained

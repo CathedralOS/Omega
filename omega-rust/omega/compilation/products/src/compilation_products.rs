@@ -363,6 +363,12 @@ pub struct CompileReport {
     /// Per-stage measurements the checked record accumulated during this
     /// compilation; empty unless the request asked for timing collection.
     timings: Vec<PhaseTiming>,
+    /// Rewrites a selected optimization proposed and then withheld, with the
+    /// reason each validator gave. Producer-side explanation: the published
+    /// product is identical either way, and the receiver re-decides every
+    /// question. Empty when no pass withheld anything, which is distinct from
+    /// a pass that found nothing to rewrite.
+    withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
 }
 
 impl CompileReport {
@@ -381,6 +387,7 @@ impl CompileReport {
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             pcc_publications: Vec::new(),
             timings: Vec::new(),
+            withheld_rewrites: Vec::new(),
         }
     }
 
@@ -828,6 +835,22 @@ impl CompileReport {
 
     /// Retain the per-stage measurements the checked record accumulated
     /// during this compilation.
+    /// Retain the optimization decisions that explain this product. They are
+    /// attached after production because they describe how the module reached
+    /// its published form; they confer no authority and change no bytes.
+    pub fn with_withheld_rewrites(
+        mut self,
+        withheld_rewrites: Vec<optimization_core::WithheldRewrite>,
+    ) -> Self {
+        self.withheld_rewrites = withheld_rewrites;
+        self
+    }
+
+    /// The rewrites selected passes proposed and withheld.
+    pub fn withheld_rewrites(&self) -> &[optimization_core::WithheldRewrite] {
+        &self.withheld_rewrites
+    }
+
     pub fn with_timings(mut self, timings: Vec<PhaseTiming>) -> Self {
         self.timings = timings;
         self

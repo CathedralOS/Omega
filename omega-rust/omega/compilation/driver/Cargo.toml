@@ -24,6 +24,7 @@ package-compilation = { path = "../../packages/compilation-inputs" }
 provider-planning = { path = "../realization/provider-planning" }
 trust-model = { path = "../realization/trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
+optimization = { path = "../../../psi/foundation/optimization-selections" }
 optimization-core = { path = "../../foundation/optimization-core" }
 abstract-operations-to-target-operations = { path = "../pipeline/02_abstract-operations-to-target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
@@ -87,3 +88,7 @@ path = "tests/callback_terminal_custody.rs"
 [[test]]
 name = "boundary_internal_call_evidence"
 path = "tests/boundary_internal_call_evidence.rs"
+
+[[test]]
+name = "withheld_rewrite_reporting"
+path = "tests/withheld_rewrite_reporting.rs"

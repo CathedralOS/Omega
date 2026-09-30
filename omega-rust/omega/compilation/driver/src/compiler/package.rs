@@ -30,6 +30,6 @@ pub fn retained_terminal_artifact_from_checked_package(
             &profile,
             selections.effective(),
         )?;
-        Ok((retained, std::mem::take(checked.timings_mut())))
+        Ok((retained.artifact, std::mem::take(checked.timings_mut())))
     })
 }

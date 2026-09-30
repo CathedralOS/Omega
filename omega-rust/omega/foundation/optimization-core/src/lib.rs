@@ -65,6 +65,7 @@ pub use optimization_core::rollback::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackReceipt,
     OptimizationRollbackSettlement,
 };
+pub use optimization_core::withheld::WithheldRewrite;
 pub use optimization_core::{
     DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
     OptimizationPhaseMismatch, OptimizationPhaseSelections, OptimizationSelectionIdentity,

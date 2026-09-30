@@ -53,6 +53,25 @@ pub enum OptimizationReasonCode {
 }
 
 impl OptimizationReasonCode {
+    /// The stable name reports and manifests print. Diagnostics name exact
+    /// rules and exact reasons rather than a severity or a level.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Inapplicable => "inapplicable",
+            Self::NotProfitable => "not profitable",
+            Self::MissingAnalysis => "missing analysis",
+            Self::UnsupportedVocabulary => "unsupported vocabulary",
+            Self::ValidationFailed => "validation failed",
+            Self::ProofIncomplete => "proof incomplete",
+            Self::OwnershipEvidenceIncomplete => "ownership evidence incomplete",
+            Self::WorkBudgetExhausted => "work budget exhausted",
+            Self::CandidateLimitReached => "candidate limit reached",
+            Self::ConvergenceLimitReached => "convergence limit reached",
+            Self::PolicyRejected => "policy rejected",
+            Self::Superseded => "superseded",
+        }
+    }
+
     pub const ALL: [Self; 12] = [
         Self::Inapplicable,
         Self::NotProfitable,

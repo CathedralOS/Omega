@@ -1,0 +1,31 @@
+// A proof-bearing machine whose scalar rewrites are proposed and then
+// withheld. `table[index]` is a runtime index site, so the machine owns a
+// reconstructed obligation and the two-arm literal join below retains its
+// interval invariant. That invariant names the values copy propagation would
+// substitute and dead scalar elimination would remove, so each pass proposes
+// a complete rewrite and its own validator reconstructs a different proof
+// question from the proposal.
+//
+// Both passes therefore return the module as authored. That is a decision,
+// not an absence: the compile report names the exact rule and the reason its
+// validator gave. `unused` is the dead scalar the second pass
+// proposes to remove.
+machine choose(index: u64 [0..=7], other: u64) -> i32 {
+    let table: [i32; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let hit: i32 = table[index];
+    let unused: bool = index < other;
+    transition hit == 0 {
+        true -> (10)
+        _ -> (99)
+    }
+}
+
+machine main() {
+    let decided: i32 = choose(1, 2);
+    transition decided == 99 {
+        true -> done()
+        _ -> done()
+    }
+
+    state done() { }
+}
