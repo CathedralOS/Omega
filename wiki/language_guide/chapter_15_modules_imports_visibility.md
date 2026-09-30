@@ -318,11 +318,11 @@ pub data Player {
 
 pub const MAX_DAMAGE: i32 = 100;
 
-pub machine Player::take_damage(&mut self, amount: i32)
+pub machine Player::take_damage(player: &mut Player, amount: i32)
 requires amount >= 0
-requires self.health >= amount
+requires player.health >= amount
 {
-    self.health = self.health - amount;
+    player.health = player.health - amount;
 }
 ```
 
@@ -377,7 +377,7 @@ See [authority and qualification](../spec/resources/authority.md).
 ## Name Resolution
 
 Resolution considers lexical bindings and parameters before imported names.
-Receiver fields are accessed through `self`; a fully qualified package path
+Fields are accessed through explicit values or parameters; a fully qualified package path
 still obeys direct-dependency and visibility rules. Ambiguous imported names
 reject rather than selecting one by traversal order.
 

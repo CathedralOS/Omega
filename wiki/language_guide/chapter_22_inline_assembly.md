@@ -12,7 +12,7 @@ For x86 port output, for example:
 
 ```omega
 asm {
-    out self.port, self.value
+    out port, value
 }
 ```
 
@@ -24,9 +24,9 @@ A block may state assertions and its exact realized register footprint:
 
 ```omega
 asm where
-    requires self.ready
+    requires ready
     clobbers none
-    ensures self.ready
+    ensures ready
 {
     lfence; sfence
 }

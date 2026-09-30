@@ -16,12 +16,12 @@ data ParseResult {
     case Empty;
 }
 
-machine App::run(&mut self, input: &[u8]) {
-    let outcome: ParseResult = self.parser.parse(input);
+machine App::run(app: &mut App, input: &[u8]) {
+    let outcome: ParseResult = Parser::parse(&mut app.parser, input);
     transition outcome {
-        ParseResult::Parsed { value } -> self.use_value(value)
-        ParseResult::BadDigit { at } -> self.report(at)
-        ParseResult::Empty -> self.report_empty()
+        ParseResult::Parsed { value } -> App::use_value(app, value)
+        ParseResult::BadDigit { at } -> App::report(app, at)
+        ParseResult::Empty -> App::report_empty(app)
     }
 }
 ```
@@ -64,13 +64,21 @@ invent caller-facing preconditions. See [state contracts](../spec/language/state
 Propagation is an arm returning or constructing the caller's failure outcome:
 
 ```omega
-machine App::run2(&mut self, input: &[u8]) -> ParseResult {
-    transition self.parser.parse(input) {
-        ParseResult::Parsed { value } -> self.done(value)
-        ParseResult::BadDigit { at } -> self.bubble_bad(at)
-        ParseResult::Empty -> self.bubble_empty()
+machine App::run2(app: &mut App, input: &[u8]) -> ParseResult {
+    transition Parser::parse(&mut app.parser, input) {
+        ParseResult::Parsed { value } -> done(value)
+        ParseResult::BadDigit { at } -> bubble_bad(at)
+        ParseResult::Empty -> bubble_empty()
     }
-    // The target states construct and return the corresponding ParseResult.
+    state done(value: i32) -> ParseResult {
+        ParseResult::Parsed { value }
+    }
+    state bubble_bad(at: u32) -> ParseResult {
+        ParseResult::BadDigit { at }
+    }
+    state bubble_empty() -> ParseResult {
+        ParseResult::Empty
+    }
 }
 ```
 

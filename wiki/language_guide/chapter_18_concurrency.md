@@ -8,7 +8,7 @@ let task: Task<WorkResult> =
 
 do_other_work();
 
-let outcome: TaskOutcome<WorkResult> = suspend block task.finish();
+let outcome: TaskOutcome<WorkResult> = suspend block Task::finish(move task);
 ```
 
 Calling `Worker::run(job)` runs in the current activation. Passing the static
@@ -66,8 +66,8 @@ data WorkerState {
 
 Moving the task into `Running` transfers its obligation. Copying, overwriting,
 dropping it at ordinary scope exit, or losing it on a branch cannot discharge
-that obligation. `request_cancel()` retains the claim; requesting cancellation
-does not prove execution stopped. `finish(self)` consumes it into a terminal
+that obligation. `Task::request_cancel(&task)` retains the claim; requesting cancellation
+does not prove execution stopped. `Task::finish(move task)` consumes it into a terminal
 outcome such as `Returned(value)`, `Cancelled`, or `Failed(receipt)`.
 Application-level recoverable failure belongs inside `T`, not a second meaning
 of the outer lifecycle outcome.
@@ -75,7 +75,7 @@ of the outer lifecycle outcome.
 Long-lived background work transfers ownership explicitly:
 
 ```omega
-supervisor.adopt(move task);
+Supervisor::adopt(&mut supervisor, move task);
 ```
 
 This is not detach. The supervisor becomes responsible for settlement. Automatic
@@ -284,11 +284,11 @@ data Take {
     case Got(frame: Frame);
 }
 
-machine Worker::run(&mut self, ring: &mut Ring) {
-    let taken: Take = suspend ring.take();
+machine Worker::run(worker: &mut Worker, ring: &mut Ring) {
+    let taken: Take = suspend Ring::take(ring);
     transition taken {
-        Take::Got { frame } -> work(frame)
-        Take::Cancelled  -> cleanup()
+        Take::Got { frame } -> work(worker, frame)
+        Take::Cancelled  -> cleanup(worker)
     }
     ...
 }
@@ -313,13 +313,13 @@ data Event {
     case Shutdown;
 }
 
-machine Server::run(&mut self) {
-    let event: Event = suspend self.inbox.take();
+machine Server::run(server: &mut Server) {
+    let event: Event = suspend Inbox::take(&mut server.inbox);
     transition event {
-        Event::Packet { frame } -> handle(frame)
-        Event::Tick          -> heartbeat()
-        Event::Shutdown      -> drain()
-        _                    -> run()
+        Event::Packet { frame } -> Server::handle(server, frame)
+        Event::Tick          -> Server::heartbeat(server)
+        Event::Shutdown      -> Server::drain(server)
+        _                    -> Server::run(server)
     }
 }
 ```
@@ -334,7 +334,7 @@ every undelivered linear payload with an accountable owner.
 Using the opening example's possibly suspending and blocking finish operation:
 
 ```omega
-transition suspend block task.finish() {
+transition suspend block Task::finish(move task) {
     TaskOutcome::Returned { value } -> use(value)
     TaskOutcome::Cancelled -> handle_cancellation()
     TaskOutcome::Failed { receipt } -> handle_provider_failure(receipt)
@@ -371,8 +371,8 @@ data TicketLine {
     next_ticket: AtomicU32;
 }
 
-machine TicketLine::take(&mut self) -> u32 {
-    self.next_ticket.fetch_add(1, NoOrdering)
+machine TicketLine::take(line: &mut TicketLine) -> u32 {
+    AtomicU32::fetch_add(&line.next_ticket, 1, NoOrdering)
 }
 ```
 
