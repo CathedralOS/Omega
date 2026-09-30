@@ -944,6 +944,14 @@ fn read_access(
                 psi_operation,
                 result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
+            }
+            // A scalar array literal's home is the same owned arrival the
+            // record arms admit: element reads borrow that place, and the
+            // retained row carries its `result_home` home declaration.
+            | AbstractOperation::EstablishScalarArray {
+                psi_operation,
+                result,
+                ..
             } if result.place == place => (*psi_operation, result),
             _ => continue,
         };
@@ -962,6 +970,7 @@ fn read_access(
                         TargetUnitOperation::EstablishRecord { result_home, .. }
                         | TargetUnitOperation::EstablishZeroedStructural { result_home, .. }
                         | TargetUnitOperation::StructuralLeafCopy { result_home, .. }
+                        | TargetUnitOperation::EstablishScalarArray { result_home, .. }
                         | TargetUnitOperation::Call {
                             result:
                                 target_operations::TargetCallResult::Structural {
