@@ -6,7 +6,7 @@ pub(crate) fn run(arguments: SourceArguments) {
         Ok(adapter) => adapter,
         Err(error) => {
             eprintln!("invalid source adapter: {error:?}");
-            std::process::exit(2);
+            std::process::exit(i32::from(crate::cli::arguments::USAGE_ERROR_EXIT));
         }
     };
     let storage =

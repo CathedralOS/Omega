@@ -381,7 +381,7 @@ fn package_review_resume_retains_inputs_and_requires_exact_decisions_and_unchang
         ]);
         assert_eq!(
             override_inputs.status.code(),
-            Some(2),
+            Some(64),
             "{override_inputs:?}"
         );
         assert_eq!(fs::read(&proposal_path).unwrap(), proposal);

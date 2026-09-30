@@ -17,6 +17,13 @@ use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions}
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+/// Exit status for an invocation the CLI cannot parse or whose argument values
+/// it cannot accept, before any compiler or package work begins. It is BSD
+/// `EX_USAGE`, outside 0-3: those are the compile command's compiler-request
+/// halt values (`wiki/spec/build/compiler_request.md`), where 2 means
+/// `Incomplete`.
+pub(crate) const USAGE_ERROR_EXIT: u8 = 64;
+
 pub(crate) enum Invocation {
     Compile(CompileArguments),
     Run(RunArguments),

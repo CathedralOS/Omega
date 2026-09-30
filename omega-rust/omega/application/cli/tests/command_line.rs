@@ -81,7 +81,7 @@ fn timings_are_opt_in_stderr_output_without_debug_files() {
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("total elapsed"));
     let obsolete = omega_in(&project, &["--check", "--output-only", "main.omg"]);
-    assert_eq!(obsolete.status.code(), Some(2));
+    assert_eq!(obsolete.status.code(), Some(64));
     assert!(
         String::from_utf8_lossy(&obsolete.stderr).contains("unrecognized option `--output-only`")
     );
@@ -353,7 +353,7 @@ fn optimizer_rollback_cli_requires_exact_unique_names() {
         "control_flow_cleanup",
         "missing.omg",
     ]);
-    assert_eq!(unknown.status.code(), Some(2));
+    assert_eq!(unknown.status.code(), Some(64));
     assert!(
         String::from_utf8_lossy(&unknown.stderr)
             .contains("unknown exact optimization rollback name `control_flow_cleanup`")
@@ -366,14 +366,14 @@ fn optimizer_rollback_cli_requires_exact_unique_names() {
         "ControlFlowCleanup",
         "missing.omg",
     ]);
-    assert_eq!(duplicate.status.code(), Some(2));
+    assert_eq!(duplicate.status.code(), Some(64));
     assert!(
         String::from_utf8_lossy(&duplicate.stderr)
             .contains("optimization rollback repeats `ControlFlowCleanup`")
     );
 
     let missing = omega(&["--disable-optimization"]);
-    assert_eq!(missing.status.code(), Some(2));
+    assert_eq!(missing.status.code(), Some(64));
     assert!(
         String::from_utf8_lossy(&missing.stderr)
             .contains("--disable-optimization requires one exact optimization name")
@@ -601,7 +601,7 @@ fn assert_package_native_publication(target: &str) {
 #[test]
 fn source_audit_requires_an_explicit_supported_adapter() {
     let missing = omega(&["audit", "source", "https://example.invalid/package"]);
-    assert_eq!(missing.status.code(), Some(2));
+    assert_eq!(missing.status.code(), Some(64));
     assert!(String::from_utf8_lossy(&missing.stderr).contains("--kind <local|git>"));
 
     let unsupported = omega(&[
@@ -611,7 +611,7 @@ fn source_audit_requires_an_explicit_supported_adapter() {
         "archive",
         "https://example.invalid/package.tar",
     ]);
-    assert_eq!(unsupported.status.code(), Some(2));
+    assert_eq!(unsupported.status.code(), Some(64));
     assert!(String::from_utf8_lossy(&unsupported.stderr).contains("UnsupportedSourceAdapter"));
 }
 

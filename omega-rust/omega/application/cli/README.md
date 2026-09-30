@@ -88,7 +88,8 @@ halt value: 0 when the requested product is complete, 1 for a rejection, and 2
 (`Incomplete`) when compilation stopped at a named private provision — such as
 a proof-search capacity — without a verdict on the source. Several targets exit
 2 only when every refused target is incomplete; any rejection exits 1.
-Argument errors also exit 2 today, before any compilation starts. `omega run`
+Argument errors exit 64 (`EX_USAGE`) before any compilation starts, so they
+never read as a compile outcome. `omega run`
 keeps its own statuses: the program's exit status, 200 when compilation or
 launch fails (including `Incomplete`), and 201 when `--both` interpretation
 diverges or fails to compile.
