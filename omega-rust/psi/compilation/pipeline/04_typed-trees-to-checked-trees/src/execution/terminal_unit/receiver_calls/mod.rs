@@ -248,13 +248,18 @@ fn reconcile_operands(
                     }),
             )
             .collect::<Vec<_>>();
+    // `prior` holds operations that ran before `operations` in the same
+    // state without being reconciled here: their results may still own a
+    // receiver place.
     let reconcile_state =
         |machine,
          state,
          parameters: &[CheckedUnitStructuralParameterPlan],
+         prior: &[CheckedUnitEffectOperationPlan],
          operations: &mut [CheckedUnitEffectOperationPlan]| {
-            let results = operations
+            let results = prior
                 .iter()
+                .chain(operations.iter())
                 .filter_map(|operation| match operation {
                     CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
                         Some(result.clone())
@@ -351,17 +356,29 @@ fn reconcile_operands(
             plan.machine,
             plan.state,
             &plan.structural_parameters,
+            &[],
             &mut plan.operations,
         )
     });
     composed.retain_mut(|plan| {
         plan.states.iter_mut().all(|state| {
+            // A terminal call arm runs after the state's whole sequence, so
+            // that sequence's results precede it.
             reconcile_state(
                 plan.machine,
                 state.state,
                 &state.structural_parameters,
+                &[],
                 &mut state.operations,
-            )
+            ) && state.terminator.arm_calls_mut().into_iter().all(|arm| {
+                reconcile_state(
+                    plan.machine,
+                    state.state,
+                    &state.structural_parameters,
+                    &state.operations,
+                    std::slice::from_mut(arm),
+                )
+            })
         })
     });
 }

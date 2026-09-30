@@ -83,6 +83,19 @@ pub(super) fn validate(
                     _ => false,
                 })
         }));
+    // An unconditional terminal machine call runs as the state's last
+    // operation at its own transition; the `ReturnUnit` terminator completes
+    // after it. A guarded arm's call is never here: it runs in its arm.
+    let terminal_call = matches!(
+        state.terminator,
+        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+    ) && end < statements.len()
+        && crate::emission::call_source_custody::authored::linear_terminal_invocation(
+            checked,
+            state.state,
+            u32::try_from(end)
+                .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?,
+        )?;
     // Some operations continue the authored statement an earlier operation
     // began instead of consuming a new one; see `statement_continuations`.
     let continuations = statement_continuations(&state.operations)?;
@@ -133,7 +146,11 @@ pub(super) fn validate(
     let record_pattern_markers = (prefix..end).filter(|index| is_marker_at(*index)).count();
     if prefix > end
         || state.operations.len() + marker_count + record_pattern_markers
-            != end - prefix + tail_value + continued + usize::from(case_subject_call.is_some())
+            != end - prefix
+                + tail_value
+                + continued
+                + usize::from(case_subject_call.is_some())
+                + usize::from(terminal_call)
     {
         return unsupported("Unit graph dropped or added a body effect");
     }
@@ -678,6 +695,25 @@ pub(super) fn validate(
                 && (call.is_boundary() || call.claim_transfers().is_empty())
                 && call.coordinate.statement_index as usize == ordinal
                 && call.coordinate.call_ordinal == 0 =>
+            {
+                crate::emission::call_source_custody::validate_operation(
+                    checked,
+                    machine,
+                    state.state,
+                    operation,
+                    &state.structural_parameters,
+                )?;
+                validate_boundary_call_consumption(checked, machine, source, state, call)?;
+            }
+            // The unconditional terminal machine call at the state's closing
+            // transition, counted above; its Unit completion follows it.
+            (CheckedUnitEffectOperationPlan::Call(call), StatementNode::Transition(_))
+                if terminal_call
+                    && ordinal == end
+                    && *call.result() == CheckedUnitCallResult::Unit
+                    && (call.is_boundary() || call.claim_transfers().is_empty())
+                    && call.coordinate.statement_index as usize == ordinal
+                    && call.coordinate.call_ordinal == 0 =>
             {
                 crate::emission::call_source_custody::validate_operation(
                     checked,

@@ -69,6 +69,10 @@ fn selected_roots(
             | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                 guard: CheckedCallScalarArgument::Computation(root),
                 ..
+            }
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                guard: CheckedCallScalarArgument::Computation(root),
+                ..
             } => pending.push(*root),
             CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => {
                 pending.extend(arms.iter().filter_map(|arm| match arm.guard() {

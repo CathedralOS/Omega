@@ -391,7 +391,26 @@ pub(super) fn admit_calls<'a>(
     let mut boundaries = Vec::new();
     for state in call_states.iter().copied() {
         let caller = CallerView::state(machine, state);
+        let arm_calls = state.arm_calls();
         for operation in state.operation_dependencies() {
+            // A terminal call arm runs after the state's whole operation
+            // sequence, on its selected arm alone: that sequence followed by
+            // the call is the one its producers and cleanup rejoin against.
+            let arm_sequence;
+            let caller = if arm_calls.iter().any(|arm| std::ptr::eq(*arm, operation)) {
+                arm_sequence = state
+                    .operations
+                    .iter()
+                    .chain(std::iter::once(operation))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                CallerView {
+                    operations: &arm_sequence,
+                    ..caller
+                }
+            } else {
+                caller
+            };
             admit_call(checked, plans, &caller, operation, &mut boundaries)?;
             match operation {
                 _ if operation.call().is_some() => {}

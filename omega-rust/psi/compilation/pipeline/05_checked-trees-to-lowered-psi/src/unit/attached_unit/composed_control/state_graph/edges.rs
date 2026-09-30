@@ -1207,9 +1207,12 @@ pub(super) fn return_discards(
         state.terminator,
         CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
-                return_arm: checked_trees::CheckedConditionalReturnArm::Unit { .. },
+                return_arm: checked_trees::CheckedConditionalReturnArm::Unit { .. }
+                    | checked_trees::CheckedConditionalReturnArm::Call(_),
                 ..
             }
+            // Each arm completes with Unit, after its terminal call if any.
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. }
     ) {
         result_custody::local_discards(checked, machine, source, state, None)?
     } else {

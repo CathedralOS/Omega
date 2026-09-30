@@ -219,7 +219,13 @@ impl StateGraphEmission<'_, '_> {
                     },
                 ) => Some(*statement_ordinal),
                 (true, checked_trees::CheckedConditionalReturnArm::Structural(_)) => None,
+                (true, checked_trees::CheckedConditionalReturnArm::Call(operation)) => {
+                    operation.call().map(|call| call.coordinate.statement_index)
+                }
             },
+            CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                when_true, ..
+            } => when_true.statement_ordinal(),
             _ => None,
         };
         // A named true successor with expression arguments may read the case
@@ -460,6 +466,46 @@ impl StateGraphEmission<'_, '_> {
                     &mut next_edge,
                     &mut operations,
                 )?)
+            } else {
+                None
+            };
+        // Both arms of a conditional completion lower into private
+        // completion blocks, each seeded with the namespace its guard outcome
+        // observes, before the successor-edge closure borrows this state.
+        let mut completion_edges =
+            if let CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion {
+                when_true,
+                when_false,
+                ..
+            } = &state.terminator
+            {
+                let true_namespace = match &planned_guard {
+                    Some((_, namespace)) => namespace.clone(),
+                    None => values.clone(),
+                };
+                let true_edge = self.conditional_return_arm(
+                    position,
+                    &state_parameters,
+                    true_namespace,
+                    when_true,
+                    &mut evaluation,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                )?;
+                let false_edge = self.conditional_return_arm(
+                    position,
+                    &state_parameters,
+                    values.clone(),
+                    when_false,
+                    &mut evaluation,
+                    &mut next_value,
+                    &mut next_block,
+                    &mut next_edge,
+                    &mut operations,
+                )?;
+                Some((true_edge, false_edge))
             } else {
                 None
             };
@@ -731,7 +777,8 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
-            | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. } => {
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => {
                 let (when_true, when_false) = match &state.terminator {
                     CheckedComposedUnitControlTerminatorPlan::Conditional {
                         when_true,
@@ -768,6 +815,11 @@ impl StateGraphEmission<'_, '_> {
                         } else {
                             (jump_edge, return_edge)
                         }
+                    }
+                    CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => {
+                        completion_edges.take().ok_or(LoweringError::Unsupported(
+                            "Unit graph conditional completion lost its staged edges",
+                        ))?
                     }
                     _ => unreachable!(),
                 };
