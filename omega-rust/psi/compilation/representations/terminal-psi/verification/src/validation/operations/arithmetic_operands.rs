@@ -353,6 +353,7 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::EstablishRecord { .. }
         | OperationKind::StoreDynamicDescriptor { .. }
         | OperationKind::TrappingInteger { .. }
+        | OperationKind::FloatResultPolicy { .. }
         | OperationKind::AtomicAccess { .. } => None,
     }) else {
         return Ok(());

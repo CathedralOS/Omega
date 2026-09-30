@@ -33,6 +33,17 @@ fn policy_selection_preserves_existing_scalar_payloads() {
         let symbol = machine_named(&checked, "Root::enter");
         let machine = checked.machine_by_symbol(symbol).unwrap();
         let state = &checked.machine_states(machine)[0];
+        assert!(
+            checked
+                .facts
+                .contract_plans
+                .for_machine(symbol)
+                .unwrap()
+                .crash
+                .trapping_sites()
+                .is_empty(),
+            "selecting {policy} for future arithmetic does not execute a trapping adapter",
+        );
         let computations = &checked.facts.values.scalar_computations;
         let root = computations
             .root_at(
@@ -77,6 +88,22 @@ fn policy_qualified_boundary_result_has_one_computation_owner() {
             .find(|machine| machine.symbol == symbol)
             .unwrap();
         let state = &checked.machine_states(machine)[0];
+        let sites = checked
+            .facts
+            .contract_plans
+            .for_machine(symbol)
+            .unwrap()
+            .crash
+            .trapping_sites();
+        assert_eq!(
+            sites,
+            if policy == "Trapping" {
+                vec![checked_trees::CrashSiteLocation::new(state.symbol, 0)]
+            } else {
+                Vec::new()
+            },
+            "{policy} arithmetic owns its result-adapter effects independently of the boundary",
+        );
         let computations = &checked.facts.values.scalar_computations;
         let root = computations
             .root_at(
@@ -256,6 +283,53 @@ fn boundary_applications_feed_mutable_scalar_storage_in_source_order() {
         assert!(
             plans.composed_for_machine(symbol).is_none(),
             "substituted occurrence, expression, or carrier must reject: {corruption}"
+        );
+    }
+}
+
+#[test]
+fn float_result_policy_trap_propagates_through_private_call_summaries() {
+    let checked = checked(
+        "pub boundary machine + Float::add(left: f64, right: f64) -> f64;
+         machine adapted(value: f64 in Trapping) -> f64 in Trapping { value + value }
+         machine forwarded(value: f64 in Trapping) -> f64 in Trapping { adapted(value) }
+         machine entry(value: f64 in Trapping) -> f64 in Trapping { forwarded(value) }",
+    );
+    let adapted = machine_named(&checked, "adapted");
+    let forwarded = machine_named(&checked, "forwarded");
+    let entry = machine_named(&checked, "entry");
+    assert_eq!(
+        checked
+            .facts
+            .contract_plans
+            .for_machine(adapted)
+            .unwrap()
+            .crash
+            .trapping_sites()
+            .len(),
+        1
+    );
+    for (caller, callee) in [(forwarded, adapted), (entry, forwarded)] {
+        let plan = checked.facts.contract_plans.for_machine(caller).unwrap();
+        assert!(
+            plan.crash.trapping_sites().is_empty(),
+            "caller executes a call, not a second adapter"
+        );
+        let sites: Vec<_> = plan
+            .crash
+            .checked_calls()
+            .iter()
+            .filter(|site| site.target_machine() == callee)
+            .collect();
+        assert_eq!(sites.len(), 1);
+        assert!(
+            sites[0].surviving_buckets().iter().any(|bucket| {
+                bucket.cause() == checked_trees::CrashCause::Trap
+                    && bucket
+                        .alternative_guards()
+                        .contains(&checked_trees::CrashRouteGuard::Truth)
+            }),
+            "the ordinary private-call fixed point preserves the adapter's Trap effect"
         );
     }
 }

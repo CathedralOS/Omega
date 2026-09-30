@@ -268,6 +268,7 @@ operation_semantic_rows! {
     // formation proof and may crash, so it has no total-leaf schema and is
     // never `is_unconditionally_total_scalar`.
     TrappingInteger => ("schema:operation:trapping-integer", LeafDenotation, None),
+    FloatResultPolicy => ("schema:operation:float-result-policy", LeafDenotation, None),
     // An atomic event is one indivisible observation/replacement of an exact
     // leaf. It is neither goal-free nor proof-bearing: its result is not a
     // function of its operands, so it states no scalar denotation.

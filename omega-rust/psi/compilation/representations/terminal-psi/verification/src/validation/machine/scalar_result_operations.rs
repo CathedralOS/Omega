@@ -618,6 +618,9 @@ pub(super) fn register_scalar_result_operation(
                 ));
             }
         }
+        OperationKind::FloatResultPolicy { .. } => {
+            super::super::float_result_policy::format(operation)?;
+        }
         OperationKind::WrappingIntegerAdd { .. } => {
             if !matches!(
                 operation.result.expect_scalar().scalar_type,

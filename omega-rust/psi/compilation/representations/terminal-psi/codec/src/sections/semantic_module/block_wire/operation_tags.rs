@@ -197,3 +197,6 @@ pub(super) const ELEMENT_VIEW_WRITE: u8 = 97;
 
 /// `OperationKind::EstablishMutableElementView`.
 pub(super) const ESTABLISH_MUTABLE_ELEMENT_VIEW: u8 = 98;
+
+/// `OperationKind::FloatResultPolicy`, followed by its policy and payload IDs.
+pub(super) const FLOAT_RESULT_POLICY: u8 = 99;

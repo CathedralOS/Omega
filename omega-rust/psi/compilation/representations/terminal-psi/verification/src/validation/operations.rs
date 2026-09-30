@@ -272,6 +272,9 @@ pub(super) fn validate_operation_operands(
         OperationKind::TrappingInteger { .. } => {
             super::trapping_integer::validate_operands(operation, value_types, defined)
         }
+        OperationKind::FloatResultPolicy { policy } => {
+            super::float_result_policy::validate_operands(operation, *policy, value_types, defined)
+        }
         OperationKind::AtomicAccess { .. } => super::atomic_access::validate_operands(
             module,
             machine,

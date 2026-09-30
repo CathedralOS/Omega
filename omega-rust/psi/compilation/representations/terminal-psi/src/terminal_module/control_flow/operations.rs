@@ -683,6 +683,12 @@ pub enum OperationKind {
     IeeeFloatConstant {
         value: IeeeFloatValue,
     },
+    /// Adapt one already evaluated IEEE result without changing its boundary
+    /// call or evaluating its original operands again. A Trapping adapter owns
+    /// its operation-level `Trap` site; saturation has no crash or effect.
+    FloatResultPolicy {
+        policy: crate::FloatResultPolicy,
+    },
     /// Compare two values of the same exact IEEE format, producing Bool.
     /// Selection custody belongs to the source/installation companions, not
     /// to a proof-only equality proposition or a guessed arithmetic token.
@@ -1005,6 +1011,7 @@ impl OperationKind {
                 *count = map(*count);
             }
             Self::TrappingInteger { operation } => operation.map_operands(map),
+            Self::FloatResultPolicy { policy } => policy.map_operands(map),
             Self::AtomicAccess { event, .. } => event.map_operands(map),
             Self::NearestIeeeFloatFusedMultiplyAdd {
                 left,

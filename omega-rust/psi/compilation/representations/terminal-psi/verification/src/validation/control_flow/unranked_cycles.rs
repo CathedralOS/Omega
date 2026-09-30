@@ -1534,5 +1534,6 @@ fn pure_scalar(kind: &OperationKind) -> bool {
             | OperationKind::WrappingIntegerMultiply { .. }
             | OperationKind::SaturatingIntegerMultiply { .. }
             | OperationKind::TrappingInteger { .. }
+            | OperationKind::FloatResultPolicy { .. }
     )
 }

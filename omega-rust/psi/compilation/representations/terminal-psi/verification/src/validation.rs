@@ -73,6 +73,7 @@ pub(crate) mod element_view;
 mod error;
 mod evidence;
 mod float_meaning;
+pub(crate) mod float_result_policy;
 mod foundation;
 mod frontier;
 mod machine;

@@ -602,6 +602,17 @@ pub(super) fn append_operation(
         return Ok(());
     }
     match operation.kind.clone() {
+        OperationKind::FloatResultPolicy { policy } => {
+            if policy.can_trap() {
+                axioms.extend(crate::validation::float_result_policy::normal_return_facts(
+                    operation,
+                    policy.raw_result(),
+                )?);
+            }
+            // Saturation preserves NaNs and propagated infinity. It cannot
+            // establish an unconditional finite-result fact or raw equality.
+            Ok(())
+        }
         OperationKind::TrappingInteger { .. } => {
             // A trap ends the path, so only the normal-return continuation
             // reaches the next operation: the exact result equation is sound
