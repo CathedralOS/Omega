@@ -24,6 +24,7 @@ mod projected_results;
 mod raw_literal_bytes;
 mod resolved_state_execution;
 mod runtime_value_generics;
+mod static_qualified_calls;
 mod token_bound_machine_calls;
 mod trait_operators;
 mod unsigned_ranking_views;

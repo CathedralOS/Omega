@@ -505,12 +505,14 @@ impl<'program> Evaluator<'program> {
             return Ok(value);
         }
 
-        // Builtins: max / min over two integer/float operands.
         let target = call.target.as_str();
         // Build facets act on invocation-owned values, never declaration
         // namespaces. Probing storage for a qualified user `read`/`resolve`
-        // here would trap before its exact ordinary target can execute.
-        if !self.expression_receiver_is_namespace(call.receiver) {
+        // here would trap before its exact ordinary target can execute. The
+        // same classification keeps the collection builtins and the host
+        // fallback below from reading a qualifier as storage or spelling.
+        let qualified = self.expression_receiver_is_namespace(call.receiver);
+        if !qualified {
             if let Some(value) = self.try_build_named_input_value_call(call, frame)? {
                 return Ok(value);
             }
@@ -606,6 +608,7 @@ impl<'program> Evaluator<'program> {
         {
             return Ok(Value::Int(2));
         }
+        // Builtins: max / min over two integer/float operands.
         if let Some(builtin @ (BuiltinFunction::Max | BuiltinFunction::Min)) =
             BuiltinFunction::from_name(target)
         {
@@ -863,6 +866,7 @@ impl<'program> Evaluator<'program> {
         );
         if (array_length_call || array_view_call)
             && call.receiver.is_valid()
+            && !qualified
             && let Ok(cell) = self.resolve_place(call.receiver, frame)
         {
             let cell = self.deref_cell(cell);
@@ -888,6 +892,7 @@ impl<'program> Evaluator<'program> {
             CollectionViewOperation::from_authored_spelling(target),
             Some(CollectionViewOperation::TextView | CollectionViewOperation::Bytes)
         ) && call.receiver.is_valid()
+            && !qualified
             && let Ok(cell) = self.resolve_place(call.receiver, frame)
         {
             let cell = self.deref_cell(cell);
@@ -952,10 +957,23 @@ impl<'program> Evaluator<'program> {
                     return Ok(value);
                 }
 
+                // A resolved boundary requirement the host serves (the
+                // bounded `Console::read_line(&mut line)`) runs by that
+                // identity, exactly like its statement-position twin. The
+                // requirement is bodyless, so declaration resolution above
+                // never selects it; ordinary calls resolve before this
+                // lookup is paid.
+                if let Some(value) = self.try_host_value_call(call, frame)? {
+                    if self.guard_depth > 0 {
+                        frame.record_guard_call_result(handle, &value);
+                    }
+                    return Ok(value);
+                }
+
                 // Identity-backed intrinsic/requirement routes above remain
                 // valid for namespace calls. A missing ordinary declaration
                 // cannot inherit a host operation from its leaf spelling.
-                if self.expression_receiver_is_namespace(call.receiver) {
+                if qualified {
                     return Err(halt);
                 }
 

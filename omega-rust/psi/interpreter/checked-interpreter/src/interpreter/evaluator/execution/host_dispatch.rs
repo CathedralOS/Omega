@@ -2,8 +2,60 @@ use crate::interpreter::evaluator::{
     DataMember, EvalResult, Evaluator, ExpressionHandle, Frame, Halt, SymbolHandle, TableCall,
     Value, trap, unsupported,
 };
-use typed_trees::signature::StateSignature;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+
+/// The host operations the interpreter serves directly, named by the selected
+/// requirement (or exact intrinsic leaf) the caller resolved. The name is read
+/// only after identity selected a host boundary; it never grants authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HostOperation {
+    ExitProcess,
+    ConsoleWrite { error_stream: bool, line: bool },
+    ReadByte,
+    WriteByte,
+    ReadLine,
+    VirtualTimeRead(&'static str),
+    Sleep,
+    TickCount,
+}
+
+impl HostOperation {
+    fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "exit_process" => Self::ExitProcess,
+            "write" => Self::ConsoleWrite {
+                error_stream: false,
+                line: false,
+            },
+            "write_line" => Self::ConsoleWrite {
+                error_stream: false,
+                line: true,
+            },
+            "write_error" => Self::ConsoleWrite {
+                error_stream: true,
+                line: false,
+            },
+            "write_error_line" => Self::ConsoleWrite {
+                error_stream: true,
+                line: true,
+            },
+            "read_byte" => Self::ReadByte,
+            "write_byte" => Self::WriteByte,
+            "read_line" => Self::ReadLine,
+            "monotonic_ticks" => Self::VirtualTimeRead("monotonic_ticks"),
+            "monotonic_ticks_per_second" => Self::VirtualTimeRead("monotonic_ticks_per_second"),
+            "wall_clock_raw" => Self::VirtualTimeRead("wall_clock_raw"),
+            "wall_clock_units_per_second" => Self::VirtualTimeRead("wall_clock_units_per_second"),
+            "wall_clock_epoch_offset_seconds" => {
+                Self::VirtualTimeRead("wall_clock_epoch_offset_seconds")
+            }
+            "sleep" => Self::Sleep,
+            "tick_count" => Self::TickCount,
+            _ => return None,
+        })
+    }
+}
+
 impl<'program> Evaluator<'program> {
     /// The VIRTUAL TimeHost read ops (std::time rung 4, D12). The
     /// interpreter's clock is deterministic: `sleep` advances virtual_ticks
@@ -26,6 +78,13 @@ impl<'program> Evaluator<'program> {
         }
     }
 
+    /// Statement-position host boundary call. Authority comes from the call's
+    /// resolved target alone: an exact canonical filesystem requirement, an
+    /// exact compiler-intrinsic Console leaf, or a requirement of a declared
+    /// `boundary trait` (`Console::exit_process(code);`). The receiver path
+    /// is never consulted: a qualifier names a declaration, and neither its
+    /// spelling nor the current instance's field types select a host
+    /// operation.
     pub(in crate::interpreter::evaluator) fn try_host_call(
         &mut self,
         call: &TableCall,
@@ -39,7 +98,9 @@ impl<'program> Evaluator<'program> {
         };
         if filesystem_operation.is_none()
             && intrinsic_method.is_none()
-            && !self.is_boundary_call(call, frame)
+            && self
+                .boundary_trait_requirement(call.target_symbol)
+                .is_none()
         {
             return Ok(None);
         }
@@ -47,22 +108,69 @@ impl<'program> Evaluator<'program> {
         // evaluation entry uses this as a DYNAMIC purity backstop (the static
         // effect surface does not fold host-authority audit facts in yet).
         self.host_boundary_touched = true;
-        let target = intrinsic_method.unwrap_or(call.target.as_str());
+        let arguments = self
+            .program
+            .statement_table
+            .expression_handles(call.arguments)
+            .to_vec();
 
         // Filesystem authority is selected only by the exact canonical
         // toolchain requirement symbol. The trusted requirement leaf routes
         // within the provider after that selection; package-controlled names
         // cannot enter this branch.
         if let Some(filesystem_operation) = filesystem_operation {
-            let arguments = self
-                .program
-                .statement_table
-                .expression_handles(call.arguments)
-                .to_vec();
             let value = self.try_filesystem_call(filesystem_operation, &arguments, frame)?;
             return Ok(Some(value));
         }
 
+        let target = intrinsic_method.unwrap_or(call.target.as_str());
+        let Some(operation) = HostOperation::from_name(target) else {
+            self.non_fs_host_boundary_touched = true;
+            return unsupported(format!("host boundary call `{target}` not yet supported"));
+        };
+        self.serve_host_operation(operation, call.target_symbol, &arguments, frame)
+            .map(Some)
+    }
+
+    /// Value-position twin of [`Self::try_host_call`] for a call whose
+    /// resolved target is a `boundary trait` requirement, such as the bounded
+    /// `let line: LineReadResult = block Console::read_line(&mut buffer);`.
+    /// The requirement identity alone selects the operation, exactly as in
+    /// statement position. A requirement the host does not serve returns
+    /// `None` without touching the host, so the caller's remaining value-call
+    /// routes still apply.
+    pub(in crate::interpreter::evaluator) fn try_host_value_call(
+        &mut self,
+        call: &typed_trees::expression::TableCallExpression,
+        frame: &mut Frame,
+    ) -> EvalResult<Option<Value>> {
+        let Some((_, requirement)) = self.boundary_trait_requirement(call.target_symbol) else {
+            return Ok(None);
+        };
+        let Some(operation) = HostOperation::from_name(requirement.name.as_str()) else {
+            return Ok(None);
+        };
+        self.host_boundary_touched = true;
+        let arguments = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        self.serve_host_operation(operation, call.target_symbol, &arguments, frame)
+            .map(Some)
+    }
+
+    /// Serve one host operation whose authority the caller already selected
+    /// by resolved identity. `target_symbol` is the call's resolved target,
+    /// which the process-exit and bounded-input arms read for their exact
+    /// requirement contracts.
+    fn serve_host_operation(
+        &mut self,
+        operation: HostOperation,
+        target_symbol: SymbolHandle,
+        arguments: &[ExpressionHandle],
+        frame: &mut Frame,
+    ) -> EvalResult<Value> {
         // Everything past the Filesystem branch is a NON-fs host boundary
         // (console, exit, clock, gui) -- the granted-build backstop's line.
         // EXCEPTION (owner answer #5, 2026-07-11k): the CONSOLE WRITE family
@@ -73,37 +181,26 @@ impl<'program> Evaluator<'program> {
         // the granted entry flushes the buffered bytes to the compiler's
         // real streams -- "the interpreter should never just catch it".
         // Everything else keeps tripping the backstop (defense in depth
-        // beneath the gate). The name family IS the interpreter's console
-        // dispatch (the serve below matches the same names).
-        let served_console_write = matches!(
-            target,
-            "write" | "write_line" | "write_error" | "write_error_line"
-        );
-        if !served_console_write {
+        // beneath the gate).
+        if !matches!(operation, HostOperation::ConsoleWrite { .. }) {
             self.non_fs_host_boundary_touched = true;
         }
 
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments)
-            .to_vec();
-
-        match target {
-            "exit_process" => {
+        match operation {
+            HostOperation::ExitProcess => {
                 // A `ProcessExit`-named boundary may only end the simulated
                 // domain through the exact canonical toolchain requirement
                 // (omega::language::core::process_exit). An ordinary package or
                 // user declaration with a matching name is a lookalike and
                 // does not acquire terminal meaning. Requirements on any other
                 // boundary trait keep the transitional console lane.
-                if let Some((trait_symbol, requirement_symbol)) =
-                    self.exit_process_call_requirement(call, frame)
-                    && self.program.traits().iter().any(|definition| {
-                        definition.symbol == trait_symbol
-                            && definition.name.as_str() == "ProcessExit"
-                    })
-                    && !self.is_canonical_process_exit_requirement(trait_symbol, requirement_symbol)
+                if let Some((definition, requirement)) =
+                    self.boundary_call_requirement(target_symbol)
+                    && definition.name.as_str() == "ProcessExit"
+                    && !self.is_canonical_process_exit_requirement(
+                        definition.symbol,
+                        requirement.symbol,
+                    )
                 {
                     return unsupported(
                         "boundary call `exit_process` names a non-canonical `ProcessExit` declaration; only the exact toolchain requirement ends the simulated domain"
@@ -119,7 +216,7 @@ impl<'program> Evaluator<'program> {
                 };
                 Err(Halt::Exit(code as i32))
             }
-            "write" | "write_line" | "write_error" | "write_error_line" => {
+            HostOperation::ConsoleWrite { error_stream, line } => {
                 let bytes = if let Some(first) = arguments.first() {
                     let value = self.eval_expression(*first, frame)?;
                     match value {
@@ -133,26 +230,26 @@ impl<'program> Evaluator<'program> {
                 } else {
                     Vec::new()
                 };
-                let stream = if target.starts_with("write_error") {
+                let stream = if error_stream {
                     &mut self.stderr
                 } else {
                     &mut self.stdout
                 };
                 stream.extend_from_slice(&bytes);
-                if target.ends_with("_line") {
+                if line {
                     stream.push(b'\n');
                 }
-                Ok(Some(Value::Unit))
+                Ok(Value::Unit)
             }
-            "read_byte" => {
+            HostOperation::ReadByte => {
                 // The next raw stdin byte as `ByteRead::Byte { value }`, or
                 // `ByteRead::Eof` at end-of-input (Eof = ordinal 0 = the ZII
                 // zero case; sentinel spellings vetoed).
                 // No CRLF normalization: byte-level readers see the stream
                 // as-is.
-                Ok(Some(self.read_stdin_byte_value(call.target_symbol)?))
+                self.read_stdin_byte_value(target_symbol)
             }
-            "write_byte" => {
+            HostOperation::WriteByte => {
                 // Append one byte (the argument's low 8 bits) to stdout.
                 let byte = arguments
                     .first()
@@ -164,12 +261,12 @@ impl<'program> Evaluator<'program> {
                 match byte {
                     Some(byte) => {
                         self.stdout.push(byte);
-                        Ok(Some(Value::Unit))
+                        Ok(Value::Unit)
                     }
                     None => unsupported("write_byte expects one integer argument".to_string()),
                 }
             }
-            "read_line" => {
+            HostOperation::ReadLine => {
                 // Bounded contracts serve their declared `LineReadResult`
                 // surface (wiki/spec/resources/bounded_input.md): the call's
                 // own resolved signature selects the contract, so bundled std
@@ -178,13 +275,12 @@ impl<'program> Evaluator<'program> {
                 // shape are legacy local boundary fixtures; bundled std
                 // read_line itself is an ordinary selected checked body over
                 // its exact read_byte leaf.
-                if let Some(type_symbol) = self.read_line_result_type(call, frame) {
-                    let value = self.read_stdin_bounded_line(
+                if let Some(type_symbol) = self.read_line_result_type(target_symbol) {
+                    return self.read_stdin_bounded_line(
                         arguments.first().copied(),
                         frame,
                         type_symbol,
-                    )?;
-                    return Ok(Some(value));
+                    );
                 }
                 // Read up to the next newline from the remaining stdin into
                 // the mutable text-carrier out-parameter. CRLF is normalized (a trailing `\r` is
@@ -201,16 +297,14 @@ impl<'program> Evaluator<'program> {
                         *cell.borrow_mut() = self.allocate_text(line.clone().into_bytes())?;
                     }
                 }
-                Ok(Some(Value::Bool(!line.is_empty())))
+                Ok(Value::Bool(!line.is_empty()))
             }
             // TimeHost read ops (std::time rung 4): one shared helper for both
             // statement- and value-position dispatch.
-            "monotonic_ticks"
-            | "monotonic_ticks_per_second"
-            | "wall_clock_raw"
-            | "wall_clock_units_per_second"
-            | "wall_clock_epoch_offset_seconds" => Ok(self.virtual_time_host_value(target)),
-            "sleep" => {
+            HostOperation::VirtualTimeRead(name) => self
+                .virtual_time_host_value(name)
+                .ok_or_else(|| Halt::Unsupported(format!("virtual time read `{name}`"))),
+            HostOperation::Sleep => {
                 // Frame pacing: no REAL delay in the interpreter (real time has no
                 // effect on the deterministic state the differential oracle
                 // compares), but the VIRTUAL clock advances by the slept
@@ -226,128 +320,27 @@ impl<'program> Evaluator<'program> {
                     })
                     .unwrap_or(1);
                 self.virtual_ticks += slept;
-                Ok(Some(Value::Unit))
+                Ok(Value::Unit)
             }
-            "tick_count" => {
+            HostOperation::TickCount => {
                 // A VIRTUAL monotonic millisecond counter: deterministic (the
                 // differential oracle compares exit codes, and tick-based
                 // programs must assert MONOTONICITY, not values), advancing on
                 // every read and every sleep.
                 self.virtual_ticks += 1;
-                Ok(Some(Value::Int(self.virtual_ticks)))
+                Ok(Value::Int(self.virtual_ticks))
             }
-            other => unsupported(format!("host boundary call `{other}` not yet supported")),
         }
     }
 
-    /// The `LineReadResult` data symbol when the boundary signature behind a
-    /// `read_line` call returns that exact settled shape
+    /// The `LineReadResult` data symbol when the boundary requirement a
+    /// `read_line` call resolved to returns that exact settled shape
     /// (wiki/spec/resources/bounded_input.md). Result-shape identity, not name
     /// spelling: `Unit`- or Boolean-returning local declarations keep the
-    /// legacy fallback in `try_host_call`.
-    fn read_line_result_type(&self, call: &TableCall, frame: &Frame) -> Option<SymbolHandle> {
-        let signature = self.read_line_boundary_signature(call, frame)?;
+    /// legacy fallback in `serve_host_operation`.
+    fn read_line_result_type(&self, target_symbol: SymbolHandle) -> Option<SymbolHandle> {
+        let (_, signature) = self.boundary_call_requirement(target_symbol)?;
         self.line_read_result_shape(signature.return_type)
-    }
-
-    /// Resolve the boundary signature a `read_line` call resolved against,
-    /// through the same channels `is_boundary_call` admits: the call's target
-    /// symbol naming a boundary-trait requirement, a compiler-intrinsic
-    /// realization through its satisfied requirement, or the receiver field's
-    /// declared boundary-trait type by method name.
-    fn read_line_boundary_signature(
-        &self,
-        call: &TableCall,
-        frame: &Frame,
-    ) -> Option<&'program StateSignature> {
-        if call.target_symbol.is_valid() {
-            for definition in self.program.traits() {
-                if !definition.is_boundary {
-                    continue;
-                }
-                if let Some(signature) = self
-                    .program
-                    .trait_machine_signatures(definition)
-                    .iter()
-                    .find(|signature| signature.symbol == call.target_symbol)
-                {
-                    return Some(signature);
-                }
-            }
-            if let Some((requirement, _provider)) =
-                validation::exact_compiler_intrinsic_boundary_requirement(
-                    self.program,
-                    call.target_symbol,
-                )
-            {
-                for definition in self.program.traits() {
-                    if !definition.is_boundary {
-                        continue;
-                    }
-                    if let Some(signature) = self
-                        .program
-                        .trait_machine_signatures(definition)
-                        .iter()
-                        .find(|signature| signature.symbol == requirement)
-                    {
-                        return Some(signature);
-                    }
-                }
-            }
-        }
-
-        let receiver_leaf = self
-            .program
-            .statement_table
-            .name_path_members(call.receiver)
-            .last()
-            .map(|name| name.as_str().to_owned())?;
-        let self_type = match &*frame.self_cell.borrow() {
-            Value::Struct { type_name, .. } => type_name.clone(),
-            _ => "".into(),
-        };
-        let machine = self.find_machine_by_name(&self_type)?;
-        let data = self.find_data_by_name(machine.attached_data.as_ref()?.as_str())?;
-        for member in self.program.data_members(data) {
-            let DataMember::Field(field) = member else {
-                continue;
-            };
-            if field.name.as_str() != receiver_leaf {
-                continue;
-            }
-            let type_symbol = self.program.type_reference_symbol(field.type_reference);
-            let definition = self
-                .program
-                .traits()
-                .iter()
-                .find(|definition| definition.is_boundary && definition.symbol == type_symbol)
-                .or_else(|| {
-                    // `Binding<Console>` carriers: the boundary trait is the
-                    // carrier's type argument.
-                    if let TypeReferenceNode::Generic { arguments, .. } = self
-                        .program
-                        .type_reference_table
-                        .type_reference(field.type_reference)
-                    {
-                        let argument = self
-                            .program
-                            .type_reference_table
-                            .type_reference_handles(*arguments)
-                            .first()?;
-                        let argument_symbol = self.program.type_reference_symbol(*argument);
-                        return self.program.traits().iter().find(|definition| {
-                            definition.is_boundary && definition.symbol == argument_symbol
-                        });
-                    }
-                    None
-                })?;
-            return self
-                .program
-                .trait_machine_signatures(definition)
-                .iter()
-                .find(|signature| signature.name.as_str() == "read_line");
-        }
-        None
     }
 
     /// The bounded line-input result contract by declaration identity: data
