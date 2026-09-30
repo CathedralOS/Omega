@@ -496,8 +496,7 @@ pass/float/named_nan_semantic_only_exit built 4501ms exit:70 @d78b523c16f5
 pass/float/named_provider_directed_divide_exit rejected 205ms
 	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `divide_toward_negative(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
 	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `divide_toward_negative(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
-pass/float/named_provider_fused_multiply_add_exit rejected 206ms
-	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`fused_multiply_add(..)` nested in `add(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
+pass/float/named_provider_fused_multiply_add_exit built 1503ms exit:70 @0c82e1f8b2e+wt
 pass/float/named_provider_min_max_sqrt_exit built 13966ms exit:70 @fb2178def922
 pass/float/named_provider_multiply_then_add_exit built 1381ms exit:70 @22df272b5668+wt
 pass/float/named_provider_negate_is_nan_exit built 2014ms exit:70 @bbdbb0a83995+wt
