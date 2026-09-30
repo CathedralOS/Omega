@@ -1022,7 +1022,33 @@ pub(super) fn seed_incoming_guard_facts(
         // independently, so a conjunct naming a state parameter
         // (`fuel > 1 && self.index < 32`) must not discard the machine
         // storage conjunct standing beside it.
-        for conjunct in machine_storage_conjuncts(program, machine, entry.guard) {
+        let machine_seeded = machine_storage_conjuncts(program, machine, entry.guard);
+        // A conjunct may also name an evaluation-state parameter
+        // (`self.index < schema.field_count`): it holds at this entry when
+        // the edge binds a same-named target parameter to exactly that
+        // source parameter's place — the substitution
+        // `parameter_argument_places` already composes — so the authored
+        // label still resolves to the value the guard measured.
+        for conjunct in stable_scope_conjuncts(
+            program,
+            machine,
+            state,
+            entry.evaluation_state,
+            entry.parameter_argument_places.as_deref(),
+            entry.guard,
+        ) {
+            if machine_seeded.contains(&conjunct) {
+                continue;
+            }
+            // Endpoints only, not the relational decomposition: the ordering
+            // seeders register label→symbol dependencies that mutation
+            // invalidation consumes at root-symbol granularity, so a write
+            // to any field of the bound parameter would drop unrelated
+            // bounds on its sibling fields (a `filesystem.rd_idx =` store
+            // would kill the transported `filesystem.rd_off` bound).
+            super::guards::seed_value_vs_value_endpoints(program, machine, state, facts, conjunct);
+        }
+        for conjunct in machine_seeded {
             seed_guard_facts(program, machine, state, facts, conjunct);
             // R1 endpoint mints ride the positive incoming guards too
             // (fields resolve machine-wide; a source-scope name that does
@@ -1040,7 +1066,48 @@ fn machine_storage_conjuncts(
     machine: &Machine,
     guard: ExpressionHandle,
 ) -> Vec<ExpressionHandle> {
-    if guard_uses_machine_storage_only(program, machine, guard) {
+    qualifying_guard_conjuncts(program, guard, &|expression| {
+        guard_uses_machine_storage_only(program, machine, expression)
+    })
+}
+
+/// The `&&` conjuncts of `guard` whose every operand leaf is either machine
+/// storage or an `evaluation_state` parameter the edge binds label-identically
+/// into `state`: `parameter_argument_places` maps a same-named target
+/// parameter to exactly that source parameter's place, so the authored label
+/// names the same value in the target scope. Other operand shapes (calls,
+/// index expressions over unbound roots, locals) stay inadmissible — the
+/// fact store keys on labels and a dangling or shadowed spelling would
+/// mis-aim the premise.
+fn stable_scope_conjuncts(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    evaluation_state: SymbolHandle,
+    parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
+    guard: ExpressionHandle,
+) -> Vec<ExpressionHandle> {
+    qualifying_guard_conjuncts(program, guard, &|expression| {
+        expression_in_stable_scope(
+            program,
+            machine,
+            state,
+            evaluation_state,
+            parameter_argument_places,
+            expression,
+        )
+    })
+}
+
+/// The top-level `&&` conjuncts of `guard` admissible under `admissible`:
+/// the whole guard when it already qualifies; otherwise each qualifying
+/// side, so a mixed conjunction still contributes its admissible half.
+fn qualifying_guard_conjuncts(
+    program: &typed_trees::TypedTrees,
+    guard: ExpressionHandle,
+    admissible: &dyn Fn(ExpressionHandle) -> bool,
+) -> Vec<ExpressionHandle> {
+    if admissible(guard) {
         return vec![guard];
     }
     let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
@@ -1048,8 +1115,12 @@ fn machine_storage_conjuncts(
     };
     match binary.operator {
         typed_trees::expression::BinaryOperator::And => {
-            let mut conjuncts = machine_storage_conjuncts(program, machine, binary.left);
-            conjuncts.extend(machine_storage_conjuncts(program, machine, binary.right));
+            let mut conjuncts = qualifying_guard_conjuncts(program, binary.left, admissible);
+            conjuncts.extend(qualifying_guard_conjuncts(
+                program,
+                binary.right,
+                admissible,
+            ));
             conjuncts
         }
         // A dispatch arm reaches here as `<predicate> == true`: the arm's
@@ -1063,15 +1134,120 @@ fn machine_storage_conjuncts(
                 )
             };
             if is_true(binary.right) {
-                machine_storage_conjuncts(program, machine, binary.left)
+                qualifying_guard_conjuncts(program, binary.left, admissible)
             } else if is_true(binary.left) {
-                machine_storage_conjuncts(program, machine, binary.right)
+                qualifying_guard_conjuncts(program, binary.right, admissible)
             } else {
                 Vec::new()
             }
         }
         _ => Vec::new(),
     }
+}
+
+/// Operand-leaf admissibility for the stable-scope family: machine storage,
+/// plus evaluation-state parameters bound identically across the edge.
+fn expression_in_stable_scope(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    evaluation_state: SymbolHandle,
+    parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
+    expression: ExpressionHandle,
+) -> bool {
+    let eligible = |expression| {
+        expression_in_stable_scope(
+            program,
+            machine,
+            state,
+            evaluation_state,
+            parameter_argument_places,
+            expression,
+        )
+    };
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(_) => {
+            let Some(place) = crate::flow::canonical_place_from_expression(program, expression)
+            else {
+                return false;
+            };
+            match crate::flow::normalized_event_place_root(program, place.root) {
+                facts::PlaceRoot::Symbol(symbol) if symbol == machine.symbol => true,
+                facts::PlaceRoot::Symbol(symbol) if symbol.is_valid() => {
+                    parameter_bound_identically(
+                        program,
+                        evaluation_state,
+                        state,
+                        parameter_argument_places,
+                        symbol,
+                    )
+                }
+                _ => false,
+            }
+        }
+        ExpressionNode::Member(member) => eligible(member.receiver),
+        ExpressionNode::Indexed(indexed) => eligible(indexed.collection) && eligible(indexed.index),
+        ExpressionNode::Binary(binary) => eligible(binary.left) && eligible(binary.right),
+        ExpressionNode::Unary(unary) => eligible(unary.operand),
+        ExpressionNode::Cast(cast) => eligible(cast.value),
+        ExpressionNode::Borrow(borrow) => eligible(borrow.target),
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::String(_) => true,
+        _ => false,
+    }
+}
+
+/// Whether `source` — a parameter of the state where the guard was
+/// evaluated — resolves in `state`'s scope to a parameter the edge bound to
+/// exactly that source parameter. The bound place must be `source` itself
+/// with no projections, and no same-named local in the target scope may
+/// capture the label.
+fn parameter_bound_identically(
+    program: &typed_trees::TypedTrees,
+    evaluation_state: SymbolHandle,
+    state: &State,
+    parameter_argument_places: Option<&[(SymbolHandle, Option<crate::flow::CanonicalPlace>)]>,
+    source: SymbolHandle,
+) -> bool {
+    let Some(parameter_argument_places) = parameter_argument_places else {
+        return false;
+    };
+    let Some(evaluation) = crate::semantic::calls::find_state(program, evaluation_state) else {
+        return false;
+    };
+    let Some(source_parameter) = program
+        .state_parameters(evaluation)
+        .iter()
+        .find(|parameter| parameter.symbol == source)
+    else {
+        return false;
+    };
+    let Some(target_parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name == source_parameter.name)
+    else {
+        return false;
+    };
+    let Some(place) = parameter_argument_places
+        .iter()
+        .find(|(parameter, _)| *parameter == target_parameter.symbol)
+        .and_then(|(_, place)| place.as_ref())
+    else {
+        return false;
+    };
+    if !place.segments.is_empty() || place.root != facts::PlaceRoot::Symbol(source) {
+        return false;
+    }
+    !program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .any(|statement| {
+            matches!(statement, StatementNode::LocalData(local) if local.name == source_parameter.name)
+        })
 }
 
 fn guard_uses_machine_storage_only(
