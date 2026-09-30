@@ -588,6 +588,7 @@ fn shared_borrow_case_copy_keeps_the_referent_leaf_type() {
     });
     let loan_place = id::<PlaceId>(500);
     let loan_operation = id::<OperationId>(500);
+    let unrestricted_place = id::<PlaceId>(501);
     for machine in module.machines.iter_mut() {
         if !machine
             .blocks
@@ -601,6 +602,13 @@ fn shared_borrow_case_copy_keeps_the_referent_leaf_type() {
             id: loan_place,
             kind: StructuralPlaceKind::OperationResult {
                 producer: loan_operation,
+                structural_type: reference,
+            },
+        });
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: unrestricted_place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id::<OperationId>(502),
                 structural_type: reference,
             },
         });
@@ -640,6 +648,36 @@ fn shared_borrow_case_copy_keeps_the_referent_leaf_type() {
                 id: id::<OperationId>(501),
                 result: OperationResult::Unit,
                 kind: OperationKind::ReleaseReference { source: loan_place },
+            });
+            // An unrestricted sibling carrier closes out the same way —
+            // the release ends the carrier in place; edge discards are
+            // affine-only and never reach it.
+            block.operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id::<OperationId>(502),
+                result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place: unrestricted_place,
+                    structural_type: reference,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::StructuralCaseLeafCopy {
+                    source,
+                    path: path.clone(),
+                },
+            });
+            block.operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id::<OperationId>(503),
+                result: OperationResult::Unit,
+                kind: OperationKind::ReleaseReference {
+                    source: unrestricted_place,
+                },
             });
         }
     }
