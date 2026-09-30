@@ -1925,33 +1925,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   already present in `structural_scalar_store/value.rs`; reattribute later
   failures instead of repeating that repair.
 
-- **SOURCE-SET-UNION.** (split-of:PSI-TARGET-FAMILIES) The assembled source set
-  must contain physical sources, every target's entry contracts, package
-  imports and dependency-generated sources once per checked context. CLI and
-  package operations share `CandidateSourcePreparation`;
-  `ImmutableSourceParseCheckpoint::assemble` takes no target and seeds every
-  entry contract. `SourceAssemblyInputs` now keys the exact entry-contract
-  supplier rather than the whole target-specific nomination, while complete
-  bindings still constrain Build execution and each child's admission.
-
-  On Linux x86-64, `mbx nextest run -p omega --test package_commands two_target_`
-  verifies 2 actual assemblies for the two-target checked std application
-  (unmodified `b797eb7e2f`: 3), and 4 for nested, dual-purpose generated
-  dependencies (cold single-target controls: 4 + 4). Fixed context counts avoid
-  comparing against dependency reviews warmed by an earlier request. Scoped
-  input/package tests retain distinct supplier selections and Build/Product
-  custody, and reject substituted entry schemas and source drift, including schema
-  rejection after typed-frontier reuse with no new assembly.
-
-  Preserve [dependency handoff](wiki/spec/build/execution.md#dependency-handoff)
-  custody even for identical bytes: consumers incorporate producer bundles
-  without rerunning the producer, and their own generated extensions cannot
-  rebind earlier source. Remaining acceptance: validate emitted two-target CLI
-  products, including nested and dual-purpose generated dependencies, and any
-  applicable native-runtime obligations. Count actual invocations, not copied
-  timing rows. **BUILD-EVALUATES-ONCE** remains separate; generated target
-  variation belongs in tagged declarations.
-
 - **PSI-TARGET-FAMILIES.** (new-scope) Target-scoped machine declarations
   survive every Psi stage as one family with bodies keyed by target, including
   unrealized and unreachable bodies, per

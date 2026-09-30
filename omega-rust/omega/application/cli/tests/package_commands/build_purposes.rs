@@ -785,17 +785,9 @@ fn two_target_check_assembles_the_source_union_once() {
     );
 }
 
-/// Every entry contract is already supplied by one package. Nominating Linux
-/// and macOS separately must not rebuild the application's identical source
-/// forest. A fixture-private source copy makes the dependency's review cold
-/// without mutating process-wide cache settings or relying on test order.
-#[test]
-fn two_target_application_shares_entry_contract_source_assembly() {
-    use compiler::CompileOptions;
-    use omega::compilation::{CompileProjectRequest, ProjectProduct, compile_project_for_targets};
-    if nested_build_target().is_none() {
-        return;
-    }
+/// A fixture-private source identity keeps source-count assertions independent
+/// of dependency reviews that another test may have persisted.
+fn add_private_standard_library(fixture: &Fixture) {
     fn copy_omega_sources(source: &std::path::Path, destination: &std::path::Path) {
         std::fs::create_dir_all(destination).unwrap();
         for entry in std::fs::read_dir(source).unwrap() {
@@ -809,7 +801,6 @@ fn two_target_application_shares_entry_contract_source_assembly() {
             }
         }
     }
-    let fixture = Fixture::new();
     let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .map(|ancestor| ancestor.join("source/library/std"))
@@ -824,6 +815,21 @@ fn two_target_application_shares_entry_contract_source_assembly() {
             fixture.path("standard")
         ),
     );
+}
+
+/// Every entry contract is already supplied by one package. Nominating Linux
+/// and macOS separately must not rebuild the application's identical source
+/// forest. A fixture-private source copy makes the dependency's review cold
+/// without mutating process-wide cache settings or relying on test order.
+#[test]
+fn two_target_application_shares_entry_contract_source_assembly() {
+    use compiler::CompileOptions;
+    use omega::compilation::{CompileProjectRequest, ProjectProduct, compile_project_for_targets};
+    if nested_build_target().is_none() {
+        return;
+    }
+    let fixture = Fixture::new();
+    add_private_standard_library(&fixture);
     fixture.write(
         "root/build.omg",
         r#"machine build(builder: &mut Build) {
@@ -860,6 +866,160 @@ fn two_target_application_shares_entry_contract_source_assembly() {
         assert!(checked.report.source_file_count > 0);
     }
     assert_eq!(assemblies, 2, "one library and one application source set");
+}
+
+/// The emitted route consumes the same source union as Check, then realizes
+/// each target independently. Review the fixture in a child-only cache so the
+/// measured request is cold without changing this test process's environment.
+#[test]
+fn two_target_native_products_share_nested_source_union() {
+    use compiler::CompileOptions;
+    use omega::compilation::{CompileProjectRequest, ProjectProduct, compile_project_for_targets};
+    let Some(execution) = nested_build_target() else {
+        return;
+    };
+    let foreign = if execution == target::TargetProfile::LinuxX64 {
+        target::TargetProfile::MacosArm64
+    } else {
+        target::TargetProfile::LinuxX64
+    };
+    let fixture = nested_build_fixture();
+    add_private_standard_library(&fixture);
+    let dependency_build = fixture.read("dependency/build.omg").replace(
+        "pub machine value() -> u64 { 7 }",
+        "pub machine value() -> i32 { 7 }",
+    );
+    fixture.write("dependency/build.omg", &dependency_build);
+    let build = fixture
+        .read("root/build.omg")
+        .replace(
+            "builder.package(\"cli_project\");",
+            &format!(
+                "builder.application(\"source_union_native\");\n    \
+                 builder.depend(Source::Path {{ location: \"../standard\" }});\n    \
+                 builder.roots.bind({}::ProgramEntry, Main::main);\n    \
+                 builder.roots.bind({}::ProgramEntry, Main::main);",
+                execution.target_name(),
+                foreign.target_name(),
+            ),
+        )
+        .replace(
+            "    transition value()",
+            "    builder.depend_as(\"product_kit\", Source::Path { location: \"../dependency\" });\n    transition value()",
+        );
+    fixture.write("root/build.omg", &build);
+    fixture.write(
+        "root/main.omg",
+        r#"use product_kit::main;
+use omega::language::core::process_exit;
+use omega_language_std::process_exit;
+use omega::language::core::binding;
+data Main { exit: Binding<ProcessExit>; }
+machine Main::main(&mut self)
+reaches
+    ProcessExit
+{
+    self.exit.exit_process(value());
+}
+"#,
+    );
+    let acceptance_cache = fixture.path("acceptance-cache");
+    std::fs::create_dir(&acceptance_cache).unwrap();
+    let acceptance_cache = acceptance_cache.to_str().unwrap();
+    // These are the resolver's supported host locations. They affect only the
+    // offline fixture subprocess: Linux uses XDG, Windows LOCALAPPDATA, macOS
+    // HOME/Library/Caches. The parent retains its normal immutable cache root.
+    let acceptance_environment = [
+        ("XDG_CACHE_HOME", acceptance_cache),
+        ("LOCALAPPDATA", acceptance_cache),
+        ("HOME", acceptance_cache),
+    ];
+    let review = fixture.omega_with_env(
+        &[
+            "update",
+            "--target",
+            execution.target_name(),
+            "--target",
+            foreign.target_name(),
+            "--offline",
+        ],
+        &acceptance_environment,
+    );
+    assert_status(&review, 3);
+    write_decisions(&review_documents(&fixture, &review), "accept");
+    assert_status(
+        &fixture.omega_with_env(
+            &["update", "--resume", "--offline"],
+            &acceptance_environment,
+        ),
+        0,
+    );
+    let accepted = fixture.accepted_files();
+    let build_directory = fixture.path("union-native");
+    let mut request = CompileProjectRequest::new(CompileOptions {
+        root_path: fixture.path("root/main.omg"),
+        build_dir: Some(build_directory.clone()),
+        target_name: None,
+    });
+    request.product = ProjectProduct::NativeArtifact;
+    request.offline = true;
+    let assemblies_before = counters::source_assembly_invocation_count();
+    let outcomes = compile_project_for_targets(
+        request,
+        &[
+            execution.target_name().to_owned(),
+            foreign.target_name().to_owned(),
+        ],
+    )
+    .expect("one native outcome per requested target");
+    let assemblies = counters::source_assembly_invocation_count() - assemblies_before;
+    assert_eq!(outcomes.len(), 2);
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|outcome| outcome.target == execution)
+            .count(),
+        1,
+        "the requested host target occurs exactly once"
+    );
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|outcome| outcome.target == foreign)
+            .count(),
+        1,
+        "the requested foreign target occurs exactly once"
+    );
+    let mut host_executable = None;
+    for outcome in outcomes {
+        let product = outcome.result.unwrap_or_else(|error| {
+            panic!("target {} failed: {error}", outcome.target.target_name())
+        });
+        let executable = product
+            .executable_path
+            .expect("native output was published");
+        assert!(executable.starts_with(build_directory.join(outcome.target.target_name())));
+        assert!(executable.metadata().unwrap().len() > 0);
+        if outcome.target == execution {
+            host_executable = Some(executable);
+        }
+    }
+    // Generator Build, dependency Build and Product, standard-library Product,
+    // and root Product each own one source context. Build/Product custody is
+    // distinct even where bytes match; target entry nominations do not add one.
+    assert_eq!(
+        assemblies, 5,
+        "each cold purpose-scoped source set assembles once"
+    );
+    let run = std::process::Command::new(host_executable.expect("host native product"))
+        .output()
+        .expect("run the host product consuming the generated dependency");
+    assert_status(&run, 7);
+    assert!(run.stdout.is_empty());
+    assert!(run.stderr.is_empty());
+    assert_eq!(fixture.accepted_files(), accepted);
+    assert!(!fixture.path("dependency/generated.omg").exists());
+    assert!(!fixture.path("root/generated.omg").exists());
 }
 
 #[test]
