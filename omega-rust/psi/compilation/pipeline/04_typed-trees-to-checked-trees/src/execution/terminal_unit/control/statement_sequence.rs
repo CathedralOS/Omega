@@ -329,9 +329,10 @@ fn returned_named_view(
         statement_index,
         &place,
     )?;
-    let referee = crate::execution::terminal_unit::types::borrowed_named_view_referent(
+    let referee = crate::execution::terminal_unit::types::borrowed_view_referent(
         program,
         state.return_type,
+        language_semantics::ReferenceAccess::Shared,
     )?;
     // The stored value the projection bottoms out in must be exactly the
     // result's `&'a V` — a carrier parameter already holding the named borrow
@@ -369,7 +370,11 @@ fn returned_named_view(
         // The result spells its own `&'a V` type reference and loans the
         // referent's storage affinely — the same custody a `&mut` primitive
         // reference result carries.
-        type_identity: shapes.add_named_view_type(state.return_type, binders)?,
+        type_identity: shapes.add_view_type(
+            state.return_type,
+            binders,
+            language_semantics::ReferenceAccess::Shared,
+        )?,
         multiplicity: Multiplicity::Affine,
         reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
             path: Vec::new(),

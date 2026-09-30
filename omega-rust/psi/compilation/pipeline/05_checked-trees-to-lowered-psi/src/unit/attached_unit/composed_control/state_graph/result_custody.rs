@@ -315,7 +315,7 @@ pub(super) fn validate(
     } else {
         checked.type_multiplicity(local.type_reference)
     };
-    // A `&mut`-referee binding joins the same carrier `add_mutable_view_type`
+    // A `&mut`-referee binding joins the same carrier `add_view_type`
     // recorded — view/named referees peel to the view or record carrier.
     let expected_identity = if let Some(carrier) =
         crate::expression_preparation::source_custody::structural::mutable_view_carrier(

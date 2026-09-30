@@ -1139,47 +1139,21 @@ pub(crate) fn structural_parameter_candidate(
         .is_none()
 }
 
-pub(crate) fn is_reference(program: &TypedTrees, mut type_reference: TypeReferenceHandle) -> bool {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { .. } => return true,
-            _ => return false,
-        }
-    }
+pub(crate) fn is_reference(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    validation::reference_shell(program, type_reference).is_some()
 }
 
 pub(super) fn structural_access_for_type_reference(
     program: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
 ) -> Option<CheckedStructuralAccess> {
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference {
-                access, referee, ..
-            } => {
-                // A structural carrier represents one referent occurrence.
-                // Nested reference values need a separate pointer-as-data
-                // shape and therefore remain outside this rung.
-                if is_reference(program, *referee) {
-                    return None;
-                }
-                return Some(match access {
-                    language_semantics::ReferenceAccess::Shared => {
-                        CheckedStructuralAccess::SharedBorrow
-                    }
-                    language_semantics::ReferenceAccess::Mutable => {
-                        CheckedStructuralAccess::MutableBorrow
-                    }
-                    language_semantics::ReferenceAccess::WriteOnly => {
-                        CheckedStructuralAccess::WriteOnlyBorrow
-                    }
-                });
-            }
-            _ => return Some(CheckedStructuralAccess::Owned),
-        }
-    }
+    let Some(shell) = validation::reference_shell(program, type_reference) else {
+        return Some(CheckedStructuralAccess::Owned);
+    };
+    // A structural carrier represents one referent occurrence. Nested
+    // reference values need a separate pointer-as-data shape and therefore
+    // remain outside this rung.
+    (!is_reference(program, shell.referee)).then(|| shell.access.into())
 }
 
 /// Shared references to this existing whole affine carrier do not own or
@@ -1787,21 +1761,92 @@ impl<'program> ShapeCollector<'program> {
         false
     }
 
+    /// A reference type whose shell loans its referent: `parts`' `&mut
+    /// <primitive>` and every other `&mut` referent, or a shared `&'a V`
+    /// named view. `parts` needs no arm of its own — a bare `&mut
+    /// <primitive>` is one of the `&mut` shells — and the two accesses
+    /// never classify the same shell.
     pub(super) fn add_reference_type(
         &mut self,
         reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<String> {
-        // `parts` covers `&mut <primitive>`; the mutable and shared borrow
-        // shapes extend the same Reference shell to named referents — a
-        // `&mut Record` or `&'a V` loans the referent leaf identically.
-        let (referent, access) = super::reference_results::parts(self.program, reference)
-            .or_else(|| super::reference_results::mutable_borrowed_parts(self.program, reference))
-            .or_else(|| {
-                borrowed_named_view_referent(self.program, reference)
-                    .map(|referent| (referent, CheckedStructuralAccess::SharedBorrow))
-            })?;
-        let referent_identity = self.add_type(referent, binders, &[])?;
+        self.add_view_type(
+            reference,
+            binders,
+            language_semantics::ReferenceAccess::Mutable,
+        )
+        .or_else(|| {
+            self.add_view_type(
+                reference,
+                binders,
+                language_semantics::ReferenceAccess::Shared,
+            )
+        })
+    }
+
+    /// A `&'a V` shared view or a `&mut R`/`&mut [T]` exclusive view spells
+    /// its own type reference: the reference shell is the loan custody the
+    /// plan carries, so unlike `add_type` it is retained as a `Reference`
+    /// shape over the peeled referee rather than peeled away. The accesses
+    /// admit different referees. An exclusive shell lends whatever it
+    /// borrows — a `&mut u8`, a `&mut Record` or a `&mut [T]` — while a
+    /// shared shell registers here only over a named or generic referee;
+    /// `&'a [T]` shared views register through `add_slice_view_type`.
+    pub(super) fn add_view_type(
+        &mut self,
+        reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        access: language_semantics::ReferenceAccess,
+    ) -> Option<String> {
+        let referee = match access {
+            language_semantics::ReferenceAccess::Mutable => {
+                validation::reference_result_custody::mutable_borrowed_parts(
+                    self.program,
+                    reference,
+                )?
+                .0
+            }
+            language_semantics::ReferenceAccess::Shared => {
+                borrowed_view_referent(self.program, reference, access)?
+            }
+            language_semantics::ReferenceAccess::WriteOnly => return None,
+        };
+        let referent_identity = self.add_type(referee, binders, &[])?;
+        self.add_reference_shape(reference, binders, referent_identity, access.into())
+    }
+
+    /// A `&'a [T]` borrowed view also spells its own type reference — the same
+    /// `Reference` shell `add_view_type` keeps for `&'a V`. Its referent is
+    /// the view carrier `add_type` mints from the whole reference, so `&[u8]`
+    /// registers the `slice(u8)` byte view and `&[T]` its element view.
+    pub(super) fn add_slice_view_type(
+        &mut self,
+        reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<String> {
+        if !borrowed_slice_view(self.program, reference) {
+            return None;
+        }
+        let referent_identity = self.add_type(reference, binders, &[])?;
+        self.add_reference_shape(
+            reference,
+            binders,
+            referent_identity,
+            CheckedStructuralAccess::SharedBorrow,
+        )
+    }
+
+    /// Register `reference` as a `Reference` shape over an already registered
+    /// referent. One identity names one shape: a conflicting earlier plan
+    /// under the same identity declines the registration.
+    fn add_reference_shape(
+        &mut self,
+        reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        referent_identity: String,
+        access: CheckedStructuralAccess,
+    ) -> Option<String> {
         let identity = self
             .program
             .type_identity(TypeIdentityRequest {
@@ -1814,123 +1859,6 @@ impl<'program> ShapeCollector<'program> {
             shape: CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,
-            },
-        };
-        if self
-            .types
-            .get(&identity)
-            .is_some_and(|existing| existing != &plan)
-        {
-            return None;
-        }
-        self.types.insert(identity.clone(), plan);
-        Some(identity)
-    }
-
-    /// A `&mut R`/`&mut [T]` exclusive view spells its own type reference for
-    /// the same reason the shared views do: the reference shell is the loan
-    /// custody the plan carries, so it is retained as a mutable `Reference`
-    /// shape over the peeled referee.
-    pub(super) fn add_mutable_view_type(
-        &mut self,
-        reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
-        let Some((referee, CheckedStructuralAccess::MutableBorrow)) =
-            validation::reference_result_custody::mutable_borrowed_parts(
-                self.program,
-                reference,
-            )
-        else {
-            return None;
-        };
-        let referent_identity = self.add_type(referee, binders, &[])?;
-        let identity = self
-            .program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                ..TypeIdentityRequest::ordinary(reference)
-            })
-            .into_string();
-        let plan = CheckedUnitStructuralTypePlan {
-            identity: identity.clone(),
-            shape: CheckedUnitStructuralTypeShape::Reference {
-                referent_identity,
-                access: CheckedStructuralAccess::MutableBorrow,
-            },
-        };
-        if self
-            .types
-            .get(&identity)
-            .is_some_and(|existing| existing != &plan)
-        {
-            return None;
-        }
-        self.types.insert(identity.clone(), plan);
-        Some(identity)
-    }
-
-    /// A `&'a V` borrowed named view spells its own type reference: the
-    /// reference shell is the custody the plan carries, so unlike `add_type`
-    /// it is retained rather than peeled to the named referent.
-    pub(super) fn add_named_view_type(
-        &mut self,
-        reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
-        let referee = borrowed_named_view_referent(self.program, reference)?;
-        let referent_identity = self.add_type(referee, binders, &[])?;
-        let identity = self
-            .program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                ..TypeIdentityRequest::ordinary(reference)
-            })
-            .into_string();
-        let plan = CheckedUnitStructuralTypePlan {
-            identity: identity.clone(),
-            shape: CheckedUnitStructuralTypeShape::Reference {
-                referent_identity,
-                access: CheckedStructuralAccess::SharedBorrow,
-            },
-        };
-        if self
-            .types
-            .get(&identity)
-            .is_some_and(|existing| existing != &plan)
-        {
-            return None;
-        }
-        self.types.insert(identity.clone(), plan);
-        Some(identity)
-    }
-
-    /// A `&'a [T]` borrowed view also spells its own type reference — the same
-    /// `Reference` shell `add_named_view_type` keeps for `&'a V`, with the
-    /// peeled slice/array view as its referent.
-    pub(super) fn add_slice_view_type(
-        &mut self,
-        reference: TypeReferenceHandle,
-        binders: &[(SymbolHandle, String)],
-    ) -> Option<String> {
-        if !borrowed_slice_view(self.program, reference) {
-            return None;
-        }
-        // `add_type` peels the shared borrow itself: `&[u8]` mints the
-        // `slice(u8)` borrowed-view referent the reference shell points at.
-        let referent_identity = self.add_type(reference, binders, &[])?;
-        let identity = self
-            .program
-            .type_identity(TypeIdentityRequest {
-                binders,
-                ..TypeIdentityRequest::ordinary(reference)
-            })
-            .into_string();
-        let plan = CheckedUnitStructuralTypePlan {
-            identity: identity.clone(),
-            shape: CheckedUnitStructuralTypeShape::Reference {
-                referent_identity,
-                access: CheckedStructuralAccess::SharedBorrow,
             },
         };
         if self
@@ -2398,7 +2326,11 @@ impl<'program> ShapeCollector<'program> {
             // peeling to the named referent would mint a different identity
             // than the `&`-rooted value the literal's field produces.
             CheckedUnitStructuralFieldType::Structural {
-                type_identity: self.add_named_view_type(field.type_reference, binders)?,
+                type_identity: self.add_view_type(
+                    field.type_reference,
+                    binders,
+                    language_semantics::ReferenceAccess::Shared,
+                )?,
             }
         } else if let Some((fused_service_erasure, provider_node)) =
             provider_backed_field(self.program, field.type_reference)
@@ -2723,85 +2655,32 @@ pub(crate) fn projected_move_residuals(
     Some((moved_identity, residuals))
 }
 
-/// The element of a borrowed `&[T]` view. Fixed arrays and vectors own
-/// contiguous storage and a slice borrows it, carrying its own extent as a
-/// stored runtime length rather than a declared constant, so the view's shape
-/// names only its element. One leading reference shell is the borrow itself;
-/// arithmetic-domain and other constraint shells qualify the carrier without
-/// changing it. The byte element keeps its established `ByteSequence` carrier,
-/// whose length, read and subslice obligations are already reconstructed.
-pub(crate) fn borrowed_slice_view_element(
+/// A borrowed `[T]` element view: one reference shell over a non-byte slice.
+/// Fixed arrays and vectors own contiguous storage and a slice borrows it,
+/// carrying its own extent as a stored runtime length rather than a declared
+/// constant, so the view's shape names only its element. Arithmetic-domain
+/// and other constraint shells qualify the carrier without changing it. The
+/// byte element keeps its established `ByteSequence` carrier, whose length,
+/// read and subslice obligations are already reconstructed. The shell's
+/// access is reported, not required: a shared `&[T]` and an exclusive
+/// `&mut [T]` view share this carrier, and each consumer admits the loan
+/// its own custody needs.
+pub(crate) fn element_view_shell(
     program: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-) -> Option<TypeReferenceHandle> {
-    let mut borrowed = false;
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, .. } => {
-                let (_, replacement) = substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| parameter == symbol)?;
-                // A substitution can bind a parameter to its own reference;
-                // rewriting it again only loops.
-                if *replacement == type_reference {
-                    return None;
-                }
-                type_reference = *replacement;
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { referee, .. } if !borrowed => {
-                borrowed = true;
-                type_reference = *referee;
-            }
-            TypeReferenceNode::Slice { element_type } if borrowed => {
-                return (program.primitive_type_reference(*element_type)
-                    != Some(PrimitiveType::U8))
-                .then_some(*element_type);
-            }
-            _ => return None,
-        }
-    }
+) -> Option<validation::SliceViewShell> {
+    validation::slice_view_shell(program, type_reference, substitutions)
+        .filter(|view| program.primitive_type_reference(view.element) != Some(PrimitiveType::U8))
 }
 
-/// The element of a mutable `&mut [T]` view. The carrier shape is the shared
-/// sibling's exactly — one reference shell over a non-byte slice — with the
-/// access side flipped: the loan is exclusive, so the view's writes and
-/// element borrows reach the lent storage rather than a snapshot.
-pub(crate) fn mutable_slice_view_element(
+/// The element of a borrowed `[T]` element view under any access.
+pub(crate) fn borrowed_slice_view_element(
     program: &TypedTrees,
-    mut type_reference: TypeReferenceHandle,
+    type_reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<TypeReferenceHandle> {
-    let mut borrowed = false;
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, .. } => {
-                let (_, replacement) = substitutions
-                    .iter()
-                    .rev()
-                    .find(|(parameter, _)| parameter == symbol)?;
-                if *replacement == type_reference {
-                    return None;
-                }
-                type_reference = *replacement;
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference {
-                access, referee, ..
-            } if !borrowed && *access == language_semantics::ReferenceAccess::Mutable => {
-                borrowed = true;
-                type_reference = *referee;
-            }
-            TypeReferenceNode::Slice { element_type } if borrowed => {
-                return (program.primitive_type_reference(*element_type)
-                    != Some(PrimitiveType::U8))
-                .then_some(*element_type);
-            }
-            _ => return None,
-        }
-    }
+    element_view_shell(program, type_reference, substitutions).map(|view| view.element)
 }
 
 /// A `&[T]` declared result type, either view family. The byte element's
@@ -2829,34 +2708,12 @@ pub(crate) fn borrowed_named_view(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    borrowed_named_view_referent(program, type_reference).is_some()
-}
-
-/// The named referee beneath a `&'a V` borrowed view, with `Constrained`
-/// shells peeled exactly as `borrowed_named_view` walks them.
-pub(crate) fn borrowed_named_view_referent(
-    program: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    if structural_access_for_type_reference(program, type_reference)
-        != Some(CheckedStructuralAccess::SharedBorrow)
-    {
-        return None;
-    }
-    let mut type_reference = type_reference;
-    loop {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
-            TypeReferenceNode::Reference { referee, .. } => {
-                return matches!(
-                    program.type_reference_table.type_reference(*referee),
-                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
-                )
-                .then_some(*referee);
-            }
-            _ => return None,
-        }
-    }
+    borrowed_view_referent(
+        program,
+        type_reference,
+        language_semantics::ReferenceAccess::Shared,
+    )
+    .is_some()
 }
 
 /// A `&mut R`/`&mut [T]` exclusive structural view: the exclusive-loan
@@ -2867,28 +2724,43 @@ pub(crate) fn mutable_borrowed_view(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> bool {
-    mutable_borrowed_view_referent(program, type_reference).is_some()
+    borrowed_view_referent(
+        program,
+        type_reference,
+        language_semantics::ReferenceAccess::Mutable,
+    )
+    .is_some()
 }
 
-/// The structural referee beneath a `&mut R`/`&mut [T]` exclusive view,
-/// with `Constrained` shells peeled as `mutable_borrowed_parts` walks them.
-/// Primitive referents stay with `parts`; anything else is not a structural
-/// view destination.
-pub(crate) fn mutable_borrowed_view_referent(
+/// The referee a structural view's reference shell lends under exactly
+/// `access`, with `Constrained` shells peeled. The accesses admit different
+/// referees, spelled directly beneath the shell: a shared `&'a V` view lends
+/// a named or generic referent, primitives included; an exclusive view lends
+/// a non-primitive named referent or a `[T]` slice, while primitive
+/// referents stay with `parts`. Write-only shells lend no structural view.
+pub(crate) fn borrowed_view_referent(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
+    access: language_semantics::ReferenceAccess,
 ) -> Option<TypeReferenceHandle> {
-    let Some((referee, CheckedStructuralAccess::MutableBorrow)) =
-        validation::reference_result_custody::mutable_borrowed_parts(program, type_reference)
-    else {
-        return None;
+    let shell = validation::reference_shell(program, type_reference)
+        .filter(|shell| shell.access == access)?;
+    let referee = program.type_reference_table.type_reference(shell.referee);
+    let lends_view = match access {
+        language_semantics::ReferenceAccess::Shared => matches!(
+            referee,
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+        ),
+        language_semantics::ReferenceAccess::Mutable => {
+            program.primitive_type_reference(shell.referee).is_none()
+                && matches!(
+                    referee,
+                    TypeReferenceNode::Named { .. } | TypeReferenceNode::Slice { .. }
+                )
+        }
+        language_semantics::ReferenceAccess::WriteOnly => false,
     };
-    (program.primitive_type_reference(referee).is_none()
-        && matches!(
-            program.type_reference_table.type_reference(referee),
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Slice { .. }
-        ))
-    .then_some(referee)
+    lends_view.then_some(shell.referee)
 }
 
 /// The `type_identity` an anonymous-result plan mints for a borrowed-view
@@ -2898,7 +2770,11 @@ pub(crate) fn borrowed_view_result_identity(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<String> {
-    if let Some(referee) = borrowed_named_view_referent(program, type_reference) {
+    if let Some(referee) = borrowed_view_referent(
+        program,
+        type_reference,
+        language_semantics::ReferenceAccess::Shared,
+    ) {
         return Some(
             program
                 .type_identity(TypeIdentityRequest::ordinary(referee))

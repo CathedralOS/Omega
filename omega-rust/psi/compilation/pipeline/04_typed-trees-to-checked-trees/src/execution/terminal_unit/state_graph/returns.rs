@@ -79,14 +79,22 @@ pub(in crate::execution::terminal_unit) fn signature(
     let (type_identity, multiplicity) =
         if crate::execution::terminal_unit::types::borrowed_named_view(program, reference) {
             (
-                shapes.add_named_view_type(reference, &[])?,
+                shapes.add_view_type(
+                    reference,
+                    &[],
+                    language_semantics::ReferenceAccess::Shared,
+                )?,
                 Multiplicity::Affine,
             )
         } else if crate::execution::terminal_unit::types::mutable_borrowed_view(
             program, reference,
         ) {
             (
-                shapes.add_mutable_view_type(reference, &[])?,
+                shapes.add_view_type(
+                    reference,
+                    &[],
+                    language_semantics::ReferenceAccess::Mutable,
+                )?,
                 Multiplicity::Affine,
             )
         } else {
@@ -690,9 +698,16 @@ fn named_view_result_operation(
     if program.normalized_type_identity(storage) != program.normalized_type_identity(return_type) {
         return None;
     }
-    let type_identity = shapes.add_named_view_type(return_type, &[])?;
-    let referee =
-        crate::execution::terminal_unit::types::borrowed_named_view_referent(program, return_type)?;
+    let type_identity = shapes.add_view_type(
+        return_type,
+        &[],
+        language_semantics::ReferenceAccess::Shared,
+    )?;
+    let referee = crate::execution::terminal_unit::types::borrowed_view_referent(
+        program,
+        return_type,
+        language_semantics::ReferenceAccess::Shared,
+    )?;
     let referent_identity = shapes.add_type(referee, &[], &[])?;
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index: statement_ordinal,
@@ -774,9 +789,10 @@ fn mutable_view_result_operation(
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let referee = crate::execution::terminal_unit::types::mutable_borrowed_view_referent(
+    let referee = crate::execution::terminal_unit::types::borrowed_view_referent(
         program,
         state.return_type,
+        language_semantics::ReferenceAccess::Mutable,
     )?;
     let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
         return None;
@@ -874,7 +890,11 @@ fn mutable_view_result_operation(
     let parameter_index = parameters
         .iter()
         .position(|parameter| parameter.position as usize == position)?;
-    let type_identity = shapes.add_mutable_view_type(state.return_type, &[])?;
+    let type_identity = shapes.add_view_type(
+        state.return_type,
+        &[],
+        language_semantics::ReferenceAccess::Mutable,
+    )?;
     let referent_identity = shapes.add_type(referee, &[], &[])?;
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index: statement_ordinal,
