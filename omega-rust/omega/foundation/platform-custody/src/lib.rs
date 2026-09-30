@@ -4,11 +4,14 @@
 //! standard library does not expose. Callers receive closed facts, never native
 //! handles or attacker-controlled principal names.
 //! `file_publication` stages and installs replaceable outputs with byte replay;
-//! `record_file` separately owns capability-relative, custody-checked records.
+//! `record_file` separately owns capability-relative, custody-checked records;
+//! `lock_file` opens persistent lock files beneath a retained directory and
+//! creates them exclusively, because a contended open-or-create fails on macOS.
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
 pub mod file_publication;
+pub mod lock_file;
 pub mod record_file;
 
 use std::fs::File;
