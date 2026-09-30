@@ -295,7 +295,9 @@ pub(super) fn validate_bindings(
             // the state body established; either way the target receives a
             // fresh shared view of the source's own type. The range itself is
             // replayed at its edge site when the edge emits it.
-            if arguments.get(target.position as usize) != Some(&expression) {
+            // Retained positions count the receiver formal; the authored
+            // argument list does not.
+            if arguments.get(explicit_argument_position(target.position)) != Some(&expression) {
                 return unsupported("Unit graph subslice disagrees with its source argument");
             }
             let source_type = match root {
