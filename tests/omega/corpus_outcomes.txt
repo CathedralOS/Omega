@@ -1955,6 +1955,7 @@ pass/structs/record_literal_array_field checked 7790ms @2d8ed253669f
 pass/structs/runtime_composed_case_payload_reads_exit checked 28214ms @773e546aed6e+wt
 pass/structs/runtime_declared_record_member_fill_exit checked 1370ms @2d8ed253669f
 pass/structs/runtime_local_record_policy_exit checked 1712ms @2d8ed253669f
+pass/structs/runtime_named_array_record_member_exit checked 811ms @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit checked 1391ms @2d8ed253669f
 pass/structs/runtime_struct_array_literal_exit rejected 1202ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("fixed array literal has no Terminal establishment"))

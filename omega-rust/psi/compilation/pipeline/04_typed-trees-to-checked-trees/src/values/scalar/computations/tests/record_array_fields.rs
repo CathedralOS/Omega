@@ -126,27 +126,49 @@ machine build(seed: i32) -> i32 {
 }
 
 #[test]
-fn supplied_array_members_decline_a_non_literal_source() {
+fn supplied_named_array_members_copy_local_and_parameter_storage() {
     let checked = checked_source(
         r#"
 data Packet { samples: [i32; 2]; }
 machine build(seed: i32) -> i32 {
-    let bare: [i32; 2] = [seed, 3];
+    let mut bare: [i32; 2] = [seed, 3];
     let packet: Packet = Packet { samples: bare };
+    let second: Packet = Packet { samples: bare };
     seed
 }
+machine wrap(samples: [i32; 2]) -> Packet { Packet { samples: samples } }
 "#,
         false,
     );
+    let values = &checked.facts.values.structural_values;
+    let copies = values
+        .record_fields
+        .iter()
+        .map(|(_, field)| {
+            let CheckedStructuralRecordFieldValue::Structural(value) = field.value else {
+                panic!("the array is a structural operand");
+            };
+            let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } =
+                &values.nodes.get(value).kind
+            else {
+                panic!("each array read snapshots its existing storage");
+            };
+            assert!(source.path.is_empty(), "whole-array read");
+            (value, &source.source)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(copies.len(), 3);
+    assert_ne!(copies[0].0, copies[1].0, "reads have independent snapshots");
+    assert_eq!(
+        copies[0].1, copies[1].1,
+        "reads retain the same source storage"
+    );
     assert!(
-        checked
-            .facts
-            .values
-            .structural_values
-            .nodes
-            .iter()
-            .all(|(_, node)| !matches!(node.kind, CheckedStructuralValueKind::ScalarArray { .. })),
-        "a named array source stays with its own place-transfer owner"
+        matches!(
+            copies[2].1,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+        ),
+        "parameters use the same copied-place operation"
     );
 }
 

@@ -1575,11 +1575,26 @@ crash and native exit behavior. Use affected check/native corpus slices under
   local (`local_scalar_record_field`), element reads of a record state
   parameter (Omega stage 00 `InvalidPrimitiveScalarRead`) and moving the local
   into a field (`continuation cleanup owner`) are still refused.
-  Remaining owned producers: a named array source (`Packet { samples: bare }`),
-  array payloads of a case literal (`structural_case_value`), and element-policy
+  Named primitive-array operands now use ordinary `CopiedStructuralPlace`:
+  `pass/structs/runtime_named_array_record_member_exit` exits 70 natively and
+  on the checked interpreter. Copy permission is separate from root discovery,
+  where whole-array call arguments already have a payload producer.
+  Remaining owned producers: array payloads of a case literal
+  (`structural_case_value`), and element-policy
   or structural-element arrays, which still meet `FixedArray`'s "fixed array
   literal has no Terminal establishment" refusal (pinned by
   `folded_index_faces_the_literal_lowering_boundary`).
+
+  Constructor ordering remains open: after `context.samples = [30, 40]`,
+  `Packet { samples: context.samples, stamp: stamp(context) }`, where `stamp`
+  writes `context.samples[0] = 90` and returns 7, must retain [30, 40] in the
+  packet. On macOS ARM64 at `4ac06a9f69c`, the unchanged borrowed-field route
+  rejects with `scalar graph lost its complete authored binding prefix`; the
+  checked interpreter observes the wrong result. Rejoin the complete operand
+  bindings and preserve copied array values across later writes. A mutable
+  local-array version additionally needs the scalar-array local establishment
+  in stage 04 `control/statement_sequence/local_data.rs`, which currently
+  refuses mutable bindings, and whole-array computation-argument loans.
 
   Borrowed views are another field producer, not owned array storage:
   `borrowed_slice_view_place` currently requires the expression to be the

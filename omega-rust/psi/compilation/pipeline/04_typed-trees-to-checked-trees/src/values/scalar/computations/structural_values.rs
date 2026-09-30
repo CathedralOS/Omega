@@ -586,7 +586,7 @@ fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> boo
 /// for leaves whose contents cannot be reconstructed by case fan-out. A bare
 /// whole-root name is the degenerate path: an owned root's `Unrestricted`
 /// contents copy out whole, no loan involved.
-pub(super) fn is_copied_place_value(
+fn is_copied_place_operand(
     program: &TypedTrees,
     state: SymbolHandle,
     statement_index: usize,
@@ -616,14 +616,6 @@ pub(super) fn is_copied_place_value(
         return false;
     };
     if place.segments.is_empty() {
-        // Whole array locals and parameters already have an initialized
-        // payload owner. Their existing value-argument route copies that
-        // payload; recording another expression-owned copy would give the
-        // same authored local two competing producer identities. Array
-        // projections need this operation to snapshot borrowed backing.
-        if validation::is_closed_primitive_array_type(program, root) {
-            return false;
-        }
         // A whole owned root reads its declared contents directly: any
         // non-view reference carrier stays on the borrowed-leaf lane below,
         // while an owned `[copy]` root copies into a fresh result with an
@@ -662,6 +654,32 @@ pub(super) fn is_copied_place_value(
         .is_some_and(|leaf| {
             program.normalized_type_identity(leaf) == program.normalized_type_identity(expected)
         })
+}
+
+/// Root discovery must not register a second producer for a whole array
+/// argument: the existing value-argument route already owns its payload copy.
+/// This scheduling rule is not a restriction on copying an operand. Nested
+/// constructor operands have no separate argument producer and must snapshot
+/// the array through the ordinary copied-place operation at evaluation time.
+pub(super) fn needs_copied_place_root(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    if !is_copied_place_operand(program, state, statement_index, expression, expected) {
+        return false;
+    }
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state,
+        statement_index,
+        expression,
+    ) else {
+        return false;
+    };
+    !(place.segments.is_empty() && validation::is_closed_primitive_array_type(program, expected))
 }
 
 /// An omitted runtime field's zero value is admitted only for a
@@ -1108,7 +1126,7 @@ impl Builder<'_, '_> {
         expression: ExpressionHandle,
         expected: TypeReferenceHandle,
     ) -> Option<CheckedStructuralValueKind> {
-        if !is_copied_place_value(
+        if !is_copied_place_operand(
             self.program,
             self.state,
             self.statement_index,
