@@ -277,3 +277,88 @@ fn mixed_declarations_have_tag_prefixed_geometry_and_common_field_reads() {
     assert_eq!(shape(mixed, &empty), None);
     assert_eq!(shape(root, &empty), None);
 }
+
+/// A whole `[u8; N]` lent to a borrowed byte view has two readings: the fixed
+/// byte window, and (since `u8` element views were admitted) an element view
+/// with stride 1. The exclusive and local-array call routes let the byte
+/// reading win when both apply, which is sound only because the two readings
+/// agree on offset, length and stride, for the whole array and for a window
+/// that does not start at zero alike.
+#[test]
+fn whole_byte_array_loans_read_as_byte_and_element_views_with_one_geometry() {
+    use crate::structural_inputs::structural_reference_input::{
+        fixed_byte_array_view, fixed_element_array_view,
+    };
+    use terminal_psi::{
+        ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralParameterDeclaration,
+    };
+
+    let byte = StructuralTypeId::new(1).unwrap();
+    let array = StructuralTypeId::new(2).unwrap();
+    let view = StructuralTypeId::new(3).unwrap();
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: byte,
+            identity: "u8".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .unwrap(),
+            )),
+        },
+        StructuralTypeDeclaration {
+            id: array,
+            identity: "pause".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: byte,
+                length: 4,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: view,
+            identity: "bytes".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: None,
+            }),
+        },
+    ];
+    let source = StructuralParameterDeclaration {
+        place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: array,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::SharedBorrow,
+    ] {
+        for (path, expected) in [
+            (Vec::new(), (0, 4)),
+            (
+                vec![StructuralPathSegment::FixedByteRange { start: 1, end: 3 }],
+                (1, 2),
+            ),
+        ] {
+            let argument = StructuralArgument {
+                place: source.place,
+                path,
+                access,
+            };
+            assert_eq!(
+                fixed_byte_array_view(&source, &argument, view, &declarations),
+                Some(expected)
+            );
+            assert_eq!(
+                fixed_element_array_view(&source, &argument, view, &declarations),
+                Some((expected.0, expected.1, 1))
+            );
+        }
+    }
+}

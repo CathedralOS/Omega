@@ -83,9 +83,11 @@ pass/calls/case_scrutinee_param_clone_exit rejected 509ms
 pass/calls/case_scrutinee_self_dispatch_exit built 2129ms exit:0 @fb2178def922
 pass/calls/conditional_arm_tail_call_to_machine_exit built 1360ms exit:70 @c9c108ecb4ac+wt
 pass/calls/copy_projection_from_borrowed_receiver built 2075ms exit:70 @65bfe6bcd6c9+wt
+pass/calls/field_path_byte_subslice_exit built 3379ms @45c8d6b8b1ce+wt
 pass/calls/guarded_arm_tail_call_to_state_machine_exit built 1487ms exit:70 @c9c108ecb4ac+wt
 pass/calls/guarded_value_call_arm_exit built 718ms exit:70
 pass/calls/local_array_direct_read_exit built 824ms exit:70 @ef96dd31bdca
+pass/calls/local_fixed_byte_array_loan_exit built 5676ms exit:70 @45c8d6b8b1ce+wt
 pass/calls/local_projected_field_scalar_result_argument_exit built 583ms exit:70 @f22b140301c7+wt
 pass/calls/local_record_forwarded_across_callee_states_exit built 3015ms exit:70 @0508a5426a27+wt
 pass/calls/local_record_shared_argument_exit built 526ms exit:70 @f22b140301c7+wt
@@ -97,6 +99,7 @@ pass/calls/mutual_cycle_tail_admitted_exit built 732ms exit:70
 pass/calls/nested_call_tail_roots_exit built 11200ms exit:0 @fb2178def922
 pass/calls/nested_indexed_scalar_arguments_exit built 747ms exit:70 @ec06d9821c1c+wt
 pass/calls/nested_machine_continuation built 704ms
+pass/calls/nested_self_call_argument_exit built 4661ms exit:70 @45c8d6b8b1ce+wt
 pass/calls/nested_value_call_arg_compile built 1938ms @fb2178def922
 pass/calls/ordered_field_selector_calls_exit built 902ms exit:70 @e3012d6c0627+wt
 pass/calls/owned_state_parameter_call_exit built 512ms exit:70 @4ecfdc78f8c7+wt
@@ -166,6 +169,7 @@ pass/calls/value_call_embedded_in_binary_exit built 794ms exit:70 @3da828ba5434+
 pass/calls/value_call_param_effect_arm built 652ms exit:1
 pass/calls/value_call_subexpression built 2815ms exit:70 @b09f66e07ebd+wt
 pass/calls/value_call_transition_argument built 16255ms exit:70 @f17a009cdd4b+wt
+pass/calls/whole_byte_array_view_loans_exit built 4714ms exit:70 @45c8d6b8b1ce+wt
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
 pass/capabilities/acquires_through_helper_return built 301ms
 pass/capabilities/boundary_trait_multiple_effects checked 164ms
