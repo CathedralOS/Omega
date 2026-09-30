@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.11, "load1_start": 7.11, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 7.5, "load1_start": 7.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -911,8 +911,7 @@ pass/termination/ranked_callee_projected_receiver_compile built 13283ms exit:70 
 pass/termination/remainder_actual_call_component checked 210ms
 pass/termination/remainder_literal_call_component checked 218ms
 pass/termination/runtime_named_state_remainder_endpoint_exit built 33533ms exit:0
-pass/termination/runtime_rank_range_state_call_exit rejected 2140ms @a917987f9778+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`Main::count`), which was itself omitted at local construction at `state graph: natural ranks`
+pass/termination/runtime_rank_range_state_call_exit built 1004ms exit:70 @82d2bd2d7669+wt
 pass/termination/runtime_shrinking_slice_recursion_exit rejected 498ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement`
 pass/termination/runtime_stored_exclusive_endpoint_exit rejected 12050ms
