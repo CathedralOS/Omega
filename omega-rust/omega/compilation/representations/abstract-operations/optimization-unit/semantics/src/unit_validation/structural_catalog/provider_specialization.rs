@@ -34,11 +34,10 @@ pub(crate) fn validate_provider_attachment_specialization(
                 fields
                     .iter()
                     .filter(|field| {
-                        !field.relevance.is_erased()
-                            && matches!(
-                                field.field_type,
-                                terminal_psi::StructuralFieldType::Erased { .. }
-                            )
+                        matches!(
+                            field.field_type,
+                            terminal_psi::StructuralFieldType::Erased { .. }
+                        )
                     })
                     .collect::<Vec<_>>(),
             ),
