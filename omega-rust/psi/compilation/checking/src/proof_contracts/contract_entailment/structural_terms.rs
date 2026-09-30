@@ -12,7 +12,7 @@ use super::{StructuralTerm, is_arm_pattern_marker};
 
 mod binary;
 mod constructors;
-pub(super) use binary::binary_term;
+pub(super) use binary::binary_term_in_scope;
 pub(super) use constructors::{
     case_classifier, case_guard_classifier, case_value_term, constructor_literal_term,
     is_case_observation, zero_value_structural_term,
@@ -221,6 +221,20 @@ pub(super) fn structural_term(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<StructuralTerm> {
+    structural_term_in_scope(program, None, expression)
+}
+
+/// `structural_term` with an explicit declaring `(machine, state)` fallback for
+/// name-free binary operands (see `binary_term_in_scope`).
+pub(super) fn structural_term_in_scope(
+    program: &TypedTrees,
+    scope: Option<(
+        &typed_trees::machine::Machine,
+        &typed_trees::state::State,
+        typed_trees::types::TypeReferenceHandle,
+    )>,
+    expression: ExpressionHandle,
+) -> Option<StructuralTerm> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
@@ -235,13 +249,16 @@ pub(super) fn structural_term(
             }
         }
         ExpressionNode::StructLiteral(literal) => {
-            constructor_literal_term(program, literal, |value| structural_term(program, value))
+            constructor_literal_term(program, literal, |value| {
+                structural_term_in_scope(program, scope, value)
+            })
         }
-        ExpressionNode::Binary(binary) => binary_term(
+        ExpressionNode::Binary(binary) => binary_term_in_scope(
             program,
+            scope,
             expression,
-            structural_term(program, binary.left)?,
-            structural_term(program, binary.right)?,
+            structural_term_in_scope(program, scope, binary.left)?,
+            structural_term_in_scope(program, scope, binary.right)?,
         ),
         ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
         ExpressionNode::Call(call) => {
@@ -252,7 +269,7 @@ pub(super) fn structural_term(
                 let handles = program.expression_table.expression_handles(call.arguments);
                 let arguments: Vec<StructuralTerm> = handles
                     .iter()
-                    .filter_map(|argument| structural_term(program, *argument))
+                    .filter_map(|argument| structural_term_in_scope(program, scope, *argument))
                     .collect();
                 if arguments.len() == handles.len() {
                     return Some(StructuralTerm::Application {
@@ -285,7 +302,7 @@ pub(super) fn structural_term(
                 let handles = program.expression_table.expression_handles(call.arguments);
                 let arguments = handles
                     .iter()
-                    .filter_map(|argument| structural_term(program, *argument))
+                    .filter_map(|argument| structural_term_in_scope(program, scope, *argument))
                     .collect::<Vec<_>>();
                 if arguments.len() == handles.len() {
                     let result_type = program

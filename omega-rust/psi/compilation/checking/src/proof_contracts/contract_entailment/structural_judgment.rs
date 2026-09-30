@@ -642,11 +642,16 @@ impl<'program> StructuralJudge<'program> {
                     left,
                     right,
                 } => {
+                    let left = self.resolve_at(*left, depth + 1);
+                    let right = self.resolve_at(*right, depth + 1);
+                    if let Some(folded) = fold_scalar_binary(operator, meaning, &left, &right) {
+                        return folded;
+                    }
                     return StructuralTerm::ScalarBinary {
                         operator,
                         meaning,
-                        left: Box::new(self.resolve_at(*left, depth + 1)),
-                        right: Box::new(self.resolve_at(*right, depth + 1)),
+                        left: Box::new(left),
+                        right: Box::new(right),
                     };
                 }
                 StructuralTerm::Opaque(_)
@@ -767,6 +772,7 @@ impl<'program> StructuralJudge<'program> {
                 projected.value,
                 &environment,
                 &machine_environment,
+                None,
                 depth + 1,
             )
         };
@@ -932,6 +938,7 @@ impl<'program> StructuralJudge<'program> {
                     local.initial_value,
                     &environment,
                     &machine_environment,
+                    None,
                     depth + 1,
                 )?;
                 environment.push((local.name.as_str().to_owned(), term));
@@ -947,6 +954,7 @@ impl<'program> StructuralJudge<'program> {
                             *expression,
                             &environment,
                             &machine_environment,
+                            None,
                             depth + 1,
                         )
                     })
@@ -1017,6 +1025,7 @@ impl<'program> StructuralJudge<'program> {
                 *value,
                 &environment,
                 &machine_environment,
+                None,
                 depth + 1,
             );
         }
@@ -1065,7 +1074,7 @@ impl<'program> StructuralJudge<'program> {
         } else {
             return None;
         };
-        self.callee_term_with_machines(value, environment, machine_environment, depth)
+        self.callee_term_with_machines(value, environment, machine_environment, None, depth)
     }
 
     /// Convert a callee-body expression to a term under the call
@@ -1078,7 +1087,23 @@ impl<'program> StructuralJudge<'program> {
         environment: &[(String, StructuralTerm)],
         depth: usize,
     ) -> Option<StructuralTerm> {
-        self.callee_term_with_machines(expression, environment, &[], depth)
+        self.callee_term_with_machines(expression, environment, &[], None, depth)
+    }
+
+    /// `callee_term` with an explicit declaring `(machine, state)` fallback for
+    /// name-free binary operands (see `binary_term_in_scope`).
+    pub(super) fn callee_term_in_scope(
+        &self,
+        scope: Option<(
+            &'program Machine,
+            &'program typed_trees::state::State,
+            TypeReferenceHandle,
+        )>,
+        expression: ExpressionHandle,
+        environment: &[(String, StructuralTerm)],
+        depth: usize,
+    ) -> Option<StructuralTerm> {
+        self.callee_term_with_machines(expression, environment, &[], scope, depth)
     }
 
     pub(super) fn local_term(
@@ -1118,6 +1143,11 @@ impl<'program> StructuralJudge<'program> {
             String,
             typed_trees::expression::StaticMachineArgument,
         )],
+        scope: Option<(
+            &'program Machine,
+            &'program typed_trees::state::State,
+            TypeReferenceHandle,
+        )>,
         depth: usize,
     ) -> Option<StructuralTerm> {
         if depth >= 32 {
@@ -1155,6 +1185,7 @@ impl<'program> StructuralJudge<'program> {
                                 *argument,
                                 environment,
                                 machine_environment,
+                                scope,
                                 depth + 1,
                             )
                         })
@@ -1206,6 +1237,7 @@ impl<'program> StructuralJudge<'program> {
                     member.receiver,
                     environment,
                     machine_environment,
+                    scope,
                     depth + 1,
                 )?;
                 match self.resolve_at(receiver_term, depth + 1) {
@@ -1248,6 +1280,7 @@ impl<'program> StructuralJudge<'program> {
                         value,
                         environment,
                         machine_environment,
+                        scope,
                         depth + 1,
                     )
                 })
@@ -1285,6 +1318,7 @@ impl<'program> StructuralJudge<'program> {
                         *argument,
                         environment,
                         machine_environment,
+                        scope,
                         depth + 1,
                     )?);
                 }
@@ -1316,19 +1350,22 @@ impl<'program> StructuralJudge<'program> {
                 case: value.to_string(),
                 fields: Vec::new(),
             }),
-            ExpressionNode::Binary(binary) => super::structural_terms::binary_term(
+            ExpressionNode::Binary(binary) => super::structural_terms::binary_term_in_scope(
                 program,
+                scope,
                 expression,
                 self.callee_term_with_machines(
                     binary.left,
                     environment,
                     machine_environment,
+                    scope,
                     depth + 1,
                 )?,
                 self.callee_term_with_machines(
                     binary.right,
                     environment,
                     machine_environment,
+                    scope,
                     depth + 1,
                 )?,
             ),
@@ -2989,4 +3026,103 @@ fn consistent_operation_selections(left: &StructuralTerm, right: &StructuralTerm
     }
     let mut seen = Vec::new();
     visit(left, &mut seen) && visit(right, &mut seen)
+}
+
+/// Literal scalar evaluation for a resolved term: once both operands reduce to
+/// `Integer`, the operation is a constant whose value the declared primitive
+/// and operand domain already fix. Exact/Trapping fold only inside the
+/// representable range (out-of-range keeps the term -- the operation's own
+/// trap/proof obligation owns that edge); Wrapping reduces modulo 2^bits and
+/// reinterprets the residue under the result signedness; Saturating clamps.
+/// Comparisons fold to the bool constructor. Division/remainder refuse a zero
+/// divisor outright rather than manufacture a value; mixed operand primitives
+/// and non-integer primitives never fold.
+fn fold_scalar_binary(
+    operator: BinaryOperator,
+    meaning: [(
+        typed_trees::types::PrimitiveType,
+        numerics::arithmetic::ArithmeticDomain,
+    ); 2],
+    left: &StructuralTerm,
+    right: &StructuralTerm,
+) -> Option<StructuralTerm> {
+    let (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) = (left, right) else {
+        return None;
+    };
+    let (primitive, _) = meaning[0];
+    if meaning[1].0 != primitive || !primitive.accepts_integer_literal() {
+        return None;
+    }
+    match operator {
+        BinaryOperator::Equal
+        | BinaryOperator::NotEqual
+        | BinaryOperator::Less
+        | BinaryOperator::LessOrEqual
+        | BinaryOperator::Greater
+        | BinaryOperator::GreaterOrEqual => {
+            let verdict = match operator {
+                BinaryOperator::Equal => left == right,
+                BinaryOperator::NotEqual => left != right,
+                BinaryOperator::Less => left < right,
+                BinaryOperator::LessOrEqual => left <= right,
+                BinaryOperator::Greater => left > right,
+                BinaryOperator::GreaterOrEqual => left >= right,
+                _ => unreachable!(),
+            };
+            return Some(StructuralTerm::Constructor {
+                data: "bool".to_owned(),
+                case: verdict.to_string(),
+                fields: Vec::new(),
+            });
+        }
+        _ => {}
+    }
+    let exact = match operator {
+        BinaryOperator::Add => Some(left.add(right)),
+        BinaryOperator::Subtract => Some(left.sub(right)),
+        BinaryOperator::Multiply => Some(left.mul(right)),
+        BinaryOperator::Divide => left.div_rem(right).map(|(quotient, _)| quotient),
+        BinaryOperator::Modulo => left.div_rem(right).map(|(_, remainder)| remainder),
+        _ => None,
+    }?;
+    let bits = primitive.scalar_byte_size()? * 8;
+    let domain = meaning[0].1.combine(meaning[1].1);
+    let modulus = numerics::bignum::BigInt::from_u64(1).shl_bits(bits);
+    let half = numerics::bignum::BigInt::from_u64(1).shl_bits(bits - 1);
+    let one = numerics::bignum::BigInt::from_u64(1);
+    let (minimum, maximum) = if primitive.is_signed_integer() {
+        (half.negate(), half.sub(&one))
+    } else {
+        (numerics::bignum::BigInt::zero(), modulus.sub(&one))
+    };
+    match domain {
+        numerics::arithmetic::ArithmeticDomain::Exact
+        | numerics::arithmetic::ArithmeticDomain::Trapping => {
+            (minimum <= exact && exact <= maximum).then_some(StructuralTerm::Integer(exact))
+        }
+        numerics::arithmetic::ArithmeticDomain::Wrapping => {
+            let (_, residue) = exact.div_rem(&modulus)?;
+            let residue = if residue.is_negative() {
+                residue.add(&modulus)
+            } else {
+                residue
+            };
+            let value = if primitive.is_signed_integer() && residue > maximum {
+                residue.sub(&modulus)
+            } else {
+                residue
+            };
+            Some(StructuralTerm::Integer(value))
+        }
+        numerics::arithmetic::ArithmeticDomain::Saturating => {
+            let value = if exact < minimum {
+                minimum
+            } else if exact > maximum {
+                maximum
+            } else {
+                exact
+            };
+            Some(StructuralTerm::Integer(value))
+        }
+    }
 }
