@@ -46,36 +46,36 @@ data Main {
 }
 
 // Top-level dispatcher: receive a task and handle it.
-machine Main::run_task(&mut self, task: Task) {
+machine Main::run_task(main: &mut Main, task: Task) {
     transition task {
-        Task::Compute { value } -> do_compute(value)
-        Task::Double -> do_double()
-        Task::Reset -> do_reset()
-        Task::Clamp { max } -> do_clamp(max)
+        Task::Compute { value } -> do_compute(main, value)
+        Task::Double -> do_double(main)
+        Task::Reset -> do_reset(main)
+        Task::Clamp { max } -> do_clamp(main, max)
         _ -> done()
     }
 
-    state do_compute(&mut self, value: i32 in Saturating) {
-        self.runner.score = self.runner.score + value;
+    state do_compute(main: &mut Main, value: i32 in Saturating) {
+        main.runner.score = main.runner.score + value;
     }
 
-    state do_double(&mut self) {
-        self.runner.score = self.runner.score * 2;
+    state do_double(main: &mut Main) {
+        main.runner.score = main.runner.score * 2;
     }
 
-    state do_reset(&mut self) {
-        self.runner.score = 0;
+    state do_reset(main: &mut Main) {
+        main.runner.score = 0;
     }
 
-    state do_clamp(&mut self, max: i32 in Saturating) {
-        transition self.runner.score > max {
-            true -> apply_clamp(max)
+    state do_clamp(main: &mut Main, max: i32 in Saturating) {
+        transition main.runner.score > max {
+            true -> apply_clamp(main, max)
             _ -> done()
         }
     }
 
-    state apply_clamp(&mut self, max: i32 in Saturating) {
-        self.runner.score = max;
+    state apply_clamp(main: &mut Main, max: i32 in Saturating) {
+        main.runner.score = max;
     }
 
     state done() {}
@@ -83,12 +83,12 @@ machine Main::run_task(&mut self, task: Task) {
 
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
-    self.run_task(Task::Compute { value: 10 });
-    self.run_task(Task::Compute { value: 15 });
-    self.run_task(Task::Double);
-    self.run_task(Task::Compute { value: 5 });
-    self.run_task(Task::Clamp { max: 45 });
-    self.run_task(Task::Compute { value: 25 });
+    Main::run_task(&mut self, Task::Compute { value: 10 });
+    Main::run_task(&mut self, Task::Compute { value: 15 });
+    Main::run_task(&mut self, Task::Double);
+    Main::run_task(&mut self, Task::Compute { value: 5 });
+    Main::run_task(&mut self, Task::Clamp { max: 45 });
+    Main::run_task(&mut self, Task::Compute { value: 25 });
 
     transition self.runner.score == 70 {
         true -> good()

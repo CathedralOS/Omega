@@ -47,55 +47,55 @@ data Main {
 
 // Execute one token on the interpreter state.
 // Mixes: case-payload dispatch, equality guard (acc == max), range guard (acc > 0).
-machine Main::exec(&mut self, tok: Token) {
+machine Main::exec(main: &mut Main, tok: Token) {
     transition tok {
-        Token::Literal { value } -> do_literal(value)
-        Token::Add -> do_add()
-        Token::Clamp { max } -> do_clamp(max)
+        Token::Literal { value } -> do_literal(main, value)
+        Token::Add -> do_add(main)
+        Token::Clamp { max } -> do_clamp(main, max)
         _ -> done()
     }
 
     // Literal: add value to accumulator.
-    state do_literal(&mut self, value: i32 in Saturating) {
-        self.interp.acc = self.interp.acc + value;
+    state do_literal(main: &mut Main, value: i32 in Saturating) {
+        main.interp.acc = main.interp.acc + value;
     }
 
     // Add: double the accumulator.
     // Uses a range guard: if acc > 0, we do a "real" double; otherwise no-op.
-    state do_add(&mut self) {
-        transition self.interp.acc > 0 {
-            true -> real_double()
+    state do_add(main: &mut Main) {
+        transition main.interp.acc > 0 {
+            true -> real_double(main)
             _ -> done()
         }
     }
 
-    state real_double(&mut self) {
-        self.interp.acc = self.interp.acc * 2;
+    state real_double(main: &mut Main) {
+        main.interp.acc = main.interp.acc * 2;
     }
 
     // Clamp: cap accumulator at max.
     // Uses an equality guard (exact match path) AND a range guard (over path).
-    state do_clamp(&mut self, max: i32 in Saturating) {
-        transition self.interp.acc == max {
-            true -> clamp_exact(max)
-            _ -> check_over(max)
+    state do_clamp(main: &mut Main, max: i32 in Saturating) {
+        transition main.interp.acc == max {
+            true -> clamp_exact(main, max)
+            _ -> check_over(main, max)
         }
     }
 
-    state clamp_exact(&mut self, max: i32 in Saturating) {
+    state clamp_exact(main: &mut Main, max: i32 in Saturating) {
         // Already at the max; no change needed.
-        self.interp.acc = max;
+        main.interp.acc = max;
     }
 
-    state check_over(&mut self, max: i32 in Saturating) {
-        transition self.interp.acc > max {
-            true -> apply_clamp(max)
+    state check_over(main: &mut Main, max: i32 in Saturating) {
+        transition main.interp.acc > max {
+            true -> apply_clamp(main, max)
             _ -> done()
         }
     }
 
-    state apply_clamp(&mut self, max: i32 in Saturating) {
-        self.interp.acc = max;
+    state apply_clamp(main: &mut Main, max: i32 in Saturating) {
+        main.interp.acc = max;
     }
 
     state done() {}
@@ -106,12 +106,12 @@ machine Main::main(&mut self) reaches Console {
     // Scripted token sequence:
     // Literal(10) -> acc=10; Add -> acc=20; Literal(5) -> acc=25;
     // Clamp(30) -> acc=25 (no clamp); Add -> acc=50; Literal(20) -> acc=70.
-    self.exec(Token::Literal { value: 10 });
-    self.exec(Token::Add);
-    self.exec(Token::Literal { value: 5 });
-    self.exec(Token::Clamp { max: 30 });
-    self.exec(Token::Add);
-    self.exec(Token::Literal { value: 20 });
+    Main::exec(&mut self, Token::Literal { value: 10 });
+    Main::exec(&mut self, Token::Add);
+    Main::exec(&mut self, Token::Literal { value: 5 });
+    Main::exec(&mut self, Token::Clamp { max: 30 });
+    Main::exec(&mut self, Token::Add);
+    Main::exec(&mut self, Token::Literal { value: 20 });
 
     transition self.interp.acc == 70 {
         true -> good()

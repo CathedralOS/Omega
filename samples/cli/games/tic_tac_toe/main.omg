@@ -43,11 +43,11 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("tic_tac_toe: replays a scripted game where X wins the top row");
     // Scripted moves.
-    self.play(0, 1);  // X plays cell 0
-    self.play(3, 2);  // O plays cell 3
-    self.play(1, 1);  // X plays cell 1
-    self.play(4, 2);  // O plays cell 4
-    self.play(2, 1);  // X plays cell 2 -> X wins
+    Main::play(&mut self, 0, 1);  // X plays cell 0
+    Main::play(&mut self, 3, 2);  // O plays cell 3
+    Main::play(&mut self, 1, 1);  // X plays cell 1
+    Main::play(&mut self, 4, 2);  // O plays cell 4
+    Main::play(&mut self, 2, 1);  // X plays cell 2 -> X wins
 
     // Verify move count is 5.
     transition self.board.move_count == 5 {
@@ -109,61 +109,61 @@ machine Main::main(&mut self) reaches Console {
 }
 
 // Place a piece on the board: cell=which cell, player=1 for X, 2 for O.
-machine Main::play(&mut self, cell: i32, player: i32) {
-    self.board.move_count = (self.board.move_count + 1) % 10;
+machine Main::play(main: &mut Main, cell: i32, player: i32) {
+    main.board.move_count = (main.board.move_count + 1) % 10;
     transition cell == 0 {
-        true -> set0(player)
-        _ -> try_cell1(cell, player)
+        true -> set0(main, player)
+        _ -> try_cell1(main, cell, player)
     }
 
-    state set0(&mut self, player: i32) {
-        self.board.cells[0] = player;
+    state set0(main: &mut Main, player: i32) {
+        main.board.cells[0] = player;
     }
 
-    state try_cell1(&mut self, cell: i32, player: i32) {
+    state try_cell1(main: &mut Main, cell: i32, player: i32) {
         transition cell == 1 {
-            true -> set1(player)
-            _ -> try_cell2(cell, player)
+            true -> set1(main, player)
+            _ -> try_cell2(main, cell, player)
         }
     }
 
-    state set1(&mut self, player: i32) {
-        self.board.cells[1] = player;
+    state set1(main: &mut Main, player: i32) {
+        main.board.cells[1] = player;
     }
 
-    state try_cell2(&mut self, cell: i32, player: i32) {
+    state try_cell2(main: &mut Main, cell: i32, player: i32) {
         transition cell == 2 {
-            true -> set2(player)
-            _ -> try_cell3(cell, player)
+            true -> set2(main, player)
+            _ -> try_cell3(main, cell, player)
         }
     }
 
-    state set2(&mut self, player: i32) {
-        self.board.cells[2] = player;
+    state set2(main: &mut Main, player: i32) {
+        main.board.cells[2] = player;
     }
 
-    state try_cell3(&mut self, cell: i32, player: i32) {
+    state try_cell3(main: &mut Main, cell: i32, player: i32) {
         transition cell == 3 {
-            true -> set3(player)
-            _ -> try_cell4(cell, player)
+            true -> set3(main, player)
+            _ -> try_cell4(main, cell, player)
         }
     }
 
-    state set3(&mut self, player: i32) {
-        self.board.cells[3] = player;
+    state set3(main: &mut Main, player: i32) {
+        main.board.cells[3] = player;
     }
 
-    state try_cell4(&mut self, cell: i32, player: i32) {
+    state try_cell4(main: &mut Main, cell: i32, player: i32) {
         transition cell == 4 {
-            true -> set4(player)
-            _ -> done()
+            true -> set4(main, player)
+            _ -> done(main)
         }
     }
 
-    state set4(&mut self, player: i32) {
-        self.board.cells[4] = player;
+    state set4(main: &mut Main, player: i32) {
+        main.board.cells[4] = player;
     }
 
-    state done(&mut self) {
+    state done(main: &mut Main) {
     }
 }

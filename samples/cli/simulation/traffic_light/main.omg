@@ -36,10 +36,10 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.console.write_line("traffic_light: cycles Red -> Green -> Yellow through 4 advances");
     // Start: Red (zero-initialized), advances = 0.
-    self.advance();  // Red    -> Green,  advances = 1
-    self.advance();  // Green  -> Yellow, advances = 2
-    self.advance();  // Yellow -> Red,    advances = 3
-    self.advance();  // Red    -> Green,  advances = 4
+    Main::advance(&mut self);  // Red    -> Green,  advances = 1
+    Main::advance(&mut self);  // Green  -> Yellow, advances = 2
+    Main::advance(&mut self);  // Yellow -> Red,    advances = 3
+    Main::advance(&mut self);  // Red    -> Green,  advances = 4
 
     // After 4 advances the light should be Green and advances == 4.
     transition self.light.advances == 4 {
@@ -77,24 +77,24 @@ machine Main::main(&mut self) reaches Console {
 }
 
 // Advance the light one phase: Red->Green, Green->Yellow, Yellow->Red.
-machine Main::advance(&mut self) {
-    self.light.advances = (self.light.advances % 101 + 1) % 101;
+machine Main::advance(main: &mut Main) {
+    main.light.advances = (main.light.advances % 101 + 1) % 101;
 
-    transition self.light.phase {
-        Phase::Red -> go_green()
-        Phase::Green -> go_yellow()
-        _ -> go_red()
+    transition main.light.phase {
+        Phase::Red -> go_green(main)
+        Phase::Green -> go_yellow(main)
+        _ -> go_red(main)
     }
 
-    state go_green(&mut self) {
-        self.light.phase = Phase::Green;
+    state go_green(main: &mut Main) {
+        main.light.phase = Phase::Green;
     }
 
-    state go_yellow(&mut self) {
-        self.light.phase = Phase::Yellow;
+    state go_yellow(main: &mut Main) {
+        main.light.phase = Phase::Yellow;
     }
 
-    state go_red(&mut self) {
-        self.light.phase = Phase::Red;
+    state go_red(main: &mut Main) {
+        main.light.phase = Phase::Red;
     }
 }
