@@ -2,8 +2,8 @@
 
 use super::call_requirements::{CallRequirement, establish_citation};
 use crate::proof_contracts::contract_entailment::citations::{
-    CitationFacts, CitationTarget, citation_call_in_statement, instantiate_citation,
-    is_citation_statement, machine_requires_facts,
+    CitationFacts, CitationTarget, citation_argument_types, citation_call_in_statement,
+    instantiate_citation, is_citation_statement, machine_requires_facts,
 };
 use crate::proof_contracts::contract_entailment::is_arm_pattern_marker;
 use crate::proof_contracts::contract_entailment::self_induction::intake_available_self_induction_hypotheses;
@@ -316,9 +316,21 @@ fn recognize_structural_state_leaves(
                 && !saw_transition
                 && let Some((target, arguments)) = citation_call_in_statement(program, statement)
             {
+                let expected = citation_argument_types(program, &target);
                 let arguments = arguments
                     .iter()
-                    .map(|argument| judge.callee_term(*argument, &environment, 0))
+                    .enumerate()
+                    .map(|(position, argument)| {
+                        judge.callee_term_in_scope(
+                            expected
+                                .as_ref()
+                                .and_then(|types| types.get(position))
+                                .map(|expected| (machine, state, *expected)),
+                            *argument,
+                            &environment,
+                            0,
+                        )
+                    })
                     .collect::<Option<Vec<_>>>()?;
                 establish_citation(
                     program,
@@ -342,9 +354,21 @@ fn recognize_structural_state_leaves(
                         && let Some((target, argument_handles)) =
                             citation_call_in_statement(program, statement)
                     {
+                        let expected = citation_argument_types(program, &target);
                         let argument_terms = argument_handles
                             .iter()
-                            .map(|argument| judge.callee_term(*argument, &environment, 0))
+                            .enumerate()
+                            .map(|(position, argument)| {
+                                judge.callee_term_in_scope(
+                                    expected
+                                        .as_ref()
+                                        .and_then(|types| types.get(position))
+                                        .map(|expected| (machine, state, *expected)),
+                                    *argument,
+                                    &environment,
+                                    0,
+                                )
+                            })
                             .collect::<Option<Vec<_>>>()?;
                         pending_citations.push((target.clone(), argument_terms));
                     }
@@ -353,9 +377,21 @@ fn recognize_structural_state_leaves(
                 StatementNode::Call(_) if !saw_transition && collect_citations => {
                     let (target, argument_handles) =
                         citation_call_in_statement(program, statement)?;
+                    let expected = citation_argument_types(program, &target);
                     let argument_terms = argument_handles
                         .iter()
-                        .map(|argument| judge.callee_term(*argument, &environment, 0))
+                        .enumerate()
+                        .map(|(position, argument)| {
+                            judge.callee_term_in_scope(
+                                expected
+                                    .as_ref()
+                                    .and_then(|types| types.get(position))
+                                    .map(|expected| (machine, state, *expected)),
+                                *argument,
+                                &environment,
+                                0,
+                            )
+                        })
                         .collect::<Option<Vec<_>>>()?;
                     pending_citations.push((target.clone(), argument_terms));
                 }

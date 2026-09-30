@@ -70,6 +70,24 @@ fn selected_citation_machine(program: &TypedTrees, symbol: SymbolHandle) -> Opti
     })
 }
 
+/// The cited entry state's parameter result types in argument order — the
+/// declaring expectations an anonymous argument tree already landed against
+/// when the call was checked, so scope walks can recover them positionally.
+pub(super) fn citation_argument_types(
+    program: &TypedTrees,
+    target: &CitationTarget,
+) -> Option<Vec<typed_trees::types::TypeReferenceHandle>> {
+    let callee = selected_citation_machine(program, target.symbol)?;
+    let entry = program.machine_states(callee).first()?;
+    Some(
+        program
+            .state_parameters(entry)
+            .iter()
+            .map(|parameter| parameter.type_reference)
+            .collect(),
+    )
+}
+
 /// Whether a statement is a CITATION: a free (receiver-less) call whose
 /// callee resolves to a free PROOF MACHINE other than the enclosing one
 /// (self-calls are recursion, owned by the descent checks and the IH).
