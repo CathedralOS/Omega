@@ -1652,7 +1652,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   and all five customers execute with those oracles. A migrated unused field
   or disappearance of the old phase label alone does not close this task.
 
-  Current frontier (macOS ARM64, 2026-09-30, based on `f44776a6ba`):
+  Current frontier (macOS ARM64, 2026-09-30, based on `fae4389239`):
   `omega run tests/omega/pass/float/finite_core_domain_range_discharge/main.omg`
   now proves the repaired field's `Finite` transition argument and admits the
   zero-valid entry context, preserving the transient NaN and range violation.
@@ -1664,18 +1664,23 @@ crash and native exit behavior. Use affected check/native corpus slices under
   overwrite invalidation and saved SSA predicates through module/proof codec
   reload. Checked equality transport proves a restored field/read's range,
   rejects NaN and `2.0`, and preserves an earlier `0.5` read across both writes.
-  All 14 focused regressions pass; the vocabulary, admission, verifier and codec
-  suites run 1,618 tests with 1,616 passing and two failures reproduced on
-  unchanged `8778c44008`. This is portable proof support, not native acceptance.
-  Next carry the IEEE predicate and restoration evidence through source
-  planning: the shared state-contract roster in checking's
-  `machine_calls/structural_call_custody.rs`, stage 05's
+  Stage 05 now lowers IEEE entry comparisons and structural float leaves through
   `unit/runtime_requirements.rs` and `proofs/crash_routes/structural_members.rs`,
-  then consumption-point obligations before opening the destination gate.
-  Zero eligibility is not a per-store invariant proof. Coordinate the
-  destination with `STATIC-ZERO-ARRAY-FIELD-STORES` and state-plan namespace
-  edits with `STATIC-MACHINE-MIGRATION`. Native exit 77 and the three recast
-  customers remain open.
+  retaining exact formats, paths and unordered-inclusive negation. All 34
+  affected contract tests pass; the 92 float/dependent corpus records retain
+  the previous checkpoint's semantic results (49 checked, 43 rejected).
+  This is lowering support, not native acceptance. Next derive one declaration
+  predicate roster in checking's `machine_calls/structural_call_custody.rs` and
+  feed call-entry requirements, state-arrival obligations and mutable-parameter
+  normal-return restoration. State arrivals alone miss invocation entry, and
+  current closed scalar guarantees retain only authored `ensures`; preserve
+  authored clause counts while independently replaying derived tails. Boundary
+  calls also consume open windows even without a record argument. Only then
+  open the destination gate: zero eligibility is not a per-store invariant
+  proof. Coordinate the destination with `STATIC-ZERO-ARRAY-FIELD-STORES`, the
+  state roster consumer with `COMPOSITE-TRANSITION-ARGUMENT`, and signature,
+  guarantee and namespace consumers with `STATIC-MACHINE-MIGRATION`. Native
+  exit 77 and the three recast customers remain open.
 
   The const-container customer (macOS ARM64, published `8778c44008`) now
   checks and independently verifies after Terminal serialization/reload.

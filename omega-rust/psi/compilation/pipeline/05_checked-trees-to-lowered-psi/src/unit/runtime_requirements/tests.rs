@@ -398,3 +398,224 @@ fn mixed_comparison_substitution_retains_structural_endpoint_and_rejects_forged_
     let mut forged = predicate(unsigned, ScalarTerm::value(formal.id, formal.scalar_type));
     assert!(substitute_runtime_requirement_scalar_values(&mut forged, &substitutions).is_err());
 }
+
+fn float_field_fixture(
+    primitive_type: PrimitiveType,
+) -> (
+    terminal_psi::StructuralParameterDeclaration,
+    Vec<terminal_psi::StructuralTypeDeclaration>,
+    CheckedScalarExpression,
+) {
+    use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralTypeId};
+    use terminal_psi::{
+        BindingRelevance, StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape,
+    };
+    let scalar_type = super::terminal_scalar_type(primitive_type).unwrap();
+    let parameter = StructuralParameterDeclaration {
+        place: PlaceId::new(17).unwrap(),
+        position: 3,
+        is_self: false,
+        structural_type: StructuralTypeId::new(10).unwrap(),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let types = [
+        (
+            10,
+            "child",
+            StructuralFieldType::Structural(StructuralTypeId::new(11).unwrap()),
+        ),
+        (11, "sample", StructuralFieldType::Scalar(scalar_type)),
+    ]
+    .into_iter()
+    .map(|(identity, name, field_type)| StructuralTypeDeclaration {
+        id: StructuralTypeId::new(identity).unwrap(),
+        identity: format!("test::FloatRecord{identity}"),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: StructuralFieldId::new(identity).unwrap(),
+                identity: name.into(),
+                relevance: BindingRelevance::Relevant,
+                field_type,
+            }],
+        },
+    })
+    .collect();
+    let expression = CheckedScalarExpression::StructuralParameterField {
+        parameter_position: 3,
+        path: ["child", "sample"]
+            .into_iter()
+            .map(|name| checked_trees::CheckedStructuralPredicatePathSegment::Field(name.into()))
+            .collect(),
+        primitive_type,
+    };
+    (parameter, types, expression)
+}
+
+#[test]
+fn ieee_entry_fields_keep_exact_paths_formats_and_unordered_negation() {
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, IeeeFloatComparisonKind as Kind, IeeeFloatValue,
+        StructuralFieldId,
+    };
+    for (primitive_type, bits) in [
+        (PrimitiveType::F32, IeeeFloatValue::Binary32(0x3f80_0000)),
+        (
+            PrimitiveType::F64,
+            IeeeFloatValue::Binary64(0x3ff0_0000_0000_0000),
+        ),
+    ] {
+        let (parameter, types, field) = float_field_fixture(primitive_type);
+        let comparison = CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            kind: Kind::LessOrEqual,
+            left: Box::new(field),
+            right: Box::new(CheckedScalarExpression::IeeeFloatLiteral { value: bits }),
+        };
+        for negative in [false, true] {
+            let expression = if negative {
+                CheckedBooleanExpression::Not(Box::new(comparison.clone()))
+            } else {
+                comparison.clone()
+            };
+            let mut proposition = lower_structural_runtime_requirement(
+                &expression,
+                &[],
+                &[],
+                &[parameter.clone()],
+                &types,
+            )
+            .unwrap();
+            assert_eq!(
+                proposition,
+                Proposition::ScalarIeeeFloatComparison {
+                    kind: if negative {
+                        Kind::NotLessOrEqual
+                    } else {
+                        Kind::LessOrEqual
+                    },
+                    format: bits.format(),
+                    left: ScalarTerm::ieee_float_field_path(
+                        parameter.place,
+                        [10, 11]
+                            .map(|identity| CanonicalStructuralPathSegment::Field(
+                                StructuralFieldId::new(identity).unwrap()
+                            ))
+                            .to_vec(),
+                        bits.format()
+                    ),
+                    right: ScalarTerm::IeeeFloatLiteral(bits),
+                }
+            );
+            let original = proposition.clone();
+            substitute_runtime_requirement_scalar_values(&mut proposition, &BTreeMap::new())
+                .unwrap();
+            assert_eq!(
+                proposition, original,
+                "scalar substitutions do not rename storage"
+            );
+        }
+    }
+}
+
+#[test]
+fn ieee_entry_fields_reject_wrong_format_parameter_and_member_paths() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatValue};
+    let (parameter, types, field) = float_field_fixture(PrimitiveType::F32);
+    for mutation in 0..5 {
+        let mut field = field.clone();
+        let CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path,
+            primitive_type,
+        } = &mut field
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => *primitive_type = PrimitiveType::F64,
+            1 => *parameter_position = 4,
+            2 => path.clear(),
+            3 => {
+                path.pop();
+            }
+            4 => {
+                path[1] =
+                    checked_trees::CheckedStructuralPredicatePathSegment::Field("missing".into())
+            }
+            _ => unreachable!(),
+        }
+        let expression = CheckedBooleanExpression::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::LessOrEqual,
+            left: Box::new(field),
+            right: Box::new(CheckedScalarExpression::IeeeFloatLiteral {
+                value: IeeeFloatValue::Binary32(0x3f80_0000),
+            }),
+        };
+        assert!(
+            lower_structural_runtime_requirement(
+                &expression,
+                &[],
+                &[],
+                &[parameter.clone()],
+                &types
+            )
+            .is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn ieee_entry_comparisons_reject_hidden_storage_reads_and_mixed_formats() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind, IeeeFloatValue};
+    let literal = CheckedScalarExpression::IeeeFloatLiteral {
+        value: IeeeFloatValue::Binary32(0x7fc0_1234),
+    };
+    let predicate = |left| CheckedBooleanExpression::ScalarIeeeFloatComparison {
+        kind: IeeeFloatComparisonKind::NotEqual,
+        left: Box::new(left),
+        right: Box::new(literal.clone()),
+    };
+    let closed = lower(&predicate(literal.clone())).unwrap();
+    assert!(
+        matches!(
+            closed,
+            Proposition::ScalarIeeeFloatComparison {
+                kind: IeeeFloatComparisonKind::NotEqual,
+                ..
+            }
+        ),
+        "NaN comparison retains IEEE meaning"
+    );
+    for operand in [
+        CheckedScalarExpression::IeeeFloatLiteral {
+            value: IeeeFloatValue::Binary64(0),
+        },
+        CheckedScalarExpression::StorageRead {
+            symbol: symbols::SymbolHandle::from_arena_index(9),
+            primitive_type: PrimitiveType::F32,
+        },
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U32,
+        },
+    ] {
+        let comparison = predicate(operand);
+        for expression in [
+            comparison.clone(),
+            CheckedBooleanExpression::Or {
+                left: Box::new(CheckedBooleanExpression::Constant(true)),
+                right: Box::new(comparison),
+            },
+        ] {
+            assert!(
+                lower(&expression).is_err(),
+                "simplification must not hide an invalid IEEE operand"
+            );
+        }
+    }
+}

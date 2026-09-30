@@ -1,9 +1,16 @@
 //! Unit entry requirements over exact scalar and structural parameters.
+//!
+//! These predicates describe invocation-time observations, including fields
+//! reached through mutable parameters. They do not assert that every body store
+//! preserves the entry facts: consumption and return obligations own invariant
+//! restoration. Validate the entire entry namespace before simplifying Boolean
+//! expressions, then use the shared contract converter for IEEE comparisons so
+//! unordered negation and exact binary32/binary64 formats survive publication.
 use super::{
     BTreeMap, CheckedBooleanExpression, CheckedScalarExpression, LoweringError, PrimitiveType,
     Proposition, ScalarTerm, ScalarType, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeId, ValueDeclaration, ValueId, integer_landing_scalar_type, integer_scalar_type,
-    integer_value, unsupported,
+    integer_value, terminal_scalar_type, unsupported,
 };
 use crate::proofs::contract_predicates::PredicateTerms;
 use crate::proofs::crash_routes::{
@@ -66,7 +73,27 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
             validate_integer_namespace(left)?;
             validate_integer_namespace(right)
         }
+        CheckedBooleanExpression::ScalarIeeeFloatComparison { left, right, .. } => {
+            validate_float_namespace(left)?;
+            validate_float_namespace(right)
+        }
         _ => unsupported("runtime requirement is outside the immutable entry parameter namespace"),
+    }
+}
+
+fn validate_float_namespace(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
+    match expression {
+        CheckedScalarExpression::Parameter { primitive_type, .. }
+        | CheckedScalarExpression::ErasedParameter { primitive_type, .. }
+        | CheckedScalarExpression::StructuralParameterField { primitive_type, .. }
+            if matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) =>
+        {
+            Ok(())
+        }
+        CheckedScalarExpression::IeeeFloatLiteral { .. } => Ok(()),
+        // Closed format bits and entry leaves need no operation-safety premise.
+        // Body reads and computations cannot borrow the clause being established.
+        _ => unsupported("runtime IEEE requirement needs exact float entry parameters or literals"),
     }
 }
 
@@ -161,7 +188,7 @@ impl RuntimeRequirementTerms<'_> {
             } => lower_structural_member_term(
                 *parameter_position,
                 path,
-                integer_scalar_type(*primitive_type)?,
+                terminal_scalar_type(*primitive_type)?,
                 self.parameters,
                 self.structural_types,
             ),
@@ -291,6 +318,7 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
                 | ScalarTerm::IeeeFloatLiteral(_)
                 | ScalarTerm::BooleanField { .. }
                 | ScalarTerm::IntegerField { .. }
+                | ScalarTerm::IeeeFloatField { .. }
                 | ScalarTerm::ViewExtent { .. } => Ok(()),
                 _ => unsupported(
                     "runtime requirement scalar substitution encountered an unsupported term",

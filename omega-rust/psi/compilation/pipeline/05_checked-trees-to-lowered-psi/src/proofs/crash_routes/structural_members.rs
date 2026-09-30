@@ -140,10 +140,8 @@ pub(crate) fn lower_structural_member_term(
         ScalarType::Integer(integer_type) => {
             ScalarTerm::integer_field_path(root, terminal_path, integer_type)
         }
-        ScalarType::IeeeFloat(_) => {
-            return unsupported(
-                "generic scalar crash terms do not carry IEEE float structural fields",
-            );
+        ScalarType::IeeeFloat(format) => {
+            ScalarTerm::ieee_float_field_path(root, terminal_path, format)
         }
     })
 }
