@@ -1234,6 +1234,14 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
+        if let OperationKind::StructuralLeafCopy { source, path } = &operation.kind
+            && path.is_empty()
+            && !self.structural_values.contains_key(source)
+            && (self.scalar_array_values.contains_key(source)
+                || self.scalar_case_values.contains_key(source))
+        {
+            return self.copy_whole_scalar_payload(*source, result);
+        }
         let leaf = match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => resolve_structural_arguments(
                 &self.program.structural_types,
@@ -1269,6 +1277,43 @@ impl TerminalExecution {
             &StructuralRuntimePlace::from(&copied),
         );
         self.structural_values.insert(result.place, copied);
+        Ok(OperationFlow::Advance)
+    }
+
+    /// A whole scalar array or plain scalar case keeps its complete payload
+    /// under its own place in `scalar_array_values` or `scalar_case_values`,
+    /// never in `structural_values`, so a whole-home copy of one clones that
+    /// payload under the fresh result place in the same map. The verifier
+    /// admitted the source and the result type; this re-checks only what the
+    /// stored payload can contradict: the payload has the result's type and
+    /// the result place holds no value yet.
+    fn copy_whole_scalar_payload(
+        &mut self,
+        source: semantic_vocabulary::PlaceId,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if self.scalar_array_values.contains_key(&result.place)
+            || self.scalar_case_values.contains_key(&result.place)
+        {
+            return Err(invalid());
+        }
+        if let Some(array) = self.scalar_array_values.get(&source) {
+            if array.structural_type != result.structural_type {
+                return Err(invalid());
+            }
+            let copied = array.clone();
+            self.scalar_array_values.insert(result.place, copied);
+            return Ok(OperationFlow::Advance);
+        }
+        let case = self.scalar_case_values.get(&source).ok_or(
+            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+        )?;
+        if case.structural_type != result.structural_type {
+            return Err(invalid());
+        }
+        let copied = case.clone();
+        self.scalar_case_values.insert(result.place, copied);
         Ok(OperationFlow::Advance)
     }
 
