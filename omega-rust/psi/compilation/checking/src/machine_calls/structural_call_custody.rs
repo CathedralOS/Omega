@@ -835,6 +835,11 @@ pub fn reconstruct_structural_call_custody(
                 destination.return_type,
             )
             .is_some()
+            || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
+                program,
+                destination.return_type,
+            )
+            .is_some_and(|(referee, _)| program.primitive_type_reference(referee).is_none())
         {
             crate::machine_calls::reference_result_custody::result_loan(
                 program,

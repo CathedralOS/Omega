@@ -677,8 +677,15 @@ fn rejoin_loan_local(
         return Some(place);
     };
     // A reseatable binding does not denote one place, and a shared loan
-    // carries no write authority to rejoin.
-    if local.is_mutable || borrow.access != language_core::ReferenceAccess::Mutable {
+    // carries no write authority to rejoin. A write-only loan carries
+    // write authority exactly where a mutable one does: the loan ledger
+    // already fenced reads, so a store through it is the same rejoin.
+    if local.is_mutable
+        || !matches!(
+            borrow.access,
+            language_core::ReferenceAccess::Mutable | language_core::ReferenceAccess::WriteOnly
+        )
+    {
         return None;
     }
     let mut loaned = crate::flow::canonical_place_from_expression_in_state(

@@ -209,6 +209,21 @@ pub(super) fn emit_call_operations(
     // blocks argument evaluation splits off in between rejoin with the one
     // frontier this sequence carries.
     let mut windows = crate::emission::borrowed_window::BorrowedWindowLedger::default();
+    // A release whose expiry boundary names one of the state's transition
+    // statements disposes on each outgoing edge: the successor discard
+    // rosters already carry its place. Emitting an op for it here would
+    // consume that place before the terminator's own reads mint.
+    let authored_statements = checked
+        .machines()
+        .iter()
+        .find(|source_machine| source_machine.symbol == machine)
+        .and_then(|source_machine| {
+            checked
+                .machine_states(source_machine)
+                .iter()
+                .find(|source| source.symbol == state.state)
+        })
+        .map(|source| checked.statement_table.statements(source.statement_nodes));
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
     // The mutable primitive locals this sequence establishes. Their places
     // live in the shared private roster; this roster keys later stores to
@@ -222,6 +237,21 @@ pub(super) fn emit_call_operations(
         _ => None,
     };
     for operation in planned_operations {
+        if let CheckedUnitEffectOperationPlan::ReleaseReference { loan, .. } = operation
+            && let Some(boundary) = validation::reference_result_custody::release_statement(
+                &checked.facts,
+                machine,
+                state.state,
+                *loan,
+            )
+            && authored_statements.is_some_and(|statements| {
+                statements.get(boundary as usize).is_some_and(|node| {
+                    matches!(node, checked_trees::statement::StatementNode::Transition(_))
+                })
+            })
+        {
+            continue;
+        }
         // A call's operands complete just before it, on this state's own
         // schedule; every other operation reads its operands itself.
         let establishes_local = matches!(

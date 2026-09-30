@@ -1,0 +1,28 @@
+// WriteOnly borrow of a record referent: field stores through `&write`.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Node {
+    value: i32;
+    tag: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    node: Node;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let r: &write Node = &write self.node;
+    r.value = 7;
+    r.tag = 3;
+    transition self.node.value == 7 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

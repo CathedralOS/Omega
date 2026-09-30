@@ -87,6 +87,25 @@ pub(super) fn build(
             target_state,
             result,
         )?
+    } else if crate::execution::terminal_unit::reference_results::shared_borrowed_parts(
+        program,
+        target_state.return_type,
+    )
+    .is_some_and(|(referee, _)| program.primitive_type_reference(referee).is_none())
+    {
+        // A shared `&T` record referent is Affine like the `&mut` family:
+        // the result's caller-side loan is read out of the same custody walk,
+        // with the denoted source only needing to carry a readable root.
+        // Primitive referents stay on the ordinary result path — their loan
+        // ledger shape is the `parts` family's exclusive side only.
+        crate::execution::terminal_unit::reference_results::result_loan(
+            program,
+            facts,
+            machine.symbol,
+            state,
+            call,
+            result,
+        )?
     } else {
         arena::Handle::invalid()
     };

@@ -1383,6 +1383,19 @@ pub fn mutable_borrowed_parts(
         .map(|shell| (shell.referee, CheckedStructuralAccess::MutableBorrow))
 }
 
+/// The referee beneath a `&write T` carrier, with constraint shells peeled —
+/// the write-only analog of `mutable_borrowed_parts`. A write-only loan names
+/// the same caller-frame storage an exclusive borrow does; only the access
+/// authority differs (writes admitted, reads fenced).
+pub fn write_only_borrowed_parts(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<(TypeReferenceHandle, CheckedStructuralAccess)> {
+    crate::reference_shell(program, reference)
+        .filter(|shell| shell.access == language_semantics::ReferenceAccess::WriteOnly)
+        .map(|shell| (shell.referee, CheckedStructuralAccess::WriteOnlyBorrow))
+}
+
 /// The named referee beneath a `&'a V` shared-borrowed view, with constraint
 /// shells peeled. The referent's storage lives in the caller's frame like
 /// `parts`' loan — it just cannot be written through. The referee must be
@@ -1685,6 +1698,120 @@ fn mutable_view_source_parameter(
     Some(position)
 }
 
+/// The authored parameter position a shared `&'a V` view return borrows from,
+/// read off the callee's tail expression the same way
+/// `mutable_view_source_parameter` does for `&mut` results: a place borrow
+/// spelled `transition { _ -> &self.node }` walks back through member folds
+/// and `&` view loans until it reaches a parameter or `*self`. The loans a
+/// shared derivation rejoins through are `Read` loans — `&mut` storage may
+/// weaken to a shared read, but the denoted root must itself be readable, so
+/// a `&write` carrier never admits a shared result.
+fn shared_view_source_parameter(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+) -> Option<usize> {
+    if shared_borrowed_parts(program, state.return_type).is_none() {
+        return None;
+    }
+    let expression = tail_return_expression(program, state)?;
+    let Some(machine) = program.machines().iter().find(|machine| {
+        program
+            .machine_states(machine)
+            .iter()
+            .any(|candidate| candidate.symbol == state.symbol)
+    }) else {
+        return None;
+    };
+    let authored = program.state_parameters(state);
+    // A tail `&self.node` spells the borrow explicitly; a bare `self`
+    // tail is the same shared source through the `&self -> &T` coercion,
+    // naming the receiver without a borrow expression at all.
+    let mut symbol = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow)
+            if borrow.access == language_semantics::ReferenceAccess::Shared =>
+        {
+            let mut cursor = borrow.target;
+            loop {
+                match program.expression_table.expression(cursor) {
+                    ExpressionNode::Name(name) => break name.symbol,
+                    ExpressionNode::Member(member) => cursor = member.receiver,
+                    ExpressionNode::Indexed(indexed) => cursor = indexed.collection,
+                    _ => {
+                        return None;
+                    }
+                }
+            }
+        }
+        ExpressionNode::Name(name) => name.symbol,
+        _ => {
+            return None;
+        }
+    };
+    for _ in 0..8 {
+        if authored.iter().any(|parameter| parameter.symbol == symbol) || symbol == machine.symbol {
+            break;
+        }
+        if view_self_member_symbol(program, state, machine.symbol, symbol).is_some() {
+            symbol = machine.symbol;
+            continue;
+        }
+        let Some(borrow_state) = facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, candidate)| candidate)
+            .find(|candidate| {
+                candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
+            })
+        else {
+            return None;
+        };
+        let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
+            facts.borrow.state_owns_loan(borrow_state, *handle)
+                && loan.owner_symbol == symbol
+                && matches!(
+                    loan.kind,
+                    checked_trees::BorrowAccessKind::Read
+                        | checked_trees::BorrowAccessKind::Mutable
+                )
+                && facts.borrow.loan_owner_path(loan).is_empty()
+        });
+        let Some((_, loan)) = loans.next() else {
+            return None;
+        };
+        if loans.next().is_some() {
+            return None;
+        }
+        symbol = loan.root_symbol;
+    }
+    if authored.iter().all(|parameter| parameter.symbol != symbol) && symbol != machine.symbol {
+        return None;
+    }
+    let position = if symbol == machine.symbol {
+        authored.iter().position(|parameter| parameter.is_self)?
+    } else {
+        authored
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)?
+    };
+    if !view_source_parameter_is_readable(program, authored.get(position)?) {
+        return None;
+    }
+    Some(position)
+}
+
+/// The callee-side root a shared `&` view result denotes: any parameter a
+/// shared read can reborrow from — `&`/`&mut` referents and owned or mutable
+/// storage. A write-only carrier fences reads, so it is the one authority a
+/// shared result cannot borrow through.
+fn view_source_parameter_is_readable(
+    program: &TypedTrees,
+    parameter: &typed_trees::signature::StateParameter,
+) -> bool {
+    write_only_borrowed_parts(program, parameter.type_reference).is_none()
+}
+
 /// The callee-side root a `&mut` view result denotes: a `&mut` parameter
 /// symbol, the machine `*self` authority, or a `self` member — the member only
 /// while `self` is mutably borrowed.
@@ -1790,9 +1917,16 @@ pub fn result_loan(
     // `mutable_borrowed_parts` peels every `&mut`, including the whole
     // primitive references `parts` already owns; those keep the ingress and
     // leaf rosters. Only a non-primitive `&mut` view takes the tail walk.
+    // A shared `&T` reference result is the read-side member of the same
+    // family: primitive `&u8` results are Unrestricted and reach custody
+    // through `permits_disposal`, while a `&` record referent is Affine and
+    // needs this tail walk exactly like a `&mut` view does.
     let mutable_view = parts(program, local.type_reference).is_none()
         && mutable_borrowed_parts(program, local.type_reference).is_some();
-    if !mutable_view {
+    let shared_view = parts(program, local.type_reference).is_none()
+        && shared_borrowed_parts(program, local.type_reference)
+            .is_some_and(|(referee, _)| program.primitive_type_reference(referee).is_none());
+    if !mutable_view && !shared_view {
         parts(program, local.type_reference)?;
     }
     if local.is_mutable {
@@ -1820,7 +1954,7 @@ pub fn result_loan(
     // A `&mut` view return borrows a projection out of its callee's `&mut`
     // storage, resolved by the tail-expression source walk; the `parts` and
     // shared-borrow lanes keep the whole-ingress and leaf rosters.
-    let leaf = if mutable_view {
+    let leaf = if mutable_view || shared_view {
         None
     } else {
         source_parameter(program, callee)
@@ -1831,12 +1965,15 @@ pub fn result_loan(
     let position = if mutable_view {
         let analysis = mutable_view_source_parameter(program, facts, callee);
         analysis?
+    } else if shared_view {
+        let analysis = shared_view_source_parameter(program, facts, callee);
+        analysis?
     } else {
         leaf.as_ref()
             .map(|(position, _)| *position)
             .or_else(|| source_parameter(program, callee))?
     };
-    let argument = if mutable_view {
+    let argument = if mutable_view || shared_view {
         // The callee's `self` ingress arrives through the call's receiver,
         // not its argument span; authored non-self arguments follow it in
         // order.
@@ -1991,8 +2128,8 @@ pub fn result_loan(
             }
             _ => return None,
         }
-    } else if mutable_view {
-        // The `&mut` view's loan names the borrowed argument's denoted root:
+    } else if mutable_view || shared_view {
+        // The view's loan names the borrowed argument's denoted root:
         // a bare parameter names its symbol; a member-rooted place such as
         // `self.bag` names the outermost field below its root, exactly as the
         // minted caller-side loan publishes member roots.
@@ -2008,12 +2145,18 @@ pub fn result_loan(
         {
             return None;
         }
-        let authored_root_mutable = program.state_parameters(state).iter().any(|parameter| {
-            (parameter.symbol == actual.symbol || (parameter.is_self && actual.symbol == machine))
-                && !parameter.is_const
-                && view_source_parameter_is_mutable(program, parameter)
-        });
-        if !authored_root_mutable {
+        let authored_root_carries_source =
+            program.state_parameters(state).iter().any(|parameter| {
+                (parameter.symbol == actual.symbol
+                    || (parameter.is_self && actual.symbol == machine))
+                    && !parameter.is_const
+                    && if shared_view {
+                        view_source_parameter_is_readable(program, parameter)
+                    } else {
+                        view_source_parameter_is_mutable(program, parameter)
+                    }
+            });
+        if !authored_root_carries_source {
             return None;
         }
         if members.is_empty() {
@@ -2088,10 +2231,15 @@ pub fn result_loan(
     let Some((handle, loan)) = loans.next() else {
         return None;
     };
+    let expected_kind = if shared_view {
+        checked_trees::BorrowAccessKind::Read
+    } else {
+        checked_trees::BorrowAccessKind::Mutable
+    };
     if loans.next().is_some()
         || loan.statement_index != call.statement_index
         || loan.root_symbol != expected_root
-        || loan.kind != checked_trees::BorrowAccessKind::Mutable
+        || loan.kind != expected_kind
         || !facts.borrow.loan_segments(loan).is_empty()
         || !facts.borrow.loan_owner_path(loan).is_empty()
     {

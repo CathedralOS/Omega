@@ -1177,9 +1177,21 @@ pub(super) fn validate_integer_structural_field(
         // The observed field belongs to a record carrier or to the payload of
         // the case a final `Case` step selects; which case is active is the
         // verifier's reconstruction judgment, not a decode-time shape.
+        // A call result's `Reference` shell keeps the loan's access on the
+        // type; the observed record is its referent, matching the peel the
+        // validating verifier applies for the same read.
+        let observed_root = match module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == local.structural_type)
+            .map(|declaration| &declaration.shape)
+        {
+            Some(StructuralTypeShape::Reference { referent, .. }) => *referent,
+            _ => local.structural_type,
+        };
         let matching = terminal_semantics::observed_field_declaration(
             module.structural_types.iter(),
-            local.structural_type,
+            observed_root,
             path,
             *field,
         )
