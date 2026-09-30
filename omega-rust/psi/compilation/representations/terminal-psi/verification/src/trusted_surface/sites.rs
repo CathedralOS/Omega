@@ -1439,7 +1439,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction.rs",
-        sha256: Some("3c0b6d8ca3b43c1338a0cee94804ac52e163cab11e7bc8a1390e4cf34f377d2a"),
+        sha256: Some("8baed7474c46d416778909171383e184e2ba9388809d4ee41e573262d66b77d5"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1454,7 +1454,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/crash_paths.rs",
-        sha256: Some("8aafda6e8636613d200d63f9c91a41cfe4e425eb1e18e44f3887cae536779c76"),
+        sha256: Some("e82b7dbd0728d4f0585392af5c34e4846fafbed1a03d9107c4c2cf04e4f434c1"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1464,7 +1464,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/machine_flow.rs",
-        sha256: Some("ca9d49136203367ea342215c665c6e36928aef891b45f10dd99b1fa61323ffea"),
+        sha256: Some("d4430f842b024b0a1a4e87c15bd1cd74f52b59df1c3be3a5b1c82810f24a984a"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1514,7 +1514,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/path_facts.rs",
-        sha256: Some("d9f3fe9fc4651ce67dc21313ae8b3fefb9d2c63a02e79ceed989ccd244de31f9"),
+        sha256: Some("87b968ec065e130d6d0ea2d1c41faf017930dc36e07b219ad5c5f4bdc29118f6"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1529,7 +1529,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/path_facts/transport.rs",
-        sha256: Some("9dcef94f8db0e64301beaf37bd173d48cd80c9a7b3f39fb73e2a60f6e2bbfc94"),
+        sha256: Some("fd6dfef083338996172d2c1b6ea82e2f74019e5b6ad32eca793ce9312faed26b"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1544,12 +1544,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/terminator_facts.rs",
-        sha256: Some("b8612a1e6faa1f111a3527703c37be9261e0e6fe57b90d99f4c0922296844f43"),
+        sha256: Some("8c1a87efdd9b12b806f78fcb07c22ee0ea45f3ea033fd0a5e5dfa87519e0ed52"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/substitution.rs",
-        sha256: Some("cd1589e8fdf6dbd0a9a10d4d734787cefb0f40672da856885e655f115f1734d1"),
+        sha256: Some("161f8e60ebe22e9765edd22f55f8bcf2bbb4e4dc2544b1a7ec0d71a346c5abd1"),
         inventory_machinery: false,
     },
 ];
