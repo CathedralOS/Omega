@@ -147,6 +147,48 @@ fn only_static_projections_name_one_address() {
 }
 
 #[test]
+fn erased_fields_do_not_prevent_address_transport_or_gain_a_runtime_place() {
+    let mut types = catalog();
+    let mut erased = field(
+        8,
+        StructuralFieldType::Erased {
+            type_identity: "Binding<Console>".into(),
+        },
+    );
+    erased.relevance = BindingRelevance::Erased;
+    let StructuralTypeShape::Record { fields } = &mut types[1].shape else {
+        unreachable!()
+    };
+    fields.push(erased);
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        assert!(is_address_join(&parameter(2, access), &types));
+        assert!(is_address_join(&parameter(3, access), &types));
+    }
+    assert_eq!(super::referent_type(types.iter(), id(2), &[]), Some(id(2)));
+    assert_eq!(
+        super::referent_type(
+            types.iter(),
+            id(2),
+            &[StructuralPathSegment::Field("field8".into()),]
+        ),
+        None
+    );
+
+    // A runtime-relevant opaque carrier still has no address-join layout.
+    let StructuralTypeShape::Record { fields } = &mut types[1].shape else {
+        unreachable!()
+    };
+    fields.last_mut().unwrap().relevance = BindingRelevance::Relevant;
+    assert!(!is_address_join(
+        &parameter(2, StructuralAccess::MutableBorrow),
+        &types
+    ));
+}
+
+#[test]
 fn referent_types_resolve_record_leaves_to_their_canonical_declaration() {
     let types = catalog();
     let path = |segments: &[&str]| {

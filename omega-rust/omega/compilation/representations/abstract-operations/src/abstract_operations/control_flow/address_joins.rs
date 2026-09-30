@@ -179,14 +179,22 @@ fn plain_fields<'a>(
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
     active: &mut Vec<StructuralTypeId>,
 ) -> bool {
-    fields.iter().all(|field| match &field.field_type {
-        StructuralFieldType::Scalar(_)
-        | StructuralFieldType::BoundedInteger(_)
-        | StructuralFieldType::IeeeFloat(_) => true,
-        StructuralFieldType::Structural(child) => is_plain_referent(*child, lookup, active),
-        StructuralFieldType::ByteSequence(_)
-        | StructuralFieldType::PredicateByteSequence { .. }
-        | StructuralFieldType::Erased { .. } => false,
+    fields.iter().all(|field| {
+        // Erased members retain semantic identity, but add neither storage nor
+        // a runtime loan to the referent. Transporting its address does not
+        // materialize them; referent_type still rejects projecting into them.
+        if field.relevance.is_erased() {
+            return true;
+        }
+        match &field.field_type {
+            StructuralFieldType::Scalar(_)
+            | StructuralFieldType::BoundedInteger(_)
+            | StructuralFieldType::IeeeFloat(_) => true,
+            StructuralFieldType::Structural(child) => is_plain_referent(*child, lookup, active),
+            StructuralFieldType::ByteSequence(_)
+            | StructuralFieldType::PredicateByteSequence { .. }
+            | StructuralFieldType::Erased { .. } => false,
+        }
     })
 }
 
