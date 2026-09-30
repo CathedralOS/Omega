@@ -718,9 +718,7 @@ fn combined(output: &std::process::Output) -> String {
 #[test]
 fn two_target_check_assembles_the_source_union_once() {
     use compiler::CompileOptions;
-    use omega::compilation::{
-        CompileProjectRequest, ProjectProduct, compile_project, compile_project_for_targets,
-    };
+    use omega::compilation::{CompileProjectRequest, ProjectProduct, compile_project_for_targets};
     let Some(execution) = nested_build_target() else {
         return;
     };
@@ -756,25 +754,9 @@ fn two_target_check_assembles_the_source_union_once() {
     };
 
     let assemblies_before = counters::source_assembly_invocation_count();
-    let compilations_before = counters::checked_compilation_call_count();
-    let reuses_before = counters::typed_frontier_reuse_count();
     let outcomes = compile_project_for_targets(check_request(), &target_names)
         .expect("a two-target request returns one outcome per target");
     let union_assemblies = counters::source_assembly_invocation_count() - assemblies_before;
-    let union_compilations = counters::checked_compilation_call_count() - compilations_before;
-    let union_reuses = counters::typed_frontier_reuse_count() - reuses_before;
-
-    // Baseline: the same two targets as independent compilations.
-    let separate_assemblies_before = counters::source_assembly_invocation_count();
-    for name in &target_names {
-        let mut single = check_request();
-        single.options.target_name = Some(name.clone());
-        compile_project(single)
-            .unwrap_or_else(|error| panic!("single-target check for {name}: {error}"));
-    }
-    let separate_assemblies =
-        counters::source_assembly_invocation_count() - separate_assemblies_before;
-
     assert_eq!(outcomes.len(), 2);
     for outcome in &outcomes {
         let checked = outcome.result.as_ref().unwrap_or_else(|error| {
@@ -788,25 +770,96 @@ fn two_target_check_assembles_the_source_union_once() {
             outcome.target.target_name()
         );
     }
-    // Actual invocations, not timing rows: each package's checked context —
-    // the generator's build activation, the dependency's dual-purpose pair and
-    // the root's product — assembles once for the union, and the second
-    // target reuses every typed frontier the first produced. Two independent
-    // requests assemble each of those contexts twice.
+    // Four source contexts: generator Build, dependency Build and Product,
+    // and root Product. A later single-target request can carry dependency
+    // reviews from disk, so its assembly count is not a cold baseline. The
+    // second target may carry the Build contexts too; neither carry nor copied
+    // timing rows changes how many source assemblies this request executes.
     assert_eq!(
-        union_assemblies * 2,
-        separate_assemblies,
-        "unioned check assembled {union_assemblies} times vs {separate_assemblies} across two separate requests"
+        union_assemblies, 4,
+        "each purpose-scoped source set assembles once"
     );
-    assert_eq!(
-        union_reuses, union_assemblies,
-        "the second target reused {union_reuses} of {union_assemblies} typed frontiers"
-    );
-    assert_eq!(union_compilations % 2, 0);
     assert!(
         !fixture.path("dependency/generated.omg").exists(),
         "generated source stays in staged custody"
     );
+}
+
+/// Every entry contract is already supplied by one package. Nominating Linux
+/// and macOS separately must not rebuild the application's identical source
+/// forest. A fixture-private source copy makes the dependency's review cold
+/// without mutating process-wide cache settings or relying on test order.
+#[test]
+fn two_target_application_shares_entry_contract_source_assembly() {
+    use compiler::CompileOptions;
+    use omega::compilation::{CompileProjectRequest, ProjectProduct, compile_project_for_targets};
+    if nested_build_target().is_none() {
+        return;
+    }
+    fn copy_omega_sources(source: &std::path::Path, destination: &std::path::Path) {
+        std::fs::create_dir_all(destination).unwrap();
+        for entry in std::fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let destination = destination.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_omega_sources(&path, &destination);
+            } else if path.extension().is_some_and(|extension| extension == "omg") {
+                std::fs::copy(path, destination).unwrap();
+            }
+        }
+    }
+    let fixture = Fixture::new();
+    let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .map(|ancestor| ancestor.join("source/library/std"))
+        .find(|path| path.join("build.omg").is_file())
+        .expect("repository standard library");
+    copy_omega_sources(&standard_library, &fixture.path("standard"));
+    let build = fixture.read("standard/build.omg");
+    fixture.write(
+        "standard/build.omg",
+        &format!(
+            "{build}\n// unique source-union fixture: {:?}\n",
+            fixture.path("standard")
+        ),
+    );
+    fixture.write(
+        "root/build.omg",
+        r#"machine build(builder: &mut Build) {
+    builder.application("entry_source_union");
+    builder.depend(Source::Path { location: "../standard" });
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}
+"#,
+    );
+    fixture.write(
+        "root/main.omg",
+        "data Main {}\nmachine Main::main(&mut self) {}\n",
+    );
+    let mut request = CompileProjectRequest::new(CompileOptions {
+        root_path: fixture.path("root/main.omg"),
+        build_dir: Some(fixture.path("union-check")),
+        target_name: None,
+    });
+    request.product = ProjectProduct::Check;
+    request.offline = true;
+    let assemblies_before = counters::source_assembly_invocation_count();
+    let outcomes = compile_project_for_targets(
+        request,
+        &["linux_x86_64".to_owned(), "macos_arm64".to_owned()],
+    )
+    .expect("one application outcome per requested target");
+    let assemblies = counters::source_assembly_invocation_count() - assemblies_before;
+    assert_eq!(outcomes.len(), 2);
+    for outcome in outcomes {
+        let checked = outcome.result.unwrap_or_else(|error| {
+            panic!("target {} failed: {error}", outcome.target.target_name())
+        });
+        assert!(checked.report.source_file_count > 0);
+    }
+    assert_eq!(assemblies, 2, "one library and one application source set");
 }
 
 #[test]

@@ -33,8 +33,8 @@ fn compilation_reuse_separates_entry_source_from_later_binding_authority() {
     assert_eq!(source(&inputs), source(&accepted));
     assert_ne!(build_inputs(&inputs), build_inputs(&accepted));
 
-    // Entry bindings seed ordinary source imports, unlike a later service
-    // nomination. Every catalogued physical contract must partition assembly.
+    // Without a physical supplier, an accepted entry disables the bundled
+    // fallback. That changes assembly for every catalogued contract.
     for profile in TargetProfile::ALL {
         let Some(contract) = profile.program_entry_slot().physical_contract_package else {
             continue;
@@ -74,6 +74,83 @@ fn compilation_reuse_separates_entry_source_from_later_binding_authority() {
         accepted
             .accepted_semantic_binding(AcceptedSemanticBindingRole::ConsoleExitProcessI32)
             .is_some()
+    );
+}
+
+#[test]
+fn compilation_reuse_shares_one_entry_supplier_across_target_nominations() {
+    let tree = TempTree::new();
+    let inputs = three_package_generated_inputs(&tree);
+    let supplier = inputs.package_root(identity(2)).unwrap();
+    for profile in TargetProfile::ALL {
+        let Some(contract) = profile.program_entry_slot().physical_contract_package else {
+            continue;
+        };
+        let path = supplier.join(contract.package_relative_source());
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, "// source-selection fixture").unwrap();
+    }
+    let source = |inputs: &PackageCompilationInputs| SourceAssemblyInputs::new(Some(inputs), None);
+    for profile in TargetProfile::ALL {
+        let Some(contract) = profile.program_entry_slot().physical_contract_package else {
+            continue;
+        };
+        let role = crate::program_entry_semantic_binding_role(contract);
+        let entry = AcceptedSemanticBinding::new_service(
+            role,
+            identity(2),
+            "ProgramEntry",
+            effects::provider_plan::ServiceSchemaDigest::from_digest([9; 32]),
+        )
+        .unwrap();
+        let selected = inputs
+            .clone()
+            .with_accepted_semantic_bindings(vec![entry])
+            .unwrap();
+        assert_eq!(source(&inputs), source(&selected), "{role:?}");
+        assert_ne!(build_inputs(&inputs), build_inputs(&selected), "{role:?}");
+    }
+}
+
+#[test]
+fn compilation_reuse_keeps_ambiguous_entry_suppliers_distinct() {
+    let tree = TempTree::new();
+    let inputs = three_package_generated_inputs(&tree);
+    let contract = target::ProgramEntryPhysicalContractPackage::LinuxX86_64;
+    for package in [identity(2), identity(3)] {
+        let path = inputs
+            .package_root(package)
+            .unwrap()
+            .join(contract.package_relative_source());
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, "// identical bytes do not erase supplier identity").unwrap();
+    }
+    let selected = |package, marker| {
+        inputs
+            .clone()
+            .with_accepted_semantic_bindings(vec![
+                AcceptedSemanticBinding::new_service(
+                    crate::program_entry_semantic_binding_role(contract),
+                    package,
+                    "ProgramEntry",
+                    effects::provider_plan::ServiceSchemaDigest::from_digest([marker; 32]),
+                )
+                .unwrap(),
+            ])
+            .unwrap()
+    };
+    let source = |inputs: &PackageCompilationInputs| SourceAssemblyInputs::new(Some(inputs), None);
+    let first = selected(identity(2), 7);
+    let second = selected(identity(3), 7);
+    let different_schema = selected(identity(2), 8);
+    assert_ne!(source(&inputs), source(&first));
+    assert_ne!(source(&first), source(&second));
+    assert_eq!(source(&first), source(&different_schema));
+    assert_ne!(build_inputs(&first), build_inputs(&different_schema));
+    assert_eq!(
+        source(&inputs),
+        source(&selected(identity(1), 7)),
+        "neither an ambiguous selection nor a missing supplier injects a fallback"
     );
 }
 

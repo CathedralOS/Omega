@@ -6,9 +6,10 @@
 //! ownership do. Build execution additionally observes accepted policy,
 //! captured inputs and required outputs; a source key cannot authorize its reuse.
 
+use crate::source_imports::EntryContractSource;
 use crate::{
     AcceptedSemanticBinding, BuildSnapshotRequest, IndependentComponentDescription,
-    PackageCompilationInputs, PackageCompilationSourceInputs, program_entry_semantic_binding_role,
+    PackageCompilationInputs, PackageCompilationSourceInputs,
 };
 use build_declarations::DependencyPurpose;
 use build_output::PackageGeneratedSource;
@@ -18,13 +19,21 @@ use std::sync::Arc;
 use target::TargetProfile;
 
 /// Input content observed by source assembly, resolution and typing within one
-/// immutable parse checkpoint. Product-target selection and non-entry bindings
-/// join later, so they do not partition this frontier.
+/// immutable parse checkpoint. Entry bindings partition this frontier only
+/// when they select different source suppliers. Every target's contracts join
+/// assembly, so target-specific nominations of one supplier must share it.
+/// Complete binding records still partition Build execution and admission.
+/// Supplier presence is only a source-routing observation: checkpoint reuse
+/// still validates live custody, and source sealing rechecks the consumed bytes
+/// before issuing a checked product. This key cannot attest filesystem contents.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceAssemblyInputs {
     build_execution_profile: Option<TargetProfile>,
     package: Option<PackageSourceContent>,
-    entry_bindings: Vec<AcceptedSemanticBinding>,
+    entry_sources: Vec<(
+        target::ProgramEntryPhysicalContractPackage,
+        EntryContractSource,
+    )>,
 }
 
 impl SourceAssemblyInputs {
@@ -32,18 +41,13 @@ impl SourceAssemblyInputs {
         packages: Option<&PackageCompilationInputs>,
         build_execution_profile: Option<TargetProfile>,
     ) -> Self {
-        let entry_roles = TargetProfile::ALL
-            .into_iter()
-            .filter_map(|profile| profile.program_entry_slot().physical_contract_package)
-            .map(program_entry_semantic_binding_role)
-            .collect::<std::collections::BTreeSet<_>>();
         Self {
             build_execution_profile,
             package: packages.map(PackageSourceContent::new),
-            entry_bindings: entry_roles
+            entry_sources: TargetProfile::ALL
                 .into_iter()
-                .filter_map(|role| packages?.accepted_semantic_binding(role))
-                .cloned()
+                .filter_map(|profile| profile.program_entry_slot().physical_contract_package)
+                .map(|contract| (contract, EntryContractSource::select(contract, packages)))
                 .collect(),
         }
     }

@@ -134,6 +134,71 @@ fn entry_discovery_survives_memory_and_persistent_dependency_carry() {
         expected
     );
 
+    // Source reuse is not acceptance of a different entry schema. The same
+    // supplier leaves the source frontier unchanged, but the consuming check
+    // must still compare the binding with that source's exact schema.
+    let entry = expected
+        .iter()
+        .find(|binding| {
+            binding.role()
+                == package_compilation::AcceptedSemanticBindingRole::WindowsX64ProgramEntry
+        })
+        .unwrap();
+    let mut digest = *entry.normalized_schema_digest().as_bytes();
+    digest[0] ^= 1;
+    let substituted = package_compilation::AcceptedSemanticBinding::new_service(
+        entry.role(),
+        entry.package(),
+        entry.declaration_path(),
+        effects::provider_plan::ServiceSchemaDigest::from_digest(digest),
+    )
+    .unwrap();
+    let input = crate::review::ConsumerScopedSemanticBindingReviewInput::new(
+        root.clone(),
+        cold.reviews.review(root).unwrap().checked_context(),
+        substituted,
+    );
+    let assemblies_before =
+        artifacts::compile_timings::counters::source_assembly_invocation_count();
+    let reuses_before = artifacts::compile_timings::counters::typed_frontier_reuse_count();
+    let substituted = compile_pass(
+        &exact,
+        &fixture.0.join("substituted-schema"),
+        &[input],
+        None,
+        None,
+        None,
+        TargetEntryDiscovery::Disabled,
+        Some(&persistent),
+        &mut preparation,
+    );
+    let Err(crate::review::CompileResolvedPackageReviewsError::Compilation {
+        package,
+        diagnostics,
+    }) = substituted
+    else {
+        panic!("a retained source frontier must not authorize a substituted entry schema");
+    };
+    assert_eq!(&package, root);
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains(
+                "does not match the exact accepted WindowsX64ProgramEntry package binding",
+            )
+        }),
+        "{diagnostics:?}"
+    );
+    assert_eq!(
+        artifacts::compile_timings::counters::source_assembly_invocation_count()
+            - assemblies_before,
+        0,
+        "the invalid binding must reject after reusing the same sources"
+    );
+    assert_eq!(
+        artifacts::compile_timings::counters::typed_frontier_reuse_count() - reuses_before,
+        1,
+    );
+
     // Availability of a cached proposal is not permission to select it when
     // the caller supplied an explicit binding set without that entry.
     let explicit = compile_pass(
