@@ -88,6 +88,13 @@ credentials either; real `launch`, `status`, and `report` call the Devin API
 
 ## Local worktree status
 
+For restartable lane state, bounded commands, verified backups and conservative
+cleanup inventory, use [the recovery procedure](../../.agents/skills/dot-swarm/references/recovery.md)
+and `python3 tools/swarm/recovery.py --help`. It consumes explicit current adapter
+observations, complements these helpers, and never executes a proposed recovery
+or cleanup action. Reconcile first; a stale `slots.json` flag is not live-process
+evidence. The existing fill ledger now uses atomic file replacement as well.
+
 Cloud `status`/`report` only see Devin sessions through their receipts. Local
 waves run in plain git worktrees (for example `.codex/worktrees/<wave>-<task>`)
 and produce no receipts, so `worktree_status.py` gives them the same
