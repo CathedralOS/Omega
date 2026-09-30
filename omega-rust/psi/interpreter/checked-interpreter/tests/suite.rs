@@ -16,6 +16,7 @@ mod borrowed_subslices;
 mod build_arguments;
 mod const_values;
 mod constant_array_projection;
+mod entry_context_provisioning;
 mod field_ranking_arrivals;
 mod mixed_integer_comparisons;
 mod mutable_slice_view;

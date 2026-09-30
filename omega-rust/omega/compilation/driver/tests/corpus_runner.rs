@@ -307,11 +307,16 @@ fn interpret_fixture(root_path: &Path, fixture_dir: &Path) -> Vec<String> {
         return vec!["interpreter:unchecked".to_owned()];
     };
     let stdin = fs::read(fixture_dir.join("input.txt")).unwrap_or_default();
+    let signature = entry.source_signature();
+    let mut options = checked_interpreter::InterpretOptions::default();
+    if let Some(context) = signature.receiver().source_symbol() {
+        options = options.with_provisioned_context_parameter(context);
+    }
     let outcome = checked_interpreter::interpret_entry(
         &checked,
-        checked_interpreter::BuildMachineEntry::Symbol(entry.source_signature().machine_symbol()),
+        checked_interpreter::BuildMachineEntry::Symbol(signature.machine_symbol()),
         &stdin,
-        checked_interpreter::InterpretOptions::default(),
+        options,
     );
     if outcome.error.is_some() {
         return vec!["interpreter:declined".to_owned()];

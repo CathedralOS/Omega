@@ -27,12 +27,25 @@ pub struct InterpretOptions {
     pub filesystem: FilesystemAccess,
     pub filesystem_metadata_layout: FilesystemMetadataLayout,
     pub filesystem_service_binding: Option<FilesystemServiceBinding>,
+    /// The entry parameter occurrence the selected entry shape provisions
+    /// with a zero-initialized context
+    /// (wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge). The
+    /// target-owned `ProgramEntry` settlement names it; the interpreter never
+    /// chooses a context by parameter type, spelling or declaration
+    /// attachment. Absent, the entry receives no implicit state.
+    pub provisioned_context_parameter: Option<SymbolHandle>,
 }
 
 impl InterpretOptions {
     #[must_use]
     pub fn with_filesystem_service_binding(mut self, binding: FilesystemServiceBinding) -> Self {
         self.filesystem_service_binding = Some(binding);
+        self
+    }
+
+    #[must_use]
+    pub fn with_provisioned_context_parameter(mut self, parameter: SymbolHandle) -> Self {
+        self.provisioned_context_parameter = Some(parameter);
         self
     }
 }
@@ -676,10 +689,13 @@ fn interpret_on_current_thread(
             evaluator.real_fs = Some(filesystem);
         }
     }
+    let provisioned_context = options.provisioned_context_parameter;
     let result = match entry {
-        BuildMachineEntry::Name(entry_machine_name) => evaluator.run_entry(entry_machine_name),
+        BuildMachineEntry::Name(entry_machine_name) => {
+            evaluator.run_entry(entry_machine_name, provisioned_context)
+        }
         BuildMachineEntry::Symbol(entry_machine_symbol) => {
-            evaluator.run_entry_symbol(entry_machine_symbol)
+            evaluator.run_entry_symbol(entry_machine_symbol, provisioned_context)
         }
     };
     evaluator.finish_cell_usage();

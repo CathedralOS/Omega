@@ -78,10 +78,17 @@ fn interpret_checked(
     // module or package may declare a same-named machine.
     // Default interpretation captures output and uses virtual host state. Do not
     // print or grant live host effects before native admission and publication.
+    // The entry shape, not the interpreter, names the context occurrence the
+    // arrival bridge provisions.
+    let signature = entry.source_signature();
+    let mut options = InterpretOptions::default();
+    if let Some(context) = signature.receiver().source_symbol() {
+        options = options.with_provisioned_context_parameter(context);
+    }
     Ok(checked_interpreter::interpret_entry(
         checked,
-        BuildMachineEntry::Symbol(entry.source_signature().machine_symbol()),
+        BuildMachineEntry::Symbol(signature.machine_symbol()),
         input,
-        InterpretOptions::default(),
+        options,
     ))
 }
