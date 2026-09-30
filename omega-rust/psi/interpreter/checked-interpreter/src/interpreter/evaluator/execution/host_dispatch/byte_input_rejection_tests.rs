@@ -55,7 +55,7 @@ fn byte_input_spelling_does_not_reclassify_a_scalar_to_unit_intrinsic() {
         evaluator.exact_console_intrinsic_host_method(program.machine_states(machine)[0].symbol),
         None
     );
-    let _ = evaluator.run_entry("main");
+    let _ = evaluator.run_entry("main", None);
     assert_eq!(evaluator.stdin_cursor, 0);
     assert!(!evaluator.host_boundary_touched);
     assert!(!evaluator.non_fs_host_boundary_touched);
@@ -191,7 +191,7 @@ fn concrete_byte_input_lookalikes_do_not_gain_host_authority() {
             None,
             "{label}"
         );
-        let outcome = evaluator.run_entry("main");
+        let outcome = evaluator.run_entry("main", None);
         if label == "authored body" {
             assert!(outcome.is_ok(), "ordinary body must execute");
         }

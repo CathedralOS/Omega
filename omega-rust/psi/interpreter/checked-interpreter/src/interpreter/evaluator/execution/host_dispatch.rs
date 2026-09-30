@@ -824,7 +824,7 @@ mod tests {
                 }}"
             ));
             let mut evaluator = Evaluator::new_checked(&checked, &[]);
-            assert!(evaluator.run_entry("main").is_ok(), "{declaration}");
+            assert!(evaluator.run_entry("main", None).is_ok(), "{declaration}");
             assert_eq!(evaluator.stdout, [b'F', 0x80, b'\n'], "{declaration}");
             assert!(evaluator.host_boundary_touched, "{declaration}");
             assert!(evaluator.non_fs_host_boundary_touched, "{declaration}");
@@ -862,7 +862,7 @@ mod tests {
             let input = (0..=255).collect::<Vec<u8>>();
             let mut evaluator = Evaluator::new_checked(&checked, &input);
             for consumed in 1..=input.len() {
-                let result = evaluator.run_entry("main");
+                let result = evaluator.run_entry("main", None);
                 assert!(result.is_ok(), "byte {consumed}");
                 assert_eq!(evaluator.stdin_cursor, consumed);
                 assert_eq!(evaluator.stdout, input[..consumed]);
@@ -872,7 +872,7 @@ mod tests {
             for _ in 0..2 {
                 evaluator.host_boundary_touched = false;
                 evaluator.non_fs_host_boundary_touched = false;
-                assert!(evaluator.run_entry("main").is_ok());
+                assert!(evaluator.run_entry("main", None).is_ok());
                 assert_eq!(evaluator.stdin_cursor, input.len());
                 assert_eq!(evaluator.stdout, input);
                 assert!(
@@ -915,7 +915,7 @@ mod tests {
             }",
         );
         let mut evaluator = Evaluator::new_checked(&checked, &[0, 42]);
-        assert!(evaluator.run_entry("main").is_ok());
+        assert!(evaluator.run_entry("main", None).is_ok());
         assert_eq!(evaluator.stdin_cursor, 2);
         assert_eq!(evaluator.stdout, [42]);
     }
@@ -946,7 +946,7 @@ mod tests {
             ));
             let mut evaluator = Evaluator::new_checked(&checked, &[]);
             assert!(
-                matches!(evaluator.run_entry("main"), Err(Halt::Exit(70))),
+                matches!(evaluator.run_entry("main", None), Err(Halt::Exit(70))),
                 "{supply}",
             );
             assert!(evaluator.stdout.is_empty(), "{supply}");
@@ -1035,7 +1035,7 @@ mod tests {
                 "{label}",
             );
             // External fallback behavior is separate from host admission.
-            let result = evaluator.run_entry("main");
+            let result = evaluator.run_entry("main", None);
             if label == "ordinary authored body" {
                 assert!(result.is_ok(), "ordinary checked body must still execute");
             }
