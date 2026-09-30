@@ -131,3 +131,134 @@ fn mixed_graph_target_rejects_stale_parameter_and_shape_namespaces() {
         .is_none()
     );
 }
+
+#[test]
+fn qualified_static_scalar_body_preserves_its_explicit_signature() {
+    let checked = checked(
+        r#"
+        boundary trait Output { machine observe(value: i32) reaches Output; }
+        data Score { points: i32 in Wrapping; }
+        machine Score::bump(score: &mut Score, by: i32 in Wrapping) {
+            score.points = score.points + by;
+        }
+        machine Score::read(score: &Score) -> i32 {
+            transition { _ -> (score.points as i32) }
+        }
+        machine entry() reaches Output {
+            let mut score: Score;
+            Score::bump(&mut score, 70);
+            let seen: i32 = Score::read(&score);
+            Output::observe(seen);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let caller = plans
+        .for_machine(machine_symbol(&checked, "entry"))
+        .expect("a qualified static scalar helper must not prune its caller");
+    let target = machine_symbol(&checked, "Score::read");
+    let target_index = plans
+        .machines
+        .iter()
+        .position(|plan| plan.machine == target)
+        .expect("ordinary scalar body");
+    let operation = caller
+        .operations
+        .iter()
+        .find(|operation| {
+            operation
+                .call()
+                .is_some_and(|call| call.target.machine == target)
+        })
+        .expect("the caller retains its scalar call");
+    let available = |candidates: &[checked_trees::CheckedUnitEffectMachinePlan]| {
+        super::available_target(
+            &checked.typed,
+            &checked.facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+            },
+            candidates,
+            &plans.composed_machines,
+            &super::ScalarCallSite::of_plan(caller),
+            operation,
+        )
+    };
+    assert!(
+        plans.machines[target_index]
+            .attachment_type_identity
+            .is_none()
+    );
+    assert!(matches!(
+        available(&plans.machines),
+        Some(super::AvailableScalarTarget::OrdinaryBody(position)) if position == target_index
+    ));
+    // Removing implicit attachment must not admit a forged explicit signature
+    // or permit a caller to use a different callee contract.
+    for mutation in ["attachment", "access", "position", "contract"] {
+        let mut candidates = plans.machines.clone();
+        let target = &mut candidates[target_index];
+        match mutation {
+            "attachment" => target.attachment_type_identity = Some("Score".into()),
+            "access" => target.structural_parameters[0].access = CheckedStructuralAccess::Owned,
+            "position" => target.structural_parameters[0].position += 1,
+            "contract" => target.contract_report_fingerprint ^= 1,
+            _ => unreachable!(),
+        }
+        assert!(available(&candidates).is_none(), "{mutation}");
+    }
+}
+
+#[test]
+fn qualified_static_scalar_graph_keeps_explicit_state_arguments() {
+    let checked = checked(
+        r#"
+        boundary trait Output { machine observe(value: i32) reaches Output; }
+        data Score { points: i32 in Wrapping; }
+        machine Score::read(score: &Score) -> i32 {
+            transition { _ -> finish(score) }
+            state finish(score: &Score) -> i32 {
+                transition { _ -> (score.points as i32) }
+            }
+        }
+        machine entry(score: &Score) reaches Output {
+            let seen: i32 = Score::read(score);
+            Output::observe(seen);
+        }
+        "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let caller = plans
+        .for_machine(machine_symbol(&checked, "entry"))
+        .expect("a qualified static scalar graph must not prune its caller");
+    let target = machine_symbol(&checked, "Score::read");
+    let graph = plans
+        .composed_for_machine(target)
+        .expect("state graph body");
+    assert!(graph.attachment_type_identity.is_none());
+    let operation = caller
+        .operations
+        .iter()
+        .find(|operation| {
+            operation
+                .call()
+                .is_some_and(|call| call.target.machine == target)
+        })
+        .expect("the caller retains its scalar call");
+    assert!(matches!(
+        super::available_target(
+            &checked.typed,
+            &checked.facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+            },
+            &plans.machines,
+            &plans.composed_machines,
+            &super::ScalarCallSite::of_plan(caller),
+            operation,
+        ),
+        Some(super::AvailableScalarTarget::ComposedBody(_))
+    ));
+}
