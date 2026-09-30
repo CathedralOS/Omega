@@ -5463,22 +5463,23 @@ their existing owners.
   hosted receiver and provider/import pairing. Target recognition, exact
   physical-entry reconstruction and receiver machinery exist; reuse them.
 
-  Current `omega --check --target macos_x86_64` on
-  `samples/cli/basics/standalone/main.omg` rejects its missing entry binding;
-  its build declares only the four main targets and deliberately has no
-  terminating provider. `cli_mvp` also lacks the Intel binding and rejects
-  four unavailable Console provider machines: `std/console.omg` imports only those
-  four targets despite `targets/macos_x86_64/console_impl.omg` existing.
-  Complete the ordinary authored root/provider closure before assigning a
-  compiler-selection defect. Recheck the
-  [older host observations](wiki/drafts/measurements/macos_x64_host_profile.md)
-  against that closure.
-
-  The Python corpus gate also lacks Intel macOS in `HOST_TARGETS`; extend
-  matching-host coverage and explicit behavioral oracles. Record commands,
-  commit, actual observations and justified skips; target checks cannot prove
-  Intel execution. This additional platform remains separate from the four-host
-  Rust completion matrix and has no Alpha bootstrap dependency.
+  macos_x86_64 now emits and runs under Rosetta on Apple silicon: free Unit
+  entry, hosted receiver (`cli_mvp` exits 0 printing its two lines), Darwin
+  syscall Console and ProcessExit leaves, and dyld `libSystem` import pairing
+  (`external_boundary_requirement_via_exit` exits 21). With every
+  macos_arm64-bound fixture temporarily bound to macos_x86_64, 345 of 556
+  non-trapping pass/run fixtures executed with the same exit and stdout facts
+  as macos_arm64 and none diverged; see the
+  [host observations](wiki/drafts/measurements/macos_x64_host_profile.md).
+  Rosetta is translation, not an Intel CPU: on an Intel Mac, record
+  `tests/omega/corpus_native_macos_x86_64.txt` with
+  `python3 tools/corpus_gate.py --native --record`, compare it with the
+  Rosetta leg (`--native-target macos_x86_64` on Apple silicon), and record
+  `omega inspect-terminal --target macos_x86_64` legs. 579 fixture and 146
+  sample builds still bind macos_arm64 without macos_x86_64; extend them only
+  with an Intel or Rosetta observation. This additional platform remains
+  separate from the four-host Rust completion matrix and has no Alpha
+  bootstrap dependency.
 
 ## Omega-written compiler (after Rust completion)
 

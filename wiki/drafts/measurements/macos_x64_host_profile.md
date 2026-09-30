@@ -77,12 +77,56 @@ skips**, not passes.
   has no macos_x86_64 profile") is stale — the profile resolves; the
   blocker is admission, not host recognition.
 
-## Remaining legs for the next session
+## Rosetta host observations (2026-09-30)
 
-- Re-run this table after the boundary-settlement/root-slot binding lands
-  for `macos_x86_64`; a passing `--check` unlocks `run`, emitted-Mach-O
-  entry/exit, hosted receiver and import-pairing observations.
-- `omega inspect-terminal --machine <qualified> --target macos_x86_64`
-  legs once a package checks.
+Second leg, after the Intel Mach-O backend, hosted Darwin syscall leaves and
+the `std/console.omg` provider selection landed on the MACOS-X64-HOST-PROFILE
+branch (based on `f17a009cdd`).
+
+- Host: macOS Darwin 24.5.0 on Apple silicon (arm64) with Rosetta 2.
+  `arch -x86_64 <image>` runs the emitted x86-64 Mach-O image; Rosetta
+  translates the instructions and the Darwin `syscall` entries. These
+  observations exercise the emitted bytes, the Mach-O loader path and the
+  kernel ABI, but they are translated execution, not an Intel CPU.
+- Compiler: `target/debug/omega` (`cargo build -p omega`, dev profile).
+- Standard-library probes were copies of the named fixture or sample with an
+  absolute `Source::Path` to `source/library/std`, reviewed with
+  `omega update --project <dir> --target macos_x86_64`, every pending
+  decision edited to `accept`, then `omega update --resume --project <dir>`.
+  Each image came from `omega --target macos_x86_64 --build-dir <out>
+  <dir>/main.omg`; `omega run --target` compiles without running, so the
+  image ran as `arch -x86_64 <out>/omega-program`.
+
+| # | Program | Observation |
+| --- | --- | --- |
+| 1 | `tests/omega/pass/calls/state_and_machine_names_exit` (no dependency, free Unit entry) | `Mach-O 64-bit executable x86_64`; exit 0 |
+| 1b | `samples/cli/basics/standalone` with the `macos_x86_64` binding | exit 0 through the free Unit entry adapter |
+| 2 | `samples/cli/basics/cli_mvp` with the `macos_x86_64` binding | exit 0; stdout `Hello, Omega.` and `[press Enter to close]` (hosted receiver bridge, Console `write_line`, `read_line`, `exit_process`) |
+| 3 | `tests/omega/pass/host/runtime_console_byte_echo_exit`, stdin `AB` | exit 201; stdout `AB`. Empty stdin: exit 70. Closed stdin: exit 132 (SIGILL from the leaf's `ud2`) |
+| 4 | `tests/omega/pass/host/process_exit_i32_status_mapped` | exit 212 (`ProcessExit` status -44, low byte) |
+| 5 | `tests/omega/pass/providers/external_boundary_requirement_via_exit` with `macos_x86_64` leaves | exit 21 through dyld-bound `libSystem` `_abs` and `_exit` imports |
+| 6 | Corpus native leg, `OMEGA_CORPUS_NATIVE=1 OMEGA_CORPUS_NATIVE_TARGET=macos_x86_64`, filter `pass/host/`, `serviceful_borrowed_scalar_exit`, `runtime_bounded_carrier_normal_status_exit`, `state_and_machine_names_exit`, `runtime_static_entry_context_exit`, `external_boundary_requirement_via_exit` | Every row equals the `macos_arm64` native golden: `exit:0` twice, `exit:70` three times (two with `stdout:match`), `exit:20` once, `exit:21` once; `process_exit_i32_status_*` built; both GUI fixtures rejected for the missing `Gui` Fused provider, as on arm64 |
+| 7 | `python3 tools/corpus_gate.py --native-target macos_x86_64` over four of those fixtures, scratch golden | 4 built rows recorded; the authored exit oracles 70 and 21 held |
+| 8 | Parity experiment, not committed: every `tests/omega` `build.omg` binding `macos_arm64` temporarily also bound `macos_x86_64` (583 files), then the runner's `macos_x86_64` leg over the 556 pass/run fixtures among them that are not expected to trap, compared with the same tree's `macos_arm64` native leg | 345 executed with identical exit and stdout facts (3 heavy float fixtures needed a 500 s compile cap on rerun); 69 built on both without executing; 132 rejected on both (131 with the same first diagnostic); 3 timed out on both; 7 built only on arm64, each for authored target-scoped source (Fused providers written for `macos_arm64`, helpers declared only for `linux_arm64`, x86 FMA needing AVX/FMA3 evidence). No executed fixture diverged and none crashed |
+
+Trap-expected fixtures were left out of row 8: a trapping process goes
+through the crash reporter, which on this host held such processes in
+uninterruptible exit and stalled the runner's workers.
+
+A closed stdout traps in the write leaf on both ISAs; under this host's
+crash reporter the trapping process then waits in uninterruptible exit for
+minutes. The arm64 image behaves the same way, so this is host crash-report
+latency, not an emitted-code difference.
+
+## Remaining legs
+
+- A native Intel host run: `python3 tools/corpus_gate.py --native` now
+  resolves `macos_x86_64` on Intel macOS and needs a recorded
+  `tests/omega/corpus_native_macos_x86_64.txt`. Rosetta runs use
+  `--native-target macos_x86_64` on Apple silicon.
+- 579 fixture and 146 sample `build.omg` files bind `macos_arm64` without
+  `macos_x86_64`; each new binding needs an Intel or Rosetta observation
+  before it counts.
+- `omega inspect-terminal --machine <qualified> --target macos_x86_64`.
 - Reconcile `tools/benchmark`'s `HOST_LEGS` "native realization pending"
   label against this record (BENCHMARKS, TASKS_OPTIMIZER.md).
