@@ -92,7 +92,11 @@ pub(super) fn computed_subject<'plan>(
         state.state,
         call.coordinate,
     )?;
-    if call.is_boundary()
+    // The subject's placement does not change call authority: body replay
+    // validates its exact boundary target, receiver, buffers and occurrence
+    // through the ordinary call admission. As for a named structural result,
+    // this composed dispatch does not settle boundary claim transfers.
+    if (call.is_boundary() && !call.claim_transfers().is_empty())
         || call.coordinate.statement_index != result.statement_index
         || call.coordinate.call_ordinal != 0
         || located.source_site != Some(checked_trees::NominalMachineUseSite::Expression(subject))

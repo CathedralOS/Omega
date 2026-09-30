@@ -583,3 +583,119 @@ fn computed_case_subject_with_a_call_operand_is_not_read_once() {
         "a subject with a call operand must not dispatch from one planned call"
     );
 }
+
+const COMPUTED_BOUNDARY_SUBJECT: &str = r#"
+    data Pick { case First(v: u64); case Second(v: u64); }
+    boundary trait Choice {
+        machine pick(second: bool) -> Pick reaches Choice blocks;
+        machine other(second: bool) -> Pick reaches Choice blocks;
+    }
+    boundary trait Observer { machine mark(value: u64) reaches Observer; }
+    machine route(second: bool) reaches Choice, Observer {
+        transition block Choice::pick(second) {
+            Pick::First { v } -> first(v)
+            Pick::Second { v } -> second_arm(v)
+        }
+        state first(v: u64) { Observer::mark(v); }
+        state second_arm(v: u64) { Observer::mark(v); }
+    }
+"#;
+
+#[test]
+fn computed_boundary_subject_keeps_one_call_and_selected_payloads() {
+    let (checked, plan) = computed_subject_plan(COMPUTED_BOUNDARY_SUBJECT);
+    let mut plan = plan.expect("a boundary result is an ordinary completed dispatch subject");
+    admission::admit(&checked, &plan).expect("boundary subject retains normal call admission");
+    let state = computed_dispatch(&mut plan).expect("one closed-sum dispatch");
+    let calls = state
+        .operations
+        .iter()
+        .filter_map(|operation| operation.call())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        calls.len(),
+        1,
+        "guard and payload copies cannot repeat the boundary effect"
+    );
+    assert!(calls[0].is_boundary());
+    assert!(calls[0].claim_transfers().is_empty());
+    assert_eq!(calls[0].discard_result_on_return(), Some(false));
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } = &state.terminator
+    else {
+        panic!("the boundary result selects its exact case");
+    };
+    assert_eq!(cases.len(), 2);
+    for case in cases {
+        assert_eq!(
+            case.payloads.len(),
+            1,
+            "only the selected case supplies its scalar payload"
+        );
+        assert_eq!(case.payloads[0].field_identity, "v");
+    }
+    let lowered = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("route"))
+        .expect("computed boundary result lowers through the ordinary call emitter");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("Terminal independently verifies the result and case consumption");
+}
+
+#[test]
+fn computed_boundary_subject_rejects_target_occurrence_result_and_receipt_substitution() {
+    let (checked, plan) = computed_subject_plan(COMPUTED_BOUNDARY_SUBJECT);
+    let plan = plan.expect("boundary computed subject plan");
+    let other = checked
+        .traits()
+        .iter()
+        .flat_map(|owner| checked.trait_machine_signatures(owner))
+        .find(|signature| signature.name.as_str() == "other")
+        .expect("same-signature alternate boundary")
+        .symbol;
+    for mutation in 0..7 {
+        let mut changed = plan.clone();
+        let state = computed_dispatch(&mut changed).unwrap();
+        let position = state
+            .operations
+            .iter()
+            .position(|operation| operation.call().is_some())
+            .unwrap();
+        if mutation == 0 {
+            state.operations.push(state.operations[position].clone());
+        } else {
+            let call = state.operations[position].call_mut().unwrap();
+            match mutation {
+                1 => call.coordinate.call_ordinal = 1,
+                2 => {
+                    call.target.machine = other;
+                    call.target.state = other;
+                }
+                3 => call.target.contract_report_fingerprint ^= 1,
+                4 => {
+                    call.claim_transfers_mut()
+                        .push(checked_trees::CheckedUnitClaimTransferPlan {
+                            claim_identity: language_semantics::PermissionClaimIdentity::Unknown,
+                            argument_index: 0,
+                        });
+                }
+                5 | 6 => {
+                    let (result, _) = state.operations[position]
+                        .discardable_structural_result_mut()
+                        .expect("boundary retains its structural result");
+                    if mutation == 5 {
+                        result.binding_ordinal = u32::MAX;
+                    } else {
+                        result.type_identity.push_str("-substituted");
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        assert!(
+            admission::admit(&checked, &changed).is_err(),
+            "boundary subject mutation {mutation}"
+        );
+    }
+}
