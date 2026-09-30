@@ -1237,26 +1237,21 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `19e807c1ff`
-  plus the fixed-byte-field view repair over `706813de33` on macOS ARM64,
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `08a1a2de2b`
+  over `e5fbee57b9` on macOS ARM64,
   the actual command exits 200 before emission: `Game::run_game_loop`
-  state 10 (`dispatch_command`) stops at
-  `state graph: terminator: guarded jump successors: roster`.
-  The local `command: &[u8] = self.input[0..count]` now plans, but
-  `values/scalar/boolean_lowering.rs` admits literal equality only on
-  parameter-backed bounded owners, not the established view local. Extend
-  that operand join and stage 05's independent
-  `source_custody/value_correspondence` replay without changing length-first
-  short-circuit bounds. Fixed-byte-field view construction and exact extent
-  reconstruction pass 32 focused view/verifier tests, including a forged
-  write-only-root rejection; native command execution remains unverified.
-  Borrowed bindings, copied
-  `Level` operands and direct boundary-result dispatch now pass their earlier
-  gates; active output
-  writers retain `&mut [u8; 128] in Utf8` through their state formals. The
-  copied nested-byte regression round-trips through independent Terminal
-  verification, but neither that nor the eight checked corpus controls proves
-  the game runs. Acceptance remains native exit 0 with the authored room,
+  state 17 (`attempt_move`) stops at
+  `state graph: terminator: conditional successors: guard expression` for
+  `transition self.dungeon.can_travel_to(destination)`, where `destination`
+  is a local `CellId` read from `self.dungeon.navigation.destination`.
+  Trace the scalar call/guard join in stage 04 `terminal_unit/state_graph/terminator.rs`
+  and retain its exact receiver and local-case argument through independent
+  source replay. Borrowed bindings, copied `Level` operands, boundary-result
+  dispatch, byte-field views, view literal guards, and owned UTF-8 field
+  arguments now pass their earlier planning gates. The rebased copy/view
+  selection passes 55 controls, including independent rejection of stripped byte
+  predicates, unreadable backing, and reused snapshots; they do not establish
+  native execution. Acceptance remains native exit 0 with the authored room,
   prompt, command and goodbye output.
   Coordinate canonical range migration with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
   explicit policy casts with **IMPLICIT-STORE-CONVERSION**, and any `&mut Room`
