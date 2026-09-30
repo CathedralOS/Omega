@@ -43,13 +43,17 @@ pub fn element_subslice_length_equation(
 /// Relate a measured element view to its whole collection's declared extent:
 /// an `EstablishElementView` over a `FixedArray` names the array's static
 /// element count. The caller must establish the exact producer/result join,
-/// source type, and dominance before using this fact.
+/// source type, and dominance before using this fact. A byte-length read uses
+/// the same count only when validation established an exact `u8` collection
+/// and byte-view result; no other element width becomes a byte extent.
 pub fn element_establishment_length_equation(
     observation: &StructuralEffectObservation,
     producer: &StructuralEffectObservation,
     collection_length: u64,
 ) -> Result<Option<Proposition>, OperationSemanticError> {
-    let StructuralEffectObservation::ElementViewLengthRead { source, result } = observation else {
+    let (StructuralEffectObservation::ElementViewLengthRead { source, result }
+    | StructuralEffectObservation::ByteSequenceLengthRead { source, result }) = observation
+    else {
         return Ok(None);
     };
     let StructuralEffectObservation::ElementViewEstablished { destination, .. } = producer else {

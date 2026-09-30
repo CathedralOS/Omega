@@ -1237,14 +1237,22 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At b458fb9a0f plus
-  the copied-owned-byte repair on macOS ARM64, the actual command exits 200
-  before emission: `Game::run_game_loop` state 3 (`read_command`) stops at
-  `state graph: terminator: guarded jump successors: roster`. The authored
-  subject is `transition block self.console.read_line(&mut self.input)`;
-  **STATE-LOCAL-VALUE-FRONTIER** must retain its once-only result and selected
-  case payload through ordinary call/dispatch composition. Borrowed bindings
-  and copied `Level` operands now pass their earlier gates; active output
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `19e807c1ff`
+  plus the fixed-byte-field view repair over `706813de33` on macOS ARM64,
+  the actual command exits 200 before emission: `Game::run_game_loop`
+  state 10 (`dispatch_command`) stops at
+  `state graph: terminator: guarded jump successors: roster`.
+  The local `command: &[u8] = self.input[0..count]` now plans, but
+  `values/scalar/boolean_lowering.rs` admits literal equality only on
+  parameter-backed bounded owners, not the established view local. Extend
+  that operand join and stage 05's independent
+  `source_custody/value_correspondence` replay without changing length-first
+  short-circuit bounds. Fixed-byte-field view construction and exact extent
+  reconstruction pass 32 focused view/verifier tests, including a forged
+  write-only-root rejection; native command execution remains unverified.
+  Borrowed bindings, copied
+  `Level` operands and direct boundary-result dispatch now pass their earlier
+  gates; active output
   writers retain `&mut [u8; 128] in Utf8` through their state formals. The
   copied nested-byte regression round-trips through independent Terminal
   verification, but neither that nor the eight checked corpus controls proves

@@ -12,7 +12,7 @@
 //! place differs by route, so each route resolves `ViewRangeSource` itself.
 //!
 //! A view local's range over a fixed-array field (`self.items[a..b]`) names
-//! no established view: its route first establishes a whole element view of
+//! no established view: its route first establishes a whole collection view of
 //! the field and passes that place as the source, together with the checked
 //! field path. `emit_over_field` then replays the authored member chain to
 //! that exact field in place of the bare view name.
@@ -84,7 +84,7 @@ pub(crate) fn emit(
 
 /// `emit` for a range whose authored collection is the fixed-array field
 /// `collection` below the parameter `source.symbol` names. `source.place` is
-/// the whole element view the route already established over that field.
+/// the whole collection view the route already established over that field.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn emit_over_field(
     checked: &CheckedTrees,
@@ -331,6 +331,9 @@ pub(crate) fn binding_local<'a>(
     let field_range = matches!(
         source.source,
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            root: checked_trees::CheckedStorageRoot::Parameter { .. },
+            ..
+        } | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
             root: checked_trees::CheckedStorageRoot::Parameter { .. },
             ..
         }

@@ -62,7 +62,9 @@ pub(in crate::validation) fn collection_element(
         })
 }
 
-/// The root structural type a place carries when an element view may borrow it.
+/// The readable root type a collection view may borrow. An argument's access
+/// cannot grant authority absent from its backing: both shared and mutable
+/// views expose reads, so write-only parameters cannot establish either one.
 pub(in crate::validation) fn source_root_type(
     machine: &TerminalMachine,
     place: PlaceId,
@@ -72,10 +74,12 @@ pub(in crate::validation) fn source_root_type(
         .iter()
         .find(|parameter| parameter.place == place)
     {
-        return Some(parameter.structural_type);
+        return (parameter.access != StructuralAccess::WriteOnlyBorrow)
+            .then_some(parameter.structural_type);
     }
     if let Some(parameter) = crate::validation::block_views::parameter(machine, place) {
-        return Some(parameter.structural_type);
+        return (parameter.access != StructuralAccess::WriteOnlyBorrow)
+            .then_some(parameter.structural_type);
     }
     machine
         .structural_places
