@@ -420,8 +420,10 @@ the complete product bar; focused successes below do not establish that baseline
 
   - **Results and control.** `calls/runtime_dispatch_float_terminal_exit` and
     `calls/runtime_dispatch_result_enum_case_exit` (score 15) exit 70 on macOS
-    ARM64. Finish receiver transfer through
-    `control_flow/runtime_tuple_transition_exit` (exit 22). Keep short-circuit evaluation and later-binding order from
+    ARM64. `control_flow/runtime_tuple_transition_exit` now exits 22 natively
+    and interpreted with explicit context parameters on every state edge;
+    its old receiver-less intermediate state relied on retired implicit carry.
+    Keep short-circuit evaluation and later-binding order from
     `unit_state_graph/scalars.rs`; the old prefix-initializer refusal has been
     replaced by ordinary conditional sequencing.
   - **Borrowed arguments.** `calls/runtime_param_receiver_second_instance_exit`
