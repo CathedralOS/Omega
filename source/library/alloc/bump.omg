@@ -303,10 +303,13 @@ reaches ExtentPartition
         taken: freed,
         rest: vec.strategy.tail,
     });
+    // Literal fields establish in authored order: `tail` takes `grown_tail`
+    // first, so the residual reads its length before the move.
+    let grown_length: u64 = grown_tail.length;
     BumpVec {
         strategy: Bump {
             tail: grown_tail,
-            remaining: grown_tail.length,
+            remaining: grown_length,
         },
         buffer: shrunk,
         retained_buffer: vec.retained_buffer,
