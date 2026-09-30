@@ -501,7 +501,17 @@ does not decide whether those assumptions are consistent.
 Quotients can have runtime representations. Their mathematical laws do not
 supply an algorithm: evaluation or runtime operations need checked computation
 or a corresponding realization. Proof-only computation also remains computation.
-The selected interface is not a claim that all these routes are implemented.
+For example, doubling a stored fraction `(n,d)` can execute ordinary arithmetic
+to produce `(2*n,d)`. A checked congruence theorem shows that equivalent inputs
+produce equivalent outputs; that theorem is not run with each call. The result
+need not be reduced to a canonical fraction. The actual implementation must
+still meet its ordinary arithmetic and precondition obligations.
+
+[Executable quotient operations](../spec/proofs/quotients.md#execution-through-ordinary-checked-bodies)
+elaborate into ordinary checked calls and adaptations, with their proof
+connection retained. Inlining is optional. Merely using quotient mathematics in
+proofs does not require a runtime implementation or prevent unrelated code from
+running. The selected interface is not a claim that all these routes are implemented.
 
 ## Termination Proofs
 

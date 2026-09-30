@@ -114,6 +114,36 @@ dependency, not a reason to claim the test already passes. Also reject
 representative-sensitive observation, illicit squash extraction, unavailable
 set-valued elimination evidence and universe lowering without justification.
 
+### Execution through ordinary checked bodies
+
+The `executable-quotient-correspondence` decision uses ordinary checked bodies
+and calls, not a quotient execution engine. Preserve the named public
+operation, its contract and mathematical identity. Elaborate its selected
+representative implementation and licensed argument/result adaptations into
+the existing executable representations, retaining the checked correspondence
+through Terminal publication and subsequent realization.
+
+If elaboration needs a generated wrapper, it has a stable derived identity and
+passes through the normal machine-body checking and lowering pipeline. Direct
+expansion versus a wrapper is an engineering choice; inlining is an ordinary
+optimization and is never required for correctness. Backends do not each
+implement a special `Quotient::define` or `Quotient::lift` execution path.
+
+Congruence and forward-precondition transport theorems justify the selected
+calls and adaptations. They are resultless evidence, not executable witnesses
+or runtime dictionaries. Authored representative code and checked adaptations
+provide the computation; retaining a theorem does not manufacture that code.
+The executable body's connection to the public operation must be checked, not
+inferred from a matching name or a certificate's mere presence.
+
+Require executable representation and implementation only for runtime-relevant
+execution or requested materialization. Well-formed proof-only correspondence
+metadata does not by itself make an otherwise executable module non-executable;
+it still undergoes its ordinary evidence validation. A demanded operation with
+no justified realization rejects. Mathematical formation, equality and proofs
+remain available without an algorithm for equality, canonicalization, or
+representative extraction. No new quotient reduction rule is introduced.
+
 ## Families, relations, and evidence
 
 For carrier family `C` with complete typed index pack `I`, a heterogeneous relation
@@ -345,9 +375,13 @@ evidence use canonical role-specific ordering. Decode and validation rederive
 identity and the complete congruence/transport join; substituted, missing,
 reversed, surplus, or role/payload-mismatched evidence rejects.
 
-The table owns no executable operation. Execution rejects nonempty tables until
-executable quotient lowering exists. Proof-only package review reconstructs the
-complete source batch; retention alone is neither checked executable projection
-nor source-to-native correspondence. [Validation support](../../../omega-rust/psi/compilation/checking/README.md#quotient-correspondence)
-records producer limits; `QUOTIENT-THEOREM-LIFT` and `PROOF-CONTRACT-MIGRATION`
-on the [execution board](../../../TASKS.md) own remaining implementation.
+The table alone owns no executable operation. Proof-only package review
+reconstructs the complete source batch; retention alone is neither checked
+executable projection nor source-to-native correspondence. The current blanket
+execution rejection of nonempty tables is an implementation limitation, not the
+language rule: executable demand follows
+[ordinary checked-body realization](#execution-through-ordinary-checked-bodies).
+[Validation support](../../../omega-rust/psi/compilation/checking/README.md#quotient-correspondence)
+records producer limits; `QUOTIENT-RUNTIME-REALIZATION`, `QUOTIENT-THEOREM-LIFT`
+and `PROOF-CONTRACT-MIGRATION` on the [execution board](../../../TASKS.md)
+own the remaining implementation.
