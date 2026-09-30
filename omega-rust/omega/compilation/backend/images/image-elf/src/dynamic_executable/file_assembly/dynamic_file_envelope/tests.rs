@@ -221,6 +221,26 @@ fn both_linux_targets_emit_exact_non_runnable_envelopes() {
         );
         let header = decode_header(envelope.header_prefix_bytes()).unwrap();
         assert_eq!(header.machine, machine);
+        // e_shstrndx names the `.shstrtab` row: a SHT_STRTAB header placed
+        // where the load layout placed the section-name table.
+        const SHT_STRTAB: u32 = 3;
+        let name_table_index = usize::from(header.section_name_table_index);
+        let name_table_header = &envelope.section_header_table_bytes()
+            [name_table_index * 64..(name_table_index + 1) * 64];
+        assert_eq!(
+            u32::from_le_bytes(name_table_header[4..8].try_into().unwrap()),
+            SHT_STRTAB,
+        );
+        let placed_name_table =
+            &load_layout(envelope.resolved_dynamic_table()).sections()[name_table_index];
+        assert_eq!(
+            placed_name_table.kind(),
+            crate::ElfPlacedDynamicSectionKind::SectionNameTable,
+        );
+        assert_eq!(
+            u64::from_le_bytes(name_table_header[24..32].try_into().unwrap()),
+            placed_name_table.file_offset(),
+        );
         assert_eq!(header.entry, envelope.entry_address());
         assert_eq!(
             header.section_header_offset,
