@@ -1,16 +1,33 @@
-//! Replay custody for a `BorrowedSliceView` selection value carrying a
-//! `SharedBorrow` element-view argument. The checked plan recorded the authored
-//! `place.as_slice()` view's exact collection root symbol and member path;
-//! replay rebuilds that collection place and requires shared access on the
-//! argument, the exact path, and the projected leaf's identity equal to the
-//! argument's recorded collection identity. Like `shared_borrow`, a shared
-//! view join is provenance pass-through: it leaves owned custody records
-//! untouched.
+//! Replay custody for an element-view selection value: a `BorrowedSliceView`
+//! carrying a `SharedBorrow` argument or a `MutableSliceView` carrying a
+//! `MutableBorrow` one. The checked plan recorded the authored
+//! `place.as_slice()` or `place.as_mut_slice()` view's exact collection root
+//! symbol and member path; replay rebuilds that collection place and requires
+//! the view's access on the argument, the exact path, and the projected
+//! leaf's identity equal to the argument's recorded collection identity. Like
+//! `shared_borrow`, a view join is provenance pass-through under either
+//! access: it leaves owned custody records untouched — loan exclusivity is
+//! the checked planner's `Mutable`-kind roster, not a replay concern. The two
+//! accesses replay one walk and differ only in the planned access they
+//! require and the view family their refusals name.
 
 use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, unsupported,
 };
+use crate::expression_preparation::bindings::LoanAccess;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
+
+/// A replay refusal, spelled for the view family whose loan it rejoins: a
+/// `BorrowedSliceView` holds a shared loan of the lent collection, a
+/// `MutableSliceView` an exclusive one.
+macro_rules! refusal {
+    ($loan:expr, $reason:literal) => {
+        match $loan {
+            LoanAccess::Shared => concat!("borrowed slice view ", $reason),
+            LoanAccess::Mutable => concat!("mutable slice view ", $reason),
+        }
+    };
+}
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -19,19 +36,20 @@ pub(super) fn validate(
     statement: u32,
     expression: ExpressionHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
+    loan: LoanAccess,
 ) -> Result<(), LoweringError> {
     let ExpressionNode::Call(call) = checked.expression_table.expression(expression) else {
-        return unsupported("borrowed slice view lost its authored view call");
+        return unsupported(refusal!(loan, "lost its authored view call"));
     };
     if !call.arguments.is_empty() {
-        return unsupported("borrowed slice view call gained arguments");
+        return unsupported(refusal!(loan, "call gained arguments"));
     }
-    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
-        return unsupported("borrowed slice view changed its planned access");
+    if argument.access != loan.planned_access() {
+        return unsupported(refusal!(loan, "changed its planned access"));
     }
     let (root, checked_path) = authored_collection_path(checked, machine, authored, call.receiver)?;
     if checked_path != argument.path {
-        return unsupported("borrowed slice view path does not match its projected path");
+        return unsupported(refusal!(loan, "path does not match its projected path"));
     }
     let leaf = validation::expression_result_type_reference(
         &checked.typed,
@@ -39,14 +57,15 @@ pub(super) fn validate(
         authored,
         call.receiver,
     )
-    .ok_or(LoweringError::Unsupported(
-        "borrowed slice view lost its collection type",
-    ))?;
+    .ok_or(LoweringError::Unsupported(refusal!(
+        loan,
+        "lost its collection type"
+    )))?;
     if checked.normalized_type_identity(leaf).as_str() != argument.type_identity {
-        return unsupported("borrowed slice view does not project its collection");
+        return unsupported(refusal!(loan, "does not project its collection"));
     }
     let ExpressionNode::Name(name) = checked.expression_table.expression(root) else {
-        return unsupported("borrowed slice view receiver is not an exact place");
+        return unsupported(refusal!(loan, "receiver is not an exact place"));
     };
     if !name.symbol.is_valid()
         || name.head_symbol != name.symbol
@@ -56,7 +75,7 @@ pub(super) fn validate(
             .len()
             != 1
     {
-        return unsupported("borrowed slice view root is not an exact name");
+        return unsupported(refusal!(loan, "root is not an exact name"));
     }
     let is_self_root = matches!(
         checked.expression_table.name_path_members(name.members),
@@ -68,7 +87,7 @@ pub(super) fn validate(
         name.symbol,
         &argument.source,
     ) {
-        return unsupported("borrowed slice view source does not match its root");
+        return unsupported(refusal!(loan, "source does not match its root"));
     }
     if is_self_root {
         // `self` names the machine's attached storage: the checked plan carries
@@ -79,7 +98,7 @@ pub(super) fn validate(
             .iter()
             .any(|parameter| parameter.is_self)
         {
-            return unsupported("borrowed slice view self root has no self parameter");
+            return unsupported(refusal!(loan, "self root has no self parameter"));
         }
     } else if !checked
         .state_parameters(authored)
@@ -98,11 +117,11 @@ pub(super) fn validate(
                 _ => None,
             });
         let Some((index, local)) = locals.next() else {
-            return unsupported("borrowed slice view loses its authored root");
+            return unsupported(refusal!(loan, "loses its authored root"));
         };
         if locals.next().is_some() || index >= statement as usize || !local.initial_value.is_valid()
         {
-            return unsupported("borrowed slice view root is not uniquely established");
+            return unsupported(refusal!(loan, "root is not uniquely established"));
         }
     }
     // The lent place is the projected collection, not the root's whole record:
@@ -112,9 +131,10 @@ pub(super) fn validate(
         &checked.typed,
         validation::unwrapped_type_reference(&checked.typed, leaf).unwrap_or(leaf),
     ) {
-        return unsupported(
-            "borrowed slice view root is not a structural place the pipeline can carry",
-        );
+        return unsupported(refusal!(
+            loan,
+            "root is not a structural place the pipeline can carry"
+        ));
     }
     Ok(())
 }

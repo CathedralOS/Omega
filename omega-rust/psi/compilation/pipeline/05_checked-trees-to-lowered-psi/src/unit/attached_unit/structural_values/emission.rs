@@ -13,6 +13,7 @@ use super::CheckedTrees;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
+use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::source_custody::structural as source_custody;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
 
@@ -227,27 +228,28 @@ pub(crate) fn emit(
     {
         emission.direct_borrow(source)?
     } else if emission.sources.is_empty()
-        && let CheckedStructuralValueKind::BorrowedSliceView { source } = &checked
+        && let Some((source, loan)) = match &checked
             .facts
             .values
             .structural_values
             .nodes
             .get(*value)
             .kind
-        && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+        {
+            CheckedStructuralValueKind::BorrowedSliceView { source }
+                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow =>
+            {
+                Some((source, LoanAccess::Shared))
+            }
+            CheckedStructuralValueKind::MutableSliceView { source }
+                if source.access == checked_trees::CheckedStructuralAccess::MutableBorrow =>
+            {
+                Some((source, LoanAccess::Mutable))
+            }
+            _ => None,
+        }
     {
-        emission.direct_element_view(source)?
-    } else if emission.sources.is_empty()
-        && let CheckedStructuralValueKind::MutableSliceView { source } = &checked
-            .facts
-            .values
-            .structural_values
-            .nodes
-            .get(*value)
-            .kind
-        && source.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-    {
-        emission.direct_mutable_element_view(source)?
+        emission.direct_element_view(source, loan)?
     } else {
         let place = emission.value(*value, None)?;
         // A moved place is materialized into the result binding; a copied
@@ -605,164 +607,16 @@ impl Emission<'_, '_, '_> {
             .get(value)
             .clone();
         match node.kind {
-            // A borrowed `&[T]` view lowers to `EstablishElementView`: the
-            // shared-borrow collection argument resolves against the current
-            // locals and signature parameters exactly as a `&T` leaf does, and
-            // the fresh view result joins the selection's block parameter.
+            // A borrowed `&[T]` view lowers to `EstablishElementView` and a
+            // `&mut [T]` view to `EstablishMutableElementView`: the collection
+            // argument resolves against the current locals and signature
+            // parameters exactly as a `&T` leaf does, and the fresh view result
+            // joins the selection's block parameter under the view's loan.
             CheckedStructuralValueKind::BorrowedSliceView { source } => {
-                let continuation = continuation.ok_or(LoweringError::Unsupported(
-                    "borrowed element view requires a structural continuation",
-                ))?;
-                let element = self
-                    .structural_types
-                    .iter()
-                    .find_map(|declaration| match declaration.shape {
-                        StructuralTypeShape::ElementView { element }
-                            if declaration.id == self.structural_type =>
-                        {
-                            Some(element)
-                        }
-                        _ => None,
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "borrowed element view lost its element carrier",
-                    ))?;
-                let argument =
-                    crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
-                        .with_structural_parameters(&self.evaluation.structural_parameters)
-                        .with_structural_locals(&self.evaluation.structural_locals)
-                        .shared_structural_argument(
-                            &source,
-                            crate::expression_preparation::source_custody::authored_state(
-                                self.checked,
-                                self.state,
-                            )?
-                            .0,
-                            self.checked.state_parameters(
-                                crate::expression_preparation::source_custody::authored_state(
-                                    self.checked,
-                                    self.state,
-                                )?
-                                .1,
-                            ),
-                        )?;
-                let id = self.operations.allocate();
-                let place = place_id(allocate_dense(self.next_place)?);
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
-                        place,
-                        structural_type: self.structural_type,
-                        multiplicity: StructuralMultiplicity::Unrestricted,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        claims: Vec::new(),
-                    }),
-                    kind: OperationKind::EstablishElementView {
-                        destination: place,
-                        source: argument,
-                        element,
-                    },
-                });
-                self.temporary_places.push(StructuralPlaceDeclaration {
-                    id: place,
-                    kind: StructuralPlaceKind::OperationResult {
-                        producer: id,
-                        structural_type: self.structural_type,
-                    },
-                });
-                self.complete_borrowed(
-                    StructuralArgument {
-                        place,
-                        path: Vec::new(),
-                        access: StructuralAccess::SharedBorrow,
-                    },
-                    continuation,
-                )?;
-                Ok(continuation.place)
+                self.joined_element_view(&source, LoanAccess::Shared, continuation)
             }
-            // A mutably borrowed `&mut [T]` view lowers to
-            // `EstablishMutableElementView`, mirroring the shared sibling: the
-            // mutable-borrow collection argument resolves against the current
-            // locals and signature parameters, and the fresh view result joins
-            // the selection's block parameter under `MutableBorrow` custody.
             CheckedStructuralValueKind::MutableSliceView { source } => {
-                let continuation = continuation.ok_or(LoweringError::Unsupported(
-                    "mutable element view requires a structural continuation",
-                ))?;
-                let element = self
-                    .structural_types
-                    .iter()
-                    .find_map(|declaration| match declaration.shape {
-                        StructuralTypeShape::ElementView { element }
-                            if declaration.id == self.structural_type =>
-                        {
-                            Some(element)
-                        }
-                        _ => None,
-                    })
-                    .ok_or(LoweringError::Unsupported(
-                        "mutable element view lost its element carrier",
-                    ))?;
-                let argument =
-                    crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
-                        .with_structural_parameters(&self.evaluation.structural_parameters)
-                        .with_structural_locals(&self.evaluation.structural_locals)
-                        .borrowed_structural_argument(
-                            &source,
-                            crate::expression_preparation::source_custody::authored_state(
-                                self.checked,
-                                self.state,
-                            )?
-                            .0,
-                            self.checked.state_parameters(
-                                crate::expression_preparation::source_custody::authored_state(
-                                    self.checked,
-                                    self.state,
-                                )?
-                                .1,
-                            ),
-                        )?;
-                let id = self.operations.allocate();
-                let place = place_id(allocate_dense(self.next_place)?);
-                self.operations.push(Operation {
-                    static_reach_binding: None,
-                    suspension_crossing: None,
-                    id,
-                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                        qualification_establishments: Vec::new(),
-                        place,
-                        structural_type: self.structural_type,
-                        multiplicity: StructuralMultiplicity::Unrestricted,
-                        qualifications: Vec::new(),
-                        projected_qualifications: Vec::new(),
-                        claims: Vec::new(),
-                    }),
-                    kind: OperationKind::EstablishMutableElementView {
-                        destination: place,
-                        source: argument,
-                        element,
-                    },
-                });
-                self.temporary_places.push(StructuralPlaceDeclaration {
-                    id: place,
-                    kind: StructuralPlaceKind::OperationResult {
-                        producer: id,
-                        structural_type: self.structural_type,
-                    },
-                });
-                self.complete_mutable(
-                    StructuralArgument {
-                        place,
-                        path: Vec::new(),
-                        access: StructuralAccess::MutableBorrow,
-                    },
-                    continuation,
-                )?;
-                Ok(continuation.place)
+                self.joined_element_view(&source, LoanAccess::Mutable, continuation)
             }
             CheckedStructuralValueKind::Reference { source } => {
                 if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
@@ -798,7 +652,7 @@ impl Emission<'_, '_, '_> {
                             .1,
                         ),
                     )?;
-                    self.complete_borrowed(argument, continuation)?;
+                    self.complete_loan(argument, continuation, LoanAccess::Shared)?;
                     return Ok(continuation.place);
                 }
                 let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
@@ -1520,7 +1374,7 @@ impl Emission<'_, '_, '_> {
             pass_through: Vec::new(),
             residuals: Vec::new(),
         };
-        self.complete_borrowed(argument, &continuation)?;
+        self.complete_loan(argument, &continuation, LoanAccess::Shared)?;
         self.start(join);
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters;
@@ -1530,85 +1384,58 @@ impl Emission<'_, '_, '_> {
 
     /// Establish one borrowed element view without a selection join: the op
     /// result is itself the checked value, so the fresh place publishes
-    /// directly as this binding's completed operation result.
+    /// directly as this binding's completed operation result. A shared view
+    /// result is `Unrestricted`; an exclusive loan is affine custody, so a
+    /// mutable view result carries this binding's declared multiplicity.
     fn direct_element_view(
         &mut self,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        loan: LoanAccess,
     ) -> Result<PlaceId, LoweringError> {
-        let element = self
-            .structural_types
-            .iter()
-            .find_map(|declaration| match declaration.shape {
-                StructuralTypeShape::ElementView { element }
-                    if declaration.id == self.structural_type =>
-                {
-                    Some(element)
-                }
-                _ => None,
-            })
-            .ok_or(LoweringError::Unsupported(
-                "borrowed element view lost its element carrier",
-            ))?;
-        let argument =
-            crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
-                .with_structural_parameters(&self.evaluation.structural_parameters)
-                .with_structural_locals(&self.evaluation.structural_locals)
-                .shared_structural_argument(
-                    source,
-                    crate::expression_preparation::source_custody::authored_state(
-                        self.checked,
-                        self.state,
-                    )?
-                    .0,
-                    self.checked.state_parameters(
-                        crate::expression_preparation::source_custody::authored_state(
-                            self.checked,
-                            self.state,
-                        )?
-                        .1,
-                    ),
-                )?;
-        let id = self.operations.allocate();
-        let place = place_id(allocate_dense(self.next_place)?);
-        self.operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place,
-                structural_type: self.structural_type,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::EstablishElementView {
-                destination: place,
-                source: argument,
-                element,
-            },
-        });
-        self.temporary_places.push(StructuralPlaceDeclaration {
-            id: place,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: id,
-                structural_type: self.structural_type,
-            },
-        });
-        Ok(place)
+        let multiplicity = match loan {
+            LoanAccess::Shared => StructuralMultiplicity::Unrestricted,
+            LoanAccess::Mutable => self.multiplicity,
+        };
+        self.establish_element_view(source, loan, multiplicity)
     }
 
-    /// Establish one mutably borrowed element view without a selection join:
-    /// the mutable sibling of `direct_element_view`, publishing the fresh
-    /// `EstablishMutableElementView` result directly as this binding's
-    /// completed operation result under `MutableBorrow` custody. An
-    /// exclusive loan is affine custody, so the result carries this
-    /// binding's declared multiplicity rather than the shared sibling's
-    /// fixed `Unrestricted`.
-    fn direct_mutable_element_view(
+    /// Establish one element view inside a selection: the fresh `Unrestricted`
+    /// view result joins the selection's block parameter under the view's
+    /// loan, and that parameter carries the binding's custody.
+    fn joined_element_view(
         &mut self,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        loan: LoanAccess,
+        continuation: Option<&ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
+        let continuation = continuation.ok_or(LoweringError::Unsupported(match loan {
+            LoanAccess::Shared => "borrowed element view requires a structural continuation",
+            LoanAccess::Mutable => "mutable element view requires a structural continuation",
+        }))?;
+        let place =
+            self.establish_element_view(source, loan, StructuralMultiplicity::Unrestricted)?;
+        self.complete_loan(
+            StructuralArgument {
+                place,
+                path: Vec::new(),
+                access: loan.structural_access(),
+            },
+            continuation,
+            loan,
+        )?;
+        Ok(continuation.place)
+    }
+
+    /// Establish one element view over the collection `source` lends, as a
+    /// fresh operation result of `multiplicity`. A shared loan lowers to
+    /// `EstablishElementView` and binds only a `SharedBorrow` argument; an
+    /// exclusive loan lowers to `EstablishMutableElementView` and binds the
+    /// argument through the readable-loan binder, which admits either access.
+    fn establish_element_view(
+        &mut self,
+        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        loan: LoanAccess,
+        multiplicity: StructuralMultiplicity,
     ) -> Result<PlaceId, LoweringError> {
         let element = self
             .structural_types
@@ -1621,30 +1448,41 @@ impl Emission<'_, '_, '_> {
                 }
                 _ => None,
             })
-            .ok_or(LoweringError::Unsupported(
-                "mutable element view lost its element carrier",
-            ))?;
-        let argument =
+            .ok_or(LoweringError::Unsupported(match loan {
+                LoanAccess::Shared => "borrowed element view lost its element carrier",
+                LoanAccess::Mutable => "mutable element view lost its element carrier",
+            }))?;
+        let bindings =
             crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
                 .with_structural_parameters(&self.evaluation.structural_parameters)
-                .with_structural_locals(&self.evaluation.structural_locals)
-                .borrowed_structural_argument(
-                    source,
-                    crate::expression_preparation::source_custody::authored_state(
-                        self.checked,
-                        self.state,
-                    )?
-                    .0,
-                    self.checked.state_parameters(
-                        crate::expression_preparation::source_custody::authored_state(
-                            self.checked,
-                            self.state,
-                        )?
-                        .1,
-                    ),
-                )?;
+                .with_structural_locals(&self.evaluation.structural_locals);
+        let (machine, authored) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            self.state,
+        )?;
+        let parameters = self.checked.state_parameters(authored);
+        let argument = match loan {
+            LoanAccess::Shared => {
+                bindings.shared_structural_argument(source, machine, parameters)?
+            }
+            LoanAccess::Mutable => {
+                bindings.borrowed_structural_argument(source, machine, parameters)?
+            }
+        };
         let id = self.operations.allocate();
         let place = place_id(allocate_dense(self.next_place)?);
+        let kind = match loan {
+            LoanAccess::Shared => OperationKind::EstablishElementView {
+                destination: place,
+                source: argument,
+                element,
+            },
+            LoanAccess::Mutable => OperationKind::EstablishMutableElementView {
+                destination: place,
+                source: argument,
+                element,
+            },
+        };
         self.operations.push(Operation {
             static_reach_binding: None,
             suspension_crossing: None,
@@ -1653,16 +1491,12 @@ impl Emission<'_, '_, '_> {
                 qualification_establishments: Vec::new(),
                 place,
                 structural_type: self.structural_type,
-                multiplicity: self.multiplicity,
+                multiplicity,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             }),
-            kind: OperationKind::EstablishMutableElementView {
-                destination: place,
-                source: argument,
-                element,
-            },
+            kind,
         });
         self.temporary_places.push(StructuralPlaceDeclaration {
             id: place,
@@ -2070,73 +1904,44 @@ impl Emission<'_, '_, '_> {
         Ok(())
     }
 
-    /// A borrowed branch joins one shared referent place at the result
-    /// parameter. Unlike `complete_value` there is no owner roster, no
+    /// A borrowed branch joins one referent place at the result parameter
+    /// under its loan. Unlike `complete_value` there is no owner roster, no
     /// displaced candidate and no residual schedule: the referent's owner
-    /// stays live, and the single structural parameter must be the
-    /// `SharedBorrow` result slot this edge's argument fills.
-    fn complete_borrowed(
+    /// stays live, and the single structural parameter must be the result
+    /// slot of the loan's access this edge's argument fills. A shared slot is
+    /// also `Unrestricted`; an exclusive slot keeps the multiplicity the
+    /// binding declares.
+    fn complete_loan(
         &mut self,
         argument: StructuralArgument,
         continuation: &ValueContinuation,
+        loan: LoanAccess,
     ) -> Result<(), LoweringError> {
         if continuation.structural_parameters.len() != 1
             || !continuation.pass_through.is_empty()
             || !continuation.residuals.is_empty()
         {
-            return unsupported("borrowed selection joined residual ownership");
+            return unsupported(match loan {
+                LoanAccess::Shared => "borrowed selection joined residual ownership",
+                LoanAccess::Mutable => "mutable borrowed selection joined residual ownership",
+            });
         }
         let parameter = &continuation.structural_parameters[0];
+        let multiplicity_matches = match loan {
+            LoanAccess::Shared => parameter.multiplicity == StructuralMultiplicity::Unrestricted,
+            LoanAccess::Mutable => true,
+        };
         if parameter.place != continuation.place
-            || parameter.access != StructuralAccess::SharedBorrow
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || parameter.access != loan.structural_access()
+            || !multiplicity_matches
             || parameter.structural_type != self.structural_type
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
-            return unsupported("borrowed selection parameter changed its custody");
-        }
-        let edge = self.edge(
-            continuation.block,
-            self.values.iter().map(|value| value.id).collect(),
-            vec![argument],
-        )?;
-        self.finish(Terminator::Jump {
-            edge: edge.edge,
-            target: edge.target,
-            arguments: edge.arguments,
-            erased_arguments: Vec::new(),
-            erased_proof_arguments: Vec::new(),
-            structural_arguments: edge.structural_arguments,
-            trivial_affine_discards: Vec::new(),
-            residual_affine_discards: Vec::new(),
-        });
-        Ok(())
-    }
-
-    /// A mutably borrowed branch joins one mutable referent place at the
-    /// result parameter, mirroring `complete_borrowed`: the referent's owner
-    /// stays live under its loan, and the single structural parameter must be
-    /// the `MutableBorrow` result slot this edge's argument fills.
-    fn complete_mutable(
-        &mut self,
-        argument: StructuralArgument,
-        continuation: &ValueContinuation,
-    ) -> Result<(), LoweringError> {
-        if continuation.structural_parameters.len() != 1
-            || !continuation.pass_through.is_empty()
-            || !continuation.residuals.is_empty()
-        {
-            return unsupported("mutable borrowed selection joined residual ownership");
-        }
-        let parameter = &continuation.structural_parameters[0];
-        if parameter.place != continuation.place
-            || parameter.access != StructuralAccess::MutableBorrow
-            || parameter.structural_type != self.structural_type
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-        {
-            return unsupported("mutable borrowed selection parameter changed its custody");
+            return unsupported(match loan {
+                LoanAccess::Shared => "borrowed selection parameter changed its custody",
+                LoanAccess::Mutable => "mutable borrowed selection parameter changed its custody",
+            });
         }
         let edge = self.edge(
             continuation.block,
