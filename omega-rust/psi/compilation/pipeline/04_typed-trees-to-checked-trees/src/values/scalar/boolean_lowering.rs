@@ -9,7 +9,7 @@ use crate::values::scalar::expression_facts::{
 use crate::values::scalar::expression_plans::{ScalarLocal, lower_closed_integer_literal_guard};
 use crate::values::scalar::primitive_reference_read;
 use crate::values::scalar::scalar_lowering::{
-    land_contextual_integer_literal, lower_scalar_operands,
+    land_contextual_integer_literal, lower_scalar_expression, lower_scalar_operands,
 };
 use crate::values::scalar::structural_fields;
 use checked_trees::{
@@ -151,6 +151,25 @@ pub(crate) fn lower_boolean_expression(
                         symbol: local.symbol,
                     },
                 );
+            }
+            // A loan local names its captured place, not a formal slot: the
+            // scalar read already re-tags the leaf through the loan's referee
+            // (`&b as &bool` keeps the Boolean form the position expects).
+            if local.shared_loan_place.is_some() {
+                let (read, _) = lower_scalar_expression(
+                    program,
+                    operators,
+                    expression,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    exact_integer_casts,
+                )?;
+                let CheckedScalarExpression::Boolean(read) = read else {
+                    return None;
+                };
+                return Some(*read);
             }
             let position = parameters.len().checked_add(
                 locals[..local_position]

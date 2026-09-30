@@ -559,9 +559,12 @@ pub(crate) fn lower_scalar_expression(
             let local_position = local_position(program, expression, path, locals)?;
             let local = &locals[local_position];
             // A read through a shared `&` local is the captured place's own
-            // read at this program point: lower that place expression.
+            // read at this program point: lower that place expression. A
+            // recast loan re-reads it through its referee carrier (`&b as
+            // &bool` retags the Boolean leaf) instead of meeting the source
+            // place's declared carrier.
             if let Some(shared_loan_place) = local.shared_loan_place {
-                return lower_scalar_expression(
+                let (read, domain) = lower_scalar_expression(
                     program,
                     operators,
                     shared_loan_place,
@@ -570,7 +573,8 @@ pub(crate) fn lower_scalar_expression(
                     parameter_types,
                     locals,
                     exact_integer_casts,
-                );
+                )?;
+                return Some((view_place_read(read, local.primitive_type)?, domain));
             }
             if local.is_mutable {
                 return Some((
@@ -1179,6 +1183,19 @@ fn view_place_read(
         read,
         CheckedScalarExpression::StructuralParameterIndexedRead { .. }
     );
+    if let CheckedScalarExpression::RepresentationView {
+        primitive_type: view_type,
+        ..
+    } = &read
+    {
+        // A recast-spelled place already lowers to its referee carrier's
+        // view (`&b as &u8` mints the RepresentationView itself): naming the
+        // same carrier keeps that read rather than meeting a raw place the
+        // site walk cannot reach.
+        if *view_type == primitive_type {
+            return Some(read);
+        }
+    }
     if !indexed_element {
         place_read_site(&read)?;
     }

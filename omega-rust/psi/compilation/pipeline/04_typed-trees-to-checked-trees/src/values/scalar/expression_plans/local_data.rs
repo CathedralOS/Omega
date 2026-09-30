@@ -299,7 +299,7 @@ pub(crate) fn shared_loan_place(
         return None;
     }
     let primitive_type = program.primitive_type_reference(*referee)?;
-    if matches!(primitive_type, PrimitiveType::Addr | PrimitiveType::Bool) {
+    if matches!(primitive_type, PrimitiveType::Addr) {
         return None;
     }
     let mut initializer = local.initial_value;
