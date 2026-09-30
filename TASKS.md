@@ -96,6 +96,20 @@ build authority, and artifact verification remain separate obligations.
   writer (`pass/calls/local_array_direct_read_exit`, native exit 70 on macOS
   ARM64). A shared projection of a local (`&dash.engine`) lends into Unit and
   scalar-result callees (`pass/calls/local_projected_field_shared_argument_exit`).
+  A static entry forwards its lent `context: &mut Main` bare into one helper
+  after another, across projected stores and state edges
+  (`pass/calls/static_context_forwarded_twice_exit`), and the fully static
+  `vending_machine` exits **70** natively; its checked interpretation still
+  declines at `cannot read field sales_count of Unit` (the context
+  interpretation gap above). The half-migrated `game_of_life`, `stack_vm` and
+  `account_ledger` still carry a `&mut self` entry and implicit `i32` to
+  `i32 in Wrapping` stores that the static route rightly rejects. Rewritten as
+  static entries with helper results typed as their `Wrapping` uses,
+  `game_of_life` stops at stage 04 `signature`
+  (`free_structural_scalar_signature` refuses the range-qualified array field
+  `board: [i32 [0..=1]; 16]` that the receiver route admits), while `stack_vm`
+  and `account_ledger` check and stop at Terminal
+  `StructuralArgumentTypeMismatch { argument_index: 0 }`.
   Remaining structural-argument refusals: for Unit, scalar and record results
   alike, a fixed-index loan of a local's record-array element
   (`&mut board.tallies[1]`) stops at stage 05 `Unit structural result
@@ -172,9 +186,9 @@ the complete product bar; focused successes below do not establish that baseline
 
   - **Computed calls and state transfers.** A structural call supplied directly
     as a state argument, such as `vending_machine`'s
-    `report(main, Main::make_change(100, 55), 17)`, is an ordinary
-    `EstablishStructuralValue` performed on the selected edge; its pre-lending
-    `self` spelling exits **70**. **COMPOSITE-TRANSITION-ARGUMENT** owns the
+    `report(context, Main::make_change(100, 55), 17)`, is an ordinary
+    `EstablishStructuralValue` performed on the selected edge; the static
+    sample exits **70** natively. **COMPOSITE-TRANSITION-ARGUMENT** owns the
     composite sources that still decline; **VALUE-CALL-SUBEXPRESSION** covers
     the related operand position.
 
@@ -632,7 +646,6 @@ the complete product bar; focused successes below do not establish that baseline
   | `rendering/bouncing_particles` | At `e5cb2fc2dbf` on macOS ARM64 it stops at "selected ProgramEntry Binding field `Main::clock` requires a selected Fused provider for boundary `Clock`": its package-local `Clock` has no provider, and std `clock` has no leg that sleeps (the marshalled-syscall question in OWNER_QUESTIONS.md). A scratch copy with the clock field and `sleep` removed stops at the private `proof_search_candidate_work` provision (16384) with Unit call obligation 2^63 + 9 unproved; `collections/entity_list`, formerly in this row, meets its oracle. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
   | `systems/wire_protocol`, `probes/value_call_in_expr` | **RECORD-LITERAL-ARRAY-FIELD** and **VALUE-CALL-SUBEXPRESSION** own the respective operations. |
-  | `systems/vending_machine` | Its transition-argument calls and `Change` delivery are complete: the pre-lending `self` spelling retains **3** sales, extra remainder **20** and exit **70** natively and interpreted. The lent `main: &mut Main` spelling stops first at `state graph: provider attachment requirements`, where `terminal_unit/providers.rs` refuses a non-self parameter carrying the attachment's provider fields and recognizes only a `self.<field>` receiver; **STATIC-MACHINE-MIGRATION** owns that route. |
   | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
   | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the remaining native customers are `windowed_calculator` on **OPERATOR-BOUNDARY-CALLS** (`F64::from_i32`); `dungeon_crawler_cli` on the `&mut` projected-field parameter path in `terminal_unit/calls` (**STATE-LOCAL-VALUE-FRONTIER**); `game_of_life`: replace retired element-range annotations with `[i32; 16]` and an ordinary state-traversing predicate in `where`, per [collection invariants](wiki/spec/language/dependent_values.md#collection-invariants). Prove zero initialization, invariant restoration after updates, and indexed consequences through checked helper theorems; implement missing proof/lowering support and preserve the sample's value constraints and output oracle. No new quantifier syntax or range-only migration domain (also CANONICALIZE-SCALAR-RANGE-CONTRACTS). |
