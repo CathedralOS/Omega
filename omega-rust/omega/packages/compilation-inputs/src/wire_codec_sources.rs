@@ -1,0 +1,1473 @@
+//! Wire codec machine source synthesis.
+//!
+//! `Schema::encode` and `Schema::decode` reach stage 04 as intrinsics with no
+//! callee: the borrow layer sees an invalid target symbol and the receiver is
+//! the schema data, so no `BorrowCallFact`/`FlowCallFact` exists and the call
+//! omits at `statement sequence: call: flow call`. The downstream emit chain
+//! needs no changes once a callee exists — a machine attached to the schema
+//! resolves through the ordinary `attached_machine_state_symbol` arm — so the
+//! missing piece is exactly the callee. This module synthesizes one ordinary
+//! checked machine per actually-called (schema, operation) pair as source
+//! text, and `assemble` injects it through the same `load_injected_source`
+//! path the build prelude uses, so the generated bodies are admitted by the
+//! real pipeline rather than constructed in any representation by hand
+//! ("codecs are ordinary checked library machines whose generated bodies are
+//! Admitted").
+//!
+//! Generation is deliberately narrow and only ever narrows a red wall:
+//!
+//! * Only `data` declarations in product-scope sources whose non-erased
+//!   members are all `#N`-identified fields of a directly expressible shape
+//!   (u32/u64/i32/i64/bool scalars and fixed `[scalar; N]` arrays).
+//!   Borrowed-slice, text, `FixedVec`, nested-message, variant, retired, or
+//!   parameterized schemas decline — their calls keep meeting the intrinsic
+//!   wall instead of meeting generated walls.
+//! * Only operations with at least one statement call site whose argument
+//!   types render exactly (a borrow of a named `let` local or of a `self`
+//!   field). Every site for one (schema, operation) must agree on one
+//!   signature, or no machine is emitted — a wrong callee is worse than a
+//!   standing wall.
+//! * Never for uncalled pairs: an unused generated machine whose body meets
+//!   an open wall would newly fail a program that currently compiles.
+//!
+//! The emitted state chains mirror `wire_encode_body`/`wire_decode_body` in
+//! the checked interpreter byte-for-byte: current-era varint, per-field tag
+//! varint, scalar varint content with zigzag for signed members, packed
+//! length-in-bytes framing for fixed arrays, canonical-LEB128 read rules
+//! (truncation, eleventh group, tenth payload above one, overlong zero
+//! terminal), the sticky `bad` flag with every operation still running after
+//! a violation, and the final cursor/verdict write-throughs. One deliberate
+//! divergence: a repeated-body open whose length is out of range runs the
+//! element reads with `end = 0` rather than the interpreter's wrapped cursor
+//! sum — u64 `+` would trap where the interpreter only flags — and the close
+//! check flags `bad` either way.
+
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fmt::Write;
+
+use arena::Handle;
+use arena::HandleSpan;
+use source::DependencyScope;
+use source::SourceMap;
+use source::SourceOrigin;
+use source::SourceSpan;
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::ExpressionHandle;
+use syntax_trees::expression::ExpressionNode;
+use syntax_trees::item::DataMember;
+use syntax_trees::item::Item;
+use syntax_trees::item::Machine;
+use syntax_trees::statement::StatementNode;
+use syntax_trees::types::FixedArrayLength;
+use syntax_trees::types::TypeReferenceHandle;
+use syntax_trees::types::TypeReferenceNode;
+
+/// Scalar wire members the compact_binary codecs carry. `u8`/`u16`/`i8`/`i16`
+/// are excluded deliberately: the interpreter's byte-size-keyed table reads a
+/// one-byte field as boolean-shaped and refuses two-byte fields, so a
+/// generated machine for them could not hold the same semantics.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScalarKind {
+    U32,
+    U64,
+    I32,
+    I64,
+    Bool,
+}
+
+impl ScalarKind {
+    /// The u64 payload expression for encoding (`wire_scalar_varint_value`):
+    /// unsigned members load at their width; signed members zigzag at 64
+    /// bits. Bools emit 0/1 through a branch, not this expression.
+    fn encode_bits_expression(self, member: &str) -> String {
+        match self {
+            Self::U32 => format!("{member} as u64"),
+            Self::U64 => member.to_string(),
+            Self::I32 => {
+                format!("((({member} as i64) << 1) ^ (({member} as i64) >> 63)) as u64")
+            }
+            Self::I64 => format!("(({member} << 1) ^ ({member} >> 63)) as u64"),
+            Self::Bool => String::new(),
+        }
+    }
+
+    /// `wire_scalar_in_range`'s declared range as a guard on the raw payload
+    /// (unsigned kinds, bool) or on the unzigzagged wide value (i32). u64 and
+    /// i64 span their carriers, so no check is emitted.
+    fn decode_range_guard(self, operand: &str) -> Option<String> {
+        match self {
+            Self::U32 => Some(format!("{operand} <= 4294967295")),
+            Self::Bool => Some(format!("{operand} <= 1")),
+            Self::I32 => Some(format!(
+                "-2147483648 <= {operand} && {operand} <= 2147483647"
+            )),
+            Self::U64 | Self::I64 => None,
+        }
+    }
+
+    /// The carrier name a member's value-field type must peel to.
+    fn name(self) -> &'static str {
+        match self {
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::I32 => "i32",
+            Self::I64 => "i64",
+            Self::Bool => "bool",
+        }
+    }
+
+    /// The stored expression once in range: raw for u32/u64, the unzigzagged
+    /// wide value narrowed for i32/i64, `raw == 1` for bool.
+    fn decode_store_expression(self, operand: &str) -> String {
+        match self {
+            Self::U32 => format!("{operand} as u32"),
+            Self::I32 => format!("{operand} as i32"),
+            Self::Bool => format!("{operand} == 1"),
+            Self::U64 | Self::I64 => operand.to_string(),
+        }
+    }
+}
+
+#[derive(Clone)]
+enum MemberShape {
+    Scalar(ScalarKind),
+    FixedScalarArray { element: ScalarKind, length: usize },
+}
+
+struct WireMemberShape {
+    name: String,
+    number: u64,
+    shape: MemberShape,
+}
+
+/// Canonical unsigned LEB128 bytes (`wire_varint_bytes`).
+fn varint_bytes(mut value: u64) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    loop {
+        let mut byte = (value & 0x7f) as u8;
+        value >>= 7;
+        if value != 0 {
+            byte |= 0x80;
+        }
+        bytes.push(byte);
+        if value == 0 {
+            return bytes;
+        }
+    }
+}
+
+/// The assembled source text of every generated codec machine, or None when
+/// nothing call-directed is generatable this compile.
+pub(crate) fn generated_wire_codec_source(
+    syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
+) -> Option<String> {
+    let product_sources: HashSet<usize> = sources
+        .files()
+        .filter(|file| {
+            file.dependency_scope == DependencyScope::Product
+                && file.origin != SourceOrigin::Toolchain
+        })
+        .map(|file| file.source_id.0)
+        .collect();
+
+    // A file carrying a package or module item owns a scope the injected
+    // default-package source cannot name; its data is not a candidate.
+    let mut scoped_sources: HashSet<usize> = HashSet::new();
+    for handle in syntax_trees.roots.items.storage_slice() {
+        let path = match syntax_trees.tables.items.item(*handle) {
+            Item::Package(package) => package.path,
+            Item::Module(module) => module.path,
+            _ => continue,
+        };
+        if let Some(first) = syntax_trees
+            .tables
+            .items
+            .identifier_path_members(path)
+            .first()
+        {
+            scoped_sources.insert(first.source_span().source_id.0);
+        }
+    }
+
+    // Plain `data` declarations also serve call-site typing: `&sample` names a
+    // `let sample: BlobSample`, `&mut self.buffer` a field of `Main`.
+    let mut data_fields: HashMap<String, HashMap<String, TypeReferenceHandle>> = HashMap::new();
+    let mut schemas: Vec<(String, Vec<WireMemberShape>)> = Vec::new();
+    for handle in syntax_trees.roots.items.storage_slice() {
+        let Item::Data(data) = syntax_trees.tables.items.item(*handle) else {
+            continue;
+        };
+        let source_id = data.name.source_span().source_id.0;
+        if !product_sources.contains(&source_id) {
+            continue;
+        }
+        if let Some(fields) = collect_plain_fields(syntax_trees, data) {
+            data_fields.insert(data.name.as_str().to_string(), fields);
+        }
+        if scoped_sources.contains(&source_id) {
+            continue;
+        }
+        if let Some(members) = wire_schema_members(syntax_trees, data) {
+            schemas.push((data.name.as_str().to_string(), members));
+        }
+    }
+    if schemas.is_empty() {
+        return None;
+    }
+    let schema_names: HashSet<&str> = schemas.iter().map(|(name, _)| name.as_str()).collect();
+
+    let domains = collect_domains(syntax_trees, &product_sources);
+
+    let mut sites: HashMap<(String, &'static str), Vec<Vec<String>>> = HashMap::new();
+    for handle in syntax_trees.roots.items.storage_slice() {
+        let Item::Machine(machine) = syntax_trees.tables.items.item(*handle) else {
+            continue;
+        };
+        collect_call_sites(
+            syntax_trees,
+            machine,
+            &schema_names,
+            &data_fields,
+            &mut sites,
+        );
+    }
+
+    let mut emitted = String::new();
+    for (schema_name, members) in &schemas {
+        for operation in ["encode", "decode"] {
+            let Some(calls) = sites.get(&(schema_name.clone(), operation)) else {
+                continue;
+            };
+            let signature = calls[0].clone();
+            if calls.iter().any(|site| site != &signature) {
+                // Sites disagree on argument types: attaching one machine
+                // would bind a wrong callee somewhere. Decline entirely.
+                continue;
+            }
+            let expected = if operation == "encode" { 3 } else { 4 };
+            if signature.len() != expected {
+                continue;
+            }
+            if operation == "encode" {
+                emit_encode_machine(
+                    &mut emitted,
+                    syntax_trees,
+                    sources,
+                    &domains,
+                    &data_fields,
+                    schema_name,
+                    &signature,
+                    members,
+                );
+            } else {
+                emit_decode_machine(
+                    &mut emitted,
+                    syntax_trees,
+                    sources,
+                    &domains,
+                    &data_fields,
+                    schema_name,
+                    &signature,
+                    members,
+                );
+            }
+        }
+    }
+    if emitted.is_empty() {
+        None
+    } else {
+        Some(emitted)
+    }
+}
+
+/// `domain` declarations by name, each fact as `(carrier, source span)` so
+/// the `requires` text can be spliced verbatim over a decoded operand.
+fn collect_domains(
+    syntax_trees: &SyntaxTrees,
+    product_sources: &HashSet<usize>,
+) -> HashMap<String, Vec<(String, SourceSpan)>> {
+    let mut domains: HashMap<String, Vec<(String, SourceSpan)>> = HashMap::new();
+    for handle in syntax_trees.roots.items.storage_slice() {
+        let Item::Domain(domain) = syntax_trees.tables.items.item(*handle) else {
+            continue;
+        };
+        if !product_sources.contains(&domain.name.source_span().source_id.0) {
+            continue;
+        }
+        let TypeReferenceNode::Named(carrier) = syntax_trees
+            .tables
+            .type_references
+            .type_reference(domain.target_type)
+        else {
+            continue;
+        };
+        for index in 0..domain.facts.count() {
+            let fact = Handle::from_parts(
+                domain.facts.start().arena_index() + index,
+                domain.facts.start().generation(),
+            );
+            if let Some(span) = syntax_trees.tables.items.proof_fact_source_span(fact) {
+                domains
+                    .entry(domain.name.as_str().to_string())
+                    .or_default()
+                    .push((carrier.as_str().to_string(), span));
+            }
+        }
+    }
+    domains
+}
+
+/// A constraint list's store-side fact texts over the carrier `self`: domain
+/// `requires` spliced from authored source, range constraints rendered as
+/// bound conjunctions. `Named` and arithmetic-domain constraints carry no
+/// value predicate and admit nothing. A domain the generator cannot see
+/// (foreign or indexed) declines the whole operation — an unverifiable
+/// constraint cannot be checked into the generated machine.
+fn constraint_facts(
+    syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
+    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    constraints: &[syntax_trees::types::TypeConstraintNode],
+    base_name: &str,
+) -> Result<Vec<String>, ()> {
+    let mut facts = Vec::new();
+    for constraint in constraints {
+        match constraint {
+            syntax_trees::types::TypeConstraintNode::Domain(domain) => {
+                if !domain.arguments.is_empty() {
+                    return Err(());
+                }
+                let mut matched = false;
+                if let Some(carriers) = domains.get(domain.name.as_str()) {
+                    for (carrier, span) in carriers {
+                        if carrier == base_name {
+                            facts.push(sources.text_at(*span).to_string());
+                            matched = true;
+                        }
+                    }
+                }
+                if !matched {
+                    return Err(());
+                }
+            }
+            syntax_trees::types::TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive,
+            } => {
+                let low = sources.text_at(syntax_trees.tables.expressions.source_span(*minimum));
+                let high = sources.text_at(syntax_trees.tables.expressions.source_span(*maximum));
+                let bound = if *end_inclusive { "<=" } else { "<" };
+                facts.push(format!("({low}) <= self && self {bound} ({high})"));
+            }
+            syntax_trees::types::TypeConstraintNode::Named(_)
+            | syntax_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {}
+        }
+    }
+    Ok(facts)
+}
+
+/// The store-side fact texts a value field constrains the member with
+/// (`self` retained for later operand substitution). `Err` marks a field
+/// that does not carry the member's shape — emitting a machine over it
+/// would fail checking itself, so the caller declines the operation.
+/// `array_length` peels a fixed array first for element stores, matching
+/// the declared extent too.
+fn value_field_facts(
+    syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
+    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    field: Option<TypeReferenceHandle>,
+    expected: ScalarKind,
+    array_length: Option<usize>,
+) -> Result<Vec<String>, ()> {
+    let Some(mut handle) = field else {
+        return Err(());
+    };
+    if let Some(length) = array_length {
+        let TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(declared),
+        } = syntax_trees.tables.type_references.type_reference(handle)
+        else {
+            return Err(());
+        };
+        if *declared != length {
+            return Err(());
+        }
+        handle = *element_type;
+    }
+    let mut facts = Vec::new();
+    if let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = syntax_trees.tables.type_references.type_reference(handle)
+    {
+        facts.extend(constraint_facts(
+            syntax_trees,
+            sources,
+            domains,
+            syntax_trees
+                .tables
+                .type_references
+                .constraints(*constraints),
+            expected.name(),
+        )?);
+        handle = *base_type;
+    }
+    match syntax_trees.tables.type_references.type_reference(handle) {
+        TypeReferenceNode::Named(name) if name.as_str() == expected.name() => Ok(facts),
+        _ => Err(()),
+    }
+}
+
+/// The authored `self` occurrences in a fact text renamed to `operand`.
+fn substitute_self(text: &str, operand: &str) -> String {
+    let mut substituted = String::with_capacity(text.len() + operand.len());
+    let bytes = text.as_bytes();
+    let identifier = |byte: u8| byte.is_ascii_alphanumeric() || byte == b'_';
+    let mut index = 0;
+    while index < bytes.len() {
+        if text[index..].starts_with("self")
+            && (index + 4 == bytes.len() || !identifier(bytes[index + 4]))
+            && (index == 0 || !identifier(bytes[index - 1]))
+        {
+            substituted.push_str(operand);
+            index += 4;
+        } else {
+            substituted.push_str(&text[index..index + 1]);
+            index += 1;
+        }
+    }
+    substituted
+}
+
+/// The field-name -> declared-type map for a `data` declaration (used to read
+/// `self` field types at call sites). Declarations carrying case variants are
+/// declined — `self.field` typing needs the plain record shape.
+fn collect_plain_fields(
+    syntax_trees: &SyntaxTrees,
+    data: &syntax_trees::item::DataDefinition,
+) -> Option<HashMap<String, TypeReferenceHandle>> {
+    let mut fields = HashMap::new();
+    for member in syntax_trees.tables.items.data_members(data.members) {
+        let DataMember::Field(field) = member else {
+            return None;
+        };
+        fields.insert(field.name.as_str().to_string(), field.type_reference);
+    }
+    Some(fields)
+}
+
+/// A wire schema is a plain data declaration whose members all carry `#N`
+/// identities and classify to supported wire shapes. Anything richer —
+/// variants, retired members, parameters, `where` facts, declared properties,
+/// non-scalar field types — declines and keeps meeting the intrinsic wall.
+fn wire_schema_members(
+    syntax_trees: &SyntaxTrees,
+    data: &syntax_trees::item::DataDefinition,
+) -> Option<Vec<WireMemberShape>> {
+    if !data.lifetime_parameters.is_empty()
+        || !data.type_parameters.is_empty()
+        || !data.where_facts.is_empty()
+        || data.quotient.is_some()
+        || data.generic_instance.is_some()
+        || data.properties != Default::default()
+    {
+        return None;
+    }
+    let mut members = Vec::new();
+    for member in syntax_trees.tables.items.data_members(data.members) {
+        let DataMember::Field(field) = member else {
+            return None;
+        };
+        if field.relevance.is_erased() {
+            continue;
+        }
+        let number = field.identity?;
+        let shape = member_shape(syntax_trees, field.type_reference)?;
+        members.push(WireMemberShape {
+            name: field.name.as_str().to_string(),
+            number,
+            shape,
+        });
+    }
+    if members.is_empty() {
+        return None;
+    }
+    members.sort_by_key(|member| member.number);
+    Some(members)
+}
+
+fn member_shape(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<MemberShape> {
+    match syntax_trees.tables.type_references.type_reference(handle) {
+        TypeReferenceNode::Named(name) => scalar_kind(name.as_str()).map(MemberShape::Scalar),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } if *length <= 64 => scalar_kind_of_type(syntax_trees, *element_type).map(|element| {
+            MemberShape::FixedScalarArray {
+                element,
+                length: *length,
+            }
+        }),
+        _ => None,
+    }
+}
+
+fn scalar_kind_of_type(
+    syntax_trees: &SyntaxTrees,
+    handle: TypeReferenceHandle,
+) -> Option<ScalarKind> {
+    match syntax_trees.tables.type_references.type_reference(handle) {
+        TypeReferenceNode::Named(name) => scalar_kind(name.as_str()),
+        _ => None,
+    }
+}
+
+fn scalar_kind(name: &str) -> Option<ScalarKind> {
+    match name {
+        "u32" => Some(ScalarKind::U32),
+        "u64" => Some(ScalarKind::U64),
+        "i32" => Some(ScalarKind::I32),
+        "i64" => Some(ScalarKind::I64),
+        "bool" => Some(ScalarKind::Bool),
+        _ => None,
+    }
+}
+
+/// Walk one machine's statements for `S::encode`/`S::decode` calls and render
+/// each argument's parameter type. Statement calls only — the corpus form is
+/// a call statement; an expression-lane codec call keeps meeting the wall.
+fn collect_call_sites(
+    syntax_trees: &SyntaxTrees,
+    machine: &Machine,
+    schema_names: &HashSet<&str>,
+    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    sites: &mut HashMap<(String, &'static str), Vec<Vec<String>>>,
+) {
+    for state_handle in syntax_trees.tables.items.state_handles(machine.states) {
+        let state = syntax_trees.tables.items.state(*state_handle);
+        for statement_handle in syntax_trees.tables.items.statements(state.statements) {
+            let StatementNode::Call(call) =
+                syntax_trees.tables.statements.statement(*statement_handle)
+            else {
+                continue;
+            };
+            let receiver = syntax_trees
+                .tables
+                .statements
+                .identifier_path_members(call.receiver);
+            if receiver.len() != 1 || !call.target_is_static {
+                continue;
+            }
+            let schema_name = receiver[0].as_str();
+            if !schema_names.contains(schema_name) {
+                continue;
+            }
+            let operation = match call.target.as_str() {
+                "encode" => "encode",
+                "decode" => "decode",
+                _ => continue,
+            };
+            let Some(mut arguments) =
+                render_argument_types(syntax_trees, machine, data_fields, call.arguments)
+            else {
+                continue;
+            };
+            // The codec's buffer position accepts any fixed byte array: the
+            // intrinsic contract validates `&[u8; N]` with the decoder
+            // bounds-checking reads at runtime, so the generated signature
+            // declares the view every sized array loans to rather than one
+            // call site's length.
+            if arguments.len() > 1
+                && let Some(view) = buffer_view(&arguments[1])
+            {
+                arguments[1] = view;
+            }
+            sites
+                .entry((schema_name.to_string(), operation))
+                .or_default()
+                .push(arguments);
+        }
+    }
+}
+
+/// Render each call argument as the parameter type it must bind: a borrow of a
+/// named local (`&sample` -> `&BlobSample` via its `let` type) or of a `self`
+/// field (`&mut self.buffer` -> `&mut [u8; 64]` via the attached data's
+/// field). Anything else declines so no machine binds a guessed signature.
+fn render_argument_types(
+    syntax_trees: &SyntaxTrees,
+    machine: &Machine,
+    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    arguments: HandleSpan<ExpressionHandle>,
+) -> Option<Vec<String>> {
+    let mut rendered = Vec::new();
+    for argument in syntax_trees.tables.statements.expression_handles(arguments) {
+        let ExpressionNode::Borrow(borrow) = syntax_trees.tables.expressions.expression(*argument)
+        else {
+            return None;
+        };
+        let access = if borrow.access.is_exclusive() {
+            "&mut "
+        } else {
+            "&"
+        };
+        let target = syntax_trees.tables.expressions.expression(borrow.target);
+        let base_type = match target {
+            ExpressionNode::Name(path) => {
+                let members = syntax_trees
+                    .tables
+                    .expressions
+                    .identifier_path_members(*path);
+                if members.len() != 1 {
+                    return None;
+                }
+                local_type(syntax_trees, machine, members[0].as_str())?
+            }
+            ExpressionNode::Member(member) => {
+                let is_self_receiver = matches!(
+                    syntax_trees.tables.expressions.expression(member.receiver),
+                    ExpressionNode::SelfValue
+                );
+                if !is_self_receiver {
+                    return None;
+                }
+                let attached = machine.attached_data.as_ref()?;
+                let fields = data_fields.get(attached.as_str())?;
+                *fields.get(member.member.as_str())?
+            }
+            _ => return None,
+        };
+        rendered.push(format!("{access}{}", type_text(syntax_trees, base_type)?));
+    }
+    Some(rendered)
+}
+
+/// `&[u8; N]`/`&mut [u8; N]` -> `&[u8]`/`&mut [u8]`: the buffer parameter's
+/// canonical view form. Anything not a fixed byte-array borrow declines so a
+/// mis-positioned argument keeps its rendered type and the mismatch surfaces.
+fn buffer_view(rendered: &str) -> Option<String> {
+    for (prefix, access) in [("&mut [u8; ", "&mut [u8]"), ("&[u8; ", "&[u8]")] {
+        if let Some(rest) = rendered.strip_prefix(prefix)
+            && rest.ends_with(']')
+            && rest[..rest.len() - 1].chars().all(|c| c.is_ascii_digit())
+        {
+            return Some(access.to_string());
+        }
+    }
+    None
+}
+
+/// The declared type of a `let`/`let mut` local anywhere in the machine —
+/// codec arguments are conventionally `let`-bound before the call.
+fn local_type(
+    syntax_trees: &SyntaxTrees,
+    machine: &Machine,
+    name: &str,
+) -> Option<TypeReferenceHandle> {
+    for state_handle in syntax_trees.tables.items.state_handles(machine.states) {
+        let state = syntax_trees.tables.items.state(*state_handle);
+        for statement_handle in syntax_trees.tables.items.statements(state.statements) {
+            let StatementNode::LocalData(local) =
+                syntax_trees.tables.statements.statement(*statement_handle)
+            else {
+                continue;
+            };
+            if local.name.as_str() == name {
+                return Some(local.type_reference);
+            }
+        }
+    }
+    None
+}
+
+fn type_text(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<String> {
+    match syntax_trees.tables.type_references.type_reference(handle) {
+        TypeReferenceNode::Named(name) => Some(name.as_str().to_string()),
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: FixedArrayLength::Literal(length),
+        } => Some(format!(
+            "[{}; {}]",
+            type_text(syntax_trees, *element_type)?,
+            length
+        )),
+        TypeReferenceNode::Slice { element_type } => {
+            Some(format!("[{}]", type_text(syntax_trees, *element_type)?))
+        }
+        TypeReferenceNode::Reference {
+            referee, access, ..
+        } => {
+            let access = if access.is_exclusive() { "&mut " } else { "&" };
+            Some(format!("{access}{}", type_text(syntax_trees, *referee)?))
+        }
+        _ => None,
+    }
+}
+
+// ---------- emission ----------
+//
+// State-label discipline: each emission helper writes `state` blocks whose
+// entry label is `name` and whose terminal transition targets `next`. Helper
+// internals hang sub-states off `name` (`{name}_put`, ...). `requires` on a
+// byte-touching state names the guard that proves the index, and its only
+// predecessor is the guarded arm.
+
+struct MachineEmitter<'a> {
+    text: &'a mut String,
+    /// Shared parameter declarations (`value: &V, out: &mut B, written: &mut
+    /// u64, at: u64` for encode; the decode list adds `bad: u64`).
+    declarations: String,
+    /// Shared argument list (`(value, out, written, at)`).
+    call: String,
+    /// The byte-source length expression bounds are proved against.
+    limit: &'static str,
+}
+
+impl MachineEmitter<'_> {
+    /// `state name(declarations, extras) requires ... { body }`
+    fn state(&mut self, name: &str, extras: &str, requires: &str, body: &str) {
+        let extras = if extras.is_empty() {
+            String::new()
+        } else {
+            format!(", {extras}")
+        };
+        let requires = if requires.is_empty() {
+            String::new()
+        } else {
+            format!(" requires {requires}")
+        };
+        let _ = writeln!(
+            self.text,
+            "    state {name}({}{}){requires} {{\n{body}    }}\n",
+            self.declarations, extras
+        );
+    }
+
+    /// `state name(declarations, extras) { transition { _ -> next(inner,
+    /// extra_args) } }` — a named stage boundary hop. `extra_args` joins the
+    /// shared arguments inside the parens.
+    fn hop(&mut self, name: &str, extras: &str, next: &str, extra_args: &str) {
+        let inner = self.call.trim_start_matches('(').trim_end_matches(')');
+        self.state(
+            name,
+            extras,
+            "",
+            &format!("        transition {{ _ -> {next}({inner}{extra_args}) }}\n"),
+        );
+    }
+
+    // ----- encode helpers (thread: value, out, written, at) -----
+
+    /// Guarded literal-byte store: `transition at < out.len { true -> put _
+    /// -> overflow }`; `put` writes `out[at] = byte` behind the proved guard
+    /// and continues with `at + 1`.
+    fn enc_byte(&mut self, name: &str, byte: u8, next: &str) {
+        let put = format!("{name}_put");
+        self.state(
+            name,
+            "",
+            "",
+            &format!(
+                "        transition at < {} {{\n            true -> {put}{}\n            _ -> encode_overflow{}\n        }}\n",
+                self.limit, self.call, self.call
+            ),
+        );
+        self.state(
+            &put,
+            "",
+            &format!("at < {}", self.limit),
+            &format!(
+                "        out[at] = {byte};\n        transition {{ _ -> {next}(value, out, written, at + 1) }}\n"
+            ),
+        );
+    }
+
+    /// Canonical LEB128 emission of u64 `bits`, entering with `bits` already a
+    /// state parameter (`name` is the loop state).
+    fn enc_varint_loop(&mut self, name: &str, next: &str) {
+        let last = format!("{name}_last");
+        let put = format!("{name}_put");
+        let more = format!("{name}_more");
+        let put_more = format!("{name}_put_more");
+        self.state(
+            name,
+            "bits: u64",
+            "",
+            &format!(
+                "        transition bits < 128 {{\n            true -> {last}(value, out, written, at, bits)\n            _ -> {more}(value, out, written, at, bits)\n        }}\n"
+            ),
+        );
+        self.state(
+            &last,
+            "bits: u64",
+            "",
+            &format!(
+                "        let byte: u8 = bits as u8;\n        transition at < {} {{\n            true -> {put}(value, out, written, at, byte)\n            _ -> encode_overflow{}\n        }}\n",
+                self.limit, self.call
+            ),
+        );
+        self.state(
+            &put,
+            "byte: u8",
+            &format!("at < {}", self.limit),
+            &format!(
+                "        out[at] = byte;\n        transition {{ _ -> {next}(value, out, written, at + 1) }}\n"
+            ),
+        );
+        self.state(
+            &more,
+            "bits: u64",
+            "",
+            &format!(
+                "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} {{\n            true -> {put_more}(value, out, written, at, byte, bits)\n            _ -> encode_overflow{}\n        }}\n",
+                self.limit, self.call
+            ),
+        );
+        self.state(
+            &put_more,
+            "byte: u8, bits: u64",
+            &format!("at < {}", self.limit),
+            &format!(
+                "        out[at] = byte;\n        transition {{ _ -> {name}(value, out, written, at + 1, bits >> 7) }}\n"
+            ),
+        );
+    }
+
+    /// `let bits: u64 = expr;` then the varint loop.
+    fn enc_varint(&mut self, name: &str, expression: &str, next: &str) {
+        let loop_state = format!("{name}_loop");
+        self.state(
+            name,
+            "",
+            "",
+            &format!(
+                "        let bits: u64 = {expression};\n        transition {{ _ -> {loop_state}(value, out, written, at, bits) }}\n"
+            ),
+        );
+        self.enc_varint_loop(&loop_state, next);
+    }
+
+    /// Varint byte-length measure of `bits`, accumulating into `acc` and
+    /// continuing at `next` (which takes `acc: u64 in Wrapping`). The counter
+    /// rides the `Wrapping` domain: it is a byte extent bounded by buffer
+    /// extent in every reachable program, but `acc + 1` is an overflow-proof
+    /// obligation the checker cannot discharge inductively, so the domain
+    /// names its totality instead of a bound.
+    fn enc_measure(&mut self, name: &str, expression: &str, next: &str) {
+        let loop_state = format!("{name}_loop");
+        self.state(
+            name,
+            "acc: u64 in Wrapping",
+            "",
+            &format!(
+                "        let bits: u64 = {expression};\n        transition {{ _ -> {loop_state}(value, out, written, at, acc, bits) }}\n"
+            ),
+        );
+        self.state(
+            &loop_state,
+            "acc: u64 in Wrapping, bits: u64",
+            "",
+            &format!(
+                "        transition bits < 128 {{\n            true -> {next}(value, out, written, at, acc + 1)\n            _ -> {loop_state}(value, out, written, at, acc + 1, bits >> 7)\n        }}\n"
+            ),
+        );
+    }
+
+    // ----- decode helpers (thread: value, buffer, read, verdict, at, bad) -----
+
+    /// `expect_byte`: `buffer[at]` must equal `byte`. OOB flags `bad` without
+    /// consuming; a mismatch consumes and flags. `carry`/`carry_arg` thread
+    /// extra state (the repeated-body `end`) through every state.
+    fn dec_byte(&mut self, name: &str, byte: u8, next: &str, carry: &str, carry_arg: &str) {
+        let check = format!("{name}_check");
+        let oob = format!("{name}_oob");
+        self.state(
+            name,
+            carry,
+            "",
+            &format!(
+                "        transition at < {} {{\n            true -> {check}{}{carry_arg}\n            _ -> {oob}{}{carry_arg}\n        }}\n",
+                self.limit, self.call, self.call
+            ),
+        );
+        self.state(
+            &check,
+            carry,
+            &format!("at < {}", self.limit),
+            &format!(
+                "        transition buffer[at] == {byte} {{\n            true -> {next}(value, buffer, read, verdict, at + 1, bad{carry_arg})\n            _ -> {next}(value, buffer, read, verdict, at + 1, bad + 1{carry_arg})\n        }}\n"
+            ),
+        );
+        self.state(
+            &oob,
+            carry,
+            "",
+            &format!(
+                "        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}) }}\n"
+            ),
+        );
+    }
+
+    /// Canonical LEB128 read mirroring the interpreter loop: the `shift > 63`
+    /// guard runs before the byte read (no consumption), OOB truncation is
+    /// not consumed, and a consumed byte accumulates `payload << shift` with
+    /// the tenth-payload and overlong-terminal checks folding into `bad`.
+    /// `name` is the entry (it only ever receives `carry` extras); `next`
+    /// receives `carry` then the accumulated `raw`.
+    fn dec_varint(&mut self, name: &str, next: &str, carry: &str, carry_arg: &str) {
+        let start = format!("{name}_start");
+        let read = format!("{name}_read");
+        let byte = format!("{name}_byte");
+        let terminal = format!("{name}_terminal");
+        let terminal_check = format!("{name}_terminal_check");
+        let continue_state = format!("{name}_continue");
+        let acc_shift = join_extras("acc: u64 in Wrapping, shift: u64 in Wrapping", carry, "");
+        let full = join_extras(
+            "acc: u64 in Wrapping, shift: u64 in Wrapping",
+            carry,
+            ", payload: u64 in Wrapping",
+        );
+        self.state(
+            name,
+            carry,
+            "",
+            &format!(
+                "        transition {{ _ -> {start}(value, buffer, read, verdict, at, bad, 0 as u64 in Wrapping, 0 as u64 in Wrapping{carry_arg}) }}\n"
+            ),
+        );
+        self.state(
+            &start,
+            &acc_shift,
+            "",
+            &format!(
+                "        transition shift > 63 {{\n            true -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}, acc as u64)\n            _ -> {read}(value, buffer, read, verdict, at, bad, acc, shift{carry_arg})\n        }}\n"
+            ),
+        );
+        self.state(
+            &read,
+            &acc_shift,
+            "",
+            &format!(
+                "        transition at < {} {{\n            true -> {byte}(value, buffer, read, verdict, at, bad, acc, shift{carry_arg})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}, acc as u64)\n        }}\n",
+                self.limit
+            ),
+        );
+        self.state(
+            &byte,
+            &acc_shift,
+            &format!("at < {}", self.limit),
+            &format!(
+                "        let byte: u8 = buffer[at];\n        let payload: u64 in Wrapping = (byte & 127) as u64 in Wrapping;\n        let acc2: u64 in Wrapping = acc | (payload << shift);\n        transition byte < 128 {{\n            true -> {terminal}(value, buffer, read, verdict, at + 1, bad, acc2, shift{carry_arg}, payload)\n            _ -> {continue_state}(value, buffer, read, verdict, at + 1, bad, acc2, shift{carry_arg}, payload)\n        }}\n"
+            ),
+        );
+        self.state(
+            &terminal,
+            &full,
+            "",
+            &format!(
+                "        transition payload == 0 && shift > 0 {{\n            true -> {terminal_check}(value, buffer, read, verdict, at, bad + 1, acc, shift{carry_arg}, payload)\n            _ -> {terminal_check}(value, buffer, read, verdict, at, bad, acc, shift{carry_arg}, payload)\n        }}\n"
+            ),
+        );
+        self.state(
+            &terminal_check,
+            &full,
+            "",
+            &format!(
+                "        transition shift == 63 && payload > 1 {{\n            true -> {next}(value, buffer, read, verdict, at, bad + 1{carry_arg}, acc as u64)\n            _ -> {next}(value, buffer, read, verdict, at, bad{carry_arg}, acc as u64)\n        }}\n"
+            ),
+        );
+        self.state(
+            &continue_state,
+            &full,
+            "",
+            &format!(
+                "        transition shift == 63 && payload > 1 {{\n            true -> {start}(value, buffer, read, verdict, at, bad + 1, acc, shift + 7{carry_arg})\n            _ -> {start}(value, buffer, read, verdict, at, bad, acc, shift + 7{carry_arg})\n        }}\n"
+            ),
+        );
+    }
+
+    /// Scalar store behind the declared range guard and any value-field
+    /// constraint facts; a failure flags `bad` and skips the store, matching
+    /// `wire_scalar_in_range`. Signed members unzigzag to `wide: i64` before
+    /// the guard, which doubles as the store state's `requires` so the
+    /// bounded assignment discharges.
+    fn dec_scalar_store(
+        &mut self,
+        name: &str,
+        field: &str,
+        kind: ScalarKind,
+        next: &str,
+        facts: &[String],
+    ) {
+        let store = format!("{name}_write");
+        let operand = if kind.decodes_signed() { "wide" } else { "raw" };
+        let mut guard: Vec<String> = kind.decode_range_guard(operand).into_iter().collect();
+        guard.extend(facts.iter().map(|fact| substitute_self(fact, operand)));
+        let requires = guard.join(" && ");
+        let entry = if guard.is_empty() {
+            format!(
+                "        transition {{ _ -> {store}(value, buffer, read, verdict, at, bad, {operand}) }}\n"
+            )
+        } else {
+            format!(
+                "        transition {requires} {{\n            true -> {store}(value, buffer, read, verdict, at, bad, {operand})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1)\n        }}\n"
+            )
+        };
+        match kind {
+            ScalarKind::I32 | ScalarKind::I64 => {
+                self.state(
+                    name,
+                    "raw: u64",
+                    "",
+                    &format!(
+                        "        let half: u64 = raw >> 1;\n        let mask: i64 = 0 - ((raw & 1) as i64);\n        let wide: i64 = ((half as i64 in Wrapping) ^ (mask as i64 in Wrapping)) as i64;\n{entry}"
+                    ),
+                );
+                self.state(
+                    &store,
+                    "wide: i64",
+                    &requires,
+                    &format!(
+                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad) }}\n",
+                        kind.decode_store_expression("wide")
+                    ),
+                );
+            }
+            ScalarKind::U32 | ScalarKind::Bool | ScalarKind::U64 => {
+                self.state(name, "raw: u64", "", &entry);
+                self.state(
+                    &store,
+                    "raw: u64",
+                    &requires,
+                    &format!(
+                        "        value.{field} = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad) }}\n",
+                        kind.decode_store_expression("raw")
+                    ),
+                );
+            }
+        }
+    }
+
+    /// Element store for a packed fixed array: `value.f[index] = decoded`
+    /// behind the element's range guard, threading `end` before `raw` (the
+    /// varint continuation order).
+    fn dec_element_store(
+        &mut self,
+        name: &str,
+        field: &str,
+        index: usize,
+        kind: ScalarKind,
+        next: &str,
+        facts: &[String],
+    ) {
+        let store = format!("{name}_write");
+        let entry_extras = "end: u64, raw: u64";
+        let operand = if kind.decodes_signed() { "wide" } else { "raw" };
+        let mut guard: Vec<String> = kind.decode_range_guard(operand).into_iter().collect();
+        guard.extend(facts.iter().map(|fact| substitute_self(fact, operand)));
+        let requires = guard.join(" && ");
+        let entry = if guard.is_empty() {
+            format!(
+                "        transition {{ _ -> {store}(value, buffer, read, verdict, at, bad, end, {operand}) }}\n"
+            )
+        } else {
+            format!(
+                "        transition {requires} {{\n            true -> {store}(value, buffer, read, verdict, at, bad, end, {operand})\n            _ -> {next}(value, buffer, read, verdict, at, bad + 1, end)\n        }}\n"
+            )
+        };
+        if kind.decodes_signed() {
+            self.state(
+                name,
+                entry_extras,
+                "",
+                &format!(
+                    "        let half: u64 = raw >> 1;\n        let mask: i64 = 0 - ((raw & 1) as i64);\n        let wide: i64 = ((half as i64 in Wrapping) ^ (mask as i64 in Wrapping)) as i64;\n{entry}"
+                ),
+            );
+            self.state(
+                &store,
+                &format!("end: u64, {operand}: i64"),
+                &requires,
+                &format!(
+                    "        value.{field}[{index}] = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad, end) }}\n",
+                    kind.decode_store_expression("wide")
+                ),
+            );
+        } else {
+            self.state(name, entry_extras, "", &entry);
+            self.state(
+                &store,
+                "end: u64, raw: u64",
+                &requires,
+                &format!(
+                    "        value.{field}[{index}] = {};\n        transition {{ _ -> {next}(value, buffer, read, verdict, at, bad, end) }}\n",
+                    kind.decode_store_expression("raw")
+                ),
+            );
+        }
+    }
+}
+
+impl ScalarKind {
+    fn decodes_signed(self) -> bool {
+        matches!(self, Self::I32 | Self::I64)
+    }
+}
+
+/// Join extra parameter declarations: `base` then `carry` then `more`.
+fn join_extras(base: &str, carry: &str, more: &str) -> String {
+    let mut joined = base.to_string();
+    if !carry.is_empty() {
+        joined.push_str(", ");
+        joined.push_str(carry);
+    }
+    joined.push_str(more);
+    joined
+}
+
+/// The value type named by a signature's first argument (`&V`/`&mut V`).
+fn signature_value_type(signature: &[String]) -> &str {
+    signature[0]
+        .trim_start_matches('&')
+        .trim_start()
+        .trim_start_matches("mut")
+        .trim_start()
+}
+
+/// Pre-pass over members: the value type's declared field must carry the
+/// member's scalar (or element scalar) shape, and the domain/range facts it
+/// constrains are collected verbatim over `self` for the store guard.
+/// `None` — mismatched or unverifiable — declines the operation before any
+/// machine text is emitted, keeping the call on the intrinsic wall.
+fn member_facts(
+    syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
+    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    value_type: &str,
+    members: &[WireMemberShape],
+) -> Option<Vec<Vec<String>>> {
+    let value_fields = data_fields.get(value_type)?;
+    let mut all = Vec::with_capacity(members.len());
+    for member in members {
+        let (expected, array_length) = match &member.shape {
+            MemberShape::Scalar(kind) => (*kind, None),
+            MemberShape::FixedScalarArray { element, length } => (*element, Some(*length)),
+        };
+        let facts = value_field_facts(
+            syntax_trees,
+            sources,
+            domains,
+            value_fields.get(member.name.as_str()).copied(),
+            expected,
+            array_length,
+        )
+        .ok()?;
+        if expected == ScalarKind::Bool && !facts.is_empty() {
+            return None;
+        }
+        all.push(facts);
+    }
+    Some(all)
+}
+
+/// `machine S::encode(value: &V, out: &mut B, written: &mut u64)`: the era
+/// varint, then per field (number order) a tag varint and the member content,
+/// ending by publishing the cursor through `written`.
+fn emit_encode_machine(
+    text: &mut String,
+    syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
+    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    schema_name: &str,
+    signature: &[String],
+    members: &[WireMemberShape],
+) {
+    if member_facts(
+        syntax_trees,
+        sources,
+        domains,
+        data_fields,
+        signature_value_type(signature),
+        members,
+    )
+    .is_none()
+    {
+        return;
+    }
+    let mut emitter = MachineEmitter {
+        text,
+        declarations: format!(
+            "value: {}, out: {}, written: {}, at: u64",
+            signature[0], signature[1], signature[2]
+        ),
+        call: "(value, out, written, at)".to_string(),
+        limit: "out.len",
+    };
+    let _ = writeln!(
+        emitter.text,
+        "machine {schema_name}::encode(value: {}, out: {}, written: {}) {{\n    transition {{ _ -> era_0(value, out, written, 0) }}\n",
+        signature[0], signature[1], signature[2]
+    );
+
+    // Stage labels in wire order: era, then per field tag+content, then
+    // finish. Each emission names its continuation.
+    let mut stages: Vec<String> = Vec::new();
+    for member in members {
+        stages.push(format!("field_{}_tag_0", member.number));
+        stages.push(format!("field_{}_content", member.number));
+    }
+    let era_next = stages
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "encode_finish".to_string());
+    let era_bytes = varint_bytes(0);
+    for (index, byte) in era_bytes.iter().enumerate() {
+        let name = format!("era_{index}");
+        let next = if index + 1 == era_bytes.len() {
+            era_next.clone()
+        } else {
+            format!("era_{}", index + 1)
+        };
+        emitter.enc_byte(&name, *byte, &next);
+    }
+
+    for (member_index, member) in members.iter().enumerate() {
+        let content_label = format!("field_{}_content", member.number);
+        let after = if member_index + 1 == members.len() {
+            "encode_finish".to_string()
+        } else {
+            format!("field_{}_tag_0", members[member_index + 1].number)
+        };
+        let tag_bytes = varint_bytes(member.number);
+        for (index, byte) in tag_bytes.iter().enumerate() {
+            let name = format!("field_{}_tag_{index}", member.number);
+            let next = if index + 1 == tag_bytes.len() {
+                content_label.clone()
+            } else {
+                format!("field_{}_tag_{}", member.number, index + 1)
+            };
+            emitter.enc_byte(&name, *byte, &next);
+        }
+        match &member.shape {
+            MemberShape::Scalar(ScalarKind::Bool) => {
+                emitter.state(
+                    &content_label,
+                    "",
+                    "",
+                    &format!(
+                        "        transition value.{} {{\n            true -> {}_one{}\n            _ -> {}_zero{}\n        }}\n",
+                        member.name, content_label, emitter.call, content_label, emitter.call
+                    ),
+                );
+                emitter.enc_byte(&format!("{content_label}_one"), 1, &after);
+                emitter.enc_byte(&format!("{content_label}_zero"), 0, &after);
+            }
+            MemberShape::Scalar(kind) => {
+                let bits = kind.encode_bits_expression(&format!("value.{}", member.name));
+                emitter.enc_varint(&content_label, &bits, &after);
+            }
+            MemberShape::FixedScalarArray { element, length } => {
+                // Packed elements carry a byte-length prefix: measure each
+                // element's varint extent, emit that total, then the elements.
+                emitter.hop(
+                    &content_label,
+                    "",
+                    &format!("field_{}_measure_0", member.number),
+                    ", 0",
+                );
+                for index in 0..*length {
+                    let measure_next = if index + 1 == *length {
+                        format!("field_{}_length", member.number)
+                    } else {
+                        format!("field_{}_measure_{}", member.number, index + 1)
+                    };
+                    emitter.enc_measure(
+                        &format!("field_{}_measure_{index}", member.number),
+                        &element.encode_bits_expression(&format!("value.{}[{index}]", member.name)),
+                        &measure_next,
+                    );
+                }
+                emitter.state(
+                    &format!("field_{}_length", member.number),
+                    "acc: u64 in Wrapping",
+                    "",
+                    &format!(
+                        "        let bits: u64 = acc as u64;\n        transition {{ _ -> field_{}_length_loop(value, out, written, at, bits) }}\n",
+                        member.number
+                    ),
+                );
+                let element_zero = format!("field_{}_element_0", member.number);
+                let length_next: &str = if *length == 0 { &after } else { &element_zero };
+                emitter
+                    .enc_varint_loop(&format!("field_{}_length_loop", member.number), length_next);
+                for index in 0..*length {
+                    let next = if index + 1 == *length {
+                        after.clone()
+                    } else {
+                        format!("field_{}_element_{}", member.number, index + 1)
+                    };
+                    emitter.enc_varint(
+                        &format!("field_{}_element_{index}", member.number),
+                        &element.encode_bits_expression(&format!("value.{}[{index}]", member.name)),
+                        &next,
+                    );
+                }
+            }
+        }
+    }
+    let declarations = emitter.declarations.clone();
+    let _ = writeln!(
+        emitter.text,
+        "    state encode_finish({declarations}) {{\n        written = at;\n    }}\n    state encode_overflow({declarations}) {{\n        written = at;\n    }}\n}}\n"
+    );
+}
+
+/// `machine S::decode(value: &mut V, buffer: &B, read: &mut u64, verdict:
+/// &mut Verdict)`: expect the era bytes, then per field the tag bytes and the
+/// content; `read` publishes the cursor and `verdict` the soundness flag.
+fn emit_decode_machine(
+    text: &mut String,
+    syntax_trees: &SyntaxTrees,
+    sources: &SourceMap,
+    domains: &HashMap<String, Vec<(String, SourceSpan)>>,
+    data_fields: &HashMap<String, HashMap<String, TypeReferenceHandle>>,
+    schema_name: &str,
+    signature: &[String],
+    members: &[WireMemberShape],
+) {
+    let Some(facts_by_member) = member_facts(
+        syntax_trees,
+        sources,
+        domains,
+        data_fields,
+        signature_value_type(signature),
+        members,
+    ) else {
+        return;
+    };
+    let verdict_type = signature[3]
+        .trim_start_matches('&')
+        .trim_start()
+        .trim_start_matches("mut")
+        .trim_start()
+        .to_string();
+    let mut emitter = MachineEmitter {
+        text,
+        declarations: format!(
+            "value: {}, buffer: {}, read: {}, verdict: {}, at: u64, bad: u64 in Wrapping",
+            signature[0], signature[1], signature[2], signature[3]
+        ),
+        call: "(value, buffer, read, verdict, at, bad)".to_string(),
+        limit: "buffer.len",
+    };
+    let _ = writeln!(
+        emitter.text,
+        "machine {schema_name}::decode(value: {}, buffer: {}, read: {}, verdict: {}) {{\n    transition {{ _ -> era_0(value, buffer, read, verdict, 0, 0) }}\n",
+        signature[0], signature[1], signature[2], signature[3]
+    );
+
+    let era_bytes = varint_bytes(0);
+    let first_tag = members
+        .first()
+        .map(|member| format!("field_{}_tag_0", member.number))
+        .unwrap_or_else(|| "decode_finish".to_string());
+    for (index, byte) in era_bytes.iter().enumerate() {
+        let name = format!("era_{index}");
+        let next = if index + 1 == era_bytes.len() {
+            first_tag.clone()
+        } else {
+            format!("era_{}", index + 1)
+        };
+        emitter.dec_byte(&name, *byte, &next, "", "");
+    }
+
+    for (member_index, member) in members.iter().enumerate() {
+        let content_label = format!("field_{}_content", member.number);
+        let after = if member_index + 1 == members.len() {
+            "decode_finish".to_string()
+        } else {
+            format!("field_{}_tag_0", members[member_index + 1].number)
+        };
+        let tag_bytes = varint_bytes(member.number);
+        for (index, byte) in tag_bytes.iter().enumerate() {
+            let name = format!("field_{}_tag_{index}", member.number);
+            let next = if index + 1 == tag_bytes.len() {
+                content_label.clone()
+            } else {
+                format!("field_{}_tag_{}", member.number, index + 1)
+            };
+            emitter.dec_byte(&name, *byte, &next, "", "");
+        }
+        match &member.shape {
+            MemberShape::Scalar(kind) => {
+                let store = format!("field_{}_store", member.number);
+                emitter.dec_varint(&content_label, &store, "", "");
+                emitter.dec_scalar_store(
+                    &store,
+                    &member.name,
+                    *kind,
+                    &after,
+                    &facts_by_member[member_index],
+                );
+            }
+            MemberShape::FixedScalarArray { element, length } => {
+                let open = format!("field_{}_open", member.number);
+                emitter.dec_varint(&content_label, &open, "", "");
+                let close = format!("field_{}_close", member.number);
+                let first = if *length == 0 {
+                    close.clone()
+                } else {
+                    format!("field_{}_element_0", member.number)
+                };
+                // Open bounds: the length must fit the remaining buffer. On
+                // failure `end = 0` stands in for the interpreter's wrapped
+                // cursor sum — element reads still run and the close check
+                // flags `bad` either way.
+                emitter.state(
+                    &open,
+                    "raw: u64",
+                    "",
+                    &format!(
+                        "        let room: u64 = buffer.len - at;\n        transition raw <= room {{\n            true -> {first}(value, buffer, read, verdict, at, bad, at + raw)\n            _ -> {first}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+                    ),
+                );
+                for index in 0..*length {
+                    let read = format!("field_{}_element_{index}", member.number);
+                    let store = format!("field_{}_element_{index}_store", member.number);
+                    emitter.dec_varint(&read, &store, "end: u64", ", end");
+                    let next = if index + 1 == *length {
+                        close.clone()
+                    } else {
+                        format!("field_{}_element_{}", member.number, index + 1)
+                    };
+                    emitter.dec_element_store(
+                        &store,
+                        &member.name,
+                        index,
+                        *element,
+                        &next,
+                        &facts_by_member[member_index],
+                    );
+                }
+                emitter.state(
+                    &close,
+                    "end: u64",
+                    "",
+                    "        transition at == end {\n            true -> decode_finish(value, buffer, read, verdict, at, bad)\n            _ -> decode_finish(value, buffer, read, verdict, at, bad + 1)\n        }\n",
+                );
+            }
+        }
+    }
+    let declarations = emitter.declarations.clone();
+    let _ = writeln!(
+        emitter.text,
+        "    state decode_finish({declarations}) {{\n        read = at;\n        transition bad == 0 {{\n            true -> decode_sound(value, buffer, read, verdict, at, bad)\n            _ -> decode_invalid(value, buffer, read, verdict, at, bad)\n        }}\n    }}\n    state decode_sound({declarations}) {{\n        verdict = {verdict_type}::Sound;\n    }}\n    state decode_invalid({declarations}) {{\n        verdict = {verdict_type}::Invalid;\n    }}\n}}\n"
+    );
+}
