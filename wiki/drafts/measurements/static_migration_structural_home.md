@@ -552,13 +552,46 @@ Three further exclusions, all learned from rejections:
 repository root and the sibling set becomes the whole tree. That both empties
 the outside-call-site guard and rewrites unrelated canaries.
 
+## A stale baseline invents improvements
+
+Comparing a run against a corpus baseline taken several landings earlier
+reported nine fixtures newly checking and six returning to the golden. Taking
+the baseline immediately before the run, in the same command, showed the true
+figure: zero of either. `main` had moved underneath the comparison. Any
+attribution here must pair its two runs back to back; none of the landed work
+in this series rests on a separated pair.
+
+## Position drift in a substituting rewrite
+
+A call-site rewrite that resolves each match against a captured copy of the
+file silently corrupts itself: `re.sub` scans the accumulating string, so once
+an earlier replacement changes its length, every later `m.start()` indexes the
+wrong place in the captured copy and resolves to the wrong enclosing machine.
+The symptom is a scattering of call sites left unrewritten with no pattern to
+them. Resolve against `m.string`, the text actually being scanned.
+
 ## Where `source/library/std` stops
 
 `std` migrates as one package -- excluding a file still rewrites it as a
 sibling -- and the whole-package pass is net positive but not clean: 9 fixtures
 newly check, 6 more return to matching the golden, against one regression,
 `pass/filesystem/cross_linux_value_syscalls` (checked to rejected). The cause
-is a package-wide type scope keyed by bare name: `filesystem` denotes two
-different types across the package, so it is dropped as ambiguous and
-`filesystem.mkall_leaf(..)` is left unrequalified. Fixing it means a
-per-machine scope rather than a per-package one. Not landed.
+was a chain of separate defects, each hiding the next. Three are fixed and
+worth keeping: a per-machine type scope instead of a package-wide one keyed by
+bare name (`filesystem` denotes two types across the package); stripping
+`self.<state>(..)`, which is a transition to a sibling state spelled through
+the receiver rather than a call on the data; and the position drift above.
+
+Three constructs remain, and they are where the next pass should start:
+
+- `state mkall_walk expects 3 argument(s), got 2` and the same for
+  `mkall_copy` -- a transition into a threaded state that the receiving-set
+  closure does not reach, so some transition spelling is still unrecognised.
+- `explicit self argument for attached call read_dir_nth does not belong to
+  the receiver's exact data type` -- requalification lends `&mut self` where
+  the attached call wants the exact nominal type.
+
+Measured against a baseline taken immediately before it, the whole-package
+pass is one regression (`pass/filesystem/cross_linux_value_syscalls`, checked
+to rejected), five changed diagnostics on already-red `pass/filesystem`
+fixtures, and no improvements. Not landed.
