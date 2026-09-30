@@ -1278,8 +1278,15 @@ the complete product bar; focused successes below do not establish that baseline
   `runtime_bounded_carrier_write_read_exit` already execute with exit 70 on
   macOS ARM64. Projected byte-field reads, cyclic writes and the decimal
   divisor invariant are implemented; preserve these controls on the hosted
-  matrix. The separate `domains/utf8_equals_literal_exit` still rejects at
-  `Main::classify`'s conditional guard, without a cycle.
+  matrix. The separate `domains/utf8_equals_literal_exit`, which has no cycle,
+  checks its `&[u8] in Utf8` literal guard and its checked interpreter exits
+  70. Native production stops in Omega at a domain-qualified borrowed view
+  parameter: abstract-optimization validation
+  (`omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation/function_structure/byte_views.rs::validate_source`)
+  refuses its length and read source (`InvalidByteSequenceLength`), and
+  target lowering
+  (`omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/scalar/byte_views.rs`)
+  refuses the same observation next.
 
   - Replace remaining `unranked_cycles.rs` fences with checked arrival/custody
     relations: broader qualified/partial ownership, reference-bearing or
@@ -2790,8 +2797,10 @@ completion syntax or other terminal service is a prerequisite.
     (`runtime_mutable_equivalent_record_recast_exit`,
     `runtime_shared_record_float_range_weakening_exit`), `structural field
     store: target place` (`runtime_record_array_view_mutable_write_exit`),
-    `parameter transfer` (`runtime_aggregate_slice_representation_recast_exit`),
-    `guard expression` (`runtime_interior_slice_view_mutable_write_exit`) and
+    `parameter transfer` (`runtime_aggregate_slice_representation_recast_exit`,
+    and `runtime_interior_slice_view_mutable_write_exit` at `conditional
+    successors: parameter transfer`, where its `&mut [u8]` view local is
+    forwarded to a successor state) and
     `structural call binding` (`runtime_interior_slice_congruent_offset_exit`);
     they share referee-record declaration minting and element-view
     establishment.
