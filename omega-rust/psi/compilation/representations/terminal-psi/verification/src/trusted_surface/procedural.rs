@@ -400,7 +400,7 @@ rows! {
         "formation:proposition-context",
         SharedFormation,
         "a proposition and the value/place context it is checked under",
-        "only well-formed propositions over known values, places, and types are judged; IEEE literals retain exact bits and format, IEEE field terms rejoin a nonempty relevant canonical leaf of the same declared format, IEEE comparisons require one format, and only symmetric equality and inequality require canonical operand order; malformed propositions reject before any rule runs",
+        "only well-formed propositions over known values, places, and types are judged; Boolean, integer and IEEE field terms rejoin a nonempty relevant canonical leaf of the same declared type, either a record field or a static in-bounds fixed-array element whose element shape is that primitive scalar; IEEE literals retain exact bits and format, IEEE comparisons require one format, and only symmetric equality and inequality require canonical operand order; malformed propositions reject before any rule runs",
         &["formation:module-structure"],
         &[tv!( "validation/propositions.rs"), tv!( "validation/contracts.rs"), sv!( "proposition.rs"), sv!( "proposition/scalar_terms.rs"), sv!( "proposition/propositions.rs"), sv!( "proposition/value_ids.rs")]
     );

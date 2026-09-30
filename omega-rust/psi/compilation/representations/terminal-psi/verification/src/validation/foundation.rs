@@ -112,6 +112,54 @@ pub(crate) fn structural_leaf_type<'module>(
     None
 }
 
+/// The primitive scalar one static element leaf holds: `path` ends in a
+/// fixed index that selects, within bounds, one element of a fixed array
+/// whose element shape is a primitive scalar. The array is the root's own
+/// structural type or a field's structural carrier resolved exactly as a
+/// field leaf's path is, so a collection invariant's per-element row names
+/// the same canonical place an element store or read does.
+pub(crate) fn structural_element_scalar(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<semantic_vocabulary::ScalarType> {
+    let (CanonicalStructuralPathSegment::FixedIndex(index), prefix) = path.split_last()? else {
+        return None;
+    };
+    let array = if prefix.is_empty() {
+        machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == root)?
+            .structural_type
+    } else {
+        let StructuralFieldType::Structural(array) =
+            structural_leaf_type(module, machine, root, prefix)?
+        else {
+            return None;
+        };
+        *array
+    };
+    let shape = |structural_type: StructuralTypeId| {
+        module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .map(|declaration| &declaration.shape)
+    };
+    let StructuralTypeShape::FixedArray { element, length } = shape(array)? else {
+        return None;
+    };
+    if index >= length {
+        return None;
+    }
+    match shape(*element)? {
+        StructuralTypeShape::PrimitiveScalar(scalar) => Some(*scalar),
+        _ => None,
+    }
+}
+
 /// Whether `root + path` names something with a live extent a `ViewExtent`
 /// term could observe: an empty path reads the root's own declared shape (a
 /// borrowed byte view or an element view), while a nonempty path must end at

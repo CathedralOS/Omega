@@ -33,6 +33,7 @@ const TS_SCALAR_ARRAY: &str =
 const TS_ZEROED_STRUCTURAL: &str =
     "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/zeroed_structural.rs";
 const OP_FACTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts.rs";
+const OP_FACTS_PRIMITIVE_ELEMENTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/primitive_elements.rs";
 const OP_FACTS_FLOAT_FIELDS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/float_fields.rs";
 const OP_FACTS_CASE_HOPS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/case_hops.rs";
 const OP_FACTS_POLARITY: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/boolean_polarity.rs";
@@ -196,11 +197,12 @@ static OP_ESTABLISH_PRIMITIVE_LOCAL: TrustedSurfaceEntry = entry(
 static OP_PRIMITIVE_SCALAR_READ: TrustedSurfaceEntry = entry(
     "operation:primitive-scalar-read",
     "a readable live root and a relevant-field/fixed-array path to initialized primitive storage whose elements may be runtime-selected",
-    "the read observation's local equation where the schema declares one and the path is static; an exact-format static IEEE field also yields result-to-field bit identity, preserving NaN payloads and signed zero rather than asserting IEEE equality; each runtime element's bound is the operation's own obligation",
+    "the read observation's local equation where the schema declares one and the path is static; an exact-format static IEEE field also yields result-to-field bit identity, preserving NaN payloads and signed zero rather than asserting IEEE equality; a static primitive element yields result-to-element equality at its canonical path; each runtime element's bound is the operation's own obligation",
     &[
         "fact:structural-effect-observation",
         "fact:runtime-index-bound",
         "fact:ieee-primitive-field-observation",
+        "fact:primitive-element-observation",
         "formation:operation-validation",
     ],
     &[
@@ -209,6 +211,7 @@ static OP_PRIMITIVE_SCALAR_READ: TrustedSurfaceEntry = entry(
         TS_SE,
         OP_FACTS,
         OP_FACTS_FLOAT_FIELDS,
+        OP_FACTS_PRIMITIVE_ELEMENTS,
         VAL_OPS,
         VAL_PRIMITIVE_STORAGE,
         TS_PRIMITIVE_PLACE,
@@ -260,12 +263,13 @@ static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
 static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     "operation:write-only-primitive-store",
     "a writable live root, a relevant-field/fixed-array path to a primitive leaf whose elements may be runtime-selected, and exactly typed dominating scalar value",
-    "the store observation; after scalar snapshot capture, every remaining proposition observing the destination is invalidated; an exact-format static IEEE field then yields field-to-stored-value bit identity, never IEEE equality or a finiteness claim; each runtime element's bound is the operation's own obligation",
+    "the store observation; after scalar snapshot capture, every remaining proposition observing the destination is invalidated; an exact-format static IEEE field then yields field-to-stored-value bit identity, never IEEE equality or a finiteness claim; a static primitive element then yields element-to-stored-value equality at its canonical path; each runtime element's bound is the operation's own obligation",
     &[
         "fact:structural-effect-observation",
         "fact:runtime-index-bound",
         "invalidation:write-only-primitive-store",
         "fact:ieee-primitive-field-observation",
+        "fact:primitive-element-observation",
         "formation:operation-validation",
     ],
     &[
@@ -274,6 +278,7 @@ static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
         TS_SE,
         OP_FACTS,
         OP_FACTS_FLOAT_FIELDS,
+        OP_FACTS_PRIMITIVE_ELEMENTS,
         VAL_OPS,
         VAL_PRIMITIVE_STORAGE,
         TS_PRIMITIVE_PLACE,
