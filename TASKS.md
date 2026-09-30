@@ -853,13 +853,15 @@ the complete product bar; focused successes below do not establish that baseline
   compiler before assigning any further source-signature or structural-argument
   failure: old diagnostics and expired claims are not current blockers.
 
-  The restored acceptance checkout now reaches a concrete Terminal rejection:
-  `CommandDriver::run` loses `do_element_scan` at local construction,
-  `statement sequence: local data: structural result shape`. Repair that ordinary
-  aggregate-result route and rerun package review. The scalar parameter flow join
-  now widens conservatively instead of enumerating counter values; the frozen
-  17-package review reached this rejection in 537 seconds on macOS, with Linux
-  x86-64 selected. This is still a compilation failure, not native acceptance.
+  Current published application `a3186ac92eb2bc495817e3d42a9222460db53983`
+  still has the disconnected acceptance route above. On macOS ARM64, compiler
+  base `83b393f4aa1` reaches pending package review (exit 3), not the historical
+  restored-checkout `do_element_scan` rejection, with `omega update --project
+  samples/apps/squalr/squalr-tests --target linux_x86_64`. The shared fixed-array
+  carried-lifetime repair reduces that same review from 101 to 68 seconds with
+  byte-identical output; it does not restore or execute the missing tests.
+  Reconnect the authored acceptance route, resolve ordinary package review, and
+  reproduce its first failure before assigning the next compiler dependency.
 
   Preserve Windows and Linux ARM64 geometry, `set_alignment`, parsing/refusal
   and error-text parity, native clone/serialization of case-bearing alignment,

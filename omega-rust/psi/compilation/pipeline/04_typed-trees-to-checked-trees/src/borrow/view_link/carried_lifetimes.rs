@@ -1,8 +1,14 @@
 //! Structural, declaration-derived lifetime frontiers shared by result and
 //! input selection. Incomplete frontiers never establish a partial contract.
+//! Fixed arrays share one element-type traversal; only actual reference leaves
+//! are expanded into per-element paths. View-free storage therefore costs work
+//! proportional to its type structure, not its physical element count.
 use super::{SymbolHandle, TypeReferenceHandle, TypeReferenceNode, TypedTrees};
 use crate::borrow::BorrowOwnerSegment;
 use crate::borrow::view_link::data_definition;
+
+#[cfg(test)]
+mod tests;
 
 pub(super) struct CarriedLifetime {
     pub(super) owner_path: Vec<BorrowOwnerSegment>,
@@ -244,21 +250,43 @@ fn collect_type(
             let typed_trees::types::FixedArrayLength::Literal(length) = length else {
                 return false;
             };
-            (0..*length).all(|index| {
-                let mut path = owner_path.to_vec();
-                path.push(BorrowOwnerSegment::FixedIndex(index));
-                collect_type(
-                    program,
-                    *element_type,
-                    lifetimes,
-                    types,
-                    &path,
-                    visiting,
-                    output,
-                    whole_elided_contract,
-                    template,
-                )
-            })
+            if *length == 0 {
+                return true;
+            }
+            // The path does not participate in frontier admission. Check the
+            // element once in the same substitution/recursion context, then
+            // prefix its complete relative leaves. Incompleteness must not
+            // become an empty (view-free) frontier.
+            let mut element_frontier = Vec::new();
+            if !collect_type(
+                program,
+                *element_type,
+                lifetimes,
+                types,
+                &[],
+                visiting,
+                &mut element_frontier,
+                whole_elided_contract,
+                template,
+            ) {
+                return false;
+            }
+            if element_frontier.is_empty() {
+                return true;
+            }
+            for element_index in 0..*length {
+                for leaf in &element_frontier {
+                    let mut path = owner_path.to_vec();
+                    path.push(BorrowOwnerSegment::FixedIndex(element_index));
+                    path.extend_from_slice(&leaf.owner_path);
+                    output.push(CarriedLifetime {
+                        owner_path: path,
+                        lifetime: leaf.lifetime.clone(),
+                        access: leaf.access,
+                    });
+                }
+            }
+            true
         }
         TypeReferenceNode::Generic {
             base_symbol,
