@@ -123,7 +123,7 @@ fn validate_reads(
     expression: ExpressionHandle,
     retained: &CheckedScalarExpression,
 ) -> Result<(), LoweringError> {
-    let (_, state) = authored_state(checked, state)?;
+    let (machine, state) = authored_state(checked, state)?;
     let mut authored_reads = Vec::new();
     let mut member_paths = Vec::new();
     let mut unmatched_member_paths = Vec::new();
@@ -195,6 +195,9 @@ fn validate_reads(
         .collect::<Vec<_>>();
     let mut namespace = ReadNamespace {
         scope,
+        checked,
+        state,
+        machine: machine.symbol,
         scalar: namespace,
         erased_scalar: checked
             .state_parameters(state)
@@ -302,6 +305,9 @@ type StorageReadOccurrence = (Vec<usize>, symbols::SymbolHandle, PrimitiveType, 
 
 struct ReadNamespace<'checked> {
     scope: ReadScope,
+    checked: &'checked CheckedTrees,
+    state: &'checked checked_trees::state::State,
+    machine: symbols::SymbolHandle,
     scalar: Vec<symbols::SymbolHandle>,
     /// Proof-only erased formals in their dense roster order.
     erased_scalar: Vec<symbols::SymbolHandle>,
@@ -313,6 +319,47 @@ struct ReadNamespace<'checked> {
 }
 
 impl ReadNamespace<'_> {
+    /// The place a view local's establishment published, in the predicate
+    /// path spelling the authored read walk records. A prefix carrying a
+    /// runtime selector spells no fixed path identity.
+    fn view_local_place(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(
+        symbols::SymbolHandle,
+        Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    )> {
+        let (root, path) =
+            crate::emission::structural_scalar_store_source::local_store_destination(
+                self.checked,
+                self.machine,
+                self.state,
+                self.state.symbol,
+                self.scope.preceding_statements(),
+                symbol,
+            )
+            .ok()?;
+        // Only a local whose initializer loans another place rejoins that
+        // place; a marker local keeps its own root and no prefix, where the
+        // authored side likewise records no projected leaf.
+        if root == symbol && path.is_empty() {
+            return None;
+        }
+        let path = path
+            .iter()
+            .map(|segment| match segment {
+                checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
+                    checked_trees::CheckedStructuralPredicatePathSegment::Field(identity.clone()),
+                ),
+                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => {
+                    Some(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index))
+                }
+                _ => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some((root, path))
+    }
+
     fn scalar_read(
         &self,
         position: usize,
@@ -1437,6 +1484,29 @@ fn collect_scalar_storage_reads(
                 reads.push((
                     path.clone(),
                     symbol,
+                    *primitive_type,
+                    ReadKind::IndexedPrimitive(projection),
+                ));
+                return;
+            }
+            // A view local's literal element read retains the same
+            // `IndexedPrimitive` leaf the authored walk records: the view's
+            // own establishment names the place its loan captured, and the
+            // member path plus selectors project beneath it. A runtime
+            // selector stays selector-only, as the authored side records.
+            if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = *root
+                && let CheckedScalarExpression::IntegerLiteral { literal } = index.as_ref()
+                && let Some(index) = literal.value_u64()
+                && let Some((view_root, prefix)) = namespace.view_local_place(symbol)
+            {
+                let mut projection = prefix;
+                projection.extend(read_path.iter().cloned());
+                projection
+                    .push(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index));
+                projection.extend(element_path.iter().cloned());
+                reads.push((
+                    path.clone(),
+                    view_root,
                     *primitive_type,
                     ReadKind::IndexedPrimitive(projection),
                 ));

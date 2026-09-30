@@ -306,11 +306,28 @@ pub(crate) fn validate(
                 )
                 .is_err()
                 {
-                    let (_, authored) =
+                    let (machine, authored) =
                         crate::expression_preparation::source_custody::authored_state(
                             checked, plan.state,
                         )?;
-                    local_destination(checked, authored, *statement_index, *symbol)?;
+                    let (root, mut prefix) = local_store_destination(
+                        checked,
+                        machine.symbol,
+                        authored,
+                        plan.state,
+                        *statement_index,
+                        *symbol,
+                    )?;
+                    prefix.extend(path.iter().cloned());
+                    crate::emission::primitive_store::validate_symbol_assignment(
+                        checked,
+                        plan.state,
+                        *statement_index,
+                        root,
+                        &prefix,
+                        value,
+                    )?;
+                    continue;
                 }
                 crate::emission::primitive_store::validate_symbol_assignment(
                     checked,
@@ -627,22 +644,27 @@ pub(crate) fn validate_assignment(
         Some(statement_index as usize),
         assignment.target,
     )?;
-    let destination = match store.destination {
-        checked_trees::CheckedStoreRoot::Parameter { position } => {
+    let (destination, mut path) = match store.destination {
+        checked_trees::CheckedStoreRoot::Parameter { position } => (
             checked
                 .state_parameters(state)
                 .get(position as usize)
                 .ok_or(LoweringError::Unsupported(
                     "structural scalar store has no authored destination parameter",
                 ))?
-                .symbol
-        }
-        checked_trees::CheckedStoreRoot::Local { symbol } => {
-            local_destination(checked, state, statement_index, symbol)?;
-            symbol
-        }
+                .symbol,
+            Vec::new(),
+        ),
+        checked_trees::CheckedStoreRoot::Local { symbol } => local_store_destination(
+            checked,
+            machine,
+            state,
+            state_symbol,
+            statement_index,
+            symbol,
+        )?,
     };
-    let mut path = store.carrier_path.clone();
+    path.extend(store.carrier_path.iter().cloned());
     path.push(CheckedUnitStructuralPathSegment::Field(
         store.field_identity.clone(),
     ));
@@ -922,6 +944,46 @@ pub(crate) fn local_destination<'a>(
         return unsupported("record store lost its owned structural declaration");
     }
     Ok(local)
+}
+
+/// A `Local` store destination roots two ways: an owned structural local
+/// (`let mut`) is its own root with an empty prefix, while a borrowed-view
+/// local writes through its loan — the authored target resolves through
+/// that same loan, so the destination's root and path must continue the
+/// place the view's own initializer resolves to. Returns the root and the
+/// path prefix the store's carrier path completes.
+pub(crate) fn local_store_destination(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &checked_trees::state::State,
+    state_symbol: symbols::SymbolHandle,
+    statement: u32,
+    symbol: symbols::SymbolHandle,
+) -> Result<(symbols::SymbolHandle, Vec<CheckedUnitStructuralPathSegment>), LoweringError> {
+    let local = local_destination(checked, state, statement, symbol)?;
+    if !matches!(
+        checked.expression_table.expression(local.initial_value),
+        ExpressionNode::Borrow(_) | ExpressionNode::Cast(_)
+    ) {
+        return Ok((symbol, Vec::new()));
+    }
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let declaration = statements
+        .iter()
+        .position(|statement| {
+            matches!(statement, StatementNode::LocalData(local) if local.symbol == symbol)
+        })
+        .ok_or(LoweringError::Unsupported(
+            "record store has no source local",
+        ))?;
+    let source = crate::emission::call_source_custody::projected_receivers::store_destination(
+        checked,
+        machine,
+        state_symbol,
+        Some(declaration),
+        local.initial_value,
+    )?;
+    Ok((source.root, source.path))
 }
 
 /// Select a computation only through its exact authored assignment coordinate.

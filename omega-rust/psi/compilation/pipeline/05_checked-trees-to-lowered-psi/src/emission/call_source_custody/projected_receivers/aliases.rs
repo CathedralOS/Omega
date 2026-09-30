@@ -225,15 +225,21 @@ pub(super) fn parameter_source(
     let projected_type = if captured.path.is_empty() {
         root_type
     } else {
-        let reference = validation::declared_place_type_raw(
-            &checked.typed,
-            authored_machine,
-            Some(authored_state),
-            initializer.target,
-        )
-        .ok_or(LoweringError::Unsupported(
-            "receiver alias initializer has no exact referent type",
-        ))?;
+        // A recast-spelled initializer names its referent type itself:
+        // `&mut place as &mut T` views the place under T's stated shape, and
+        // the source place's declared type is the byte carrier T re-views.
+        let reference = match checked.expression_table.expression(initializer.target) {
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => cast.result_type,
+            _ => validation::declared_place_type_raw(
+                &checked.typed,
+                authored_machine,
+                Some(authored_state),
+                initializer.target,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "receiver alias initializer has no exact referent type",
+            ))?,
+        };
         match checked.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Reference { referee, .. } => *referee,
             _ => reference,
@@ -315,9 +321,17 @@ pub(super) fn parameter_source(
     // A derived loan's place agreement folded into its lineage evidence
     // above: its root is the parent's ultimate root, not the authored
     // alias root the direct spellings carry.
+    let recast_initializer = matches!(
+        checked.expression_table.expression(initializer.target),
+        ExpressionNode::Cast(cast) if cast.form.is_recast()
+    );
     let exact_place = derived_parent
         || (loan.root_symbol == captured.captured_place.root_symbol
-            && borrow.loan_segments(loan) == captured.captured_place.segments);
+            && loan_place_agrees(
+                borrow.loan_segments(loan),
+                &captured.captured_place.segments,
+                recast_initializer,
+            ));
     if loan.statement_index != *declaration_index
         || loan.kind != access
         || !exact_lineage
@@ -533,7 +547,12 @@ pub(super) fn parameter_source(
         || resource.state_symbol != state
         || resource.owner_symbol != owner
         || !resource.owner_path.is_empty()
-        || resource.captured_place != captured.captured_place
+        || resource.captured_place.root_symbol != captured.captured_place.root_symbol
+        || !loan_place_agrees(
+            &resource.captured_place.segments,
+            &captured.captured_place.segments,
+            recast_initializer,
+        )
         || resource.access != access
         || resource.activation_source != activation
         || resource.weakening_source != weakening
@@ -616,6 +635,34 @@ fn call_result_source(
         },
         erased_alias: false,
     }))
+}
+
+/// Loan bookkeeping and the authored expression spell the same place two
+/// ways when a recast loan carries the view's element window: `&mut
+/// place[i] as &mut T` records `FixedRange { i, i + extent }` where the
+/// captured place names `FixedIndex { i }`. Under a recast initializer a
+/// range that starts at the captured element index is the same place;
+/// every other pair compares literally.
+fn loan_place_agrees(
+    loan_segments: &[facts::PlaceSegment],
+    captured_segments: &[facts::PlaceSegment],
+    recast_initializer: bool,
+) -> bool {
+    loan_segments.len() == captured_segments.len()
+        && loan_segments
+            .iter()
+            .zip(captured_segments)
+            .all(|(loan, captured)| {
+                *loan == *captured
+                    || (recast_initializer
+                        && matches!(
+                            (*loan, *captured),
+                            (
+                                facts::PlaceSegment::FixedRange { start, .. },
+                                facts::PlaceSegment::FixedIndex { index }
+                            ) if start == index
+                        ))
+            })
 }
 
 /// The ledger spells a runtime selector as `Index { expression }` even

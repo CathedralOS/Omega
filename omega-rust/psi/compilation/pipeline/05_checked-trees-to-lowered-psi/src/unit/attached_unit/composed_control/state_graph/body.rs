@@ -635,19 +635,26 @@ pub(super) fn validate(
                         // Projected primitive stores use the same established
                         // structural locals as ordinary bodies. Rejoin the
                         // earlier declaration and exact assignment here;
-                        // emission still requires its live owned storage.
-                        crate::emission::structural_scalar_store_source::local_destination(
+                        // emission still requires its live owned storage. A
+                        // borrowed-view local writes through its loan: its
+                        // authored target resolves through the same place, so
+                        // the comparison continues the initializer's root and
+                        // path rather than the local's own symbol.
+                        let (root, mut prefix) = crate::emission::structural_scalar_store_source::local_store_destination(
                             checked,
+                            machine,
                             source,
+                            state.state,
                             *statement_index,
                             *symbol,
                         )?;
+                        prefix.extend(path.iter().cloned());
                         crate::emission::primitive_store::validate_symbol_assignment(
                             checked,
                             state.state,
                             *statement_index,
-                            *symbol,
-                            path,
+                            root,
+                            &prefix,
                             value,
                         )?;
                         continue;

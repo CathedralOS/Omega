@@ -24,8 +24,8 @@
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralPathSegment, DataMember, Multiplicity, PrimitiveType, StatementNode,
-    SymbolHandle, TypeConstraintNode, TypeReferenceNode, TypedTrees,
+    CheckedUnitStructuralPathSegment, DataMember, ExpressionNode, Multiplicity, PrimitiveType,
+    StatementNode, SymbolHandle, TypeConstraintNode, TypeReferenceNode, TypedTrees,
 };
 
 /// Find primitive storage established by an initializer or its declaration's
@@ -202,7 +202,7 @@ pub(super) fn indexed_store(
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let path = primitive_path(
+    let mut path = primitive_path(
         program,
         facts,
         machine,
@@ -211,6 +211,27 @@ pub(super) fn indexed_store(
         assignment.target,
         &destination.place.segments,
     )?;
+    if let Some(index) = destination.dynamic_index {
+        // `resolve` split the outermost selector into `dynamic_index` for
+        // the byte stores' operand slot; a primitive element store needs
+        // the same selector back in its checked path, spelled the way the
+        // statement's selector list admits it.
+        let segment = match program.expression_table.expression(index) {
+            ExpressionNode::Integer(literal) => CheckedUnitStructuralPathSegment::FixedIndex(
+                u64::try_from(literal.value_bignum()?.to_u64()?).ok()?,
+            ),
+            _ => super::selectors::TargetSelectors::resolve(
+                program,
+                facts,
+                machine,
+                state,
+                statement_index,
+                assignment.target,
+            )?
+            .runtime_segment(index)?,
+        };
+        path.push(segment);
+    }
     let primitive_type = program.primitive_type_reference(primitive_leaf_type_reference(
         program,
         machine,
