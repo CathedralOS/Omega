@@ -174,7 +174,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         // A copyable `Unrestricted` leaf under a shared borrow
                         // is the same admission shape — the copy op observes
                         // where the case fan-out cannot reconstruct payloads.
-                        || structural_values::is_copied_place_value(
+                        || structural_values::needs_copied_place_root(
                             program,
                             state.symbol,
                             statement_index,
@@ -489,7 +489,7 @@ pub(crate) fn build_checked_value_computation_plans(
                         program,
                         assignment.value,
                         expected,
-                    ) || structural_values::is_copied_place_value(
+                    ) || structural_values::needs_copied_place_root(
                         program,
                         state.symbol,
                         statement_index,

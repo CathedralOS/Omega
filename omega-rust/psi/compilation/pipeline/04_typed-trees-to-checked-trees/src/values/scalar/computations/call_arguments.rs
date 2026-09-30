@@ -75,7 +75,7 @@ impl Builder<'_, '_> {
                     ) || (!crate::execution::terminal_unit::types::is_reference(
                         self.program,
                         parameter.type_reference,
-                    ) && super::structural_values::is_copied_place_value(
+                    ) && super::structural_values::needs_copied_place_root(
                         self.program,
                         self.state,
                         self.statement_index,
