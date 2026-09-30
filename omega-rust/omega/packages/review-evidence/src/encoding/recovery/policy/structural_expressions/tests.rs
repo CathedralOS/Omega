@@ -377,13 +377,15 @@ pub(in crate::encoding::recovery) fn all_integer_binary_kinds_and_literal_landin
 #[test]
 pub(in crate::encoding::recovery) fn closed_tags_reject_unknown_nodes_kinds_paths_primitive_names_and_domains()
  {
-    for bytes in [vec![13], vec![0, 2], vec![6, 3], vec![7, 2]] {
+    // The first unknown node tag, an unknown Constant byte, integer
+    // comparison kind, and IEEE comparison kind under both comparison tags.
+    for bytes in [vec![14], vec![0, 2], vec![6, 3], vec![7, 6], vec![13, 6]] {
         assert_eq!(
             recover_boolean(&bytes, PackagePolicyRecoveryLimits::default()),
             Err(Error::InvalidTag)
         );
     }
-    for bytes in [vec![9], vec![4, 31], vec![5, 12]] {
+    for bytes in [vec![11], vec![4, 31], vec![5, 12]] {
         assert_eq!(recover_scalar(&bytes), Err(Error::InvalidTag));
     }
     for kind in [29, 30] {
