@@ -336,7 +336,7 @@ fn scalar_rows(
 }
 
 /// Producer-independent fixed native shape eligibility for the published
-/// scalar ABI: Booleans, fixed 8/16/32/64 integers, and IEEE floats.
+/// scalar ABI: Booleans, fixed 8/16/32/64 integers, 64-bit addresses, and IEEE floats.
 pub(super) fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
     match scalar_type {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
@@ -349,6 +349,12 @@ pub(super) fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<Value
 }
 
 pub(super) fn fixed_native_integer_shape(integer: IntegerType) -> Option<ValueShape> {
+    // Hosted address models currently use one 64-bit scalar transport. Keep
+    // the address carrier in every value record; an integer-class ABI slot
+    // does not convert it to a count or admit other address models.
+    if integer.is_address() && integer.bits() == 64 {
+        return Some(ValueShape::integer(8, 8));
+    }
     if integer.carrier() != IntegerCarrier::Fixed || !matches!(integer.bits(), 8 | 16 | 32 | 64) {
         return None;
     }

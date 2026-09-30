@@ -386,7 +386,13 @@ impl Builder<'_, '_> {
             left = Some(operand);
         }
         if let Some(destination) = operand_type(&left)
-            && let Some(operand) = land(binary.right, destination)
+            && let Some(operand) = land(
+                binary.right,
+                super::super::scalar_lowering::subtraction_count_context(
+                    binary.operator,
+                    destination,
+                ),
+            )
         {
             right = Some(operand);
         }

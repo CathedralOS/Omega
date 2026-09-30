@@ -21,6 +21,11 @@ IntegerMathTerm =
   | ShiftLeft(value, count)
 ```
 
+`MathValue` retains the exact source carrier and value identity, including an
+address carrier's retained model. Context validation checks that carrier;
+embedding an address for geometry proofs grants no count conversion or storage
+authority.
+
 These terms denote unbounded mathematical integers and cannot overflow.
 Mathematical equality/order accepts these terms through the existing first-order
 calculus. Executable exact arithmetic is partial until its safety conditions are
@@ -50,8 +55,10 @@ Closed products and embedded zero/one may fold. With a syntactic signed factor
 A runtime value separately proved equal to `-1` still has both canonical bounds:
 available evidence does not choose the question.
 
-Unsigned subtraction omits its carrier-implied upper bound and retains the
-lower bound on the mathematical difference. That omission is local to the
+Unsigned subtraction omits its upper bound when the left operand has the
+result carrier, and retains the lower bound on the mathematical difference.
+Address-to-count distances retain both bounds; the operands may exceed the
+count carrier even when their difference fits. That omission is local to the
 operation schema, not inferred from a producer's interval analysis.
 
 The operation/site identity, `CanonicalScalarGoal`, and exact typed expression

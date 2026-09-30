@@ -22,13 +22,44 @@ fn boolean_return_materialization_replays_condition_result_and_fuel() {
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
         };
-        for signed in [false, true] {
+        for (signed, address) in [(false, false), (true, false), (true, true)] {
             for predicate in [
                 LegalizedScalarComparison::Equal,
                 LegalizedScalarComparison::LessThan,
                 LegalizedScalarComparison::LessOrEqual,
             ] {
                 let mut source = control::graph(target, predicate, signed);
+                if address {
+                    let carrier = ScalarType::Integer(IntegerType::address(64).unwrap());
+                    for row in &mut source.blocks[0].instructions {
+                        if let Some(result) = &mut row.result
+                            && matches!(result.scalar_type, ScalarType::Integer(_))
+                        {
+                            result.scalar_type = carrier;
+                        }
+                        match &mut row.kind {
+                            legalized_operations::LegalizedScalarInstructionKind::Constant(
+                                value,
+                            ) => {
+                                let super::super::IntegerValue::Signed(number) = *value else {
+                                    panic!("signed graph constants");
+                                };
+                                *value = super::super::IntegerValue::Unsigned(
+                                    number.try_into().unwrap(),
+                                );
+                            }
+                            legalized_operations::LegalizedScalarInstructionKind::Compare {
+                                operand_type,
+                                right_operand_type,
+                                ..
+                            } => {
+                                *operand_type = carrier;
+                                *right_operand_type = carrier;
+                            }
+                            _ => panic!("comparison graph contains only constants and comparison"),
+                        }
+                    }
+                }
                 source.blocks.retain(|block| block.id == source.entry_block);
                 let block = &mut source.blocks[0];
                 let result = block.instructions.last().unwrap().result.unwrap();

@@ -2073,10 +2073,11 @@ pass/traits/runtime_local_named_dyn_pass_through_exit rejected 1801ms @2d8ed2536
 pass/traits/runtime_qualified_byte_crash_equality_exit checked 2530ms @2d8ed253669f
 pass/traits/trait_generic_bound_static_dispatch checked 3015ms @2d8ed253669f
 pass/traits/transparent_refinement_declaration checked 823ms @2d8ed253669f
-pass/types/runtime_addr_algebra_exit rejected 1594ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: prefix initializers: bound expression` (state 1, statement 2)
-pass/types/runtime_addr_field_exit rejected 1666ms @2d8ed253669f
+pass/types/runtime_addr_algebra_exit rejected 3169ms @2e2913321f6b+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 1, statement 4)
+pass/types/runtime_addr_field_exit rejected 3003ms @2e2913321f6b+wt
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
+pass/types/runtime_exact_address_subtraction_exit checked 4796ms @2e2913321f6b+wt
 pass/types/runtime_i16_signed_arith_exit checked 2777ms @2d8ed253669f
 pass/versioning/migration_generic_trait checked 923ms @2d8ed253669f
 pass/versioning/runtime_version_migration_exit checked 4353ms @2d8ed253669f

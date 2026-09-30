@@ -112,6 +112,15 @@ pub fn elidable_proof_bearing_scalar_leaf(
             right: *right,
         },
         OperationKind::ExactIntegerSubtract { left, right, .. } => {
+            // A fixed-integer wrapping operation cannot carry address/count
+            // operands. Literal folding above is valid for both signatures;
+            // a nonliteral address subtraction retains its exact obligation.
+            if result_type.is_address()
+                || value_types.get(left) != Some(&ScalarType::Integer(result_type))
+                || value_types.get(right) != Some(&ScalarType::Integer(result_type))
+            {
+                return Ok(None);
+            }
             OperationKind::WrappingIntegerSubtract {
                 left: *left,
                 right: *right,

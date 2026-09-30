@@ -1,4 +1,7 @@
 //! Materialize typed Boolean values before later operations can replace condition state.
+//! Equal 64-bit address models share native comparison instructions, retaining
+//! their source types and unsigned ordering. Mixed address/count comparisons
+//! remain invalid even when both values occupy the same register width.
 use super::{
     IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
     SelectedInstructionProvenance, VirtualRegisterId,
@@ -48,8 +51,9 @@ pub(super) fn validate(
             let signed = match operand_type {
                 ScalarType::Boolean if predicate == LegalizedScalarComparison::Equal => false,
                 ScalarType::Integer(integer)
-                    if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                        && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+                    if (integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                        && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        || (integer.is_address() && integer.bits() == 64) =>
                 {
                     integer.sign() == IntegerSign::Signed
                 }

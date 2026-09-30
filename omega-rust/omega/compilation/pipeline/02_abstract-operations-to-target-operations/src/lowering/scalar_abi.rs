@@ -156,6 +156,12 @@ pub(super) fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<Value
     }
 }
 pub(super) fn fixed_native_integer_shape(scalar_type: IntegerType) -> Option<ValueShape> {
+    // Hosted address models currently use one 64-bit scalar transport. Keep
+    // the address carrier in every value record; an integer-class ABI slot
+    // does not convert it to a count or admit other address models.
+    if scalar_type.is_address() && scalar_type.bits() == 64 {
+        return Some(ValueShape::integer(8, 8));
+    }
     if scalar_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
         || !matches!(scalar_type.bits(), 8 | 16 | 32 | 64)
     {
@@ -408,6 +414,20 @@ mod tests {
             let mut address = mixed.clone();
             address.parameters[0].scalar_type =
                 ScalarType::Integer(IntegerType::address(64).unwrap());
+            let address_abi =
+                derive_mixed_structural_scalar_function_abi(&address, target, &declarations)
+                    .unwrap()
+                    .expect("64-bit address transport");
+            assert_eq!(
+                address_abi.scalar_parameters[0].scalar_type,
+                address.parameters[0].scalar_type
+            );
+            assert_eq!(
+                address_abi.scalar_parameters[0].placement.shape,
+                ValueShape::integer(8, 8)
+            );
+            address.parameters[0].scalar_type =
+                ScalarType::Integer(IntegerType::address(128).unwrap());
             assert!(
                 derive_mixed_structural_scalar_function_abi(&address, target, &declarations)
                     .unwrap()

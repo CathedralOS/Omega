@@ -965,7 +965,7 @@ pub(super) fn validate(
                     let Some(ScalarType::Integer(carrier)) = value_type(optimized, operand) else {
                         return Err(LegalizationError::custody());
                     };
-                    if carrier.is_address() || !matches!(carrier.bits(), 8 | 16 | 32 | 64) {
+                    if scalar_shape(ScalarType::Integer(carrier)).is_none() {
                         return Err(LegalizationError::custody());
                     }
                 }

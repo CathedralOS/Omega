@@ -1,6 +1,12 @@
 //! Lowering one scalar expression: state and unit scalars, returns, operand
 //! landing, integer binary, bitwise and cast construction, and literal
 //! landing and retagging.
+//!
+//! Subtraction selects its result from operand roles, not storage context:
+//! address offsets return addresses, while address differences return counts.
+//! Anonymous offsets land as u64; named operands retain their source carriers.
+//! Later Terminal reconstruction independently checks those signatures and
+//! proves the mathematical difference fits its result before native lowering.
 
 use crate::values::scalar::boolean_lowering::lower_boolean_expression;
 use crate::values::scalar::constant_array_projection;
@@ -290,8 +296,12 @@ pub(crate) fn lower_scalar_operands(
     if let Some(destination) = left
         .as_ref()
         .and_then(|(value, _)| scalar_expression_type(value))
-        && let Some(value) =
-            land_anonymous_scalar_expression(program, operators, binary.right, destination)
+        && let Some(value) = land_anonymous_scalar_expression(
+            program,
+            operators,
+            binary.right,
+            subtraction_count_context(binary.operator, destination),
+        )
     {
         right = Some((value, ArithmeticDomain::Exact));
     }
@@ -669,6 +679,19 @@ pub(crate) fn lower_scalar_expression(
     }
 }
 
+/// An anonymous offset beside an address denotes a count, not another address.
+/// Named operands keep their checked carrier, so address differences remain distinct.
+pub(crate) fn subtraction_count_context(
+    operator: BinaryOperator,
+    peer: PrimitiveType,
+) -> PrimitiveType {
+    if operator == BinaryOperator::Subtract && peer == PrimitiveType::Addr {
+        PrimitiveType::U64
+    } else {
+        peer
+    }
+}
+
 /// Construct one selected builtin operation from operands whose evaluation
 /// order has already been retained by either the pure tree or computation plan.
 pub(crate) fn construct_integer_binary(
@@ -704,15 +727,31 @@ pub(crate) fn construct_integer_binary(
         left_type = scalar_expression_type(&left);
     }
     if right_type.is_none() {
-        right = land_contextual_integer_literal(right, left_type?)?;
+        right = land_contextual_integer_literal(
+            right,
+            subtraction_count_context(operator, left_type?),
+        )?;
         right_type = scalar_expression_type(&right);
     }
-    let primitive_type = left_type?;
+    let left_type = left_type?;
     let right_type = right_type?;
-    if !is_integer(primitive_type)
-        || !is_integer(right_type)
-        || (!shift && right_type != primitive_type)
+    let primitive_type = if operator == BinaryOperator::Subtract && left_type == PrimitiveType::Addr
     {
+        if domain != ArithmeticDomain::Exact {
+            return None;
+        }
+        match right_type {
+            PrimitiveType::Addr => PrimitiveType::U64,
+            PrimitiveType::U64 => PrimitiveType::Addr,
+            _ => return None,
+        }
+    } else {
+        if !shift && right_type != left_type {
+            return None;
+        }
+        left_type
+    };
+    if !is_integer(primitive_type) || !is_integer(right_type) {
         return None;
     }
     Some((

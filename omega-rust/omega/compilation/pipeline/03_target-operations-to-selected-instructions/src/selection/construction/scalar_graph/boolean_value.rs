@@ -1,4 +1,7 @@
 //! Materialize typed Boolean values before later operations can replace condition state.
+//! Equal 64-bit address models share native comparison instructions, retaining
+//! their source types and unsigned ordering. Mixed address/count comparisons
+//! remain invalid even when both values occupy the same register width.
 use super::{
     Builder, IntegerSign, IntegerValue, LegalizedScalarFunction, LegalizedScalarInstructionKind,
     ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
@@ -43,8 +46,9 @@ pub(super) fn emit(
             let signed = match operand_type {
                 ScalarType::Boolean if predicate == LegalizedScalarComparison::Equal => false,
                 ScalarType::Integer(integer)
-                    if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
-                        && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
+                    if (integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                        && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                        || (integer.is_address() && integer.bits() == 64) =>
                 {
                     integer.sign() == IntegerSign::Signed
                 }
@@ -140,7 +144,7 @@ pub(super) fn emit_branch_comparison(
         return Err(invalid());
     }
     if !matches!(*operand_type, ScalarType::Integer(integer)
-        if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && matches!(integer.bits(), 8 | 16 | 32 | 64))
+        if (integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed && matches!(integer.bits(), 8 | 16 | 32 | 64)) || (integer.is_address() && integer.bits() == 64))
         && !(*operand_type == ScalarType::Boolean
             && *predicate == legalized_operations::LegalizedScalarComparison::Equal)
     {

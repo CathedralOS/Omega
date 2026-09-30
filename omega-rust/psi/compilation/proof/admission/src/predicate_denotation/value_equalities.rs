@@ -163,8 +163,15 @@ impl<'input> ValueEqualities<'input> {
                 if scalar.scalar_type() != ScalarType::Integer(*source_type) {
                     return Err(PredicateDenotationError::InvalidValueEquality);
                 }
-                crate::proof::integer_math_normalization::lift_exact_integer_term(&scalar)
-                    .unwrap_or_else(|| original.clone())
+                // Address literals can discharge address-geometry obligations
+                // under their retained model too. Keep nonliteral address terms
+                // opaque: this does not reinterpret arbitrary address arithmetic.
+                if let ScalarTerm::Integer { value, .. } = scalar {
+                    IntegerMathTerm::literal(value)
+                } else {
+                    crate::proof::integer_math_normalization::lift_exact_integer_term(&scalar)
+                        .unwrap_or_else(|| original.clone())
+                }
             }
             IntegerMathTerm::IntegerLiteral(_) => original.clone(),
             IntegerMathTerm::Add(left, right) => IntegerMathTerm::Add(

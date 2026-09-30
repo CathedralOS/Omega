@@ -163,8 +163,8 @@ pub(super) fn observation(
     };
     let (operation, value, scalar_type) = match abstracted {
         // Divide and remainder are realized only on the carriers their
-        // wrapping or saturating selection supports; every pair resolves both
-        // operands through available sources of its carrier.
+        // wrapping or saturating selection supports. Exact subtraction rejoins
+        // independently typed address/count sources; other pairs use one carrier.
         AbstractOperation::IntegerArithmetic {
             psi_operation,
             result,
@@ -186,6 +186,22 @@ pub(super) fn observation(
             };
             if !carrier_admitted
                 || checker.available.is_none_or(|sources| {
+                    if arithmetic.is(
+                        IntegerOverflowPolicy::Exact,
+                        IntegerArithmeticOperator::Subtract,
+                    ) {
+                        // Custody joins prior value identities and their own
+                        // carriers, rather than assigning the result type to both.
+                        let source_type = |identity| {
+                            sources
+                                .iter()
+                                .find(|(value, _)| *value == identity)
+                                .map(|(_, source)| source.scalar_type())
+                        };
+                        return !matches!((source_type(*left), source_type(*right)),
+                            (Some(ScalarType::Integer(left)), Some(ScalarType::Integer(right)))
+                                if scalar_type.admits_exact_subtract_operands(left, right));
+                    }
                     [left, right].iter().any(|operand| {
                         !sources.iter().any(|(value, source)| {
                             value == *operand

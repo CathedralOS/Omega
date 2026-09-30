@@ -23,7 +23,7 @@ use terminal_verifier::{
 };
 
 #[test]
-fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
+fn exact_subtract_requires_legal_carrier_roles_and_an_obligation() {
     let scalar_type =
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).expect("u32"));
     let left = ValueId::new(198).expect("left");
@@ -115,6 +115,46 @@ fn exact_subtract_requires_same_fixed_integer_operands_and_an_obligation() {
         }],
     };
     validate_module(&module).expect("admits proof-gated exact subtraction");
+
+    let address = ScalarType::Integer(IntegerType::address(64).unwrap());
+    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    for (right_type, result_type) in [(count, address), (address, count)] {
+        let mut address_module = module.clone();
+        let machine = &mut address_module.machines[0];
+        machine.parameters[0].scalar_type = address;
+        machine.parameters[1].scalar_type = right_type;
+        let mut computed_declaration = declaration(computed);
+        computed_declaration.scalar_type = result_type;
+        machine.blocks[0].operations[0].result = OperationResult::Scalar(computed_declaration);
+        let mut result_declaration = declaration(result);
+        result_declaration.scalar_type = result_type;
+        machine.result = TerminalMachineResult::Scalar(result_declaration);
+        validate_module(&address_module).expect("legal address subtraction signature");
+        assert!(reconstruct_operation_obligations(&address_module).is_ok());
+        assert!(
+            verify_module(
+                &address_module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default()
+            )
+            .is_err(),
+            "a valid signature cannot discharge its formation obligation"
+        );
+        let wrong_result = if result_type == address {
+            count
+        } else {
+            address
+        };
+        address_module.machines[0].blocks[0].operations[0].result =
+            OperationResult::Scalar(ValueDeclaration {
+                scalar_type: wrong_result,
+                ..declaration(computed)
+            });
+        assert!(matches!(
+            validate_module(&address_module),
+            Err(ModuleError::ExactIntegerSubtractOperandTypeMismatch { .. })
+        ));
+    }
 
     module.machines[0].parameters[1].scalar_type = ScalarType::Boolean;
     assert!(matches!(

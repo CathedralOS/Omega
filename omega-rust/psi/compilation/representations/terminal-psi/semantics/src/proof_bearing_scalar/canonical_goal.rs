@@ -155,13 +155,13 @@ fn exact_multiply_representability_proposition(
             right: right.scalar_type(),
         });
     }
-    let mathematical_left = fixed_integer_math_term(
+    let mathematical_left = integer_leaf_math_term(
         integer_type,
         left,
         |_| unreachable!("exact-multiply operand types were checked together"),
         OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
     )?;
-    let mathematical_right = fixed_integer_math_term(
+    let mathematical_right = integer_leaf_math_term(
         integer_type,
         right,
         |_| unreachable!("exact-multiply operand types were checked together"),
@@ -222,11 +222,6 @@ fn exact_subtract_representability_proposition(
     integer_type: IntegerType,
     expression: &ScalarTerm,
 ) -> Result<Proposition, OperationSemanticError> {
-    if integer_type.carrier() != IntegerCarrier::Fixed {
-        return Err(OperationSemanticError::ExactArithmeticRequiresFixedInteger(
-            integer_type,
-        ));
-    }
     let ScalarTerm::ExactIntegerSubtract {
         scalar_type,
         left,
@@ -243,23 +238,30 @@ fn exact_subtract_representability_proposition(
             },
         );
     }
-    if left.scalar_type() != ScalarType::Integer(integer_type)
-        || right.scalar_type() != ScalarType::Integer(integer_type)
-    {
+    let (ScalarType::Integer(left_type), ScalarType::Integer(right_type)) =
+        (left.scalar_type(), right.scalar_type())
+    else {
+        return Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch {
+            declared: integer_type,
+            left: left.scalar_type(),
+            right: right.scalar_type(),
+        });
+    };
+    if !integer_type.admits_exact_subtract_operands(left_type, right_type) {
         return Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch {
             declared: integer_type,
             left: left.scalar_type(),
             right: right.scalar_type(),
         });
     }
-    let mathematical_left = fixed_integer_math_term(
-        integer_type,
+    let mathematical_left = integer_leaf_math_term(
+        left_type,
         left,
         |_| unreachable!("exact-subtract operand types were checked together"),
         OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
     )?;
-    let mathematical_right = fixed_integer_math_term(
-        integer_type,
+    let mathematical_right = integer_leaf_math_term(
+        right_type,
         right,
         |_| unreachable!("exact-subtract operand types were checked together"),
         OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
@@ -274,14 +276,18 @@ fn exact_subtract_representability_proposition(
     ) = (left.as_ref(), right.as_ref())
     {
         return Ok(
-            if integer_type.exact_sub(*left_value, *right_value).is_some() {
+            if integer_type
+                .exact_subtract_values(left_type, *left_value, right_type, *right_value)
+                .is_some()
+            {
                 Proposition::Truth
             } else {
                 Proposition::Falsehood
             },
         );
     }
-    if matches!(mathematical_right, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
+    if (left_type == integer_type
+        && matches!(mathematical_right, IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0))
         || left == right
     {
         return Ok(Proposition::Truth);
@@ -294,7 +300,9 @@ fn exact_subtract_representability_proposition(
         IntegerMathTerm::literal(integer_type.minimum_value()),
         difference.clone(),
     ));
-    if integer_type.sign() == IntegerSign::Signed {
+    // A distance between wide addresses must also fit the u64 result. The
+    // ordinary unsigned subtraction upper bound follows from its left carrier.
+    if integer_type.sign() == IntegerSign::Signed || left_type != integer_type {
         bounds.push(Proposition::IntegerMathLessOrEqual(
             difference,
             IntegerMathTerm::literal(integer_type.maximum_value()),
@@ -337,13 +345,13 @@ fn exact_add_representability_proposition(
             right: right.scalar_type(),
         });
     }
-    let mathematical_left = fixed_integer_math_term(
+    let mathematical_left = integer_leaf_math_term(
         integer_type,
         left,
         |_| unreachable!("exact-add operand types were checked together"),
         OperationSemanticError::ExactArithmeticRequiresValueOrLiteralOperand,
     )?;
-    let mathematical_right = fixed_integer_math_term(
+    let mathematical_right = integer_leaf_math_term(
         integer_type,
         right,
         |_| unreachable!("exact-add operand types were checked together"),
@@ -387,7 +395,7 @@ fn exact_add_representability_proposition(
     Ok(canonical_conjunction(bounds))
 }
 
-fn fixed_integer_math_term(
+fn integer_leaf_math_term(
     declared: IntegerType,
     term: &ScalarTerm,
     mismatch: impl FnOnce(ScalarType) -> OperationSemanticError,
@@ -433,7 +441,7 @@ fn exact_shift_left_representability_proposition(
     count: &ScalarTerm,
 ) -> Result<Proposition, OperationSemanticError> {
     let count_proposition = exact_shift_count_proposition(value_type, count_type, count)?;
-    let mathematical_value = fixed_integer_math_term(
+    let mathematical_value = integer_leaf_math_term(
         value_type,
         value,
         |actual| OperationSemanticError::ExactShiftLeftValueTypeMismatch {
@@ -442,7 +450,7 @@ fn exact_shift_left_representability_proposition(
         },
         OperationSemanticError::ExactShiftLeftRequiresValueOrLiteralOperand,
     )?;
-    let mathematical_count = fixed_integer_math_term(
+    let mathematical_count = integer_leaf_math_term(
         count_type,
         count,
         |actual| OperationSemanticError::ExactShiftCountTypeMismatch {
@@ -1700,8 +1708,7 @@ mod tests {
                 expression: malformed(address, i8_value.clone(), i8_value.clone()),
             }
             .kernel_proposition(),
-            Err(OperationSemanticError::ExactArithmeticRequiresFixedInteger(actual))
-                if actual == address
+            Err(OperationSemanticError::ExactArithmeticOperandTypeMismatch { .. })
         ));
         assert!(matches!(
             CanonicalScalarGoal::ExactArithmeticRepresentable {
@@ -1876,6 +1883,57 @@ mod tests {
             }
             .kernel_proposition(),
             Ok(Proposition::Falsehood)
+        );
+    }
+}
+
+#[cfg(test)]
+mod address_subtraction_tests {
+    use super::*;
+    use semantic_vocabulary::ValueId;
+
+    #[test]
+    fn exact_address_subtraction_requires_nonnegative_and_count_fit_proofs() {
+        let address = IntegerType::address(128).unwrap();
+        let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let value = |identity, carrier| {
+            ScalarTerm::value(
+                ValueId::new(identity).unwrap(),
+                ScalarType::Integer(carrier),
+            )
+        };
+        let goal = |result, left, right| {
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: result,
+                expression: ScalarTerm::exact_integer_subtract(result, left, right).unwrap(),
+            }
+            .kernel_proposition()
+            .unwrap()
+        };
+        let offset = goal(address, value(1, address), value(2, count));
+        assert!(matches!(offset, Proposition::IntegerMathLessOrEqual(..)));
+        let distance = goal(count, value(1, address), value(2, address));
+        assert!(matches!(distance, Proposition::Conjunction(ref bounds) if bounds.len() == 2));
+        // Subtracting zero from an open wide address does not prove u64 fit.
+        let distance_from_zero = goal(
+            count,
+            value(1, address),
+            ScalarTerm::integer(address, IntegerValue::Unsigned(0)).unwrap(),
+        );
+        assert_ne!(distance_from_zero, Proposition::Truth);
+        let literal =
+            |number| ScalarTerm::integer(address, IntegerValue::Unsigned(number)).unwrap();
+        assert_eq!(
+            goal(count, literal(4000), literal(4096)),
+            Proposition::Falsehood
+        );
+        assert_eq!(
+            goal(count, literal(1u128 << 100), literal(0)),
+            Proposition::Falsehood
+        );
+        assert_eq!(
+            goal(count, literal((1u128 << 100) + 96), literal(1u128 << 100)),
+            Proposition::Truth
         );
     }
 }

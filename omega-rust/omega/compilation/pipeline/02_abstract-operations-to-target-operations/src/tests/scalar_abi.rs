@@ -67,10 +67,28 @@ fn mixed_fixed_integer_plan() -> (
 }
 
 #[test]
-fn address_shapes_reject_and_boolean_parameters_keep_their_type() {
+fn address_and_boolean_parameters_keep_their_type_and_reject_wide_addresses() {
     let (mut address, _, _) = mixed_fixed_integer_plan();
     let address_type = IntegerType::address(64).unwrap();
     address.functions[0].parameters[0].scalar_type = ScalarType::Integer(address_type);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let lowered = lower_to_target_operations(&address, TargetLoweringRequest::new(native))
+            .expect("64-bit address transport");
+        crate::validate_abstract_to_target_translation(&address, native, &lowered).unwrap();
+        let abi = lowered.functions[0].scalar_abi.as_ref().unwrap();
+        assert_eq!(
+            abi.parameters[0].scalar_type,
+            ScalarType::Integer(address_type)
+        );
+        assert_eq!(abi.parameters[0].placement.shape, ValueShape::integer(8, 8));
+    }
+    address.functions[0].parameters[0].scalar_type =
+        ScalarType::Integer(IntegerType::address(128).unwrap());
     assert!(
         lower_to_target_operations(
             &address,

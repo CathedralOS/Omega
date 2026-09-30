@@ -1,6 +1,8 @@
 use abstract_operations::AbstractStructuralCallResult;
 use abstract_operations::{AbstractDynamicCallResult, AbstractDynamicDispatch};
-use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftPolicy,
+};
 use optimization_unit::{PsiOptimizationFunction, ValueDefinition};
 use semantic_vocabulary::{
     BoundaryMachineId, IntegerCarrier, IntegerType, MachineId, ScalarType, StructuralPlaceKind,
@@ -221,8 +223,8 @@ pub(crate) fn operation_scalar_types_match(
             right,
             ..
         } => binary(*left, *right, *scalar_type),
-        // Proof-bearing pairs (exact arithmetic and every divide or
-        // remainder) are admitted only over fixed carriers.
+        // Exact subtraction alone admits address/count roles. Other
+        // proof-bearing pairs still require same-type fixed operands.
         O::IntegerArithmetic {
             scalar_type,
             arithmetic,
@@ -230,8 +232,14 @@ pub(crate) fn operation_scalar_types_match(
             right,
             ..
         } => {
-            (arithmetic.obligation().is_none() || fixed(*scalar_type))
-                && binary(*left, *right, *scalar_type)
+            if arithmetic.is(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Subtract) {
+                matches!((scalar(*left), scalar(*right)),
+                    (Some(ScalarType::Integer(left)), Some(ScalarType::Integer(right)))
+                        if scalar_type.admits_exact_subtract_operands(left, right))
+            } else {
+                (arithmetic.obligation().is_none() || fixed(*scalar_type))
+                    && binary(*left, *right, *scalar_type)
+            }
         }
         O::IntegerShift {
             value_type,

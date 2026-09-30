@@ -955,8 +955,8 @@ static OP_EXACT_INTEGER_ADD: TrustedSurfaceEntry = entry(
 );
 static OP_EXACT_INTEGER_SUBTRACT: TrustedSurfaceEntry = entry(
     "operation:exact-integer-subtract",
-    "two validated same-type fixed-integer operands with an obligation identity",
-    "the canonical goal: the difference is representable in the operand type; the result equation joins the axioms",
+    "validated same-type fixed-integer operands, address minus u64 count to address, or same-model addresses to u64 distance, with an obligation identity",
+    "the canonical goal: the mathematical difference is representable in the result carrier; the result equation joins the axioms",
     PROOF_BEARING_DEPS,
     PROOF_BEARING_SITES,
 );
