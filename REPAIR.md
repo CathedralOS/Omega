@@ -75,7 +75,6 @@ exists; admission declines or omits without diagnostic), not new-capability:
   a bare string literal; anything else declines with no diagnostic.
 - `COMPOSITE-TRANSITION-ARGUMENT` — composite transition arguments route only
   from locals.
-- `VALUE-CALL-TRANSITION-ARGUMENT` — value calls omit as transition arguments.
 - `BOUNDARY-PRIMITIVE-ARRAY-PARAMETER` — primitive fixed-array boundary
   parameters/results have no lowering route (3 GUI samples pinned).
 
