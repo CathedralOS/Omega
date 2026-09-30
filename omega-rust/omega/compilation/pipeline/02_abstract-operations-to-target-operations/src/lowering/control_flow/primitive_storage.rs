@@ -237,34 +237,14 @@ pub(super) fn lower(
                 },
             )
         }
-        AbstractOperation::IntegerStructuralField { .. }
-        | AbstractOperation::BooleanStructuralField { .. } => {
-            let (psi_operation, result, place, path, field) = match operation {
-                AbstractOperation::IntegerStructuralField {
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                    field,
-                } => (*psi_operation, *result, *source, path, *field),
-                AbstractOperation::BooleanStructuralField {
-                    psi_operation,
-                    result,
-                    source,
-                    path,
-                    field,
-                } => (
-                    *psi_operation,
-                    abstract_operations::AbstractResult {
-                        value: *result,
-                        scalar_type: ScalarType::Boolean,
-                    },
-                    *source,
-                    path,
-                    *field,
-                ),
-                _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
-            };
+        AbstractOperation::StructuralScalarFieldRead {
+            psi_operation,
+            result,
+            source,
+            path,
+            field,
+        } => {
+            let (psi_operation, result, place, field) = (*psi_operation, *result, *source, *field);
             let (structural_type, access) = if let Some(home) = live.structural_homes.get(&place) {
                 if home.has_claims()
                     || home.multiplicity() == StructuralMultiplicity::Linear

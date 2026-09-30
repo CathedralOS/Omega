@@ -107,7 +107,7 @@ fn indexed_field_observations_replay_literal_element_offset() {
             };
             function.result = AbstractFunctionResult::Scalar(result);
             function.operations = vec![
-                AbstractOperation::IntegerStructuralField {
+                AbstractOperation::StructuralScalarFieldRead {
                     psi_operation: OperationId::new(1).unwrap(),
                     result: read,
                     path: vec![Segment::Field(maps), Segment::FixedIndex(1)],
@@ -219,7 +219,7 @@ fn indexed_field_observations_replay_literal_element_offset() {
                 ],
             ] {
                 let mut changed = source.clone();
-                let AbstractOperation::IntegerStructuralField { path, .. } =
+                let AbstractOperation::StructuralScalarFieldRead { path, .. } =
                     &mut changed.functions[0].operations[0]
                 else {
                     panic!("field read");
@@ -368,16 +368,8 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                         },
                         field,
                     }
-                } else if scalar == ScalarType::Boolean {
-                    AbstractOperation::BooleanStructuralField {
-                        psi_operation,
-                        result,
-                        path: path.clone(),
-                        source: parameter.place,
-                        field,
-                    }
                 } else {
-                    AbstractOperation::IntegerStructuralField {
+                    AbstractOperation::StructuralScalarFieldRead {
                         psi_operation,
                         result: AbstractResult {
                             value: result,

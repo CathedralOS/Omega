@@ -50,7 +50,7 @@ fn projected_case_membership_replays_exact_path_case_access_and_identity() {
             },
         },
     ]);
-    let O::BooleanStructuralField {
+    let O::StructuralScalarFieldRead {
         psi_operation,
         result,
         source,
@@ -61,10 +61,7 @@ fn projected_case_membership_replays_exact_path_case_access_and_identity() {
     };
     baseline.functions[0].blocks[0].nodes[0].operation = O::StructuralCaseMembership {
         psi_operation,
-        result: abstract_operations::AbstractResult {
-            value: result,
-            scalar_type: ScalarType::Boolean,
-        },
+        result,
         source,
         path: vec![Path::Field("ready".into()), Path::FixedIndex(1)],
         case,
@@ -178,7 +175,7 @@ fn boolean_structural_field_replays_exact_readable_root_and_field() {
         refresh_identity(&mut candidate);
         assert!(matches!(
             validate_psi_optimization_unit(&candidate),
-            Err(OptimizationUnitValidationError::InvalidBooleanStructuralField { .. })
+            Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldRead { .. })
         ));
     };
 
@@ -231,7 +228,7 @@ fn boolean_structural_field_replays_exact_readable_root_and_field() {
     ));
 
     let mut wrong_field = baseline.clone();
-    let O::BooleanStructuralField { field, .. } =
+    let O::StructuralScalarFieldRead { field, .. } =
         &mut wrong_field.functions[0].blocks[0].nodes[0].operation
     else {
         panic!("fixture begins with its observation")
@@ -254,7 +251,7 @@ fn boolean_structural_field_replays_exact_readable_root_and_field() {
     let mut differing_observation = baseline;
     let mut second = differing_observation.functions[0].blocks[0].nodes[0].clone();
     let second_field = id(4_713, semantic_vocabulary::StructuralFieldId::new);
-    let O::BooleanStructuralField {
+    let O::StructuralScalarFieldRead {
         psi_operation,
         result,
         field,
@@ -264,7 +261,7 @@ fn boolean_structural_field_replays_exact_readable_root_and_field() {
         unreachable!()
     };
     *psi_operation = id(4_714, OperationId::new);
-    *result = id(4_715, ValueId::new);
+    result.value = id(4_715, ValueId::new);
     *field = second_field;
     let terminal_psi::StructuralTypeShape::Record { fields } =
         &mut differing_observation.structural_types.make_mut()[0].shape
@@ -335,12 +332,12 @@ fn bounded_integer_field_reads_require_the_exact_declared_carrier_and_path() {
         refresh_function_derivatives(&mut candidate, 0);
         assert!(matches!(
             validate_psi_optimization_unit(&candidate),
-            Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+            Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldRead { .. })
         ));
     }
 
     let mut wrong_path = baseline;
-    let O::IntegerStructuralField { path, field, .. } =
+    let O::StructuralScalarFieldRead { path, field, .. } =
         &mut wrong_path.functions[0].blocks[0].nodes[0].operation
     else {
         unreachable!()
@@ -352,7 +349,7 @@ fn bounded_integer_field_reads_require_the_exact_declared_carrier_and_path() {
     refresh_function_derivatives(&mut wrong_path, 0);
     assert!(matches!(
         validate_psi_optimization_unit(&wrong_path),
-        Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+        Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldRead { .. })
     ));
 }
 
@@ -544,11 +541,11 @@ fn direct_integer_structural_field_rejects_access_type_and_field_corruption() {
     refresh_identity(&mut access);
     assert!(matches!(
         validate_psi_optimization_unit(&access),
-        Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+        Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldRead { .. })
     ));
 
     let mut result_type = direct_realization_integer_structural_field_unit();
-    let O::IntegerStructuralField { result, .. } =
+    let O::StructuralScalarFieldRead { result, .. } =
         &mut result_type.functions[0].blocks[0].nodes[0].operation
     else {
         unreachable!()
@@ -559,7 +556,7 @@ fn direct_integer_structural_field_rejects_access_type_and_field_corruption() {
     assert!(validate_psi_optimization_unit(&result_type).is_err());
 
     let mut field = direct_realization_integer_structural_field_unit();
-    let O::IntegerStructuralField {
+    let O::StructuralScalarFieldRead {
         field: selected_field,
         ..
     } = &mut field.functions[0].blocks[0].nodes[0].operation
@@ -570,7 +567,7 @@ fn direct_integer_structural_field_rejects_access_type_and_field_corruption() {
     refresh_node_derivatives(&mut field, 0, 0, 0);
     assert!(matches!(
         validate_psi_optimization_unit(&field),
-        Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+        Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldRead { .. })
     ));
 }
 
@@ -616,7 +613,7 @@ fn case_payload_integer_field_replays_exact_case_and_payload_field() {
                 ],
             },
         });
-    let O::IntegerStructuralField { path, field, .. } =
+    let O::StructuralScalarFieldRead { path, field, .. } =
         &mut baseline.functions[0].blocks[0].nodes[0].operation
     else {
         unreachable!()
@@ -628,7 +625,7 @@ fn case_payload_integer_field_replays_exact_case_and_payload_field() {
 
     for corruption in 0..5 {
         let mut candidate = baseline.clone();
-        let O::IntegerStructuralField { path, field, .. } =
+        let O::StructuralScalarFieldRead { path, field, .. } =
             &mut candidate.functions[0].blocks[0].nodes[0].operation
         else {
             unreachable!()
@@ -649,7 +646,7 @@ fn case_payload_integer_field_replays_exact_case_and_payload_field() {
         assert!(
             matches!(
                 validate_psi_optimization_unit(&candidate),
-                Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+                Err(OptimizationUnitValidationError::InvalidStructuralScalarFieldRead { .. })
             ),
             "corruption {corruption}"
         );

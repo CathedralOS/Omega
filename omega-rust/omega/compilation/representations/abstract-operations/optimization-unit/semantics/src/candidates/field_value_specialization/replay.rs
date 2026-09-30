@@ -180,13 +180,23 @@ fn declared_structural_type(
     }
 }
 
-/// The scalar kind a resolved observation must carry: `Boolean` for a
-/// `BooleanStructuralField` result, `Integer` for an `IntegerStructuralField`
-/// result.
+/// The scalar kind a resolved observation must carry: the Boolean or integer
+/// type of its `StructuralScalarFieldRead` result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ObservedFieldKind {
     Boolean,
     Integer,
+}
+
+impl ObservedFieldKind {
+    /// `None` for a result type no field read observes.
+    fn of(scalar_type: ScalarType) -> Option<Self> {
+        match scalar_type {
+            ScalarType::Boolean => Some(Self::Boolean),
+            ScalarType::Integer(_) => Some(Self::Integer),
+            ScalarType::IeeeFloat(_) => None,
+        }
+    }
 }
 
 /// The per-function value graph a forward admission resolves against: every
@@ -245,8 +255,8 @@ struct ProvenFieldValue {
     resolution: FieldValueResolution,
 }
 
-/// The admissibility of one node under `evidence`: a `BooleanStructuralField`
-/// or `IntegerStructuralField` observing the evidence's place whose stored
+/// The admissibility of one node under `evidence`: a Boolean or integer
+/// `StructuralScalarFieldRead` observing the evidence's place whose stored
 /// value the unit proves. `None` for every other node.
 fn admit_field_node(
     unit: &PsiOptimizationUnit,
@@ -257,44 +267,18 @@ fn admit_field_node(
     node_index: usize,
     node: &OptimizationNode,
 ) -> Option<FieldValueRow> {
-    let (psi_operation, result, scalar_type, source, path, field, kind) = match &node.operation {
-        O::BooleanStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => (
-            psi_operation,
-            *result,
-            ScalarType::Boolean,
-            source,
-            path,
-            field,
-            ObservedFieldKind::Boolean,
-        ),
-        O::IntegerStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => {
-            if !matches!(result.scalar_type, ScalarType::Integer(_)) {
-                return None;
-            }
-            (
-                psi_operation,
-                result.value,
-                result.scalar_type,
-                source,
-                path,
-                field,
-                ObservedFieldKind::Integer,
-            )
-        }
-        _ => return None,
+    let O::StructuralScalarFieldRead {
+        psi_operation,
+        result,
+        source,
+        path,
+        field,
+    } = &node.operation
+    else {
+        return None;
     };
+    let kind = ObservedFieldKind::of(result.scalar_type)?;
+    let (result, scalar_type) = (result.value, result.scalar_type);
     if *source != evidence.declaration.id {
         return None;
     }
@@ -1135,7 +1119,7 @@ fn bound_value(
 }
 
 /// The independently derived resolution roster for `place`: every
-/// `BooleanStructuralField`/`IntegerStructuralField` observing it whose
+/// Boolean or integer `StructuralScalarFieldRead` observing it whose
 /// stored value the per-site basis proves, sorted by site.
 fn plan_reads(
     unit: &PsiOptimizationUnit,
@@ -1176,23 +1160,17 @@ fn folded_node(
         .find(|block| block.id == row.site.block)
         .and_then(|block| block.nodes.get(index))
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let (psi_operation, result, source, path, field) = match &node.operation {
-        O::BooleanStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => (psi_operation, *result, source, path, field),
-        O::IntegerStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => (psi_operation, result.value, source, path, field),
-        _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    let O::StructuralScalarFieldRead {
+        psi_operation,
+        result: read_result,
+        source,
+        path,
+        field,
+    } = &node.operation
+    else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
+    let result = read_result.value;
     if row.site.machine != function.machine
         || *psi_operation != row.psi_operation
         || result != row.result
@@ -1211,9 +1189,12 @@ fn folded_node(
         FieldValueResolution::Constant(FoldedFieldValue::Integer(value)) => O::IntegerConstant {
             psi_operation: *psi_operation,
             result,
-            scalar_type: match &node.operation {
-                O::IntegerStructuralField { result, .. } => result.scalar_type,
-                _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+            // An integer constant replaces only a non-Boolean read.
+            scalar_type: match read_result.scalar_type {
+                ScalarType::Boolean => {
+                    return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+                }
+                scalar_type => scalar_type,
             },
             value: *value,
         },

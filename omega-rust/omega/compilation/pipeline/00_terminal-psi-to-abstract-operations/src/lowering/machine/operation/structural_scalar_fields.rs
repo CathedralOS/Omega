@@ -238,7 +238,7 @@ fn lower_integer_read(
     {
         return Err(invalid());
     }
-    Ok(AbstractOperation::IntegerStructuralField {
+    Ok(AbstractOperation::StructuralScalarFieldRead {
         psi_operation: operation.id,
         result: AbstractResult {
             value: result.id,

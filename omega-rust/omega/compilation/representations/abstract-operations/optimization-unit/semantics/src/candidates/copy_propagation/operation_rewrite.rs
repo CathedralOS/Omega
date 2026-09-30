@@ -156,7 +156,6 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
-        | O::BooleanStructuralField { .. }
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::ByteSequenceRead { .. }
@@ -172,7 +171,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
-        | O::IntegerStructuralField { .. }
+        | O::StructuralScalarFieldRead { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         // A restoration window's fields are structural places and

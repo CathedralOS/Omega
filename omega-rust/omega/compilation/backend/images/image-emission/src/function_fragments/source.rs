@@ -55,13 +55,12 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::ReturnStructural { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
-                | AbstractOperation::IntegerStructuralField { .. }
+                | AbstractOperation::StructuralScalarFieldRead { .. }
                 | AbstractOperation::StructuralByteSequenceFieldLength { .. }
                 | AbstractOperation::StructuralByteSequenceFieldRead { .. }
                 | AbstractOperation::ByteSequenceStore { .. }
                 | AbstractOperation::StructuralByteSequenceFieldStore { .. }
                 | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
-                | AbstractOperation::BooleanStructuralField { .. }
                 | AbstractOperation::StructuralCaseMembership { .. }
                 | AbstractOperation::StructuralLeafCopy { .. }
                 | AbstractOperation::MoveStructuralField { .. }
@@ -267,9 +266,8 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     structural_fields::retained(abstracted, operation, targeted)
                         && structural_fields::runtime_footprint_retained(operation, &selected.memory_accesses)
                 }
-                AbstractOperation::IntegerStructuralField { .. }
-                | AbstractOperation::StructuralByteSequenceFieldLength { .. }
-                | AbstractOperation::BooleanStructuralField { .. } => {
+                AbstractOperation::StructuralScalarFieldRead { .. }
+                | AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
                     structural_fields::retained(abstracted, operation, targeted)
                 }
                 // A call that forwards descriptors has no shared-image lane,

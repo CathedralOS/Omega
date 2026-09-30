@@ -278,8 +278,8 @@ pub(super) fn convergence_measure(
 
 /// Non-increasing convergence measure for the representation-specialization
 /// pass: the count of structural observations left to fold —
-/// `StructuralCaseMembership`, `BooleanStructuralField`, and
-/// `IntegerStructuralField`. Every committed candidate rewrites each admitted
+/// `StructuralCaseMembership` and `StructuralScalarFieldRead`. Every committed
+/// candidate rewrites each admitted
 /// observation into a constant, so a commit strictly lowers the measure and a
 /// fixed point is reached when no proven observation remains.
 fn representation_observation_count(unit: &PsiOptimizationUnit) -> u64 {
@@ -291,8 +291,7 @@ fn representation_observation_count(unit: &PsiOptimizationUnit) -> u64 {
             matches!(
                 node.operation,
                 abstract_operations::AbstractOperation::StructuralCaseMembership { .. }
-                    | abstract_operations::AbstractOperation::BooleanStructuralField { .. }
-                    | abstract_operations::AbstractOperation::IntegerStructuralField { .. }
+                    | abstract_operations::AbstractOperation::StructuralScalarFieldRead { .. }
             )
         })
         .count() as u64

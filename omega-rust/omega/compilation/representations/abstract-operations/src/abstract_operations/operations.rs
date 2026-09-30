@@ -459,18 +459,13 @@ pub enum AbstractOperation {
         result: ValueId,
         value: bool,
     },
-    BooleanStructuralField {
-        psi_operation: OperationId,
-        result: ValueId,
-        source: PlaceId,
-        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        field: semantic_vocabulary::StructuralFieldId,
-    },
-    /// Read one exact relevant integer field below the retained structural root.
-    /// The canonical carrier path excludes the final declaration-local field.
-    /// Source custody is reconstructed from the parameter/result/block catalog;
-    /// the observation retains its own value identity and integer type.
-    IntegerStructuralField {
+    /// Read one exact relevant Boolean or integer field below the retained
+    /// structural root. The canonical carrier path excludes the final
+    /// declaration-local field. Source custody is reconstructed from the
+    /// parameter/result/block catalog; the observation retains its own value
+    /// identity, and `result.scalar_type` is the field's declared Boolean or
+    /// integer type. Consumers that treat the two differently branch on it.
+    StructuralScalarFieldRead {
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,
@@ -769,7 +764,7 @@ impl AbstractOperation {
             | Self::IeeeFloatCompare { psi_operation, .. }
             | Self::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
             | Self::BooleanConstant { psi_operation, .. }
-            | Self::BooleanStructuralField { psi_operation, .. }
+            | Self::StructuralScalarFieldRead { psi_operation, .. }
             | Self::ByteSequenceRead { psi_operation, .. }
             | Self::ByteSequenceSubslice { psi_operation, .. }
             | Self::ByteSequenceLength { psi_operation, .. }
@@ -778,7 +773,6 @@ impl AbstractOperation {
             | Self::ElementViewRead { psi_operation, .. }
             | Self::ElementViewWrite { psi_operation, .. }
             | Self::ElementViewSubslice { psi_operation, .. }
-            | Self::IntegerStructuralField { psi_operation, .. }
             | Self::BooleanNot { psi_operation, .. }
             | Self::BooleanEqual { psi_operation, .. }
             | Self::IntegerEqual { psi_operation, .. }

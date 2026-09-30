@@ -52,7 +52,7 @@ fn input(
         scalar_type: scalar,
     });
     function.operations = vec![
-        AbstractOperation::IntegerStructuralField {
+        AbstractOperation::StructuralScalarFieldRead {
             psi_operation: OperationId::new(1).unwrap(),
             result: AbstractResult {
                 value: ValueId::new(1).unwrap(),

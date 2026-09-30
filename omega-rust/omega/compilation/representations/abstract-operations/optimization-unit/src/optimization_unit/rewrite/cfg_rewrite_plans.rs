@@ -224,8 +224,8 @@ pub enum FieldValueResolution {
     Forward(ForwardedFieldValue),
 }
 
-/// One resolved scalar field observation: a `BooleanStructuralField` or
-/// `IntegerStructuralField` read whose stored value the unit proves, carried
+/// One resolved scalar field observation: a Boolean or integer
+/// `StructuralScalarFieldRead` whose stored value the unit proves, carried
 /// with the exact site, custody identity, observed place, canonical path,
 /// field, proof witness, and resolution. `producer` is the establishing
 /// operation the row's proof draws on — `Some` for an `EstablishRecord`

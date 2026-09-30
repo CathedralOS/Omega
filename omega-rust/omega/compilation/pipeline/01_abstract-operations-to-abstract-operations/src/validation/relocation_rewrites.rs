@@ -76,8 +76,7 @@ pub(crate) fn scalar_case_result_contained(
                 // inside the roster.
                 O::StructuralCase { source, .. }
                 | O::StructuralCaseMembership { source, .. }
-                | O::IntegerStructuralField { source, .. }
-                | O::BooleanStructuralField { source, .. }
+                | O::StructuralScalarFieldRead { source, .. }
                 | O::PrimitiveScalarRead { source, .. }
                 | O::ByteSequenceRead { source, .. }
                 | O::ByteSequenceSubslice { source, .. }
@@ -561,8 +560,7 @@ pub(crate) fn substitute_invariant_place_root(
         | O::ByteSequenceLength { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::StructuralByteSequenceFieldRead { source, .. }
-        | O::BooleanStructuralField { source, .. }
-        | O::IntegerStructuralField { source, .. } => source,
+        | O::StructuralScalarFieldRead { source, .. } => source,
         _ => return false,
     };
     if *source != parameter {

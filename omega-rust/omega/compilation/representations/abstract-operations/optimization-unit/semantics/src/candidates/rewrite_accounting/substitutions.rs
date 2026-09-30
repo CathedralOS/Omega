@@ -126,7 +126,6 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::BooleanConstant { .. }
-        | O::BooleanStructuralField { .. }
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::ByteSequenceRead { .. }
@@ -142,7 +141,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
-        | O::IntegerStructuralField { .. }
+        | O::StructuralScalarFieldRead { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         // A restoration window's fields are structural places and

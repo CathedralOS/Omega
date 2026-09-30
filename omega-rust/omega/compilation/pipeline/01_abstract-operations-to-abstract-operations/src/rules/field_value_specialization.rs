@@ -15,7 +15,7 @@ use crate::{
     field_value_specialization,
 };
 
-/// Resolves a `BooleanStructuralField`/`IntegerStructuralField` observation
+/// Resolves a Boolean or integer `StructuralScalarFieldRead` observation
 /// whose stored value the unit itself proves: an `EstablishRecord` producer
 /// on the observed operation-result place at an empty path, an
 /// `EstablishCase` producer whose `result_case` matches at a lone

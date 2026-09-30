@@ -196,7 +196,7 @@ pub(super) fn structural_scalar_fields_plan() -> AbstractOperationPlan {
                         scalar_type,
                     },
                 },
-                AbstractOperation::IntegerStructuralField {
+                AbstractOperation::StructuralScalarFieldRead {
                     psi_operation: id(88, OperationId::new),
                     result: AbstractResult {
                         value: read_value,

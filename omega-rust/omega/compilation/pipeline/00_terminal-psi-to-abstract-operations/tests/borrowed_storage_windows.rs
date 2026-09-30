@@ -409,7 +409,7 @@ fn a_sibling_observation_inside_the_window_lowers() {
     ));
     assert!(matches!(
         operations[1],
-        AbstractOperation::BooleanStructuralField { .. }
+        AbstractOperation::StructuralScalarFieldRead { .. }
     ));
     assert!(matches!(
         operations[2],

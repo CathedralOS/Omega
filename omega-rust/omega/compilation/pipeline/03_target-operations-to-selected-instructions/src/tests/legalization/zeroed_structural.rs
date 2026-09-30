@@ -88,7 +88,7 @@ fn zeroed_records_and_array_leaves_select_exact_stores_and_reads() {
                 value: returned,
                 scalar_type: scalar(64),
             });
-            source.functions[0].operations[1] = AbstractOperation::IntegerStructuralField {
+            source.functions[0].operations[1] = AbstractOperation::StructuralScalarFieldRead {
                 psi_operation: OperationId::new(2).unwrap(),
                 result: AbstractResult {
                     value: read,

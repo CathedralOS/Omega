@@ -297,22 +297,16 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
         qualifications: vec![],
         projected_qualifications: vec![],
     };
-    let operation = match scalar_type {
-        ScalarType::Boolean => AbstractOperation::BooleanStructuralField {
-            psi_operation,
-            result: result.value,
-            path: Vec::new(),
-            source: parameter.place,
-            field,
-        },
-        ScalarType::Integer(_) => AbstractOperation::IntegerStructuralField {
-            psi_operation,
-            result,
-            path: Vec::new(),
-            source: parameter.place,
-            field,
-        },
-        ScalarType::IeeeFloat(_) => panic!("fixture covers integer and Boolean field reads"),
+    assert!(
+        !matches!(scalar_type, ScalarType::IeeeFloat(_)),
+        "fixture covers integer and Boolean field reads"
+    );
+    let operation = AbstractOperation::StructuralScalarFieldRead {
+        psi_operation,
+        result,
+        path: Vec::new(),
+        source: parameter.place,
+        field,
     };
     let shape = ValueShape::integer(8, 8);
     let call_plan = evaluate_call_plan(
@@ -726,8 +720,7 @@ fn nested_field_membership_reconstructs_parent_local_carrier_identity() {
         let carrier_field = StructuralFieldId::new(1).unwrap();
         let child = StructuralTypeId::new(2).unwrap();
         match &mut function.operations[0] {
-            AbstractOperation::BooleanStructuralField { path, .. }
-            | AbstractOperation::IntegerStructuralField { path, .. } => path.push(
+            AbstractOperation::StructuralScalarFieldRead { path, .. } => path.push(
                 semantic_vocabulary::CanonicalStructuralPathSegment::Field(carrier_field),
             ),
             _ => unreachable!(),
@@ -802,8 +795,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         let array = StructuralTypeId::new(2).unwrap();
         let element = StructuralTypeId::new(3).unwrap();
         let leaf = match &mut function.operations[0] {
-            AbstractOperation::BooleanStructuralField { path, field, .. }
-            | AbstractOperation::IntegerStructuralField { path, field, .. } => {
+            AbstractOperation::StructuralScalarFieldRead { path, field, .. } => {
                 *path = vec![Segment::Field(maps_field), Segment::FixedIndex(1)];
                 *field
             }
@@ -880,8 +872,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         // segment, and a field carrier that is not a fixed array.
         let mut out_of_bounds = function.clone();
         match &mut out_of_bounds.operations[0] {
-            AbstractOperation::BooleanStructuralField { path, .. }
-            | AbstractOperation::IntegerStructuralField { path, .. } => {
+            AbstractOperation::StructuralScalarFieldRead { path, .. } => {
                 *path = vec![Segment::Field(maps_field), Segment::FixedIndex(2)];
             }
             _ => unreachable!(),
@@ -905,8 +896,7 @@ fn indexed_field_membership_reconstructs_fixed_array_carrier_identity() {
         ] {
             let mut invalid = function.clone();
             match &mut invalid.operations[0] {
-                AbstractOperation::BooleanStructuralField { path: actual, .. }
-                | AbstractOperation::IntegerStructuralField { path: actual, .. } => {
+                AbstractOperation::StructuralScalarFieldRead { path: actual, .. } => {
                     *actual = path;
                 }
                 _ => unreachable!(),
@@ -1154,7 +1144,9 @@ fn structural_field_membership_requires_unique_exact_parameter_declaration() {
         assert!(!retained(&duplicate, operation, &target));
         duplicate.structural_parameters[1].access = StructuralAccess::MutableBorrow;
         assert!(!retained(&duplicate, operation, &target));
-        if let AbstractOperation::IntegerStructuralField { .. } = operation {
+        if let AbstractOperation::StructuralScalarFieldRead { result, .. } = operation
+            && result.scalar_type != ScalarType::Boolean
+        {
             for mutation in 0..4 {
                 let mut changed = function.clone();
                 let source = &mut changed.structural_parameters[0];

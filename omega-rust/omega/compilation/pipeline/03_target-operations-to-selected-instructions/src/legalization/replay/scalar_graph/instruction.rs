@@ -308,8 +308,7 @@ pub(super) fn validate(
         }
         (
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. },
-            AbstractOperation::IntegerStructuralField { .. }
-            | AbstractOperation::BooleanStructuralField { .. },
+            AbstractOperation::StructuralScalarFieldRead { .. },
         )
         | (
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. },

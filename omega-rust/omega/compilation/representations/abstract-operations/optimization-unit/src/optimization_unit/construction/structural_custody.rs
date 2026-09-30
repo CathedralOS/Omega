@@ -140,11 +140,8 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         | O::ElementViewRead { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::StructuralByteSequenceFieldRead { source, .. }
-        | O::BooleanStructuralField { source, .. }
+        | O::StructuralScalarFieldRead { source, .. }
         | O::ReturnStructural { source, .. } => {
-            places.insert(*source);
-        }
-        O::IntegerStructuralField { source, .. } => {
             places.insert(*source);
         }
         O::StoreDynamicDescriptor { stored, .. } => {

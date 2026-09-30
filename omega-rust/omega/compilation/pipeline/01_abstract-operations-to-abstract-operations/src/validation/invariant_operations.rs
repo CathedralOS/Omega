@@ -112,12 +112,7 @@ pub(crate) fn admissible_invariant_place_read(node: &OptimizationNode) -> Option
             source,
             ..
         }
-        | O::BooleanStructuralField {
-            psi_operation,
-            source,
-            ..
-        }
-        | O::IntegerStructuralField {
+        | O::StructuralScalarFieldRead {
             psi_operation,
             source,
             ..

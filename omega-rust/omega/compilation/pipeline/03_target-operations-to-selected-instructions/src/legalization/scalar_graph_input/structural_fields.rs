@@ -221,32 +221,17 @@ pub(in crate::legalization) fn read(
             *field,
         ));
     }
-    let (operation, result, place, path, field) = match operation {
-        AbstractOperation::IntegerStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => (*psi_operation, *result, *source, path, *field),
-        AbstractOperation::BooleanStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => (
-            *psi_operation,
-            abstract_operations::AbstractResult {
-                value: *result,
-                scalar_type: ScalarType::Boolean,
-            },
-            *source,
-            path,
-            *field,
-        ),
-        _ => return None,
+    let AbstractOperation::StructuralScalarFieldRead {
+        psi_operation: operation,
+        result,
+        source: place,
+        path,
+        field,
+    } = operation
+    else {
+        return None;
     };
+    let (operation, result, place, field) = (*operation, *result, *place, *field);
     if function
         .entry_claim_declarations
         .iter()

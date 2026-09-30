@@ -841,13 +841,7 @@ fn scan_operation(
         O::PrimitiveScalarRead { source, path, .. } => {
             pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
         }
-        O::IntegerStructuralField {
-            source,
-            path,
-            field,
-            ..
-        }
-        | O::BooleanStructuralField {
+        O::StructuralScalarFieldRead {
             source,
             path,
             field,

@@ -207,11 +207,8 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         | O::ElementViewSubslice { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::StructuralByteSequenceFieldRead { source, .. }
-        | O::BooleanStructuralField { source, .. }
+        | O::StructuralScalarFieldRead { source, .. }
         | O::ReturnStructural { source, .. } => {
-            vec![*source]
-        }
-        O::IntegerStructuralField { source, .. } => {
             vec![*source]
         }
         _ => Vec::new(),

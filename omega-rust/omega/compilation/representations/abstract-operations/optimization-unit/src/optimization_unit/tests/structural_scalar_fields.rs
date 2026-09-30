@@ -147,38 +147,38 @@ fn integer_structural_field_identity_binds_every_payload() {
     };
     let mutations: [fn(&mut AbstractOperation); 6] = [
         |operation| match operation {
-            AbstractOperation::IntegerStructuralField { psi_operation, .. } => {
+            AbstractOperation::StructuralScalarFieldRead { psi_operation, .. } => {
                 *psi_operation = id(93, OperationId::new)
             }
             _ => unreachable!(),
         },
         |operation| match operation {
-            AbstractOperation::IntegerStructuralField { result, .. } => {
+            AbstractOperation::StructuralScalarFieldRead { result, .. } => {
                 result.value = id(94, ValueId::new)
             }
             _ => unreachable!(),
         },
         |operation| match operation {
-            AbstractOperation::IntegerStructuralField { result, .. } => {
+            AbstractOperation::StructuralScalarFieldRead { result, .. } => {
                 result.scalar_type =
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
             }
             _ => unreachable!(),
         },
         |operation| match operation {
-            AbstractOperation::IntegerStructuralField { source, .. } => {
+            AbstractOperation::StructuralScalarFieldRead { source, .. } => {
                 *source = id(95, PlaceId::new)
             }
             _ => unreachable!(),
         },
         |operation| match operation {
-            AbstractOperation::IntegerStructuralField { field, .. } => {
+            AbstractOperation::StructuralScalarFieldRead { field, .. } => {
                 *field = id(96, StructuralFieldId::new)
             }
             _ => unreachable!(),
         },
         |operation| match operation {
-            AbstractOperation::IntegerStructuralField { path, .. } => {
+            AbstractOperation::StructuralScalarFieldRead { path, .. } => {
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
                     id(1, StructuralFieldId::new),
                 ));

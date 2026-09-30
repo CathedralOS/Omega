@@ -216,8 +216,7 @@ fn forwarded_field_value_commit_substitutes_and_retires_the_read() {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::IntegerStructuralField { .. }
-                    | abstract_operations::AbstractOperation::BooleanStructuralField { .. }
+                abstract_operations::AbstractOperation::StructuralScalarFieldRead { .. }
             )
         })
         .count();
@@ -245,8 +244,7 @@ fn cyclic_machine_field_read_stays_frozen() {
         .filter(|node| {
             matches!(
                 node.operation,
-                abstract_operations::AbstractOperation::IntegerStructuralField { .. }
-                    | abstract_operations::AbstractOperation::BooleanStructuralField { .. }
+                abstract_operations::AbstractOperation::StructuralScalarFieldRead { .. }
             )
         })
         .count();

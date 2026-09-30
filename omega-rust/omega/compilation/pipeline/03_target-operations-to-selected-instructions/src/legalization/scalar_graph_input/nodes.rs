@@ -126,7 +126,7 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         }
-        | AbstractOperation::IntegerStructuralField {
+        | AbstractOperation::StructuralScalarFieldRead {
             psi_operation,
             result,
             ..
@@ -142,11 +142,6 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             ..
         } => Ok((*psi_operation, *result)),
         AbstractOperation::BooleanConstant {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::BooleanStructuralField {
             psi_operation,
             result,
             ..
@@ -810,8 +805,7 @@ pub(super) fn validate(
             AbstractOperation::IeeeFloatConstant { value, .. } => {
                 ScalarType::IeeeFloat(value.format())
             }
-            AbstractOperation::BooleanConstant { .. }
-            | AbstractOperation::BooleanStructuralField { .. } => ScalarType::Boolean,
+            AbstractOperation::BooleanConstant { .. } => ScalarType::Boolean,
             AbstractOperation::CallStructural {
                 result: AbstractStructuralCallResult::Scalar(result),
                 ..
@@ -826,7 +820,7 @@ pub(super) fn validate(
                 ..
             }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
-            | AbstractOperation::IntegerStructuralField { result, .. }
+            | AbstractOperation::StructuralScalarFieldRead { result, .. }
             | AbstractOperation::StructuralByteSequenceFieldLength { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. } => result.scalar_type,
             AbstractOperation::ByteSequenceRead {

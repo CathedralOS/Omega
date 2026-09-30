@@ -432,7 +432,6 @@ fn operation_observations(
         // fresh owned value: a structural-state event that no pass may erase
         // or reorder against other observations of the same storage.
         | O::StructuralLeafCopy { .. }
-        | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
@@ -443,7 +442,7 @@ fn operation_observations(
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
-        | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
+        | O::StructuralScalarFieldRead { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallStructural { .. }
         | O::CallDynamic { .. }
         | O::Call { .. } => (vec![event(C::InternalCall)], May, May),
