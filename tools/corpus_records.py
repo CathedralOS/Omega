@@ -7,8 +7,9 @@ One line per fixture:
 
 `expected`/`unexpected` appear only when the fixture's `expected.txt`
 fragments were weighed against diagnostics; `key:value` execution facts
-from the native leg (`exit:70`, `stdout:match`) follow. A trailing
-`@<revision>` token records which checkout measured the row (`+wt` marks a
+from the native leg (`exit:70`, `stdout:match`) follow. Each fact key appears
+once: repeated keys are malformed evidence, even when their values agree.
+A trailing `@<revision>` token records which checkout measured the row (`+wt` marks a
 dirty tree); a filtered `--record` merges old rows forward, so without the
 stamp a `built` row can be days stale. Legacy rows carry no stamp. Each
 diagnostic follows on its
@@ -88,6 +89,10 @@ def parse(text: str) -> list[dict]:
                 recorded_at = token[1:]
             elif ":" in token:
                 key, value = token.split(":", 1)
+                # Overwriting an earlier exit/stdout fact could turn a failed
+                # runtime oracle into a match before the gate ever sees it.
+                if key in facts:
+                    raise ValueError(f"line {number}: duplicate fact {key!r}")
                 facts[key] = value
             else:
                 raise ValueError(f"line {number}: unknown token {token!r}")

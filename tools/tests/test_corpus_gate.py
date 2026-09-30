@@ -3,9 +3,11 @@ gate's exit code is a machine-readable verdict."""
 
 from pathlib import Path
 import contextlib
+import io
 import json
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -333,6 +335,99 @@ class MainVerdicts(unittest.TestCase):
                   for row in corpus_records.read(self.golden)}
         self.assertEqual(merged["pass/a/x"]["recorded_at"], "aaaaaaaaaaaa")
         self.assertIsNone(merged["pass/a/y"]["recorded_at"])
+
+    def test_authored_stdout_refuses_bad_evidence_and_preserves_golden(self):
+        fixture = self.root / "tests" / "omega" / "run" / "a" / "x"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_stdout.txt").write_text("authored output\n")
+        exit_oracle = fixture / "expected_native_exit.txt"
+        for explicit_exit in (False, True):
+            if explicit_exit:
+                exit_oracle.write_text("70\n")
+            for facts in ({"exit": "70", "stdout": "differs"},
+                          {"exit": "70"}):
+                rows = [record("run/a/x", status="built", facts=facts)]
+                for leg in ("--native", "--both"):
+                    for flags in ((), ("--record",), ("--record", "--bisect")):
+                        with self.subTest(explicit_exit=explicit_exit,
+                                          facts=facts, leg=leg, flags=flags), \
+                             patch.object(corpus_gate, "host_target",
+                                          return_value="linux_x86_64"):
+                            expected_code = 1 if "--bisect" in flags else 3
+                            self.assertEqual(self.run_gate(
+                                rows, leg, *flags, "--json", str(self.json_path)),
+                                expected_code)
+                            self.assertEqual(self.golden.read_text(),
+                                             corpus_records.render(rows))
+                            document = json.loads(self.json_path.read_text())
+                            self.assertEqual(document["verdict"], "regressed")
+                            self.assertEqual(document["exit_code"], expected_code)
+                            self.assertIn("stdout", document["oracle_failures"][0])
+
+    def test_authored_stdout_requires_completed_native_execution(self):
+        fixture = self.root / "tests" / "omega" / "run" / "a" / "x"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_stdout.txt").write_text("")
+        # A foreign-target build or declaration-only fixture has no runtime
+        # facts. Like an exit oracle, authored stdout remains unproved there.
+        cases = [("built", {}), ("checked", {}), ("rejected", {}),
+                 ("checked", {"exit": "0", "stdout": "match"}),
+                 ("built", {"stdout": "match"}),
+                 ("built", {"exit": "timeout", "stdout": "match"}),
+                 ("built", {"exit": "unrunnable", "stdout": "match"})]
+        for status, facts in cases:
+            with self.subTest(status=status, facts=facts), \
+                 patch.object(corpus_gate, "host_target",
+                              return_value="linux_x86_64"):
+                rows = [record("run/a/x", status=status, facts=facts)]
+                self.assertEqual(self.run_gate(rows, "--native", "--record"), 3)
+                self.assertEqual(self.golden.read_text(), corpus_records.render(rows))
+
+    def test_authored_stdout_match_records_without_inventing_an_exit_oracle(self):
+        fixture = self.root / "tests" / "omega" / "run" / "a" / "x"
+        fixture.mkdir(parents=True)
+        (fixture / "expected_stdout.txt").write_text("")
+        for exit_code in ("0", "70"):
+            with self.subTest(exit_code=exit_code), \
+                 patch.object(corpus_gate, "host_target",
+                              return_value="linux_x86_64"):
+                rows = [record("run/a/x", status="built",
+                               facts={"exit": exit_code, "stdout": "match"})]
+                self.assertEqual(self.run_gate(rows, "--native", "--record"), 0)
+                self.assertEqual(corpus_records.read(self.golden)[0]["facts"],
+                                 rows[0]["facts"])
+        # Checked-only runs do not make a native execution claim.
+        self.assertEqual(self.run_gate([record("run/a/x")], "--record"), 0)
+
+    def test_unannotated_stdout_keeps_observation_only_recording(self):
+        rows = [record("run/a/x", status="built",
+                       facts={"exit": "70", "stdout": "differs"})]
+        with patch.object(corpus_gate, "host_target", return_value="linux_x86_64"):
+            self.assertEqual(self.run_gate(rows, "--native", "--record"), 0)
+
+    def test_duplicate_runner_facts_refuse_recording_as_infrastructure_failure(self):
+        rows = [record("run/a/x", status="built", facts={"exit": "70"})]
+        self.write_golden(rows)
+        original = self.golden.read_text()
+        for flags, expected_code in (((), 4), (("--bisect",), 125)):
+            process = SimpleNamespace(
+                stdout=io.StringIO("run/a/x built 1ms exit:7 exit:70\n"),
+                stderr=io.StringIO(""), returncode=0, wait=lambda: 0)
+            argv = ["corpus_gate", "--runner", "unused", "--record",
+                    "--golden", str(self.golden), "--json", str(self.json_path),
+                    *flags]
+            with self.subTest(flags=flags), \
+                 patch.object(corpus_gate, "ROOT", self.root), \
+                 patch.object(corpus_gate, "measurement_stamp", return_value="aaaaaaaaaaaa"), \
+                 patch.object(corpus_gate, "git_out", return_value=None), \
+                 patch.object(corpus_gate.subprocess, "Popen", return_value=process), \
+                 patch.dict(corpus_gate.os.environ, {}, clear=True), \
+                 patch.object(sys, "argv", argv):
+                self.assertEqual(corpus_gate.main(), expected_code)
+                self.assertEqual(self.golden.read_text(), original)
+                document = json.loads(self.json_path.read_text())
+                self.assertEqual(document["verdict"], "infrastructure_failed")
+                self.assertIn("duplicate fact", document["infrastructure_error"])
 
     def test_record_writes_context_and_diff_carries_perf_warnings(self):
         rows = [record("pass/a/x", millis=3000)]

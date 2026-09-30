@@ -52,6 +52,14 @@ class RoundTrip(unittest.TestCase):
         record = corpus_records.parse("pass/core/ok checked 3ms\n")[0]
         self.assertIsNone(record["recorded_at"])
 
+    def test_duplicate_facts_cannot_overwrite_runtime_evidence(self):
+        for facts in ("exit:7 exit:70", "stdout:differs stdout:match",
+                      "signal:11 signal:4", "exit:70 exit:70",
+                      "interpreter-stdout:differs interpreter-stdout:match"):
+            with self.subTest(facts=facts), self.assertRaisesRegex(
+                    ValueError, "line 1: duplicate fact"):
+                corpus_records.parse(f"run/a/x built 1ms {facts}\n")
+
     def test_diagnostic_alias_normalizes_only_the_retired_prefix(self):
         old = "native-artifact Terminal production failed: lowering x"
         new = "terminal-artifact production failed: lowering x"
