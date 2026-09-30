@@ -498,11 +498,17 @@ fn local_record_copy_rejects_stale_roots_and_changed_access_or_type() {
         if corruption == 0 {
             node.expression = arena::Handle::invalid();
         } else {
-            let checked_trees::CheckedStructuralValueKind::Place(argument) = &mut node.kind else {
+            // A copyable local's later read is a snapshot of its current
+            // contents, planned as a shared read of the whole local.
+            let checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
+                source: argument,
+                ..
+            } = &mut node.kind
+            else {
                 panic!("whole record copy");
             };
             if corruption == 1 {
-                argument.access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+                argument.access = checked_trees::CheckedStructuralAccess::Owned;
             } else {
                 argument.type_identity = "unrelated".to_owned();
             }

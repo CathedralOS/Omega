@@ -76,6 +76,27 @@ pub(super) fn record_value_root<'plans>(
                     )
                     && program.normalized_type_identity(reference).as_str()
                         == argument.type_identity => {}
+            // A whole read of an earlier copyable local snapshots its current
+            // contents. The graph binds that snapshot into a fresh home exactly
+            // as it copies an owned unrestricted transfer.
+            checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. }
+                if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                    && source.path.is_empty()
+                    && matches!(
+                        source.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                            symbol,
+                        } if crate::semantic::calls::find_state(program, state)
+                            .and_then(|authored| program.state_local_declaration(authored, symbol))
+                            .is_some_and(|(local_ordinal, local)| {
+                                u32::try_from(local_ordinal).is_ok_and(|position| position < ordinal)
+                                    && local.initial_value.is_valid()
+                            })
+                    )
+                    && program.type_multiplicity(reference)
+                        == language_semantics::Multiplicity::Unrestricted
+                    && program.normalized_type_identity(reference).as_str()
+                        == source.type_identity => {}
             _ => return None,
         }
     }
