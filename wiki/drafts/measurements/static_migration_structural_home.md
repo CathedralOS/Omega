@@ -734,9 +734,29 @@ lowering, with the entry's unit plan omitted at
 405 of 427 canary fixtures and 116 of 122 sample packages move there.
 
 So the remaining customer-side population is bounded by state-graph custody
-during lowering, not by the entry's parameter list. That site is owned:
-`zergling-z3` holds `ELEMENT-VIEW-SHARED-BORROW-LOCALS` and
-`SHARED-BORROW-RESULT-REFERENT-IDENTITY` over it.
+during lowering, not by the entry's parameter list.
+
+That site is **not** owned -- an earlier reading of the claims registry matched
+the directory rather than the file. `zergling-z3` holds
+`state_graph/result_custody.rs` and `state_graph/local_results.rs`; the clause
+lives in `terminal_unit/providers.rs`, which is free.
+
+The clause is in `checked_provider_attachment_requirements`:
+
+    || structural_parameters
+        .iter()
+        .any(|parameter| !parameter.is_self
+             && parameter_is_provider_carrier(shapes, parameter))
+    {
+        return None;
+    }
+
+A structural parameter that is not `is_self` and carries a provider is refused
+as a second provider surface. Under the static contract it is not one: a
+parameter whose type identity equals the machine's own attachment carries
+exactly the fields `self.<field>` names one frame up. Exempting that case is a
+one-clause change; it was written and reverted unvalidated, because building
+the compiler to gate it was refused in this session.
 
 ## `tests/omega/packages/build-scope-topology` did not converge
 
