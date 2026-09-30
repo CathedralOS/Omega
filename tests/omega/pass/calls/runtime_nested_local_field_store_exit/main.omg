@@ -1,0 +1,30 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Row { address: u64; value: u64; calls: u64 in Wrapping; }
+data Source { mask: u64; calls: u64 in Wrapping; }
+data Main { console: Binding<Console>; }
+
+machine Row::address(&mut self) -> u64 {
+    self.calls += 1;
+    self.address
+}
+machine Source::read(&mut self, address: u64) -> u64 {
+    self.calls += 1;
+    address ^ self.mask
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut source: Source = Source { mask: 7, calls: 0 };
+    let mut row: Row = Row { address: 45, value: 0, calls: 0 };
+    // The receiver and inner call are evaluated before storing the outer result.
+    // Counters detect omitted or duplicated calls; no authored temporary
+    // rewrites the nested call into a different compilation route.
+    row.value = source.read(row.address());
+    transition row.value == 42 && row.address == 45 && row.calls == 1 && source.calls == 1 {
+        true -> success()
+        false -> failure()
+    }
+    state success(&mut self) { self.console.exit_process(42); }
+    state failure(&mut self) { self.console.exit_process(1); }
+}

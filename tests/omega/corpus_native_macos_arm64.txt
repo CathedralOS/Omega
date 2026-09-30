@@ -116,6 +116,7 @@ pass/calls/runtime_mutable_call_before_transition_args_exit built 5538ms exit:70
 pass/calls/runtime_mutable_local_parameter_write_exit rejected 490ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 2)
 pass/calls/runtime_nested_case_argument_exit built 1235ms exit:70
+pass/calls/runtime_nested_local_field_store_exit built 1243ms exit:42 @20d5eb8f7510+wt
 pass/calls/runtime_nested_receiver_guard_exit built 1030ms exit:42 @ac942fdbba24+wt
 pass/calls/runtime_nested_value_call_guard_exit built 4993ms exit:70
 pass/calls/runtime_option_value_call_exit built 950ms exit:70
