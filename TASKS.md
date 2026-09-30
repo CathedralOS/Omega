@@ -1529,10 +1529,8 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `filesystem/dir_walk_wrappers_exit` and `systems/note_vault` retain their
   `Filesystem::create_dir_all` dependency. Shared phase labels do not merge them.
 
-- **CASE-FIELD-TYPE-STORE-SHAPES.** Complete predicate-qualified construction
-  members: a plain record member under an interval domain, directly or through
-  a local, and any case payload or record member under a non-interval
-  predicate domain. Follow [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
+- **CASE-FIELD-TYPE-STORE-SHAPES.** Complete case payload and record members
+  under non-interval predicate domains. Follow [data construction](wiki/spec/language/data_and_literals.md#construction-and-case-identity)
   and [erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings):
   evaluate runtime fields once in authored order; establish domains before
   observation. Arithmetic-policy payloads and direct scalar-domain stores
@@ -1548,19 +1546,20 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `generics/runtime_mixed_generic_erased_sum_exit` and
   `traits/equatable_mixed_shape_equality_exit`; the terminal interpreter
   establishes mixed cases with payload cells in their own namespace.
-  `pass/domains/record_interval_domain_member_exit` stops at `structural field
-  store: record literal source` (stage 04
-  `structural_scalar_store/mod.rs::record_literal_stores`) and, through a
-  local, at `statement sequence: local data: structural call binding`: the
-  case route's `CaseConstruction` contents classifier has no record
-  counterpart. `pass/domains/case_payload_predicate_domain_member_exit`
+  Record and case literals now share the structural-construction contents
+  rule. `pass/domains/record_interval_domain_member_exit` constructs and stores
+  an interval-qualified member directly and through a local, returning 70
+  natively and on the checked interpreter on macOS ARM64; its out-of-range
+  record control rejects before establishment.
+  `pass/domains/case_payload_predicate_domain_member_exit`
   (`i32 in NonZero`) stops at `structural field store: case field type`:
   Terminal Psi's structural field vocabulary carries integer bounds but no
   general predicate membership, and `EstablishStructuralCase`/`EstablishRecord`
   roster entries carry only range obligations, so retaining that evidence
   through lowering needs a trusted-surface extension (field type, roster
   evidence, verification, codec), not an admission change.
-  Acceptance: both fixtures exit 70 natively and on the checked interpreter;
+  Acceptance: the predicate-domain fixture exits 70 natively and on the checked
+  interpreter; preserve the passing interval-member program.
   `fail/ranges/case_payload_domain_literal_out_of_range` and
   `fail/ranges/sum_payload_non_case_guard_unproven` keep rejecting.
 

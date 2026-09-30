@@ -514,7 +514,7 @@ pub(super) fn argument(
             base_type_identity(program, referent, &[])? == result.type_identity
         };
     // An anonymous literal constructs its operand in place under the
-    // case-construction contents family: its interval-domain scalar members
+    // structural-construction contents family: its interval-domain scalar members
     // are legal because the construction proves each member's range
     // obligation, so moving that result whole keeps the mint's requirement.
     let constructed_literal = matches!(
@@ -537,7 +537,7 @@ pub(super) fn argument(
             // event, so cleanup-owned contents admit the same whole move.
             && !validation::has_cleanup_owned_contents(program, referent)
             && !(constructed_literal
-                && validation::has_case_construction_contents(program, referent)))
+                && validation::has_structural_construction_contents(program, referent)))
         || usize::try_from(result.statement_index).ok()? > call.statement_index
     {
         return None;

@@ -60,12 +60,12 @@ enum ContentsRequirement {
     /// produce runtime contents. An erased member is still resolved so its
     /// declared type exists; its contents never materialize.
     CleanupOwned,
-    /// `CleanupOwned` contents a case literal establishes. A scalar member
+    /// `CleanupOwned` contents a structural literal establishes. A scalar member
     /// may additionally carry a plain domain that means exactly an interval:
     /// the bounded carrier represents membership completely and the
     /// construction proves it through the member's own range obligation.
     /// Every other `CleanupOwned` caller keeps refusing declared domains.
-    CaseConstruction,
+    StructuralConstruction,
     StableObservation,
     /// Contents an opaque `Binding<R>`/boundary-trait call seam may marshal as
     /// a caller-owned ABI copy while the observed place keeps custody of the
@@ -122,10 +122,11 @@ pub fn has_cleanup_owned_contents(program: &TypedTrees, reference: TypeReference
     check_contents_requirement(program, reference, &[], ContentsRequirement::CleanupOwned)
 }
 
-/// Classify the contents a structural case literal establishes: exactly
+/// Classify the contents a record or case literal establishes: exactly
 /// [`has_cleanup_owned_contents`], plus scalar members under a plain domain
-/// that means exactly an interval.
-pub fn has_case_construction_contents(
+/// that means exactly an interval. This is the same storage judgment for both
+/// forms; each construction still proves its members' range obligations.
+pub fn has_structural_construction_contents(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
 ) -> bool {
@@ -133,7 +134,7 @@ pub fn has_case_construction_contents(
         program,
         reference,
         &[],
-        ContentsRequirement::CaseConstruction,
+        ContentsRequirement::StructuralConstruction,
     )
 }
 
@@ -335,7 +336,8 @@ fn resolve(
                     || instance.properties != data.properties
                     || (!matches!(
                         requirement,
-                        ContentsRequirement::CleanupOwned | ContentsRequirement::CaseConstruction
+                        ContentsRequirement::CleanupOwned
+                            | ContentsRequirement::StructuralConstruction
                     ) && owns_drop_hook(program, *base_symbol))
                 {
                     return None;
@@ -414,7 +416,7 @@ fn resolve(
                         // bounded carrier represents membership completely,
                         // and construction proves it through the member's own
                         // range obligation.
-                        || (requirement == ContentsRequirement::CaseConstruction
+                        || (requirement == ContentsRequirement::StructuralConstruction
                             && matches!(contents, ContentType::Scalar(_))
                             && is_plain_value_domain(program, domain)
                             && crate::exact_declared_domain_interval(program, domain).is_some())
@@ -523,7 +525,7 @@ fn check_contents(
         })
         || (!matches!(
             requirement,
-            ContentsRequirement::CleanupOwned | ContentsRequirement::CaseConstruction
+            ContentsRequirement::CleanupOwned | ContentsRequirement::StructuralConstruction
         ) && owns_drop_hook(program, *symbol))
     {
         return false;
@@ -548,7 +550,7 @@ fn check_contents(
             return matches!(
                 requirement,
                 ContentsRequirement::CleanupOwned
-                    | ContentsRequirement::CaseConstruction
+                    | ContentsRequirement::StructuralConstruction
                     | ContentsRequirement::SeamMarshal
             ) && resolve(program, field.type_reference, &substitutions, requirement)
                 .is_some();

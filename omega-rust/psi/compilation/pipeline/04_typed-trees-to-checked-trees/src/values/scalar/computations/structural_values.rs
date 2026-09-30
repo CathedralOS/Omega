@@ -1,6 +1,9 @@
 //! Fresh structural establishment shares the scalar operand evaluation owner.
 //! Reference leaves are classified before referent-oriented normalization:
 //! their value is borrowed-storage custody, never a scalar pointer snapshot.
+//! Record and case literals share the structural-construction contents rule:
+//! exact interval-qualified scalar members use the existing bounded carrier
+//! and per-member establishment proof, not a constructor-specific exception.
 use super::{
     Builder, CheckedScalarComputationRoot, CheckedScalarExpressionPlans,
     CheckedScalarExpressionRole, ExpressionHandle, ExpressionNode, PrimitiveType, StatementNode,
@@ -1548,7 +1551,7 @@ impl Builder<'_, '_> {
         };
         let plain_contents = |reference| {
             validation::has_plain_owned_contents_with_numeric_constraints(self.program, reference)
-                || validation::has_cleanup_owned_contents(self.program, reference)
+                || validation::has_structural_construction_contents(self.program, reference)
                 || validation::has_linear_owned_contents(self.program, reference)
                 || validation::reference_result_custody::is_reference_record(
                     self.program,

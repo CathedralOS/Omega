@@ -197,7 +197,7 @@ fn structural_result_type(
                 result_type,
             ) || validation::has_cleanup_owned_contents(program, result_type)
                 || (constructed
-                    && validation::has_case_construction_contents(program, result_type))
+                    && validation::has_structural_construction_contents(program, result_type))
                 || validation::is_closed_primitive_array_type(program, result_type)
                 || validation::reference_result_custody::is_reference_record(
                     program,

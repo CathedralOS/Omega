@@ -193,7 +193,7 @@ pub(crate) fn validate(
             // A construction, like stage 04's constructed-value binding, may
             // carry scalar members under an exact-interval domain; each member's
             // range obligation proves it.
-            || validation::has_case_construction_contents(&checked.typed, carrier)
+            || validation::has_structural_construction_contents(&checked.typed, carrier)
             || validation::reference_result_custody::is_reference_record(&checked.typed, reference)
             || validation::has_owned_or_shared_view_fields(&checked.typed, carrier)
             || view_carrier.is_some()
