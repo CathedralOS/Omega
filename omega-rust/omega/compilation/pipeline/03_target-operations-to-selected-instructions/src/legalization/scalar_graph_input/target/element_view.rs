@@ -190,7 +190,7 @@ impl Checker<'_> {
         }
     }
 
-    /// The local aggregate at `place` is the owned, unrestricted, claim-free
+    /// The local aggregate at `place` is the owned, non-linear, claim-free
     /// and unqualified result of exactly `producer`, which runs before
     /// `consumer`: earlier in the consumer's block or in a dominating block.
     fn local_home_precedes(
@@ -219,7 +219,11 @@ impl Checker<'_> {
         };
         actual == producer
             && result.structural_type == root_structural_type
-            && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && matches!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted
+                    | terminal_psi::StructuralMultiplicity::Affine
+            )
             && result.qualifications.is_empty()
             && result.projected_qualifications.is_empty()
             && result.claims.is_empty()

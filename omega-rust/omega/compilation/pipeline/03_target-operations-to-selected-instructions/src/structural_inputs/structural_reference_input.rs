@@ -536,7 +536,13 @@ pub(crate) fn fixed_element_array_view(
                     | StructuralAccess::Owned,
             )
         )
-        || source.multiplicity != StructuralMultiplicity::Unrestricted
+        || !(source.multiplicity == StructuralMultiplicity::Unrestricted
+            || (source.multiplicity == StructuralMultiplicity::Affine
+                && source.access == StructuralAccess::Owned
+                && matches!(
+                    argument.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )))
         || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
         || argument
@@ -1430,3 +1436,64 @@ pub(crate) fn byte_field_storage(
 
 #[cfg(test)]
 mod tests;
+
+#[test]
+fn affine_array_view_geometry_requires_a_borrow_not_an_owned_transfer() {
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, StructuralMultiplicity,
+        StructuralParameterDeclaration,
+    };
+    let element = StructuralTypeId::new(1).unwrap();
+    let array = StructuralTypeId::new(2).unwrap();
+    let view = StructuralTypeId::new(3).unwrap();
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: element,
+            identity: "flag".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+        },
+        StructuralTypeDeclaration {
+            id: array,
+            identity: "flags".into(),
+            shape: StructuralTypeShape::FixedArray { element, length: 7 },
+        },
+        StructuralTypeDeclaration {
+            id: view,
+            identity: "view".into(),
+            shape: StructuralTypeShape::ElementView { element },
+        },
+    ];
+    let source = StructuralParameterDeclaration {
+        place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: array,
+        multiplicity: StructuralMultiplicity::Affine,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let mut argument = StructuralArgument {
+        place: source.place,
+        path: Vec::new(),
+        access: StructuralAccess::SharedBorrow,
+    };
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        argument.access = access;
+        assert_eq!(
+            fixed_element_array_view(&source, &argument, view, &declarations),
+            Some((0, 7, 1))
+        );
+    }
+    argument.access = StructuralAccess::Owned;
+    assert!(fixed_element_array_view(&source, &argument, view, &declarations).is_none());
+    argument.access = StructuralAccess::SharedBorrow;
+    let mut linear = source.clone();
+    linear.multiplicity = StructuralMultiplicity::Linear;
+    assert!(fixed_element_array_view(&linear, &argument, view, &declarations).is_none());
+    argument.place = semantic_vocabulary::PlaceId::new(2).unwrap();
+    assert!(fixed_element_array_view(&source, &argument, view, &declarations).is_none());
+}

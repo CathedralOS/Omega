@@ -342,6 +342,7 @@ fn plan_assignment(
             facts,
             machine,
             state,
+            roots,
             &destination,
             statement_index,
             assignment,
@@ -441,7 +442,7 @@ fn plan_assignment(
         .primitive_type_reference(field.type_reference)
         .is_some()
     {
-        let primitive_type = scalar_leaf(program, &destination.root, field)?;
+        let primitive_type = scalar_leaf(program, roots, field)?;
         let value = value::assignment_value(
             program,
             facts,
@@ -475,6 +476,7 @@ fn plan_assignment(
             facts,
             machine,
             state,
+            roots,
             &destination,
             statement_index,
             assignment,
@@ -501,26 +503,27 @@ fn plan_assignment(
     .map(|store| vec![store])
 }
 
-/// The primitive type of a scalar leaf this root's lane can store.
+/// The primitive type of a scalar leaf this planning lane can store.
 ///
-/// A borrowed parameter's store retains the field's own declaration, so any
+/// The statement-sequence emitter retains the field's declaration for both
+/// borrowed parameters and owned local storage, so any
 /// Boolean, IEEE or integer carrier is admitted, bounded integers with their
 /// own range obligation. The scalar-graph lane replaces a local record's
 /// field only through an exact unconstrained carrier: its lowering carries
 /// no range obligation or arithmetic-domain policy for the field.
 fn scalar_leaf(
     program: &TypedTrees,
-    root: &Root<'_>,
+    roots: StoreRoots<'_>,
     field: &typed_trees::data::DataField,
 ) -> Option<PrimitiveType> {
     let primitive_type = program.primitive_type_reference(field.type_reference)?;
-    match root {
-        Root::Parameter { .. } => (matches!(
+    match roots {
+        StoreRoots::Parameters { .. } => (matches!(
             primitive_type,
             PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
         ) || primitive_type.accepts_integer_literal())
         .then_some(primitive_type),
-        Root::Local { .. } => {
+        StoreRoots::RecordLocals => {
             let TypeReferenceNode::Named { symbol, name } = program
                 .type_reference_table
                 .type_reference(field.type_reference)
@@ -563,6 +566,7 @@ fn record_literal_stores(
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    roots: StoreRoots<'_>,
     destination: &Destination<'_>,
     statement_index: u32,
     assignment: &typed_trees::statement::TableAssignment,
@@ -650,7 +654,7 @@ fn record_literal_stores(
         ) {
             return None;
         }
-        let primitive_type = scalar_leaf(program, &destination.root, declaration)?;
+        let primitive_type = scalar_leaf(program, roots, declaration)?;
         let value = value::record_field_value(
             facts,
             machine,

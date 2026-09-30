@@ -15,12 +15,8 @@ data Entry {
     value: i32 in Wrapping;
 }
 
-data Walker {}
-
 data Main {
     console: Binding<Console>;
-    entries: [Entry; 7];
-    walker: Walker;
 }
 
 machine sum_entries(s: &[Entry], acc: i32 in Wrapping) -> i32
@@ -32,26 +28,27 @@ terminates by s -> Slice::Length;
     }
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.entries[0].value = 8;
-    self.entries[1].value = 12;
-    self.entries[2].value = 10;
-    self.entries[3].value = 5;
-    self.entries[4].value = 15;
-    self.entries[5].value = 10;
-    self.entries[6].value = 10;
-    let se: &[Entry] = self.entries.as_slice();
+machine Main::main(context: &mut Main) reaches Console {
+    let mut entries: [Entry; 7];
+    entries[0].value = 8;
+    entries[1].value = 12;
+    entries[2].value = 10;
+    entries[3].value = 5;
+    entries[4].value = 15;
+    entries[5].value = 10;
+    entries[6].value = 10;
+    let se: &[Entry] = entries.as_slice();
     let total: i32 = sum_entries(se, 0);
     transition total == 70 {
-        true -> good()
-        _ -> bad()
+        true -> good(context)
+        _ -> bad(context)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(context: &mut Main) {
+        context.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(context: &mut Main) {
+        context.console.exit_process(71);
     }
 }

@@ -269,7 +269,9 @@ fn owned_local_root<'a>(
             program
                 .type_reference_table
                 .type_reference(local.type_reference),
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
+            TypeReferenceNode::Named { .. }
+                | TypeReferenceNode::Generic { .. }
+                | TypeReferenceNode::FixedArray { .. }
         )
         && validation::zeroed_structural_parts(program, local.type_reference);
     if local_ordinal >= ordinal

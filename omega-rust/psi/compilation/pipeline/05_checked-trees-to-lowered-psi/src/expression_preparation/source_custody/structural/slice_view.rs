@@ -119,7 +119,10 @@ pub(super) fn validate(
         let Some((index, local)) = locals.next() else {
             return unsupported(refusal!(loan, "loses its authored root"));
         };
-        if locals.next().is_some() || index >= statement as usize || !local.initial_value.is_valid()
+        if locals.next().is_some()
+            || index >= statement as usize
+            || !(local.initial_value.is_valid()
+                || validation::zeroed_structural_parts(&checked.typed, local.type_reference))
         {
             return unsupported(refusal!(loan, "root is not uniquely established"));
         }
