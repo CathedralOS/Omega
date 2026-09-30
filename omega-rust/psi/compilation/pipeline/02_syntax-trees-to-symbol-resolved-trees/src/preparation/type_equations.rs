@@ -51,7 +51,7 @@ use language_semantics::const_value::{
     CanonicalConstValue, DecodedCanonicalConstValue, boolean_literal_spelling,
 };
 use numerics::bignum::BigInt;
-use numerics::literals::{IntegerLiteral, IntegerRadix};
+use numerics::literals::{IntegerLiteral, IntegerRadix, LandedIntegerType};
 use source::SourceSpan;
 use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
@@ -1588,17 +1588,7 @@ pub(super) fn normalized_boolean_argument(text: &str) -> Option<bool> {
 }
 
 pub(super) fn const_binder_envelope(type_name: &str) -> Option<(BigInt, BigInt)> {
-    let (minimum, maximum) = match type_name {
-        "i8" => (i128::from(i8::MIN), i128::from(i8::MAX)),
-        "i16" => (i128::from(i16::MIN), i128::from(i16::MAX)),
-        "i32" => (i128::from(i32::MIN), i128::from(i32::MAX)),
-        "i64" => (i128::from(i64::MIN), i128::from(i64::MAX)),
-        "u8" => (0, i128::from(u8::MAX)),
-        "u16" => (0, i128::from(u16::MAX)),
-        "u32" => (0, i128::from(u32::MAX)),
-        "u64" | "addr" => (0, i128::from(u64::MAX)),
-        _ => return None,
-    };
+    let (minimum, maximum) = LandedIntegerType::from_name(type_name)?.bounds();
     Some((BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
 }
 

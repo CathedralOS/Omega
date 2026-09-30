@@ -18,7 +18,8 @@ use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::{ConstFactValue, ConstScalarSpelling, ConstScalarValue};
 
 use super::anonymous::{evaluate_anonymous_numeric_expression, has_builtin_const_operator};
-use super::arguments::ConstIntegerType;
+use super::arguments::validate_declared_integer;
+use numerics::literals::LandedIntegerType;
 
 /// Evaluate a proof expression exactly when every operand is known at generic
 /// instantiation time. `None` means the fact still depends on a runtime field
@@ -77,10 +78,8 @@ fn evaluate_const_fact_expression_at(
             if landing.domain != numerics::arithmetic::ArithmeticDomain::Exact {
                 return Ok(None);
             }
-            let Some(integer_type) = ConstIntegerType::from_name(landing.landed_type.name()) else {
-                return Ok(None);
-            };
-            integer_type.validate(value)?;
+            let integer_type = landing.landed_type;
+            validate_declared_integer(integer_type, value)?;
             Ok(Some(ConstFactValue::DeclaredInteger {
                 value,
                 integer_type,
@@ -128,7 +127,7 @@ fn evaluate_const_fact_expression_at(
             else {
                 return Ok(None);
             };
-            integer_type.validate(value)?;
+            validate_declared_integer(integer_type, value)?;
             Ok(Some(ConstFactValue::DeclaredInteger {
                 value,
                 integer_type,
@@ -334,7 +333,7 @@ fn scalar_self_leaf(
         language_semantics::const_value::DecodedCanonicalConstValue::Integer {
             type_name,
             value,
-        } => ConstIntegerType::from_name(type_name).map(|integer_type| {
+        } => LandedIntegerType::from_name(type_name).map(|integer_type| {
             ConstScalarValue::DeclaredInteger {
                 value: *value,
                 integer_type,
@@ -504,14 +503,10 @@ fn carrier_satisfies_declared_bounds(
 /// The declared properties every builtin scalar spelling answers: primitives
 /// copy freely and carry every axis permissively.
 fn primitive_scalar_properties(name: &str) -> Option<syntax_trees::item::DataProperties> {
-    match name {
-        "bool" | "f32" | "f64" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
-        | "addr" => Some(syntax_trees::item::DataProperties {
-            multiplicity: language_core::Multiplicity::Unrestricted,
-            carry: Some(language_core::CarryPolicy::PERMISSIVE),
-        }),
-        _ => None,
-    }
+    crate::constant::is_builtin_scalar_carrier(name).then_some(syntax_trees::item::DataProperties {
+        multiplicity: language_core::Multiplicity::Unrestricted,
+        carry: Some(language_core::CarryPolicy::PERMISSIVE),
+    })
 }
 
 /// Replay one already-selected domain declaration's facts against `value`
@@ -870,7 +865,7 @@ fn evaluate_indexed_const_domain(
                     ));
                 }
                 crate::preparation::generic_data::validate_syntax_integer_range(&required, bound)?;
-                let Some(integer_type) = ConstIntegerType::from_name(&required) else {
+                let Some(integer_type) = LandedIntegerType::from_name(&required) else {
                     return Ok(None);
                 };
                 ConstScalarValue::DeclaredInteger {
@@ -889,7 +884,7 @@ fn evaluate_indexed_const_domain(
                         integer_type.name(),
                     ));
                 }
-                integer_type.validate(value)?;
+                validate_declared_integer(integer_type, value)?;
                 bound
             }
             ConstScalarValue::Boolean(_) if required != "bool" => {
@@ -1141,7 +1136,7 @@ pub(crate) fn prove_declared_const_domain_constraints(
             type_name,
             value,
         }) => {
-            let Some(integer_type) = ConstIntegerType::from_name(&type_name) else {
+            let Some(integer_type) = LandedIntegerType::from_name(&type_name) else {
                 return Err(CONSTRAINED_CONST_FENCE.to_owned());
             };
             (
@@ -1303,7 +1298,7 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
     fn node_self_leaf(value: &CanonicalConstNode) -> Option<ConstScalarValue> {
         match value {
             CanonicalConstNode::Integer { type_name, value } => {
-                ConstIntegerType::from_name(type_name).map(|integer_type| {
+                LandedIntegerType::from_name(type_name).map(|integer_type| {
                     ConstScalarValue::DeclaredInteger {
                         value: *value,
                         integer_type,
@@ -1319,7 +1314,7 @@ pub(in crate::preparation::generic_data) fn prove_const_leaf_domain_constraints(
     let variant_fields: Vec<(String, ConstScalarValue)>;
     let (carrier, self_binding) = match value {
         CanonicalConstNode::Integer { type_name, value } => {
-            let Some(integer_type) = ConstIntegerType::from_name(type_name) else {
+            let Some(integer_type) = LandedIntegerType::from_name(type_name) else {
                 return Err(CONSTRAINED_CONST_FENCE.to_owned());
             };
             (

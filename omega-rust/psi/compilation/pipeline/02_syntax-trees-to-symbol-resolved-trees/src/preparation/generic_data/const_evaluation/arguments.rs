@@ -23,6 +23,7 @@ use crate::preparation::generic_data::monomorphizable_argument_slugs;
 use crate::preparation::generic_data::selected_generic_data;
 use crate::preparation::generic_data::syntax_type_identity;
 use crate::preparation::generic_data::validate_syntax_integer_range;
+use numerics::literals::LandedIntegerType;
 
 /// If `type_reference` is a `Base<Args..>` spelling of a fully-monomorphizable
 /// generic data definition, record the rewrite-to-plain-name and the (deduped)
@@ -270,7 +271,7 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
                     )).with_source_span(syntax.expressions.source_span(expression))
                 })?;
                 if let Some(integer_type) = const_integer_type(syntax, parameter_type) {
-                    validate_syntax_integer_range(integer_type.name, value)
+                    validate_syntax_integer_range(integer_type.name(), value)
                         .map_err(Diagnostic::error)?;
                 }
                 syntax.tables.type_references.replace_type_reference(
@@ -428,17 +429,10 @@ pub(in crate::preparation::generic_data) fn const_arguments_fit_declarations(
                 Some(ConstScalarSpelling::Integer(value)) => value,
                 Some(ConstScalarSpelling::Boolean(_)) | None => return false,
             };
-            let (minimum, maximum) = match type_name.as_str() {
-                "i8" => (i128::from(i8::MIN), i128::from(i8::MAX)),
-                "i16" => (i128::from(i16::MIN), i128::from(i16::MAX)),
-                "i32" => (i128::from(i32::MIN), i128::from(i32::MAX)),
-                "i64" => (i128::from(i64::MIN), i128::from(i64::MAX)),
-                "u8" => (0, i128::from(u8::MAX)),
-                "u16" => (0, i128::from(u16::MAX)),
-                "u32" => (0, i128::from(u32::MAX)),
-                "u64" | "addr" => (0, i128::from(u64::MAX)),
-                _ => return false,
+            let Some(integer_type) = LandedIntegerType::from_name(type_name.as_str()) else {
+                return false;
             };
+            let (minimum, maximum) = integer_type.bounds();
             value >= minimum && value <= maximum
         })
 }
@@ -455,7 +449,7 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
     const_values: &HashMap<String, i128>,
     parameter_values: &HashMap<String, i128>,
     symbolic_parameters: &HashSet<String>,
-    integer_type: Option<ConstIntegerType>,
+    integer_type: Option<LandedIntegerType>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<EvaluatedConst, String> {
     if let Some(value) =
@@ -593,102 +587,37 @@ pub(in crate::preparation::generic_data) fn evaluate_const_argument_expression(
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ConstIntegerType {
-    name: &'static str,
-    bits: u32,
-    signed: bool,
-}
-
 pub(in crate::preparation::generic_data) fn const_integer_type(
     syntax: &SyntaxTrees,
     type_reference: TypeReferenceHandle,
-) -> Option<ConstIntegerType> {
+) -> Option<LandedIntegerType> {
     let TypeReferenceNode::Named(name) =
         syntax.tables.type_references.type_reference(type_reference)
     else {
         return None;
     };
-    ConstIntegerType::from_name(name.as_str())
+    LandedIntegerType::from_name(name.as_str())
 }
 
-impl ConstIntegerType {
-    pub(crate) fn name(self) -> &'static str {
-        self.name
+/// Reject a value outside its declared integer carrier's range.
+pub(crate) fn validate_declared_integer(
+    integer_type: LandedIntegerType,
+    value: i128,
+) -> Result<(), String> {
+    let (minimum, maximum) = integer_type.bounds();
+    if value < minimum || value > maximum {
+        return Err(format!(
+            "integer value `{value}` is outside the declared `{}` range",
+            integer_type.name()
+        ));
     }
-
-    pub(crate) fn validate(self, value: i128) -> Result<(), String> {
-        let modulus = 1i128 << self.bits;
-        let (minimum, maximum) = if self.signed {
-            (-(modulus >> 1), (modulus >> 1) - 1)
-        } else {
-            (0, modulus - 1)
-        };
-        if value < minimum || value > maximum {
-            return Err(format!(
-                "integer value `{value}` is outside the declared `{}` range",
-                self.name
-            ));
-        }
-        Ok(())
-    }
-
-    pub(crate) fn from_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "i8" => ConstIntegerType {
-                name: "i8",
-                bits: 8,
-                signed: true,
-            },
-            "i16" => ConstIntegerType {
-                name: "i16",
-                bits: 16,
-                signed: true,
-            },
-            "i32" => ConstIntegerType {
-                name: "i32",
-                bits: 32,
-                signed: true,
-            },
-            "i64" => ConstIntegerType {
-                name: "i64",
-                bits: 64,
-                signed: true,
-            },
-            "u8" => ConstIntegerType {
-                name: "u8",
-                bits: 8,
-                signed: false,
-            },
-            "u16" => ConstIntegerType {
-                name: "u16",
-                bits: 16,
-                signed: false,
-            },
-            "u32" => ConstIntegerType {
-                name: "u32",
-                bits: 32,
-                signed: false,
-            },
-            "u64" => ConstIntegerType {
-                name: "u64",
-                bits: 64,
-                signed: false,
-            },
-            "addr" => ConstIntegerType {
-                name: "addr",
-                bits: 64,
-                signed: false,
-            },
-            _ => return None,
-        })
-    }
+    Ok(())
 }
 
 pub(in crate::preparation::generic_data) fn generic_const_integer_types(
     syntax: &SyntaxTrees,
     generic_name: &str,
-) -> Vec<Option<ConstIntegerType>> {
+) -> Vec<Option<LandedIntegerType>> {
     syntax
         .root_items()
         .find_map(|item| {
@@ -717,28 +646,19 @@ pub(in crate::preparation::generic_data) fn evaluate_declared_width_operation(
     operator: BinaryOperator,
     left: i128,
     right: i128,
-    integer_type: Option<ConstIntegerType>,
+    integer_type: Option<LandedIntegerType>,
 ) -> Result<i128, String> {
     let Some(integer_type) = integer_type else {
         return Err(
             "shifts and bitwise operators require a declared integer const type".to_string(),
         );
     };
-    let modulus = 1i128 << integer_type.bits;
-    let maximum = if integer_type.signed {
-        (modulus >> 1) - 1
-    } else {
-        modulus - 1
-    };
-    let minimum = if integer_type.signed {
-        -(modulus >> 1)
-    } else {
-        0
-    };
+    let modulus = 1i128 << integer_type.bit_width();
+    let (minimum, maximum) = integer_type.bounds();
     if left < minimum || left > maximum {
         return Err(format!(
             "left operand `{left}` is outside the declared `{}` range",
-            integer_type.name
+            integer_type.name()
         ));
     }
 
@@ -746,11 +666,11 @@ pub(in crate::preparation::generic_data) fn evaluate_declared_width_operation(
         BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
             let amount = u32::try_from(right)
                 .ok()
-                .filter(|amount| *amount < integer_type.bits)
+                .filter(|amount| *amount < integer_type.bit_width())
                 .ok_or_else(|| {
                     format!(
                         "shift count must be non-negative and below the declared `{}` width",
-                        integer_type.name
+                        integer_type.name()
                     )
                 })?;
             if operator == BinaryOperator::ShiftRight {
@@ -762,13 +682,13 @@ pub(in crate::preparation::generic_data) fn evaluate_declared_width_operation(
             let shifted = left.checked_shl(amount).ok_or_else(|| {
                 format!(
                     "left shift exceeds the declared `{}` range",
-                    integer_type.name
+                    integer_type.name()
                 )
             })?;
             if shifted < minimum || shifted > maximum {
                 return Err(format!(
                     "left shift exceeds the declared `{}` range",
-                    integer_type.name
+                    integer_type.name()
                 ));
             }
             Ok(shifted)
@@ -777,7 +697,7 @@ pub(in crate::preparation::generic_data) fn evaluate_declared_width_operation(
             if right < minimum || right > maximum {
                 return Err(format!(
                     "right operand `{right}` is outside the declared `{}` range",
-                    integer_type.name
+                    integer_type.name()
                 ));
             }
             let mask = modulus - 1;
@@ -789,7 +709,7 @@ pub(in crate::preparation::generic_data) fn evaluate_declared_width_operation(
                 BinaryOperator::BitwiseXor => left_bits ^ right_bits,
                 _ => unreachable!(),
             };
-            if integer_type.signed && result_bits >= modulus >> 1 {
+            if integer_type.is_signed() && result_bits >= modulus >> 1 {
                 Ok(result_bits - modulus)
             } else {
                 Ok(result_bits)

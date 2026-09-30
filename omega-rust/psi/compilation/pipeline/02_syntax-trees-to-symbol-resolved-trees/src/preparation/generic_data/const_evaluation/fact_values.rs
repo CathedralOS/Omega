@@ -7,7 +7,8 @@ use super::super::{
     BinaryOperator, CanonicalConstValue, Diagnostic, ExpressionHandle, SyntaxTrees,
 };
 use super::anonymous::AnonymousNumericValue;
-use super::arguments::{ConstIntegerType, evaluate_declared_width_operation};
+use super::arguments::{evaluate_declared_width_operation, validate_declared_integer};
+use numerics::literals::LandedIntegerType;
 use std::cmp::Ordering;
 
 pub(crate) enum ConstFactValue {
@@ -15,7 +16,7 @@ pub(crate) enum ConstFactValue {
     Integer(i128),
     DeclaredInteger {
         value: i128,
-        integer_type: ConstIntegerType,
+        integer_type: LandedIntegerType,
     },
     Boolean(bool),
 }
@@ -30,7 +31,7 @@ pub(crate) enum ConstScalarValue {
     Integer(i128),
     DeclaredInteger {
         value: i128,
-        integer_type: ConstIntegerType,
+        integer_type: LandedIntegerType,
     },
     Boolean(bool),
 }
@@ -40,8 +41,8 @@ impl ConstScalarValue {
         use language_semantics::const_value::DecodedCanonicalConstValue;
         match value.decode_encoding()? {
             DecodedCanonicalConstValue::Integer { value, type_name } => {
-                let integer_type = ConstIntegerType::from_name(&type_name)?;
-                integer_type.validate(value).ok()?;
+                let integer_type = LandedIntegerType::from_name(&type_name)?;
+                validate_declared_integer(integer_type, value).ok()?;
                 Some(Self::DeclaredInteger {
                     value,
                     integer_type,
@@ -111,7 +112,7 @@ impl ConstFactValue {
                 value,
                 integer_type,
             } => {
-                integer_type.validate(value)?;
+                validate_declared_integer(integer_type, value)?;
                 Ok(Some(value))
             }
             Self::Boolean(_) => Ok(None),
@@ -276,7 +277,7 @@ fn evaluate_declared_integer_fact(
         };
         // Shift counts have their own declared carrier. Their bounds and the
         // result width still come from the left payload, never from the count.
-        operand_type.validate(value)?;
+        validate_declared_integer(operand_type, value)?;
         Ok(value)
     };
     let left = operand(left)?;
@@ -311,7 +312,7 @@ fn evaluate_declared_integer_fact(
             let quotient = left
                 .checked_div(right)
                 .ok_or_else(|| "const fact division is undefined".to_owned())?;
-            integer_type.validate(quotient)?;
+            validate_declared_integer(integer_type, quotient)?;
             left.checked_rem(right)
         }
         ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => Some(
@@ -322,7 +323,7 @@ fn evaluate_declared_integer_fact(
     .ok_or_else(|| {
         "const fact integer operation is undefined or exceeds its declared range".to_owned()
     })?;
-    integer_type.validate(value)?;
+    validate_declared_integer(integer_type, value)?;
     Ok(ConstFactValue::DeclaredInteger {
         value,
         integer_type,
@@ -332,14 +333,14 @@ fn evaluate_declared_integer_fact(
 #[cfg(test)]
 mod tests {
     use super::{
-        BinaryOperator, ConstFactValue, ConstIntegerType, ExpressionHandle, SyntaxTrees,
+        BinaryOperator, ConstFactValue, ExpressionHandle, LandedIntegerType, SyntaxTrees,
         evaluate_const_fact_binary,
     };
 
     fn declared(value: i128, carrier: &str) -> ConstFactValue {
         ConstFactValue::DeclaredInteger {
             value,
-            integer_type: ConstIntegerType::from_name(carrier).expect("integer carrier"),
+            integer_type: LandedIntegerType::from_name(carrier).expect("integer carrier"),
         }
     }
 

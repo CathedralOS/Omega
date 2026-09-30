@@ -37,6 +37,38 @@ pub enum LandedIntegerType {
 }
 
 impl LandedIntegerType {
+    /// The carrier a builtin integer spelling names; the inverse of
+    /// [`Self::name`]. Any other spelling, including `bool` and the float
+    /// formats, is not an integer carrier.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "i8" => Self::I8,
+            "i16" => Self::I16,
+            "i32" => Self::I32,
+            "i64" => Self::I64,
+            "u8" => Self::U8,
+            "u16" => Self::U16,
+            "u32" => Self::U32,
+            "u64" => Self::U64,
+            "addr" => Self::Addr,
+            _ => return None,
+        })
+    }
+
+    /// The inclusive `(minimum, maximum)` value range the carrier represents.
+    pub fn bounds(self) -> (i128, i128) {
+        match self {
+            Self::I8 => (i128::from(i8::MIN), i128::from(i8::MAX)),
+            Self::I16 => (i128::from(i16::MIN), i128::from(i16::MAX)),
+            Self::I32 => (i128::from(i32::MIN), i128::from(i32::MAX)),
+            Self::I64 => (i128::from(i64::MIN), i128::from(i64::MAX)),
+            Self::U8 => (0, i128::from(u8::MAX)),
+            Self::U16 => (0, i128::from(u16::MAX)),
+            Self::U32 => (0, i128::from(u32::MAX)),
+            Self::U64 | Self::Addr => (0, i128::from(u64::MAX)),
+        }
+    }
+
     pub fn bit_width(self) -> u32 {
         match self {
             Self::I8 | Self::U8 => 8,
@@ -558,6 +590,34 @@ mod tests {
         assert!(!LandedIntegerType::U32.is_signed());
         assert_eq!(LandedIntegerType::U32.bit_width(), 32);
         assert!(LandedIntegerType::I8.is_signed());
+    }
+
+    #[test]
+    fn integer_carrier_names_round_trip_and_bound_their_width() {
+        let carriers = [
+            LandedIntegerType::I8,
+            LandedIntegerType::I16,
+            LandedIntegerType::I32,
+            LandedIntegerType::I64,
+            LandedIntegerType::U8,
+            LandedIntegerType::U16,
+            LandedIntegerType::U32,
+            LandedIntegerType::U64,
+            LandedIntegerType::Addr,
+        ];
+        for carrier in carriers {
+            assert_eq!(LandedIntegerType::from_name(carrier.name()), Some(carrier));
+            let modulus = 1i128 << carrier.bit_width();
+            let expected = if carrier.is_signed() {
+                (-(modulus >> 1), (modulus >> 1) - 1)
+            } else {
+                (0, modulus - 1)
+            };
+            assert_eq!(carrier.bounds(), expected);
+        }
+        for spelling in ["bool", "f32", "f64", "address", "usize", "U8", ""] {
+            assert_eq!(LandedIntegerType::from_name(spelling), None);
+        }
     }
 
     #[test]

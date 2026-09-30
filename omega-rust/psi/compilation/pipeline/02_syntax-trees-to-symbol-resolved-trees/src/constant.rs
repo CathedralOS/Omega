@@ -57,7 +57,8 @@
 //! and aggregate placeholders, `declaration_values.rs` validates and
 //! retains declaration values, `substitution.rs` substitutes resolved
 //! constants, `selections.rs` finalizes const selections and arguments,
-//! `normalized_expressions.rs` validates normalized expressions and
+//! `normalized_expressions.rs` validates normalized expressions,
+//! `scalar_carriers.rs` recognizes builtin scalar carrier spellings and
 //! `carrier.rs`, `initializer_dependencies.rs` and
 //! `initializer_normalization.rs` carry the const carrier and initializer
 //! dependencies.
@@ -70,6 +71,7 @@ pub(crate) mod initializer_normalization;
 #[cfg(test)]
 mod module_tests;
 mod normalized_expressions;
+mod scalar_carriers;
 mod selections;
 mod substitution;
 
@@ -87,6 +89,7 @@ pub(crate) use normalized_expressions::{
     normalization_requires_expression, validate_normalized_const_argument,
     validate_normalized_expression,
 };
+pub(crate) use scalar_carriers::{is_builtin_scalar_carrier, is_structural_scalar_carrier};
 pub(crate) use selections::{
     finalize_const_argument_selections, finalize_const_declarations, finalize_const_selections,
 };
