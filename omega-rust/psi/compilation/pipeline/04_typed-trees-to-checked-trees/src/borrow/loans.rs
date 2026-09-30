@@ -284,6 +284,13 @@ fn reference_local_borrow_loans(
         machine_symbol,
         local_data,
     );
+    let runtime_indexed_recast_place = runtime_indexed_recast_borrow_place(
+        program,
+        state,
+        statement_index,
+        machine_symbol,
+        local_data,
+    );
     let explicit_reborrow_target = direct_reborrow_target(program, local_data.initial_value);
     let is_explicit_reborrow = explicit_reborrow_target.is_some();
     // A call result keeps direct provenance only when its declared view
@@ -322,6 +329,7 @@ fn reference_local_borrow_loans(
             machine_symbol,
         )
         .or_else(|| indexed_recast_place.clone())
+        .or_else(|| runtime_indexed_recast_place.clone())
         .or_else(|| {
             borrow_access_place(
                 program,
@@ -358,6 +366,7 @@ fn reference_local_borrow_loans(
                 machine_symbol,
             )
             .or_else(|| indexed_recast_place.clone())
+            .or_else(|| runtime_indexed_recast_place.clone())
             .or_else(ordinary)
         }
         checked_trees::expression::ExpressionNode::Cast(cast) if cast.form.is_recast() => {
@@ -369,6 +378,7 @@ fn reference_local_borrow_loans(
                 machine_symbol,
             )
             .or_else(|| indexed_recast_place.clone())
+            .or_else(|| runtime_indexed_recast_place.clone())
         }
         checked_trees::expression::ExpressionNode::Call(call) => helper_call_borrow_loan_place(
             program,
@@ -508,6 +518,34 @@ fn literal_indexed_recast_borrow_place(
     Some(place)
 }
 
+/// The runtime-indexed sibling of `literal_indexed_recast_borrow_place`:
+/// `validate_runtime_indexed_recast_source` replays the recast judgment and
+/// bounds the offset through the interior byte-region walk, then the loan
+/// keeps the same conservative `Index` coverage the ordinary borrow place
+/// derives. Unadmitted recast sources mint no loan, restoring the fence the
+/// broader recast vocabulary kept before this arm existed.
+fn runtime_indexed_recast_borrow_place(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    machine_symbol: SymbolHandle,
+    local_data: &checked_trees::statement::TableLocalData,
+) -> Option<accesses::BorrowAccessPlace> {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)?;
+    let source =
+        validation::validate_runtime_indexed_recast_source(program, machine, state, local_data)?;
+    borrow_access_place(
+        program,
+        state.symbol,
+        statement_index,
+        source,
+        machine_symbol,
+    )
+}
+
 /// Finds only an explicit borrow possibly wrapped in reference-carrier casts.
 /// Typed trees normalize the implicit mutable-to-shared attenuation cast to
 /// `Value`, so the stable discriminator here is its reference target and lack
@@ -540,31 +578,22 @@ fn whole_place_recast_borrow_place(
     else {
         return None;
     };
-    let indexed_source_is_literal = match program.expression_table.expression(cast.value) {
-        checked_trees::expression::ExpressionNode::Indexed(indexed) => matches!(
-            program.expression_table.expression(indexed.index),
-            checked_trees::expression::ExpressionNode::Integer(_)
-        ),
-        _ => false,
-    };
     if !cast.form.is_recast()
-        || indexed_source_is_literal
         || !matches!(
             program.expression_table.expression(cast.value),
             checked_trees::expression::ExpressionNode::Name(_)
                 | checked_trees::expression::ExpressionNode::Member(_)
-                | checked_trees::expression::ExpressionNode::Indexed(_)
         )
     {
         return None;
     }
 
     // Whole name/member recasts retain exactly the source place's provenance
-    // and lifetime. A runtime-indexed recast source retains the collection
-    // place with the `Index` segment the access place already derives: that
-    // segment conservatively selects any element, so it cannot understate the
-    // recast target's footprint the way an element-only loan would. Literal
-    // indices keep the exact footprint from `literal_indexed_recast_borrow_place`.
+    // and lifetime. Indexed sources stay with the dedicated arms instead:
+    // literal indices keep the exact footprint from
+    // `literal_indexed_recast_borrow_place`, and bounded runtime indices mint
+    // through `runtime_indexed_recast_borrow_place` once the recast judgment
+    // admits them.
     borrow_access_place(
         program,
         state_symbol,
