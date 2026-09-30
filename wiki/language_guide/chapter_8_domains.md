@@ -24,21 +24,27 @@ data Player {
     in_cutscene: bool;
 }
 
-domain Player::Valid
-    requires self.health >= 0
-          && self.health <= 100;
+domain Player::Valid(value)
+    requires value.health >= 0
+          && value.health <= 100;
 
-domain Player::Dead
-    requires self in Player::Valid
-          && self.health <= 0
-          && self.in_cutscene == false;
+domain Player::Dead(value)
+    requires value in Player::Valid
+          && value.health <= 0
+          && value.in_cutscene == false;
 
-domain Player::Alive
-    requires self in Player::Valid
-          && self.health > 0;
+domain Player::Alive(value)
+    requires value in Player::Valid
+          && value.health > 0;
 ```
 
-`self` is the value being classified. A domain's `requires` clause states its
+`(value)` explicitly names the value being classified; its type comes from the
+carrier before `::`. This is not an extra generic index or runtime argument.
+Membership stays `player in Player::Alive`: the candidate replaces the subject
+in the predicate. A declaration with no subject references may omit the binder,
+as in `domain i32::Km;`. There is no implicit `self` subject.
+
+A domain's `requires` clause states its
 predicate obligations. They do not create fields and they do not execute at
 runtime. Each row is a proof formula; naming an ordinary Boolean-returning
 machine supplies neither evidence nor a general mathematical predicate. A total
@@ -118,12 +124,12 @@ data Game {
     turns: u64;
 }
 
-domain Game::NewGame
-    requires self.phase == GamePhase::NewGame
-          && self.turns == 0;
+domain Game::NewGame(value)
+    requires value.phase == GamePhase::NewGame
+          && value.turns == 0;
 
-domain Game::Playing
-    requires self.phase == GamePhase::Playing;
+domain Game::Playing(value)
+    requires value.phase == GamePhase::Playing;
 
 machine Game::start_game(game: &mut Game)
     requires game in Game::NewGame
@@ -137,7 +143,7 @@ machine Game::start_game(game: &mut Game)
 
 A domain declaration states two independent kinds of establishment evidence:
 
-- `requires` contains propositions about `self`; all of them must be proved.
+- `requires` contains propositions about `value`; all of them must be proved.
 - `established by` contains exact trait-requirement or machine-declaration
     identities authorized to establish membership. Its comma-separated entries
     are alternative routes.
@@ -148,14 +154,14 @@ only side conditions: an exact authorized route occurrence must also introduce
 or forward the provenance. Copyable proof cannot mint Type-side authority.
 
 ```omega
-domain [u8]::Path
-    requires no_nul(self) == true;
+domain [u8]::Path(value)
+    requires no_nul(value) == true;
 
 pub domain Reservation::Issued
 established by Issues::issue;
 
-domain Reservation::Confirmed
-    requires has_seat(self) == true
+domain Reservation::Confirmed(value)
+    requires has_seat(value) == true
     established by Confirms::confirm;
 ```
 
@@ -477,8 +483,8 @@ A declaration may name a domain that excludes zero. The storage can still start
 zero-filled, but the value is gated until its facts are established:
 
 ```omega
-domain u8::Level requires self <= 100;
-domain u8::Rank requires self in 1..=9;
+domain u8::Level(value) requires value <= 100;
+domain u8::Rank(value) requires value in 1..=9;
 
 data Config {
     level: u8::Level;
@@ -503,21 +509,21 @@ data Player {
     health: i32;
 }
 
-domain Player::Valid
-    requires self.health >= 0;
+domain Player::Valid(value)
+    requires value.health >= 0;
 
-domain Player::Alive
-    requires self in Player::Valid
-          && self.health > 0;
+domain Player::Alive(value)
+    requires value in Player::Valid
+          && value.health > 0;
 
-domain Player::Dead
-    requires self in Player::Valid
-          && self.health == 0;
+domain Player::Dead(value)
+    requires value in Player::Valid
+          && value.health == 0;
 ```
 
 The type definition defines ordinary `Player` validity. Domains name semantic
 subsets inside that valid space. A domain may include another domain with
-`self in Type::Domain`, which imports that domain's proof facts instead of
+`value in Type::Domain`, which imports that domain's proof facts instead of
 duplicating them.
 
 Membership never licenses a value outside its carrier's ordinary validity.
@@ -525,8 +531,8 @@ Well-formed domains may have no satisfying values, even when the contradiction
 is obvious to the compiler:
 
 ```omega
-domain i32::Impossible
-    requires self > 0 && self < 0;
+domain i32::Impossible(value)
+    requires value > 0 && value < 0;
 ```
 
 This is a legal uninhabited domain, not a paradox or an assertion that an
@@ -620,8 +626,8 @@ If the parent is routed, its authorized provenance is still required. A nested
 name cannot make that membership available from predicate checks alone.
 
 ```omega
-domain Game::Playing::RoundStart
-    requires self.turns == 1;
+domain Game::Playing::RoundStart(value)
+    requires value.turns == 1;
 // Includes Game::Playing and turns == 1.
 ```
 
@@ -638,7 +644,7 @@ match game {
 ```
 
 `A::B::C` is single-parent (one name path). A domain that refines two unrelated
-parents still writes the explicit intersection in `requires` (`self in X & Y`) —
+parents still writes the explicit intersection in `requires` (`value in X & Y`) —
 the name path is for the common refinement chain, `&` for the DAG cases.
 
 A domain pattern is executable when its predicate requirements are pure, finite, and
@@ -673,12 +679,12 @@ machine in_span(g: Game) -> bool {
     g.turns in 1..=9
 }
 
-domain Game::Opening
-    requires self.phase == GamePhase::Playing && in_span(self) == true;
-domain Game::Sudden
-    requires self.phase == GamePhase::Playing
-          && in_span(self) == true
-          && self.turns == 9;
+domain Game::Opening(value)
+    requires value.phase == GamePhase::Playing && in_span(value) == true;
+domain Game::Sudden(value)
+    requires value.phase == GamePhase::Playing
+          && in_span(value) == true
+          && value.turns == 9;
 ```
 
 The distinction: a **sub-domain** is a named membership set with identity (you
@@ -693,11 +699,11 @@ membership.
 Domains may overlap when they are just proof facts.
 
 ```omega
-domain Password::Valid
-    requires self.len >= 12 && self.has_symbol;
+domain Password::Valid(value)
+    requires value.len >= 12 && value.has_symbol;
 
-domain Password::Secure
-    requires self.entropy_bits >= 80;
+domain Password::Secure(value)
+    requires value.entropy_bits >= 80;
 ```
 
 A value can be both:
@@ -741,8 +747,8 @@ For example, a package may choose a canonical representation for cyclic
 degrees:
 
 ```omega
-domain i32::Degrees
-    requires self >= 0 && self < 360;
+domain i32::Degrees(value)
+    requires value >= 0 && value < 360;
 
 machine + Degrees::add(
     left: i32::Degrees,

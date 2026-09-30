@@ -8,6 +8,28 @@ carry, and provider evidence keep their own judgments.
 
 ## Declaration and membership
 
+A domain names its refinement subject explicitly
+(`domain-refinement-subject-binder`):
+
+```omega
+domain Player::Alive(player)
+    requires player.health > 0 { }
+```
+
+`Player::` determines the carrier; `(player)` binds the value being classified.
+Its type is inferred from that carrier, with the domain family's generic
+arguments substituted. The binder is in scope in the declaration's predicates
+and body under ordinary lexical binding rules. There is no implicit `self`
+subject. Renaming the binder does not change the domain's identity.
+
+The subject binder follows the complete domain name and its indices:
+`domain<const Capacity: u64> u64::AtMost<Capacity>(value)`.
+It is not a generic index, stored field, runtime argument, move, or borrow.
+Membership `candidate in AtMost<8>` substitutes `candidate` for that subject;
+users do not supply another argument. A declaration that does not refer to its
+subject may omit the binder, as in `domain i32::Km;`. Both a braced body and a
+bodyless `;` declaration use this same subject-binding rule.
+
 Scalar interval relationships use ordinary propositions, not a bracketed type
 suffix (`scalar-range-contract-spelling`). Put common-field relationships in the
 data declaration's `where`, case-payload relationships in the case's `where`,
@@ -27,8 +49,8 @@ To publish a reusable named classification, declare a predicate domain and
 return or accept its qualified carrier:
 
 ```omega
-domain u64::AlignmentSize
-    requires self >= 1 && self <= 8;
+domain u64::AlignmentSize(value)
+    requires value >= 1 && value <= 8;
 ```
 
 A result may be declared `u64 in AlignmentSize` when callers need that exact
@@ -42,8 +64,8 @@ Range expressions, range membership, slices, fixed arrays, and bracketed
 multiplicity properties are separate facilities and are unchanged.
 
 ```omega
-domain i32::Positive
-    requires self > 0;
+domain i32::Positive(value)
+    requires value > 0;
 
 pub domain Reservation::Issued
     established by Issues::issue;
@@ -151,8 +173,8 @@ predicates and uninhabited generic specializations are permitted, even when the
 compiler can trivially prove that no value satisfies them:
 
 ```omega
-domain i32::Impossible
-    requires self > 0 && self < 0;
+domain i32::Impossible(value)
+    requires value > 0 && value < 0;
 ```
 
 This defines a classification with no members, not a logical paradox or an
@@ -186,7 +208,7 @@ make a well-formed declaration illegal merely by discovering a contradiction.
 
 `A::B::C` is a single-parent refinement of `A::B`: its predicate requirements
 include the parent's requirements. Multiple-parent predicate reuse is explicit,
-as `requires self in X & Y`. Names do not create a separate classifier declaration.
+as `requires value in X & Y`. Names do not create a separate classifier declaration.
 Establishing the child also requires the parent's routed provenance when present;
 nesting a name cannot turn a routed parent into predicate-only membership.
 Pure total helper machines may supply denotational Boolean terms in predicates,

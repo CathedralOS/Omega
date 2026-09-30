@@ -157,7 +157,7 @@ confirms `[i32 [0..=1]; 16]` declines at `signature` while `[i32; 16]` checks.
 bracketed scalar-interval suffix in favor of ordinary propositions, and routes
 common-field relationships to the data declaration's `where`. `where` clauses
 name fields and parameters, not elements — there is no element quantifier. An
-interval-only element domain (`i32::AliveCell requires self in 0..=1`) is the
+interval-only element domain (`domain i32::AliveCell(value) requires value in 0..=1;`) is the
 shape the owner already rejected under `scalar-range-contract-spelling`
 (6deef33a5c). `dependent_values.md` default-domain obligations likewise speak
 to fields and cases.
@@ -450,42 +450,3 @@ the unconditional execution gate
 (`05_checked-trees-to-lowered-psi/src/machine_lowering.rs:211,220-233`),
 corpus rows `pass/proofs/quotient_{define,lift}_managed_compile rejected`
 in `tests/omega/corpus_outcomes.txt` and all three platform goldens.
-
-### Q5 - If `self` is fully retired, what names the domain refinement subject?
-
-Named decision: `domain-refinement-subject-binder`.
-
-**Context:** `wiki/spec/language/machines.md` retired the `self` receiver —
-"no special `self` parameter, implicit receiver, bound-method value, or
-receiver-inserting call syntax" — and the receiver-drop sweep is removing
-it from samples and tests. One spelling of `self` remains in the published
-spec: the subject of a `domain` predicate, at seven sites —
-`wiki/spec/language/domains.md` (`requires self >= 1 && self <= 8`,
-`requires self > 0` twice, `requires self in X & Y`, dependents) and
-`wiki/spec/language/generics.md` (`requires self <= Capacity`). There
-`self` names the value under classification — a different grammatical
-role than the removed receiver, but the same token the migration is
-eliminating. `data ... where` clauses already name their binders
-explicitly (`start <= end`), so the domain `self` is the last implicit
-name in the source language.
-
-**Options:**
-- Keep `self` as the domain-subject keyword only. Cheapest, but the
-  token survives: no blanket lint can forbid it, and readers must hold
-  two meanings of one word.
-- Replace it with another bare subject word (`it`). Small spec diff,
-  still an undeclared magic name.
-- Give the subject an explicit binder, matching the `where` style:
-  `domain u64::AlignmentSize(v) requires v >= 1 && v <= 8;` Removes the
-  last implicit name, gives nested or multi-clause predicates a real
-  identifier, and continues the no-implicit-words direction that
-  retired the receiver.
-
-The explicit binder is the recommendation: the language's direction is
-already "everything ordinary and explicit," and a named subject costs
-one token while deleting a whole keyword.
-
-Evidence: `wiki/spec/language/machines.md:14` static-declaration
-contract; `wiki/spec/language/domains.md` predicate sites;
-`wiki/spec/language/generics.md` AtMost site; receiver-drop commits
-`c776e94c6d`, `fb2178def9` on `d2032f9fb1`.

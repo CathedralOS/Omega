@@ -52,7 +52,7 @@ predicate). Two consequences:
   sort; the axiom set must carry closure, induction schema where used, and
   disjointness from other memberships explicitly.
 - Membership in a predicate-only domain combines carrier membership with its
-  declared predicates. For `domain u64::Small requires self <= 3;`, a caller
+  declared predicates. For `domain u64::Small(value) requires value <= 3;`, a caller
   that learns `y ∈ (u64 in Small)` must recover the carrier fact and the bound,
   here `Nat(y) ∧ 0 ≤ y ∧ y ≤ 3`. Predicate formation must be total. Ordinary
   contracts and guards can establish the same bound without an explicit domain

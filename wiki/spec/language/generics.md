@@ -193,8 +193,8 @@ A `where` type equation relates already declared binders. Its structural matchin
 may recover omitted type/value arguments from known type structure:
 
 ```omega
-domain<const Capacity: u64> u64::AtMost<Capacity>
-    requires self <= Capacity;
+domain<const Capacity: u64> u64::AtMost<Capacity>(value)
+    requires value <= Capacity;
 
 data TinyBytes<Length, const Capacity: u64>
 where

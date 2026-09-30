@@ -53,7 +53,12 @@ build authority, and artifact verification remain separate obligations.
     interpreters, Terminal verification and native lowering. Remove the retired
     syntax/parser paths after customer migration; add rejection coverage for them.
     Do not delete unrelated receiver-side artifact admission or mathematical
-    subject binders merely because prose uses the word receiver or `self`.
+    subject binding. Implement the explicit domain subject binder from
+    [domains](wiki/spec/language/domains.md#declaration-and-membership):
+    `domain Player::Alive(player) requires player.health > 0;`. Infer its carrier
+    type, substitute the membership candidate, and keep it separate from generic
+    indices and runtime parameters. Migrate domain predicates and reject implicit
+    domain `self`; test generic families, lexical scope and binder-renaming identity.
   - Provision the exact ordinary mutable context parameter named by the
     [entry shape](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge),
     preserving ZII eligibility, selected bindings, root lineage, stack/storage
