@@ -60,11 +60,7 @@ pub(crate) fn declared_receiver_type_reference(
                 .map(|owned| owned.type_reference)
         })
         .or_else(|| {
-            let attached_data = machine.attached_data.as_ref()?;
-            let definition = program
-                .data_definitions()
-                .iter()
-                .find(|definition| &definition.name == attached_data)?;
+            let definition = program.attached_data_definition(machine)?;
             program.data_members(definition).iter().find_map(|member| {
                 let typed_trees::data::DataMember::Field(field) = member else {
                     return None;

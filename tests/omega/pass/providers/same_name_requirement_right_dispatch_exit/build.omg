@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+    builder.application("same_name_requirement_right_dispatch_exit");
+    builder.depend(Source::Path { location: "../../../../../source/library/std" });
+    builder.roots.bind(windows_x86_64::ProgramEntry, right::Runner::run);
+    builder.roots.bind(linux_x86_64::ProgramEntry, right::Runner::run);
+    builder.roots.bind(linux_arm64::ProgramEntry, right::Runner::run);
+    builder.roots.bind(macos_arm64::ProgramEntry, right::Runner::run);
+}
