@@ -144,6 +144,7 @@ pass/calls/runtime_value_call_terminal_exit rejected 1563ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 2)
 pass/calls/serviceful_borrowed_scalar_exit built 933ms exit:70 stdout:match @f9a8ced78a89
 pass/calls/statement_call_recursive_overload_compile checked 181ms
+pass/calls/static_context_forwarded_twice_exit built 828ms exit:70 @339c45cd5326
 pass/calls/transition_arg_local_from_embedded_call_exit built 924ms exit:70 @3da828ba5434+wt
 pass/calls/unread_multistate_receiver_exit built 530ms exit:70 @5c1d6f8344c7
 pass/calls/value_call_as_host_arg_exit built 1832ms exit:70 @fb2178def922

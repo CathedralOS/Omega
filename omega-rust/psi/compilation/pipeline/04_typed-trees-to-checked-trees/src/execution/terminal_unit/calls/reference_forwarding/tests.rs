@@ -127,9 +127,12 @@ fn shared_source_or_target_cannot_grant_mutable_forwarding() {
 
 #[test]
 fn forwarding_rejoins_actual_prefix_writes_instead_of_the_mutable_parameter_bit() {
+    // A projected store changes the referent the carrier still names; only a
+    // whole-place store can replace what the carrier names.
     for (prefix, preserved) in [
         ("let count: u32 = 0u32;", true),
-        ("record.enabled = false;", false),
+        ("record.enabled = false;", true),
+        ("record = Flag { enabled: false };", false),
     ] {
         let fixture = ForwardingFixture::with_prefix("&mut", "&mut", prefix);
         assert_eq!(
