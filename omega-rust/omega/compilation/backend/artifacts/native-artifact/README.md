@@ -55,7 +55,10 @@ domains, producer-side native proof-pair validation and self-verifying receipts.
 evidence before installation, then binds its receipt to the installed path.
 The compiler chooses products and installs files; it does not assemble the
 native digest chain. Receipt replay detects content and mode drift without
-granting receiving or execution authority.
+granting receiving or execution authority. Its
+[dynamic_elf.rs](src/publication/dynamic_elf.rs) gives a dynamically linked
+ELF product its own flat-file receipt in a separate digest domain, so dynamic
+bytes never satisfy direct-image publication custody.
 
 [callable_entry.rs](src/callable_entry.rs) is the separate entrance for staging
 and replaying optimized ordinary callable entries. Its model, reconstruction,
