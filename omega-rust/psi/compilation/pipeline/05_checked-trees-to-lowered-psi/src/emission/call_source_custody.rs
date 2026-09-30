@@ -214,14 +214,21 @@ pub(crate) fn validate_store_and_initializer_calls(
 /// A projected Fused binding selects an erased capability, not an implicit
 /// runtime borrow. Its boundary signature has no self operand, so argument
 /// access facts cannot stand in for the exact parameter and field custody.
-fn validate_parameter_binding_receiver(
+/// The replayed parameter and path let attachment validation retain the exact
+/// field requirement without mistaking an ordinary context for lexical self.
+pub(crate) struct ParameterBindingReceiver<'parameters> {
+    pub parameter: &'parameters checked_trees::CheckedUnitStructuralParameterPlan,
+    pub path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+}
+
+pub(crate) fn validate_parameter_binding_receiver<'parameters>(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
-    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    caller_parameters: &'parameters [checked_trees::CheckedUnitStructuralParameterPlan],
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     call: &authored::AuthoredCall,
-) -> Result<(), LoweringError> {
+) -> Result<Option<ParameterBindingReceiver<'parameters>>, LoweringError> {
     use checked_trees::CheckedUnitStructuralTypeShape;
     use checked_trees::expression::ExpressionNode;
     use checked_trees::statement::StatementNode;
@@ -235,7 +242,7 @@ fn validate_parameter_binding_receiver(
                 .any(|signature| signature.symbol == call.source_target)
     }) else {
         // Boundary machines and operators have no Binding requirement receiver.
-        return Ok(());
+        return Ok(None);
     };
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
@@ -254,7 +261,7 @@ fn validate_parameter_binding_receiver(
                     ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
                 )
             {
-                return Ok(());
+                return Ok(None);
             }
             let projected = projected_receivers::source(
                 checked,
@@ -288,10 +295,10 @@ fn validate_parameter_binding_receiver(
                     && (parameter.symbol == source.receiver_root_symbol
                         || members.first() == Some(&parameter.name))
             }) else {
-                return Ok(());
+                return Ok(None);
             };
             if members.len() < 2 {
-                return Ok(());
+                return Ok(None);
             }
             if members.first() != Some(&parameter.name)
                 || parameter.symbol != source.receiver_root_symbol
@@ -324,7 +331,7 @@ fn validate_parameter_binding_receiver(
             }
             (root, path, field.type_reference)
         }
-        _ => return Ok(()),
+        _ => return Ok(None),
     };
     let Some((position, source_parameter)) = checked
         .state_parameters(state)
@@ -333,10 +340,10 @@ fn validate_parameter_binding_receiver(
         .find(|(_, parameter)| parameter.symbol == root && !parameter.is_self)
     else {
         // Attached self and local receiver routes retain their existing owners.
-        return Ok(());
+        return Ok(None);
     };
     if path.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let mut parameters = caller_parameters
         .iter()
@@ -424,7 +431,7 @@ fn validate_parameter_binding_receiver(
     {
         return unsupported("binding receiver lost its exact Fused field erasure receipt");
     }
-    Ok(())
+    Ok(Some(ParameterBindingReceiver { parameter, path }))
 }
 
 pub(crate) fn validate_operation(

@@ -129,6 +129,14 @@ pub(super) fn validate_bindings(
             let source = source_parameters.get(source_position as usize).ok_or(
                 LoweringError::Unsupported("Unit graph source parameter missing"),
             )?;
+            // Authored `self` resolves to the machine, while retained edge
+            // custody names the state's receiver parameter. Only that exact
+            // declared receiver may use the machine-root spelling.
+            let source_symbol = if source.is_self {
+                plan.machine
+            } else {
+                source.symbol
+            };
             // `value as T` on a structural type ascribes the same parameter;
             // scalar (primitive-target) casts stay opaque to this binding.
             let mut argument = *expression;
@@ -147,8 +155,8 @@ pub(super) fn validate_bindings(
             }
             match checked.expression_table.expression(argument) {
                 ExpressionNode::Name(name)
-                    if name.symbol == source.symbol
-                        && name.head_symbol == source.symbol
+                    if name.symbol == source_symbol
+                        && name.head_symbol == source_symbol
                         && checked
                             .expression_table
                             .name_path_members(name.members)

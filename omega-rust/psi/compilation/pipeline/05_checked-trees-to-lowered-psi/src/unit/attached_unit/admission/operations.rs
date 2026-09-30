@@ -26,6 +26,7 @@ pub(super) fn validate<'a>(
             machine.machine,
             machine.state,
             operation,
+            &machine.structural_parameters,
             &machine.provider_attachment_requirements,
         )?;
         super::calls::admit(checked, plans, &caller, operation, boundaries)?;

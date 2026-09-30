@@ -301,35 +301,29 @@ pub(super) fn admit_call_targets<'a>(
         validate_claim_free_boundary(boundary)?;
     }
     let internal_targets = unit_targets(checked, machine, call_states)?;
-    // The shared attachment admission resolves each requirement's authored
-    // owner; operation handle shape cannot distinguish operators from traits.
-    let called_boundaries = call_states
-        .iter()
-        .flat_map(|state| &state.operations)
-        .filter_map(|operation| {
-            // A boundary call with a Unit or structural result; a boundary
-            // scalar result keeps its own attachment route.
-            let call = operation.call()?;
-            match (call.route(), call.result()) {
-                (
-                    checked_trees::CheckedUnitCallRoute::Boundary,
-                    checked_trees::CheckedUnitCallResult::Unit
-                    | checked_trees::CheckedUnitCallResult::Structural { .. },
-                ) => Some(call.target.machine),
-                _ => None,
-            }
-        })
-        .collect::<Vec<_>>();
     if let Some(attachment) = attachment {
+        let mut called_boundaries = Vec::new();
         for state in call_states {
             for operation in &state.operations {
-                super::super::provider_attachments::validate_call_source(
+                let uses_attachment = super::super::provider_attachments::validate_call_source(
                     checked,
                     machine,
                     state.state,
                     operation,
+                    &state.structural_parameters,
                     provider_attachment_requirements,
                 )?;
+                // Scalar-result calls keep their separate attachment route.
+                if uses_attachment
+                    && let Some(call) = operation.call()
+                    && matches!(
+                        call.result(),
+                        checked_trees::CheckedUnitCallResult::Unit
+                            | checked_trees::CheckedUnitCallResult::Structural { .. }
+                    )
+                {
+                    called_boundaries.push(call.target.machine);
+                }
             }
         }
         super::super::provider_attachments::validate_provider_attachment_requirements(

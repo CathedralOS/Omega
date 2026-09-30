@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 6.0, "load1_start": 6.0, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 9.81, "load1_start": 10.23, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -564,9 +564,7 @@ pass/layouts/private_callback_slot_demand_compile rejected 31ms
 	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
 pass/layouts/private_callback_slot_untaken_compile checked 214ms
 pass/layouts/runtime_plan_laid_compact_bits_exit built 705ms exit:70
-pass/layouts/runtime_plan_laid_erased_field_exit rejected 224ms
-	cannot prove index `self.index` is within length 64 in Spread16::evaluate::place
-	cannot prove index `self.index` is within length 32 in Spread16::evaluate::place
+pass/layouts/runtime_plan_laid_erased_field_exit built 906ms exit:70 @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit rejected 459ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 1, statement 2)
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 586ms

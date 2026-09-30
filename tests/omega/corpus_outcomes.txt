@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 8, "jobs": null, "load1_end": 2.66, "load1_start": 2.81, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": null, "load1_end": 10.23, "load1_start": 6.3, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 fail/arithmetic/anonymous_remainder_rejected rejected 128ms expected @2d8ed253669f
 	builtin `%` requires an integer-typed operand; type an operand (for example, `7i32 % 2`), not just the destination
 fail/arithmetic/authored_requires_numeric_bound rejected 222ms expected @2d8ed253669f
@@ -1658,9 +1658,7 @@ pass/layouts/private_callback_slot_demand_compile rejected 41ms @2d8ed253669f
 	plan-laid value type `Spread<ForeignRecord>`: declaration `WndClassWindowProcedureSlot` has non-hermetic source origin `User`
 pass/layouts/private_callback_slot_untaken_compile checked 444ms @2d8ed253669f
 pass/layouts/runtime_plan_laid_compact_bits_exit checked 1390ms @2d8ed253669f
-pass/layouts/runtime_plan_laid_erased_field_exit rejected 378ms @2d8ed253669f
-	cannot prove index `self.index` is within length 64 in Spread16::evaluate::place
-	cannot prove index `self.index` is within length 32 in Spread16::evaluate::place
+pass/layouts/runtime_plan_laid_erased_field_exit checked 832ms @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit rejected 791ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 1, statement 2)
 pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 907ms @2d8ed253669f

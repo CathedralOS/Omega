@@ -11,36 +11,57 @@ use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
+/// Replay a boundary occurrence and report whether it consumes attachment
+/// coverage. A Fused binding through an ordinary context still names its exact
+/// attachment field: these roots witness specialization, not runtime self
+/// storage. Source/shape/erasure replay precedes boundary deduplication.
 pub(in crate::unit::attached_unit) fn validate_call_source(
     checked: &CheckedTrees,
     machine: SymbolHandle,
     state: SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     requirements: &[CheckedProviderAttachmentRequirementPlan],
-) -> Result<(), LoweringError> {
+) -> Result<bool, LoweringError> {
     let Some(planned) = operation.call().filter(|planned| planned.is_boundary()) else {
-        return Ok(());
+        return Ok(false);
     };
     let (coordinate, boundary) = (planned.coordinate, planned.target.machine);
+    // Operators and external leaves own their source replay elsewhere; only
+    // boundary-trait signatures can consume an attached provider field.
+    if !checked.traits().iter().any(|definition| {
+        definition.is_boundary
+            && checked
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|signature| signature.symbol == boundary)
+    }) {
+        return Ok(false);
+    }
+    let authored = crate::emission::call_source_custody::authored::locate(
+        checked,
+        machine,
+        state,
+        coordinate,
+        planned.target.machine,
+        planned.target.state,
+    )?;
+    let parameter_receiver =
+        crate::emission::call_source_custody::validate_parameter_binding_receiver(
+            checked, machine, state, parameters, coordinate, &authored,
+        )?;
     let Some(requirement) = requirements
         .iter()
         .find(|requirement| requirement.boundary == boundary)
     else {
         // Complete-set validation separately rejects missing required roots.
-        return Ok(());
+        return Ok(true);
     };
     let (owner, source) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     if owner.symbol != machine {
         return unsupported("provider call lost its authored machine");
     }
-    let receiver = checked
-        .state_parameters(source)
-        .iter()
-        .find(|parameter| parameter.is_self)
-        .ok_or(LoweringError::Unsupported(
-            "provider field call has no authored receiver",
-        ))?;
     let attachment = checked
         .data_definitions()
         .iter()
@@ -82,8 +103,33 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
     {
         return unsupported("provider field call changed its authored carrier");
     }
-    let authored =
-        crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
+    if let Some(receiver) = parameter_receiver {
+        let attachment_identity = if owner.attached_data_application.is_valid() {
+            checked.normalized_type_identity(owner.attached_data_application)
+        } else if let Some(application) = attachment.generic_instance {
+            checked.normalized_type_identity(application)
+        } else {
+            checked
+                .normalized_nominal_type_identity(attachment.symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "binding receiver has no normalized attachment owner",
+                ))?
+        };
+        if receiver.parameter.type_identity != attachment_identity.as_str()
+            || !matches!(receiver.path.as_slice(), [CheckedUnitStructuralPathSegment::Field(name)]
+                if name == &requirement.field_identity)
+        {
+            return unsupported("binding receiver changed its exact attachment field");
+        }
+        return Ok(true);
+    }
+    let receiver = checked
+        .state_parameters(source)
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .ok_or(LoweringError::Unsupported(
+            "provider field call has no authored receiver",
+        ))?;
     match authored.source_site {
         Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
             let Some(StatementNode::Call(call)) = checked
@@ -132,5 +178,5 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
         }
         None => return unsupported("provider field call has no authored occurrence"),
     }
-    Ok(())
+    Ok(true)
 }

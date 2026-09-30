@@ -1141,19 +1141,7 @@ the complete product bar; focused successes below do not establish that baseline
     equivalent guards such as `< 255` versus `<= 254`.
     Re-probe these migrations against current checking, not old failure totals.
 
-  - Retain build-time admission and genuine negative behavior. The
-    canonical `layouts/runtime_plan_laid_erased_field_exit` customer now
-    crosses the receiver index proof and checked layout evaluation. On macOS
-    ARM64, `omega run tests/omega/pass/layouts/runtime_plan_laid_erased_field_exit/main.omg`
-    still exits 200 at `state graph: provider attachment requirements`:
-    ordinary state parameter `main.console` is an admitted Fused binding,
-    but Stage04 `terminal_unit/providers.rs` and Stage05
-    `unit/attached_unit/provider_attachments.rs` require attached `self`
-    coverage. Distinguish those exact call occurrences in production and
-    replay; do not fabricate an attachment or remove establishment checks.
-    Coordinate the Stage05 change with **STATIC-MACHINE-MIGRATION**; this is
-    an implementation dependency, not a language-design question. Acceptance
-    remains the unchanged whole-value copy and native exit 70.
+  - Retain build-time admission and genuine negative behavior.
     Migrate `fail/wire/wire_policy_plan_disagrees`
     while preserving its actual plan/schema disagreement rejection; its
     recorded diagnostic already reaches that mismatch.

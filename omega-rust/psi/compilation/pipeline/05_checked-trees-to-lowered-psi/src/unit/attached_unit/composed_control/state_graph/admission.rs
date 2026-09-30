@@ -404,9 +404,8 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         let statements = checked.statement_table.statements(source.statement_nodes);
         scalars::validate(checked, state)?;
         let terminator_ordinal = super::body::validate(checked, plan.machine, source, state)?;
-        let tail = typed_trees::statement::reachable_transition_prefix(
-            &statements[terminator_ordinal..],
-        );
+        let tail =
+            typed_trees::statement::reachable_transition_prefix(&statements[terminator_ordinal..]);
         match (&state.terminator, tail) {
             (CheckedComposedUnitControlTerminatorPlan::Guarded { .. }, _) => {
                 super::guarded::validate(checked, plan, source, state, terminator_ordinal)?;
@@ -888,23 +887,25 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // targets' signatures come from the closure that emits this graph.
     let boundaries = super::super::admission::admit_calls(checked, plan.machine, &states)?;
     if let Some(attachment) = attachment {
+        let mut called = Vec::new();
         for state in &states {
             for operation in &state.operations {
-                crate::unit::attached_unit::provider_attachments::validate_call_source(
-                    checked,
-                    plan.machine,
-                    state.state,
-                    operation,
-                    &plan.provider_attachment_requirements,
-                )?;
+                if let Some(call) = operation.call()
+                    && crate::unit::attached_unit::provider_attachments::validate_call_source(
+                        checked,
+                        plan.machine,
+                        state.state,
+                        operation,
+                        &state.structural_parameters,
+                        &plan.provider_attachment_requirements,
+                    )?
+                {
+                    called.push(call.target.machine);
+                }
             }
         }
-        // Attachment admission resolves authored ownership from the complete
-        // roster, not from equality of the machine and state coordinates.
-        let called = boundaries
-            .iter()
-            .map(|(boundary, _)| boundary.machine)
-            .collect::<Vec<_>>();
+        // Both lexical self and ordinary contexts contribute their exact
+        // attachment-field requirements after independent source replay.
         crate::unit::attached_unit::provider_attachments::validate_provider_attachment_requirements(
             checked,
             attachment,
