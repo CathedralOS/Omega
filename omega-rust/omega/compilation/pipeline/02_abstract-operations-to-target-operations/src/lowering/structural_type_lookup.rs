@@ -84,6 +84,13 @@ impl<'a> StructuralTypeLookup<'a> {
                     StructuralPathSegment::RuntimeIndex { .. },
                     StructuralTypeShape::FixedArray { element, .. },
                 ) => *element,
+                // A view's live extent is the bound: either index kind names
+                // the element rung with no static length to check here.
+                (
+                    StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. },
+                    StructuralTypeShape::ElementView { element },
+                ) => *element,
                 _ => return None,
             };
         }

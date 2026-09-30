@@ -1246,6 +1246,28 @@ pub(crate) fn field_read(
     {
         return None;
     }
+    // A view root's descriptor is not the read's frame: the path selects
+    // inside the referent whose live extent is the bound, so neither the
+    // plain-record shape nor the root-size ceiling applies. The geometry
+    // walk below already declines a path that leaves the element rung.
+    if matches!(
+        declarations
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .map(|declaration| &declaration.shape),
+        Some(
+            StructuralTypeShape::ElementView { .. }
+                | StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
+        )
+    ) {
+        return mixed_common_field_read(structural_type, path, field, scalar, declarations)
+            .or_else(|| {
+                scalar_field_geometry(structural_type, path, field, scalar, declarations, false)
+                    .map(|(offset, bytes, _)| (offset, bytes))
+            });
+    }
     let root = plain_record_shape(structural_type, declarations)?;
     if let Some(read) = mixed_common_field_read(structural_type, path, field, scalar, declarations)
     {

@@ -97,7 +97,7 @@ pub(super) fn validate(
                 Some("record")
             } else if !closed_sum && is_arm_pattern_marker(statement) {
                 Some("arm")
-            } else if is_loan_marker(checked, statement) {
+            } else if is_loan_marker(checked, source, statement, index) {
                 Some("loan")
             } else if is_exclusive_loan_marker(checked, machine, source, statement, index) {
                 Some("xloan")
@@ -913,11 +913,34 @@ fn is_record_pattern_marker(statement: &StatementNode) -> bool {
 /// the name is rejoined to the loaned place by the access's own place
 /// resolution. Reconstructed here from the authored statement rather than
 /// taken from the plan, which is what the surrounding count is checking.
-fn is_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -> bool {
+/// A loan binding plans a body operation only when its initializer
+/// registered a structural-value root — a `&Cell` element borrow mints an
+/// `EstablishStructuralValue` for its record permission carrier while a
+/// `&u32`/`&mut u8` loan names one place and holds no value. Ask the
+/// checker's own structural-values table rather than re-deriving which
+/// referents bind: if a root exists, the operation exists, and the
+/// statement is no longer a marker.
+fn is_loan_marker(
+    checked: &CheckedTrees,
+    source: &checked_trees::state::State,
+    statement: &StatementNode,
+    index: usize,
+) -> bool {
     let StatementNode::LocalData(local) = statement else {
         return false;
     };
-    if local.is_mutable {
+    if local.is_mutable
+        || checked
+            .facts
+            .values
+            .structural_values
+            .root_for_expression(
+                source.symbol,
+                u32::try_from(index).unwrap_or(u32::MAX),
+                local.initial_value,
+            )
+            .is_some()
+    {
         return false;
     }
     let checked_trees::expression::ExpressionNode::Borrow(borrow) =

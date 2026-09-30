@@ -195,6 +195,10 @@ pub enum SelectedAddressBase {
     Register(VirtualRegisterId),
     /// A frame-resident home, addressed on the edge itself.
     Local(super::LocalStorageSlotId),
+    /// A live pointer to a view descriptor: the edge loads the descriptor's
+    /// stored backing pointer, then applies the byte offset. The descriptor
+    /// address itself is never the referent's.
+    ViewDescriptor(VirtualRegisterId),
 }
 
 /// A source transfer and its selected realization. Source identity alone cannot

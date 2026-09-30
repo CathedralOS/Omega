@@ -244,15 +244,26 @@ fn source_contract(
             | O::EstablishElementView { result, .. }
             | O::ElementViewSubslice { result, .. }
                 if result.place == place
-                    && result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty() =>
             {
+                // The view place carries its loan's access: a shared view
+                // lends shared element borrows while the mutable view's
+                // exclusive loan re-borrows an element the suspension keeps
+                // readable on the edge.
                 Some((
                     result.structural_type,
-                    StructuralAccess::SharedBorrow,
-                    StructuralMultiplicity::Unrestricted,
+                    if result.multiplicity == StructuralMultiplicity::Affine {
+                        StructuralAccess::MutableBorrow
+                    } else {
+                        StructuralAccess::SharedBorrow
+                    },
+                    result.multiplicity,
                 ))
             }
             _ => None,

@@ -740,7 +740,9 @@ pub(super) fn home(
                 }
                 | LegalizedScalarInstructionKind::EstablishZeroedStructural { result, .. }
                 | LegalizedScalarInstructionKind::EstablishRecord { result, .. }
-                | LegalizedScalarInstructionKind::EstablishCase { result, .. } => result,
+                | LegalizedScalarInstructionKind::EstablishCase { result, .. }
+                | LegalizedScalarInstructionKind::EstablishElementView { result, .. }
+                | LegalizedScalarInstructionKind::ElementViewSubslice { result, .. } => result,
                 LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
                 _ => return None,
             };
@@ -764,8 +766,10 @@ pub(super) fn home(
                         StructuralTypeShape::Record { .. }
                             | StructuralTypeShape::Sum { .. }
                             | StructuralTypeShape::FixedArray { .. }
+                            | StructuralTypeShape::ElementView { .. }
                             | StructuralTypeShape::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                    | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                             )
                     )
             })

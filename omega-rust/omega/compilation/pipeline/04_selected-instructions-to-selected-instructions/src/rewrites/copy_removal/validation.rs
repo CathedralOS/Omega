@@ -173,9 +173,10 @@ fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId
                 } => {
                     local_slot_mentions(destination, register)
                         || match base {
-                            selected_instructions::SelectedAddressBase::Register(argument) => {
-                                argument == register
-                            }
+                            selected_instructions::SelectedAddressBase::Register(argument)
+                            | selected_instructions::SelectedAddressBase::ViewDescriptor(
+                                argument,
+                            ) => argument == register,
                             selected_instructions::SelectedAddressBase::Local(slot) => {
                                 local_slot_mentions(slot, register)
                             }
@@ -655,7 +656,8 @@ fn shift_successor(
                 base, destination, ..
             } => {
                 match base {
-                    selected_instructions::SelectedAddressBase::Register(argument) => {
+                    selected_instructions::SelectedAddressBase::Register(argument)
+                    | selected_instructions::SelectedAddressBase::ViewDescriptor(argument) => {
                         *argument = shift_register(*argument, removed_register, raising)?;
                     }
                     selected_instructions::SelectedAddressBase::Local(slot) => {

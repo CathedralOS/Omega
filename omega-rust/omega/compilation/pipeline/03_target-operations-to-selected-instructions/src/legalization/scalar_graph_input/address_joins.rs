@@ -274,7 +274,15 @@ fn node_operation(operation: &AbstractOperation) -> Option<OperationId> {
         | AbstractOperation::CallStructural { psi_operation, .. }
         | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
         | AbstractOperation::MoveStructuralField { psi_operation, .. }
-        | AbstractOperation::BoundaryCall { psi_operation, .. } => Some(*psi_operation),
+        | AbstractOperation::BoundaryCall { psi_operation, .. }
+        // View producers own their result places exactly like the record
+        // and case establishments: the join's lending root dominates its
+        // binding edge from the establishing block.
+        | AbstractOperation::EstablishElementView { psi_operation, .. }
+        | AbstractOperation::ElementViewSubslice { psi_operation, .. }
+        | AbstractOperation::ByteSequenceSubslice { psi_operation, .. } => {
+            Some(*psi_operation)
+        }
         _ => None,
     }
 }

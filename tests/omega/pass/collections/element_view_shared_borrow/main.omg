@@ -1,0 +1,64 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell {
+    value: i32;
+    tag: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+    found: i32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.bag.cells[2].value = 7;
+    self.bag.cells[1].value = 5;
+    self.bag.cells[3].tag = 9;
+    self.check(&self.bag);
+    transition self.found == 21 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(90);
+    }
+}
+
+machine Main::check(&mut self, bag: &Bag) {
+    let cells: &[Cell] = bag.cells.as_slice();
+    let cell: &Cell = &cells[2];
+    let other: &Cell = &cells[1];
+    let tail: &Cell = &cells[3];
+    transition cell.value == 7 && other.value == 5 && tail.tag == 9 {
+        true -> yes()
+        false -> no()
+    }
+
+    state yes(&mut self) {
+        self.found = 21;
+        transition {
+            _ -> done()
+        }
+    }
+
+    state no(&mut self) {
+        self.found = 0;
+        transition {
+            _ -> done()
+        }
+    }
+
+    state done() {
+    }
+}

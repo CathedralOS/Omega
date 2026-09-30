@@ -133,14 +133,22 @@ fn walk_record_fields<'types>(
             let declaration = types
                 .clone()
                 .find(|declaration| declaration.id == structural_type)?;
-            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                return None;
+            let element = match &declaration.shape {
+                StructuralTypeShape::FixedArray { element, length } => {
+                    if *element_index >= *length {
+                        return None;
+                    }
+                    *element
+                }
+                // An element view's extent is its own stored live length, so
+                // a literal index names the element rung with no static
+                // bound — the same admission the runtime-index coordinate
+                // carries.
+                StructuralTypeShape::ElementView { element } => *element,
+                _ => return None,
             };
-            if *element_index >= *length {
-                return None;
-            }
             runtime_path.push(StructuralPathSegment::FixedIndex(*element_index));
-            structural_type = *element;
+            structural_type = element;
             continue;
         }
         let CanonicalStructuralPathSegment::Field(field) = segment else {

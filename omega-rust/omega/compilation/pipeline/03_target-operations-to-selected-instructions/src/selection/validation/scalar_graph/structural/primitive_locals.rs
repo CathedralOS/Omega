@@ -100,16 +100,23 @@ pub(in crate::selection) fn read(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let (place, byte_offset) = crate::selection::primitive_local_input::read_geometry(source, row)
-        .ok_or_else(|| replay.invalid())?;
+    let (place, byte_offset, view_rooted) =
+        crate::selection::primitive_local_input::read_geometry(source, row)
+            .ok_or_else(|| replay.invalid())?;
     let definition = row.result.ok_or_else(|| replay.invalid())?;
-    let pointer = replay
-        .transport
-        .pointers
-        .iter()
-        .find(|(stored, _)| *stored == place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(|| replay.invalid())?;
+    // A view place's own pointer names its descriptor; the read's address
+    // lives behind the descriptor's stored backing pointer.
+    let pointer = if view_rooted {
+        super::element_views::element_backing_pointer(replay, row, place)?
+    } else {
+        replay
+            .transport
+            .pointers
+            .iter()
+            .find(|(stored, _)| *stored == place)
+            .map(|(_, pointer)| *pointer)
+            .ok_or_else(|| replay.invalid())?
+    };
     let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
         LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } => indices,
         _ => &[],

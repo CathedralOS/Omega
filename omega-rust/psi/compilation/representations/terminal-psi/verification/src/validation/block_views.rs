@@ -6,6 +6,7 @@ use super::{
     StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
     Terminator,
 };
+use crate::validation::structural::scalar_fields::element_view_source;
 pub(super) mod mutable_records;
 
 pub(super) fn parameter(
@@ -405,6 +406,14 @@ fn shared_loan_root(
         .filter(|_| available.contains(&argument.place))
     {
         return Some(result.structural_type);
+    }
+    // A view local's established result supplies the shared successor root:
+    // the `Reference` shell carrying its loan peels to the `ElementView`
+    // the projected path then selects inside.
+    if let Some(view_type) = element_view_source(module, machine, argument.place)
+        .filter(|_| available.contains(&argument.place))
+    {
+        return Some(view_type);
     }
     // A literal establishes immutable borrowed-view storage with a Unit
     // result. Its declaration and dominating establishment supply the same

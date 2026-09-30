@@ -16,6 +16,7 @@ pub(crate) fn walk_exact_place(
     machine: &checked_trees::machine::Machine,
     authored: &checked_trees::state::State,
     target: ExpressionHandle,
+    borrow_target_index: bool,
 ) -> Result<
     (
         Vec<checked_trees::CheckedUnitStructuralPathSegment>,
@@ -136,18 +137,30 @@ pub(crate) fn walk_exact_place(
                 .ok_or(LoweringError::Unsupported(
                     "borrowed selection index has no declared collection",
                 ))?;
-                let checked_trees::types::TypeReferenceNode::FixedArray {
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
-                    ..
-                } = checked.type_reference_table.type_reference(container)
-                else {
-                    return unsupported("borrowed selection index has no literal array length");
-                };
-                if usize::try_from(index)
-                    .ok()
-                    .is_none_or(|index| index >= *length)
-                {
-                    return unsupported("borrowed selection index is out of bounds");
+                match checked.type_reference_table.type_reference(container) {
+                    checked_trees::types::TypeReferenceNode::FixedArray {
+                        length: checked_trees::types::FixedArrayLength::Literal(length),
+                        ..
+                    } => {
+                        if usize::try_from(index)
+                            .ok()
+                            .is_none_or(|index| index >= *length)
+                        {
+                            return unsupported("borrowed selection index is out of bounds");
+                        }
+                    }
+                    // A `&[T]` view local names its collection by live extent:
+                    // the checker admitted the indexed borrow against the
+                    // view's length, so the segment keeps the `FixedIndex`
+                    // spelling the loan's ledger records. Only a `&` borrow
+                    // target rides this arm — a copied or scalar-case place
+                    // still declines on the missing literal bound.
+                    checked_trees::types::TypeReferenceNode::Slice { .. }
+                        if borrow_target_index => {}
+
+                    _ => {
+                        return unsupported("borrowed selection index has no literal array length");
+                    }
                 }
                 checked_path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                     index,
@@ -308,7 +321,7 @@ pub(crate) fn field_selector(
     // rooted at an entry parameter (a `self` root names the is_self slot by
     // the machine's durable symbol). Indexed or case segments inside the
     // selector never mint a `StructuralField` coordinate.
-    let (path, root) = walk_exact_place(checked, machine, authored, expression)?;
+    let (path, root) = walk_exact_place(checked, machine, authored, expression, false)?;
     if path.is_empty() {
         return unsupported("runtime index selector names no field below its parameter");
     }
