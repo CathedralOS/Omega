@@ -3253,7 +3253,8 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   Reuse c2l's `proofs/operation_proofs.rs` machine preparation cache and
   `scalar_block_invariants.rs` verdict cache, shared roster-round/candidate
   budgets and cyclic-guarantee budget. Their exhaustion reaches
-  `ProofSearchCapacityExhausted` and the compiler's `incomplete:` diagnostic;
+  `ProofSearchCapacityExhausted`, whose `ExceededProvision` publishes the
+  compiler request's `Incomplete` outcome (batch row tag 2, `omega` exit 2);
   source-derived tests already distinguish a declined inference budget from
   invalid source. The computed-selector guard is gone, and the committed macOS
   snapshot records `runtime_hoisted_index_write_exit` running at exit 7.
@@ -3261,10 +3262,12 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   Remaining work: `nonzero_divisor_certificate/integer_selection/direct_add/conjunction`
   discards its usage and turns exhaustion into `None`. Carry such declines
   through fallback search and finalization when no other route proves the
-  obligation. Preserve resource identity, limit, requested work and obligation
-  coordinate into the [compiler-request outcome](wiki/spec/build/compiler_request.md);
-  `compiler/request/outcomes.rs` currently maps every diagnostic failure to
-  `BatchChildOutcome::Rejected`, including an `incomplete:` diagnostic.
+  obligation. The [compiler-request](wiki/spec/build/compiler_request.md)
+  scalar-resource table has no rows for `proof_search_result_guarantee_work`
+  (the resource `pass/filesystem/native_metadata_ino` exhausts on linux_x86_64,
+  the only golden `incomplete` row) or `proof_obligation_identities`, and its
+  code 28 limit (4,096) disagrees with the reference compiler's 16,384. `omega
+  run` still reports `Incomplete` as 200, and CLI argument errors also exit 2.
   Complete production-path exhaustion controls beyond the existing helper-budget
   tests, retaining independent certificate verification.
 

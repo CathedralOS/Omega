@@ -107,6 +107,23 @@ impl std::fmt::Display for CompileProjectError {
 
 impl std::error::Error for CompileProjectError {}
 
+impl CompileProjectError {
+    /// The compiler-request outcome this refusal publishes. Compilation
+    /// diagnostics — the standalone route's and accepted package realization's
+    /// — are `Incomplete` when every error names an exceeded private provision;
+    /// every other refusal (preparation, review, admission, publication,
+    /// workspace) is a `Reject`.
+    pub fn outcome(&self) -> compiler::CompilerRequestOutcome {
+        match self {
+            Self::Diagnostics(diagnostics)
+            | Self::PackageNative(packages::CompilePreparedLocalProjectNativeError::Native(
+                diagnostics,
+            )) => compiler::CompilerRequestOutcome::of_refusal(diagnostics),
+            _ => compiler::CompilerRequestOutcome::Reject,
+        }
+    }
+}
+
 /// One target's result from [`compile_project_for_targets`].
 pub struct TargetProjectOutcome {
     pub target: target::TargetProfile,

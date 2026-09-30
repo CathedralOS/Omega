@@ -1,7 +1,7 @@
 //! Console adapter for the project compilation operation.
 
 use super::{admissions::report_unsettled_admissions, arguments::CompileArguments};
-use compiler::CompileOptions;
+use compiler::{CompileOptions, CompilerRequestOutcome};
 use omega::compilation::{
     CompileProjectError, CompileProjectRequest, ProjectProduct, TargetProjectOutcome,
     compile_project, compile_project_for_targets,
@@ -54,7 +54,7 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
         }
         Err(error) => {
             eprintln!("{error}");
-            std::process::exit(1);
+            std::process::exit(refusal_exit_status([&error]));
         }
     };
     if let Some(path) = &report_file
@@ -87,6 +87,7 @@ fn compile_several_targets(
     };
     let mut report_contents = String::new();
     let mut failed = Vec::new();
+    let mut refusals = Vec::new();
     for TargetProjectOutcome { target, result } in &outcomes {
         let name = target.target_name();
         println!("target {name}:");
@@ -108,6 +109,7 @@ fn compile_several_targets(
                 println!("target {name} failed");
                 report_contents.push_str(&format!("target: {name}\nfailed: {error}\n"));
                 failed.push(name);
+                refusals.push(error);
             }
         }
     }
@@ -130,8 +132,31 @@ fn compile_several_targets(
             outcomes.len(),
             failed.join(", ")
         );
-        std::process::exit(1);
+        std::process::exit(refusal_exit_status(refusals));
     }
+}
+
+/// The exit status of a compile command that refused: the compiler request's
+/// halt value. Several refused targets aggregate by the same rule one
+/// refusal's diagnostics follow — `Incomplete` (2) only when every refusal is
+/// incomplete, else `Reject` (1) — so an established violation in any target
+/// is never reported as a search that merely stopped early.
+fn refusal_exit_status<'a>(refusals: impl IntoIterator<Item = &'a CompileProjectError>) -> i32 {
+    let outcomes = refusals
+        .into_iter()
+        .map(CompileProjectError::outcome)
+        .collect::<Vec<_>>();
+    let aggregate = match outcomes.first() {
+        Some(&first)
+            if outcomes
+                .iter()
+                .all(|outcome| matches!(outcome, CompilerRequestOutcome::Incomplete(_))) =>
+        {
+            first
+        }
+        _ => CompilerRequestOutcome::Reject,
+    };
+    i32::from(aggregate.halt_value())
 }
 
 fn print_timings(outcome: &omega::compilation::CompileProjectOutcome) {
@@ -282,5 +307,43 @@ mod tests {
         assert!(contents.contains("compiled 3 source file(s)"));
         assert!(contents.contains("wrote_output=false"));
         std::fs::remove_dir_all(&directory).ok();
+    }
+
+    /// A compile stopped at a proof-search provision exits with the compiler
+    /// request's `Incomplete` halt value 2; an ordinary refusal — alone,
+    /// mixed into the same diagnostics, or in a sibling target — exits 1.
+    #[test]
+    fn a_capacity_exhausted_compile_exits_incomplete_and_a_rejection_exits_one() {
+        use super::refusal_exit_status;
+        use diagnostics::{Diagnostic, ExceededProvision};
+        use omega::compilation::CompileProjectError;
+
+        let exhausted = || {
+            Diagnostic::incomplete(
+                "incomplete: terminal-artifact production stopped at the private \
+                 `proof_search_candidate_work` proof-search capacity",
+                ExceededProvision {
+                    resource: "proof_search_candidate_work",
+                    limit: 16_384,
+                    requested: 16_385,
+                    coordinate: 64,
+                },
+            )
+        };
+        let incomplete = CompileProjectError::Diagnostics(vec![exhausted()]);
+        let rejected =
+            CompileProjectError::Diagnostics(vec![Diagnostic::error("cannot prove the bound")]);
+        let mixed = CompileProjectError::Diagnostics(vec![
+            exhausted(),
+            Diagnostic::error("cannot prove the bound"),
+        ]);
+        let workspace = CompileProjectError::BuildDirectory("occupied".to_owned());
+
+        assert_eq!(refusal_exit_status([&incomplete]), 2);
+        assert_eq!(refusal_exit_status([&incomplete, &incomplete]), 2);
+        assert_eq!(refusal_exit_status([&rejected]), 1);
+        assert_eq!(refusal_exit_status([&mixed]), 1);
+        assert_eq!(refusal_exit_status([&incomplete, &rejected]), 1);
+        assert_eq!(refusal_exit_status([&workspace]), 1);
     }
 }
