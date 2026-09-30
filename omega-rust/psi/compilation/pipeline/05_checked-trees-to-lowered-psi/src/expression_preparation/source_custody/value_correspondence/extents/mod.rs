@@ -1,4 +1,4 @@
-//! Static source evaluation and bounds custody for eliminated subslice extents.
+//! Type-owned collection lengths and source/bounds custody for folded extents.
 
 use super::{
     CheckedCallScalarArgument, Computation, Context, ExpressionHandle, ExpressionNode,
@@ -8,6 +8,40 @@ use super::{
 mod tests;
 
 impl Context<'_> {
+    /// A raw array's extent belongs to its type, but evaluating its receiver
+    /// may still have effects or bounds obligations. Reuse the inert-place
+    /// check before accepting the fold. Do not unwrap constraints: a bounded
+    /// buffer's live length is not its backing array's capacity.
+    pub(super) fn type_owned_length(&self, source: ExpressionHandle) -> Option<u64> {
+        let (machine, state) =
+            crate::expression_preparation::source_custody::authored_state(self.checked, self.state)
+                .ok()?;
+        let receiver = validation::collection_length_receiver(
+            &self.checked.typed,
+            machine,
+            Some(state),
+            source,
+        )?;
+        let mut reference = validation::declared_place_type_raw(
+            &self.checked.typed,
+            machine,
+            Some(state),
+            receiver,
+        )?;
+        for _ in 0..self.checked.type_reference_table.type_reference_count() {
+            match self.checked.type_reference_table.type_reference(reference) {
+                checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                    reference = *referee;
+                }
+                checked_trees::types::TypeReferenceNode::FixedArray { .. } => {
+                    return self.static_extent(receiver, 0);
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
     pub(super) fn validate_extent_sources(
         &self,
         source: ExpressionHandle,

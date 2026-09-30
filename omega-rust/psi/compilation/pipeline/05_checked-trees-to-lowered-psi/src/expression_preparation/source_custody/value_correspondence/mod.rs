@@ -441,7 +441,10 @@ impl Context<'_> {
         }
         match value {
             Scalar::IntegerLiteral { literal } => {
-                if let Some(length) = self.subslice_length(source) {
+                if let Some(length) = self
+                    .type_owned_length(source)
+                    .or_else(|| self.subslice_length(source))
+                {
                     return value.primitive_type() == Some(PrimitiveType::U64)
                         && literal.value_u64() == Some(length);
                 }
