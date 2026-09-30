@@ -85,18 +85,19 @@ impl Builder<'_, '_> {
                 computation: self.structural_field(expression, field),
             });
         }
-        // An erased boundary application's policy (`I32::from_f64(x) as i32`)
-        // is an Exact operand: the erasure selects Exact for later arithmetic.
-        if self.policy_erasure_operand(expression).is_some()
+        // The saved call result keeps its bits while the authored cast
+        // selects the policy for later arithmetic, including Exact erasure.
+        if self.policy_cast_operand(expression).is_some()
             && let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
             && let Some(primitive_type) = self.program.primitive_type_reference(cast.target_type)
             && is_integer(primitive_type)
         {
-            let computation = self.policy_erased_boundary_call(expression, primitive_type)?;
+            let domain = cast.domain;
+            let computation = self.policy_cast_boundary_call(expression, primitive_type)?;
             return Some(IntegerOperand {
                 value: parameter(0, primitive_type),
                 value_source: ExpressionHandle::invalid(),
-                domain: ArithmeticDomain::Exact,
+                domain,
                 computation,
             });
         }

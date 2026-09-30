@@ -30,11 +30,9 @@ impl Builder<'_, '_> {
     /// Destinations whose statement already owns a whole-value boundary call
     /// as its result operation. Building a node there would sequence the same
     /// occurrence twice: once by the statement and once by the computation.
-    /// Parentheses and payload-preserving casts around the call leave it the
-    /// statement's value. An explicit erasure of the call's arithmetic policy
-    /// (`I32::from_f64(x) as i32`, including the conversion a
-    /// `(x as i32 in Saturating) as i32` cast binds to) is instead a
-    /// computation: see [`Self::policy_erased_boundary_call`].
+    /// A cast around the call belongs to the operand computation, including
+    /// a same-carrier policy change: the statement's direct-call route does
+    /// not own that enclosing expression. See [`Self::policy_cast_boundary_call`].
     pub(super) fn statement_owns_boundary_call(
         &self,
         role: CheckedScalarExpressionRole,
@@ -82,7 +80,7 @@ impl Builder<'_, '_> {
             }
             match self.program.expression_table.expression(expression) {
                 ExpressionNode::Atomic(atomic) => expression = atomic.value,
-                ExpressionNode::Cast(_) if self.policy_erasure_operand(expression).is_some() => {
+                ExpressionNode::Cast(_) if self.policy_cast_operand(expression).is_some() => {
                     return false;
                 }
                 ExpressionNode::Cast(cast) => expression = cast.value,
@@ -97,22 +95,22 @@ impl Builder<'_, '_> {
                 })
     }
 
-    /// `I32::from_f64(x) as i32`: an Exact, same-carrier cast that erases only
-    /// the arithmetic policy of a boundary application's result
-    /// (`i32 in Saturating`). Policy qualification changes later arithmetic,
-    /// never the stored payload
+    /// A same-carrier cast changes the arithmetic policy of a boundary
+    /// application's result, including explicit erasure to Exact. Policy
+    /// qualification changes later arithmetic, never the stored payload
     /// ([exact coercion](../../../../../../../../wiki/spec/language/domains.md#exact-coercion-and-erasure)),
     /// so the erasure adds no operation: the application node is the value
     /// and its result feeds the consumer directly. Stage 05 rejoins the
     /// application's occurrence through the cast, which carries no semantic
-    /// atom. A cast that erases a declared domain, changes carrier or adds a
-    /// policy keeps its own route.
-    pub(super) fn policy_erased_boundary_call(
+    /// atom. Declared domains and carrier conversions keep their own route.
+    /// The original call still carries its selected arithmetic policy: the
+    /// cast cannot change which operation produced the saved payload.
+    pub(super) fn policy_cast_boundary_call(
         &mut self,
         expression: ExpressionHandle,
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        let operand = self.policy_erasure_operand(expression)?;
+        let operand = self.policy_cast_operand(expression)?;
         if self.program.primitive_type_reference(
             match self.program.expression_table.expression(expression) {
                 ExpressionNode::Cast(cast) => cast.target_type,
@@ -125,10 +123,9 @@ impl Builder<'_, '_> {
         self.expression(operand, expected_type)
     }
 
-    /// The operand of `expression` when it is an Exact cast whose operand is a
-    /// bodyless boundary application returning the cast's carrier under an
-    /// arithmetic policy and no declared domain.
-    pub(super) fn policy_erasure_operand(
+    /// The operand of a policy-only cast over a bodyless boundary application.
+    /// Both sides must have the same primitive carrier and no declared domain.
+    pub(super) fn policy_cast_operand(
         &self,
         expression: ExpressionHandle,
     ) -> Option<ExpressionHandle> {
@@ -138,7 +135,6 @@ impl Builder<'_, '_> {
         };
         if cast.form.is_recast()
             || !cast.semantic_domain.is_empty()
-            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
             || !self.is_bodyless_boundary_call(cast.value)
         {
             return None;
@@ -146,11 +142,12 @@ impl Builder<'_, '_> {
         let target = self.program.primitive_type_reference(cast.target_type)?;
         let operand_type =
             super::semantic_casts::result_type(self.program, self.state, cast.value)?;
-        (self
-            .program
-            .type_reference_table
-            .arithmetic_domain(operand_type)
-            != numerics::arithmetic::ArithmeticDomain::Exact
+        ((cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+            || self
+                .program
+                .type_reference_table
+                .arithmetic_domain(operand_type)
+                != numerics::arithmetic::ArithmeticDomain::Exact)
             && !super::semantic_casts::has_declared_domains(self.program, operand_type)
             && policy_carrier(self.program, operand_type) == Some(target))
         .then_some(cast.value)
@@ -239,8 +236,8 @@ impl Builder<'_, '_> {
         operands: &[ExpressionHandle],
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        // A policy-qualified result (`i32 in Saturating`) reaches this node only
-        // through its explicit erasure; the carrier is the executed value.
+        // The scalar carrier is the executed payload. A policy-only cast may
+        // change later arithmetic, but this call retains its own source use.
         if policy_carrier(self.program, return_type)? != expected_type
             || operands.len() != parameters.len()
         {
