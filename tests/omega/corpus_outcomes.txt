@@ -1496,8 +1496,7 @@ pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
 pass/domains/record_interval_domain_member_exit checked 835ms @aff5e029f28c+wt
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
-pass/domains/runtime_result_domain_machine_overload_exit rejected 1241ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("array checked shape differs from its source carrier"))
+pass/domains/runtime_result_domain_machine_overload_exit checked 8050ms @0a22a3b7fdb
 pass/domains/semantic_cast_guard_chain_mint checked 341ms @2d8ed253669f
 pass/domains/slice_domain_validator checked 1242ms @2d8ed253669f
 pass/domains/transparent_alias_expansion checked 332ms @2d8ed253669f
