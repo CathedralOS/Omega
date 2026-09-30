@@ -23,48 +23,48 @@ data Main where 0 <= i, i <= 3 {
 machine Main::main(&mut self)
 {
     self.i = 2;
-    self.build();
+    Main::build(&mut self);
 }
-machine Main::build(&mut self) reaches Console
+machine Main::build(main: &mut Main) reaches Console
 {
-    transition self.never {
-        Msg::Ping { x } -> chk(x)
-        Msg::Pong { y, z } -> wrong_variant()
-        _ -> wrong_no_match()
+    transition main.never {
+        Msg::Ping { x } -> chk(main, x)
+        Msg::Pong { y, z } -> wrong_variant(main)
+        _ -> wrong_no_match(main)
     }
-    state chk(&mut self, x: i32)
+    state chk(main: &mut Main, x: i32)
     {
         transition x == 0 {
-            true -> leg2()
-            _ -> wrong_payload()
+            true -> leg2(main)
+            _ -> wrong_payload(main)
         }
     }
-    state leg2(&mut self)
+    state leg2(main: &mut Main)
     {
-        let e: u32 = self.arr[self.i];
+        let e: u32 = main.arr[main.i];
         transition e == 0 {
-            true -> leg3()
-            _ -> wrong_elem()
+            true -> leg3(main)
+            _ -> wrong_elem(main)
         }
     }
-    state leg3(&mut self)
+    state leg3(main: &mut Main)
     {
-        let n: u32 = self.nested.second.b;
+        let n: u32 = main.nested.second.b;
         transition n == 0 {
-            true -> good()
-            _ -> wrong_nested()
+            true -> good(main)
+            _ -> wrong_nested(main)
         }
     }
-    state good(&mut self)
-    { self.console.exit_process(70); }
-    state wrong_variant(&mut self)
-    { self.console.exit_process(71); }
-    state wrong_no_match(&mut self)
-    { self.console.exit_process(72); }
-    state wrong_payload(&mut self)
-    { self.console.exit_process(73); }
-    state wrong_elem(&mut self)
-    { self.console.exit_process(74); }
-    state wrong_nested(&mut self)
-    { self.console.exit_process(75); }
+    state good(main: &mut Main)
+    { main.console.exit_process(70); }
+    state wrong_variant(main: &mut Main)
+    { main.console.exit_process(71); }
+    state wrong_no_match(main: &mut Main)
+    { main.console.exit_process(72); }
+    state wrong_payload(main: &mut Main)
+    { main.console.exit_process(73); }
+    state wrong_elem(main: &mut Main)
+    { main.console.exit_process(74); }
+    state wrong_nested(main: &mut Main)
+    { main.console.exit_process(75); }
 }
