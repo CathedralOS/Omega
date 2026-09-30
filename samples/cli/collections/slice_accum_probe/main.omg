@@ -35,21 +35,21 @@ data Main {
 }
 
 // Probe A: i32 slice accumulation.
-machine Walker::sum_ints(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
+machine Walker::sum_ints(walker: &mut Walker, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
-        true -> sum_ints(s[1..], acc + s[0])
+        true -> sum_ints(walker, s[1..], acc + s[0])
         false -> (acc as i32)
     }
 }
 
 // Probe B: struct slice accumulation using s[0].value.
-machine Walker::sum_entries(&mut self, s: &[Entry], acc: i32 in Wrapping) -> i32
+machine Walker::sum_entries(walker: &mut Walker, s: &[Entry], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
-        true -> sum_entries(s[1..], acc + s[0].value)
+        true -> sum_entries(walker, s[1..], acc + s[0].value)
         false -> (acc as i32)
     }
 }
@@ -74,11 +74,11 @@ machine Main::main(&mut self) reaches Console {
 
     // Probe A.
     let si: &[i32 in Wrapping] = self.ints.as_slice();
-    let a: i32 = self.walker.sum_ints(si, 0);
+    let a: i32 = Walker::sum_ints(&mut self.walker, si, 0);
 
     // Probe B.
     let se: &[Entry] = self.entries.as_slice();
-    let b: i32 = self.walker.sum_entries(se, 0);
+    let b: i32 = Walker::sum_entries(&mut self.walker, se, 0);
 
     transition a == 70 {
         true -> check_b(b)
