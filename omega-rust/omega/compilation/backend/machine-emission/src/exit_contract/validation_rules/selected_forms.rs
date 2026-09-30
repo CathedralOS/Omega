@@ -5,6 +5,8 @@ mod atomic_tests;
 #[cfg(test)]
 mod float_conversion_tests;
 #[cfg(test)]
+mod float_result_policy_tests;
+#[cfg(test)]
 mod floating_control_tests;
 
 use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
@@ -150,6 +152,9 @@ pub(in crate::exit_contract) fn validate_non_return(
     layout: &machine_code::ResolvedSelectedFormRow,
 ) -> Result<(), WholeFunctionExitContractError> {
     let expected_control = match kind {
+        SelectedInstructionKind::FloatResultPolicy { form } if form.can_trap() => {
+            MachineEncodedControlEffect::FallThroughOrTrapV1
+        }
         SelectedInstructionKind::HostedReadByte { .. } => {
             MachineEncodedControlEffect::HostedReadReturnOrTrapV1
         }
@@ -232,6 +237,21 @@ pub(in crate::exit_contract) fn validate_non_return(
         ));
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
+        (
+            SelectedInstructionKind::FloatResultPolicy { form },
+            MachineEncodedMemoryEffect::NoneV1,
+            None,
+        ) => {
+            let inputs = form.operand_count() as u16;
+            let expected_trap = if form.can_trap() {
+                MachineEncodedTrapBehavior::TrappingIntegerV1
+            } else {
+                MachineEncodedTrapBehavior::NeverV1
+            };
+            effects.trap == expected_trap
+                && effects.external_operand_reads.iter().copied().eq(0..inputs)
+                && effects.external_operand_writes == [inputs]
+        }
         (
             SelectedInstructionKind::AtomicAccess { form },
             MachineEncodedMemoryEffect::AtomicPointerV1 {
@@ -459,6 +479,7 @@ pub(in crate::exit_contract) fn validate_non_return(
         (_, MachineEncodedMemoryEffect::NoneV1, _) => !matches!(
             kind,
             SelectedInstructionKind::CopyBytes
+                | SelectedInstructionKind::FloatResultPolicy { .. }
                 | SelectedInstructionKind::AtomicAccess { .. }
                 | SelectedInstructionKind::SaveFloatingControl { .. }
                 | SelectedInstructionKind::RestoreFloatingControl { .. }

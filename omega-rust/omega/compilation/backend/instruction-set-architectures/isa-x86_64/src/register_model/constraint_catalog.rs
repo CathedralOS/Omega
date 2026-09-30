@@ -941,6 +941,34 @@ pub fn x86_64_register_constraint_catalog(
                 .copied(),
         ),
     });
+    // Capture every input before the output becomes integer scratch, allowing
+    // output/input aliasing without an undeclared general-register clobber.
+    for (key, inputs) in [
+        (crate::X86_64_FLOAT_RESULT_TRAPPING, 1),
+        (crate::X86_64_FLOAT_RESULT_SATURATING, 3),
+    ] {
+        let scratch: &[&str] = if inputs == 1 {
+            &["xmm3", "rflags"]
+        } else {
+            &["xmm3", "xmm4", "xmm5", "rflags"]
+        };
+        let mut operands = (0..inputs)
+            .map(|position| allocatable(position, RegisterOperandAccess::Use, GPR64))
+            .collect::<Vec<_>>();
+        operands.push(allocatable(inputs, RegisterOperandAccess::Def, GPR64));
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands,
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: sorted_units(
+                scratch
+                    .iter()
+                    .flat_map(|name| view(name).units.iter().copied()),
+            ),
+        });
+    }
     mixed_calls::append_constraints(&mut constraints, model);
     mixed_calls::append_normalized_foreign_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);

@@ -14,6 +14,16 @@ pub const X86_64_CRASH: RegisterConstraintKey = RegisterConstraintKey {
     variant: 780,
 };
 
+/// Raw-result policies use integer predicates and volatile vector scratch.
+pub const X86_64_FLOAT_RESULT_TRAPPING: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 789,
+};
+pub const X86_64_FLOAT_RESULT_SATURATING: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 790,
+};
+
 pub const X86_64_LOAD8: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 730,
@@ -411,7 +421,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 89] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 91] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -567,4 +577,6 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 89] = [
     X86_64_IEEE_FLOAT_UNARY,
     X86_64_IEEE_FLOAT_TERNARY,
     X86_64_IEEE_FLOAT_CONVERSION_CONTROL,
+    X86_64_FLOAT_RESULT_TRAPPING,
+    X86_64_FLOAT_RESULT_SATURATING,
 ];

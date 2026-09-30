@@ -924,7 +924,8 @@ pub(crate) fn validate_decoded(
                 _ => false,
             }
         }
-        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => false,
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }
+        | SelectedInstructionKind::FloatResultPolicy { .. } => false,
         SelectedInstructionKind::Crash => {
             registers.is_empty() && decoded == [DecodedInstruction::Crash]
         }
@@ -1986,6 +1987,9 @@ pub(crate) fn footprint(
         return super::atomic::footprint(form, operands);
     }
     let (reads, writes, writes_rflags) = match kind {
+        SelectedInstructionKind::FloatResultPolicy { form } => {
+            return super::float_result_policy::footprint(form, operands);
+        }
         SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => {
             unreachable!("float arithmetic footprint returned above")
         }

@@ -920,6 +920,11 @@ pub fn aarch64_register_constraint_catalog(
         (crate::AARCH64_FLOAT_RESULT_TRAPPING, 1),
         (crate::AARCH64_FLOAT_RESULT_SATURATING, 3),
     ] {
+        let scratch: &[&str] = if inputs == 1 {
+            &["q16", "nzcv"]
+        } else {
+            &["q16", "q17", "q18", "nzcv"]
+        };
         let mut operands = (0..inputs)
             .map(|position| allocatable(position, RegisterOperandAccess::Use, GPR64))
             .collect::<Vec<_>>();
@@ -931,8 +936,8 @@ pub fn aarch64_register_constraint_catalog(
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
             clobbers: sorted_units(
-                ["q16", "q17", "q18", "nzcv"]
-                    .into_iter()
+                scratch
+                    .iter()
                     .flat_map(|name| view(name).units.iter().copied()),
             ),
         });

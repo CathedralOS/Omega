@@ -441,7 +441,13 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::IntegerShift { .. }
                 // A Trapping form replays its form, operands and carriers;
                 // its check and inline trap are the kind's own encoding.
-                | AbstractOperation::TrappingInteger { .. } => true,
+                | AbstractOperation::TrappingInteger { .. }
+                // Post-call IEEE policies likewise carry their exact format,
+                // ordered inputs and operation-owned trap through mandatory
+                // source, selection and physical replay above. They introduce
+                // no separate call, storage access or external relocation for
+                // publication to account for; the original call stays intact.
+                | AbstractOperation::FloatResultPolicy { .. } => true,
                 // A static store writes one exact place row; a store through
                 // runtime-selected elements publishes one row per element.
                 AbstractOperation::StructuralScalarFieldStore { psi_operation, destination, .. } => {

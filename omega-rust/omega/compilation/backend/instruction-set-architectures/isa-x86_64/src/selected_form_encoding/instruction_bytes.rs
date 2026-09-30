@@ -460,7 +460,8 @@ pub(crate) fn encode_unchecked(
             crate::selected_form_encoding::atomic::encode(form, &registers)?,
         ),
         // Float arithmetic is encoded only by its own module.
-        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => {
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }
+        | SelectedInstructionKind::FloatResultPolicy { .. } => {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
         }
         SelectedInstructionKind::Crash => bytes.extend_from_slice(&[0x0f, 0x0b]),

@@ -71,6 +71,13 @@ pub fn x86_64_machine_effect_catalog(
                             )?,
                     ));
                 }
+                if let MachineSemanticKind::FloatResultPolicy(form) = semantic {
+                    return Ok(
+                        crate::selected_form_encoding::float_result_policy::declaration(
+                            form, constraint,
+                        ),
+                    );
+                }
                 if let MachineSemanticKind::NearestIeeeFloatArithmetic(form) = semantic {
                     return crate::selected_form_encoding::ieee_float_arithmetic::declaration(
                         form, constraint,
@@ -345,6 +352,8 @@ fn selected_keys(
         ieee_float_unary: Some(crate::X86_64_IEEE_FLOAT_UNARY),
         ieee_float_conversion_control: Some(crate::X86_64_IEEE_FLOAT_CONVERSION_CONTROL),
         ieee_float_ternary: Some(crate::X86_64_IEEE_FLOAT_TERNARY),
+        float_result_trapping: Some(crate::X86_64_FLOAT_RESULT_TRAPPING),
+        float_result_saturating: Some(crate::X86_64_FLOAT_RESULT_SATURATING),
         add_i64: X86_64_ADD_I64,
         subtract_i64: X86_64_SUBTRACT_I64,
         multiply_i64: crate::X86_64_MULTIPLY_I64,
@@ -617,6 +626,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             .id
     };
     let (reads, writes) = match semantic {
+        MachineSemanticKind::FloatResultPolicy(form) => {
+            return crate::selected_form_encoding::float_result_policy::effects(form);
+        }
         // LOCK-prefixed atomic forms read their address plus operation
         // inputs and write the observed-prior output alone.
         MachineSemanticKind::AtomicAccess(form) => (
@@ -905,6 +917,9 @@ fn saturating_form(semantic: MachineSemanticKind, carrier: SaturatingCarrier) ->
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
     match semantic {
+        MachineSemanticKind::FloatResultPolicy(form) => {
+            crate::selected_form_encoding::float_result_policy::size(form)
+        }
         MachineSemanticKind::AtomicAccess(_) => MachineSizeKnowledge::EncoderResolved {
             minimum_bytes: 1,
             maximum_bytes: None,

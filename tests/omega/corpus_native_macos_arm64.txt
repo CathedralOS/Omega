@@ -462,60 +462,14 @@ pass/float/f32_arg_const_arith_landed_exit built 6672ms exit:70 @fb2178def922
 pass/float/f32_per_operation_rounding_exit built 7304ms exit:77 @fb2178def922
 pass/float/finite_core_domain_range_discharge rejected 1489ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
-pass/float/float_saturating_arithmetic_exit rejected 195ms
-	store in machine `Main::main` state `subtract` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::subtract::subtract` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `multiply` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::multiply::multiply` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `multiply` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::multiply::multiply` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `equal` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::equal::equal` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `equal` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::equal::equal` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `multiply` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::multiply::multiply` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `multiply` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::multiply::multiply` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `equal` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::equal::equal` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `equal` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::equal::equal` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `equal` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::equal::equal` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `multiply` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::multiply::multiply` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `multiply` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::multiply::multiply` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `divide` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::divide::divide` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `divide` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::divide::divide` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `greater` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::greater::greater` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `greater` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::greater::greater` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `divide` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::divide::divide` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `divide` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::divide::divide` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `not_equal` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::not_equal::not_equal` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `not_equal` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::not_equal::not_equal` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+pass/float/float_saturating_arithmetic_exit built 2960ms exit:77 @12e6b9755e61+wt
 pass/float/float_to_int_exact_proofs_exit rejected 224ms
 	machine `Main::main` state `guarded` cannot prove Exact float-to-`i32` cast operand `self.unbounded` is finite and in range; constrain the float with a declared range or a dominating guard, or select `in Saturating`/`in Trapping`
 	float-to-int cast in machine `Main::main` state `guarded` cast expression is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
 	float-to-int cast in machine `Main::main` state `guarded` assignment is not provably in `i32`'s range (ch5 cast ruling -- proof-or-policy). Prove a finite declared range or a dominating non-NaN/range guard, or use `in Saturating` (NaN -> 0, clamp to the target range) or `in Trapping` (trap on NaN/out-of-range).
 pass/float/float_to_int_trapping_nan_traps built 5987ms @fb2178def922
-pass/float/float_trapping_overflow_traps rejected 233ms
-	store in machine `Main::main` state `multiply` argument `left` implicitly converts `f32 in Trapping` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::multiply::multiply` drops `Trapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `multiply` argument `right` implicitly converts `f32 in Trapping` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::multiply::multiply` drops `Trapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-pass/float/float_trapping_propagated_nan_traps rejected 225ms
-	store in machine `Main::main` state `add` argument `left` implicitly converts `f64 in Trapping` to `f64`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f64`)
-	implicit domain weakening in argument `left` for state `Float::add::add` drops `Trapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+pass/float/float_trapping_overflow_traps built 1988ms exit:signal signal:5 @12e6b9755e61+wt
+pass/float/float_trapping_propagated_nan_traps built 1994ms exit:signal signal:5 @12e6b9755e61+wt
 pass/float/foreign_control_state_restore built 7370ms @fb2178def922
 pass/float/named_float_integer_lower_boundary_conversion_traps built 1361ms exit:signal signal:5 @0c6abc6d1e0c+wt
 pass/float/named_float_integer_nan_conversion_traps built 1448ms exit:signal signal:5 @0c6abc6d1e0c+wt
