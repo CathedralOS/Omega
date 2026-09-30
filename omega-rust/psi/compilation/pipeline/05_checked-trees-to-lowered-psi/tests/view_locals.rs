@@ -240,6 +240,89 @@ const BYTE_FIELD_RANGE: &str = r#"
     }
 "#;
 
+const BYTE_FIELD_GUARDS: &str = r#"
+    boundary trait Output { machine count(value: u64) reaches Output; }
+    data Root { input: [u8; 256]; }
+    machine Root::enter(&mut self) reaches Output {
+        transition { _ -> dispatch(3) }
+        state dispatch(&mut self, count: u64) requires count <= 256 {
+            let command: &[u8] = self.input[0..count];
+            transition {
+                command == "" -> empty()
+                command == "quit" -> quit()
+                _ -> other()
+            }
+        }
+        state empty(&mut self) { Output::count(0); }
+        state quit(&mut self) { Output::count(1); }
+        state other(&mut self) { Output::count(2); }
+    }
+"#;
+
+#[test]
+fn a_byte_field_local_literal_guard_keeps_short_reads_conditional() {
+    // The generic state permits zero or fewer than four live bytes: proving
+    // every read requires the equality's exact length-first short circuit.
+    let lowered = lower(BYTE_FIELD_GUARDS).expect("dynamic local byte guards lower");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("short views never require an out-of-bounds read");
+}
+
+#[test]
+fn byte_field_literal_guard_replay_rejects_changed_local_and_read_type() {
+    use checked_trees::{CheckedBooleanExpression as Boolean, CheckedScalarExpression as Scalar};
+    fn corrupt(value: &mut Boolean, symbol: symbols::SymbolHandle, wrong_type: bool) -> bool {
+        match value {
+            Boolean::And { left, right } => {
+                corrupt(left, symbol, wrong_type) | corrupt(right, symbol, wrong_type)
+            }
+            Boolean::IntegerComparison { left, .. } => match left.as_mut() {
+                Scalar::StructuralParameterByteLength { root, .. }
+                | Scalar::StructuralParameterIndexedRead { root, .. }
+                    if !wrong_type =>
+                {
+                    *root = checked_trees::CheckedStorageRoot::ViewLocal { symbol };
+                    true
+                }
+                Scalar::StructuralParameterIndexedRead { primitive_type, .. } if wrong_type => {
+                    *primitive_type = checked_trees::types::PrimitiveType::U16;
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    let original = crate::front_end::checked_program(BYTE_FIELD_GUARDS);
+    for wrong_type in [false, true] {
+        let mut changed = original.clone();
+        let mut corrupted = false;
+        for expression in &mut changed.facts.values.scalar_expressions.expressions {
+            if expression.role == checked_trees::CheckedScalarExpressionRole::Guard
+                && let Scalar::Boolean(boolean) = &mut expression.expression
+            {
+                corrupted |= corrupt(boolean, expression.state, wrong_type);
+            }
+        }
+        assert!(
+            corrupted,
+            "the byte guards retain their ordinary scalar observations"
+        );
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
+            "source replay must reject wrong local/type (wrong_type={wrong_type})"
+        );
+    }
+}
+
 #[test]
 fn a_byte_field_range_local_measures_in_a_named_state() {
     let lowered = lower(BYTE_FIELD_RANGE).expect("a byte field range uses its exact array backing");
