@@ -245,6 +245,8 @@ pass/constraints/proof_machine_order_fact checked 281ms
 pass/constraints/scalar_requires_satisfied_by_literal checked 280ms
 pass/constraints/selected_arithmetic_return_ensures checked 279ms
 pass/contracts/proof_fact_indexed_domain_application checked 294ms
+pass/contracts/requires_narrow_ceiling_unproven checked 2199ms
+pass/contracts/requires_u8_ceiling_below_carrier checked 1879ms
 pass/control_flow/arm_pattern_rest_optout_exit rejected 801ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: source symbol`
 pass/control_flow/case_arm_payload_receiver_call rejected 1536ms
@@ -1305,6 +1307,8 @@ fail/constraints/multiple_policy_domain_chain rejected 126ms expected
 	data `Main` field `value` declares conflicting `arithmetic_policy` semantic-role contributions `Wrapping`, `Trapping`; a domain chain may carry at most one policy domain
 fail/constraints/scalar_requires_unproven_literal rejected 288ms expected
 	cannot prove requires contract for call accept from Main::main: 0 > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
+fail/contracts/negated_edge_guard_unproven_bound rejected 350ms expected
+	cannot prove requires contract for call check from main: v < 50 (needs fact `v < 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard)
 fail/contracts/proof_fact_indexed_domain_application_mismatch rejected 242ms expected
 	index compatibility condition `index-equality:Resident:exercise_placed::entry:statement-0:Resident<SlotPlacement, Slot>==Resident<OtherPlacement, Slot>` is not established: actual `Resident<SlotPlacement, Slot>` and expected `Resident<OtherPlacement, Slot>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/contracts/proof_fact_indexed_domain_application_unevidenced rejected 234ms expected
