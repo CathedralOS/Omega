@@ -39,6 +39,7 @@ mod guarded_scalar_returns;
 mod indexed_array_field_reads;
 mod indexed_primitive_storage;
 mod integer_comparison_replay;
+mod later_state_requirement_calls;
 mod lifetime_machine_binders;
 mod linear_local_consumers;
 mod local_record_reads;

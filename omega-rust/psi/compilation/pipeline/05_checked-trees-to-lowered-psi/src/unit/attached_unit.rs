@@ -92,7 +92,7 @@ mod structural_completion;
 pub(crate) use scalar_completion::control::validate_tail as validate_scalar_control_tail;
 
 use bodies::{UnitBody, UnitPlans};
-pub(crate) use boundaries::retain_exact_unit_boundary;
+pub(crate) use boundaries::{retain_admitted_unit_boundary, retain_exact_unit_boundary};
 pub(crate) use parameters::validate_direct_unit_parameter_custody;
 pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
@@ -248,16 +248,7 @@ pub(crate) fn lower_unit_closure(
     if let Some(external) = &external {
         for symbol in external.boundary_roots {
             let boundary = unique_unit_boundary(plans, *symbol)?;
-            retain_exact_unit_boundary(
-                checked,
-                plans,
-                &mut boundaries,
-                *symbol,
-                boundary.state,
-                boundary.contract_report_fingerprint,
-                boundary.service_reach,
-                boundary.result.clone(),
-            )?;
+            retain_admitted_unit_boundary(checked, plans, &mut boundaries, boundary)?;
         }
     }
     let admitted_bodies = admission::admit(

@@ -254,6 +254,8 @@ pub(super) fn lower_boundary_result(
     })
 }
 
+/// Retain the boundary one call names after matching that call's exact
+/// target state, contract fingerprint, result and service reach.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn retain_exact_unit_boundary<'plans>(
     checked: &CheckedTrees,
@@ -266,9 +268,6 @@ pub(crate) fn retain_exact_unit_boundary<'plans>(
     expected_result: CheckedBoundaryMachineResultPlan,
 ) -> Result<(), LoweringError> {
     let target = unique_unit_boundary(plans, target_machine)?;
-    if target.contract_report_fingerprint == 0 {
-        return unsupported("Unit boundary target has a null checked contract fingerprint");
-    }
     if target.state != target_state
         || target.contract_report_fingerprint != target_contract_report_fingerprint
         || target.result != expected_result
@@ -277,6 +276,42 @@ pub(crate) fn retain_exact_unit_boundary<'plans>(
         return unsupported(
             "Unit boundary call does not match the exact checked target state, result, contract, and reach",
         );
+    }
+    retain_unit_boundary_identity(checked, boundaries, target)
+}
+
+/// Retain a boundary that carries no call of its own to match: one a
+/// composed callee's calls already admitted through
+/// `retain_exact_unit_boundary`, or one an external owner names as a root.
+///
+/// The plan's own `service_reach` is the declaration's checked-inferred
+/// reach, which `lower_contract_service_ceiling` requires only to lie within
+/// its published ceiling. It is not a call's reach: a bodyless top-level
+/// `boundary requirement` infers the empty row while publishing its authored
+/// ceiling, so comparing the plan against itself as if it were a call rejects
+/// every such requirement with a nonempty ceiling.
+pub(crate) fn retain_admitted_unit_boundary<'plans>(
+    checked: &CheckedTrees,
+    plans: UnitPlans<'plans>,
+    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, String)>,
+    admitted: &CheckedBoundaryMachinePlan,
+) -> Result<(), LoweringError> {
+    let target = unique_unit_boundary(plans, admitted.machine)?;
+    if target != admitted {
+        return unsupported("admitted Unit boundary is not its unique checked target");
+    }
+    retain_unit_boundary_identity(checked, boundaries, target)
+}
+
+/// Rejoin a retained target's contract fingerprint and commitment to its
+/// canonical owner, then add it to the closure roster once.
+fn retain_unit_boundary_identity<'plans>(
+    checked: &CheckedTrees,
+    boundaries: &mut Vec<(&'plans CheckedBoundaryMachinePlan, String)>,
+    target: &'plans CheckedBoundaryMachinePlan,
+) -> Result<(), LoweringError> {
+    if target.contract_report_fingerprint == 0 {
+        return unsupported("Unit boundary target has a null checked contract fingerprint");
     }
     let exact_identity = checked
         .facts

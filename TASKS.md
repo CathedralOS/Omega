@@ -207,7 +207,15 @@ the complete product bar; focused successes below do not establish that baseline
 
     Finish mixed scalar/structural operands, effectful arguments/returns,
     nested mutable-receiver calls, dependent/public-trait results and boundary
-    consumers on that common route. Selected case edges retain the invocation
+    consumers on that common route. A normalized foreign call's scalar result
+    is an ordinary SSA home without an attachment, and a later state may call
+    a top-level requirement that publishes a service ceiling; keep
+    `pass/boundary/static_foreign_scalar_result_locals_exit` and
+    `pass/boundary/later_state_requirement_scalar_result_exit` at native exit
+    70. Scalar returns from borrowed service calls still stop in stage 04:
+    `pass/time/runtime_time_host_native_darwin_exit`'s
+    `context.host.monotonic_ticks()` omits its plan at `call operation:
+    boundary receiver`. Selected case edges retain the invocation
     receiver and local ownership. Preserve source evaluation order even when
     the physical signature drops an unread reference `self`:
     `Random::next_u32(&mut self, state: &mut RandomState)` needs the exact
