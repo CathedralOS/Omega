@@ -4,6 +4,113 @@ use super::{
 };
 
 #[test]
+fn scaled_polynomial_budget_proves_recursive_accumulator_bound() {
+    let program = TypedTrees::default();
+    // Put the equal-coefficient remaining atom first: it must not hide the
+    // useful accumulator scaling merely because identities sort this way.
+    let remaining = Polynomial::atom("first".to_owned());
+    let accumulator = Polynomial::atom("second".to_owned());
+    let constant = |value| Polynomial::constant(BigInt::from_i64(value));
+    let total = accumulator
+        .checked_mul(&constant(2))
+        .unwrap()
+        .add(&remaining.checked_mul(&remaining.add(&constant(1))).unwrap());
+    for budget in [10100, 10102] {
+        let mut engine = Engine::for_proof_integer_formation(&program);
+        assert!(engine.install_hypotheses(vec![
+            (
+                BinaryOperator::GreaterOrEqual,
+                remaining.clone(),
+                constant(1)
+            ),
+            (
+                BinaryOperator::LessOrEqual,
+                remaining.clone(),
+                constant(100)
+            ),
+            (
+                BinaryOperator::GreaterOrEqual,
+                accumulator.clone(),
+                constant(0)
+            ),
+            (
+                BinaryOperator::LessOrEqual,
+                accumulator.clone(),
+                constant(5050)
+            ),
+            (BinaryOperator::LessOrEqual, total.clone(), constant(budget)),
+        ]));
+        let negative_next = accumulator.add(&remaining).neg();
+        assert_eq!(
+            engine.prove_at_least(&negative_next, &BigInt::from_i64(-5050)),
+            budget == 10100
+        );
+        assert!(!engine.prove_at_least(&negative_next, &BigInt::from_i64(-5049)));
+        assert!(!engine.requires_unsatisfiable);
+    }
+}
+
+#[test]
+fn horner_enclosure_covers_small_signed_multivariate_rectangles() {
+    let program = TypedTrees::default();
+    let left = Polynomial::atom("left".to_owned());
+    let right = Polynomial::atom("right".to_owned());
+    let constant = |value| Polynomial::constant(BigInt::from_i64(value));
+    let square = left.checked_mul(&left).unwrap();
+    let fourth = square.checked_mul(&square).unwrap();
+    let mixed = square.checked_mul(&right).unwrap().sub(&left).add(&right);
+    let falling = square.sub(&left);
+    for lower in -3..=3 {
+        for upper in lower..=3 {
+            let mut engine = Engine::for_proof_integer_formation(&program);
+            assert!(engine.install_hypotheses(vec![
+                (
+                    BinaryOperator::GreaterOrEqual,
+                    left.clone(),
+                    constant(lower)
+                ),
+                (BinaryOperator::LessOrEqual, left.clone(), constant(upper)),
+                (BinaryOperator::GreaterOrEqual, right.clone(), constant(-2)),
+                (BinaryOperator::LessOrEqual, right.clone(), constant(2)),
+            ]));
+            for (polynomial, variant) in [(&falling, 0), (&fourth, 1), (&mixed, 2)] {
+                let interval = engine.horner_interval(polynomial, 0);
+                for left_value in lower..=upper {
+                    for right_value in -2..=2 {
+                        let value = BigInt::from_i64(match variant {
+                            0 => left_value * left_value - left_value,
+                            1 => left_value.pow(4),
+                            _ => left_value * left_value * right_value - left_value + right_value,
+                        });
+                        assert!(interval.low.as_ref().is_none_or(|low| low <= &value));
+                        assert!(interval.high.as_ref().is_none_or(|high| &value <= high));
+                    }
+                }
+            }
+            assert!(engine.prove_at_least(&square, &BigInt::zero()));
+        }
+    }
+    let engine = Engine::for_proof_integer_formation(&program);
+    assert_eq!(engine.horner_interval(&falling, 0), Interval::unbounded());
+    assert_eq!(engine.horner_interval(&falling, 128), Interval::unbounded());
+}
+
+#[test]
+fn scaled_bounds_preserve_nonzero_thresholds_and_direction() {
+    let program = TypedTrees::default();
+    let value = Polynomial::atom("value".to_owned());
+    let constant = |value| Polynomial::constant(BigInt::from_i64(value));
+    let mut engine = Engine::for_proof_integer_formation(&program);
+    engine.bounds.push((
+        value.checked_mul(&constant(3)).unwrap(),
+        BigInt::from_i64(12),
+    ));
+    assert!(engine.prove_at_least(&value, &BigInt::from_i64(4)));
+    assert!(!engine.prove_at_least(&value, &BigInt::from_i64(5)));
+    assert!(!engine.prove_at_least(&value.neg(), &BigInt::from_i64(-4)));
+}
+
+#[test]
 fn symbolic_quotient_intervals_cover_every_small_signed_rectangle() {
     for dividend_low in -4..=4 {
         for dividend_high in dividend_low..=4 {

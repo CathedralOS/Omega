@@ -1,0 +1,9 @@
+// Independent arrival bounds do not establish the next accumulator bound.
+// triangle(100, 5050) satisfies these premises but its first update exceeds 5050.
+machine triangle(n: u64, acc: u64) -> u64
+requires n <= 100, acc <= 5050;
+terminates by n;
+{
+    transition n == 0 { true -> acc }
+    triangle(n - 1, acc + n)
+}

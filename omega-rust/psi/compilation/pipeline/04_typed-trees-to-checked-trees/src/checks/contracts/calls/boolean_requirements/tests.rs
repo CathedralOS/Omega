@@ -1,5 +1,23 @@
 use crate::tests::front_end::checked_program_result;
 
+#[test]
+fn recursive_accumulator_arrival_uses_remaining_work_budget() {
+    let source = r#"
+        machine triangle(n: u64, acc: u64) -> u64
+        requires n <= 100, acc <= 5050, 2 * acc + n * (n + 1) <= 10100;
+        terminates by n;
+        {
+            transition n == 0 { true -> acc }
+            triangle(n - 1, acc + n)
+        }
+        machine main() -> u64 { triangle(100, 0) }
+    "#;
+    accepts(source);
+    rejects_requirement(&source.replace("acc + n)", "acc + n + 1)"));
+    rejects_requirement(&source.replace("triangle(100, 0)", "triangle(100, 1)"));
+    rejects_requirement(&source.replace(", 2 * acc + n * (n + 1) <= 10100", ""));
+}
+
 fn accepts(source: &str) {
     checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));

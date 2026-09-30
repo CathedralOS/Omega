@@ -11,7 +11,12 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-machine triangle(n: u64 [0..=100], acc: u64 [0..=5050]) -> u64
+// The remaining triangular sum is part of the arrival invariant. Independent
+// bounds on n and acc would permit triangle(100, 5050), whose next accumulator
+// violates the intended bound. The recursive step preserves this total exactly.
+machine triangle(n: u64, acc: u64) -> u64
+requires n <= 100, acc <= 5050,
+    2 * acc + n * (n + 1) <= 10100;
 terminates by n;
 {
     transition n == 0 { true -> acc }
