@@ -218,14 +218,17 @@ pub(super) fn exact_attachment<'a>(
                 "attached composed Unit omitted its authored attachment",
             ))?;
     let program = &checked.typed;
-    let mut attachments = program
+    // The resolved attachment symbol, not the bare name: leaf-keyed modules
+    // can declare same-named attached records (`left::Runner`/`right::Runner`),
+    // and a name match would read the sibling leaf's record here.
+    let attachment = program
         .data_definitions()
         .iter()
-        .filter(|data| machine.attached_data.as_ref() == Some(&data.name));
-    let attachment = attachments.next().ok_or(LoweringError::Unsupported(
-        "composed Unit has no authored attachment",
-    ))?;
-    if attachments.next().is_some() || !program.data_type_parameters(attachment).is_empty() {
+        .find(|data| data.symbol == machine.attached_data_symbol)
+        .ok_or(LoweringError::Unsupported(
+            "composed Unit has no authored attachment",
+        ))?;
+    if !program.data_type_parameters(attachment).is_empty() {
         return unsupported("composed Unit attachment is ambiguous or generic");
     }
     // Reproduce the checked shape identity from its resolved declaration, not
