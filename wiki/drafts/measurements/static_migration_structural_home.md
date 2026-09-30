@@ -503,3 +503,62 @@ The `Binding` a sample's entry routes is the obstacle, which is what
 
 `tests/omega` 698 files / 3571 declarations, `samples` 150 / 2201,
 `source/psi` 8 / 334, `source/omega` 1 / 9, `source/library` 18 / 1697.
+
+## Three scanner blindnesses, each shrinking every measurement above
+
+The rules in the previous section were necessary but not sufficient, because
+the tool could not see all the declarations it was reasoning about. Each of
+these was silent: states nested inside an invisible machine were still
+rewritten, just without their owner.
+
+**`pub machine`.** Anchoring on `machine` at a line start misses every
+`pub`-qualified declaration. Fixing it took one threading pass from 39 held
+fixtures to 138 over the same corpus.
+
+**Clause-bearing bodies.** A declaration may carry `reaches`, `invokes` or
+`requires` clauses before its body, and those end in `;`. Stopping the body
+scan at the first semicolon reports the machine as bodyless, which skipped its
+whole file: 76 canary files and 5 samples, 112 declarations, never attempted.
+
+**Target-scoped machines.** `macos_arm64 machine Filesystem::open_with(&mut
+self, ...)` carries a target qualifier before `machine`. Allowing it raised the
+true census from 6320 declarations to 6548 and made `source/library/std`'s five
+`filesystem_impl.omg` files visible for the first time.
+
+## Requalification cannot be done by name
+
+A call site moves onto the owner path only when the receiver expression
+resolves to that owner's type. Matching the operation name conflates
+`Lexer::reject` with the `TokenStream::reject` one line away in
+`lexer.output.reject(...)`, and rewriting `self.console.write_byte(...)` into
+`ParserHarness::write_byte(&mut self.console, ...)` type-checks into an
+implicit i32-to-u8 store. `self` is typed by the machine that lexically
+encloses the call, not by the callee's owner.
+
+Three further exclusions, all learned from rejections:
+
+- An **empty body** is a declaration stub whose receiver is the method-call
+  surface. `core::Vec`'s `as_slice` and `push` exist so `items.push(value)`
+  participates in receiver mutation checks.
+- A **build-time policy machine** (`StatLayout::plan`, `Spread::plan`) is
+  invoked by the compiler at a fixed arity, from no call site the rewrite can
+  see.
+- An operation with **one declaration per target** must have all of its
+  variants in the same pass. Threading the macOS `Filesystem::rda_drain` and
+  requalifying the shared call site leaves the Windows variant taking one
+  argument fewer.
+
+`source/library/core` has no `build.omg`, so its package root resolves to the
+repository root and the sibling set becomes the whole tree. That both empties
+the outside-call-site guard and rewrites unrelated canaries.
+
+## Where `source/library/std` stops
+
+`std` migrates as one package -- excluding a file still rewrites it as a
+sibling -- and the whole-package pass is net positive but not clean: 9 fixtures
+newly check, 6 more return to matching the golden, against one regression,
+`pass/filesystem/cross_linux_value_syscalls` (checked to rejected). The cause
+is a package-wide type scope keyed by bare name: `filesystem` denotes two
+different types across the package, so it is dropped as ambiguous and
+`filesystem.mkall_leaf(..)` is left unrequalified. Fixing it means a
+per-machine scope rather than a per-package one. Not landed.
