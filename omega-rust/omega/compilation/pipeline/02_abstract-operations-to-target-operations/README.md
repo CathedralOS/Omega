@@ -67,6 +67,12 @@ declaration, storage and returned custody. Bare references retain their original
 referents without inventing a physical result home; aggregates retain their
 exact storage. Only Unit has no result. The receiving checker reconstructs the
 result against pre-call custody before publishing it to later operations.
+One [direct-call lowering](src/lowering/control_flow/direct_calls.rs) produces
+every such row: it selects an admission route from the result kind (a Unit call
+splits on whether any structural argument is graph-local), then shares callee,
+argument and result handling, keeping each route's remaining admission
+difference as an explicit check. Validation replays those rows through one
+`direct_call` replay with a tail per result kind.
 Source-specific semantic restrictions remain checked independently. Foreign
 calls and dynamic arguments/dispatch still have their own carriers; this is not
 a claim that the full call inventory is normalized.

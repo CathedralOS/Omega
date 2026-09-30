@@ -149,7 +149,24 @@ enum SourceDynamicCall<'a> {
 enum BoundResult<'a> {
     Unit,
     Scalar(&'a AbstractResult),
+    /// The scalar-only `Call`: a scalar result whose callee must also publish
+    /// a standalone scalar ABI equal to the call's plan.
+    PublishedScalar(AbstractResult),
     Structural(&'a StructuralOperationResult),
+}
+
+/// The source side of one authored direct call: a `CallStructural` that
+/// forwards no descriptors, or the scalar-only `Call` with empty structural
+/// and claim rosters.
+struct SourceDirectCall<'a> {
+    callee: MachineId,
+    scalar_arguments: &'a [ValueId],
+    structural_arguments: &'a [StructuralArgument],
+    claim_transfers: &'a [ClaimTransfer],
+    returned_claim_transfers: &'a [StructuralResultClaimTransfer],
+    requirement_obligations: &'a [ObligationId],
+    crash_continuations: &'a [CrashRouteBucket],
+    result: BoundResult<'a>,
 }
 
 /// Everything one replay needs that stays constant across the plan.
@@ -450,8 +467,10 @@ pub(super) fn validate(
 
     for (position, operation) in source.operations.iter().enumerate() {
         match operation {
-            // A call that forwards descriptors replays through
-            // `dynamic_arguments_call` below.
+            // A Unit- or scalar-result call that forwards descriptors replays
+            // through `dynamic_call` below. A structural result never forwards
+            // descriptors: the lowering refuses one that does and so does this
+            // replay.
             AbstractOperation::CallStructural {
                 psi_operation,
                 callee,
@@ -461,72 +480,41 @@ pub(super) fn validate(
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-                result: AbstractStructuralCallResult::Unit,
-            } if dynamic_arguments.is_empty() => replay.structural_call(
-                *psi_operation,
-                *callee,
-                BoundResult::Unit,
-                arguments,
-                structural_arguments,
-                claim_transfers,
-                &[],
-                requirement_obligations,
-                crash_continuations,
-                target_calls.get(psi_operation),
-            )?,
-            AbstractOperation::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Scalar(result),
-                callee,
-                arguments,
-                structural_arguments,
-                dynamic_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            } if dynamic_arguments.is_empty() => replay.structural_call(
-                *psi_operation,
-                *callee,
-                BoundResult::Scalar(result),
-                arguments,
-                structural_arguments,
-                claim_transfers,
-                &[],
-                requirement_obligations,
-                crash_continuations,
-                target_calls.get(psi_operation),
-            )?,
-            AbstractOperation::CallStructural {
-                psi_operation,
-                result:
+                result,
+            } if dynamic_arguments.is_empty()
+                || matches!(result, AbstractStructuralCallResult::Structural { .. }) =>
+            {
+                let (result, returned_claim_transfers) = match result {
+                    AbstractStructuralCallResult::Unit => (BoundResult::Unit, &[][..]),
+                    AbstractStructuralCallResult::Scalar(result) => {
+                        (BoundResult::Scalar(result), &[][..])
+                    }
                     AbstractStructuralCallResult::Structural {
                         result,
                         returned_claim_transfers,
                         selected_evidence,
-                    },
-                callee,
-                arguments,
-                structural_arguments,
-                dynamic_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            } => {
-                // A structural result forwards no descriptors; the lowering
-                // refuses one that does and so does this replay.
-                if !selected_evidence.is_empty() || !dynamic_arguments.is_empty() {
-                    return Err(*psi_operation);
-                }
-                replay.structural_call(
+                    } => {
+                        if !selected_evidence.is_empty() || !dynamic_arguments.is_empty() {
+                            return Err(*psi_operation);
+                        }
+                        (
+                            BoundResult::Structural(result),
+                            returned_claim_transfers.as_slice(),
+                        )
+                    }
+                };
+                replay.direct_call(
                     *psi_operation,
-                    *callee,
-                    BoundResult::Structural(result),
-                    arguments,
-                    structural_arguments,
-                    claim_transfers,
-                    returned_claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
+                    SourceDirectCall {
+                        callee: *callee,
+                        scalar_arguments: arguments,
+                        structural_arguments,
+                        claim_transfers,
+                        returned_claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                        result,
+                    },
                     target_calls.get(psi_operation),
                 )?;
             }
@@ -557,14 +545,21 @@ pub(super) fn validate(
                 arguments,
                 requirement_obligations,
                 crash_continuations,
-            } => replay.scalar_call(
+            } => replay.direct_call(
                 *psi_operation,
-                *result,
-                *scalar_type,
-                *callee,
-                arguments,
-                requirement_obligations,
-                crash_continuations,
+                SourceDirectCall {
+                    callee: *callee,
+                    scalar_arguments: arguments,
+                    structural_arguments: &[],
+                    claim_transfers: &[],
+                    returned_claim_transfers: &[],
+                    requirement_obligations,
+                    crash_continuations,
+                    result: BoundResult::PublishedScalar(AbstractResult {
+                        value: *result,
+                        scalar_type: *scalar_type,
+                    }),
+                },
                 target_calls.get(psi_operation),
             )?,
             // A call forwarding descriptors carries no scalar arguments; the
@@ -672,20 +667,13 @@ impl Replay<'_> {
         .map_err(|_| operation)
     }
 
-    /// Authored and installed `Call`-family rows share one roster shape; the
-    /// expected origin and result contract differ per source operation.
-    #[allow(clippy::too_many_arguments)]
-    fn structural_call(
+    /// One authored direct call replays against its source operation: the
+    /// retained row must carry the authored origin and the source rosters,
+    /// then shares the row replay with installed-provider calls.
+    fn direct_call(
         &self,
         psi_operation: OperationId,
-        source_callee: MachineId,
-        expected_result: BoundResult<'_>,
-        scalar_arguments: &[ValueId],
-        structural_arguments: &[StructuralArgument],
-        claim_transfers: &[ClaimTransfer],
-        returned_claim_transfers: &[StructuralResultClaimTransfer],
-        requirement_obligations: &[ObligationId],
-        crash_continuations: &[CrashRouteBucket],
+        source: SourceDirectCall<'_>,
         call: Option<&EmbeddedCall<'_>>,
     ) -> Result<(), OperationId> {
         let Some(call) = call else {
@@ -712,27 +700,56 @@ impl Replay<'_> {
         // proof metadata: the retained row must replay the source roster
         // exactly rather than drop it. Crash continuations are the call's
         // verified surviving-route roster: they ride the same correspondence,
-        // so the retained row must replay them exactly as the scalar and
-        // dynamic call lanes already do. A retained call carrying extra rows
-        // or the wrong origin is forged even when plausible.
+        // so the retained row must replay them exactly as the dynamic call
+        // lane already does. A retained call carrying extra rows or the wrong
+        // origin is forged even when plausible.
         if *origin != &NativeCallOrigin::Authored
-            || !claim_transfers.is_empty()
-            || !returned_claim_transfers.is_empty()
+            || !source.claim_transfers.is_empty()
+            || !source.returned_claim_transfers.is_empty()
             || !actual_claims.is_empty()
             || !actual_returned.is_empty()
-            || *actual_crashes != crash_continuations
-            || requirement_obligations != *actual_obligations
-            || *callee != source_callee
-            || actual_structural.len() != structural_arguments.len()
-            || actual_scalar.len() != scalar_arguments.len()
+            || *actual_crashes != source.crash_continuations
+            || source.requirement_obligations != *actual_obligations
+            || *callee != source.callee
         {
             return Err(psi_operation);
         }
-        let callee_function = self.callee(source_callee, psi_operation)?;
-        // Every producer lane admits only fixed-native scalar parameters on
-        // the callee; a wider roster cannot produce this row.
+        self.direct_row(
+            psi_operation,
+            source.callee,
+            source.scalar_arguments,
+            source.structural_arguments,
+            source.result,
+            call_plan,
+            actual_scalar,
+            actual_structural,
+            actual_result,
+        )
+    }
+
+    /// Authored and installed direct rows share one roster shape once their
+    /// origin is bound: the callee's independently derived plan, the ordered
+    /// scalar and structural argument rows, and the result tail of the source
+    /// result kind. Every producer lane admits only fixed-native scalar
+    /// parameters on the callee; a wider roster cannot produce this row.
+    #[allow(clippy::too_many_arguments)]
+    fn direct_row(
+        &self,
+        psi_operation: OperationId,
+        callee: MachineId,
+        scalar_arguments: &[ValueId],
+        structural_arguments: &[StructuralArgument],
+        expected_result: BoundResult<'_>,
+        call_plan: &CallPlan,
+        actual_scalar: &[TargetUnitScalarCallArgument],
+        actual_structural: &[TargetStructuralArgument],
+        actual_result: &EmbeddedResult<'_>,
+    ) -> Result<(), OperationId> {
+        let callee_function = self.callee(callee, psi_operation)?;
         if callee_function.structural_parameters.len() != actual_structural.len()
             || callee_function.parameters.len() != scalar_arguments.len()
+            || actual_structural.len() != structural_arguments.len()
+            || actual_scalar.len() != scalar_arguments.len()
             || callee_function.parameters.iter().any(|parameter| {
                 structural_signatures::fixed_native_scalar_shape(parameter.scalar_type).is_none()
             })
@@ -740,7 +757,7 @@ impl Replay<'_> {
             return Err(psi_operation);
         }
         let expected_plan = self.expected_plan(callee_function, psi_operation)?;
-        if *call_plan != &expected_plan {
+        if *call_plan != expected_plan {
             return Err(psi_operation);
         }
         self.scalar_arguments(
@@ -770,6 +787,7 @@ impl Replay<'_> {
             expected_result,
             actual_result,
             callee_function,
+            &expected_plan,
         )
     }
 
@@ -862,48 +880,16 @@ impl Replay<'_> {
             AbstractBoundaryResult::Scalar(result) => BoundResult::Scalar(result),
             AbstractBoundaryResult::Structural(result) => BoundResult::Structural(result),
         };
-        let callee_function = self.callee(provider.candidate, psi_operation)?;
-        if callee_function.structural_parameters.len() != actual_structural.len()
-            || callee_function.parameters.len() != arguments.len()
-            || actual_structural.len() != structural_arguments.len()
-            || actual_scalar.len() != arguments.len()
-            || callee_function.parameters.iter().any(|parameter| {
-                structural_signatures::fixed_native_scalar_shape(parameter.scalar_type).is_none()
-            })
-        {
-            return Err(psi_operation);
-        }
-        let expected_plan = self.expected_plan(callee_function, psi_operation)?;
-        if *call_plan != &expected_plan {
-            return Err(psi_operation);
-        }
-        self.scalar_arguments(
+        self.direct_row(
             psi_operation,
-            actual_scalar,
+            provider.candidate,
             arguments,
-            &callee_function.parameters,
-            &expected_plan,
-        )?;
-        for (index, ((actual, semantic), declared)) in actual_structural
-            .iter()
-            .zip(structural_arguments)
-            .zip(&callee_function.structural_parameters)
-            .enumerate()
-        {
-            self.structural_argument(
-                psi_operation,
-                index + arguments.len(),
-                actual,
-                semantic,
-                declared,
-                &expected_plan,
-            )?;
-        }
-        self.bind_result(
-            psi_operation,
+            structural_arguments,
             expected_result,
+            call_plan,
+            actual_scalar,
+            actual_structural,
             actual_result,
-            callee_function,
         )
     }
 
@@ -1997,137 +1983,6 @@ impl Replay<'_> {
         if valid { Ok(()) } else { Err(psi_operation) }
     }
 
-    /// A scalar-result direct call replays the published fixed-native scalar
-    /// ABI: the callee must have the scalar layout its standalone entrance
-    /// publishes, and the published ABI rows must equal this plan.
-    #[allow(clippy::too_many_arguments)]
-    fn scalar_call(
-        &self,
-        psi_operation: OperationId,
-        result: ValueId,
-        scalar_type: ScalarType,
-        source_callee: MachineId,
-        arguments: &[ValueId],
-        requirement_obligations: &[ObligationId],
-        crash_continuations: &[CrashRouteBucket],
-        call: Option<&EmbeddedCall<'_>>,
-    ) -> Result<(), OperationId> {
-        let Some(&EmbeddedCall::Direct {
-            origin,
-            callee,
-            call_plan,
-            result: EmbeddedResult::Scalar(result_home),
-            scalar_arguments: actual,
-            arguments: structural_arguments,
-            claim_transfers,
-            returned_claim_transfers,
-            requirement_obligations: actual_obligations,
-            crash_continuations: actual_crashes,
-        }) = call
-        else {
-            return if call.is_none() {
-                Ok(())
-            } else {
-                Err(psi_operation)
-            };
-        };
-        if origin != &NativeCallOrigin::Authored
-            || !structural_arguments.is_empty()
-            || !claim_transfers.is_empty()
-            || !returned_claim_transfers.is_empty()
-            || callee != source_callee
-            || actual.len() != arguments.len()
-            || *actual_obligations != *requirement_obligations
-            || *actual_crashes != *crash_continuations
-        {
-            return Err(psi_operation);
-        }
-        let callee_function = self.callee(source_callee, psi_operation)?;
-        let Some(callee_result) = callee_function.result.scalar() else {
-            return Err(psi_operation);
-        };
-        if !callee_function.structural_parameters.is_empty()
-            || !callee_function.entry_claims.is_empty()
-            || callee_function.operations.iter().any(|operation| {
-                matches!(
-                    operation,
-                    AbstractOperation::DynamicDescriptorParameter { .. }
-                )
-            })
-            || callee_result.scalar_type != scalar_type
-            || structural_signatures::fixed_native_scalar_shape(scalar_type).is_none()
-            || callee_function.parameters.len() != arguments.len()
-            || callee_function.parameters.iter().any(|parameter| {
-                structural_signatures::fixed_native_scalar_shape(parameter.scalar_type).is_none()
-            })
-        {
-            return Err(psi_operation);
-        }
-        let expected_plan = self.expected_plan(callee_function, psi_operation)?;
-        if call_plan != &expected_plan {
-            return Err(psi_operation);
-        }
-        let Some(result_placement) = expected_plan.result.as_ref() else {
-            return Err(psi_operation);
-        };
-        // The producer admits only a single-register result at offset zero.
-        if !matches!(
-            result_placement.locations.as_slice(),
-            [ValueLocation::Register {
-                value_byte_offset: 0,
-                byte_size,
-                ..
-            }] if *byte_size == result_placement.shape.byte_size
-        ) {
-            return Err(psi_operation);
-        }
-        self.scalar_arguments(
-            psi_operation,
-            actual,
-            arguments,
-            &callee_function.parameters,
-            &expected_plan,
-        )?;
-        if result_home.defining_operation != psi_operation
-            || result_home.source_value != result
-            || result_home.scalar_type != scalar_type
-            || result_home.shape != result_placement.shape
-        {
-            return Err(psi_operation);
-        }
-        // The callee's published standalone entrance must carry this same
-        // plan and identity rows; a call to a callee that never published one
-        // is forged no matter how consistent the embedded plan looks.
-        let expected_abi = ScalarFunctionAbi {
-            call_plan: expected_plan.clone(),
-            parameters: callee_function
-                .parameters
-                .iter()
-                .zip(&expected_plan.parameters)
-                .map(|(parameter, placement)| ScalarAbiValue {
-                    value: parameter.value,
-                    scalar_type: parameter.scalar_type,
-                    placement: placement.clone(),
-                })
-                .collect(),
-            result: ScalarAbiValue {
-                value: callee_result.value,
-                scalar_type: callee_result.scalar_type,
-                placement: result_placement.clone(),
-            },
-        };
-        if self
-            .target_functions
-            .iter()
-            .find(|function| function.machine == source_callee)
-            .and_then(|function| function.scalar_abi.as_ref())
-            != Some(&expected_abi)
-        {
-            return Err(psi_operation);
-        }
-        Ok(())
-    }
-
     /// One dynamic call replays against its source operation. The dispatch
     /// kind's own replay rederives its custody, argument rows and evaluated
     /// plan from the declarations; the retained plan must equal that plan.
@@ -3097,6 +2952,7 @@ impl Replay<'_> {
         expected: BoundResult<'_>,
         actual: &EmbeddedResult<'_>,
         callee: &AbstractFunction,
+        expected_plan: &CallPlan,
     ) -> Result<(), OperationId> {
         match (expected, actual) {
             (BoundResult::Unit, EmbeddedResult::Unit) => {
@@ -3106,18 +2962,11 @@ impl Replay<'_> {
                 Ok(())
             }
             (BoundResult::Scalar(expected), EmbeddedResult::Scalar(actual)) => {
-                let declared = callee.result.scalar().ok_or(psi_operation)?;
-                if actual.defining_operation != psi_operation
-                    || actual.source_value != expected.value
-                    || actual.scalar_type != expected.scalar_type
-                    || structural_signatures::fixed_native_scalar_shape(expected.scalar_type)
-                        != Some(actual.shape)
-                    || actual.scalar_type != declared.scalar_type
-                    || !callee.entry_claims.is_empty()
-                {
-                    return Err(psi_operation);
-                }
-                Ok(())
+                scalar_result(psi_operation, expected, actual, callee)
+            }
+            (BoundResult::PublishedScalar(expected), EmbeddedResult::Scalar(actual)) => {
+                scalar_result(psi_operation, &expected, actual, callee)?;
+                self.published_scalar_abi(psi_operation, actual, callee, expected_plan)
             }
             (
                 BoundResult::Structural(expected),
@@ -3178,6 +3027,94 @@ impl Replay<'_> {
             _ => Err(psi_operation),
         }
     }
+
+    /// The scalar-only `Call` additionally replays the callee's published
+    /// standalone scalar entrance: the callee declares no descriptor
+    /// parameters, the result sits in one register at offset zero with the
+    /// retained home's shape, and the callee's published ABI rows equal this
+    /// plan. A call to a callee that never published one is forged no matter
+    /// how consistent the embedded plan looks.
+    fn published_scalar_abi(
+        &self,
+        psi_operation: OperationId,
+        home: &TargetUnitScalarHomeRequirement,
+        callee: &AbstractFunction,
+        expected_plan: &CallPlan,
+    ) -> Result<(), OperationId> {
+        let Some(callee_result) = callee.result.scalar() else {
+            return Err(psi_operation);
+        };
+        let Some(result_placement) = expected_plan.result.as_ref() else {
+            return Err(psi_operation);
+        };
+        if callee.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::DynamicDescriptorParameter { .. }
+            )
+        }) || !matches!(
+            result_placement.locations.as_slice(),
+            [ValueLocation::Register {
+                value_byte_offset: 0,
+                byte_size,
+                ..
+            }] if *byte_size == result_placement.shape.byte_size
+        ) || home.shape != result_placement.shape
+        {
+            return Err(psi_operation);
+        }
+        let expected_abi = ScalarFunctionAbi {
+            call_plan: expected_plan.clone(),
+            parameters: callee
+                .parameters
+                .iter()
+                .zip(&expected_plan.parameters)
+                .map(|(parameter, placement)| ScalarAbiValue {
+                    value: parameter.value,
+                    scalar_type: parameter.scalar_type,
+                    placement: placement.clone(),
+                })
+                .collect(),
+            result: ScalarAbiValue {
+                value: callee_result.value,
+                scalar_type: callee_result.scalar_type,
+                placement: result_placement.clone(),
+            },
+        };
+        if self
+            .target_functions
+            .iter()
+            .find(|function| function.machine == callee.machine)
+            .and_then(|function| function.scalar_abi.as_ref())
+            != Some(&expected_abi)
+        {
+            return Err(psi_operation);
+        }
+        Ok(())
+    }
+}
+
+/// A scalar result retains its home at this operation with the declared value,
+/// the callee's declared type and that type's fixed-native shape; a callee with
+/// entry claims cannot produce it.
+fn scalar_result(
+    psi_operation: OperationId,
+    expected: &AbstractResult,
+    actual: &TargetUnitScalarHomeRequirement,
+    callee: &AbstractFunction,
+) -> Result<(), OperationId> {
+    let declared = callee.result.scalar().ok_or(psi_operation)?;
+    if actual.defining_operation != psi_operation
+        || actual.source_value != expected.value
+        || actual.scalar_type != expected.scalar_type
+        || structural_signatures::fixed_native_scalar_shape(expected.scalar_type)
+            != Some(actual.shape)
+        || actual.scalar_type != declared.scalar_type
+        || !callee.entry_claims.is_empty()
+    {
+        return Err(psi_operation);
+    }
+    Ok(())
 }
 
 /// A fixed byte array lends its original backing through a view descriptor.

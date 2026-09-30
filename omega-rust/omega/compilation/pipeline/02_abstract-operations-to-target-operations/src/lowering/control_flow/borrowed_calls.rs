@@ -1,206 +1,17 @@
-//! Borrow primitive referents from incoming pointers or established local storage.
+//! Borrowed call arguments resolved against live graph storage: primitive
+//! referents, projected loans, address joins, and byte or element views.
 use super::LiveDefinitions;
 use crate::LoweringError;
-use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
+use crate::lowering::function_signature::PreparedFunctionSignature;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
-};
+use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::MachineId;
 use std::collections::{BTreeMap, BTreeSet};
-use target::NativeTarget;
-use target_operations::TargetStructuralArgumentSource;
 use target_operations::{
-    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
-    TargetUnitScalarCallArgument, TerminalPsiProvenance,
+    TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralParameter,
 };
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
-
-#[allow(clippy::too_many_arguments)]
-pub(super) fn lower(
-    operation: &AbstractOperation,
-    function: &AbstractFunction,
-    target: NativeTarget,
-    functions: &BTreeMap<MachineId, &AbstractFunction>,
-    types: &StructuralTypeLookup<'_>,
-    prepared: &PreparedFunctionSignature,
-    live: &mut LiveDefinitions,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<(), LoweringError> {
-    let (psi_operation, result, callee, values, arguments, claims, requirements, crashes) =
-        match operation {
-            // A call that forwards descriptors has its own lowering.
-            AbstractOperation::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Scalar(result),
-                callee,
-                arguments,
-                structural_arguments,
-                dynamic_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            } if dynamic_arguments.is_empty() => (
-                *psi_operation,
-                Some(*result),
-                *callee,
-                arguments,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            ),
-            AbstractOperation::CallStructural {
-                psi_operation,
-                callee,
-                arguments,
-                structural_arguments,
-                dynamic_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                result: AbstractStructuralCallResult::Unit,
-            } if dynamic_arguments.is_empty() => (
-                *psi_operation,
-                None,
-                *callee,
-                arguments,
-                structural_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            ),
-            _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
-        };
-    let callee_function = functions
-        .get(&callee)
-        .copied()
-        .ok_or(LoweringError::UnknownCallTarget(callee))?;
-    // Requirement obligations are discharged proof metadata, not ownership
-    // claims or ABI arguments. Retain their exact ordered IDs on the target
-    // call for independent translation replay, as for ordinary Unit calls.
-    // Crash continuations ride the same correspondence: they record the
-    // call's verified surviving routes without changing custody, so the row
-    // carries them unchanged. Ownership transfers still need their own
-    // realization.
-    //
-    // Service reach is already verified against the caller's ceiling. The call
-    // retains the exact callee identity; Unit and scalar results use the same
-    // borrow custody checks and their declared native result placement.
-    if !claims.is_empty()
-        || !callee_function.entry_claims.is_empty()
-        || values.len() != callee_function.parameters.len()
-        || arguments.len() != callee_function.structural_parameters.len()
-        || result.map(|result| result.scalar_type)
-            != callee_function
-                .result
-                .scalar()
-                .map(|result| result.scalar_type)
-        || (result.is_none() && callee_function.result != AbstractFunctionResult::Unit)
-    {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    }
-    let signature = prepare_function_signature(callee_function, target, types)?;
-    // Validate the structural argument roster under reference custody before
-    // any per-argument lowering runs; moved carrier leaves commit only after
-    // every argument row is emitted.
-    let moved = super::references::call_arguments(function, types, live, arguments)?;
-    let scalar_arguments = values
-        .iter()
-        .zip(&signature.scalar_parameters)
-        .enumerate()
-        .map(|(position, (value, parameter))| {
-            let source = super::scalar_sources::source(*value, function, live)?;
-            if source.scalar_type() != parameter.scalar_type {
-                return Err(LoweringError::ValueTypeMismatch(*value));
-            }
-            Ok(TargetUnitScalarCallArgument {
-                parameter_index: u32::try_from(position)
-                    .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
-                source,
-                placement: parameter.placement.clone(),
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let target_arguments = arguments
-        .iter()
-        .zip(&callee_function.structural_parameters)
-        .zip(&signature.parameters)
-        .map(|((argument, declaration), destination)| {
-            if super::aggregate_borrows::is_reference(declaration, types) {
-                return super::aggregate_borrows::argument(
-                    argument,
-                    declaration,
-                    destination,
-                    function,
-                    prepared,
-                    live,
-                    types,
-                );
-            }
-            if super::owned_arguments::is_owned_parameter(declaration, types) {
-                return super::owned_arguments::argument(
-                    argument,
-                    declaration,
-                    destination,
-                    function,
-                    prepared,
-                    live,
-                    types,
-                );
-            }
-            if crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
-                || crate::lowering::scalar::element_views::is_element_view_parameter(
-                    declaration,
-                    types,
-                )
-            {
-                return self::byte_argument(
-                    argument,
-                    declaration,
-                    destination,
-                    callee,
-                    function,
-                    prepared,
-                    live,
-                    types,
-                );
-            }
-            self::argument(
-                argument,
-                declaration,
-                destination,
-                function,
-                prepared,
-                live,
-                types,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    super::references::commit_argument_moves(live, &moved);
-    let result_home = result
-        .map(|result| super::primitive_storage::retain_result(psi_operation, result, live))
-        .transpose()?;
-    operations.push(TargetUnitOperation::Call {
-        origin: target_operations::NativeCallOrigin::Authored,
-        psi_operation,
-        callee,
-        call_plan: signature.call_plan,
-        result: result_home.map_or(
-            target_operations::TargetCallResult::Unit,
-            target_operations::TargetCallResult::Scalar,
-        ),
-        scalar_arguments,
-        arguments: target_arguments,
-        claim_transfers: claims.clone(),
-        requirement_obligations: requirements.clone(),
-        crash_continuations: crashes.clone(),
-    });
-    provenance.operations.push(psi_operation);
-    Ok(())
-}
 
 /// Retain the same primitive referent custody independently of the call result.
 /// A `.., Referent` argument resolves through live reference custody instead
@@ -522,7 +333,7 @@ pub(super) fn address_join_argument(
 /// Fixed arrays instead present their backing: a parameter's field window or a
 /// whole dominating local array, shared or exclusive.
 #[allow(clippy::too_many_arguments)]
-fn byte_argument(
+pub(super) fn byte_argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
@@ -671,6 +482,57 @@ fn byte_argument(
         element_stride: None,
         indices: Vec::new(),
         source,
+        destination: destination.placement.clone(),
+    })
+}
+
+/// A structural-result call lends a byte view that control flow established as
+/// a block parameter only whole, at the block parameter's own access and type.
+pub(super) fn block_view_argument(
+    argument: &terminal_psi::StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &TargetStructuralParameter,
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+) -> Result<TargetStructuralArgument, LoweringError> {
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
+    if !argument.path.is_empty()
+        || argument.access != declaration.access
+        || !crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
+    {
+        return Err(invalid());
+    }
+    let (entry, parameter) = function
+        .block_entries
+        .iter()
+        .find_map(|entry| {
+            entry
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == argument.place)
+                .map(|parameter| (entry, parameter))
+        })
+        .ok_or_else(invalid)?;
+    if parameter.structural_type != declaration.structural_type
+        || parameter.access != argument.access
+    {
+        return Err(invalid());
+    }
+    Ok(TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: Vec::new(),
+        root_structural_type: parameter.structural_type,
+        structural_type: parameter.structural_type,
+        shape: destination.shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source: TargetStructuralArgumentSource::BlockParameter {
+            block: entry.block,
+            place: parameter.place,
+        },
         destination: destination.placement.clone(),
     })
 }
