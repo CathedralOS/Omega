@@ -86,9 +86,8 @@ pub(in crate::execution::terminal_unit) fn signature(
                 )?,
                 Multiplicity::Affine,
             )
-        } else if crate::execution::terminal_unit::types::mutable_borrowed_view(
-            program, reference,
-        ) {
+        } else if crate::execution::terminal_unit::types::mutable_borrowed_view(program, reference)
+        {
             (
                 shapes.add_view_type(
                     reference,
@@ -778,7 +777,7 @@ fn view_storage_element_matches(
 /// parameter plus the projection the loans and the place spell together, and
 /// the storage the projection bottoms out in must be exactly the referee.
 #[allow(clippy::too_many_arguments)]
-fn mutable_view_result_operation(
+pub(in crate::execution::terminal_unit) fn mutable_view_result_operation(
     program: &TypedTrees,
     facts: &CheckFacts,
     shapes: &mut ShapeCollector<'_>,
@@ -812,22 +811,18 @@ fn mutable_view_result_operation(
         let facts::PlaceRoot::Symbol(symbol) = place.root else {
             return None;
         };
-        if authored.iter().any(|parameter| parameter.symbol == symbol)
-            || symbol == machine.symbol
-        {
+        if authored.iter().any(|parameter| parameter.symbol == symbol) || symbol == machine.symbol {
             break;
         }
         // A minted view loan over `self.<field>` publishes the member's own
         // symbol as its root: resolve it back to the receiver with the field
         // projection restored ahead of the segments the target added.
-        if let Some(member) =
-            crate::execution::terminal_unit::calls::view_self_member_symbol(
-                program,
-                state,
-                machine.symbol,
-                symbol,
-            )
-        {
+        if let Some(member) = crate::execution::terminal_unit::calls::view_self_member_symbol(
+            program,
+            state,
+            machine.symbol,
+            symbol,
+        ) {
             let mut segments = Vec::with_capacity(place.segments.len() + 1);
             segments.push(facts::PlaceSegment::Field { symbol: member });
             segments.extend(place.segments);
@@ -843,8 +838,7 @@ fn mutable_view_result_operation(
             .iter()
             .map(|(_, candidate)| candidate)
             .find(|candidate| {
-                candidate.machine_symbol == machine.symbol
-                    && candidate.state_symbol == state.symbol
+                candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
             })?;
         let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
             facts.borrow.state_owns_loan(borrow_state, *handle)
@@ -869,7 +863,9 @@ fn mutable_view_result_operation(
     let position = if root == machine.symbol {
         authored.iter().position(|parameter| parameter.is_self)?
     } else {
-        authored.iter().position(|parameter| parameter.symbol == root)?
+        authored
+            .iter()
+            .position(|parameter| parameter.symbol == root)?
     };
     if !crate::execution::terminal_unit::calls::view_source_parameter_is_mutable(
         program,
