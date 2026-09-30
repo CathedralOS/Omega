@@ -222,6 +222,14 @@ fn lower_structural_integer_expression(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    // Entry predicates and executable expressions observe the same extent.
+    // The shared reader distinguishes type-owned fixed bounds from stored live
+    // lengths and validates the parameter/member path before either is used.
+    if let Some(length) =
+        super::super::structural_fields::structural_sequence_length(program, parameters, expression)
+    {
+        return Some((length, ArithmeticDomain::Exact));
+    }
     let mut path = Vec::new();
     if let Some(parameter_position) =
         structural_parameter_field_path(program, parameters, expression, &mut path)

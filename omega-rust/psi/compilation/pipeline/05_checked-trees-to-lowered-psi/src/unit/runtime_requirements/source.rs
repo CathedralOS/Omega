@@ -418,20 +418,7 @@ fn validate_scalar_namespace(predicate: &CheckedBooleanExpression) -> Result<(),
         }
         CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
             for operand in [left, right] {
-                match operand.as_ref() {
-                    CheckedScalarExpression::Parameter { primitive_type, .. }
-                    | CheckedScalarExpression::StructuralParameterField {
-                        primitive_type, ..
-                    } if *primitive_type != PrimitiveType::Addr => {
-                        integer_scalar_type(*primitive_type)?;
-                    }
-                    CheckedScalarExpression::IntegerLiteral { .. } => {}
-                    _ => {
-                        return unsupported(
-                            "scalar entry predicate needs a separate arithmetic evidence owner",
-                        );
-                    }
-                }
+                super::validate_integer_namespace(operand)?;
             }
             Ok(())
         }

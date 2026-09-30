@@ -79,6 +79,7 @@ pub(crate) mod crash_routes;
 pub(crate) mod entry_requirement_certificates;
 pub(crate) mod evidence_lowering;
 pub(crate) mod float_meaning_projection;
+pub(crate) mod integer_predicates;
 pub(crate) mod mathematical_declarations;
 pub(crate) mod nonzero_divisor_certificate;
 pub(crate) mod operation_proofs;
