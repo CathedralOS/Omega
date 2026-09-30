@@ -34,15 +34,26 @@ fn collect_value_roots(
     checked: &CheckedTrees,
     value: checked_trees::CheckedStructuralValueHandle,
     roots: &mut Vec<String>,
-) {
+) -> Result<(), LoweringError> {
     let node = checked.facts.values.structural_values.nodes.get(value);
     match &node.kind {
         checked_trees::CheckedStructuralValueKind::Place(source)
         | checked_trees::CheckedStructuralValueKind::Reference { source }
         | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { source, .. }
-        | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. }
         | checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source } => {
             roots.push(source.type_identity.clone());
+        }
+        checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf } => {
+            // The source retains qualifications; catalog roots name storage.
+            // Already-projected view identities keep their existing spelling.
+            let identity =
+                if checked.normalized_type_identity(*leaf).as_str() == source.type_identity {
+                    let carrier = super::structural_carrier_type(checked, *leaf)?;
+                    checked.normalized_type_identity(carrier).into_string()
+                } else {
+                    source.type_identity.clone()
+                };
+            roots.push(identity);
         }
         checked_trees::CheckedStructuralValueKind::Projection {
             source,
@@ -64,7 +75,7 @@ fn collect_value_roots(
                     .kind,
                 checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
             ) {
-                collect_value_roots(checked, *source, roots);
+                collect_value_roots(checked, *source, roots)?;
             }
         }
         checked_trees::CheckedStructuralValueKind::Record { fields, .. }
@@ -79,13 +90,13 @@ fn collect_value_roots(
                 if let checked_trees::CheckedStructuralRecordFieldValue::Structural(nested) =
                     field.value
                 {
-                    collect_value_roots(checked, nested, roots);
+                    collect_value_roots(checked, nested, roots)?;
                 }
             }
         }
         checked_trees::CheckedStructuralValueKind::FixedArray { elements } => {
             for element in elements {
-                collect_value_roots(checked, *element, roots);
+                collect_value_roots(checked, *element, roots)?;
             }
         }
         checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
@@ -96,11 +107,12 @@ fn collect_value_roots(
                 .dispatch_arms
                 .span_or_empty(*arms)
             {
-                collect_value_roots(checked, arm.value, roots);
+                collect_value_roots(checked, arm.value, roots)?;
             }
         }
         _ => {}
     }
+    Ok(())
 }
 
 /// A borrowed `&[u8]` view established through the element-view op family
@@ -326,7 +338,7 @@ pub(super) fn lower_unit_structural_types_including(
                     result, value, ..
                 } => {
                     roots.push(result.type_identity.clone());
-                    collect_value_roots(checked, *value, &mut roots);
+                    collect_value_roots(checked, *value, &mut roots)?;
                     if establishes_byte_element_view(checked, plans, &result.type_identity, *value)?
                     {
                         roots.push(BYTE_VIEW_ELEMENT_TYPE_IDENTITY.to_owned());

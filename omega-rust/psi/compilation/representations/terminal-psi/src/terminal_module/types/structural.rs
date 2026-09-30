@@ -200,11 +200,17 @@ impl StructuralFieldType {
     }
 
     /// The shape an explicit `StructuralLeafCopy` of this field mints. It is
-    /// `canonical_leaf_shape` plus the borrowed-view descriptor: copying a
-    /// `&[u8]` field's descriptor out of the parent yields a whole borrowed
-    /// view, whereas a path ending at that field never stands for one.
+    /// `canonical_leaf_shape` plus explicit byte snapshots: copying a borrowed
+    /// view yields its descriptor, while a bounded owner yields independent
+    /// live bytes and length. This resolves storage only; copied predicates
+    /// still require independent evidence at their consuming operation.
     pub fn leaf_copy_shape(&self) -> Option<StructuralTypeShape> {
         match self {
+            Self::ByteSequence(carrier @ ByteSequenceCarrier::BoundedOwned { .. })
+            | Self::PredicateByteSequence {
+                carrier: carrier @ ByteSequenceCarrier::BoundedOwned { .. },
+                ..
+            } => Some(StructuralTypeShape::ByteSequence(*carrier)),
             // The copy yields a whole borrowed view TYPE, whose identity
             // peels the reference shell, so the field's own access does not
             // travel with it.

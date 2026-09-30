@@ -581,6 +581,40 @@ pub(in crate::validation) fn validate_structural_argument(
                 )
                 .is_some()
         });
+    // A copied bounded field is a fresh owned snapshot, not an owner-to-view
+    // presentation. Keep its shape admission separate from the qualification
+    // judgment below: readable bytes alone do not prove a byte domain.
+    let copied_field_predicates = if ordinary_call
+        && argument.path.is_empty()
+        && argument.access == StructuralAccess::Owned
+        && expected.access == StructuralAccess::Owned
+        && actual_multiplicity == StructuralMultiplicity::Unrestricted
+        && expected.multiplicity == StructuralMultiplicity::Unrestricted
+        && root_type == expected.structural_type
+        && !expected.is_self
+        && expected.projected_qualifications.is_empty()
+        && !caller
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == argument.place)
+        && !caller
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == argument.place)
+    {
+        terminal_semantics::byte_copied_field_predicates_at_call(
+            module,
+            caller,
+            argument.place,
+            operation,
+        )
+    } else {
+        None
+    };
+    let copied_field_qualifications = copied_field_predicates.is_some_and(|captured| {
+        terminal_semantics::byte_parameter_predicates(module, expected)
+            .is_some_and(|required| captured.implies(required))
+    });
     let bounded_owner_presentation = (ordinary_call
         && caller.structural_parameters.iter().any(|actual| {
             terminal_semantics::bounded_byte_owner_capacity(module, actual, argument, expected)
@@ -594,6 +628,7 @@ pub(in crate::validation) fn validate_structural_argument(
                     .iter()
                     .any(|claim| claim.input.root == argument.place)
         }))
+        || copied_field_predicates.is_some()
         || ((ordinary_call || boundary_byte_view_call)
             && owned_bounded_owner_presentation(module, caller, argument, expected));
     // A whole owner cannot bypass its predicate-preserving loan contract by
@@ -732,7 +767,8 @@ pub(in crate::validation) fn validate_structural_argument(
         });
     }
     for qualification in &expected.qualifications {
-        if !bounded_owner_presentation
+        if (!bounded_owner_presentation || copied_field_predicates.is_some())
+            && !copied_field_qualifications
             && !structural_occurrence_carries_qualification(
                 actual_qualifications,
                 actual_projected_qualifications,

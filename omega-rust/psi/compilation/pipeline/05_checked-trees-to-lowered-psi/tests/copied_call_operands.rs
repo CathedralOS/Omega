@@ -180,7 +180,154 @@ fn copied_boundary_arrays_retain_authored_positions_across_receiver_erasure() {
 
 #[test]
 fn copied_nested_byte_records_retain_owned_predicates() {
-    assert_copied_operand(WITNESS);
+    let _ = assert_copied_operand(WITNESS);
+}
+
+#[test]
+fn copied_bounded_byte_field_retains_owned_predicates() {
+    let artifact = assert_copied_operand(
+        r#"
+        domain [u8; 16]::Text requires valid_utf8(self);
+        data Target { seen: u64; }
+        machine Target::capture(&mut self, text: [u8; 16] in Text) {
+            self.seen = 42;
+        }
+        data Main { text: [u8; 16] in Text; target: Target; }
+        machine Main::main(&mut self) {
+            self.target.capture(self.text);
+        }
+        "#,
+    );
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    let caller = module
+        .machines
+        .iter()
+        .find(|machine| {
+            machine.blocks.iter().any(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::StructuralLeafCopy { .. }
+                    )
+                })
+            })
+        })
+        .unwrap();
+    let copied_place = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::StructuralLeafCopy { .. }
+            )
+        })
+        .unwrap()
+        .result
+        .structural()
+        .unwrap()
+        .place;
+    let consumer = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            matches!(&operation.kind,
+            terminal_psi::OperationKind::CallUnit { structural_arguments, .. }
+                if structural_arguments.iter().any(|argument| argument.place == copied_place))
+        })
+        .unwrap();
+    assert!(
+        terminal_semantics::byte_copied_field_predicates_at_call(
+            &module,
+            caller,
+            copied_place,
+            consumer.id,
+        )
+        .is_some()
+    );
+    let mut clobbered = caller.clone();
+    let mut extra_call = consumer.clone();
+    extra_call.id = semantic_vocabulary::OperationId::new(u64::MAX).unwrap();
+    clobbered.blocks[0].operations.push(extra_call);
+    assert!(
+        terminal_semantics::byte_copied_field_predicates_at_call(
+            &module,
+            &clobbered,
+            copied_place,
+            consumer.id,
+        )
+        .is_none(),
+        "another owned use cannot inherit immutable-snapshot evidence"
+    );
+    let mut changed = module.clone();
+    let field = changed
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| {
+            let terminal_psi::StructuralTypeShape::Record { fields } = &mut declaration.shape
+            else {
+                return None;
+            };
+            fields.iter_mut().find(|field| {
+                matches!(
+                    field.field_type,
+                    terminal_psi::StructuralFieldType::PredicateByteSequence { .. }
+                )
+            })
+        })
+        .expect("qualified source byte field");
+    let carrier = field.field_type.byte_sequence_carrier().unwrap();
+    field.field_type = terminal_psi::StructuralFieldType::ByteSequence(carrier);
+    assert!(matches!(
+        terminal_verifier::validate_module(&changed),
+        Err(terminal_verifier::ModuleError::StructuralArgumentMissingQualification { .. })
+    ));
+    terminal_verifier::verify_module(
+        &changed,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect_err("equal capacity cannot replace the source field's UTF-8 invariant");
+
+    let mut changed = module;
+    let caller = changed
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine.blocks.iter().any(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::StructuralLeafCopy { .. }
+                    )
+                })
+            })
+        })
+        .expect("copying caller");
+    let source = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match operation.kind {
+            terminal_psi::OperationKind::StructuralLeafCopy { source, .. } => Some(source),
+            _ => None,
+        })
+        .unwrap();
+    caller
+        .structural_parameters
+        .iter_mut()
+        .find(|parameter| parameter.place == source)
+        .expect("borrowed source parameter")
+        .access = terminal_psi::StructuralAccess::WriteOnlyBorrow;
+    terminal_verifier::verify_module(
+        &changed,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect_err("qualified byte storage does not grant read access to a write-only root");
 }
 
 #[test]
@@ -189,11 +336,11 @@ fn copied_call_result_stores_compose_with_state_transitions() {
         "self.target.seen = 7;",
         "transition { _ -> done() } state done(&mut self) { self.target.seen = 7; }",
     );
-    assert_copied_operand(&scalar);
+    let _ = assert_copied_operand(&scalar);
     let structural = scalar
         .replace("-> u32 { id.value }", "-> SourceId { id }")
         .replace("result: u32", "result: SourceId");
-    assert_copied_operand(&structural);
+    let _ = assert_copied_operand(&structural);
 }
 
 #[test]
@@ -242,7 +389,7 @@ fn copied_assignment_operand_rejects_substituted_call_coordinates() {
     }
 }
 
-fn assert_copied_operand(source: &str) {
+fn assert_copied_operand(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     let checked = crate::front_end::checked_program(source);
     let artifact =
         TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::main"))
@@ -272,6 +419,7 @@ fn assert_copied_operand(source: &str) {
         })
         .count();
     assert_eq!(copies, 1, "the argument has one fresh owned copy");
+    artifact
 }
 
 #[test]
