@@ -1594,17 +1594,17 @@ crash and native exit behavior. Use affected check/native corpus slices under
   literal has no Terminal establishment" refusal (pinned by
   `folded_index_faces_the_literal_lowering_boundary`).
 
-  `pass/structs/runtime_array_member_snapshot_exit` exits 70 natively on
-  macOS ARM64: `Packet { samples: context.samples, stamp: stamp(context) }`
+  `pass/structs/runtime_array_member_snapshot_exit` exits 70 natively and on
+  the checked interpreter on macOS ARM64 at `03e30df59d33` plus this repair:
+  `Packet { samples: context.samples, stamp: stamp(context) }`
   retains [30, 40] while the later operand writes the source's first element
   to 90. Scalar bindings and effects share the projected-assignment inventory;
   an incomplete scalar graph cannot preempt the complete ordinary effect body.
-  Checked interpretation remains wrong (exit 1): `eval_struct_literal` and
-  `eval_case_literal` in checked-interpreter's
-  `evaluator/execution/expressions_and_value_calls.rs` retain shallow field
-  cells across later operand effects. Snapshot owned constructor operands at
-  evaluation time while retaining borrowed-view aliasing; do not deep-copy
-  reference referents. A mutable local-array version additionally needs the
+  Checked interpretation captures owned operands before later effects through
+  one operation shared by calls and record, case, and array construction;
+  reference destinations and referents retain their aliases. The call-order
+  control `structural/runtime_structural_operand_snapshot_exit` now also
+  agrees between engines (exit 42). A mutable local-array version still needs the
   scalar-array local establishment
   in stage 04 `control/statement_sequence/local_data.rs`, which currently
   refuses mutable bindings, and whole-array computation-argument loans.
