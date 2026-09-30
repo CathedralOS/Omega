@@ -467,16 +467,28 @@ pub(crate) fn validate_structural_root_operations(
                     }
                 }
                 O::ReleaseReference { source, .. } => {
+                    // The verifier ends any live carrier; replay checks only
+                    // that the source is a reference place. Referent shape is
+                    // not constrained to established `&scalar` carriers — a
+                    // relocated loan may point at any declared type.
                     let valid =
                         crate::unit_validation::operation_contracts::structural_source_contract(
                             function, *source, false,
                         )
                         .is_some_and(|signature| {
-                            crate::unit_validation::references::referent(
-                                structural_types,
-                                signature.structural_type,
+                            structural_types.get(&signature.structural_type).is_some_and(
+                                |declaration| {
+                                    matches!(
+                                        declaration.shape,
+                                        terminal_psi::StructuralTypeShape::Reference {
+                                            access: terminal_psi::StructuralAccess::SharedBorrow
+                                                | terminal_psi::StructuralAccess::MutableBorrow
+                                                | terminal_psi::StructuralAccess::WriteOnlyBorrow,
+                                            ..
+                                        }
+                                    )
+                                },
                             )
-                            .is_some()
                         });
                     if !valid {
                         return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {

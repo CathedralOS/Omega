@@ -630,16 +630,17 @@ fn shared_borrow_case_copy_keeps_the_referent_leaf_type() {
                     path: path.clone(),
                 },
             });
-            // The loan carrier is an affine operation result: the block's
-            // exit edge releases it with the same trivial-discard machinery
-            // as any affine result, newest producer first.
-            if let Terminator::Jump {
-                trivial_affine_discards,
-                ..
-            } = &mut block.terminator
-            {
-                trivial_affine_discards.insert(0, loan_place);
-            }
+            // An in-block release ends the relocated loan the way the
+            // verifier's carrier machinery intends: `&Record` carriers
+            // could not release before replay admitted non-scalar
+            // referents.
+            block.operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id::<OperationId>(501),
+                result: OperationResult::Unit,
+                kind: OperationKind::ReleaseReference { source: loan_place },
+            });
         }
     }
     terminal_verifier::verify_module(&module, &proof, &profile)
