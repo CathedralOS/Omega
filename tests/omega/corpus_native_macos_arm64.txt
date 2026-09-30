@@ -224,8 +224,7 @@ pass/control_flow/field_view_transfer_exit built 582ms exit:0
 pass/control_flow/guarded_jump_field_view_forward rejected 201ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
 pass/control_flow/guarded_leaf_branch_expansion checked 206ms
-pass/control_flow/guarded_value_transition_roster rejected 468ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
+pass/control_flow/guarded_value_transition_roster built 1490ms exit:11 @15f38e49aac2
 pass/control_flow/nested_parameter_receiver_call checked 179ms
 pass/control_flow/no_payload_case_variant_after_payload_dispatch_exit built 758ms exit:70
 pass/control_flow/ordered_unconditional_arm_exit built 370ms exit:70 @ed218c8b1f5+wt
@@ -234,6 +233,7 @@ pass/control_flow/runtime_branching_helper_string rejected 221ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` calls `Main::pick`, which has no plan; `Main::pick` has no admitted body (local construction stopped at result ownership)") })
 pass/control_flow/runtime_captured_local_remutated_field_exit built 677ms exit:70
 pass/control_flow/runtime_compare_pair_dispatch_exit built 609ms exit:70
+pass/control_flow/runtime_computed_case_subject_single_evaluation_exit built 1592ms exit:70 @15f38e49aac2
 pass/control_flow/runtime_integer_literal_dispatch_exit built 591ms exit:22
 pass/control_flow/runtime_loop_patterns_exit built 729ms exit:70
 pass/control_flow/runtime_nonplace_record_pattern_single_evaluation_exit rejected 295ms @ed218c8b1f5+wt
@@ -247,8 +247,7 @@ pass/control_flow/runtime_tuple_case_destructure_exit rejected 458ms
 pass/control_flow/runtime_tuple_transition_exit rejected 467ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable scalar target (`Main::run`), which was itself omitted at local construction at `state graph: terminator: guarded jump successors: receiver transfer` (state 1, statement 0)
 pass/control_flow/self_case_payload_both_arms_exit built 755ms exit:70
-pass/control_flow/structural_result_transition_tail rejected 455ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: unsupported tail: guarded pair without exact false fallback` (state 0)
+pass/control_flow/structural_result_transition_tail built 1404ms exit:10 @15f38e49aac2
 pass/control_flow/sum_field_storage_roundtrip built 1712ms @fb2178def922
 pass/control_flow/termination_index_distance_compile rejected 223ms
 	native-artifact Terminal production failed: Lowering(Unsupported("scalar successor has no target machine graph"))

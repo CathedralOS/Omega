@@ -199,7 +199,7 @@ pub(super) fn admit(
 /// boundary call completes its receipts at the call; an ordinary call may not
 /// transfer claims across the edge. Every structural operand except a
 /// structural result's must already be admitted.
-fn call_custody_admitted(
+pub(super) fn call_custody_admitted(
     call: &CheckedUnitCallPlan,
     earlier: &[CheckedUnitEffectOperationPlan],
 ) -> bool {

@@ -4,6 +4,7 @@ use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, SymbolHandle,
     target_signature, unsupported,
 };
+use crate::expression_preparation::source_custody::dispatch_subjects;
 use checked_trees::statement::{TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode};
 
 pub(super) enum AuthoredOccurrence {
@@ -52,6 +53,11 @@ pub(super) fn authored_occurrences(
         ))?;
     let mut pending = Vec::new();
     let mut next_ordinal = 0_u32;
+    // A closed-case dispatch over a computed subject evaluates its call once,
+    // at the first arm. Every other copy of that call in the dispatch is a
+    // read of the one result: it keeps the ordinal the checker numbers it
+    // with, but it is no call occurrence and its arguments do not run again.
+    let mut dispatch_subject = ExpressionHandle::invalid();
     let (statement_root, outer_expression) = match statement {
         StatementNode::Call(call) => {
             validate_static_receiver(
@@ -143,7 +149,21 @@ pub(super) fn authored_occurrences(
             // arguments. A named machine arm retains its target handle as a
             // distinct source occurrence, since it has no call expression.
             let mut seeds = Vec::new();
+            let mut outer = ExpressionHandle::invalid();
             if let TransitionGuardNode::When(guard) = transition.guard {
+                if let Some(subject) = dispatch_subjects::computed_case_subject(checked, guard) {
+                    dispatch_subject = subject;
+                    if dispatch_subjects::evaluated_case_subject(
+                        checked,
+                        statements,
+                        statement_index as usize,
+                    ) == Some(subject)
+                    {
+                        outer = subject;
+                    }
+                } else {
+                    outer = guard;
+                }
                 seeds.push(Walk::Enter(guard, true));
             }
             for target in [transition.target, transition.continuation] {
@@ -170,10 +190,11 @@ pub(super) fn authored_occurrences(
                     TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
                 }
             }
-            let outer = match seeds.first() {
-                Some(Walk::Enter(expression, _)) => *expression,
-                _ => ExpressionHandle::invalid(),
-            };
+            if transition.guard == TransitionGuardNode::Always
+                && let Some(Walk::Enter(expression, _)) = seeds.first()
+            {
+                outer = *expression;
+            }
             pending.extend(seeds.into_iter().rev());
             (false, outer)
         }
@@ -230,6 +251,17 @@ pub(super) fn authored_occurrences(
         active.push(expression);
         let mut children = Vec::new();
         let ordinal = match table.expression(expression) {
+            ExpressionNode::Call(_)
+                if dispatch_subjects::repeats_subject(checked, dispatch_subject, expression)
+                    && !(next_ordinal == 0 && expression == outer_expression) =>
+            {
+                next_ordinal = next_ordinal
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "nested authored call ordinal space is exhausted",
+                    ))?;
+                None
+            }
             ExpressionNode::Call(call) => {
                 let signature = target_signature(checked, machine.symbol, call.target_symbol)?;
                 let outer = next_ordinal == 0 && expression == outer_expression;
@@ -391,6 +423,17 @@ pub(super) fn authored_occurrences(
                 None
             }
             ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                children.push((member.receiver, direct_argument));
+                None
+            }
+            // A case payload read of the computed dispatch subject.
+            ExpressionNode::Member(member)
+                if dispatch_subjects::repeats_subject(
+                    checked,
+                    dispatch_subject,
+                    member.receiver,
+                ) =>
+            {
                 children.push((member.receiver, direct_argument));
                 None
             }

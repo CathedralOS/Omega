@@ -304,3 +304,143 @@ fn closed_case_markers_survive_multi_operation_prefix() {
         .clone();
     admission::admit(&checked, &plan).expect("marker run rejoins after multi-operation prefix");
 }
+
+/// A dispatch over a call: the parser copies `pick(second)` into both arms'
+/// guards and payload reads; the plan evaluates it once.
+const COMPUTED_SUBJECT: &str = r#"
+    data Pick { case First(v: u64); case Second(v: u64); }
+    machine pick(second: bool) -> Pick {
+        transition second { true -> (Pick::Second { v: 2 }) _ -> (Pick::First { v: 1 }) }
+    }
+    machine flip(value: bool) -> bool {
+        transition value { true -> (false) _ -> (true) }
+    }
+    machine route(second: bool) {
+        transition pick(second) {
+            Pick::First { v } -> first(v)
+            Pick::Second { v } -> second_arm(v)
+        }
+        state first(v: u64) {}
+        state second_arm(v: u64) {}
+    }
+"#;
+
+fn computed_subject_plan(
+    source: &str,
+) -> (CheckedTrees, Option<CheckedComposedUnitControlMachinePlan>) {
+    let checked = crate::front_end::checked_program(source);
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "route")
+        .expect("dispatching machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .cloned();
+    (checked, plan)
+}
+
+fn computed_dispatch(
+    plan: &mut CheckedComposedUnitControlMachinePlan,
+) -> Option<&mut checked_trees::CheckedComposedUnitControlStatePlan> {
+    plan.states.iter_mut().find(|state| {
+        matches!(
+            &state.terminator,
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. }
+                if matches!(
+                    subject.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
+                )
+        )
+    })
+}
+
+#[test]
+fn computed_case_subject_is_one_call_every_arm_reads() {
+    let (checked, plan) = computed_subject_plan(COMPUTED_SUBJECT);
+    let mut plan = plan.expect("a computed dispatch keeps its composed plan");
+    admission::admit(&checked, &plan).expect("one subject call rejoins every arm");
+    let state = computed_dispatch(&mut plan).expect("the call subject dispatches as a closed sum");
+    let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases } = &state.terminator
+    else {
+        unreachable!()
+    };
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+        binding_ordinal,
+    } = subject.source
+    else {
+        unreachable!()
+    };
+    assert_eq!(cases.len(), 2);
+    let calls = state
+        .operations
+        .iter()
+        .filter_map(|operation| operation.call())
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1, "the arms read one evaluation");
+    assert_eq!(calls[0].coordinate.statement_index, 0);
+    assert_eq!(calls[0].coordinate.call_ordinal, 0);
+    assert_eq!(
+        calls[0]
+            .structural_result()
+            .map(|result| result.binding_ordinal),
+        Some(binding_ordinal)
+    );
+    for mutation in 0..4 {
+        let mut changed = plan.clone();
+        let state = computed_dispatch(&mut changed).unwrap();
+        let position = state
+            .operations
+            .iter()
+            .position(|operation| operation.call().is_some())
+            .unwrap();
+        match mutation {
+            0 => {
+                state.operations.remove(position);
+            }
+            1 => {
+                let duplicate = state.operations[position].clone();
+                state.operations.push(duplicate);
+            }
+            2 => match &mut state.operations[position] {
+                super::CheckedUnitEffectOperationPlan::Call(call) => {
+                    call.coordinate.statement_index += 1;
+                }
+                _ => unreachable!(),
+            },
+            3 => {
+                let CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } =
+                    &mut state.terminator
+                else {
+                    unreachable!()
+                };
+                subject.source =
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: 0,
+                    };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            admission::admit(&checked, &changed).is_err(),
+            "computed subject mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn computed_case_subject_with_a_call_operand_is_not_read_once() {
+    // Every arm's copy repeats `flip(second)`; this route plans no dispatch
+    // over a subject whose operands invoke calls of their own.
+    let source =
+        COMPUTED_SUBJECT.replace("transition pick(second)", "transition pick(flip(second))");
+    let (_, plan) = computed_subject_plan(&source);
+    assert!(
+        plan.is_none_or(|mut plan| computed_dispatch(&mut plan).is_none()),
+        "a subject with a call operand must not dispatch from one planned call"
+    );
+}

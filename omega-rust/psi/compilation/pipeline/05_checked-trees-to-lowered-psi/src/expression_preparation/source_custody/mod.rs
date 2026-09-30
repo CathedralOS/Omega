@@ -66,8 +66,9 @@ pub(crate) mod case_sources;
 pub(crate) mod structural;
 pub(crate) mod value_correspondence;
 
-// Control: successor rosters, ordered guarded exits, and complementary guard
-// pairs.
+// Control: successor rosters, ordered guarded exits, complementary guard
+// pairs, and the subject a closed-case dispatch tests.
+pub(crate) mod dispatch_subjects;
 pub(crate) mod guard_complement;
 pub(crate) mod guarded_exits;
 pub(crate) mod successors;
