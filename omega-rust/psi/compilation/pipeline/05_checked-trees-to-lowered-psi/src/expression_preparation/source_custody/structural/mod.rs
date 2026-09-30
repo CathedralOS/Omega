@@ -164,6 +164,12 @@ pub(crate) fn validate(
     let carrier = shared_borrow_record_referent(checked, reference)
         .or(view_carrier)
         .unwrap_or(reference);
+    // The root above retains the exact authored type. Structural storage has
+    // a separate identity: qualifications govern source operations, not the
+    // carrier's layout. Rejoin that identity through the same constraint-only
+    // projection used for structural parameters, while checking custody below
+    // against the qualified type. In particular, do not erase reference shells.
+    let storage_carrier = crate::unit::attached_unit::structural_carrier_type(checked, carrier)?;
     // A `&mut`-referee establishment joins affine loan custody of the
     // referent's storage; its borrow shell still spells `Unrestricted`, so
     // the expected multiplicity follows the referee lane, not the shell's.
@@ -176,7 +182,7 @@ pub(crate) fn validate(
             checked.type_multiplicity(reference)
         };
     if owner.symbol != machine
-        || checked.normalized_type_identity(carrier).as_str() != result.type_identity
+        || checked.normalized_type_identity(storage_carrier).as_str() != result.type_identity
         || expected_multiplicity != result.multiplicity
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
             || validation::has_cleanup_owned_contents(&checked.typed, carrier)
@@ -941,6 +947,8 @@ fn authored_destination(
                 // `place = <construction>` establishes the value that replaces a
                 // structural field; its destination type is the authored place's own
                 // declared type, reconstructed here rather than read from the root.
+                // Peeling a policy or reference here would certify a different
+                // value type even when the underlying storage shape is identical.
                 Some(StatementNode::Assignment(assignment)) => (
                     assignment.value,
                     validation::declared_place_type_raw(
@@ -949,9 +957,6 @@ fn authored_destination(
                         Some(source),
                         assignment.target,
                     )
-                    .and_then(|reference| {
-                        validation::unwrapped_type_reference(&checked.typed, reference)
-                    })
                     .ok_or(LoweringError::Unsupported(
                         "structural construction lost its authored destination",
                     ))?,

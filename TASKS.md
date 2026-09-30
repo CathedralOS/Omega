@@ -243,6 +243,12 @@ the complete product bar; focused successes below do not establish that baseline
     Preserve erased proof fields and use represented carriers for runtime
     storage.
 
+    Keep `collections/runtime_whole_array_value_copy_exit` as the qualified
+    replacement control: `omega run --both` must preserve independent array
+    contents and exit 70 in both engines. Its value identity retains arithmetic
+    policy while storage uses the registered carrier; remaining qualification
+    and custody work must not conflate those identities.
+
     Ordinary record-field replacement already uses `OpenWindows::replace`
     with move-out/store and exact displaced-value cleanup. Omega's
     `lowering/control_flow/borrowed_windows.rs` now resolves Record and Mixed

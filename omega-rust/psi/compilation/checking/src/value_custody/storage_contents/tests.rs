@@ -12,6 +12,40 @@ fn input(program: &TypedTrees) -> TypeReferenceHandle {
 }
 
 #[test]
+fn arithmetic_policy_preserves_aggregate_contents_and_loan_exclusions() {
+    let program = crate::front_end::typed_program(
+        "machine inspect(value: [[u32; 2]; 3] in Wrapping, loan: &mut u32) {}",
+    );
+    let reference = input(&program);
+    assert!(super::has_plain_owned_contents_with_numeric_constraints(
+        &program, reference
+    ));
+    assert!(has_stable_observable_contents(&program, reference));
+    assert!(!super::has_plain_owned_contents(&program, reference));
+
+    let TypeReferenceNode::Constrained { constraints, .. } =
+        *program.type_reference_table.type_reference(reference)
+    else {
+        panic!("expected an aggregate arithmetic-policy shell");
+    };
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    let loan = program.state_parameters(state)[1].type_reference;
+    let mut forged = program.clone();
+    forged.type_reference_table.substitute_node(
+        reference,
+        TypeReferenceNode::Constrained {
+            base_type: loan,
+            constraints,
+        },
+    );
+    assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+        &forged, reference
+    ));
+    assert!(!has_stable_observable_contents(&forged, reference));
+}
+
+#[test]
 fn stable_observation_rejects_nested_mutation_authority_and_unknown_qualifiers() {
     for carrier in [
         "&mut [u8]",

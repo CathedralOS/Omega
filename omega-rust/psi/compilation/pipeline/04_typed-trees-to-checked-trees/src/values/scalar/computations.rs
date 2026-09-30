@@ -468,43 +468,43 @@ pub(crate) fn build_checked_value_computation_plans(
                     // value node, as a `let` initializer does; the sequence
                     // establishes the elements and replaces the array one
                     // element window at a time.
+                    // Keep the destination's complete declared type. Carrier
+                    // classifiers may inspect its underlying shape, but value
+                    // custody must still distinguish arithmetic policies and
+                    // reference shells when comparing the source and result.
                     if let Some(expected) = crate::flow::expression_type_reference_in_state(
                         program,
                         state.symbol,
                         statement_index,
                         assignment.target,
-                    )
-                    .and_then(|reference| validation::unwrapped_type_reference(program, reference))
-                        && (structural_values::is_record_value(program, assignment.value, expected)
-                            || validation::is_scalar_case_value(
-                                program,
-                                assignment.value,
-                                expected,
-                            )
-                            || structural_values::is_structural_case_value(
-                                program,
-                                assignment.value,
-                                expected,
-                            )
-                            || structural_values::is_copied_place_value(
-                                program,
-                                state.symbol,
-                                statement_index,
-                                assignment.value,
-                                expected,
-                            )
-                            || structural_values::is_fixed_array_value(
-                                program,
-                                assignment.value,
-                                expected,
-                            ))
-                        && let Some(root) = builder.structural_value(
-                            assignment.value,
-                            expected,
-                            &mut structural_values,
-                            pure,
-                        )
-                    {
+                    ) && (structural_values::is_record_value(
+                        program,
+                        assignment.value,
+                        expected,
+                    ) || validation::is_scalar_case_value(
+                        program,
+                        assignment.value,
+                        expected,
+                    ) || structural_values::is_structural_case_value(
+                        program,
+                        assignment.value,
+                        expected,
+                    ) || structural_values::is_copied_place_value(
+                        program,
+                        state.symbol,
+                        statement_index,
+                        assignment.value,
+                        expected,
+                    ) || structural_values::is_fixed_array_value(
+                        program,
+                        assignment.value,
+                        expected,
+                    )) && let Some(root) = builder.structural_value(
+                        assignment.value,
+                        expected,
+                        &mut structural_values,
+                        pure,
+                    ) {
                         structural_values
                             .roots
                             .append(checked_trees::CheckedStructuralValueRoot {

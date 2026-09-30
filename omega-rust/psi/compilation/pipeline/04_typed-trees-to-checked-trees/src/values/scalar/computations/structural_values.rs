@@ -1182,8 +1182,11 @@ impl Builder<'_, '_> {
         }
         // The structural-type registry names a `&[T]` leaf by its borrowed
         // view carrier — the same identity `add_type` mints for the result —
-        // so a view leaf records its unwrapped referee's identity; an owned
-        // leaf keeps its own.
+        // so a view leaf records its unwrapped referee's identity. Arithmetic
+        // policy likewise changes operations, not storage: owned leaves name
+        // the policy-free carrier registered by ShapeCollector::add_type.
+        // Keep `projected` below and the exact comparison above qualified;
+        // carrier equality cannot substitute for semantic type correspondence.
         let type_identity =
             if crate::execution::terminal_unit::types::borrowed_slice_view(self.program, projected)
             {
@@ -1197,7 +1200,10 @@ impl Builder<'_, '_> {
             }
             .unwrap_or_else(|| {
                 self.program
-                    .normalized_type_identity(projected)
+                    .normalized_type_identity(validation::peel_arithmetic_policy(
+                        self.program,
+                        projected,
+                    ))
                     .into_string()
             });
         Some((
