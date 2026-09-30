@@ -12,8 +12,9 @@
 //! cycles, `selection_provenance.rs` carries selection keys, provenance
 //! and slot resolution, and `independent_components.rs` joins each
 //! `Independent` selection to exactly one verified component description;
-//! the remaining files carry bindings, reach, intrinsics, provenance replay
-//! and receipts.
+//! the remaining files carry bindings, reach, provenance replay and receipts.
+//! Intrinsic execution identities and labels are queries on
+//! `crate::IntrinsicRequirement`.
 
 pub(crate) mod selection;
 
@@ -22,7 +23,6 @@ mod independent_components;
 mod installation_reach;
 #[cfg(feature = "installed-writer")]
 mod installed_writer;
-mod intrinsic_execution;
 mod operator_provider_evidence;
 mod provenance_replay;
 mod receipt_binding;
@@ -53,16 +53,7 @@ pub use installed_writer::{
     optional_selected_external_root_provider_plan, selected_external_root_entry_fact_bindings,
     selected_external_root_provider_plan, selected_external_root_provider_plan_id,
 };
-pub use intrinsic_execution::{
-    primitive_float_binary_intrinsic_execution_identity,
-    primitive_float_binary_intrinsic_execution_identity_for,
-    primitive_integer_comparison_intrinsic_execution_identity,
-    primitive_integer_comparison_intrinsic_execution_identity_for,
-};
-pub use operator_provider_evidence::{
-    compiler_intrinsic_diagnostic_label, compiler_intrinsic_diagnostic_label_for,
-    intrinsic_realization_matches_operator, selected_requirement_plan, selected_use_plan,
-};
+pub use operator_provider_evidence::{selected_requirement_plan, selected_use_plan};
 #[cfg(test)]
 pub(crate) use provenance_replay::exact_checked_adapter_invocations;
 pub use provenance_replay::{

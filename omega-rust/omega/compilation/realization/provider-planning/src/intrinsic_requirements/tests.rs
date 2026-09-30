@@ -57,7 +57,7 @@ fn token_signature_preserves_machine_requirement_identity_and_intrinsic_meaning(
     );
     assert_eq!(by_token.as_operator(), Some(token));
     assert_eq!(
-        crate::primitive_float_binary_intrinsic_execution_identity_for(&typed, &by_token),
+        by_token.closed_float_execution(&typed),
         Some(
             crate::CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
                 operation: crate::CompilerPrimitiveFloatBinaryOperation::Add,
@@ -77,8 +77,5 @@ fn an_untokened_requirement_does_not_gain_primitive_operator_meaning() {
         IntrinsicRequirementKind::TopLevelRequirement
     );
     assert!(requirement.as_operator().is_none());
-    assert!(
-        crate::primitive_float_binary_intrinsic_execution_identity_for(&typed, &requirement)
-            .is_none()
-    );
+    assert!(requirement.closed_float_execution(&typed).is_none());
 }

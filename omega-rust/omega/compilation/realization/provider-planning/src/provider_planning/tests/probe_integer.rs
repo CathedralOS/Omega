@@ -49,8 +49,10 @@ fn integer_comparison_identity_commits_to_authored_spelling_and_type() {
         let [operator] = typed.machine_token_bindings() else {
             panic!("one boundary operator")
         };
+        let requirement = crate::IntrinsicRequirement::from_operator(&typed, operator)
+            .expect("boundary operator requirement view");
         assert_eq!(
-            crate::primitive_integer_comparison_intrinsic_execution_identity(&typed, operator),
+            requirement.closed_execution(&typed),
             Some(
                 crate::CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
                     operation: expected,
@@ -59,10 +61,7 @@ fn integer_comparison_identity_commits_to_authored_spelling_and_type() {
             ),
             "spelling {spelling}",
         );
-        assert_eq!(
-            crate::compiler_intrinsic_diagnostic_label(&typed, operator).as_deref(),
-            Some(label),
-        );
+        assert_eq!(requirement.diagnostic_label(&typed).as_deref(), Some(label));
     }
 }
 
@@ -91,7 +90,8 @@ fn integer_comparison_identity_fails_closed_outside_the_roster() {
             panic!("one boundary operator in `{source}`")
         };
         assert_eq!(
-            crate::primitive_integer_comparison_intrinsic_execution_identity(&typed, operator),
+            crate::IntrinsicRequirement::from_operator(&typed, operator)
+                .and_then(|requirement| requirement.closed_integer_comparison_execution(&typed)),
             None,
             "source `{source}`",
         );
