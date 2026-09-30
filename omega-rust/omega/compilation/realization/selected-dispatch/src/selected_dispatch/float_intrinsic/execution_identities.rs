@@ -31,10 +31,7 @@ pub fn derive_selected_compiler_intrinsic_execution_identity(
     else {
         return Ok(None);
     };
-    if let SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity)
-    | SelectedCompilerIntrinsicRealization::PrimitiveIntegerComparison(identity) =
-        selected_realization
-    {
+    if let SelectedCompilerIntrinsicRealization::ClosedPrimitive(identity) = selected_realization {
         return Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(
             identity,
         )));
@@ -128,9 +125,9 @@ pub fn derive_selected_primitive_float_binary_execution(
 ) -> Result<Option<CompilerIntrinsicExecutionIdentity>, Diagnostic> {
     Ok(
         match selected_compiler_intrinsic_realization(typed, plan, requirement)? {
-            Some(SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity)) => {
-                Some(identity)
-            }
+            Some(SelectedCompilerIntrinsicRealization::ClosedPrimitive(
+                identity @ CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { .. },
+            )) => Some(identity),
             _ => None,
         },
     )
@@ -175,32 +172,15 @@ pub(crate) fn selected_compiler_intrinsic_realization(
             plan.name,
         )));
     }
-    provider_planning::compiler_intrinsic_diagnostic_label_for(typed, &requirement).ok_or_else(
-        || {
-            Diagnostic::error(format!(
-                "selected overload `{slot}` has no compiler-known intrinsic realization",
-            ))
-        },
-    )?;
-    if let Some(identity) =
-        provider_planning::primitive_float_binary_intrinsic_execution_identity_for(
-            typed,
-            &requirement,
-        )
-    {
-        return Ok(Some(
-            SelectedCompilerIntrinsicRealization::PrimitiveFloatBinary(identity),
-        ));
-    }
-    if let Some(identity) =
-        provider_planning::primitive_integer_comparison_intrinsic_execution_identity_for(
-            typed,
-            &requirement,
-        )
-    {
-        return Ok(Some(
-            SelectedCompilerIntrinsicRealization::PrimitiveIntegerComparison(identity),
-        ));
+    requirement.diagnostic_label(typed).ok_or_else(|| {
+        Diagnostic::error(format!(
+            "selected overload `{slot}` has no compiler-known intrinsic realization",
+        ))
+    })?;
+    if let Some(identity) = requirement.closed_execution(typed) {
+        return Ok(Some(SelectedCompilerIntrinsicRealization::ClosedPrimitive(
+            identity,
+        )));
     }
     Ok(Some(
         match named_float_realization_for(typed, &requirement) {

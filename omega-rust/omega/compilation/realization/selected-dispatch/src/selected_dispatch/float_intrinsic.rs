@@ -44,8 +44,9 @@ pub enum SelectedCompilerIntrinsicExecutionIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SelectedCompilerIntrinsicRealization {
-    PrimitiveFloatBinary(CompilerIntrinsicExecutionIdentity),
-    PrimitiveIntegerComparison(CompilerIntrinsicExecutionIdentity),
+    /// The closed primitive child the requirement's fixed token spells, from
+    /// `IntrinsicRequirement::closed_execution`.
+    ClosedPrimitive(CompilerIntrinsicExecutionIdentity),
     NamedFloat(NamedFloatRealization),
     OtherCompilerPath,
 }

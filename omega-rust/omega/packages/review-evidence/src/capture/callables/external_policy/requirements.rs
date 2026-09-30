@@ -125,12 +125,16 @@ pub(super) fn project(
             {
                 return Err(rejected("external operator application is not closed"));
             }
+            // Review asks only the float lane: a fixed-token integer
+            // comparison that selected dispatch closes is still rejected
+            // here. See `IntrinsicRequirement::closed_float_execution`.
             if operator.spelling.is_some()
                 && (!matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
-                    || provider_planning::primitive_float_binary_intrinsic_execution_identity(
+                    || provider_planning::IntrinsicRequirement::from_operator(
                         &compilation.typed,
                         operator,
                     )
+                    .and_then(|requirement| requirement.closed_float_execution(&compilation.typed))
                     .is_none())
             {
                 return Err(rejected(

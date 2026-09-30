@@ -10,12 +10,18 @@
 //! once and each consumer keys on it instead of on one declaration species.
 //! A token-bearing boundary machine retains its ordinary requirement identity
 //! and exposes its token signature for closed primitive-meaning classification.
+//!
+//! `closed_execution.rs` classifies the closed compiler execution child a
+//! fixed token spells, and `diagnostic_label.rs` names the compiler-known
+//! realization a requirement selects.
 
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema};
 use typed_trees::TypedTrees;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
 
+mod closed_execution;
+mod diagnostic_label;
 #[cfg(test)]
 mod tests;
 
