@@ -470,7 +470,6 @@ pub enum PropositionError {
         maximum: IntegerValue,
     },
     NegativeZeroIntegerMathLiteral,
-    AddressIntegerMathValue(IntegerType),
     NonCanonicalIntegerMathEqualityOperands,
     IntegerLiteralOutsideType {
         scalar_type: IntegerType,

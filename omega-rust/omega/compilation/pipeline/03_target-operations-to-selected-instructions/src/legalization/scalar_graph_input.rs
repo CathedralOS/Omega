@@ -102,6 +102,11 @@ pub(super) fn u8_type() -> IntegerType {
 }
 pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
     match scalar {
+        // The retained hosted address model uses a 64-bit integer-class slot,
+        // while its semantic carrier remains an address throughout replay.
+        ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
+            Some(ValueShape::integer(8, 8))
+        }
         ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
             Some(ValueShape::float(4))
         }

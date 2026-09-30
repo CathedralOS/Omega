@@ -728,7 +728,7 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_integer_operands(scalar_type, &left, &right)?;
+        validate_exact_subtract_operands(scalar_type, &left, &right)?;
         Ok(Self::ExactIntegerSubtract {
             scalar_type,
             left: Box::new(left),
@@ -1201,8 +1201,14 @@ impl ScalarTerm {
                 Some((*scalar_type, scalar_type.exact_add(left, right)?))
             }
             Self::ExactIntegerSubtract { scalar_type, .. } => {
-                let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
-                Some((*scalar_type, scalar_type.exact_sub(left, right)?))
+                let right = operands.pop().flatten();
+                let left = operands.pop().flatten();
+                let (left_type, left) = left?;
+                let (right_type, right) = right?;
+                Some((
+                    *scalar_type,
+                    scalar_type.exact_subtract_values(left_type, left, right_type, right)?,
+                ))
             }
             Self::ExactIntegerMultiply { scalar_type, .. } => {
                 let (left, right) = Self::pop_typed_integer_operands(operands, *scalar_type)?;
@@ -1663,12 +1669,12 @@ impl ScalarTerm {
                 }
                 Ok(())
             }
-            Self::ExactIntegerAdd {
+            Self::ExactIntegerSubtract {
                 scalar_type,
                 left,
                 right,
-            }
-            | Self::ExactIntegerSubtract {
+            } => validate_exact_subtract_operands(*scalar_type, left, right),
+            Self::ExactIntegerAdd {
                 scalar_type,
                 left,
                 right,
@@ -1807,6 +1813,24 @@ fn validate_integer_comparison_operands(
     if !integer_comparison_operands_match(left_type, left, right) {
         return Err(PropositionError::IntegerOperandTypeMismatch {
             expected: ScalarType::Integer(left_type),
+            left: left.scalar_type(),
+            right: right.scalar_type(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_exact_subtract_operands(
+    result: IntegerType,
+    left: &ScalarTerm,
+    right: &ScalarTerm,
+) -> Result<(), PropositionError> {
+    if !matches!((left.scalar_type(), right.scalar_type()),
+        (ScalarType::Integer(left), ScalarType::Integer(right))
+            if result.admits_exact_subtract_operands(left, right))
+    {
+        return Err(PropositionError::IntegerOperandTypeMismatch {
+            expected: ScalarType::Integer(result),
             left: left.scalar_type(),
             right: right.scalar_type(),
         });

@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 7.63, "load1_start": 7.63, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 12, "jobs": null, "load1_end": 233.51, "load1_start": 224.07, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -958,10 +958,11 @@ pass/traits/runtime_local_named_dyn_pass_through_exit rejected 428ms
 pass/traits/runtime_qualified_byte_crash_equality_exit built 724ms exit:70 @8bd51016873be5f442446f3e2fff2f682806bca6
 pass/traits/trait_generic_bound_static_dispatch built 543ms
 pass/traits/transparent_refinement_declaration built 238ms
-pass/types/runtime_addr_algebra_exit rejected 480ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: prefix initializers: bound expression` (state 1, statement 2)
-pass/types/runtime_addr_field_exit rejected 484ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
+pass/types/runtime_addr_algebra_exit rejected 2489ms @2e2913321f6b
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: receiver transfer` (state 1, statement 4)
+pass/types/runtime_addr_field_exit rejected 2627ms @2e2913321f6b
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row`
+pass/types/runtime_exact_address_subtraction_exit built 4397ms exit:70 @2e2913321f6b
 pass/types/runtime_i16_signed_arith_exit built 560ms exit:70
 pass/versioning/migration_generic_trait built 499ms
 pass/versioning/runtime_version_migration_exit built 1268ms exit:70 @fb2178def922

@@ -387,13 +387,21 @@ impl TerminalExecution {
         else {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         };
-        if left_type != scalar_type || right_type != scalar_type {
+        let operands_match = if matches!(operation.kind, OperationKind::ExactIntegerSubtract { .. })
+        {
+            scalar_type.admits_exact_subtract_operands(left_type, right_type)
+        } else {
+            left_type == scalar_type && right_type == scalar_type
+        };
+        if !operands_match {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
         let value = match operation.kind {
             OperationKind::ExactIntegerAdd { .. } => scalar_type.exact_add(left, right),
             OperationKind::WrappingIntegerAdd { .. } => scalar_type.wrapping_add(left, right),
-            OperationKind::ExactIntegerSubtract { .. } => scalar_type.exact_sub(left, right),
+            OperationKind::ExactIntegerSubtract { .. } => {
+                scalar_type.exact_subtract_values(left_type, left, right_type, right)
+            }
             OperationKind::WrappingIntegerSubtract { .. } => scalar_type.wrapping_sub(left, right),
             OperationKind::ExactIntegerMultiply { .. } => scalar_type.exact_mul(left, right),
             OperationKind::ExactIntegerDivide { .. } => scalar_type.exact_div(left, right),

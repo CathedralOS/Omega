@@ -1044,3 +1044,71 @@ fn mixed_integer_comparisons_preserve_both_carriers_and_mathematical_values() {
             .is_err()
     );
 }
+
+#[test]
+fn exact_address_subtraction_preserves_roles_and_wide_operand_ranges() {
+    let address = IntegerType::address(64).unwrap();
+    let wide_address = IntegerType::address(128).unwrap();
+    let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let literal =
+        |carrier, value| ScalarTerm::integer(carrier, IntegerValue::Unsigned(value)).unwrap();
+    for (result, left_type, left, right_type, right, expected) in [
+        (address, address, 4096, count, 16, Some(4080)),
+        (count, address, 4096, address, 4000, Some(96)),
+        (
+            count,
+            wide_address,
+            (1u128 << 100) + 96,
+            wide_address,
+            1u128 << 100,
+            Some(96),
+        ),
+        (count, wide_address, 1u128 << 100, wide_address, 0, None),
+        (count, address, 4000, address, 4096, None),
+    ] {
+        let term = ScalarTerm::exact_integer_subtract(
+            result,
+            literal(left_type, left),
+            literal(right_type, right),
+        )
+        .unwrap();
+        assert!(term.validate().is_ok());
+        assert_eq!(
+            term.integer_value(),
+            expected.map(|value| (result, IntegerValue::Unsigned(value)))
+        );
+    }
+    for (result, left, right) in [
+        (address, address, address),
+        (count, count, address),
+        (address, count, count),
+        (count, address, count),
+        (count, address, wide_address),
+    ] {
+        assert!(
+            ScalarTerm::exact_integer_subtract(result, literal(left, 10), literal(right, 1))
+                .is_err()
+        );
+    }
+    assert!(!address.can_exact_cast_to(count));
+    assert!(!count.can_exact_cast_to(address));
+}
+
+#[test]
+fn address_math_embedding_preserves_exact_context_type() {
+    let address = IntegerType::address(64).unwrap();
+    let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let identity = ValueId::new(1).unwrap();
+    let term = IntegerMathTerm::MathValue {
+        source_type: address,
+        value: identity,
+    };
+    assert!(term.validate().is_ok());
+    let proposition = Proposition::IntegerMathEqual(term.clone(), term);
+    let address_context =
+        PropositionContext::from_value_types([(identity, ScalarType::Integer(address))]).unwrap();
+    let count_context =
+        PropositionContext::from_value_types([(identity, ScalarType::Integer(count))]).unwrap();
+    assert!(address_context.validate(&proposition).is_ok());
+    assert!(count_context.validate(&proposition).is_err());
+}

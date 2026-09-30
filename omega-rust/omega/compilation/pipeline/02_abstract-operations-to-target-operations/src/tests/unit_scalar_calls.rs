@@ -430,7 +430,7 @@ fn unit_scalar_calls_reject_wrong_arity_type_and_unknown_values() {
 }
 
 #[test]
-fn unit_scalar_calls_reject_address_wide_structural_and_mismatched_result_types() {
+fn unit_scalar_calls_reject_wide_structural_and_mismatched_result_types() {
     let mut address = attached_unit_scalar_call_plan();
     let address_type = IntegerType::address(64).expect("address carrier");
     let AbstractOperation::Call { scalar_type, .. } = &mut address.functions[0].operations[1]
@@ -447,9 +447,10 @@ fn unit_scalar_calls_reject_address_wide_structural_and_mismatched_result_types(
             &address,
             TargetLoweringRequest::new(NativeTarget::linux_x64())
         ),
-        Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
-            ValueId::new(11).unwrap()
-        ))
+        Err(LoweringError::UnitScalarCallResultTypeMismatch {
+            callee: MachineId::new(2).unwrap(),
+            result: ValueId::new(12).unwrap(),
+        })
     );
 
     let mut boolean = attached_unit_scalar_call_plan();
@@ -542,9 +543,10 @@ fn unit_scalar_calls_reject_declared_result_and_argument_carrier_drift() {
             &address_argument,
             TargetLoweringRequest::new(NativeTarget::linux_x64())
         ),
-        Err(LoweringError::UnitScalarCallTargetShapeUnsupported(
-            MachineId::new(2).unwrap()
-        ))
+        Err(LoweringError::CallArgumentTypeMismatch {
+            callee: MachineId::new(2).unwrap(),
+            argument: ValueId::new(10).unwrap(),
+        })
     );
 }
 

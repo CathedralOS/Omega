@@ -725,7 +725,19 @@ pub(super) fn emit(
             let (_, left_register, _, left_type) = builder.resolve(*left).ok_or_else(invalid)?;
             let (_, mut right_register, right_site, right_type) =
                 builder.resolve(*right).ok_or_else(invalid)?;
-            if left_type != scalar_type || right_type != scalar_type {
+            // Exact address subtraction keeps independently typed operands.
+            // Replay checks the signature again rather than treating equal
+            // machine widths as source-level carrier equality.
+            let operands_match = if *operator
+                == legalized_operations::LegalizedExactIntegerOperator::Subtract
+            {
+                matches!((scalar_type, left_type, right_type),
+                    (ScalarType::Integer(result), ScalarType::Integer(left), ScalarType::Integer(right))
+                        if result.admits_exact_subtract_operands(left, right))
+            } else {
+                left_type == scalar_type && right_type == scalar_type
+            };
+            if !operands_match {
                 return Err(invalid());
             }
             let divide_operator = matches!(

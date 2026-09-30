@@ -44,9 +44,9 @@ pub(super) fn validate_exact_integer_subtract(
     let expected = operation.result.expect_scalar().scalar_type;
     let actual_left = value_types[&left];
     let actual_right = value_types[&right];
-    if !matches!(expected, ScalarType::Integer(integer) if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
-        || actual_left != expected
-        || actual_right != expected
+    if !matches!((expected, actual_left, actual_right),
+        (ScalarType::Integer(result), ScalarType::Integer(left), ScalarType::Integer(right))
+            if result.admits_exact_subtract_operands(left, right))
     {
         return Err(ModuleError::ExactIntegerSubtractOperandTypeMismatch {
             operation: operation.id,

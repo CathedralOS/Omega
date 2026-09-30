@@ -25,6 +25,45 @@ pub struct IntegerType {
 }
 
 impl IntegerType {
+    /// Exact subtraction preserves address/count roles. Address offsets consume
+    /// u64 counts; two addresses produce a u64 distance. Width equality alone
+    /// grants neither conversion nor address arithmetic authority.
+    pub fn admits_exact_subtract_operands(self, left: Self, right: Self) -> bool {
+        let count = Self::new(IntegerSign::Unsigned, 64).expect("u64 count");
+        if left.is_address() {
+            (self == left && right == count) || (self == count && right == left)
+        } else {
+            !self.is_address() && left == self && right == self
+        }
+    }
+
+    /// Operands retain their own admission ranges, including addresses wider
+    /// than the count carrier. Only the mathematical difference must fit here.
+    pub fn exact_subtract_values(
+        self,
+        left_type: Self,
+        left: IntegerValue,
+        right_type: Self,
+        right: IntegerValue,
+    ) -> Option<IntegerValue> {
+        if !self.admits_exact_subtract_operands(left_type, right_type)
+            || !left_type.admits(left)
+            || !right_type.admits(right)
+        {
+            return None;
+        }
+        let result = match (left, right) {
+            (IntegerValue::Unsigned(left), IntegerValue::Unsigned(right)) => {
+                IntegerValue::Unsigned(left.checked_sub(right)?)
+            }
+            (IntegerValue::Signed(left), IntegerValue::Signed(right)) => {
+                IntegerValue::Signed(left.checked_sub(right)?)
+            }
+            _ => return None,
+        };
+        self.admits(result).then_some(result)
+    }
+
     pub fn can_exact_cast_to(self, target: Self) -> bool {
         self.carrier == IntegerCarrier::Fixed && target.carrier == IntegerCarrier::Fixed
     }
@@ -889,7 +928,7 @@ impl IntegerMathLiteral {
 }
 
 /// Total, proof-only mathematical integer syntax. `MathValue` embeds the
-/// mathematical value of one fixed-width integer carrier; the other forms are
+/// mathematical value of one exact integer or address carrier; the other forms are
 /// interpreted over unbounded integers rather than machine arithmetic.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IntegerMathTerm {
@@ -919,11 +958,11 @@ impl IntegerMathTerm {
         let mut pending = vec![self];
         while let Some(term) = pending.pop() {
             match term {
-                Self::MathValue { source_type, .. } => {
-                    if source_type.is_address() {
-                        return Err(PropositionError::AddressIntegerMathValue(*source_type));
-                    }
-                }
+                // Mathematical embedding observes the exact retained carrier,
+                // including its address model. It creates no fixed-integer
+                // conversion or storage authority; context validation still
+                // checks the source type against the named value.
+                Self::MathValue { .. } => {}
                 Self::IntegerLiteral(literal) => {
                     if literal.negative && literal.magnitude == 0 {
                         return Err(PropositionError::NegativeZeroIntegerMathLiteral);

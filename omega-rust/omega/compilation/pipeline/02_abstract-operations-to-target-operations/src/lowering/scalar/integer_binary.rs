@@ -5,8 +5,8 @@ use abstract_operations::{IntegerArithmetic, IntegerArithmeticOperator, IntegerO
 use semantic_vocabulary::{IntegerType, IntegerValue, ValueId};
 use std::collections::BTreeMap;
 use target_operations::TargetIntegerExpression;
-/// A binary integer operation over two operands of one carrier: a bitwise
-/// operator, or an arithmetic policy pair with the obligation it carries.
+/// A binary integer operation: a bitwise operator, or an arithmetic policy
+/// pair with its obligation. Exact subtraction retains address/count roles.
 #[derive(Clone, Copy)]
 pub(in crate::lowering) enum IntegerBinaryKind {
     BitwiseAnd,
@@ -27,12 +27,24 @@ pub(in crate::lowering) fn lower_integer_binary(
         Some(KnownScalar::Integer {
             scalar_type: operand_type,
             value,
-        }) if operand_type == scalar_type => Ok(value),
+        }) => Ok((operand_type, value)),
         Some(_) => Err(kind.mismatch(result)),
         None => Err(LoweringError::UnknownValue(id)),
     };
-    let left = operand(left_id)?;
-    let right = operand(right_id)?;
+    let (left_type, left) = operand(left_id)?;
+    let (right_type, right) = operand(right_id)?;
+    // Exact subtraction retains address/count roles. Equal native widths do
+    // not authorize a carrier conversion or wrapping address arithmetic.
+    let operands_match = if matches!(kind, IntegerBinaryKind::Arithmetic(arithmetic)
+        if arithmetic.is(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Subtract))
+    {
+        scalar_type.admits_exact_subtract_operands(left_type, right_type)
+    } else {
+        left_type == scalar_type && right_type == scalar_type
+    };
+    if !operands_match {
+        return Err(kind.mismatch(result));
+    }
     if kind.is_proof_bearing() {
         return Ok(KnownInteger::Runtime(kind.expression(
             psi_operation,
@@ -158,6 +170,107 @@ impl IntegerBinaryKind {
         match self {
             Self::BitwiseAnd | Self::BitwiseOr | Self::BitwiseXor => false,
             Self::Arithmetic(arithmetic) => arithmetic.obligation().is_some(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerSign, ObligationId, OperationId};
+
+    #[test]
+    fn exact_address_subtraction_retains_operand_roles_and_obligation() {
+        let address = IntegerType::address(64).unwrap();
+        let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let left = ValueId::new(1).unwrap();
+        let right = ValueId::new(2).unwrap();
+        let result = ValueId::new(3).unwrap();
+        let operation = OperationId::new(1).unwrap();
+        let obligation = ObligationId::new(1).unwrap();
+        for (right_type, result_type) in [(count, address), (address, count)] {
+            let values = BTreeMap::from([
+                (
+                    left,
+                    KnownScalar::Integer {
+                        scalar_type: address,
+                        value: KnownInteger::Immediate(IntegerValue::Unsigned(4096)),
+                    },
+                ),
+                (
+                    right,
+                    KnownScalar::Integer {
+                        scalar_type: right_type,
+                        value: KnownInteger::Immediate(IntegerValue::Unsigned(16)),
+                    },
+                ),
+            ]);
+            for policy in [
+                IntegerOverflowPolicy::Exact,
+                IntegerOverflowPolicy::Wrapping,
+                IntegerOverflowPolicy::Saturating,
+            ] {
+                for operator in [
+                    IntegerArithmeticOperator::Subtract,
+                    IntegerArithmeticOperator::Add,
+                    IntegerArithmeticOperator::Multiply,
+                ] {
+                    let arithmetic = IntegerArithmetic::new(
+                        policy,
+                        operator,
+                        (policy == IntegerOverflowPolicy::Exact).then_some(obligation),
+                    )
+                    .unwrap();
+                    let lowered = lower_integer_binary(
+                        &values,
+                        result,
+                        result_type,
+                        left,
+                        right,
+                        IntegerBinaryKind::Arithmetic(arithmetic),
+                        operation,
+                    );
+                    if arithmetic.is(
+                        IntegerOverflowPolicy::Exact,
+                        IntegerArithmeticOperator::Subtract,
+                    ) {
+                        assert!(
+                            matches!(lowered, Ok(KnownInteger::Runtime(
+                            TargetIntegerExpression::Arithmetic { arithmetic: retained, .. }
+                        )) if retained == arithmetic),
+                            "exact subtraction keeps its proof identity"
+                        );
+                    } else {
+                        assert!(
+                            lowered.is_err(),
+                            "other pairs cannot adopt address/count signatures"
+                        );
+                    }
+                }
+            }
+            let wrong_result = if result_type == address {
+                count
+            } else {
+                address
+            };
+            let arithmetic = IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Subtract,
+                Some(obligation),
+            )
+            .unwrap();
+            assert!(
+                lower_integer_binary(
+                    &values,
+                    result,
+                    wrong_result,
+                    left,
+                    right,
+                    IntegerBinaryKind::Arithmetic(arithmetic),
+                    operation
+                )
+                .is_err()
+            );
         }
     }
 }
