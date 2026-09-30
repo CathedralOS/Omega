@@ -24,7 +24,8 @@ use super::{
     CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarFieldStorePlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, DataMember,
-    DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode, TypeReferenceNode,
+    DataShapeKind, ExpressionNode, Multiplicity, PrimitiveType, StatementNode,
+    TypeConstraintNode, TypeReferenceNode,
     TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -417,10 +418,12 @@ fn plan_assignment(
         trace.phase("structural field store: scalar field type: domain-constrained field");
         return None;
     }
-    if program
-        .primitive_type_reference(field.type_reference)
-        .is_some()
-    {
+    // An exact-interval domain or arithmetic policy is the store's range
+    // obligation, not its storage shape: peel the constraint shell to the
+    // leaf's carrier the way `primitive_leaf_type_reference` strips the
+    // arithmetic-policy shell on the element lane.
+    let leaf_type = interval_store_carrier(program, field.type_reference);
+    if program.primitive_type_reference(leaf_type).is_some() {
         let primitive_type = scalar_leaf(program, &destination.root, field)?;
         let value = value::assignment_value(
             program,
@@ -493,17 +496,26 @@ fn scalar_leaf(
     root: &Root<'_>,
     field: &typed_trees::data::DataField,
 ) -> Option<PrimitiveType> {
-    let primitive_type = program.primitive_type_reference(field.type_reference)?;
     match root {
-        Root::Parameter { .. } => (matches!(
-            primitive_type,
-            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-        ) || primitive_type.accepts_integer_literal())
-        .then_some(primitive_type),
+        // The parameter lane keeps the field's own declaration, so a bound
+        // the store carries as its range obligation peels to the carrier.
+        Root::Parameter { .. } => {
+            let primitive_type = program.primitive_type_reference(interval_store_carrier(
+                program,
+                field.type_reference,
+            ))?;
+            (matches!(
+                primitive_type,
+                PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+            ) || primitive_type.accepts_integer_literal())
+            .then_some(primitive_type)
+        }
         Root::Local { .. } => {
+            let leaf_type = field.type_reference;
+            let primitive_type = program.primitive_type_reference(leaf_type)?;
             let TypeReferenceNode::Named { symbol, name } = program
                 .type_reference_table
-                .type_reference(field.type_reference)
+                .type_reference(leaf_type)
             else {
                 return None;
             };
@@ -519,7 +531,7 @@ fn scalar_leaf(
                     | PrimitiveType::U32
                     | PrimitiveType::U64
             ) && program
-                .arithmetic_domain_for_type_reference(field.type_reference)
+                .arithmetic_domain_for_type_reference(leaf_type)
                 == numerics::arithmetic::ArithmeticDomain::Exact;
             (name.as_str() == atom.symbol_name()
                 && (exact_integer
@@ -528,6 +540,40 @@ fn scalar_leaf(
                         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
                     )))
             .then_some(primitive_type)
+        }
+    }
+}
+
+/// The storage carrier under an interval-bounded shell: arithmetic-policy
+/// domains, declared domains, and range bounds are the store's proof
+/// obligation rather than its type, so the leaf's primitive check reads the
+/// base carrier. `Named` constraints name conformance, not bounds, and keep
+/// the shell.
+fn interval_store_carrier(
+    program: &TypedTrees,
+    mut type_reference: typed_trees::types::TypeReferenceHandle,
+) -> typed_trees::types::TypeReferenceHandle {
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } if program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .all(|constraint| {
+                    matches!(
+                        constraint,
+                        TypeConstraintNode::ArithmeticDomain(_)
+                            | TypeConstraintNode::Domain(_)
+                            | TypeConstraintNode::Range { .. }
+                    )
+                }) =>
+            {
+                type_reference = *base_type;
+            }
+            _ => return type_reference,
         }
     }
 }
