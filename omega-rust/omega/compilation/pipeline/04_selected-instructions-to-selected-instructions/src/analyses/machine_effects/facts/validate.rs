@@ -295,6 +295,8 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         trapping_fixed_pair: keys.trapping_fixed_pair,
         trapping_shift: keys.trapping_shift,
         trapping_convert: keys.trapping_convert,
+        float_result_trapping: keys.float_result_trapping,
+        float_result_saturating: keys.float_result_saturating,
         shift_i64: keys.shift_i64,
         add_i64_immediate: keys.add_i64_immediate,
         subtract_i64_immediate: keys.subtract_i64_immediate,

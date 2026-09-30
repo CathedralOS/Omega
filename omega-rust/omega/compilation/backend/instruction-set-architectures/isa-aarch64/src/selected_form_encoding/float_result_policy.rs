@@ -28,10 +28,16 @@ use selected_instructions::{
     MachineSizeKnowledge, MachineTrapBehavior,
 };
 
-pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
+fn clobbers(form: FloatResultPolicyForm) -> Vec<RegisterUnitId> {
     let physical = crate::aarch64_physical_register_model_ref();
-    let mut units = ["q16", "q17", "q18", "nzcv"]
-        .into_iter()
+    let names: &[&str] = if form.can_trap() {
+        &["q16", "nzcv"]
+    } else {
+        &["q16", "q17", "q18", "nzcv"]
+    };
+    let mut units = names
+        .iter()
+        .copied()
         .flat_map(|name| physical.views.iter().filter(move |view| view.name == name))
         .flat_map(|view| view.units.iter().copied())
         .collect::<Vec<_>>();
@@ -43,7 +49,7 @@ pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
 pub(crate) fn effects(form: FloatResultPolicyForm) -> MachineEncodedEffects {
     let inputs = form.operand_count() as u16;
     let mut effects = MachineEncodedEffects {
-        implicit_unit_clobbers: clobbers(),
+        implicit_unit_clobbers: clobbers(form),
         ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
     };
     if form.policy == FloatResultPolicyKind::Trapping {

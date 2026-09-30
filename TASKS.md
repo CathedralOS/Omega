@@ -1893,25 +1893,23 @@ crash and native exit behavior. Use affected check/native corpus slices under
     Bound requirements retain arithmetic policy through the same checked
     expression-selection projection as legacy named and spelled operators;
     the interpreter rejects missing, substituted or duplicate selections.
-    Native policy-result adaptation remains unfinished. The unpublished
-    policy-call-results candidate based on `57538be07e8` retains same-carrier
-    policy casts and emits one checked `FloatResultPolicy` after the original
-    boundary call through the shared nested, statement and direct-return paths.
-    Source replay checks exact occurrence, format, raw result, ordered operands
-    and saturation rule; it rejects missing or substituted adapters and raw-result
-    bypass. Serialized Terminal execution checks adapted consumers and retained
-    traps even when the result is unused. Omega stage 00 and optimizer replay
-    retain exact formats, operands and operation-owned crash observations:
-    270 of 272 scoped library tests pass; both failures reproduce on that base.
-    Target/legalized lowering and independent replay are implemented but their
-    tests await the selected-instruction form. Selected/native policy emission,
-    current-only format integration and trusted-site inventory integration
-    remain required. The last
-    native run before adding this operation returned **78** instead of authored
-    **77**, and **70** instead of trapping in the overflow and propagated-NaN
-    controls. Acceptance remains `python3 tools/corpus_gate.py --native --filter
+    Native policy-result adaptation now executes on macOS ARM64 in the
+    unpublished policy-call-results candidate based on `b458fb9a0fb1`:
+    `python3 tools/corpus_gate.py --native --filter
     float/float_saturating_arithmetic_exit,float/float_trapping_overflow_traps,float/float_trapping_propagated_nan_traps`
-    on macOS ARM64: **77**, **trap**, **trap**, with program sources unchanged.
+    observes **77**, **trap**, **trap**, with program sources unchanged.
+    One checked `FloatResultPolicy` follows the original boundary call and
+    composes through ordinary value dataflow. Source replay rejects missing or
+    substituted adapters and raw-result bypass; native replay binds format,
+    ordered operands, exact scratch effects and the operation-owned trap.
+    Eight native policy/cast/nested-call controls meet their authored results;
+    the three policy programs also build for Linux x86-64, Windows x86-64 and
+    Linux ARM64, without foreign-host execution evidence. Both ISA encodings,
+    physical recovery and exit checking pass their focused controls. Direct
+    `omega run tests/omega/pass/float/float_saturating_arithmetic_exit/main.omg`
+    still returns **200** for first-use package review, not a compiler rejection;
+    no dependency acceptance was granted by this repair. Trusted-site inventory
+    integration and scoped publication checks remain before landing.
     A `let` after a call-result field store keeps its own value and source:
     source roles key it by its authored local ordinal
     (`TypedTrees::immutable_scalar_locals_before`), while its plan keeps the

@@ -86,6 +86,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
+        SelectedInstructionKind::FloatResultPolicy { form } => form.machine_tag(),
         SelectedInstructionKind::CallAggregate { .. } => 35,
         SelectedInstructionKind::ReturnAggregate { .. } => 36,
         SelectedInstructionKind::Store { .. } => 24,
@@ -187,6 +188,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             bytes.push(form.machine_payload())
         }
+        SelectedInstructionKind::FloatResultPolicy { form } => bytes.push(form.machine_payload()),
         SelectedInstructionKind::LoadPacked { byte_offset, width }
         | SelectedInstructionKind::StorePacked { byte_offset, width } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
@@ -418,6 +420,14 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
+        tag @ selected_instructions::FloatResultPolicyForm::FAMILY_TAG => {
+            SelectedInstructionKind::FloatResultPolicy {
+                form: selected_instructions::FloatResultPolicyForm::from_machine_payload(
+                    cursor.byte()?,
+                )
+                .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
+            }
+        }
         tag @ selected_instructions::IeeeFloatArithmeticForm::FAMILY_TAG => {
             SelectedInstructionKind::NearestIeeeFloatArithmetic {
                 form: selected_instructions::IeeeFloatArithmeticForm::from_machine_payload(
@@ -690,6 +700,32 @@ mod tests {
     use super::{Cursor, MachineId, SelectedInstructionKind};
     use crate::register_homes::recovery::fixed_view_copy::codec::selected::decode_kind;
     use crate::register_homes::recovery::fixed_view_copy::codec::selected::instruction::encode_kind;
+
+    #[test]
+    fn float_result_policy_recovery_binds_exact_payload_and_rejects_unknown_forms() {
+        use crate::FixedViewCopyDecodeError;
+        use selected_instructions::FloatResultPolicyForm;
+
+        for (payload, form) in FloatResultPolicyForm::ALL.into_iter().enumerate() {
+            let kind = SelectedInstructionKind::FloatResultPolicy { form };
+            let mut bytes = Vec::new();
+            encode_kind(&mut bytes, kind);
+            assert_eq!(bytes, [231, payload as u8]);
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(decode_kind(&mut cursor).unwrap(), kind);
+            assert_eq!(cursor.remaining(), 0);
+        }
+        for payload in 6..=u8::MAX {
+            assert_eq!(
+                decode_kind(&mut Cursor::new(&[231, payload])),
+                Err(FixedViewCopyDecodeError::UnknownInstructionKind(231))
+            );
+        }
+        assert_eq!(
+            decode_kind(&mut Cursor::new(&[231])),
+            Err(FixedViewCopyDecodeError::Truncated)
+        );
+    }
 
     #[test]
     fn float_arithmetic_forms_keep_their_shared_tags_through_recovery() {

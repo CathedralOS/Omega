@@ -39,6 +39,11 @@ fn family_and_operand_count(
     X86_64SelectedFormEncodingError,
 > {
     Ok(match kind {
+        SelectedInstructionKind::FloatResultPolicy { form } => (
+            MachineAlternativeFamily::FloatResultPolicy(form),
+            form.operand_count() + 1,
+            0..=0,
+        ),
         SelectedInstructionKind::AtomicAccess { form } => (
             MachineAlternativeFamily::AtomicAccess(form),
             usize::from(form.operand_count()),

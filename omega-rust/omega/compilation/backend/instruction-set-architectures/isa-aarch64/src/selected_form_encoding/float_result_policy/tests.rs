@@ -227,6 +227,28 @@ fn policy_constraints_and_effects_declare_only_actual_scratch_and_control() {
         let footprint = footprint(form, &operands);
         assert!(constraint.implicit_uses.is_empty());
         assert!(footprint.encoded.implicit_unit_uses.is_empty());
+        // Trap touches one scratch vector; saturation actually saves three.
+        // Derive this roster independently, not from the producer's helper.
+        let expected_views: &[&str] = if form.can_trap() {
+            &["q16", "nzcv"]
+        } else {
+            &["q16", "q17", "q18", "nzcv"]
+        };
+        let mut expected_units = expected_views
+            .iter()
+            .flat_map(|name| {
+                physical
+                    .view_named(name)
+                    .expect("canonical scratch view")
+                    .units
+                    .iter()
+                    .copied()
+            })
+            .collect::<Vec<_>>();
+        expected_units.sort_unstable();
+        expected_units.dedup();
+        assert_eq!(constraint.clobbers, expected_units);
+        assert_eq!(footprint.encoded.implicit_unit_clobbers, expected_units);
         assert_eq!(
             constraint.clobbers,
             footprint.encoded.implicit_unit_clobbers

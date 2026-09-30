@@ -122,6 +122,8 @@ pub(super) fn selected_environment_keys(
         trapping_fixed_pair: keys.trapping_fixed_pair,
         trapping_shift: keys.trapping_shift,
         trapping_convert: keys.trapping_convert,
+        float_result_trapping: keys.float_result_trapping,
+        float_result_saturating: keys.float_result_saturating,
         subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,
         compare_i64: keys.compare_i64,
@@ -139,6 +141,33 @@ pub(super) fn selected_environment_keys(
 /// and clobber registers, so they share one constraint row per leaf.
 fn x86_64_hosted_syscall_target(target: NativeTarget) -> bool {
     target == NativeTarget::linux_x64() || target == NativeTarget::macos_x64()
+}
+
+#[test]
+fn float_result_policy_keys_survive_the_hosted_environment_projection() {
+    for target in [
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let (trapping, saturating) = match target.architecture {
+            Architecture::Aarch64 => (
+                isa_aarch64::AARCH64_FLOAT_RESULT_TRAPPING,
+                isa_aarch64::AARCH64_FLOAT_RESULT_SATURATING,
+            ),
+            Architecture::X86_64 => (
+                isa_x86_64::X86_64_FLOAT_RESULT_TRAPPING,
+                isa_x86_64::X86_64_FLOAT_RESULT_SATURATING,
+            ),
+        };
+        let keys = selected_constraint_keys(target).unwrap();
+        assert_eq!(keys.float_result_trapping, Some(trapping));
+        assert_eq!(keys.float_result_saturating, Some(saturating));
+        let environment_keys = selected_environment_keys(keys);
+        assert_eq!(environment_keys.float_result_trapping, Some(trapping));
+        assert_eq!(environment_keys.float_result_saturating, Some(saturating));
+    }
 }
 
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
@@ -218,6 +247,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
                 trapping_fixed_pair: isa_x86_64::X86_64_TRAPPING_FIXED_PAIR,
                 trapping_shift: isa_x86_64::X86_64_TRAPPING_SHIFT,
                 trapping_convert: isa_x86_64::X86_64_TRAPPING_CONVERT,
+                float_result_trapping: Some(isa_x86_64::X86_64_FLOAT_RESULT_TRAPPING),
+                float_result_saturating: Some(isa_x86_64::X86_64_FLOAT_RESULT_SATURATING),
                 subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
                 compare_i64_zero: X86_64_COMPARE_I64_ZERO,
                 compare_i64: isa_x86_64::X86_64_COMPARE_I64,
@@ -296,6 +327,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             trapping_fixed_pair: isa_x86_64::X86_64_TRAPPING_FIXED_PAIR,
             trapping_shift: isa_x86_64::X86_64_TRAPPING_SHIFT,
             trapping_convert: isa_x86_64::X86_64_TRAPPING_CONVERT,
+            float_result_trapping: Some(isa_x86_64::X86_64_FLOAT_RESULT_TRAPPING),
+            float_result_saturating: Some(isa_x86_64::X86_64_FLOAT_RESULT_SATURATING),
             subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
             compare_i64_zero: X86_64_COMPARE_I64_ZERO,
             compare_i64: isa_x86_64::X86_64_COMPARE_I64,
@@ -376,6 +409,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             trapping_fixed_pair: isa_aarch64::AARCH64_TRAPPING_FIXED_PAIR,
             trapping_shift: isa_aarch64::AARCH64_TRAPPING_SHIFT,
             trapping_convert: isa_aarch64::AARCH64_TRAPPING_CONVERT,
+            float_result_trapping: Some(isa_aarch64::AARCH64_FLOAT_RESULT_TRAPPING),
+            float_result_saturating: Some(isa_aarch64::AARCH64_FLOAT_RESULT_SATURATING),
             subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
             compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
             compare_i64: isa_aarch64::AARCH64_COMPARE_I64,
@@ -460,6 +495,8 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             trapping_fixed_pair: isa_aarch64::AARCH64_TRAPPING_FIXED_PAIR,
             trapping_shift: isa_aarch64::AARCH64_TRAPPING_SHIFT,
             trapping_convert: isa_aarch64::AARCH64_TRAPPING_CONVERT,
+            float_result_trapping: Some(isa_aarch64::AARCH64_FLOAT_RESULT_TRAPPING),
+            float_result_saturating: Some(isa_aarch64::AARCH64_FLOAT_RESULT_SATURATING),
             subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
             compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
             compare_i64: isa_aarch64::AARCH64_COMPARE_I64,
