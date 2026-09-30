@@ -588,6 +588,11 @@ impl<'program> Evaluator<'program> {
             frame.self_cell.clone()
         } else if let Some(local) = frame.local_cell(path.head_symbol) {
             local
+        } else if self.is_declaration_namespace(path.head_symbol) {
+            // A head resolved to a declaration (`Worker` in `Worker::write`)
+            // names no storage. Reading it as an implicit field would let a
+            // same-spelled field of the current instance stand in for it.
+            return trap(format!("`{head}` names a declaration, not storage"));
         } else {
             // Implicit self-field: `n` means `self.n`.
             self.field_cell(&frame.self_cell, head)?

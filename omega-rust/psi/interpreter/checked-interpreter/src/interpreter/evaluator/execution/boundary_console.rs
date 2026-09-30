@@ -1,7 +1,8 @@
 use crate::interpreter::evaluator::{
-    DataMember, EvalResult, Evaluator, FilesystemHostOperation, Frame, Halt, SymbolHandle,
-    TableCall, Value,
+    EvalResult, Evaluator, FilesystemHostOperation, Halt, SymbolHandle, Value,
 };
+use typed_trees::signature::StateSignature;
+use typed_trees::trait_definition::TraitDefinition;
 impl<'program> Evaluator<'program> {
     /// Resolve one call target through an exact compiler-selected filesystem
     /// boundary before any provider authority is touched. Package-aware
@@ -160,77 +161,46 @@ impl<'program> Evaluator<'program> {
         line
     }
 
-    /// Resolve the boundary trait and requirement that own an `exit_process`
-    /// call target: the requirement signature directly, an exact provider
-    /// realization through its satisfied requirement, or the receiver field's
-    /// declared boundary-trait type by method name.
-    pub(in crate::interpreter::evaluator) fn exit_process_call_requirement(
+    /// The boundary-trait requirement a call's resolved target selects: the
+    /// requirement signature itself, or an exact compiler-intrinsic provider
+    /// realization through the requirement it satisfies. Resolution identity
+    /// is the only authority. A qualifier (`Console::read_line`) names a
+    /// declaration and a service field names storage; neither the receiver
+    /// spelling nor the current instance's field types select a requirement.
+    pub(in crate::interpreter::evaluator) fn boundary_call_requirement(
         &self,
-        call: &TableCall,
-        frame: &Frame,
-    ) -> Option<(SymbolHandle, SymbolHandle)> {
-        if call.target_symbol.is_valid() {
-            for definition in self.program.traits() {
-                if !definition.is_boundary {
-                    continue;
-                }
-                for signature in self.program.trait_machine_signatures(definition) {
-                    if signature.symbol == call.target_symbol {
-                        return Some((definition.symbol, signature.symbol));
-                    }
-                }
-            }
-            if let Some((requirement, _provider)) =
+        target_symbol: SymbolHandle,
+    ) -> Option<(&'program TraitDefinition, &'program StateSignature)> {
+        self.boundary_trait_requirement(target_symbol).or_else(|| {
+            let (requirement, _provider) =
                 validation::exact_compiler_intrinsic_boundary_requirement(
                     self.program,
-                    call.target_symbol,
-                )
-            {
-                for definition in self.program.traits() {
-                    if !definition.is_boundary {
-                        continue;
-                    }
-                    for signature in self.program.trait_machine_signatures(definition) {
-                        if signature.symbol == requirement {
-                            return Some((definition.symbol, signature.symbol));
-                        }
-                    }
-                }
-            }
-        }
+                    target_symbol,
+                )?;
+            self.boundary_trait_requirement(requirement)
+        })
+    }
 
-        let receiver_leaf = self
-            .program
-            .statement_table
-            .name_path_members(call.receiver)
-            .last()
-            .map(|name| name.as_str().to_owned())?;
-        let self_type = match &*frame.self_cell.borrow() {
-            Value::Struct { type_name, .. } => type_name.clone(),
-            _ => "".into(),
-        };
-        let machine = self.find_machine_by_name(&self_type)?;
-        let data = self.find_data_by_name(machine.attached_data.as_ref()?.as_str())?;
-        for member in self.program.data_members(data) {
-            let DataMember::Field(field) = member else {
-                continue;
-            };
-            if field.name.as_str() != receiver_leaf {
-                continue;
-            }
-            let type_symbol = self.program.type_reference_symbol(field.type_reference);
-            let definition =
-                self.program.traits().iter().find(|definition| {
-                    definition.is_boundary && definition.symbol == type_symbol
-                })?;
-            let signature = self
-                .program
-                .trait_machine_signatures(definition)
-                .iter()
-                .find(|signature| signature.name.as_str() == "exit_process")?;
-            return Some((definition.symbol, signature.symbol));
+    /// The `boundary trait` requirement whose signature symbol is exactly
+    /// `symbol`.
+    pub(in crate::interpreter::evaluator) fn boundary_trait_requirement(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<(&'program TraitDefinition, &'program StateSignature)> {
+        if !symbol.is_valid() {
+            return None;
         }
-        None
+        self.program
+            .traits()
+            .iter()
+            .filter(|definition| definition.is_boundary)
+            .find_map(|definition| {
+                self.program
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|signature| signature.symbol == symbol)
+                    .map(|signature| (definition, signature))
+            })
     }
 
     /// The exact canonical `ProcessExit::exit_process` requirement:
@@ -288,103 +258,4 @@ impl<'program> Evaluator<'program> {
                 typed_trees::types::TypeReferenceNode::Unit
             )
     }
-
-    /// A call is a host-boundary call when its target state is declared on a
-    /// `boundary trait` (matched by `target_symbol`, or by the receiver leaf naming a
-    /// field whose type is a boundary trait).
-    pub(in crate::interpreter::evaluator) fn is_boundary_call(
-        &self,
-        call: &TableCall,
-        frame: &Frame,
-    ) -> bool {
-        // By target symbol: any boundary trait machine signature with this symbol.
-        if call.target_symbol.is_valid() {
-            for trait_definition in self.program.traits() {
-                if !trait_definition.is_boundary {
-                    continue;
-                }
-                for signature in self.program.trait_machine_signatures(trait_definition) {
-                    if signature.symbol == call.target_symbol {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        // By the receiver field's declared type being a boundary trait. The receiver leaf
-        // (e.g. "console") names a field whose type symbol is a boundary trait.
-        let receiver_leaf = self
-            .program
-            .statement_table
-            .name_path_members(call.receiver)
-            .last()
-            .map(|name| name.as_str().to_owned());
-        if let Some(leaf) = receiver_leaf {
-            // The receiver field exists on `self`; look up its declared type via the
-            // attached data definition.
-            let self_type = match &*frame.self_cell.borrow() {
-                Value::Struct { type_name, .. } => type_name.clone(),
-                _ => "".into(),
-            };
-            if let Some(machine) = self.find_machine_by_name(&self_type)
-                && let Some(data_name) = machine.attached_data.as_ref()
-                && let Some(data) = self.find_data_by_name(data_name.as_str())
-            {
-                for member in self.program.data_members(data) {
-                    if let DataMember::Field(field) = member
-                        && field.name.as_str() == leaf
-                    {
-                        let type_symbol = self.program.type_reference_symbol(field.type_reference);
-                        if self.is_boundary_trait_symbol(type_symbol) {
-                            return true;
-                        }
-                        // Fallback for an imported boundary trait whose
-                        // `is_boundary` flag did not survive resolution (the std
-                        // `console`): a canonical host method on a `Console`-typed
-                        // field is a host call.
-                        let type_name = self.program.display_type_reference(field.type_reference);
-                        return type_name.contains("Console")
-                            && is_canonical_host_method(call.target.as_str());
-                    }
-                }
-            }
-        }
-
-        false
-    }
-
-    fn is_boundary_trait_symbol(&self, symbol: SymbolHandle) -> bool {
-        symbol.is_valid()
-            && self.program.traits().iter().any(|trait_definition| {
-                trait_definition.is_boundary && trait_definition.symbol == symbol
-            })
-    }
-}
-
-/// The canonical Console host-boundary method names the interpreter drives directly.
-fn is_canonical_host_method(name: &str) -> bool {
-    matches!(
-        name,
-        "write"
-            | "write_line"
-            | "write_error"
-            | "write_error_line"
-            | "read_line"
-            | "read_byte"
-            | "write_byte"
-            | "exit_process"
-            | "sleep"
-            | "tick_count"
-            | "key_state"
-            | "dc_create"
-            | "get_dc"
-            | "window_create"
-            | "blit"
-            | "msg_peek"
-            | "msg_translate"
-            | "msg_dispatch"
-            | "is_window"
-            | "window_destroy"
-            | "foreground_window"
-    )
 }

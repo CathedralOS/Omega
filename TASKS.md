@@ -63,6 +63,11 @@ build authority, and artifact verification remain separate obligations.
     [entry shape](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge),
     preserving ZII eligibility, selected bindings, root lineage, stack/storage
     partitioning and cleanup. Remove attachment/`is_self` as authority inputs.
+    The checked interpreter selects host boundary operations by the call's
+    resolved requirement alone, in statement and value position; its remaining
+    receiver inputs are the `frame.self_cell` routes for the half-migrated
+    `&mut self` customers (receiver-instance and sibling-state resolution,
+    implicit self fields), which retire with those customers.
   - Move scratch fields to ordinary locals/local records and pass only genuinely
     live values across states. Repair local construction, loans and cleanup rather
     than moving scratch back into context. Temporary-scoping language design is
