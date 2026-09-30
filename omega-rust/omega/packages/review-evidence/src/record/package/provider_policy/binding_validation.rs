@@ -113,7 +113,11 @@ fn validate_locator(
         PackageReviewForeignLocator::MachODylibSymbol {
             install_name,
             symbol,
-        } => target == TargetProfile::MacosArm64 && valid(install_name) && valid(symbol),
+        } => {
+            matches!(target, TargetProfile::MacosArm64 | TargetProfile::MacosX64)
+                && valid(install_name)
+                && valid(symbol)
+        }
     };
     if supported {
         Ok(())

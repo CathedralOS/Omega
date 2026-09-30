@@ -172,7 +172,7 @@ impl std::error::Error for ForeignLocatorValidationError {}
 /// PE import locators are hosted Windows data; sharing COFF with the UEFI
 /// image format does not make an OS import applicable there. Versioned ELF
 /// locators are admitted for the two Linux profiles. Mach-O dylib-symbol
-/// locators are admitted only for macOS AArch64. Target-opaque profiles require
+/// locators are admitted for the two macOS profiles. Target-opaque profiles require
 /// distinct future cases rather than reinterpretation.
 pub fn normalize_foreign_locator(
     locator: ForeignLocatorCandidate,
@@ -202,7 +202,9 @@ fn validate_target(
         ForeignLocatorCandidate::ElfVersioned { .. } => {
             matches!(target, TargetProfile::LinuxArm64 | TargetProfile::LinuxX64)
         }
-        ForeignLocatorCandidate::MachODylibSymbol { .. } => target == TargetProfile::MacosArm64,
+        ForeignLocatorCandidate::MachODylibSymbol { .. } => {
+            matches!(target, TargetProfile::MacosArm64 | TargetProfile::MacosX64)
+        }
     };
     if !applicable {
         return Err(ForeignLocatorValidationError::UnsupportedTarget {
@@ -510,6 +512,15 @@ mod tests {
         }
         normalize_foreign_locator(macho_dylib_symbol(), TargetProfile::MacosArm64)
             .expect("Mach-O dylib-symbol locator is applicable to macOS AArch64");
+        let intel = normalize_foreign_locator(macho_dylib_symbol(), TargetProfile::MacosX64)
+            .expect("Mach-O dylib-symbol locator is applicable to Intel macOS");
+        // The same coordinates seal a distinct identity per macOS profile.
+        assert_ne!(
+            intel.identity_digest(),
+            normalize_foreign_locator(macho_dylib_symbol(), TargetProfile::MacosArm64)
+                .unwrap()
+                .identity_digest()
+        );
     }
 
     #[test]
