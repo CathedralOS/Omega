@@ -199,6 +199,8 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         trapping_fixed_pair: instruction_key(58),
         trapping_shift: instruction_key(59),
         trapping_convert: instruction_key(60),
+        float_result_trapping: None,
+        float_result_saturating: None,
         subtract_i64_immediate: instruction_key(9),
         compare_i64_zero: instruction_key(2),
         compare_i64: instruction_key(20),
@@ -215,6 +217,33 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         identity,
         target_register_environment_identity(target, &physical, &constraints, &reservations, &keys,)
     );
+
+    // Both optional positions and their exact key payloads contribute, not
+    // merely the presence of some floating policy capability.
+    let policy_identities: Vec<_> = [None, Some(instruction_key(65)), Some(instruction_key(66))]
+        .into_iter()
+        .flat_map(|trapping| {
+            [None, Some(instruction_key(65)), Some(instruction_key(66))]
+                .into_iter()
+                .map(move |saturating| (trapping, saturating))
+        })
+        .map(|(trapping, saturating)| {
+            target_register_environment_identity(
+                target,
+                &physical,
+                &constraints,
+                &reservations,
+                &TargetRegisterEnvironmentConstraintKeys {
+                    float_result_trapping: trapping,
+                    float_result_saturating: saturating,
+                    ..keys.clone()
+                },
+            )
+        })
+        .collect();
+    for (position, identity) in policy_identities.iter().enumerate() {
+        assert!(!policy_identities[..position].contains(identity));
+    }
 
     for changed_target in [
         target::NativeTarget {
@@ -437,6 +466,22 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         },
         TargetRegisterEnvironmentConstraintKeys {
             trapping_convert: instruction_key(64),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            float_result_trapping: Some(instruction_key(65)),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            float_result_saturating: Some(instruction_key(65)),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            float_result_trapping: Some(instruction_key(66)),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            float_result_saturating: Some(instruction_key(66)),
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {

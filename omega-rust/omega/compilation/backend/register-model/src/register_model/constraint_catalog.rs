@@ -117,6 +117,9 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub trapping_fixed_pair: RegisterConstraintKey,
     pub trapping_shift: RegisterConstraintKey,
     pub trapping_convert: RegisterConstraintKey,
+    /// Post-call IEEE adapters over one raw result or two inputs plus raw result.
+    pub float_result_trapping: Option<RegisterConstraintKey>,
+    pub float_result_saturating: Option<RegisterConstraintKey>,
     pub subtract_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub compare_i64: RegisterConstraintKey,

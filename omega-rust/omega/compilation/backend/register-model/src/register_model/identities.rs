@@ -58,7 +58,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v24\0"
+    b"omega.target-register-environment-identity.v25\0"
 );
 
 pub(crate) fn physical_register_model_identity(
@@ -184,6 +184,8 @@ pub fn target_register_environment_identity(
         selected_keys.ieee_float_unary,
         selected_keys.ieee_float_conversion_control,
         selected_keys.ieee_float_ternary,
+        selected_keys.float_result_trapping,
+        selected_keys.float_result_saturating,
     ] {
         optional_constraint_key(&mut bytes, key);
     }

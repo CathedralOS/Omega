@@ -54,6 +54,8 @@ pub fn validate_aarch64_selected_form_encoding(
         super::atomic::validate(form, &registers, bytes)?;
     } else if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {
         super::ieee_float_arithmetic::validate(form, &registers, bytes)?;
+    } else if let SelectedInstructionKind::FloatResultPolicy { form } = kind {
+        super::float_result_policy::validate(form, &registers, bytes)?;
     } else {
         let decoded = decode_words(bytes)?;
         validate_decoded(kind, &registers, &decoded)?;
@@ -97,6 +99,10 @@ fn family_and_operand_count(
         ),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => (
             MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
+            form.operand_count() + 1,
+        ),
+        SelectedInstructionKind::FloatResultPolicy { form } => (
+            MachineAlternativeFamily::FloatResultPolicy(form),
             form.operand_count() + 1,
         ),
         SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0),
@@ -369,6 +375,9 @@ fn encode_unchecked(
         }
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
             return super::ieee_float_arithmetic::encode(form, registers);
+        }
+        SelectedInstructionKind::FloatResultPolicy { form } => {
+            return super::float_result_policy::encode(form, registers);
         }
         SelectedInstructionKind::Crash => words.push(0xd420_0000),
         SelectedInstructionKind::TrappingInteger { form } => {
