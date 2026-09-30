@@ -85,17 +85,23 @@ def run(command, timeout, stdin_empty=True):
 
 
 def accept_review(cli, sample, target, timeout):
-    """Complete the per-checkout package review. Returns None, or a reason."""
-    if run([cli, "update", "--project", sample, "--target", target], timeout) is None:
-        return "review-timeout"
+    """Complete the per-checkout package review.
+
+    Returns a failure reason (or None) and the review's own output, which is
+    where a package that fails checking reports why.
+    """
+    completed = run([cli, "update", "--project", sample, "--target", target], timeout)
+    if completed is None:
+        return "review-timeout", ""
+    output = completed.stdout + completed.stderr
     review = os.path.join(sample, "build", "package-manager", f"review-{target}.txt")
     if os.path.exists(review):
         text = open(review, errors="ignore").read()
         if DECISION.search(text):
             open(review, "w").write(DECISION.sub(r"\1 accept", text))
             if run([cli, "update", "--project", sample, "--resume"], timeout) is None:
-                return "resume-timeout"
-    return None
+                return "resume-timeout", output
+    return None, output
 
 
 def classify(message):
@@ -113,7 +119,15 @@ def classify(message):
     if "omitted at local construction at" in message:
         phase = re.search(r"omitted at local construction at `([^`]*)`", message)
         return f"does not check: {phase.group(1) if phase else '?'}"
-    if "package acceptance is missing" in message or "package review" in message:
+    # A lock this checkout minted earlier stops matching once its sources
+    # change, and `omega update` cannot refresh it while the package fails
+    # checking; `omega run` then reports only the stale lock. Treat it as an
+    # incomplete review so the checker's own refusal is reported instead.
+    if (
+        "package acceptance is missing" in message
+        or "package review" in message
+        or "cannot prepare accepted omega.lock" in message
+    ):
         return "package review incomplete"
     # A checked-compilation failure leads with a wrapper line and carries the
     # real refusal on the following `error:` line; report that, not the wrapper.
@@ -145,7 +159,7 @@ def measure(cli, sample, target, timeout):
             "detail": "freestanding target; no host oracle",
         }
     expected_exit, expected_output = oracle(sample)
-    reason = accept_review(cli, sample, target, timeout)
+    reason, review_output = accept_review(cli, sample, target, timeout)
     if reason:
         return {"sample": sample, "state": "error", "detail": reason}
     completed = run([cli, "run", os.path.join(sample, "main.omg")], timeout)
@@ -156,6 +170,10 @@ def measure(cli, sample, target, timeout):
         detail = classify(combined)
         if detail == "package review incomplete":
             detail = check_refusal(cli, sample, timeout)
+        # `--check` of a package with a stale lock reports only the lock too;
+        # the review step's own output then carries the checking refusal.
+        if detail == "package review incomplete" and "error:" in review_output:
+            detail = f"does not check: {classify(review_output)}"
         return {"sample": sample, "state": "no-native-build", "detail": detail}
     if expected_exit is None and expected_output is None:
         return {"sample": sample, "state": "no-oracle", "detail": "header documents neither"}
