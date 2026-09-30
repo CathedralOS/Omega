@@ -1627,10 +1627,29 @@ crash and native exit behavior. Use affected check/native corpus slices under
   payload-carrier copy with an ordinary primitive read; copied aggregate homes
   retain their producer/type custody in native selection. Nested-array reads
   verify, while leaf substitution and copies above their selecting case reject.
-  Remaining owned producers: element-policy
-  or structural-element arrays, which still meet `FixedArray`'s "fixed array
-  literal has no Terminal establishment" refusal (pinned by
-  `folded_index_faces_the_literal_lowering_boundary`).
+  Structural-element array literals whose members are themselves literals
+  (records, closed primitive arrays, omitted zeros, nested such arrays) over a
+  zero-constructible shape now establish as one `EstablishZeroedStructural`
+  plus one authored leaf store each (stage 05
+  `structural_values/fixed_array.rs`; bounded fields carry their range
+  obligation). `pass/structs/runtime_struct_array_literal_exit` exits 70
+  natively. Remaining owned producers: elements that transfer an existing owner
+  (places, call products), shapes without a universal zero (bounded fields
+  excluding 0, views, byte sequences) and element-policy arrays still meet the
+  "fixed array literal has no Terminal establishment" refusal. The Terminal
+  interpreter lags the verifier here: it refuses affine
+  `EstablishZeroedStructural`, scalar stores into zeroed homes, and projected
+  moves out of records with fixed-array members, so stage 05's
+  `structural_array_literals` tests verify rather than execute. The two local
+  customers now stop later: `pass/calls/runtime_mutable_local_parameter_write_exit`
+  at stage 05 "an owned local element read takes no projection path"
+  (`rooms[0].exit_count` on an owned local root has no element-field route),
+  and `pass/calls/caller_structural_result_indexed_borrow_exit` checks, runs
+  on the checked interpreter (exit 171), and fails Omega 02 translation
+  validation `StructuralCallArgumentMismatch` for `&mut rooms[i]` of an owned
+  local record array; a `[u32; 1]` local's `&mut rooms[i]` instead fails
+  Terminal `UnknownStructuralArgument`, while the same call through a `self`
+  field builds.
 
   `pass/structs/runtime_array_member_snapshot_exit` exits 70 natively and on
   the checked interpreter on macOS ARM64 at `03e30df59d33` plus this repair:
@@ -1649,9 +1668,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
   Borrowed views are another field producer, not owned array storage:
   `borrowed_slice_view_place` currently requires the expression to be the
-  entire immutable local initializer. Compose constructor operands with exact
-  stored-loan origins and lifetimes; **REFERENCE-LOCAL-BINDING-ROUTES** owns
-  reference locals. Existing record emission already accepts borrowed-view fields.
+  entire immutable local initializer, so `BlobSample { bytes: self.source[0..2] }`
+  (`pass/wire/runtime_wire_encode_byte_slice_exit`) stops at stage 04
+  `local data: structural call binding`. A field-site view must
+  reuse the loan borrow checking recorded for that field, stage 05 must mint
+  the view as the field's value, and the unit catalog
+  (`unit/attached_unit/catalog.rs` `collect_value_roots`) must register the
+  field's byte-view carrier and `u8` element rows; a name bound to a view
+  earlier keeps the copied-leaf route. `&[i32]` ranges
+  (`runtime_wire_encode_borrowed_scalar_slice_exit`) additionally need an
+  element subslice at a record-field site, since `FixedByteRange` is
+  byte-only. Compose constructor operands with exact stored-loan origins and
+  lifetimes; **REFERENCE-LOCAL-BINDING-ROUTES** owns reference locals.
 
   The wire customers now construct their records and stop at the generated
   codec call, `statement sequence: call: flow call`, as does the array-free
@@ -4035,10 +4063,9 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
     arms, heterogeneous residual custody and claim-bearing body plans;
     ordinary projected-child selections already lower. Resume from stage 05's
     `tests/value_dispatch/owned_results/{call_product_arms,interleaved_and_projected_sources,linear_child_carriers}.rs`.
-    `folded_index_projection::folded_index_faces_the_literal_lowering_boundary`
-    now expects literal and folded indices to meet the same fixed-array
-    establishment refusal. **RECORD-LITERAL-ARRAY-FIELD** owns that construction
-    gap; do not reopen folded-index planning.
+    `folded_index_projection::folded_index_selects_the_literal_element`
+    pins literal and folded indices to the same verified element move; do not
+    reopen folded-index planning.
   - Complete borrowed joins through source production and native execution.
     Reuse `abstract_operations::control_flow::address_joins`: shared primitive/
     plain aggregate admission and mutable whole-record address carriers exist.

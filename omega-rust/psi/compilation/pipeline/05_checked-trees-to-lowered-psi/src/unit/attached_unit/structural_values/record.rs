@@ -59,31 +59,7 @@ impl emission::Emission<'_, '_, '_> {
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(_) => false,
             })
         {
-            let place = place_id(allocate_dense(self.next_place)?);
-            let operation = self.operations.allocate();
-            self.operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: OperationResult::Structural(StructuralOperationResult {
-                    qualification_establishments: Vec::new(),
-                    place,
-                    structural_type: self.structural_type,
-                    multiplicity: self.multiplicity,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                }),
-                kind: OperationKind::EstablishZeroedStructural {},
-            });
-            self.temporary_places.push(StructuralPlaceDeclaration {
-                id: place,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: operation,
-                    structural_type: self.structural_type,
-                },
-            });
-            return Ok(place);
+            return self.establish_zeroed();
         }
         let record = self
             .checked

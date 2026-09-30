@@ -77,6 +77,8 @@ pass/calls/by_value_case_param_self_write_exit built 654ms exit:70
 pass/calls/callback_private_materialization rejected 479ms
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/caller_result_binding_mutable_loan_exit built 555ms exit:70 @0e894def985b+wt
+pass/calls/caller_structural_result_indexed_borrow_exit rejected 999ms @17039e6ea406+wt
+	native artifact target lowering failed: TranslationValidation(StructuralCallArgumentMismatch { machine: MachineId(1), operation: OperationId(5) })
 pass/calls/case_arm_payload_receiver_arg rejected 832ms
 	native-artifact Terminal production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/calls/case_scrutinee_param_clone_exit rejected 509ms
@@ -128,8 +130,8 @@ pass/calls/runtime_measured_tail_recursion_exit built 660ms exit:70
 pass/calls/runtime_mut_ref_forward_exit rejected 473ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 0)
 pass/calls/runtime_mutable_call_before_transition_args_exit built 5538ms exit:70 @fb2178def922
-pass/calls/runtime_mutable_local_parameter_write_exit rejected 490ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 2)
+pass/calls/runtime_mutable_local_parameter_write_exit rejected 728ms @17039e6ea406+wt
+	terminal-artifact production failed: Lowering(Unsupported("an owned local element read takes no projection path"))
 pass/calls/runtime_nested_case_argument_exit built 1235ms exit:70
 pass/calls/runtime_nested_local_field_store_exit built 1243ms exit:42 @20d5eb8f7510+wt
 pass/calls/runtime_nested_receiver_guard_exit built 1030ms exit:42 @ac942fdbba24+wt
@@ -800,8 +802,7 @@ pass/structs/runtime_declared_record_member_fill_exit built 748ms exit:70 @2688b
 pass/structs/runtime_local_record_policy_exit built 1277ms exit:70
 pass/structs/runtime_named_array_record_member_exit built 831ms exit:70 @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit built 724ms exit:70
-pass/structs/runtime_struct_array_literal_exit rejected 514ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
+pass/structs/runtime_struct_array_literal_exit built 1725ms exit:70 @17039e6ea406+wt
 pass/structs/uninit_record_local_exit built 590ms exit:70
 pass/structs/uninit_record_member_read built 1590ms exit:70 @fb2178def922
 pass/structs/uninit_record_member_store built 612ms exit:77

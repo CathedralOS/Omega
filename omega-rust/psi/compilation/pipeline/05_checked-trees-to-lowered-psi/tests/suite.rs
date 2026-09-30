@@ -106,6 +106,7 @@ mod scalar_storage_source;
 mod scalar_unit_calls;
 mod signed_wrapping_conversion_values;
 mod state_local_record_lifetimes;
+mod structural_array_literals;
 mod structural_return_source;
 mod transition_structural_return;
 mod trapping_operation_sites;

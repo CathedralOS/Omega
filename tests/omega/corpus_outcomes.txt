@@ -1169,8 +1169,8 @@ pass/calls/by_value_case_param_self_write_exit checked 1360ms @2d8ed253669f
 pass/calls/callback_private_materialization rejected 1409ms @2d8ed253669f
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/caller_result_binding_mutable_loan_exit checked 1568ms @2d8ed253669f
-pass/calls/caller_structural_result_indexed_borrow_exit rejected 1231ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("fixed array literal has no Terminal establishment"))
+pass/calls/caller_structural_result_indexed_borrow_exit rejected 4105ms @17039e6ea406+wt
+	native artifact target lowering failed: TranslationValidation(StructuralCallArgumentMismatch { machine: MachineId(1), operation: OperationId(5) })
 pass/calls/case_arm_payload_receiver_arg rejected 1217ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/calls/case_scrutinee_param_clone_exit rejected 758ms @2d8ed253669f
@@ -1241,8 +1241,8 @@ pass/calls/runtime_loop_rotation_exit checked 1398ms @2d8ed253669f
 pass/calls/runtime_measured_tail_recursion_exit checked 1346ms @2d8ed253669f
 pass/calls/runtime_mut_ref_forward_exit checked 1509ms @8778c440081
 pass/calls/runtime_mutable_call_before_transition_args_exit checked 2466ms @2d8ed253669f
-pass/calls/runtime_mutable_local_parameter_write_exit rejected 1183ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("fixed array literal has no Terminal establishment"))
+pass/calls/runtime_mutable_local_parameter_write_exit rejected 5930ms @17039e6ea406+wt
+	terminal-artifact production failed: Lowering(Unsupported("an owned local element read takes no projection path"))
 pass/calls/runtime_nested_case_argument_exit checked 4257ms @8778c440081
 pass/calls/runtime_nested_local_field_store_exit checked 1211ms @20d5eb8f7510+wt
 pass/calls/runtime_nested_receiver_guard_exit checked 803ms @ac942fdbba24
@@ -1975,8 +1975,7 @@ pass/structs/runtime_declared_record_member_fill_exit checked 1370ms @2d8ed25366
 pass/structs/runtime_local_record_policy_exit checked 1712ms @2d8ed253669f
 pass/structs/runtime_named_array_record_member_exit checked 811ms @4ac06a9f69c0+wt
 pass/structs/runtime_nested_struct_construction_exit checked 1391ms @2d8ed253669f
-pass/structs/runtime_struct_array_literal_exit rejected 1202ms @2d8ed253669f
-	terminal-artifact production failed: Lowering(Unsupported("fixed array literal has no Terminal establishment"))
+pass/structs/runtime_struct_array_literal_exit checked 10339ms @17039e6ea406+wt
 pass/structs/uninit_record_local_exit checked 1182ms @2d8ed253669f
 pass/structs/uninit_record_member_read checked 1316ms @2d8ed253669f
 pass/structs/uninit_record_member_store checked 1238ms @2d8ed253669f

@@ -9,6 +9,7 @@
 use super::CheckedTrees;
 use crate::expression_preparation::source_custody::structural::plain_record;
 mod emission;
+mod fixed_array;
 mod locals;
 pub(crate) mod record;
 mod structural_case;
