@@ -85,9 +85,13 @@ impl ScalarKind {
             Self::U32 => format!("{member} as u64"),
             Self::U64 => member.to_string(),
             Self::I32 => {
-                format!("((({member} as i64) << 1) ^ (({member} as i64) >> 63)) as u64")
+                format!(
+                    "(((({member} as i64) << 1) ^ (({member} as i64) >> 63)) as u64 in Wrapping) as u64"
+                )
             }
-            Self::I64 => format!("(({member} << 1) ^ ({member} >> 63)) as u64"),
+            Self::I64 => {
+                format!("((({member} << 1) ^ ({member} >> 63)) as u64 in Wrapping) as u64")
+            }
             Self::Bool => String::new(),
         }
     }
@@ -129,10 +133,29 @@ impl ScalarKind {
     }
 }
 
+/// The element a borrowed-slice member views. `u8` is not a `ScalarKind`
+/// (the interpreter's byte-size table reads it as boolean-shaped), so the
+/// byte member gets its own variant.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SliceElement {
+    Byte,
+    Scalar(ScalarKind),
+}
+
 #[derive(Clone)]
 enum MemberShape {
     Scalar(ScalarKind),
-    FixedScalarArray { element: ScalarKind, length: usize },
+    FixedScalarArray {
+        element: ScalarKind,
+        length: usize,
+    },
+    /// A `&[E]` borrowed view of scalars — the zero-copy member. Encoding
+    /// frames it as a length varint then the elements (raw bytes for `u8`,
+    /// packed varints for wider scalars); decoding a `&[u8]` re-views the
+    /// decode buffer's content window rather than copying.
+    BorrowedSlice {
+        element: SliceElement,
+    },
 }
 
 struct WireMemberShape {
@@ -521,6 +544,28 @@ fn member_shape(syntax_trees: &SyntaxTrees, handle: TypeReferenceHandle) -> Opti
                 length: *length,
             }
         }),
+        TypeReferenceNode::Reference {
+            referee, access, ..
+        } if !access.is_exclusive() => {
+            match syntax_trees.tables.type_references.type_reference(*referee) {
+                TypeReferenceNode::Slice { element_type } => {
+                    slice_element_of_type(syntax_trees, *element_type)
+                        .map(|element| MemberShape::BorrowedSlice { element })
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn slice_element_of_type(
+    syntax_trees: &SyntaxTrees,
+    handle: TypeReferenceHandle,
+) -> Option<SliceElement> {
+    match syntax_trees.tables.type_references.type_reference(handle) {
+        TypeReferenceNode::Named(name) if name.as_str() == "u8" => Some(SliceElement::Byte),
+        TypeReferenceNode::Named(name) => scalar_kind(name.as_str()).map(SliceElement::Scalar),
         _ => None,
     }
 }
@@ -886,6 +931,207 @@ impl MachineEmitter<'_> {
         );
     }
 
+    /// Byte-for-byte copy of a `&[u8]` member into the buffer: `i` walks the
+    /// view while `at` walks the output. Requires on a callee must be
+    /// established by a guard in its immediate caller, so the element-read
+    /// and store bounds are re-tested in the state right before the call.
+    fn enc_slice_bytes(&mut self, name: &str, field: &str, next: &str) {
+        let walk = format!("{name}_walk");
+        let bound = format!("{name}_bound");
+        let put = format!("{name}_put");
+        self.hop(name, "", &walk, ", 0");
+        self.state(
+            &walk,
+            "i: u64",
+            "",
+            &format!(
+                "        transition i < value.{field}.len {{\n            true -> {bound}(value, out, written, at, i)\n            _ -> {next}(value, out, written, at)\n        }}\n"
+            ),
+        );
+        self.state(
+            &bound,
+            "i: u64",
+            "",
+            &format!(
+                "        transition at < {} && i < value.{field}.len {{\n            true -> {put}(value, out, written, at, i)\n            _ -> encode_overflow{}\n        }}\n",
+                self.limit, self.call
+            ),
+        );
+        self.state(
+            &put,
+            "i: u64",
+            &format!("at < {} && i < value.{field}.len", self.limit),
+            &format!(
+                "        out[at] = value.{field}[i];\n        transition {{ _ -> {walk}(value, out, written, at + 1, i + 1) }}\n"
+            ),
+        );
+    }
+
+    /// Packed element varints of a borrowed `&[E]` member (E wider than
+    /// `u8`): measure the elements' total varint extent, publish it as the
+    /// byte length, then emit the elements. `i` walks the view and `acc` the
+    /// measured extent; the view's `.len` is re-read at each loop head so
+    /// the index evidence stays the same name the element reads use.
+    fn enc_packed_slice(&mut self, name: &str, field: &str, element: ScalarKind, next: &str) {
+        let measure_entry = format!("{name}_measure");
+        let measure_elem = format!("{name}_measure_elem");
+        let measure_varint = format!("{name}_measure_varint");
+        let length = format!("{name}_length");
+        let emit_entry = format!("{name}_emit");
+        let emit_elem = format!("{name}_emit_elem");
+        let emit_varint = format!("{name}_emit_varint");
+        let emit_last = format!("{name}_emit_last");
+        let emit_last_put = format!("{name}_emit_last_put");
+        let emit_more = format!("{name}_emit_more");
+        let emit_more_put = format!("{name}_emit_more_put");
+        let len_expr = format!("value.{field}.len");
+        let bits_expr = |i: &str| element.encode_bits_expression(&format!("value.{field}[{i}]"));
+        self.hop(name, "", &measure_entry, ", 0, 0");
+        self.state(
+            &measure_entry,
+            "i: u64, acc: u64 in Wrapping",
+            "",
+            &format!(
+                "        transition i < {len_expr} {{\n            true -> {measure_elem}(value, out, written, at, i, acc)\n            _ -> {length}(value, out, written, at, i, acc)\n        }}\n"
+            ),
+        );
+        self.state(
+            &measure_elem,
+            "i: u64, acc: u64 in Wrapping",
+            &format!("i < {len_expr}"),
+            &format!(
+                "        let bits: u64 = {};\n        transition {{ _ -> {measure_varint}(value, out, written, at, i, acc, bits) }}\n",
+                bits_expr("i")
+            ),
+        );
+        self.state(
+            &measure_varint,
+            "i: u64, acc: u64 in Wrapping, bits: u64",
+            "",
+            &format!(
+                "        transition bits < 128 && i < {len_expr} {{\n            true -> {measure_entry}(value, out, written, at, i + 1, acc + 1)\n            _ -> {measure_varint}(value, out, written, at, i, acc + 1, bits >> 7)\n        }}\n"
+            ),
+        );
+        self.state(
+            &length,
+            "i: u64, acc: u64 in Wrapping",
+            "",
+            &format!(
+                "        let bits: u64 = acc as u64;\n        transition {{ _ -> {length}_loop(value, out, written, at, i, bits) }}\n"
+            ),
+        );
+        // The byte-length varint: the canonical last/more loop with `i`
+        // riding as an inert carry so the emit half starts over at 0.
+        {
+            let last = format!("{length}_loop_last");
+            let put = format!("{length}_loop_put");
+            let more = format!("{length}_loop_more");
+            let put_more = format!("{length}_loop_put_more");
+            let loop_name = format!("{length}_loop");
+            self.state(
+                &loop_name,
+                "i: u64, bits: u64",
+                "",
+                &format!(
+                    "        transition bits < 128 {{\n            true -> {last}(value, out, written, at, i, bits)\n            _ -> {more}(value, out, written, at, i, bits)\n        }}\n"
+                ),
+            );
+            self.state(
+                &last,
+                "i: u64, bits: u64",
+                "",
+                &format!(
+                    "        let byte: u8 = bits as u8;\n        transition at < {} {{\n            true -> {put}(value, out, written, at, i, byte)\n            _ -> encode_overflow{}\n        }}\n",
+                    self.limit, self.call
+                ),
+            );
+            self.state(
+                &put,
+                "i: u64, byte: u8",
+                &format!("at < {}", self.limit),
+                &format!(
+                    "        out[at] = byte;\n        transition {{ _ -> {emit_entry}(value, out, written, at + 1, 0) }}\n"
+                ),
+            );
+            self.state(
+                &more,
+                "i: u64, bits: u64",
+                "",
+                &format!(
+                    "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} {{\n            true -> {put_more}(value, out, written, at, i, byte, bits)\n            _ -> encode_overflow{}\n        }}\n",
+                    self.limit, self.call
+                ),
+            );
+            self.state(
+                &put_more,
+                "i: u64, byte: u8, bits: u64",
+                &format!("at < {}", self.limit),
+                &format!(
+                    "        out[at] = byte;\n        transition {{ _ -> {loop_name}(value, out, written, at + 1, i, bits >> 7) }}\n"
+                ),
+            );
+        }
+        self.state(
+            &emit_entry,
+            "i: u64",
+            "",
+            &format!(
+                "        transition i < {len_expr} {{\n            true -> {emit_elem}(value, out, written, at, i)\n            _ -> {next}(value, out, written, at)\n        }}\n"
+            ),
+        );
+        self.state(
+            &emit_elem,
+            "i: u64",
+            &format!("i < {len_expr}"),
+            &format!(
+                "        let bits: u64 = {};\n        transition {{ _ -> {emit_varint}(value, out, written, at, i, bits) }}\n",
+                bits_expr("i")
+            ),
+        );
+        self.state(
+            &emit_varint,
+            "i: u64, bits: u64",
+            "",
+            &format!(
+                "        transition bits < 128 {{\n            true -> {emit_last}(value, out, written, at, i, bits)\n            _ -> {emit_more}(value, out, written, at, i, bits)\n        }}\n"
+            ),
+        );
+        self.state(
+            &emit_last,
+            "i: u64, bits: u64",
+            "",
+            &format!(
+                "        let byte: u8 = bits as u8;\n        transition at < {} && i < {len_expr} {{\n            true -> {emit_last_put}(value, out, written, at, i, byte)\n            _ -> encode_overflow{}\n        }}\n",
+                self.limit, self.call
+            ),
+        );
+        self.state(
+            &emit_last_put,
+            "i: u64, byte: u8",
+            &format!("at < {} && i < {len_expr}", self.limit),
+            &format!(
+                "        out[at] = byte;\n        transition {{ _ -> {emit_entry}(value, out, written, at + 1, i + 1) }}\n"
+            ),
+        );
+        self.state(
+            &emit_more,
+            "i: u64, bits: u64",
+            "",
+            &format!(
+                "        let byte: u8 = ((bits & 127) | 128) as u8;\n        transition at < {} && i < {len_expr} {{\n            true -> {emit_more_put}(value, out, written, at, i, byte, bits)\n            _ -> encode_overflow{}\n        }}\n",
+                self.limit, self.call
+            ),
+        );
+        self.state(
+            &emit_more_put,
+            "i: u64, byte: u8, bits: u64",
+            &format!("at < {} && i < {len_expr}", self.limit),
+            &format!(
+                "        out[at] = byte;\n        transition {{ _ -> {emit_varint}(value, out, written, at + 1, i, bits >> 7) }}\n"
+            ),
+        );
+    }
+
     // ----- decode helpers (thread: value, buffer, read, verdict, at, bad) -----
 
     /// `expect_byte`: `buffer[at]` must equal `byte`. OOB flags `bad` without
@@ -1163,9 +1409,40 @@ fn member_facts(
     let value_fields = data_fields.get(value_type)?;
     let mut all = Vec::with_capacity(members.len());
     for member in members {
+        // A borrowed-slice member carries no store-side scalar facts to
+        // collect: the check is only that the value type's field is the same
+        // `&[E]` view the schema declares.
+        if let MemberShape::BorrowedSlice { element } = &member.shape {
+            let Some(field_handle) = value_fields.get(member.name.as_str()).copied() else {
+                return None;
+            };
+            let TypeReferenceNode::Reference {
+                referee, access, ..
+            } = syntax_trees
+                .tables
+                .type_references
+                .type_reference(field_handle)
+            else {
+                return None;
+            };
+            if access.is_exclusive() {
+                return None;
+            }
+            let TypeReferenceNode::Slice { element_type } =
+                syntax_trees.tables.type_references.type_reference(*referee)
+            else {
+                return None;
+            };
+            if slice_element_of_type(syntax_trees, *element_type) != Some(*element) {
+                return None;
+            }
+            all.push(Vec::new());
+            continue;
+        }
         let (expected, array_length) = match &member.shape {
             MemberShape::Scalar(kind) => (*kind, None),
             MemberShape::FixedScalarArray { element, length } => (*element, Some(*length)),
+            MemberShape::BorrowedSlice { .. } => unreachable!("handled above"),
         };
         let Ok(facts) = value_field_facts(
             syntax_trees,
@@ -1282,6 +1559,22 @@ fn emit_encode_machine(
                 let bits = kind.encode_bits_expression(&format!("value.{}", member.name));
                 emitter.enc_varint(&content_label, &bits, &after);
             }
+            MemberShape::BorrowedSlice { element } => {
+                // A borrowed view frames as a length varint then its
+                // elements: raw bytes for `u8`, packed varints wider.
+                let stage = format!("field_{}_body", member.number);
+                emitter.enc_varint(
+                    &content_label,
+                    &format!("value.{}.len", member.name),
+                    &stage,
+                );
+                match element {
+                    SliceElement::Byte => emitter.enc_slice_bytes(&stage, &member.name, &after),
+                    SliceElement::Scalar(kind) => {
+                        emitter.enc_packed_slice(&stage, &member.name, *kind, &after)
+                    }
+                }
+            }
             MemberShape::FixedScalarArray { element, length } => {
                 // Packed elements carry a byte-length prefix: measure each
                 // element's varint extent, emit that total, then the elements.
@@ -1361,6 +1654,19 @@ fn emit_decode_machine(
     ) else {
         return;
     };
+    // A borrowed slice of non-`u8` elements decodes through owning storage —
+    // the zero-copy re-view has nothing to point at — so that member kind
+    // keeps the whole machine unemitted rather than dangling a content stage.
+    if members.iter().any(|member| {
+        matches!(
+            member.shape,
+            MemberShape::BorrowedSlice {
+                element: SliceElement::Scalar(_)
+            }
+        )
+    }) {
+        return;
+    }
     let verdict_type = signature[3]
         .trim_start_matches('&')
         .trim_start()
@@ -1426,6 +1732,85 @@ fn emit_decode_machine(
                     &facts_by_member[member_index],
                 );
             }
+            MemberShape::BorrowedSlice {
+                element: SliceElement::Byte,
+            } => {
+                // `&[u8]` decodes zero-copy: the length varint bounds the
+                // content window, and the member re-views `buffer[at..end]`
+                // rather than copying the bytes out of the buffer.
+                let open = format!("field_{}_open", member.number);
+                emitter.dec_varint(&content_label, &open, "", "");
+                let open_in = format!("field_{}_open_in", member.number);
+                let view_slack = format!("field_{}_slack", member.number);
+                let view_prep = format!("field_{}_prep", member.number);
+                let view_ok = format!("field_{}_view", member.number);
+                let view_skip = format!("field_{}_skip", member.number);
+                // `open` guards the cursor bound its own subtraction needs —
+                // callers (the shared varint states) cannot carry a premise
+                // through, so `at <= buffer.len` is tested here and only the
+                // true arm does the range arithmetic.
+                emitter.state(
+                    &open,
+                    "raw: u64",
+                    "",
+                    &format!(
+                        "        transition at <= {} {{\n            true -> {open_in}(value, buffer, read, verdict, at, bad, raw)\n            _ -> {view_skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
+                        emitter.limit
+                    ),
+                );
+                emitter.state(
+                    &open_in,
+                    "raw: u64",
+                    &format!("at <= {}", emitter.limit),
+                    &format!(
+                        "        let room: u64 = buffer.len - at;\n        transition raw <= room && room <= buffer.len {{\n            true -> {view_slack}(value, buffer, read, verdict, at, bad, raw, room)\n            _ -> {view_skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+                    ),
+                );
+                // The window's far edge derives through its complements, one
+                // bound per state: `slack` must be a named local before a
+                // guard can establish it (arithmetic call arguments do not
+                // substitute into a callee's requires), and each derived
+                // bound is re-tested before the state that needs it.
+                emitter.state(
+                    &view_slack,
+                    "raw: u64, room: u64",
+                    &format!("raw <= room && room <= {}", emitter.limit),
+                    &format!(
+                        "        let slack: u64 = room - raw;\n        transition slack <= room && slack <= buffer.len && room <= buffer.len {{\n            true -> {view_prep}(value, buffer, read, verdict, at, bad, slack, room)\n            _ -> {view_skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n"
+                    ),
+                );
+                emitter.state(
+                    &view_prep,
+                    "slack: u64, room: u64",
+                    &format!(
+                        "slack <= room && slack <= {} && room <= {}",
+                        emitter.limit, emitter.limit
+                    ),
+                    &format!(
+                        "        let end: u64 = buffer.len - slack;\n        let start: u64 = buffer.len - room;\n        transition start <= end && end <= {} {{\n            true -> {view_ok}(value, buffer, read, verdict, at, bad, start, end)\n            _ -> {view_skip}(value, buffer, read, verdict, at, bad + 1, 0)\n        }}\n",
+                        emitter.limit
+                    ),
+                );
+                emitter.state(
+                    &view_ok,
+                    "start: u64, end: u64",
+                    &format!("start <= end && end <= {}", emitter.limit),
+                    &format!(
+                        "        value.{} = buffer[start..end];\n        transition {{ _ -> {}(value, buffer, read, verdict, end, bad) }}\n",
+                        member.name, after
+                    ),
+                );
+                emitter.state(
+                    &view_skip,
+                    "end: u64",
+                    "",
+                    &format!(
+                        "        transition {{ _ -> {}(value, buffer, read, verdict, at, bad) }}\n",
+                        after
+                    ),
+                );
+            }
+            MemberShape::BorrowedSlice { .. } => {}
             MemberShape::FixedScalarArray { element, length } => {
                 let open = format!("field_{}_open", member.number);
                 emitter.dec_varint(&content_label, &open, "", "");

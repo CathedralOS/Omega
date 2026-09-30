@@ -1073,9 +1073,7 @@ fn walk_path(
             }
             (
                 segment @ (CheckedUnitStructuralPathSegment::FixedIndex(_)
-                | CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { .. },
-                )),
+                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)),
                 StructuralTypeShape::ByteSequence(carrier),
             ) => {
                 match segment {
@@ -1090,10 +1088,12 @@ fn walk_path(
                         }
                         result.push(ProjectionStep::Static(Segment::FixedIndex(*index)));
                     }
-                    CheckedUnitStructuralPathSegment::RuntimeIndex(
-                        checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
-                    ) => {
-                        let step = ProjectionStep::AssignmentIndex { depth: *depth };
+                    CheckedUnitStructuralPathSegment::RuntimeIndex(runtime) => {
+                        // Indexed stores through a borrowed byte view select
+                        // with the same selector vocabulary a fixed array
+                        // uses; a repeated step is already this projection's
+                        // selector and is simply not pushed again.
+                        let step = super::runtime_elements::selector_step(runtime);
                         if !result.contains(&step) {
                             result.push(step);
                         }
