@@ -12,7 +12,7 @@ mod argument_prefix;
 mod boolean_connective_tests;
 mod crash_predicates;
 mod scalar_terms;
-mod structural_arithmetic;
+pub(super) mod structural_arithmetic;
 #[cfg(test)]
 mod structural_boolean_tests;
 mod structural_members;

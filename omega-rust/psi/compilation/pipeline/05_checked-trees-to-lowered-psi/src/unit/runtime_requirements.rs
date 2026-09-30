@@ -81,15 +81,48 @@ fn validate_integer_namespace(expression: &CheckedScalarExpression) -> Result<()
             integer_scalar_type(*primitive_type).map(|_| ())
         }
         CheckedScalarExpression::IntegerLiteral { .. } => Ok(()),
+        CheckedScalarExpression::IntegerBinary {
+            kind,
+            primitive_type,
+            left,
+            right,
+        } if matches!(
+            kind,
+            checked_trees::CheckedIntegerBinaryKind::WrappingAdd
+                | checked_trees::CheckedIntegerBinaryKind::WrappingSubtract
+                | checked_trees::CheckedIntegerBinaryKind::WrappingMultiply
+                | checked_trees::CheckedIntegerBinaryKind::SaturatingAdd
+                | checked_trees::CheckedIntegerBinaryKind::SaturatingSubtract
+                | checked_trees::CheckedIntegerBinaryKind::SaturatingMultiply
+                | checked_trees::CheckedIntegerBinaryKind::BitwiseAnd
+                | checked_trees::CheckedIntegerBinaryKind::BitwiseOr
+                | checked_trees::CheckedIntegerBinaryKind::BitwiseXor
+                | checked_trees::CheckedIntegerBinaryKind::WrappingShiftLeft
+                | checked_trees::CheckedIntegerBinaryKind::WrappingShiftRight
+        ) && *primitive_type != PrimitiveType::Addr =>
+        {
+            // These operations are total on their fixed carriers. Partial
+            // arithmetic cannot assume its own entry clause to justify itself.
+            integer_scalar_type(*primitive_type)?;
+            validate_integer_namespace(left)?;
+            validate_integer_namespace(right)
+        }
+        CheckedScalarExpression::IntegerBitwiseNot {
+            primitive_type,
+            operand,
+        } if *primitive_type != PrimitiveType::Addr => {
+            integer_scalar_type(*primitive_type)?;
+            validate_integer_namespace(operand)
+        }
         // Whole-view extents carry the caller-proven bound the boundary
         // argument's domain needs; nested member extents keep the historical
         // fail-closed lane.
         CheckedScalarExpression::StructuralParameterByteLength { path, .. } if path.is_empty() => {
             Ok(())
         }
-        _ => unsupported(
-            "runtime requirements admit only fixed integer parameters, members, and literals",
-        ),
+        _ => {
+            unsupported("runtime requirement needs total integer operations over entry parameters")
+        }
     }
 }
 
@@ -102,8 +135,11 @@ struct RuntimeRequirementTerms<'parameters> {
     element_views: BTreeMap<StructuralTypeId, Option<ScalarType>>,
 }
 
-impl PredicateTerms for RuntimeRequirementTerms<'_> {
-    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+impl RuntimeRequirementTerms<'_> {
+    fn scalar_leaf(
+        &self,
+        expression: &CheckedScalarExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
         match expression {
             CheckedScalarExpression::Parameter { primitive_type, .. }
             | CheckedScalarExpression::ErasedParameter { primitive_type, .. } => {
@@ -149,6 +185,12 @@ impl PredicateTerms for RuntimeRequirementTerms<'_> {
             _ => unsupported("runtime requirement integer operand is outside the entry namespace"),
         }
     }
+}
+
+impl PredicateTerms for RuntimeRequirementTerms<'_> {
+    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+        crate::proofs::integer_predicates::lower(expression, &[], &|leaf| self.scalar_leaf(leaf))
+    }
 
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError> {
         match expression {
@@ -190,74 +232,82 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
         term: &ScalarTerm,
         substitutions: &BTreeMap<ValueId, ValueDeclaration>,
     ) -> Result<ScalarTerm, LoweringError> {
-        match term {
-            ScalarTerm::BooleanNot { operand } => {
-                ScalarTerm::boolean_not(substitute_term(operand, substitutions)?)
-                    .map_err(LoweringError::InvalidCrashPredicate)
-            }
-            ScalarTerm::BooleanEqual { left, right } => ScalarTerm::boolean_equal(
-                substitute_term(left, substitutions)?,
-                substitute_term(right, substitutions)?,
-            )
-            .map_err(LoweringError::InvalidCrashPredicate),
-            ScalarTerm::IntegerEqual {
-                scalar_type,
-                left,
-                right,
-            } => ScalarTerm::integer_equal(
-                *scalar_type,
-                substitute_term(left, substitutions)?,
-                substitute_term(right, substitutions)?,
-            )
-            .map_err(LoweringError::InvalidCrashPredicate),
-            ScalarTerm::IntegerLessThan {
-                scalar_type,
-                left,
-                right,
-            } => ScalarTerm::integer_less_than(
-                *scalar_type,
-                substitute_term(left, substitutions)?,
-                substitute_term(right, substitutions)?,
-            )
-            .map_err(LoweringError::InvalidCrashPredicate),
-            ScalarTerm::IntegerLessOrEqual {
-                scalar_type,
-                left,
-                right,
-            } => ScalarTerm::integer_less_or_equal(
-                *scalar_type,
-                substitute_term(left, substitutions)?,
-                substitute_term(right, substitutions)?,
-            )
-            .map_err(LoweringError::InvalidCrashPredicate),
-            ScalarTerm::Value { id, scalar_type } => {
-                match scalar_type {
-                    ScalarType::Boolean | ScalarType::IeeeFloat(_) => {}
-                    ScalarType::Integer(integer_type) if !integer_type.is_address() => {}
-                    _ => {
-                        return unsupported("runtime requirement value has an unsupported carrier");
+        fn rebind(
+            term: &mut ScalarTerm,
+            substitutions: &BTreeMap<ValueId, ValueDeclaration>,
+        ) -> Result<(), LoweringError> {
+            match term {
+                ScalarTerm::BooleanNot { operand }
+                | ScalarTerm::IntegerBitwiseNot { operand, .. } => rebind(operand, substitutions),
+                ScalarTerm::BooleanEqual { left, right }
+                | ScalarTerm::IntegerEqual { left, right, .. }
+                | ScalarTerm::IntegerLessThan { left, right, .. }
+                | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+                | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+                | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+                | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+                | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+                | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+                | ScalarTerm::SaturatingIntegerMultiply { left, right, .. }
+                | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+                | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+                | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+                | ScalarTerm::WrappingIntegerShiftLeft {
+                    value: left,
+                    count: right,
+                    ..
+                }
+                | ScalarTerm::WrappingIntegerShiftRight {
+                    value: left,
+                    count: right,
+                    ..
+                } => {
+                    rebind(left, substitutions)?;
+                    rebind(right, substitutions)
+                }
+                ScalarTerm::Value { id, scalar_type } => {
+                    match scalar_type {
+                        ScalarType::Boolean | ScalarType::IeeeFloat(_) => {}
+                        ScalarType::Integer(integer_type) if !integer_type.is_address() => {}
+                        _ => {
+                            return unsupported(
+                                "runtime requirement value has an unsupported carrier",
+                            );
+                        }
                     }
+                    let actual = substitutions.get(id).ok_or(LoweringError::Unsupported(
+                        "runtime requirement scalar formal has no exact actual argument",
+                    ))?;
+                    if actual.scalar_type != *scalar_type {
+                        return unsupported(
+                            "runtime requirement scalar argument changes its formal type",
+                        );
+                    }
+                    *id = actual.id;
+                    Ok(())
                 }
-                let actual = substitutions.get(id).ok_or(LoweringError::Unsupported(
-                    "runtime requirement scalar formal has no exact actual argument",
-                ))?;
-                if actual.scalar_type != *scalar_type {
-                    return unsupported(
-                        "runtime requirement scalar argument changes its formal type",
-                    );
-                }
-                Ok(ScalarTerm::value(actual.id, actual.scalar_type))
+                ScalarTerm::Boolean(_)
+                | ScalarTerm::Integer { .. }
+                | ScalarTerm::IeeeFloatLiteral(_)
+                | ScalarTerm::BooleanField { .. }
+                | ScalarTerm::IntegerField { .. }
+                | ScalarTerm::ViewExtent { .. } => Ok(()),
+                _ => unsupported(
+                    "runtime requirement scalar substitution encountered an unsupported term",
+                ),
             }
-            ScalarTerm::Boolean(_)
-            | ScalarTerm::Integer { .. }
-            | ScalarTerm::IeeeFloatLiteral(_)
-            | ScalarTerm::BooleanField { .. }
-            | ScalarTerm::IntegerField { .. }
-            | ScalarTerm::ViewExtent { .. } => Ok(term.clone()),
-            _ => unsupported(
-                "runtime requirement scalar substitution encountered an unsupported term",
-            ),
         }
+        // Preserve the operation tree and its witnesses; only formal identities
+        // change. Validate before and after so a forged carrier witness or an
+        // invalid actual cannot hide inside a successfully rebound expression.
+        term.validate()
+            .map_err(LoweringError::InvalidCrashPredicate)?;
+        let mut rebound = term.clone();
+        rebind(&mut rebound, substitutions)?;
+        rebound
+            .validate()
+            .map_err(LoweringError::InvalidCrashPredicate)?;
+        Ok(rebound)
     }
 
     match proposition {

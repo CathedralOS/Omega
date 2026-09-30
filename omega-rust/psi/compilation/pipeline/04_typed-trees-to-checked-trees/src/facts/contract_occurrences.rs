@@ -50,18 +50,34 @@ pub(crate) fn append_expression_occurrences(
                 append_expression_occurrences(program, arm.value, occurrences);
             }
         }
-        ExpressionNode::Member(member)
-            if matches!(
-                program.expression_table.expression(member.receiver),
-                ExpressionNode::Call(_)
-            ) =>
-        {
-            append_expression_occurrences(program, member.receiver, occurrences);
-        }
         ExpressionNode::Name(_) => occurrences.push(expression),
         ExpressionNode::Member(member) => {
-            occurrences.push(expression);
-            append_selector_occurrences(program, member.receiver, occurrences);
+            // Collection metadata observes its receiver, not a nominal field
+            // named `len` or `capacity`. Keeping the receiver here supplies a
+            // real storage dependency to both revision invalidation and review;
+            // appending an unresolved field instead loses that relationship.
+            // Final selection custody is not published yet. Use the shared
+            // receiver-type classifier, so same-spelled record fields retain
+            // their ordinary complete-place identity.
+            if crate::flow::expression_place_type_reference(program, member.receiver, &[])
+                .and_then(|receiver| {
+                    crate::semantic::calls::collection_measure_member(
+                        program,
+                        member,
+                        crate::semantic::calls::MeasureReceiver::Declared(receiver),
+                    )
+                })
+                .is_some()
+                || matches!(
+                    program.expression_table.expression(member.receiver),
+                    ExpressionNode::Call(_)
+                )
+            {
+                append_expression_occurrences(program, member.receiver, occurrences);
+            } else {
+                occurrences.push(expression);
+                append_selector_occurrences(program, member.receiver, occurrences);
+            }
         }
         ExpressionNode::Indexed(indexed) => {
             occurrences.push(expression);

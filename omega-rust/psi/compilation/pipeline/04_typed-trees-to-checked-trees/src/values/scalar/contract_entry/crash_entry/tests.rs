@@ -10,6 +10,27 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+#[test]
+fn entry_requirements_retain_type_owned_collection_extents() {
+    let checked = crate::tests::front_end::checked_program(
+        "data Buffer { items: [i32; 4]; }
+         machine inspect(buffer: &Buffer, index: u64 in Wrapping) -> i32
+         requires index < buffer.items.len { 0 }",
+    );
+    let machine = &checked.machines()[0];
+    let requirements = checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .and_then(|plan| plan.crash.structural_runtime_requirements())
+        .expect("a fixed collection extent retains the complete entry requirement");
+    assert_eq!(requirements.len(), 1);
+    assert!(
+        matches!(&requirements[0], CheckedBooleanExpression::IntegerComparison { right, .. }
+        if matches!(right.as_ref(), checked_trees::CheckedScalarExpression::IntegerLiteral { .. }))
+    );
+}
+
 fn requirement(program: &TypedTrees) -> ExpressionHandle {
     program
         .machine_contracts(&program.machines()[0])

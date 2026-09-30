@@ -2,6 +2,78 @@ use crate::support::*;
 use compiler::CheckedCompileRequest;
 
 #[test]
+fn review_projects_collection_measure_member_dependencies() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"
+pub data Buffer { items: [i32; 4]; length: u64 in Wrapping; }
+pub machine Buffer::clear(&mut self)
+ensures self.length < self.items.len
+{ self.length = 0; }
+pub machine inspect(buffer: &Buffer)
+requires buffer.length <= buffer.items.capacity
+{}
+pub data Metadata [copy] { len: u64; }
+pub machine inspect_metadata(metadata: Metadata)
+requires metadata.len == 0
+{}
+"#,
+    );
+    package.write(
+        "build.omg",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
+    );
+    let checked = compile_review_fixture(CheckedCompileRequest {
+        package_inputs: Some(package_inputs(&package.0)),
+        ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
+    })
+    .expect("fixed collection postcondition checks");
+    let review = project_checked_package_review(&checked)
+        .expect("the collection receiver retains its exact contract dependency");
+    let nominal = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "inspect_metadata")
+        .unwrap();
+    assert!(
+        matches!(nominal.contracts()[0].fact(),
+        PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary { left, .. })
+        if matches!(left.as_ref(), PackageReviewContractExpression::Member { member, .. } if member.path() == "Metadata::len")),
+        "a nominal field named len retains its declaration identity"
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Buffer::clear")
+        .unwrap();
+    let machine_symbol = machine.symbol;
+    let formal = checked.state_parameters(&checked.machine_states(machine)[0])[0].symbol;
+    let dependencies = checked.facts.semantic.places.iter().filter_map(|(handle, place)| {
+        (place.root == facts::PlaceRoot::Symbol(formal)
+            && matches!(checked.facts.semantic.place_segments.span_or_empty(place.segments),
+                [facts::PlaceSegment::Field { symbol }] if checked.symbols.name(*symbol) == "items"))
+            .then_some(handle)
+    }).collect::<Vec<_>>();
+    assert!(
+        !dependencies.is_empty(),
+        "the intrinsic depends on the collection place"
+    );
+    let mut substituted = checked.clone();
+    for handle in dependencies {
+        substituted.facts.semantic.places.get_mut(handle).root =
+            facts::PlaceRoot::Symbol(machine_symbol);
+    }
+    assert!(
+        project_checked_package_review(&substituted).is_err(),
+        "a different root cannot replace the collection dependency"
+    );
+}
+
+#[test]
 fn attached_self_members_use_the_exact_entry_formal_not_the_machine_root() {
     let Some(target) = host_target_name() else {
         return;

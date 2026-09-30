@@ -5,15 +5,12 @@ use crate::proofs::crash_routes::crash_predicates::{
     flatten_checked_boolean_connective,
 };
 use crate::proofs::crash_routes::scalar_terms::{checked_boolean_scalar_term, checked_scalar_term};
-use crate::proofs::crash_routes::structural_arithmetic::{
-    safe_exact_structural_divisor, safe_exact_structural_shift, safe_policy_structural_divisor,
-};
 use crate::proofs::crash_routes::structural_members::{
     lower_byte_sequence_field, lower_ieee_float_field, lower_structural_member_term,
     lower_structural_sum_subject,
 };
 use crate::proofs::{
-    BTreeMap, CanonicalStructuralPathSegment, CheckedBooleanExpression, CheckedIntegerBinaryKind,
+    BTreeMap, CanonicalStructuralPathSegment, CheckedBooleanExpression,
     CheckedIntegerComparisonKind, CheckedScalarExpression, IeeeFloatFormat, LoweringError, PlaceId,
     PrimitiveType, Proposition, ScalarTerm, ScalarType, StructuralParameterDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalCrashCause, ValueDeclaration,
@@ -180,305 +177,47 @@ impl RouteTerms<'_> {
         &self,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
-        match expression {
-            CheckedScalarExpression::Parameter { .. } => {
-                checked_scalar_term(expression, self.scalar_parameters, &[])
-            }
-            CheckedScalarExpression::StructuralParameterField {
-                parameter_position,
-                path,
-                primitive_type,
-            } => {
-                let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
-                else {
-                    return unsupported("structural crash integer member has a non-integer type");
-                };
-                lower_structural_member_term(
-                    *parameter_position,
+        crate::proofs::integer_predicates::lower(
+            expression,
+            self.runtime_requirements,
+            &|expression| match expression {
+                CheckedScalarExpression::Parameter { .. } => {
+                    checked_scalar_term(expression, self.scalar_parameters, &[])
+                }
+                CheckedScalarExpression::StructuralParameterField {
+                    parameter_position,
                     path,
-                    ScalarType::Integer(integer_type),
-                    self.parameters,
-                    self.structural_types,
-                )
-            }
-            CheckedScalarExpression::IntegerLiteral { literal } => {
-                let scalar_type = integer_landing_scalar_type(literal)?;
-                let ScalarType::Integer(integer_type) = scalar_type else {
-                    return unsupported("structural crash integer literal is not fixed-integer");
-                };
-                ScalarTerm::integer(integer_type, integer_value(literal, scalar_type)?)
-                    .map_err(LoweringError::InvalidCrashPredicate)
-            }
-            CheckedScalarExpression::IntegerBitwiseNot {
-                primitive_type,
-                operand,
-            } => {
-                let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
-                else {
-                    return unsupported("structural crash bitwise-not has a non-integer type");
-                };
-                let operand = self.lower_integer_term(operand)?;
-                ScalarTerm::integer_bitwise_not(integer_type, operand)
-                    .map_err(LoweringError::InvalidCrashPredicate)
-            }
-            CheckedScalarExpression::IntegerBinary {
-                kind,
-                primitive_type,
-                left,
-                right,
-            } if matches!(
-                kind,
-                CheckedIntegerBinaryKind::BitwiseAnd
-                    | CheckedIntegerBinaryKind::BitwiseOr
-                    | CheckedIntegerBinaryKind::BitwiseXor
-            ) =>
-            {
-                let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
-                else {
-                    return unsupported(
-                        "structural crash bitwise expression has a non-integer type",
-                    );
-                };
-                let left = self.lower_integer_term(left)?;
-                let right = self.lower_integer_term(right)?;
-                match kind {
-                    CheckedIntegerBinaryKind::BitwiseAnd => {
-                        ScalarTerm::integer_bitwise_and(integer_type, left, right)
-                    }
-                    CheckedIntegerBinaryKind::BitwiseOr => {
-                        ScalarTerm::integer_bitwise_or(integer_type, left, right)
-                    }
-                    CheckedIntegerBinaryKind::BitwiseXor => {
-                        ScalarTerm::integer_bitwise_xor(integer_type, left, right)
-                    }
-                    _ => unreachable!("guarded bitwise kind"),
+                    primitive_type,
+                } => {
+                    let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
+                    else {
+                        return unsupported(
+                            "structural crash integer member has a non-integer type",
+                        );
+                    };
+                    lower_structural_member_term(
+                        *parameter_position,
+                        path,
+                        ScalarType::Integer(integer_type),
+                        self.parameters,
+                        self.structural_types,
+                    )
                 }
-                .map_err(LoweringError::InvalidCrashPredicate)
-            }
-            CheckedScalarExpression::IntegerBinary {
-                kind,
-                primitive_type,
-                left,
-                right,
-            } if matches!(
-                kind,
-                CheckedIntegerBinaryKind::WrappingShiftLeft
-                    | CheckedIntegerBinaryKind::WrappingShiftRight
-                    | CheckedIntegerBinaryKind::ExactShiftLeft
-                    | CheckedIntegerBinaryKind::ExactShiftRight
-            ) =>
-            {
-                let ScalarType::Integer(value_type) = integer_scalar_type(*primitive_type)? else {
-                    return unsupported("structural crash shift has a non-integer value type");
-                };
-                let value = self.lower_integer_term(left)?;
-                let count = self.lower_integer_term(right)?;
-                if value.scalar_type() != ScalarType::Integer(value_type) {
-                    return unsupported(
-                        "structural crash shift value does not match its integer type",
-                    );
+                CheckedScalarExpression::IntegerLiteral { literal } => {
+                    let scalar_type = integer_landing_scalar_type(literal)?;
+                    let ScalarType::Integer(integer_type) = scalar_type else {
+                        return unsupported(
+                            "structural crash integer literal is not fixed-integer",
+                        );
+                    };
+                    ScalarTerm::integer(integer_type, integer_value(literal, scalar_type)?)
+                        .map_err(LoweringError::InvalidCrashPredicate)
                 }
-                let ScalarType::Integer(count_type) = count.scalar_type() else {
-                    return unsupported("structural crash shift count is not an integer");
-                };
-                if matches!(
-                    kind,
-                    CheckedIntegerBinaryKind::ExactShiftLeft
-                        | CheckedIntegerBinaryKind::ExactShiftRight
-                ) && !safe_exact_structural_shift(
-                    matches!(kind, CheckedIntegerBinaryKind::ExactShiftLeft),
-                    value_type,
-                    count_type,
-                    &value,
-                    &count,
-                    self.runtime_requirements,
-                ) {
-                    return unsupported(
-                        "structural crash Exact shift requires explicit terminal count and overflow safety evidence",
-                    );
-                }
-                match kind {
-                    CheckedIntegerBinaryKind::WrappingShiftLeft => {
-                        ScalarTerm::wrapping_integer_shift_left(
-                            value_type, count_type, value, count,
-                        )
-                    }
-                    CheckedIntegerBinaryKind::WrappingShiftRight => {
-                        ScalarTerm::wrapping_integer_shift_right(
-                            value_type, count_type, value, count,
-                        )
-                    }
-                    CheckedIntegerBinaryKind::ExactShiftLeft => {
-                        ScalarTerm::exact_integer_shift_left(value_type, count_type, value, count)
-                    }
-                    CheckedIntegerBinaryKind::ExactShiftRight => {
-                        ScalarTerm::exact_integer_shift_right(value_type, count_type, value, count)
-                    }
-                    _ => unreachable!("guarded structural shift kind"),
-                }
-                .map_err(LoweringError::InvalidCrashPredicate)
-            }
-            CheckedScalarExpression::IntegerBinary {
-                kind,
-                primitive_type,
-                left,
-                right,
-            } if matches!(
-                kind,
-                CheckedIntegerBinaryKind::ExactAdd
-                    | CheckedIntegerBinaryKind::ExactSubtract
-                    | CheckedIntegerBinaryKind::ExactMultiply
-                    | CheckedIntegerBinaryKind::ExactDivide
-                    | CheckedIntegerBinaryKind::ExactRemainder
-                    | CheckedIntegerBinaryKind::WrappingAdd
-                    | CheckedIntegerBinaryKind::SaturatingAdd
-                    | CheckedIntegerBinaryKind::WrappingSubtract
-                    | CheckedIntegerBinaryKind::SaturatingSubtract
-                    | CheckedIntegerBinaryKind::WrappingMultiply
-                    | CheckedIntegerBinaryKind::SaturatingMultiply
-                    | CheckedIntegerBinaryKind::WrappingDivide
-                    | CheckedIntegerBinaryKind::WrappingRemainder
-                    | CheckedIntegerBinaryKind::SaturatingDivide
-                    | CheckedIntegerBinaryKind::SaturatingRemainder
-            ) =>
-            {
-                let ScalarType::Integer(integer_type) = integer_scalar_type(*primitive_type)?
-                else {
-                    return unsupported("structural crash arithmetic has a non-integer type");
-                };
-                let left = Box::new(self.lower_integer_term(left)?);
-                let right = Box::new(self.lower_integer_term(right)?);
-                if left.scalar_type() != ScalarType::Integer(integer_type)
-                    || right.scalar_type() != ScalarType::Integer(integer_type)
-                {
-                    return unsupported(
-                        "structural crash arithmetic operands do not match its integer type",
-                    );
-                }
-                if matches!(
-                    kind,
-                    CheckedIntegerBinaryKind::ExactDivide
-                        | CheckedIntegerBinaryKind::ExactRemainder
-                ) && !safe_exact_structural_divisor(
-                    integer_type,
-                    &left,
-                    &right,
-                    self.runtime_requirements,
-                ) {
-                    return unsupported(
-                        "structural crash exact division requires explicit terminal divisor safety evidence",
-                    );
-                }
-                if matches!(
-                    kind,
-                    CheckedIntegerBinaryKind::WrappingDivide
-                        | CheckedIntegerBinaryKind::WrappingRemainder
-                        | CheckedIntegerBinaryKind::SaturatingDivide
-                        | CheckedIntegerBinaryKind::SaturatingRemainder
-                ) && !safe_policy_structural_divisor(
-                    integer_type,
-                    &right,
-                    self.runtime_requirements,
-                ) {
-                    return unsupported(
-                        "structural crash policy division requires explicit terminal nonzero-divisor evidence",
-                    );
-                }
-                Ok(match kind {
-                    CheckedIntegerBinaryKind::ExactAdd => ScalarTerm::ExactIntegerAdd {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    },
-                    CheckedIntegerBinaryKind::ExactSubtract => ScalarTerm::ExactIntegerSubtract {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    },
-                    CheckedIntegerBinaryKind::ExactMultiply => ScalarTerm::ExactIntegerMultiply {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    },
-                    CheckedIntegerBinaryKind::ExactDivide => ScalarTerm::ExactIntegerDivide {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    },
-                    CheckedIntegerBinaryKind::ExactRemainder => ScalarTerm::ExactIntegerRemainder {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    },
-                    CheckedIntegerBinaryKind::WrappingAdd => ScalarTerm::WrappingIntegerAdd {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    },
-                    CheckedIntegerBinaryKind::SaturatingAdd => ScalarTerm::SaturatingIntegerAdd {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    },
-                    CheckedIntegerBinaryKind::WrappingSubtract => {
-                        ScalarTerm::WrappingIntegerSubtract {
-                            scalar_type: integer_type,
-                            left,
-                            right,
-                        }
-                    }
-                    CheckedIntegerBinaryKind::SaturatingSubtract => {
-                        ScalarTerm::SaturatingIntegerSubtract {
-                            scalar_type: integer_type,
-                            left,
-                            right,
-                        }
-                    }
-                    CheckedIntegerBinaryKind::WrappingMultiply => {
-                        ScalarTerm::WrappingIntegerMultiply {
-                            scalar_type: integer_type,
-                            left,
-                            right,
-                        }
-                    }
-                    CheckedIntegerBinaryKind::SaturatingMultiply => {
-                        ScalarTerm::SaturatingIntegerMultiply {
-                            scalar_type: integer_type,
-                            left,
-                            right,
-                        }
-                    }
-                    CheckedIntegerBinaryKind::WrappingDivide => ScalarTerm::WrappingIntegerDivide {
-                        scalar_type: integer_type,
-                        left,
-                        right,
-                    },
-                    CheckedIntegerBinaryKind::WrappingRemainder => {
-                        ScalarTerm::WrappingIntegerRemainder {
-                            scalar_type: integer_type,
-                            left,
-                            right,
-                        }
-                    }
-                    CheckedIntegerBinaryKind::SaturatingDivide => {
-                        ScalarTerm::SaturatingIntegerDivide {
-                            scalar_type: integer_type,
-                            left,
-                            right,
-                        }
-                    }
-                    CheckedIntegerBinaryKind::SaturatingRemainder => {
-                        ScalarTerm::SaturatingIntegerRemainder {
-                            scalar_type: integer_type,
-                            left,
-                            right,
-                        }
-                    }
-                    _ => unreachable!("guarded structural arithmetic kind"),
-                })
-            }
-            _ => unsupported("structural crash integer predicate contains an unsupported operand"),
-        }
+                _ => unsupported(
+                    "structural crash integer predicate contains an unsupported operand",
+                ),
+            },
+        )
     }
 
     fn lower_polarity(

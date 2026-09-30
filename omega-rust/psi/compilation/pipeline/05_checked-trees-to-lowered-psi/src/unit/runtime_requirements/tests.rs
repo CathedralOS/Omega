@@ -19,6 +19,82 @@ fn lower(expression: &CheckedBooleanExpression) -> Result<Proposition, LoweringE
 }
 
 #[test]
+fn total_integer_requirements_preserve_arithmetic_and_substitute_nested_formals() {
+    let scalar_type = integer_scalar_type(PrimitiveType::U64).unwrap();
+    let formal = ValueDeclaration {
+        id: value_id(1),
+        scalar_type,
+        qualifications: Default::default(),
+    };
+    let parameter = CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::U64,
+    };
+    let literal = CheckedScalarExpression::IntegerLiteral {
+        literal: numerics::literals::IntegerLiteral::from_value(1).with_landing(
+            numerics::literals::IntegerLanding {
+                landed_type: numerics::literals::LandedIntegerType::U64,
+                domain: ArithmeticDomain::Exact,
+            },
+        ),
+    };
+    let expression = CheckedBooleanExpression::IntegerComparison {
+        kind: CheckedIntegerComparisonKind::LessThan,
+        left: Box::new(CheckedScalarExpression::IntegerBinary {
+            kind: checked_trees::CheckedIntegerBinaryKind::WrappingSubtract,
+            primitive_type: PrimitiveType::U64,
+            left: Box::new(parameter.clone()),
+            right: Box::new(literal),
+        }),
+        right: Box::new(parameter),
+    };
+    let mut proposition =
+        lower_structural_runtime_requirement(&expression, &[formal], &[], &[], &[])
+            .expect("total arithmetic belongs to the entry predicate, not a new body shape");
+    assert!(matches!(
+        &proposition,
+        Proposition::LessThan(ScalarTerm::WrappingIntegerSubtract { .. }, _)
+    ));
+    let actual = ValueDeclaration {
+        id: value_id(8),
+        ..formal
+    };
+    substitute_runtime_requirement_scalar_values(
+        &mut proposition,
+        &BTreeMap::from([(formal.id, actual)]),
+    )
+    .expect("substitute every nested formal without changing the operation");
+    let mut values = BTreeSet::new();
+    proposition.visit_value_ids(|value| {
+        values.insert(value);
+    });
+    assert_eq!(values, BTreeSet::from([actual.id]));
+    for invalid in [
+        CheckedScalarExpression::StorageRead {
+            symbol: symbols::SymbolHandle::from_arena_index(9),
+            primitive_type: PrimitiveType::U64,
+        },
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U32,
+        },
+    ] {
+        let mut forged = expression.clone();
+        let CheckedBooleanExpression::IntegerComparison { left, .. } = &mut forged else {
+            panic!("integer requirement");
+        };
+        let CheckedScalarExpression::IntegerBinary { left, .. } = left.as_mut() else {
+            panic!("arithmetic operand");
+        };
+        *left = Box::new(invalid);
+        assert!(
+            lower_structural_runtime_requirement(&forged, &[formal], &[], &[], &[]).is_err(),
+            "arithmetic cannot hide a mutable read or a mismatched formal carrier"
+        );
+    }
+}
+
+#[test]
 fn wrappers_never_admit_body_locals_or_mutable_storage() {
     for unsupported in [
         CheckedBooleanExpression::Local { position: 0 },
