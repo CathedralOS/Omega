@@ -10,63 +10,56 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    state: u32 in Wrapping;  // xorshift state
-    sc: u32 in Wrapping;     // shift scratch
-    px: u32 in Wrapping;
-    py: u32 in Wrapping;
-    d: u32 in Wrapping;      // px*px + py*py
-    inside: i32 in Wrapping; // points within the quarter circle
-    est: i32 in Wrapping;    // 100 * pi estimate
-    n: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.state = 1;
-    self.inside = 0;
-    self.n = 0;
-    transition { _ -> loop() }
+machine Main::main(context: &mut Main) reaches Console {
+    transition { _ -> loop(context, 1, 0, 0) }
 
-    state loop(&mut self) {
-        transition self.n < 64 { true -> draw() _ -> verify() }
+    state loop(context: &mut Main, seed: u32 in Wrapping,
+               inside: i32 in Wrapping, sample_count: i32 in Wrapping) {
+        transition sample_count < 64 {
+            true -> draw(context, seed, inside, sample_count)
+            _ -> verify(context, inside)
+        }
     }
-    state draw(&mut self) {
-        // a fresh xorshift32 draw for px
-        self.sc = self.state << 13;
-        self.state = self.state ^ self.sc;
-        self.sc = self.state >> 17;
-        self.state = self.state ^ self.sc;
-        self.sc = self.state << 5;
-        self.state = self.state ^ self.sc;
-        self.px = self.state % 100;
-        // and another for py
-        self.sc = self.state << 13;
-        self.state = self.state ^ self.sc;
-        self.sc = self.state >> 17;
-        self.state = self.state ^ self.sc;
-        self.sc = self.state << 5;
-        self.state = self.state ^ self.sc;
-        self.py = self.state % 100;
+    state draw(context: &mut Main, seed: u32 in Wrapping,
+               inside: i32 in Wrapping, sample_count: i32 in Wrapping) {
+        // A fresh xorshift32 draw for each coordinate. Only the final seed
+        // crosses the back-edge; intermediate draws belong to this state.
+        let first_left: u32 in Wrapping = seed ^ (seed << 13);
+        let first_right: u32 in Wrapping = first_left ^ (first_left >> 17);
+        let first_draw: u32 in Wrapping = first_right ^ (first_right << 5);
+        let horizontal: u32 in Wrapping = first_draw % 100;
+        let second_left: u32 in Wrapping = first_draw ^ (first_draw << 13);
+        let second_right: u32 in Wrapping = second_left ^ (second_left >> 17);
+        let next_seed: u32 in Wrapping = second_right ^ (second_right << 5);
+        let vertical: u32 in Wrapping = next_seed % 100;
         // inside the quarter circle?
-        self.d = self.px * self.px + self.py * self.py;
-        transition self.d < 10000 { true -> hit() _ -> miss() }
+        let distance: u32 in Wrapping = horizontal * horizontal + vertical * vertical;
+        transition distance < 10000 {
+            true -> hit(context, next_seed, inside, sample_count)
+            _ -> miss(context, next_seed, inside, sample_count)
+        }
     }
-    state hit(&mut self) {
-        self.inside = self.inside + 1;
-        self.n = self.n + 1;
-        transition { _ -> loop() }
+    state hit(context: &mut Main, seed: u32 in Wrapping,
+              inside: i32 in Wrapping, sample_count: i32 in Wrapping) {
+        transition { _ -> loop(context, seed, inside + 1, sample_count + 1) }
     }
-    state miss(&mut self) {
-        self.n = self.n + 1;
-        transition { _ -> loop() }
+    state miss(context: &mut Main, seed: u32 in Wrapping,
+               inside: i32 in Wrapping, sample_count: i32 in Wrapping) {
+        transition { _ -> loop(context, seed, inside, sample_count + 1) }
     }
-    state verify(&mut self) {
-        self.est = 400 * self.inside / 64; // 4 * inside / N, scaled by 100
-        transition self.inside == 53 && self.est == 331 { true -> good() _ -> wrong() }
+    state verify(context: &mut Main, inside: i32 in Wrapping) {
+        let estimate: i32 in Wrapping = 400 * inside / 64;
+        transition inside == 53 && estimate == 331 {
+            true -> good(context)
+            _ -> wrong(context, inside)
+        }
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(context: &mut Main) {
+        context.console.exit_process(70);
     }
-    state wrong(&mut self) {
-        self.console.exit_process(self.inside as i32); // surface the count on regression
+    state wrong(context: &mut Main, inside: i32 in Wrapping) {
+        context.console.exit_process(inside as i32); // surface the count on regression
     }
 }

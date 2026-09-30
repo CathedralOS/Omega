@@ -8,47 +8,46 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    a: i32 in Wrapping;
-    b: i32 in Wrapping;
-    r1: i32 in Wrapping;
-    r2: i32 in Wrapping;
-    s: i32 in Wrapping;
-    u: u32 in Wrapping;
-    rs: i32 in Wrapping;
-    ru: u32 in Wrapping;
-    base: i32 in Wrapping;
-    n: i32 in Wrapping;
-    shv: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.a = 0 - 7;
-    self.b = 3;
-    self.r1 = self.a % self.b;
-    self.a = 7;
-    self.b = 0 - 3;
-    self.r2 = self.a % self.b;
-    transition self.r1 == 0 - 1 { true -> mod2() _ -> bad() }
+machine Main::main(context: &mut Main) reaches Console {
+    transition { _ -> modulo(context, 0 - 7, 3) }
 
-    state mod2(&mut self) {
-        transition self.r2 == 1 { true -> shifts() _ -> bad() }
+    state modulo(context: &mut Main, negative: i32 in Wrapping,
+                 divisor: i32 in Wrapping) {
+        let first_remainder: i32 in Wrapping = negative % divisor;
+        let positive: i32 in Wrapping = 0 - negative;
+        let negative_divisor: i32 in Wrapping = 0 - divisor;
+        let second_remainder: i32 in Wrapping = positive % negative_divisor;
+        transition first_remainder == 0 - 1 {
+            true -> mod2(context, second_remainder)
+            _ -> bad(context)
+        }
     }
-    state shifts(&mut self) {
-        self.s = 0 - 16;
-        self.rs = self.s >> 2;
-        self.u = 16;
-        self.ru = self.u >> 2;
-        transition self.rs == 0 - 4 { true -> ushift() _ -> bad() }
+
+    state mod2(context: &mut Main, remainder: i32 in Wrapping) {
+        transition remainder == 1 { true -> shifts(context, 0 - 16, 16) _ -> bad(context) }
     }
-    state ushift(&mut self) {
-        transition self.ru == 4 { true -> runtime_shift() _ -> bad() }
+    state shifts(context: &mut Main, signed_value: i32 in Wrapping,
+                 unsigned_value: u32 in Wrapping) {
+        let signed_shift: i32 in Wrapping = signed_value >> 2;
+        let unsigned_shift: u32 in Wrapping = unsigned_value >> 2;
+        transition signed_shift == 0 - 4 {
+            true -> ushift(context, unsigned_shift)
+            _ -> bad(context)
+        }
     }
-    state runtime_shift(&mut self) {
-        self.base = 1;
-        self.n = 5;
-        self.shv = self.base << self.n;
-        transition self.shv == 32 { true -> ok() _ -> bad() }
+    state ushift(context: &mut Main, shifted: u32 in Wrapping) {
+        transition shifted == 4 {
+            true -> runtime_shift(context, 5)
+            _ -> bad(context)
+        }
     }
-    state ok(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state runtime_shift(context: &mut Main, shift_count: i32 in Wrapping) {
+        let base: i32 in Wrapping = 1;
+        let shifted: i32 in Wrapping = base << shift_count;
+        transition shifted == 32 { true -> ok(context) _ -> bad(context) }
+    }
+    state ok(context: &mut Main) { context.console.exit_process(70); }
+    state bad(context: &mut Main) { context.console.exit_process(71); }
 }
