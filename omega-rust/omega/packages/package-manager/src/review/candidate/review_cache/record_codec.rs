@@ -4,7 +4,6 @@
 
 use super::super::semantic_bindings::SemanticBindingReviewCandidate;
 use super::{CachedCompiledReview, CachedOccurrenceFacts};
-use crate::declarations::DependencyPurpose;
 use checked_interpreter::observation_codec::{ObservationCursor, push_framed};
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, ProviderPlanDigest, ServiceEntryAuthorityFlow,
@@ -12,15 +11,18 @@ use effects::provider_plan::{
     ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
     ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
 };
-use effects::{
-    ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
-};
+use effects::{ServiceTerminalAuthorityPermission, TerminalAuthorityDisposition};
 use language_semantics::{CarryPolicy, DomainPredicateBody};
-use package_compilation::build_execution::retained_review_codec;
+use package_compilation::build_execution::build_record_codec;
+use package_compilation::review_record_encoding::{
+    authority_class_tag, declaration_kind_tag, encode_optional, purpose_tag,
+    recover_authority_class, recover_declaration_kind, recover_optional, recover_purpose,
+    recover_semantic_binding_role, semantic_binding_role_tag,
+};
 use package_compilation::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind, ConsumedSourceUnit,
-    ConsumedSourceUnitKind, IndependentComponentDescription, PackageDependencyBinding,
-    PackageDependencyClosure, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
+    AcceptedSemanticBinding, ConsumedSourceUnit, ConsumedSourceUnitKind,
+    IndependentComponentDescription, PackageDependencyBinding, PackageDependencyClosure,
+    PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use sha2::{Digest, Sha256};
@@ -64,59 +66,6 @@ fn encode_string(value: &str, out: &mut Vec<u8>) {
     push_framed(out, value.as_bytes());
 }
 
-fn encode_optional<T>(value: Option<&T>, out: &mut Vec<u8>, encode: impl Fn(&T, &mut Vec<u8>)) {
-    match value {
-        Some(value) => {
-            out.push(1);
-            encode(value, out);
-        }
-        None => out.push(0),
-    }
-}
-
-fn recover_optional<'a, T>(
-    cursor: &mut ObservationCursor<'a>,
-    decode: impl Fn(&mut ObservationCursor<'a>) -> Option<T>,
-) -> Option<Option<T>> {
-    match cursor.u8()? {
-        0 => Some(None),
-        1 => decode(cursor).map(Some),
-        _ => None,
-    }
-}
-
-pub(super) fn purpose_tag(purpose: DependencyPurpose) -> u8 {
-    match purpose {
-        DependencyPurpose::Product => 0,
-        DependencyPurpose::Build => 1,
-    }
-}
-
-fn recover_purpose(cursor: &mut ObservationCursor<'_>) -> Option<DependencyPurpose> {
-    match cursor.u8()? {
-        0 => Some(DependencyPurpose::Product),
-        1 => Some(DependencyPurpose::Build),
-        _ => None,
-    }
-}
-
-fn declaration_kind_tag(kind: BuildDeclarationKind) -> u8 {
-    match kind {
-        BuildDeclarationKind::Package => 0,
-        BuildDeclarationKind::Application => 1,
-        BuildDeclarationKind::Workspace => 2,
-    }
-}
-
-fn recover_declaration_kind(cursor: &mut ObservationCursor<'_>) -> Option<BuildDeclarationKind> {
-    match cursor.u8()? {
-        0 => Some(BuildDeclarationKind::Package),
-        1 => Some(BuildDeclarationKind::Application),
-        2 => Some(BuildDeclarationKind::Workspace),
-        _ => None,
-    }
-}
-
 fn encode_target(profile: target::TargetProfile, out: &mut Vec<u8>) {
     encode_string(profile.target_name(), out);
 }
@@ -137,79 +86,15 @@ fn recover_identity(cursor: &mut ObservationCursor<'_>) -> Option<PackageKeyIden
     PackageKeyIdentity::from_digest(cursor_digest(cursor)?)
 }
 
-fn encode_role(role: AcceptedSemanticBindingRole, out: &mut Vec<u8>) {
-    out.push(match role {
-        AcceptedSemanticBindingRole::ConsoleExitProcessI32 => 0,
-        AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => 1,
-        AcceptedSemanticBindingRole::FilesystemHostService => 2,
-        AcceptedSemanticBindingRole::TimeHostService => 3,
-        AcceptedSemanticBindingRole::UefiX64ProgramEntry => 4,
-        AcceptedSemanticBindingRole::MacosArm64ProgramEntry => 5,
-        AcceptedSemanticBindingRole::MacosX64ProgramEntry => 6,
-        AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry => 7,
-        AcceptedSemanticBindingRole::LinuxArm64ProgramEntry => 8,
-        AcceptedSemanticBindingRole::WindowsX64ProgramEntry => 9,
-    });
-}
-
-fn recover_role(cursor: &mut ObservationCursor<'_>) -> Option<AcceptedSemanticBindingRole> {
-    Some(match cursor.u8()? {
-        0 => AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-        1 => AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-        2 => AcceptedSemanticBindingRole::FilesystemHostService,
-        3 => AcceptedSemanticBindingRole::TimeHostService,
-        4 => AcceptedSemanticBindingRole::UefiX64ProgramEntry,
-        5 => AcceptedSemanticBindingRole::MacosArm64ProgramEntry,
-        6 => AcceptedSemanticBindingRole::MacosX64ProgramEntry,
-        7 => AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry,
-        8 => AcceptedSemanticBindingRole::LinuxArm64ProgramEntry,
-        9 => AcceptedSemanticBindingRole::WindowsX64ProgramEntry,
-        _ => return None,
-    })
-}
-
 fn encode_disposition(disposition: &TerminalAuthorityDisposition, out: &mut Vec<u8>) {
     out.extend_from_slice(&(disposition.classes().len() as u64).to_le_bytes());
     for class in disposition.classes() {
-        out.push(match class {
-            TerminalAuthorityClass::FilesystemContentRead => 0,
-            TerminalAuthorityClass::FilesystemContentWrite => 1,
-            TerminalAuthorityClass::FilesystemMetadataQuery => 2,
-            TerminalAuthorityClass::DirectoryEnumeration => 3,
-            TerminalAuthorityClass::FilesystemNamespaceMutation => 4,
-            TerminalAuthorityClass::FilesystemMetadataMutation => 5,
-            TerminalAuthorityClass::ProcessOutput => 6,
-            TerminalAuthorityClass::ProcessTermination => 7,
-            TerminalAuthorityClass::MachineControl => 8,
-            TerminalAuthorityClass::PortIo => 9,
-            TerminalAuthorityClass::InterruptControl => 10,
-            TerminalAuthorityClass::InterruptEntry => 11,
-            TerminalAuthorityClass::RootMemoryAccess => 12,
-            TerminalAuthorityClass::ProcessInput => 13,
-        });
+        out.push(authority_class_tag(*class));
     }
 }
 
 fn recover_disposition(cursor: &mut ObservationCursor<'_>) -> Option<TerminalAuthorityDisposition> {
-    let classes = cursor_vec(cursor, |cursor| {
-        Some(match cursor.u8()? {
-            0 => TerminalAuthorityClass::FilesystemContentRead,
-            1 => TerminalAuthorityClass::FilesystemContentWrite,
-            2 => TerminalAuthorityClass::FilesystemMetadataQuery,
-            3 => TerminalAuthorityClass::DirectoryEnumeration,
-            4 => TerminalAuthorityClass::FilesystemNamespaceMutation,
-            5 => TerminalAuthorityClass::FilesystemMetadataMutation,
-            6 => TerminalAuthorityClass::ProcessOutput,
-            7 => TerminalAuthorityClass::ProcessTermination,
-            8 => TerminalAuthorityClass::MachineControl,
-            9 => TerminalAuthorityClass::PortIo,
-            10 => TerminalAuthorityClass::InterruptControl,
-            11 => TerminalAuthorityClass::InterruptEntry,
-            12 => TerminalAuthorityClass::RootMemoryAccess,
-            13 => TerminalAuthorityClass::ProcessInput,
-            _ => return None,
-        })
-    })?;
+    let classes = cursor_vec(cursor, recover_authority_class)?;
     TerminalAuthorityDisposition::try_from_canonical_classes(classes).ok()
 }
 
@@ -230,7 +115,7 @@ fn recover_permission(
 }
 
 fn encode_binding(binding: &AcceptedSemanticBinding, out: &mut Vec<u8>) {
-    encode_role(binding.role(), out);
+    out.push(semantic_binding_role_tag(binding.role()));
     encode_identity(binding.package(), out);
     encode_string(binding.declaration_path(), out);
     out.extend_from_slice(binding.normalized_schema_digest().as_bytes());
@@ -246,7 +131,7 @@ fn encode_binding(binding: &AcceptedSemanticBinding, out: &mut Vec<u8>) {
 }
 
 fn recover_binding(cursor: &mut ObservationCursor<'_>) -> Option<AcceptedSemanticBinding> {
-    let role = recover_role(cursor)?;
+    let role = recover_semantic_binding_role(cursor)?;
     let package = recover_identity(cursor)?;
     let declaration_path = cursor_string(cursor)?;
     let schema = ServiceSchemaDigest::from_digest(cursor_digest(cursor)?);
@@ -735,7 +620,7 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
     encode_string(&review.selected_build_machine_identity, out);
     encode_optional(review.build_evaluation_usage.as_ref(), out, |usage, out| {
         let mut framed = Vec::new();
-        retained_review_codec::encode_build_evaluation_usage(usage, &mut framed);
+        build_record_codec::encode_build_evaluation_usage(usage, &mut framed);
         push_framed(out, &framed);
     });
     encode_optional(
@@ -743,14 +628,14 @@ pub(super) fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
         out,
         |summary, out| {
             let mut framed = Vec::new();
-            retained_review_codec::encode_observation_summary(summary, &mut framed);
+            build_record_codec::encode_observation_summary(summary, &mut framed);
             push_framed(out, &framed);
         },
     );
     out.extend_from_slice(&(review.restricted_build_requests.len() as u64).to_le_bytes());
     for request in &review.restricted_build_requests {
         let mut framed = Vec::new();
-        retained_review_codec::encode_restricted_build_request(request, &mut framed);
+        build_record_codec::encode_restricted_build_request(request, &mut framed);
         push_framed(out, &framed);
     }
     out.extend_from_slice(&(review.semantic_bindings.len() as u64).to_le_bytes());
@@ -817,17 +702,17 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     let build_execution_profile = recover_optional(&mut cursor, recover_target)?;
     let selected_build_machine_identity = cursor_string(&mut cursor)?.to_owned();
     let build_evaluation_usage = recover_optional(&mut cursor, |cursor| {
-        retained_review_codec::recover_build_evaluation_usage(&mut ObservationCursor::new(
+        build_record_codec::recover_build_evaluation_usage(&mut ObservationCursor::new(
             cursor.framed()?,
         ))
     })?;
     let build_observation_summary = recover_optional(&mut cursor, |cursor| {
-        retained_review_codec::recover_observation_summary(&mut ObservationCursor::new(
+        build_record_codec::recover_observation_summary(&mut ObservationCursor::new(
             cursor.framed()?,
         ))
     })?;
     let restricted_build_requests = cursor_vec(&mut cursor, |cursor| {
-        retained_review_codec::recover_restricted_build_request(&mut ObservationCursor::new(
+        build_record_codec::recover_restricted_build_request(&mut ObservationCursor::new(
             cursor.framed()?,
         ))
     })?;

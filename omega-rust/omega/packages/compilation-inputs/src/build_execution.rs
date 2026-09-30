@@ -8,6 +8,8 @@
 //! before execution, so package review and consumption share one vocabulary.
 
 mod build_admission;
+#[doc(hidden)]
+pub mod build_record_codec;
 pub mod build_value;
 mod completed_outputs;
 mod filesystem_scope;
@@ -16,8 +18,6 @@ mod observation_projection;
 mod observations;
 mod output_custody;
 mod restricted_requests;
-#[doc(hidden)]
-pub mod retained_review_codec;
 mod snapshot_request;
 
 pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};

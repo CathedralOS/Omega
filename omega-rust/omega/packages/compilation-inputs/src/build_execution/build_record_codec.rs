@@ -9,7 +9,10 @@
 //! malformed or unexpected fails the decode and the caller treats the record
 //! as absent.
 
-use checked_interpreter::observation_codec::ObservationCursor as Cursor;
+use crate::review_record_encoding::{
+    declaration_kind_tag, encode_optional, recover_declaration_kind, recover_optional,
+};
+use checked_interpreter::observation_codec::{ObservationCursor as Cursor, push_framed};
 use checked_interpreter::{
     BuildEvaluationSponsorLimits, BuildEvaluationUsage, FilesystemSponsorLimits,
     canonical_filesystem_metadata_path_is_canonical, observation_codec,
@@ -36,7 +39,9 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
     out.extend_from_slice(&usage.usage_schema_version.to_le_bytes());
     out.extend_from_slice(&usage.step_schedule_marker.to_le_bytes());
     out.extend_from_slice(&usage.invocation_fuel_ceiling.to_le_bytes());
-    encode_optional_u32(usage.sponsor_schema_version, out);
+    encode_optional(usage.sponsor_schema_version.as_ref(), out, |value, out| {
+        out.extend_from_slice(&value.to_le_bytes())
+    });
     for value in [
         usage.session_fuel_ceiling,
         usage.session_build_log_byte_ceiling,
@@ -47,7 +52,9 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
         usage.session_result_cell_ceiling,
         usage.session_result_text_byte_ceiling,
     ] {
-        encode_optional_u64(value, out);
+        encode_optional(value.as_ref(), out, |value, out| {
+            out.extend_from_slice(&value.to_le_bytes())
+        });
     }
     for value in [
         usage.session_peak_live_filesystem_handles,
@@ -70,15 +77,15 @@ pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvalua
     let usage_schema_version = cursor.u32()?;
     let step_schedule_marker = cursor.u32()?;
     let invocation_fuel_ceiling = cursor.u64()?;
-    let sponsor_schema_version = recover_optional_u32(cursor)?;
-    let session_fuel_ceiling = recover_optional_u64(cursor)?;
-    let session_build_log_byte_ceiling = recover_optional_u64(cursor)?;
-    let session_filesystem_attempt_ceiling = recover_optional_u64(cursor)?;
-    let session_live_filesystem_handle_ceiling = recover_optional_u64(cursor)?;
-    let session_live_cell_ceiling = recover_optional_u64(cursor)?;
-    let session_live_text_byte_ceiling = recover_optional_u64(cursor)?;
-    let session_result_cell_ceiling = recover_optional_u64(cursor)?;
-    let session_result_text_byte_ceiling = recover_optional_u64(cursor)?;
+    let sponsor_schema_version = recover_optional(cursor, Cursor::u32)?;
+    let session_fuel_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_build_log_byte_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_filesystem_attempt_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_live_filesystem_handle_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_live_cell_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_live_text_byte_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_result_cell_ceiling = recover_optional(cursor, Cursor::u64)?;
+    let session_result_text_byte_ceiling = recover_optional(cursor, Cursor::u64)?;
     Some(BuildEvaluationUsage {
         usage_schema_version,
         step_schedule_marker,
@@ -332,17 +339,9 @@ pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut V
         }
         None => out.push(0),
     }
-    match activation.root_role() {
-        Some(role) => {
-            out.push(1);
-            out.push(match role {
-                crate::BuildDeclarationKind::Package => 0,
-                crate::BuildDeclarationKind::Application => 1,
-                crate::BuildDeclarationKind::Workspace => 2,
-            });
-        }
-        None => out.push(0),
-    }
+    encode_optional(activation.root_role().as_ref(), out, |role, out| {
+        out.push(declaration_kind_tag(*role))
+    });
     match activation.build_execution_profile() {
         Some(profile) => {
             out.push(1);
@@ -414,16 +413,7 @@ pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservati
         }
         _ => return None,
     };
-    let root_role = match cursor.u8()? {
-        0 => None,
-        1 => Some(match cursor.u8()? {
-            0 => crate::BuildDeclarationKind::Package,
-            1 => crate::BuildDeclarationKind::Application,
-            2 => crate::BuildDeclarationKind::Workspace,
-            _ => return None,
-        }),
-        _ => return None,
-    };
+    let root_role = recover_optional(cursor, recover_declaration_kind)?;
     let build_execution_profile = match cursor.u8()? {
         0 => None,
         1 => Some(crate::production_subject::recover_target_profile_tag(
@@ -704,47 +694,6 @@ pub fn recover_restricted_build_request(cursor: &mut Cursor) -> Option<Restricte
         build_execution_profile,
         selected_target_profile,
     ))
-}
-
-fn encode_optional_u32(value: Option<u32>, out: &mut Vec<u8>) {
-    match value {
-        Some(value) => {
-            out.push(1);
-            out.extend_from_slice(&value.to_le_bytes());
-        }
-        None => out.push(0),
-    }
-}
-
-fn recover_optional_u32(cursor: &mut Cursor) -> Option<Option<u32>> {
-    match cursor.u8()? {
-        0 => Some(None),
-        1 => Some(Some(cursor.u32()?)),
-        _ => None,
-    }
-}
-
-fn encode_optional_u64(value: Option<u64>, out: &mut Vec<u8>) {
-    match value {
-        Some(value) => {
-            out.push(1);
-            out.extend_from_slice(&value.to_le_bytes());
-        }
-        None => out.push(0),
-    }
-}
-
-fn recover_optional_u64(cursor: &mut Cursor) -> Option<Option<u64>> {
-    match cursor.u8()? {
-        0 => Some(None),
-        1 => Some(Some(cursor.u64()?)),
-        _ => None,
-    }
-}
-
-fn push_framed(out: &mut Vec<u8>, bytes: &[u8]) {
-    out.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
-    out.extend_from_slice(bytes);
 }
 
 fn cursor_count(cursor: &mut Cursor) -> Option<usize> {
