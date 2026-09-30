@@ -62,11 +62,15 @@ impl Invocation<'_> {
         self.position(callee, entry.return_type)
     }
 
+    /// Evaluate the call's arguments and snapshot each to its literal
+    /// spelling. The literal vector stays aligned with the call's argument
+    /// span so the shared snapshot probe can substitute evaluated operands
+    /// without re-evaluating them.
     fn arguments(
         &self,
         expression: ExpressionHandle,
         callee: super::EndpointCallee,
-    ) -> Result<(Vec<BuildTimeValue>, Vec<Diagnostic>), String> {
+    ) -> Result<(Vec<BuildTimeValue>, Vec<ExpressionNode>, Vec<Diagnostic>), String> {
         let ExpressionNode::Call(call) = self.execution.expression_table.expression(expression)
         else {
             return Err("range endpoint lost its call".into());
@@ -93,6 +97,7 @@ impl Invocation<'_> {
             );
         }
         let mut values = Vec::new();
+        let mut literals = Vec::new();
         let mut warnings = Vec::new();
         for (argument, parameter) in arguments.iter().zip(parameters) {
             let position = self.position(callee, parameter.type_reference)?;
@@ -106,6 +111,7 @@ impl Invocation<'_> {
             append_warnings(&mut warnings, new_warnings);
             match (position, value.decode_encoding()) {
                 (ScalarPosition::Boolean, Some(DecodedCanonicalConstValue::Boolean(value))) => {
+                    literals.push(ExpressionNode::Boolean(value));
                     values.push(BuildTimeValue::Bool(value))
                 }
                 (
@@ -117,6 +123,18 @@ impl Invocation<'_> {
                         self.admission,
                         &numerics::bignum::BigInt::from_i128(value),
                     )?;
+                    literals.push(ExpressionNode::Integer(
+                        numerics::literals::IntegerLiteral::from_parts(
+                            value < 0,
+                            numerics::literals::IntegerRadix::Decimal,
+                            &value.unsigned_abs().to_string(),
+                        )
+                        .map_err(|_| "range endpoint argument lost its literal spelling")?
+                        .with_landing(numerics::literals::IntegerLanding {
+                            landed_type: super::integer_landing(position.primitive)?,
+                            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+                        }),
+                    ));
                     let bits = if position.primitive.is_signed_integer() {
                         i64::try_from(value).map_err(
                             |_| "range endpoint argument exceeds signed interpreter storage",
@@ -131,7 +149,75 @@ impl Invocation<'_> {
                 _ => return Err("range endpoint argument differs from its selected carrier".into()),
             }
         }
-        Ok((values, warnings))
+        Ok((values, literals, warnings))
+    }
+
+    /// Discharge this endpoint call's authored non-domain `requires`
+    /// premises at its concrete arguments: an authored premise has meaning
+    /// only inside an invocation, so the shared snapshot probe rebuilds the
+    /// call with the evaluated literal arguments and re-runs ordinary
+    /// contract checking on the exact invocation — its diagnostics are the
+    /// honest rejection when a premise does not hold at these operands.
+    fn snapshot_requires_discharge(
+        &self,
+        expression: ExpressionHandle,
+        machine: &typed_trees::machine::Machine,
+        literals: &[ExpressionNode],
+    ) -> Result<bool, String> {
+        let ExpressionNode::Call(call) = self.execution.expression_table.expression(expression)
+        else {
+            return Err("range endpoint lost its call".into());
+        };
+        let argument_handles = self
+            .execution
+            .expression_table
+            .expression_handles(call.arguments);
+        if argument_handles.len() != literals.len() {
+            return Err(
+                "range endpoint call argument count does not match its evaluated snapshots".into(),
+            );
+        }
+        let entry = self
+            .execution
+            .machine_states(machine)
+            .first()
+            .ok_or("range endpoint lost entry")?;
+        let snapshots = argument_handles
+            .iter()
+            .zip(literals)
+            .map(
+                |(argument, literal)| crate::machine_execution::admission::SnapshotArgument {
+                    receiver: false,
+                    original: *argument,
+                    literal: Some(literal.clone()),
+                },
+            )
+            .collect();
+        // The probe keeps the whole program: library satisfaction
+        // references and declaration reach read machines far outside the
+        // callee's call closure. The signature bound this call still spells
+        // is rewritten to a closed stand-in inside the probe program, so
+        // the caller's own unfinished endpoint obligations stay out of this
+        // call's admission evidence.
+        let retained: Vec<symbols::SymbolHandle> = self
+            .execution
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
+            .collect();
+        crate::machine_execution::admission::snapshot_arguments_discharge(
+            self.execution,
+            &retained,
+            machine.symbol,
+            "@const-endpoint",
+            &typed_trees_to_checked_trees::CheckingRequest::preliminary(),
+            expression,
+            machine.name.as_str(),
+            entry.return_type,
+            snapshots,
+            &crate::const_evaluation::range_endpoints::deferred_endpoint_stand_ins(self.execution),
+        )?;
+        Ok(true)
     }
 }
 
@@ -173,13 +259,25 @@ impl ConstantCalls for Invocation<'_> {
         let custody = crate::BuildTimeInvocationCustody::Source(
             self.execution.expression_table.source_span(expression),
         );
-        if self
+        // Validation does not evaluate arguments — a call nested in a skipped
+        // match arm owes only its carrier shape here. Argument values are
+        // evaluated for the snapshot probe solely when an authored non-domain
+        // `requires` premise makes the concrete discharge the deciding route.
+        let discharged = if !self
             .admission
             .closure_includes_authored_requires(self.execution, machine)
-            && self
-                .admission
-                .closure_requires_are_entry_parameter_domains(self.execution, machine)
         {
+            false
+        } else if self
+            .admission
+            .closure_requires_are_entry_parameter_domains(self.execution, machine)
+        {
+            true
+        } else {
+            let (_, literals, _) = self.arguments(expression, callee)?;
+            self.snapshot_requires_discharge(expression, machine, &literals)?
+        };
+        if discharged {
             self.admission
                 .require_common_floor_for_concrete_premise_invocation(
                     self.execution,
@@ -226,7 +324,7 @@ impl ConstantCalls for Invocation<'_> {
         expression: ExpressionHandle,
     ) -> Result<(CanonicalConstValue, Vec<Diagnostic>), String> {
         let callee = self.callee(expression)?;
-        let (arguments, warnings) = self.arguments(expression, callee)?;
+        let (arguments, literals, warnings) = self.arguments(expression, callee)?;
         let machine = self
             .execution
             .machines()
@@ -236,13 +334,20 @@ impl ConstantCalls for Invocation<'_> {
         let custody = crate::BuildTimeInvocationCustody::Source(
             self.execution.expression_table.source_span(expression),
         );
-        let result = if self
+        let discharged = if !self
             .admission
             .closure_includes_authored_requires(self.execution, machine)
-            && self
-                .admission
-                .closure_requires_are_entry_parameter_domains(self.execution, machine)
         {
+            false
+        } else if self
+            .admission
+            .closure_requires_are_entry_parameter_domains(self.execution, machine)
+        {
+            true
+        } else {
+            self.snapshot_requires_discharge(expression, machine, &literals)?
+        };
+        let result = if discharged {
             self.admission
                 .evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
                     self.execution,

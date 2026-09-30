@@ -84,19 +84,115 @@
 
 use crate::SelectedBuildTimeOperators;
 use diagnostics::Diagnostic;
-#[cfg(test)]
 use numerics::{
     arithmetic::ArithmeticDomain,
-    literals::{IntegerLanding, IntegerLiteral, LandedIntegerType},
+    literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType},
 };
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle};
+use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceHandle};
 
 use crate::BuildTimeAdmissionPlan;
 
 pub(super) mod arguments;
 mod integer_type;
+
+/// The builtin integer carrier's literal landing for endpoint literal
+/// spellings — snapshot argument substitution and discharge stand-ins.
+pub(super) fn integer_landing(carrier: PrimitiveType) -> Result<LandedIntegerType, String> {
+    match carrier {
+        PrimitiveType::I8 => Ok(LandedIntegerType::I8),
+        PrimitiveType::I16 => Ok(LandedIntegerType::I16),
+        PrimitiveType::I32 => Ok(LandedIntegerType::I32),
+        PrimitiveType::I64 => Ok(LandedIntegerType::I64),
+        PrimitiveType::U8 => Ok(LandedIntegerType::U8),
+        PrimitiveType::U16 => Ok(LandedIntegerType::U16),
+        PrimitiveType::U32 => Ok(LandedIntegerType::U32),
+        PrimitiveType::U64 => Ok(LandedIntegerType::U64),
+        _ => Err("range endpoint lost its builtin integer carrier".into()),
+    }
+}
+
+/// Closed stand-in literals for the range bounds a private discharge probe
+/// cannot keep authored: signature bounds are checked before the outer
+/// endpoint evaluation completes, so a probe rewrites each still-spelled
+/// bound at its own carrier's extreme — minimum at the carrier's least
+/// spelling, maximum at its greatest. The rewritten constraint stays
+/// inhabited and every caller's store-range proof keeps its room; the
+/// stand-in only preserves signature checkability and never reaches the
+/// call's contract judgment — the outer evaluation still computes and
+/// publishes the bound's real fold. An endpoint that is already literal is
+/// left alone; a bound whose carrier is not a builtin integer keeps a `0`
+/// spelling, the most conservative closed choice.
+pub(crate) fn deferred_endpoint_stand_ins(
+    program: &TypedTrees,
+) -> Vec<(ExpressionHandle, ExpressionNode)> {
+    let mut stand_ins = Vec::new();
+    for (constrained_type, _, constraints) in program
+        .type_reference_table
+        .constrained_type_reference_sites()
+    {
+        let carrier = crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+            program,
+            constrained_type,
+        );
+        for constraint in program.type_reference_table.constraints(constraints) {
+            let TypeConstraintNode::Range {
+                minimum, maximum, ..
+            } = constraint
+            else {
+                continue;
+            };
+            for (endpoint, minimum_role) in [(*minimum, true), (*maximum, false)] {
+                if matches!(
+                    program.expression_table.expression(endpoint),
+                    ExpressionNode::Integer(_)
+                ) {
+                    continue;
+                }
+                let (negative, spelling) = endpoint_stand_in(carrier, minimum_role);
+                let literal = IntegerLiteral::from_parts(negative, IntegerRadix::Decimal, spelling)
+                    .map(|literal| {
+                        match carrier.and_then(|carrier| integer_landing(carrier).ok()) {
+                            Some(landed_type) => literal.with_landing(IntegerLanding {
+                                landed_type,
+                                domain: ArithmeticDomain::Exact,
+                            }),
+                            None => literal,
+                        }
+                    });
+                let Ok(literal) = literal else {
+                    continue;
+                };
+                stand_ins.push((endpoint, ExpressionNode::Integer(literal)));
+            }
+        }
+    }
+    stand_ins
+}
+
+/// The extreme spelling a rewritten endpoint bound takes at `carrier`:
+/// minimums take the least value the carrier can hold, maximums the
+/// greatest, so any literal the sibling bound spells stays within the
+/// rewritten range and caller store proofs keep their room.
+fn endpoint_stand_in(carrier: Option<PrimitiveType>, minimum: bool) -> (bool, &'static str) {
+    match (carrier, minimum) {
+        (Some(PrimitiveType::I8), true) => (true, "128"),
+        (Some(PrimitiveType::I8), false) => (false, "127"),
+        (Some(PrimitiveType::I16), true) => (true, "32768"),
+        (Some(PrimitiveType::I16), false) => (false, "32767"),
+        (Some(PrimitiveType::I32), true) => (true, "2147483648"),
+        (Some(PrimitiveType::I32), false) => (false, "2147483647"),
+        (Some(PrimitiveType::I64), true) => (true, "9223372036854775808"),
+        (Some(PrimitiveType::I64), false) => (false, "9223372036854775807"),
+        (Some(PrimitiveType::U8), false) => (false, "255"),
+        (Some(PrimitiveType::U16), false) => (false, "65535"),
+        (Some(PrimitiveType::U32), false) => (false, "4294967295"),
+        (Some(PrimitiveType::U64), false) => (false, "18446744073709551615"),
+        (_, true) => (false, "0"),
+        (_, false) => (false, "9223372036854775807"),
+    }
+}
 
 pub(super) struct PendingEndpoint {
     pub(super) expression: ExpressionHandle,

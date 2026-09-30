@@ -22,6 +22,8 @@ use crate::BuildTimeValue;
 
 mod closure_validation;
 mod concrete_invocation;
+
+pub(crate) use concrete_invocation::{SnapshotArgument, snapshot_arguments_discharge};
 pub(crate) mod const_evaluable;
 mod selection_authority;
 #[cfg(test)]

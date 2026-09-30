@@ -144,6 +144,110 @@ fn entry_state<'a>(program: &'a TypedTrees, machine: &Machine) -> Option<&'a Sta
         .or_else(|| states.first())
 }
 
+/// One call operand a snapshot probe substitutes: evaluated literal nodes
+/// replace authored arguments; an operand with no literal keeps its authored
+/// expression — a payloadless NaN has no literal spelling but stays
+/// dischargeable through the retained computation.
+pub(crate) struct SnapshotArgument {
+    /// Whether this operand occupies the call's receiver position rather
+    /// than its argument span.
+    pub receiver: bool,
+    /// The authored operand in the source program.
+    pub original: ExpressionHandle,
+    /// The evaluated literal node to substitute, when evaluation produced one.
+    pub literal: Option<ExpressionNode>,
+}
+
+/// Whether `expression`'s authored call survives ordinary checked lowering
+/// with its operands substituted by evaluated snapshots — the concrete
+/// discharge evidence for authored `requires` premises on the invoked
+/// machine or its entry state, and for any unhandled failure route at the
+/// exact call. A published guarded ceiling has no private whole-body
+/// summary, and an authored premise has no meaning outside an invocation,
+/// so admission checks the exact call rather than inspecting the callee
+/// body; successful interpretation is never admission evidence.
+/// `retained` names the machines the probe program keeps. Both current
+/// callers keep the whole authored program (every non-probe machine):
+/// library satisfaction references and declaration reach read machines far
+/// outside the callee's call closure, while still-spelled endpoint bounds
+/// get closed stand-ins rather than membership filtering.
+/// `endpoint_stand_ins` carries the caller-computed closed literal each
+/// deferred range bound is rewritten to — the marks themselves are dropped
+/// with `pending_const_range_endpoints`.
+pub(crate) fn snapshot_arguments_discharge(
+    program: &TypedTrees,
+    retained: &[SymbolHandle],
+    owner: SymbolHandle,
+    probe_name: &str,
+    checking: &typed_trees_to_checked_trees::CheckingRequest,
+    expression: ExpressionHandle,
+    callee: &str,
+    return_type: typed_trees::types::TypeReferenceHandle,
+    snapshots: Vec<SnapshotArgument>,
+    endpoint_stand_ins: &[(ExpressionHandle, ExpressionNode)],
+) -> Result<(), String> {
+    // All original probes must leave this private body check: their detached
+    // expressions use exact evaluation, not runtime ranges. Deferred
+    // range-endpoint marks name the outer const-eval continuation, not this
+    // private program, so they must not survive as a tolerated lost fold;
+    // the caller supplies each still-spelled bound's closed stand-in so the
+    // signature that carries it stays checkable here.
+    let mut probe = program.clone();
+    // The endpoint call itself may be a marked bound: capture its spelling
+    // before a stand-in rewrite replaces it inside the signature.
+    let ExpressionNode::Call(mut call) = probe.expression_table.expression(expression).clone()
+    else {
+        return Err("constant invocation lost its selected call".into());
+    };
+    probe.pending_const_range_endpoints.clear();
+    for (endpoint, stand_in) in endpoint_stand_ins {
+        *probe.expression_table.expression_mut(*endpoint) = stand_in.clone();
+    }
+    let machines = probe
+        .machines()
+        .iter()
+        .filter(|candidate| retained.contains(&candidate.symbol))
+        .cloned()
+        .collect::<Vec<_>>();
+    probe.roots.machines = arena::HandleSpan::empty();
+    for candidate in machines {
+        probe.push_machine(candidate);
+    }
+    let mut arguments = Vec::new();
+    for snapshot in snapshots {
+        let expression = match snapshot.literal {
+            Some(literal) => probe.expression_table.insert(literal),
+            None => snapshot.original,
+        };
+        if snapshot.receiver {
+            call.receiver = expression;
+        } else {
+            arguments.push(expression);
+        }
+    }
+    call.arguments = probe.expression_table.insert_expression_handles(arguments);
+    let concrete = probe.expression_table.insert(ExpressionNode::Call(call));
+    probe
+        .expression_table
+        .set_source_span(concrete, program.expression_table.source_span(expression));
+    let owner = append_invocation_probe(&mut probe, owner, probe_name, concrete, return_type);
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(probe, checking).map_err(
+        |diagnostics| format!("constant invocation of `{callee}` failed checking: {diagnostics:?}"),
+    )?;
+    let causes = typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
+        &checked.typed,
+        &checked.facts,
+        owner,
+    )
+    .ok_or("constant invocation has no complete checked failure summary")?;
+    if !causes.is_empty() {
+        return Err(format!(
+            "constant invocation of `{callee}` retains unhandled {causes:?} routes at its concrete arguments"
+        ));
+    }
+    Ok(())
+}
+
 /// Append the generated probe machine whose single state returns the
 /// synthesized call: `machine @const-length() -> <entry return> { machine() }`.
 fn append_invocation_probe(

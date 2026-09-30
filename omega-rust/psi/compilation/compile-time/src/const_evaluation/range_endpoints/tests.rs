@@ -331,31 +331,48 @@ fn domain_qualified_callee_positions_fold_members_and_reject_nonmembers() {
 }
 
 #[test]
-fn proved_parameter_domains_do_not_stand_down_the_fence_for_other_premises() {
+fn decidable_authored_requires_discharge_at_concrete_arguments() {
     // The membership proof discharges exactly the root's parameter-domain
-    // premises. An authored `requires` clause on the callee, or a domain
-    // premise on a nested callee the endpoint never proved, must keep the
-    // conservative closure fence rather than ride the concrete-premise route.
-    for source in [
-        "domain u64::Positive requires self > 0;
+    // premises; an authored `requires` clause on the callee itself discharges
+    // by re-checking the exact call at its evaluated literal arguments. A
+    // clause false at those arguments rejects; a domain premise on a nested
+    // callee the endpoint never proved keeps the conservative closure fence.
+    let declarations = "domain u64::Positive requires self > 0;
          machine bounded(value: u64 in Positive) -> u64
          requires
              value <= 512;
-         { value }
-         machine keep(value: u64[0..=bounded(256)]) {}",
-        "domain u64::Positive requires self > 0;
+         { value }";
+    let mut program = crate::front_end::typed_program(&format!(
+        "{declarations}
+         machine keep(value: u64[0..=bounded(256)]) {{}}"
+    ));
+    evaluate_const_range_endpoints(&mut program, None)
+        .expect("the instantiated premise holds at the concrete argument");
+    assert_eq!(folded_maximum(&program).as_deref(), Some("256"));
+
+    for (source, fragment) in [
+        (
+            format!(
+                "{declarations}
+         machine keep(value: u64[0..=bounded(513)]) {{}}"
+            ),
+            "constant invocation of `bounded` failed checking",
+        ),
+        (
+            "domain u64::Positive requires self > 0;
          machine inner(value: u64 in Positive) -> u64 { value }
          machine outer(value: u64) -> u64 { inner(value) }
-         machine keep(value: u64[0..=outer(256)]) {}",
+         machine keep(value: u64[0..=outer(256)]) {}"
+                .to_owned(),
+            "constant invocation of `outer` failed checking",
+        ),
     ] {
-        let mut program = crate::front_end::typed_program(source);
+        let mut program = crate::front_end::typed_program(&source);
         let errors = evaluate_const_range_endpoints(&mut program, None)
             .expect_err("an unproved premise keeps the closure fence");
         assert_eq!(errors.len(), 1, "{source}: {errors:?}");
         assert!(
-            errors[0]
-                .message
-                .contains("has an authored `requires` premise"),
+            errors[0].message.contains(fragment),
             "{source}: {}",
             errors[0].message
         );
