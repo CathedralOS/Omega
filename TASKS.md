@@ -1646,7 +1646,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   and all five customers execute with those oracles. A migrated unused field
   or disappearance of the old phase label alone does not close this task.
 
-  Current frontier (macOS ARM64, 2026-09-30, based on `a778e27e037`):
+  Current frontier (macOS ARM64, 2026-09-30, based on `f44776a6ba`):
   `omega run tests/omega/pass/float/finite_core_domain_range_discharge/main.omg`
   now proves the repaired field's `Finite` transition argument and admits the
   zero-valid entry context, preserving the transient NaN and range violation.
@@ -1654,21 +1654,24 @@ crash and native exit behavior. Use affected check/native corpus slices under
   (state 0, statement 1). Stage 04's
   `execution/terminal_unit/structural_scalar_store/destination.rs` admits record
   `where` facts only when `data_where_field_intervals` retains integer bounds.
-  Carry the IEEE predicate and restoration evidence through checked/Terminal
-  planning before admitting those stores; zero eligibility is not a per-store
-  invariant proof. The destination owner was notified under
-  `STATIC-ZERO-ARRAY-FIELD-STORES`. The 92-fixture `float/,dependent/` corpus has
-  no acceptance regressions; both new unrepaired-value fixtures reject with
-  their expected diagnostics. Revalidation at `548e621739b` (based on
-  `2d8ed253669`) passes all 584 selected checking, float-proof and entry tests
-  and reproduces that corpus result. Terminal's scalar vocabulary currently
-  lacks an IEEE structural-field term for field-versus-literal predicates;
-  add it with snapshot/invalidation, store-equation and codec replay support,
-  retaining restoration obligations at consumption points rather than every
-  store. The vocabulary owner was notified under `HARD-TIER-ADDR-SUBTRACTION`.
-  Native exit 77 and the three recast customers remain open.
+  Terminal now retains exact-format IEEE field terms, store/read bit equations,
+  overwrite invalidation and saved SSA predicates through module/proof codec
+  reload. Checked equality transport proves a restored field/read's range,
+  rejects NaN and `2.0`, and preserves an earlier `0.5` read across both writes.
+  All 14 focused regressions pass; the vocabulary, admission, verifier and codec
+  suites run 1,618 tests with 1,616 passing and two failures reproduced on
+  unchanged `8778c44008`. This is portable proof support, not native acceptance.
+  Next carry the IEEE predicate and restoration evidence through source
+  planning: the shared state-contract roster in checking's
+  `machine_calls/structural_call_custody.rs`, stage 05's
+  `unit/runtime_requirements.rs` and `proofs/crash_routes/structural_members.rs`,
+  then consumption-point obligations before opening the destination gate.
+  Zero eligibility is not a per-store invariant proof. Coordinate the
+  destination with `STATIC-ZERO-ARRAY-FIELD-STORES` and state-plan namespace
+  edits with `STATIC-MACHINE-MIGRATION`. Native exit 77 and the three recast
+  customers remain open.
 
-  The const-container customer (macOS ARM64, based on `850c491bba`) now
+  The const-container customer (macOS ARM64, published `8778c44008`) now
   checks and independently verifies after Terminal serialization/reload.
   Exact closed-instance fields, declared const extent bounds, and private
   state-borrow forwarding retain both capacities, witness arrays and getter

@@ -191,3 +191,252 @@ fn borrowed_equations_are_bounded_before_cloning_or_traversing_the_whole_roster(
         Err(PredicateDenotationError::ResourceLimitExceeded),
     );
 }
+
+mod float_fields {
+    use super::{ProofNode, ProofRule, accept_certificate, transport};
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue,
+        PlaceId, Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralFieldId,
+        StructuralPlaceKind, ValueId,
+    };
+
+    fn context(format: IeeeFloatFormat) -> PropositionContext {
+        PropositionContext::from_value_types_and_places(
+            (1..=2).map(|identity| {
+                (
+                    ValueId::new(identity).unwrap(),
+                    ScalarType::IeeeFloat(format),
+                )
+            }),
+            (1..=2).map(|identity| {
+                (
+                    PlaceId::new(identity).unwrap(),
+                    StructuralPlaceKind::Parameter {
+                        position: identity as u32 - 1,
+                        is_self: false,
+                    },
+                )
+            }),
+        )
+        .unwrap()
+    }
+
+    fn field(root: u64, member: u64, format: IeeeFloatFormat) -> ScalarTerm {
+        ScalarTerm::ieee_float_field_path(
+            PlaceId::new(root).unwrap(),
+            vec![CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(member).unwrap(),
+            )],
+            format,
+        )
+    }
+
+    fn value(identity: u64, format: IeeeFloatFormat) -> ScalarTerm {
+        ScalarTerm::value(
+            ValueId::new(identity).unwrap(),
+            ScalarType::IeeeFloat(format),
+        )
+    }
+
+    fn proof(goal: Proposition, equations: &[Proposition]) -> ProofNode {
+        let premise = match &goal {
+            // Exact float identity remains an identity after denotation;
+            // unlike a closed IEEE comparison, it does not become Truth.
+            Proposition::Equal(_, right) => ProofNode {
+                conclusion: Proposition::Equal(right.clone(), right.clone()),
+                rule: ProofRule::Primitive(super::PrimitiveJudgment::ReflexiveEquality),
+            },
+            _ => super::truth(),
+        };
+        let mut proof = transport(
+            goal,
+            equations
+                .iter()
+                .enumerate()
+                .map(|(index, conclusion)| ProofNode {
+                    conclusion: conclusion.clone(),
+                    rule: ProofRule::SemanticAxiom { index },
+                })
+                .collect(),
+        );
+        let ProofRule::ValueEqualityTransport {
+            premise: supplied, ..
+        } = &mut proof.rule
+        else {
+            unreachable!()
+        };
+        *supplied = Box::new(premise);
+        proof
+    }
+
+    #[test]
+    fn store_and_read_equations_transport_through_the_same_exact_field() {
+        for literal in [
+            IeeeFloatValue::Binary32(0x3f00_0000),
+            IeeeFloatValue::Binary64(0x3fe0_0000_0000_0000),
+        ] {
+            let format = literal.format();
+            let literal = ScalarTerm::IeeeFloatLiteral(literal);
+            let equations = [
+                Proposition::Equal(value(1, format), literal.clone()),
+                Proposition::Equal(field(1, 1, format), value(1, format)),
+                Proposition::Equal(value(2, format), field(1, 1, format)),
+            ];
+            for subject in [field(1, 1, format), value(2, format)] {
+                let goal = Proposition::Equal(subject, literal.clone());
+                let accepted = accept_certificate(
+                    &context(format),
+                    &goal,
+                    &[],
+                    &equations,
+                    &proof(goal.clone(), &equations),
+                )
+                .unwrap();
+                assert!(matches!(
+                    accepted.mathematical_core,
+                    proof_admission::MathematicalCoreDecision::Judged(_)
+                ));
+            }
+            let goal = Proposition::Equal(value(2, format), literal);
+            let mut missing = proof(goal.clone(), &equations);
+            let ProofRule::ValueEqualityTransport { equalities, .. } = &mut missing.rule else {
+                unreachable!()
+            };
+            equalities.remove(1);
+            assert!(
+                accept_certificate(&context(format), &goal, &[], &equations, &missing).is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn conditional_wrong_identity_and_wrong_format_equations_cannot_rewrite_a_field() {
+        let format = IeeeFloatFormat::Binary32;
+        let literal = ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0x3f00_0000));
+        let goal = Proposition::Equal(field(1, 1, format), literal.clone());
+        for equation in [
+            Proposition::Implication {
+                premise: Box::new(Proposition::Falsehood),
+                conclusion: Box::new(goal.clone()),
+            },
+            Proposition::Equal(field(2, 1, format), literal.clone()),
+            Proposition::Equal(field(1, 2, format), literal),
+            Proposition::Equal(
+                field(1, 1, IeeeFloatFormat::Binary64),
+                ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(0x3fe0_0000_0000_0000)),
+            ),
+        ] {
+            let equations = [equation];
+            assert!(
+                accept_certificate(
+                    &context(format),
+                    &goal,
+                    &[],
+                    &equations,
+                    &proof(goal.clone(), &equations)
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn field_value_cycles_fail_with_bounded_work() {
+        use proof_admission::{PredicateDenotationError, check_value_equality_denotation};
+        let format = IeeeFloatFormat::Binary32;
+        let equations = [
+            Proposition::Equal(field(1, 1, format), value(1, format)),
+            Proposition::Equal(value(1, format), field(1, 1, format)),
+        ];
+        let goal = Proposition::Equal(field(1, 1, format), field(1, 1, format));
+        assert_eq!(
+            check_value_equality_denotation(&context(format), &goal, &equations),
+            Err(PredicateDenotationError::CyclicValueEquality)
+        );
+        assert!(
+            accept_certificate(
+                &context(format),
+                &goal,
+                &[],
+                &equations,
+                &proof(goal.clone(), &equations)
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn field_bit_identity_does_not_become_ieee_equality() {
+        for (bits, other_bits, ieee_equal) in [
+            (
+                IeeeFloatValue::Binary32(0x7fc0_1234),
+                IeeeFloatValue::Binary32(0x7fc0_1235),
+                false,
+            ),
+            (
+                IeeeFloatValue::Binary64(0x7ff8_0000_0000_1234),
+                IeeeFloatValue::Binary64(0x7ff8_0000_0000_1235),
+                false,
+            ),
+            (
+                IeeeFloatValue::Binary32(0x8000_0000),
+                IeeeFloatValue::Binary32(0),
+                true,
+            ),
+            (
+                IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+                IeeeFloatValue::Binary64(0),
+                true,
+            ),
+        ] {
+            let format = bits.format();
+            let subject = field(1, 1, format);
+            let literal = ScalarTerm::IeeeFloatLiteral(bits);
+            let equations = [Proposition::Equal(subject.clone(), literal.clone())];
+            for (right, accepted) in [
+                (literal, true),
+                (ScalarTerm::IeeeFloatLiteral(other_bits), false),
+            ] {
+                let goal = Proposition::Equal(subject.clone(), right);
+                assert_eq!(
+                    accept_certificate(
+                        &context(format),
+                        &goal,
+                        &[],
+                        &equations,
+                        &proof(goal.clone(), &equations)
+                    )
+                    .is_ok(),
+                    accepted
+                );
+            }
+            for kind in [
+                IeeeFloatComparisonKind::Equal,
+                IeeeFloatComparisonKind::NotEqual,
+            ] {
+                let goal = Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left: subject.clone(),
+                    right: subject.clone(),
+                };
+                let accepted = if kind == IeeeFloatComparisonKind::Equal {
+                    ieee_equal
+                } else {
+                    !ieee_equal
+                };
+                assert_eq!(
+                    accept_certificate(
+                        &context(format),
+                        &goal,
+                        &[],
+                        &equations,
+                        &proof(goal.clone(), &equations)
+                    )
+                    .is_ok(),
+                    accepted
+                );
+            }
+        }
+    }
+}

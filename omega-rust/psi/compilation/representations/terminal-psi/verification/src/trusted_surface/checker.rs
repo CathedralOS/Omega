@@ -250,8 +250,8 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         id: "rule:value-equality-transport",
         family: LedgerFamily::CheckerRule,
         binding: dispatch(CoveredSurface::ProofRules),
-        premises: "a premise plus a nonempty ordered list of proved scalar equations, each oriented from an exact value identity to its term",
-        conclusion: "the premise transported through only the carried equations when both sides' denotation normal forms match; constructor tags and types are preserved, IEEE payload identity is not IEEE equality, and ordered comparison operands remain ordered while only symmetric IEEE equality and inequality are canonicalized",
+        premises: "a premise plus a nonempty ordered list of scalar equations independently proved in the same scope, each oriented from an exact Value, IntegerField, BooleanField, or IeeeFloatField subject to its same-typed term; field identity includes root, full path, and carrier or format",
+        conclusion: "the premise transported through only the carried equations when both sides' denotation normal forms match; the original ambient roster is unchanged, first definitions retain supplied orientation, cyclic definitions reject by active equation index, and traversal and expansion remain bounded; constructor tags and types are preserved, IEEE payload identity is not IEEE comparison equality, and ordered comparison operands remain ordered while only symmetric IEEE comparisons are canonicalized",
         dependencies: &["rule:traversal", "conversion:value-equality-denotation"],
         implementation: &[
             PROOF,

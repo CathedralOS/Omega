@@ -18,6 +18,8 @@ mod bounded_stores;
 mod contract_fields;
 #[path = "structural_scalar_fields/cyclic_receiver.rs"]
 mod cyclic_receiver;
+#[path = "structural_scalar_fields/float_fields.rs"]
+mod float_fields;
 #[path = "structural_scalar_fields/owned_reads.rs"]
 mod owned_reads;
 

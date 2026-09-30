@@ -144,6 +144,7 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
         match term {
             ScalarTerm::BooleanField { root, .. }
             | ScalarTerm::IntegerField { root, .. }
+            | ScalarTerm::IeeeFloatField { root, .. }
             | ScalarTerm::ViewExtent { root, .. } => {
                 roots.insert(*root);
             }

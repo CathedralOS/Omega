@@ -39,7 +39,9 @@ pub(super) fn retain(
                 for (field, value) in [(left, right), (right, left)] {
                     if matches!(
                         field,
-                        ScalarTerm::IntegerField { .. } | ScalarTerm::BooleanField { .. }
+                        ScalarTerm::IntegerField { .. }
+                            | ScalarTerm::BooleanField { .. }
+                            | ScalarTerm::IeeeFloatField { .. }
                     ) && matches!(value, ScalarTerm::Value { .. })
                         && field.scalar_type() == value.scalar_type()
                         && !keep(&Proposition::Equal(field.clone(), field.clone()))
@@ -84,6 +86,15 @@ fn capture_proposition(proposition: &mut Proposition, captures: &[(ScalarTerm, S
             capture_scalar(left, captures);
             capture_scalar(right, captures);
         }
+        Proposition::ScalarIeeeFloatComparison {
+            kind, left, right, ..
+        } => {
+            capture_scalar(left, captures);
+            capture_scalar(right, captures);
+            if kind.is_symmetric() && left > right {
+                std::mem::swap(left, right);
+            }
+        }
         Proposition::Conjunction(members) | Proposition::Disjunction(members) => {
             for member in members {
                 capture_proposition(member, captures);
@@ -104,7 +115,9 @@ fn capture_proposition(proposition: &mut Proposition, captures: &[(ScalarTerm, S
 
 fn capture_scalar(term: &mut ScalarTerm, captures: &[(ScalarTerm, ScalarTerm)]) {
     match term {
-        ScalarTerm::IntegerField { .. } | ScalarTerm::BooleanField { .. } => {
+        ScalarTerm::IntegerField { .. }
+        | ScalarTerm::BooleanField { .. }
+        | ScalarTerm::IeeeFloatField { .. } => {
             if let Some((_, value)) = captures.iter().find(|(field, _)| field == term) {
                 *term = value.clone();
             }

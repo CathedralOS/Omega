@@ -19,6 +19,7 @@ const PATH_FACTS_CONDITIONS: &str = "omega-rust/psi/compilation/representations/
 const PATH_FACTS_DISCRETE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/path_facts/discrete.rs";
 const PATH_FACTS_TRANSPORT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/path_facts/transport.rs";
 const OPERATION_FACTS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts.rs";
+const OP_FACTS_FLOAT_FIELDS: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/float_fields.rs";
 const OP_FACTS_POLARITY: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/boolean_polarity.rs";
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/byte_extent.rs";
 const OP_FACTS_RECORD: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/record.rs";
@@ -328,7 +329,7 @@ static FACT_RECORD_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "an EstablishRecord operation over a validated record shape",
-    conclusion: "the record's field-establishment facts and any declared field obligations",
+    conclusion: "the record's field-establishment facts and any declared field obligations; IEEE scalar initializers and copied child fields retain exact-format bit-identity equations, including NaN payloads and signed zero, never IEEE equality or finiteness",
     dependencies: &[
         "fact:semantic-axiom-roster",
         "formation:operation-validation",
@@ -492,12 +493,33 @@ static FACT_RUNTIME_INDEX_BOUND: TrustedSurfaceEntry = TrustedSurfaceEntry {
     soundness: TRUSTED,
 };
 
+static FACT_IEEE_PRIMITIVE_FIELD_OBSERVATION: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:ieee-primitive-field-observation",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "a validated PrimitiveScalarRead or WriteOnlyPrimitiveStore whose root declaration and static canonical path resolve to a relevant IEEE field of exactly the SSA value's binary32 or binary64 format; the final path segment is a field, not a whole primitive local or runtime-selected element",
+    conclusion: "the read result equals the current field bits, or the field equals the stored value bits after ordinary write invalidation; equality is exact interchange-bit identity preserving NaN payloads and signed zero, not IEEE comparison, FloatMeaning equality, finiteness, or a range bound",
+    dependencies: &[
+        "fact:semantic-axiom-roster",
+        "formation:operation-validation",
+        "formation:proposition-context",
+        "invalidation:write-only-primitive-store",
+    ],
+    implementation: &[
+        OPERATION_FACTS,
+        OP_FACTS_FLOAT_FIELDS,
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/primitive_place.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/primitive_storage.rs",
+    ],
+    soundness: TRUSTED,
+};
+
 static FACT_FIELD_STORE_LEAF_EQUATION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:field-store-leaf-equation",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "a StructuralScalarFieldStore whose canonical write path resolves to an exact leaf over a Boolean or integer field",
-    conclusion: "the leaf-path-equals-stored-value equation; an unresolvable path forgets the root instead",
+    premises: "a StructuralScalarFieldStore whose canonical write path resolves to an exact relevant leaf over a Boolean, integer, or same-format IEEE field",
+    conclusion: "after write invalidation, the leaf-path-equals-stored-value equation; for IEEE fields the equation denotes exact bit identity preserving NaN payloads and signed zero, not IEEE comparison; an unresolvable path forgets the root instead",
     dependencies: &[
         "invalidation:structural-field-store",
         "formation:operation-validation",
@@ -746,6 +768,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_STRUCTURAL_EFFECT_OBSERVATION,
     FACT_INTEGER_FIELD_READ_RANGE,
     FACT_RUNTIME_INDEX_BOUND,
+    FACT_IEEE_PRIMITIVE_FIELD_OBSERVATION,
     FACT_FIELD_STORE_LEAF_EQUATION,
     FACT_BORROWED_STORAGE_RESTORATION_DEBT,
     FACT_PROOF_BEARING_SCALAR_GOAL,

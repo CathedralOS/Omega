@@ -121,6 +121,9 @@ pub fn check_predicate_denotations<'input>(
 /// the original semantic premises. This is contextual equality transport, not
 /// arithmetic simplification: constructors and operand order remain exact.
 /// The original question and premise roster remain authoritative and borrowed.
+/// Field equations name the current storage observation, not a timeless value;
+/// callers supply only the live roster after store/call invalidation. Exact
+/// IEEE bit equations do not assert IEEE comparison equality.
 pub fn check_predicate_denotations_with_value_equalities<'input>(
     context: &PropositionContext,
     goal: &'input Proposition,
@@ -181,7 +184,8 @@ pub fn check_value_equality_denotation<'input>(
         context
             .validate(equation)
             .map_err(PredicateDenotationError::Malformed)?;
-        if !matches!(equation, Proposition::Equal(ScalarTerm::Value { .. }, _)) {
+        if !matches!(equation, Proposition::Equal(subject, _) if value_equalities::is_definition_subject(subject))
+        {
             return Err(PredicateDenotationError::InvalidValueEquality);
         }
         checked_equations.push(equation);

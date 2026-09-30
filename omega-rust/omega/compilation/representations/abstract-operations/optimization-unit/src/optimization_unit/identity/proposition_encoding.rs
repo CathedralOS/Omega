@@ -158,6 +158,12 @@ pub(super) fn encode_content_term(bytes: &mut CanonicalBytes, term: &ContentTerm
 pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) {
     use ScalarTerm as S;
     match term {
+        S::IeeeFloatField { root, path, format } => {
+            bytes.u8(38);
+            bytes.id(*root);
+            encode_canonical_path(bytes, path);
+            encode_float_format(bytes, *format);
+        }
         S::IeeeFloatLiteral(value) => {
             bytes.u8(37);
             match value {
