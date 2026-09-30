@@ -84,6 +84,13 @@ impl<'a> StructuralTypeLookup<'a> {
                     StructuralPathSegment::RuntimeIndex { .. },
                     StructuralTypeShape::FixedArray { element, .. },
                 ) => *element,
+                // Element views carry no declared length: the producer's live
+                // extent witnesses the bound, and the member is the element.
+                (
+                    StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. },
+                    StructuralTypeShape::ElementView { element },
+                ) => *element,
                 _ => return None,
             };
         }

@@ -38,15 +38,38 @@ pub(crate) struct Binding {
     /// a byte-carrier loan read.
     carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    /// The checked coordinate of the loan's one non-literal index segment,
+    /// when the captured path selects an element by runtime value.
+    runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
+    /// The index selector's integer primitive, retained so `Parameter`/`Local`
+    /// coordinate reads reconstruct with their declared type.
+    selector_primitive: Option<typed_trees::types::PrimitiveType>,
+    /// `true` when the runtime index steps through an element view (live
+    /// extent); `false` for a fixed array (literal extent on the type).
+    view_container: bool,
+    /// The structural type the runtime index selects — the element the
+    /// bounded-leaf hoist materializes. `None` for static loans.
+    element: Option<StructuralTypeId>,
+    /// Canonical segments below the runtime index, inside the selected
+    /// element, to the leaf's declaring record. Empty for static loans.
+    carrier: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    /// The element path to the scalar leaf: every segment below the runtime
+    /// index plus the leaf's own field projection.
+    element_path: Vec<terminal_psi::StructuralPathSegment>,
+    /// The leaf declares a bounded integer, so the runtime read must hoist
+    /// the element instead of carrying the bound.
+    bounded_leaf: bool,
     field: StructuralFieldId,
     scalar_type: ScalarType,
 }
 
 /// One authored segment of a shared loan's captured place: a declared record
-/// member projection or a literal index into a fixed array.
+/// member projection, a literal index into a fixed array, or a runtime
+/// selector the loan's own obligations bound.
 enum LoanedPathSegment {
     Field(String),
     FixedIndex(u64),
+    RuntimeIndex(ExpressionHandle),
 }
 
 /// The established place a shared record loan resolves to at observation: a
@@ -94,11 +117,17 @@ fn captured_subject_path(
         }
         ExpressionNode::Indexed(indexed) => {
             let (root, mut segments) = captured_subject_path(checked, indexed.collection)?;
-            let index = checked
+            match checked
                 .expression_table
                 .constant_integer_value(indexed.index)
-                .and_then(|index| u64::try_from(index).ok())?;
-            segments.push(LoanedPathSegment::FixedIndex(index));
+                .and_then(|index| u64::try_from(index).ok())
+            {
+                Some(index) => segments.push(LoanedPathSegment::FixedIndex(index)),
+                // A non-literal selector keeps its expression: the walk
+                // resolves it to the checked coordinate the same expression
+                // took on the loan's admission path.
+                None => segments.push(LoanedPathSegment::RuntimeIndex(indexed.index)),
+            }
             Some((root, segments))
         }
         _ => None,
@@ -116,6 +145,21 @@ struct RecordLoanSubject {
     carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     terminal: StructuralTypeId,
     byte_overlay: Option<StructuralTypeId>,
+    /// The checked coordinate of the loan's non-literal index, when the
+    /// captured path selects an element by runtime value.
+    runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
+    /// The selector's integer primitive for `Parameter`/`Local` coordinate
+    /// reads, `None` for a `StructuralField` selector or a static loan.
+    selector_primitive: Option<typed_trees::types::PrimitiveType>,
+    /// `true` when the runtime index steps through an element view.
+    view_container: bool,
+    /// The structural type the runtime index selects, for the bounded-leaf
+    /// hoist. `None` for static loans.
+    element: Option<StructuralTypeId>,
+    /// Canonical segments below the runtime index, inside the element.
+    carrier: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    /// Terminal segments below the runtime index, inside the element.
+    element_suffix: Vec<terminal_psi::StructuralPathSegment>,
 }
 
 /// A record-loan local is a silent loan marker: it mints no established
@@ -175,9 +219,27 @@ fn record_loan_subject(
             _ => return Ok(None),
         }
     };
-    let Some((root, segments)) = captured_subject_path(checked, target) else {
+    let Some((root, mut segments)) = captured_subject_path(checked, target) else {
         return unsupported("record loan captured an unreadable place");
     };
+    // An immutable local scalar pinned to a literal is a fixed index for
+    // every rule that matters: the checker folds it through the literal-bound
+    // gate on the loan's admission path, so the replay folds it through the
+    // same literal segment here before the runtime-selector route sees it.
+    for segment in segments.iter_mut() {
+        if let LoanedPathSegment::RuntimeIndex(expression) = segment
+            && let ExpressionNode::Name(name) = checked.expression_table.expression(*expression)
+            && name.symbol.is_valid()
+            && let Some(index) =
+                crate::expression_preparation::source_custody::structural_places::constant_local_index(
+                    checked,
+                    source_state,
+                    name.symbol,
+                )
+        {
+            *segment = LoanedPathSegment::FixedIndex(index);
+        }
+    }
     let parameters = checked.state_parameters(&source_state);
     // A `self`-rooted capture names the machine's own declared symbol rather
     // than a parameter spelling; it resolves to the `is_self` parameter, the
@@ -193,17 +255,28 @@ fn record_loan_subject(
         });
     let (source, mut type_reference) = match authored_index {
         Some(authored_index) => {
-            let Some(state_plan) = checked
+            // Both unit-plan shapes carry the same authored-position roster:
+            // a single-state body keeps it on the machine row, a composed
+            // machine keeps one per state.
+            let structural_parameters = if let Some(plan) = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(machine)
+            {
+                &plan.structural_parameters
+            } else if let Some(plan) = checked
                 .facts
                 .flow
                 .terminal_unit_effects
                 .composed_for_machine(machine)
                 .and_then(|plan| plan.states.iter().find(|plan| plan.state == state))
-            else {
+            {
+                &plan.structural_parameters
+            } else {
                 return unsupported("record loan's state left the composed plan");
             };
-            let Some(parameter_index) = state_plan
-                .structural_parameters
+            let Some(parameter_index) = structural_parameters
                 .iter()
                 .position(|parameter| parameter.position as usize == authored_index)
             else {
@@ -256,6 +329,11 @@ fn record_loan_subject(
         ))?;
     let mut path = Vec::new();
     let mut carrier_path = Vec::new();
+    let mut runtime_index = None;
+    let mut selector_primitive = None;
+    let mut view_container = false;
+    let mut selected_element = None;
+    let mut runtime_split = None;
     // The last literal index step and the array extent it selected inside —
     // set only when that index ends the prefix (`a[i]` cannot extend into a
     // `u8` element's members, so a byte-carrier prefix always ends there).
@@ -291,18 +369,84 @@ fn record_loan_subject(
                     ))?;
             }
             LoanedPathSegment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                    return unsupported("record loan's captured index left its array namespace");
+                // An element-view root carries no literal extent: the index's
+                // bound is the view's live length, proven by the loan's own
+                // captured obligations rather than replayed here.
+                let element = match &declaration.shape {
+                    StructuralTypeShape::FixedArray { element, length } => {
+                        if index >= *length {
+                            return unsupported("record loan's captured index is out of bounds");
+                        }
+                        tail = Some((index, *length));
+                        *element
+                    }
+                    StructuralTypeShape::ElementView { element } => {
+                        tail = None;
+                        *element
+                    }
+                    _ => {
+                        return unsupported(
+                            "record loan's captured index left its array namespace",
+                        );
+                    }
                 };
-                if index >= *length {
-                    return unsupported("record loan's captured index is out of bounds");
-                }
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index));
                 carrier_path.push(terminal_psi::StructuralPathSegment::FixedIndex(index));
-                tail = Some((index, *length));
                 declaration = types
                     .iter()
-                    .find(|declaration| declaration.id == *element)
+                    .find(|declaration| declaration.id == element)
+                    .ok_or(LoweringError::Unsupported(
+                        "record loan's captured element type is absent",
+                    ))?;
+            }
+            LoanedPathSegment::RuntimeIndex(expression) => {
+                if runtime_index.is_some() {
+                    return unsupported("record loan selects at most one runtime element");
+                }
+                // The selector resolves to the same checked coordinate the
+                // admission walk minted: a bare immutable integer parameter,
+                // or a pure field chain below an entry parameter. Neither
+                // container shape carries its bound on the segment — an
+                // element view's bound is its live extent and a fixed
+                // array's is its declared length; Terminal re-proves both.
+                let element = match &declaration.shape {
+                    StructuralTypeShape::FixedArray { element, .. } => {
+                        view_container = false;
+                        *element
+                    }
+                    StructuralTypeShape::ElementView { element } => {
+                        view_container = true;
+                        *element
+                    }
+                    _ => {
+                        return unsupported("record loan's runtime index left its array namespace");
+                    }
+                };
+                runtime_index = Some(
+                    crate::expression_preparation::source_custody::structural_places::runtime_index_selector(
+                        checked,
+                        source_machine,
+                        source_state,
+                        expression,
+                    )?,
+                );
+                selector_primitive = checked.typed.primitive_type_reference(
+                    validation::expression_result_type_reference(
+                        &checked.typed,
+                        source_machine,
+                        source_state,
+                        expression,
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "record loan's index selector lost its leaf type",
+                    ))?,
+                );
+                runtime_split = Some(path.len());
+                selected_element = Some(element);
+                tail = None;
+                declaration = types
+                    .iter()
+                    .find(|declaration| declaration.id == element)
                     .ok_or(LoweringError::Unsupported(
                         "record loan's captured element type is absent",
                     ))?;
@@ -350,12 +494,25 @@ fn record_loan_subject(
             byte_overlay = Some(overlay.id);
         }
     }
+    // Segments below the runtime index walk inside the selected element;
+    // they leave both path vocabularies so the emitted read can splice the
+    // selector in where the canonical spelling has no runtime segment.
+    let (carrier, element_suffix) = match runtime_split {
+        Some(split) => (path.split_off(split), carrier_path.split_off(split)),
+        None => (Vec::new(), Vec::new()),
+    };
     Ok(Some(RecordLoanSubject {
         source,
         path,
         carrier_path,
         terminal,
         byte_overlay,
+        runtime_index,
+        selector_primitive,
+        view_container,
+        element: selected_element,
+        carrier,
+        element_suffix,
     }))
 }
 
@@ -426,7 +583,19 @@ pub(crate) fn prepare(
                 } => record_loan_subject(checked, machine, root.state, symbol, types)?,
                 _ => None,
             };
-            let (loan_source, byte_overlay, carrier_path, mut path, mut declaration) = match loan {
+            let (
+                loan_source,
+                byte_overlay,
+                carrier_path,
+                mut path,
+                mut declaration,
+                runtime_index,
+                selector_primitive,
+                view_container,
+                element,
+                carrier,
+                element_suffix,
+            ) = match loan {
                 Some(subject) => (
                     Some(subject.source),
                     subject.byte_overlay,
@@ -438,6 +607,12 @@ pub(crate) fn prepare(
                         .ok_or(LoweringError::Unsupported(
                             "record read's loaned carrier type is absent",
                         ))?,
+                    subject.runtime_index,
+                    subject.selector_primitive,
+                    subject.view_container,
+                    subject.element,
+                    subject.carrier,
+                    subject.element_suffix,
                 ),
                 None => {
                     let root_identity = checked.normalized_type_identity(source.type_reference);
@@ -450,7 +625,19 @@ pub(crate) fn prepare(
                     if declarations.next().is_some() {
                         return unsupported("record read has ambiguous structural namespaces");
                     }
-                    (None, None, Vec::new(), Vec::new(), declaration)
+                    (
+                        None,
+                        None,
+                        Vec::new(),
+                        Vec::new(),
+                        declaration,
+                        None,
+                        None,
+                        false,
+                        None,
+                        Vec::new(),
+                        Vec::new(),
+                    )
                 }
             };
             for segment in &subject.path {
@@ -502,6 +689,14 @@ pub(crate) fn prepare(
             {
                 return unsupported("record read changed its scalar field carrier");
             }
+            let bounded_leaf =
+                matches!(retained.field_type, StructuralFieldType::BoundedInteger(_));
+            let mut element_path = element_suffix;
+            if runtime_index.is_some() {
+                element_path.push(terminal_psi::StructuralPathSegment::Field(
+                    retained.identity.clone(),
+                ));
+            }
             bindings.push(Binding {
                 symbol: *field,
                 subject: subject.clone(),
@@ -509,6 +704,13 @@ pub(crate) fn prepare(
                 byte_overlay,
                 carrier_path,
                 path,
+                runtime_index,
+                selector_primitive,
+                view_container,
+                element,
+                carrier,
+                element_path,
+                bounded_leaf,
                 field: retained.id,
                 scalar_type,
             });
@@ -622,6 +824,76 @@ pub(super) fn observation(
                 .place
         }
     };
+    if let Some(selector) = binding.runtime_index.clone() {
+        // The canonical read path has no runtime segment: the loan's element
+        // read takes the same runtime vocabulary a direct `cells[i].leaf`
+        // observation spells, with the selector lowered through the shared
+        // scalar rosters.
+        let index = match selector {
+            checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+                bindings.expression(&checked_trees::CheckedScalarExpression::Parameter {
+                    position: position as usize,
+                    primitive_type: binding.selector_primitive.ok_or(
+                        LoweringError::Unsupported(
+                            "record loan's index selector lost its primitive",
+                        ),
+                    )?,
+                })?
+            }
+            checked_trees::CheckedRuntimeIndex::Local { position } => {
+                bindings.expression(&checked_trees::CheckedScalarExpression::Local {
+                    position: position as usize,
+                    primitive_type: binding.selector_primitive.ok_or(
+                        LoweringError::Unsupported(
+                            "record loan's index selector lost its primitive",
+                        ),
+                    )?,
+                })?
+            }
+            checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                bindings.runtime_index_field(&field)?
+            }
+            checked_trees::CheckedRuntimeIndex::AssignmentIndex { .. } => {
+                return unsupported("record loan's index is not an assignment selector");
+            }
+        };
+        let index = crate::expression_preparation::prepare_expression::exact_u64_index(index)?;
+        let scalar_type = binding.scalar_type;
+        return Ok(if binding.view_container {
+            if !binding.carrier_path.is_empty() || binding.bounded_leaf {
+                return unsupported(
+                    "record loan's runtime element read needs a scalar leaf at the view root",
+                );
+            }
+            LoweredDirectExpression::ElementViewRead {
+                source,
+                index: Box::new(index),
+                path: binding.element_path.clone(),
+                scalar_type,
+            }
+        } else if binding.bounded_leaf {
+            LoweredDirectExpression::IndexedElementFieldRead {
+                source,
+                path: binding.carrier_path.clone(),
+                index: Box::new(index),
+                element: binding.element.ok_or(LoweringError::Unsupported(
+                    "record loan's runtime element lost its type",
+                ))?,
+                carrier: binding.carrier.clone(),
+                field: binding.field,
+                scalar_type,
+            }
+        } else {
+            LoweredDirectExpression::IndexedPrimitiveRead {
+                source,
+                path: binding.carrier_path.clone(),
+                index: Box::new(index),
+                inner_indexes: Vec::new(),
+                element_path: binding.element_path.clone(),
+                scalar_type,
+            }
+        });
+    }
     if let Some(element) = binding.byte_overlay {
         // A byte-carrier read mints the record on a hoisted place — the
         // canonical `StructuralField` arm below cannot spell it, since the

@@ -1185,7 +1185,7 @@ fn lower_checked_boolean_expression_with_parameters(
 /// once its bounds are proven: a narrower unsigned index widens totally, and a
 /// signed index lands through an exact cast whose Terminal obligation proves it
 /// nonnegative, so it never silently becomes unsigned.
-fn exact_u64_index(
+pub(crate) fn exact_u64_index(
     index: LoweredDirectExpression,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let u64_type = terminal_scalar_type(PrimitiveType::U64)?;

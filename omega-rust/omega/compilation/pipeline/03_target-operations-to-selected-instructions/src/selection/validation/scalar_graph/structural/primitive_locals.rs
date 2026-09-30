@@ -103,13 +103,39 @@ pub(in crate::selection) fn read(
     let (place, byte_offset) = crate::selection::primitive_local_input::read_geometry(source, row)
         .ok_or_else(|| replay.invalid())?;
     let definition = row.result.ok_or_else(|| replay.invalid())?;
-    let pointer = replay
+    let view_home = replay
         .transport
-        .pointers
+        .element_views
         .iter()
-        .find(|(stored, _)| *stored == place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(|| replay.invalid())?;
+        .find(|view| view.place == place)
+        .copied();
+    let pointer = if view_home.is_some()
+        || crate::selection::established_view_input::element_view_type(source, place).is_some()
+    {
+        // The construction emits the descriptor load (or the home's backing
+        // register) ahead of the read; replay checks the same sequence.
+        let backing = super::element_views::element_backing_pointer(replay, row, place)?;
+        if let Some(view) = view_home {
+            let base = super::result(replay, place, byte_offset)?;
+            replay.check_instruction(
+                SelectedInstructionKind::ByteViewAddress,
+                replay.constraints.keys.add_i64,
+                &[backing, view.byte_offset, base],
+                &super::provenance(row),
+            )?;
+            base
+        } else {
+            backing
+        }
+    } else {
+        replay
+            .transport
+            .pointers
+            .iter()
+            .find(|(stored, _)| *stored == place)
+            .map(|(_, pointer)| *pointer)
+            .ok_or_else(|| replay.invalid())?
+    };
     let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
         LegalizedScalarInstructionKind::PrimitiveScalarRead { indices, .. } => indices,
         _ => &[],

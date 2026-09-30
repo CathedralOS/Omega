@@ -64,6 +64,7 @@ pub(crate) fn transport(
     argument: &terminal_psi::StructuralArgument,
     pointers: &[(PlaceId, VirtualRegisterId)],
     local_slots: &[SelectedLocalStorageSlot],
+    element_views: &[crate::selection::element_view_homes::ElementViewHomes],
 ) -> Option<SelectedStructuralTransport> {
     let signature = source.structural.as_ref()?;
     if argument.access != parameter.access
@@ -72,36 +73,52 @@ pub(crate) fn transport(
     {
         return None;
     }
-    let (referent, byte_offset) = crate::structural_inputs::structural_reference_input::project(
-        root_type(source, argument.place, argument.access)?,
-        &argument.path,
-        &signature.structural_types,
-    )?;
-    let lent = crate::structural_inputs::structural_reference_input::shape(
+    let Some(root) = root_type(source, argument.place, argument.access) else {
+        return None;
+    };
+    let Some((referent, byte_offset)) =
+        crate::structural_inputs::structural_reference_input::project(
+            root,
+            &argument.path,
+            &signature.structural_types,
+        )
+    else {
+        return None;
+    };
+    let Some(lent) = crate::structural_inputs::structural_reference_input::shape(
         referent,
         &signature.structural_types,
-    )?;
+    ) else {
+        return None;
+    };
     if referent != parameter.structural_type {
         return None;
     }
-    let base =
-        if let Some((_, pointer)) = pointers.iter().find(|(place, _)| *place == argument.place) {
-            SelectedAddressBase::Register(*pointer)
-        } else {
-            let mut homes = local_slots.iter().filter(|slot| {
-                slot.id.structural_place() == Some(argument.place)
-                    && !matches!(slot.id, LocalStorageSlotId::StructuralBlockParameter { .. })
-            });
-            let home = homes.next()?;
-            if homes.next().is_some()
-                || byte_offset
-                    .checked_add(lent.byte_size)
-                    .is_none_or(|end| end > home.byte_size)
-            {
-                return None;
-            }
-            SelectedAddressBase::Local(home.id)
-        };
+    let base = if let Some(view) = element_views
+        .iter()
+        .find(|view| view.place == argument.place)
+    {
+        // An element view's backing pointer is already live: the join
+        // receives the element's address at the projected offset beneath
+        // it — not the descriptor's own storage.
+        SelectedAddressBase::Register(view.backing_pointer)
+    } else if let Some((_, pointer)) = pointers.iter().find(|(place, _)| *place == argument.place) {
+        SelectedAddressBase::Register(*pointer)
+    } else {
+        let mut homes = local_slots.iter().filter(|slot| {
+            slot.id.structural_place() == Some(argument.place)
+                && !matches!(slot.id, LocalStorageSlotId::StructuralBlockParameter { .. })
+        });
+        let home = homes.next()?;
+        if homes.next().is_some()
+            || byte_offset
+                .checked_add(lent.byte_size)
+                .is_none_or(|end| end > home.byte_size)
+        {
+            return None;
+        }
+        SelectedAddressBase::Local(home.id)
+    };
     Some(SelectedStructuralTransport::Address {
         base,
         byte_offset,
@@ -144,6 +161,24 @@ fn root_type(
             .find(|parameter| parameter.semantic.place == place)
             .filter(|parameter| parameter.semantic.access == StructuralAccess::MutableBorrow)
             .map(|parameter| parameter.semantic.structural_type);
+    }
+    if let Some(result) = source
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|row| match &row.kind {
+            legalized_operations::LegalizedScalarInstructionKind::EstablishElementView {
+                result,
+                ..
+            }
+            | legalized_operations::LegalizedScalarInstructionKind::ElementViewSubslice {
+                result,
+                ..
+            } => (result.place == place).then_some(result),
+            _ => None,
+        })
+    {
+        return Some(result.structural_type);
     }
     if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {
         return Some(result.structural_type);

@@ -144,7 +144,15 @@ fn address_join_argument(
             })
             .map(|source| source.structural_type)
     } else {
-        None
+        // An element view is a readable descriptor root: a static index
+        // beneath it names one element's address, lent shared only.
+        (parameter.access == terminal_psi::StructuralAccess::SharedBorrow)
+            .then(|| {
+                live.views
+                    .get(&argument.place)
+                    .map(|(_, structural_type)| *structural_type)
+            })
+            .flatten()
     };
     root_type.and_then(|root| structural_types.subtree(root, &argument.path))
         == Some(parameter.structural_type)
