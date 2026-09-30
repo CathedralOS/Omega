@@ -162,8 +162,7 @@ pass/calls/value_call_transition_argument built 16255ms exit:70 @f17a009cdd4b+wt
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
 pass/capabilities/acquires_through_helper_return built 301ms
 pass/capabilities/boundary_trait_multiple_effects checked 164ms
-pass/capabilities/callback_direct_install_compile rejected 4506ms @5ce9755c44a5+wt
-	final callback address does not resolve to its exact private function
+pass/capabilities/callback_direct_install_compile built 1442ms @56c7f12ecb90+wt
 pass/capabilities/derives_through_helper built 272ms
 pass/capabilities/external_leaf_binding_forms built 308ms
 pass/capabilities/sysv_small_aggregate_import_compile rejected 235ms

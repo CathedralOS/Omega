@@ -2,14 +2,18 @@
 //! state or boundary trait signature the receiver's type resolves to.
 
 use super::{
-    CallScope, boundary_trait_signature, call_gates, declared_receiver_type_reference,
+    CallScope, boundary_trait_call_signature, call_gates, declared_receiver_type_reference,
     generic_requirement, machine_state_by_symbol, validate_call_arguments_handles,
     validate_call_arguments_handles_with_self_argument, validate_generic_bound_argument_types,
     validate_machine_call_type_parameter_bounds, validate_resolved_target_type_parameter_bounds,
     validate_result_use,
 };
 use diagnostics::Diagnostic;
+use typed_trees::TypedTrees;
+use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::signature::StateSignature;
+use typed_trees::statement::TableCall;
 
 /// A call on a named receiver targets, in order: a dynamic requirement (an
 /// error), a generic bound requirement, a state of the receiver's machine,
@@ -266,8 +270,10 @@ fn validate_resolved_receiver_call(
     // name ladder misses still resolved `call.target_symbol`. An exact
     // state target validates against its own machine and state; a boundary
     // parameter target rejoins its selected trait signature through the
-    // write-frame owner's exact receiver/symbol join. Return whether a
-    // declaration was found so namespace callers reject missing identity.
+    // write-frame owner's exact receiver/symbol join, which here also admits
+    // a requirement generic only over `machine` binders (a callback
+    // registrar). Return whether a declaration was found so namespace
+    // callers reject missing identity.
     if let Some((callee_machine, state)) = machine_state_by_symbol(program, call.target_symbol) {
         if namespace
             && callee_machine.attached_data_symbol.is_valid()
@@ -320,7 +326,7 @@ fn validate_resolved_receiver_call(
         );
         return true;
     }
-    if let Some(signature) = boundary_trait_signature(program, current_machine, call) {
+    if let Some(signature) = boundary_trait_call_signature(program, current_machine, call) {
         validate_result_use(
             program,
             call,
@@ -328,6 +334,8 @@ fn validate_resolved_receiver_call(
             signature.return_type,
             diagnostics,
         );
+        // Runtime formals only: native callback destinations live outside
+        // `parameters` and are joined to their selections below.
         validate_call_arguments_handles(
             program,
             current_machine,
@@ -340,7 +348,57 @@ fn validate_resolved_receiver_call(
             writable_roots,
             diagnostics,
         );
+        validate_native_callback_selections(program, call, signature, diagnostics);
         return true;
     }
     false
+}
+
+/// A `native callback name from Binder` destination has no source runtime
+/// argument (private_callbacks.md, "Authored selection"): the registrar call
+/// omits it, and its callee is the call's static machine argument for that
+/// binder. Each destination must therefore name one `machine` binder of the
+/// selected signature, and the call must supply that binder's selection at
+/// its machine ordinal. MP2b separately admits the selection against the
+/// binder's `where machine ... satisfies` bound; this check only refuses a
+/// destination with no selection to bind, which later stages would otherwise
+/// have to reject without a source diagnostic.
+fn validate_native_callback_selections(
+    program: &TypedTrees,
+    call: &TableCall,
+    signature: &StateSignature,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if signature.native_callback_parameters.is_empty() {
+        return;
+    }
+    let machine_binders = program
+        .state_signature_type_parameters(signature)
+        .iter()
+        .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }))
+        .collect::<Vec<_>>();
+    let selections = crate::machine_calls::machine_parameters::machine_selection_arguments(
+        program,
+        &call.machine_arguments,
+    )
+    .collect::<Vec<_>>();
+    for callback in &signature.native_callback_parameters {
+        let mut binders = machine_binders
+            .iter()
+            .enumerate()
+            .filter(|(_, binder)| binder.name == callback.binder);
+        let (Some((ordinal, _)), None) = (binders.next(), binders.next()) else {
+            diagnostics.push(Diagnostic::error(format!(
+                "native callback `{}` of `{}` names `{}`, which is not exactly one `machine` binder of the signature",
+                callback.name, signature.name, callback.binder,
+            )));
+            continue;
+        };
+        if selections.get(ordinal).is_none() {
+            diagnostics.push(Diagnostic::error(format!(
+                "call `{}` supplies no static machine argument for native callback `{}` from `{}`",
+                call.target, callback.name, callback.binder,
+            )));
+        }
+    }
 }
