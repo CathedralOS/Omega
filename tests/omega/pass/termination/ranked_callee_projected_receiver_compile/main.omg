@@ -1,13 +1,17 @@
-// PASS CANARY (compile + interpret). Ranked callee entered through a
-// projected receiver: `self.cursor.step(...)` borrows the `cursor` field
-// as the callee's whole receiver, and the callee's ranked backedge keeps
-// that same projected referent as its `self`
+// RUN CANARY (exit 70). Ranked callee entered through a projected
+// receiver: `self.cursor.step(...)` borrows the `cursor` field as the
+// callee's whole receiver, and the callee's ranked backedge keeps that
+// same projected referent as its `self`
 // (wiki/spec/language/termination.md "Ranked callees on projected
 // receivers"). The caller/callee join preserves the exact projection,
-// callee identity, return/cleanup, and the caller-visible write: `step`
+// callee identity, return/cleanup, and the caller-visible write: `main`
+// starts the cursor at 5 so `step` iterates five times before `done`
 // zeroes `self.remaining` on the projected referent, `run` reads it back
 // through `self.cursor`, and `main` exits 70 only when that composed
-// write is observed.
+// write is observed (an unwritten cursor still reads 5 and exits 71).
+use omega_language_std::console;
+use omega::language::core::binding;
+
 data Cursor where remaining <= 8 { remaining: u64; }
 
 machine Cursor::step(cursor: &mut Cursor, remaining: u64 [0..=8]) -> u64 [0..=8]
@@ -31,11 +35,23 @@ machine Engine::run(engine: &mut Engine) -> u64 [0..=8] {
     engine.cursor.remaining
 }
 
-data Main { engine: Engine; }
+data Main {
+    console: Binding<Console>;
+    engine: Engine;
+}
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(&mut self) reaches Console {
+    self.engine.cursor.remaining = 5;
     transition Engine::run(&mut self.engine) == 0 {
-        true -> 70
-        false -> 71
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
     }
 }

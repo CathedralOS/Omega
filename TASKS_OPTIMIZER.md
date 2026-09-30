@@ -254,17 +254,6 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   natural-ranked and unranked graphs retain their custody, and authenticated
   cyclic components remain frozen under optimization. No countdown-only fallback.
 
-  Make `termination/ranked_callee_projected_receiver_compile` an actual native
-  witness before treating its corpus outcome as execution evidence. Its source
-  calls a ranked callee through a projected receiver and observes the write,
-  but the fixture has no `build.omg` and is neither a run-tier nor an `_exit`
-  case. `corpus_runner` therefore only checks it even with `--native`; the
-  macOS native golden records `checked`. Supply the intended host ProgramEntry
-  bindings and an `expected_native_exit.txt` oracle, then use
-  `python3 tools/corpus_gate.py --native --filter termination/ranked_callee_projected_receiver`.
-  Ensure the receiver starts nonzero so the exit-70 observation proves the
-  callee's write, rather than merely observing its zero-initialized value.
-
   Acceptance: execute the composed call on both Linux architectures; verify
   exact projection, referent and argument identity, callee ranking, return,
   cleanup and composed resources. Conflicting parent access and missing/invalid
