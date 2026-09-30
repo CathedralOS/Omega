@@ -561,6 +561,25 @@ class LandingTests(unittest.TestCase):
         # The commit message itself stays free of tool attribution.
         self.assertEqual(self.git(self.remote, "log", "-1", "--format=%B", first_candidate), "first")
 
+    def test_missing_model_warns_but_still_lands(self):
+        claim = self.claim(self.a)
+        candidate = self.commit(self.a, "unattributed")
+        code, output, error = self.finish(self.start(
+            self.a, "publish", "--claim", claim["claim"], "--base", claim["base"], "--candidate", candidate,
+            "--provenance", "agent=devin"))
+        self.assertEqual(code, 0, error)
+        self.assertIn("warning", error)
+        self.assertIn("provenance_warning", json.loads(output))
+        self.assert_remote(candidate)
+        named = self.claim(self.a)
+        second = self.commit(self.a, "attributed")
+        code, output, error = self.finish(self.start(
+            self.a, "publish", "--claim", named["claim"], "--base", named["base"], "--candidate", second,
+            "--provenance", "agent=devin model=swe-2-medium"))
+        self.assertEqual(code, 0, error)
+        self.assertNotIn("warning", error)
+        self.assertNotIn("provenance_warning", json.loads(output))
+
     def test_provenance_applies_only_to_publish(self):
         self.run_landing(self.a, "enqueue", "--owner", "writer", "--provenance", "model=x", expected=1)
         claim = self.claim(self.a)

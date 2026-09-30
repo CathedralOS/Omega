@@ -73,6 +73,8 @@ changed. On lease expiry, `release` and rejoin; never bypass the reservation.
 equal the reserved base the claim printed (main may move between `enqueue`
 and `claim` — rebase onto the reserved base); an expired head leaves your
 commit intact — re-enqueue it after the queue clears.
+Give `publish` the model that produced the change: `--provenance "agent=<tool> model=<name> effort=<level>"`
+(or export `OMEGA_PROVENANCE` once). Commit messages carry no attribution; this note is the only record.
 Keep checkpoints bounded, but retain the assigned customer through producer and
 consumer repairs. Rerun its outer command after relevant changes; helper tests
 alone do not complete the assignment or justify claiming native execution.

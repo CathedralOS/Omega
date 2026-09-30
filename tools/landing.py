@@ -672,6 +672,11 @@ class Landing:
             if self.publish(snapshot["version"], updated, candidate, base):
                 if options.command == "publish":
                     provenance = options.provenance or os.environ.get("OMEGA_PROVENANCE", "")
+                    if not re.search(r"\bmodel=\S", provenance):
+                        # Advisory only: a landing is never refused over missing provenance.
+                        result["provenance_warning"] = "no model=<name> in --provenance or OMEGA_PROVENANCE"
+                        print("landing: warning: " + result["provenance_warning"]
+                              + "; the note records the owner only.", file=sys.stderr)
                     result["provenance"] = self.record_provenance(options.candidate, [
                         f"owner: {owner}", *([f"provenance: {provenance}"] if provenance.strip() else []),
                         f"ticket: {options.claim}", f"published_utc: {now()}"])
