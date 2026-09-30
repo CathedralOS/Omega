@@ -1,10 +1,7 @@
-// GENERIC CONTAINER instances with methods (generics Phase 2 slice 1): one
-// Counter<T> definition, two coexisting concrete instances -- Counter<i32>
-// accumulating a score and Counter<bool> latching a flag -- each with its
-// own cloned method set (record/current/times). The desugar synthesizes
-// Counter<i32> and Counter<bool> as ordinary records and clones the attached
-// machines per instance with T substituted, so every T-typed value call
-// materializes concretely.
+// Two invocation-local instances of Counter<T>: Counter<i32> records a score
+// and Counter<bool> latches a flag. Static machines take explicit borrowed
+// counters; each instance retains its own value and write count. Only the
+// observed scalars and Console context pass to the selected final state.
 //
 //   score: record(30), record(12) -> current 12 (record REPLACES), times 2
 //   flag:  record(true)           -> current true, times 1
@@ -17,36 +14,36 @@ data Counter<T> {
     value: T;
     times: i32 in Wrapping;
 }
-machine Counter::record<T>(&mut self, v: T) {
-    self.value = v;
-    self.times = self.times + 1;
+machine Counter::record<T>(counter: &mut Counter<T>, value: T) {
+    counter.value = value;
+    counter.times = counter.times + 1;
 }
-machine Counter::current<T [copy]>(&self) -> T {
-    transition { _ -> (self.value) }
+machine Counter::current<T [copy]>(counter: &Counter<T>) -> T {
+    transition { _ -> (counter.value) }
 }
-machine Counter::count(&self) -> i32 in Wrapping {
-    transition { _ -> (self.times) }
+machine Counter::count<T>(counter: &Counter<T>) -> i32 in Wrapping {
+    transition { _ -> (counter.times) }
 }
 data Main {
     console: Binding<Console>;
-    score: Counter<i32>;
-    flag: Counter<bool>;
 }
-machine Main::main(&mut self) reaches Console {
-    self.score.record(30);
-    self.score.record(12);
-    self.flag.record(true);
-    let total: i32 = self.score.current();
-    let times_score: i32 in Wrapping = self.score.count();
-    let times_flag: i32 in Wrapping = self.flag.count();
-    let latched: bool = self.flag.current();
+machine Main::main(main: &mut Main) reaches Console {
+    let mut score: Counter<i32>;
+    let mut flag: Counter<bool>;
+    Counter::record(&mut score, 30);
+    Counter::record(&mut score, 12);
+    Counter::record(&mut flag, true);
+    let total: i32 = Counter::current(&score);
+    let times_score: i32 in Wrapping = Counter::count(&score);
+    let times_flag: i32 in Wrapping = Counter::count(&flag);
+    let latched: bool = Counter::current(&flag);
     transition latched {
-        true -> tally(total, times_score, times_flag)
-        false -> wrong()
+        true -> tally(main, total, times_score, times_flag)
+        false -> wrong(main)
     }
-    state tally(&mut self, total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) {
+    state tally(main: &mut Main, total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) {
         let code: i32 in Wrapping = (total as i32 in Wrapping) + times_score + 1 + times_flag;
-        self.console.exit_process(code as i32);
+        main.console.exit_process(code as i32);
     }
-    state wrong(&mut self) { self.console.exit_process(3); }
+    state wrong(main: &mut Main) { main.console.exit_process(3); }
 }

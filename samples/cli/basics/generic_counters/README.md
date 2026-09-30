@@ -1,10 +1,11 @@
 # Generic counters
 
-Two instances of `Counter<T>` retain independent fields and method selections:
-the integer counter records twice, and the Boolean counter records once. The
-program exits **16** without printing. Its Console field must be an established
-`Service<Console>` supplied by the selected entry. Service validity is intrinsic;
-no separate `Bound` qualification is required.
+Two invocation-local instances of `Counter<T>` retain independent fields. Static
+machines take explicit borrowed counters: the integer counter records 30 then 12,
+yielding value 12 and count 2; the Boolean counter records true, yielding true
+and count 1. The checksum is `12 + 2 + 1 + 1`: process exit **16**, without
+printing. Only observed scalars and the Console context pass to the final state.
+The context's `Binding<Console>` is supplied by the selected entry.
 
 ## Review the project
 
@@ -47,28 +48,24 @@ if ($LASTEXITCODE -ne 16) { throw 'Expected exit 16' }
 ```
 
 `run` compiles, publishes, and executes the receipt-bound artifact without
-guessing its filename. Expect empty stdout and `native exit: 16` on stderr.
+guessing its filename. Expect empty stdout and `native exit 16` on stderr.
 Do not add `--target` to this execution command: an explicit target makes
 `run` compile-only. These commands describe each host's route, not a claim that
-all hosted targets have passed. On Linux x86-64 the compiler-library
-regression below, filtered to this sample, compiles, publishes, and runs
-natively to exit 16 with empty stdout; its test-owned acceptance leaves the
-ordinary CLI review route unverified there. On Linux x86-64 the ordinary
-route is gated before review decisions: package candidate checking rejects
-inside `omega-language-std` with `routed service field Filesystem::host has
-no exact Fused selected-provider-plan join`, the shared std-wide gate
-recorded on the board (attempted at `b53c7ea26032`). Remaining coverage is in
-[SAMPLE-CORPUS](../../../../TASKS.md).
+all hosted targets have passed. The static/local version exits 16 natively on
+macOS ARM64. `omega run --both` reports native exit 16 but declines checked
+interpretation at `unknown call target record`; this is not interpreter
+agreement. The other declared hosts remain untested for this migration.
+Remaining coverage is in [STATIC-MACHINE-MIGRATION](../../../../TASKS.md).
 
-## Compiler-library regression
+## Native regression
 
-The compiler-library regression supplies explicit test-owned acceptance and
-checks publication and native exit independently of the CLI's project review:
+With a built CLI, the maintained gate checks the sample's authored exit oracle:
 
 ```sh
-OMEGA_SAMPLE_RUNTIME_FILTER=generic_counters mbx nextest run -p compiler --test samples_compile --no-fail-fast -E 'test(=samples_with_documented_exit_run_correctly)'
+python3 tools/sample_native_gate.py --cli target/debug/omega --target macos_arm64 --filter basics/generic_counters --jobs 1
 ```
 
-In PowerShell, set `$env:OMEGA_SAMPLE_RUNTIME_FILTER='generic_counters'` before
-the same test command and remove it afterward with
-`Remove-Item Env:OMEGA_SAMPLE_RUNTIME_FILTER`. Use Cargo if `mbx` is unavailable.
+On Windows use `python`, `target/debug/omega.exe`, and `windows_x86_64`.
+The gate accepts pending package-review decisions only in this checkout to
+measure execution. Its result is not a dependency audit or approval for another
+checkout. The ordinary manual review route above remains available.

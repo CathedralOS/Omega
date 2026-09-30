@@ -116,9 +116,13 @@ build authority, and artifact verification remain separate obligations.
   argument has invalid checked custody`; for scalar and
   record results, a callee that forwards its `&mut` parameter across states
   stops at Terminal `OwnedStructuralPlaceNotLiveAtOperation`. A static
-  `generic_counters` plans its
-  local loans and stops inside the specialized callee at `scalar field store
-  sequence: write frame agreement`. Stage 02 element-view establishment
+  `generic_counters` uses explicit generic calls and two invocation-local
+  counters, preserving repeated writes and separate integer/Boolean values.
+  On macOS ARM64 at `9e546211a6` plus this source migration,
+  `omega run samples/cli/basics/generic_counters/main.omg` exits **16**;
+  `--both` declines checked interpretation at `unknown call target record`.
+  Complete the interpreter's specialized static-call dispatch and matching-host
+  execution on the other declared targets. Stage 02 element-view establishment
   resolves a local backing from its producer operation because threading the
   live home map needs `control_flow/operations.rs`.
   `parse_int` and `roman_numeral` construct a domain-qualified byte local from a
