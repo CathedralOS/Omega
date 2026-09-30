@@ -88,12 +88,27 @@ pub(in super::super) fn prove_discrete_endpoint(
         }
     }
     for (endpoint, target) in [left, right].into_iter().enumerate() {
-        for literal in &literals {
-            if literal.scalar_type() != target.scalar_type()
-                || session.prove_equality(target, literal).is_none()
-            {
+        // A live length can be a closed definition such as two concatenated
+        // extents. Retain its checked equation transport: cited leaf equality
+        // alone cannot connect that computed endpoint to its literal value.
+        let evaluated = session.literal_equality(target);
+        let evaluated_literal = evaluated
+            .as_ref()
+            .and_then(|proof| match &proof.conclusion {
+                Proposition::Equal(source, literal) if source == target => Some(literal),
+                _ => None,
+            });
+        for literal in literals.iter().chain(evaluated_literal) {
+            if literal.scalar_type() != target.scalar_type() {
                 continue;
             }
+            let Some(equality) = session.prove_equality(target, literal).or_else(|| {
+                (evaluated_literal == Some(literal))
+                    .then(|| evaluated.clone())
+                    .flatten()
+            }) else {
+                continue;
+            };
             let Some(adjacent) = adjacent(literal, endpoint == 0) else {
                 continue;
             };
@@ -117,9 +132,17 @@ pub(in super::super) fn prove_discrete_endpoint(
                     relation: Box::new(relation),
                 },
             };
-            if let Some(proof) = complete(&session, goal, discrete) {
-                return Some(proof);
+            if discrete.conclusion == *goal {
+                return Some(discrete);
             }
+            return Some(ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::IntegerOrderSubstitution {
+                    relation: Box::new(discrete),
+                    equality: Box::new(equality),
+                    endpoint,
+                },
+            });
         }
     }
     None
@@ -409,6 +432,57 @@ mod tests {
                 assert!(prove_with_definitions(&context, &goal, &assumptions, &weak).is_none());
                 assert!(check_certificate(&context, &goal, &assumptions, &weak, &proof).is_err());
             }
+        }
+    }
+
+    #[test]
+    fn remainder_bound_rejoins_a_computed_closed_strict_endpoint() {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let scalar_type = ScalarType::Integer(integer_type);
+        let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
+        let literal =
+            |number| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(number)).unwrap();
+        let context = PropositionContext::from_value_types(
+            (1..=5).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
+        )
+        .unwrap();
+        let goal = Proposition::LessThan(value(5), value(4));
+        for divisor in [3, 10, 17] {
+            let axioms = [
+                Proposition::Equal(value(2), literal(divisor)),
+                Proposition::Equal(value(3), literal(0)),
+                Proposition::Equal(
+                    value(4),
+                    ScalarTerm::ExactIntegerAdd {
+                        scalar_type: integer_type,
+                        left: Box::new(value(2)),
+                        right: Box::new(value(3)),
+                    },
+                ),
+                Proposition::Equal(
+                    value(5),
+                    ScalarTerm::ExactIntegerRemainder {
+                        scalar_type: integer_type,
+                        left: Box::new(value(1)),
+                        right: Box::new(value(2)),
+                    },
+                ),
+            ];
+            let proof = prove_with_definitions(&context, &goal, &[], &axioms)
+                .expect("remainder image joins the independently computed live extent");
+            check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+            for missing in 0..axioms.len() {
+                let mut incomplete = axioms.to_vec();
+                incomplete.remove(missing);
+                assert!(check_certificate(&context, &goal, &[], &incomplete, &proof).is_err());
+            }
+            let mut too_short = axioms.clone();
+            too_short[2] = Proposition::Equal(value(4), literal(divisor - 1));
+            assert!(prove_with_definitions(&context, &goal, &[], &too_short).is_none());
+            assert!(check_certificate(&context, &goal, &[], &too_short, &proof).is_err());
+            let mut zero_divisor = axioms.clone();
+            zero_divisor[0] = Proposition::Equal(value(2), literal(0));
+            assert!(prove_with_definitions(&context, &goal, &[], &zero_divisor).is_none());
         }
     }
 
