@@ -878,9 +878,8 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
         CheckedScalarExpression::IntegerTrappingCast {
             primitive_type,
             operand,
-        } => Ok(LoweredDirectExpression::IntegerTrappingCast {
-            scalar_type: terminal_scalar_type(*primitive_type)?,
-            operand: Box::new(lower_checked_scalar_expression_with_parameters(
+        } => {
+            let operand = lower_checked_scalar_expression_with_parameters(
                 operand,
                 structural_parameters,
                 structural_fields,
@@ -889,8 +888,12 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
                 view_locals,
                 structural_locals,
-            )?),
-        }),
+            )?;
+            crate::expression_preparation::trapping_cast::trapping_cast(
+                operand,
+                terminal_scalar_type(*primitive_type)?,
+            )
+        }
         CheckedScalarExpression::IntegerExactCast {
             primitive_type,
             operand,

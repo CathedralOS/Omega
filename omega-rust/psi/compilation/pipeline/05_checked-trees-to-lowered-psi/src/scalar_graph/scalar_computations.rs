@@ -733,10 +733,12 @@ impl<'a> Expansion<'a> {
                             result_type.scalar_type,
                         )?
                     }
-                    ArithmeticDomain::Trapping => LoweredDirectExpression::IntegerTrappingCast {
-                        scalar_type: result_type.scalar_type,
-                        operand: Box::new(operand_expression),
-                    },
+                    ArithmeticDomain::Trapping => {
+                        crate::expression_preparation::trapping_cast::trapping_cast(
+                            operand_expression,
+                            result_type.scalar_type,
+                        )?
+                    }
                 };
                 let bound = self.binding(
                     &operand_types,

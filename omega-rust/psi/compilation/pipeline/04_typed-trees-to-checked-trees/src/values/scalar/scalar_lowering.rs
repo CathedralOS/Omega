@@ -869,7 +869,6 @@ pub(crate) fn construct_integer_cast(
     }
     if cast.domain == ArithmeticDomain::Trapping
         && is_integer(source_type)
-        && source_type != PrimitiveType::Addr
         && target_type != PrimitiveType::Addr
     {
         return Some((

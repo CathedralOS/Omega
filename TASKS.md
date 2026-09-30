@@ -1376,10 +1376,6 @@ the complete product bar; focused successes below do not establish that baseline
     stop at field-store scalar-expression construction. The float Trapping
     fixtures no longer reproduce their recorded policy-weakening diagnostics;
     preserve overflow/propagated-NaN traps without erasing Trapping.
-    `types/runtime_addr_field_exit` asks for `addr -> i32 in Trapping`, outside
-    the current fixed-integer denotation. Resolve that conversion under
-    [address semantics](wiki/spec/language/counts_and_addresses.md), preserving
-    address-field behavior rather than assuming `addr` is `u64`.
 
   Acceptance: comparisons and conversions agree across source evaluation,
   verified artifacts and matching-host execution. Preserve all six relations

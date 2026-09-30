@@ -7,7 +7,8 @@ pub enum PrimitiveJudgment {
     Truth,
     ReflexiveEquality,
     ClosedIntegerRelation,
-    /// The exact minimum or maximum of a fixed integer value's declared type.
+    /// The exact declared minimum or maximum of a fixed scalar integer, or of
+    /// an embedded integer/address value retaining its source carrier.
     IntegerCarrierBound,
 }
 
