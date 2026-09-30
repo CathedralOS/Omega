@@ -1416,20 +1416,47 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Governed by [ownership](wiki/spec/language/ownership.md#borrows-and-aliases)
   and [loan formation/replay](wiki/spec/terminal-psi/loans.md). Owners:
   `execution/terminal_unit/control/statement_sequence/local_data.rs`,
-  `terminal_unit/receiver_aliases/`, and stage 05 argument evaluation and
-  `expression_preparation/bindings`.
+  `terminal_unit/receiver_aliases/`, and stage 05 argument evaluation,
+  `expression_preparation/bindings`, and `scalar_graph/scalar_computations/fields.rs`.
 
-  The existing direct-place exclusive-loan route supplies a control:
-  `borrow/runtime_exclusive_loan_local_write_exit` writes through `&mut self.raw`,
-  reads the original storage afterwards and has recorded native exit 70.
-  Remaining producer cases are shared borrows, runtime-indexed places, reference
-  recasts, plain-local borrows, and reference-returning calls. The pending
-  fixtures `borrows/reference_local_binding_routes` and
-  `borrows/reference_result_call_binding` exercise shared binding and a returned
-  reference; their comments record the wider reduction matrix, not executable
-  coverage of every row. Preserve ordinary scalar-result and reference-argument
-  calls as controls. `dependent/runtime_sibling_len_index_exit` exercises the
-  library returned-view form `let view: &[u8] = self.buf.as_slice()`.
+  With this change on base `5b5821b2f0`, on Linux x86_64,
+  `python3 tools/corpus_gate.py --both --golden tests/omega/corpus_native_linux_x86_64.txt
+  --filter pass/borrows/runtime_record_byte_region_loan_exit` builds and executes
+  the byte-identical `samples/cli/systems/descriptor_walk/main.omg` body through
+  the repository's reviewed fixture policy: native and interpreter exit **50**,
+  in agreement. The fixture has an explicit exit oracle and equivalent Build
+  roots. Its shared runtime-indexed record recast now observes each scalar's
+  declaration-derived byte region in the original backing, with independently
+  replayed index obligations and no copied record carrier. The authored sample's
+  direct `omega run --both` command still stops at ordinary package-review
+  acceptance; no production acceptance was added by this implementation.
+
+  The former pending fixtures now live under `run/borrows/`:
+  `reference_local_binding_routes` and `reference_result_call_binding` both
+  execute with native/interpreter exit **0** and matching stdout. Their comments
+  describe a wider reduction matrix, not executable coverage of every row.
+  The direct-place exclusive-loan control
+  `borrow/runtime_exclusive_loan_local_write_exit` retains native/interpreter
+  exit **70**, including caller-visible writes. `recast/runtime_guarded_offset_recast_exit`
+  likewise agrees at **70**, and `run/borrows/shared_record_loan_member_read`
+  agrees at **0**. Preserve ordinary scalar-result and reference-argument calls;
+  `dependent/runtime_sibling_len_index_exit` exercises the library returned-view
+  form `let view: &[u8] = self.buf.as_slice()`.
+
+  The next record-view dependencies are formation-time capture for mutable
+  field-held selectors and the static overlay's structural-place declaration
+  roster. Runtime byte overlays currently retain immutable scalar parameter
+  selectors. Constant locals fold to static selector paths; the current producer
+  does not mint a dynamic-local coordinate. A live field selector explicitly
+  declines instead of reloading a changed selector at observation.
+  `pass/borrows/shared_recast_loan_member_read`
+  rejects with `NonCanonicalOrder("structural places by PlaceId")`; the same
+  rejection is reproduced by the unpatched `c853eb3693` compiler on identical
+  fixture bytes. The seven-fixture native slice therefore remains red against
+  its old golden despite six built programs with matching executions. Repair
+  that roster without relaxing canonical validation, and extend captured loans
+  through remaining producer/read/call/state-forwarding compositions. Coordinate
+  record re-views with **RECAST-SOURCE-POSITIONS**.
 
   Retain `calls/caller_result_binding_mutable_loan_exit` and
   `calls/runtime_alias_write_through_guarded_transition_exit` as native exit-70
@@ -1439,32 +1466,22 @@ crash and native exit behavior. Use affected check/native corpus slices under
   transfer. Their macOS ARM64 execution is established; neither named-state
   forwarding nor ordinary Unit completion may regain source-shape gates.
 
-  `samples/cli/systems/descriptor_walk` combines three independent triggers in
-  `let d: &Desc = &self.buf[off] as &Desc`: shared access, runtime selection and
-  recast. Test each separately and the unchanged sample together; coordinate
-  **RECAST-SOURCE-POSITIONS** rather than declaring success after one trigger.
-  Omissions vary with surrounding control flow; phase labels do not define
-  separate capabilities.
-
-  `receiver_aliases` admits Mutable/WriteOnly access and checks exclusive parent
-  lineage; shared loans cannot gain mutation authority by widening that match.
-  Establish their exact local carrier and projection in stage 05's
-  `structural_locals` relation. `shared_structural_place` currently requires an
-  empty stored path, so projected backing also needs path composition at use.
-  Retain the local symbol as the loan subject: rewriting it to the root place
-  loses borrow/write-frame/release identity and disagrees with independent
-  local-field replay. A known-place loan need not become a fresh affine
-  `EstablishReference` result. Preserve the supported exclusive marker/store
-  route while extending observations and successor forwarding.
+  Shared loans cannot gain mutation authority by widening the exclusive
+  `receiver_aliases` match. Retain the local symbol as the loan subject and
+  compose its exact captured projection at use; substituting the root loses
+  borrow/write-frame/release identity. A known-place loan need not become a
+  fresh affine `EstablishReference` result. Preserve the supported exclusive
+  marker/store route while extending observations and successor forwarding.
 
   Acceptance: every producer form, reads through scalar/record loan names,
   borrowed calls and state forwarding reach verified Terminal and matching-host
-  execution with exact backing and no implicit copies. Both pending fixtures
-  and the full sample must advance. Reject conflicting loans, source/path
-  substitution and invalid escapes. Verify constrained referents such as
-  `u8 [0..=1]` borrowed as `&mut u8` against the actual loan/store contract;
-  normalized type equality must not erase the original storage's obligations.
-  **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
+  execution with exact backing and no implicit copies. Complete the remaining
+  fixtures and the original sample's product route. Reject conflicting loans,
+  source/path substitution and invalid escapes. Verify constrained referents
+  such as `u8 [0..=1]` borrowed as `&mut u8` against the actual loan/store
+  contract; normalized type equality must not erase the original storage's
+  obligations. **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed
+  caller.
 
 - **DEFERRED-LOCAL-INITIALIZATION.** Complete partial local storage whose
   fields cannot be established by whole-shape zero construction. Retain the
