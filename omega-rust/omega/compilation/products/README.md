@@ -44,8 +44,11 @@ and seals the reused program. Failed continuations are not retained, and the las
 target creates no unused retained copy.
 
 [compile_outcomes.rs](src/compile_outcomes.rs) retains successful reports and
-rejections together, derives their batch commitments, and refuses single-report
-extraction when siblings exist. Neither a request nor an outcome grants trust,
+refusals together, derives their batch commitments, and refuses single-report
+extraction when siblings exist. A refusal whose every error names an exceeded
+private provision is the [compiler request](../../../../wiki/spec/build/compiler_request.md#validation-and-failures)'s
+`Incomplete` outcome (halt value 2), recorded with that provision; any other
+refusal is `Reject` (halt value 1). Neither a request nor an outcome grants trust,
 receiving authority, or evidence that a target is supported.
 
 Start at [compilation_products.rs](src/compilation_products.rs) for

@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
 checked-trees-to-lowered-psi = { path = "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi" }
 lowered-psi = { path = "../../../../psi/compilation/representations/lowered-psi" }

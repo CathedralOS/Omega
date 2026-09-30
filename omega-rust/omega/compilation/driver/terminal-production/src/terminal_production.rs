@@ -5,6 +5,7 @@ use checked_trees_to_lowered_psi::{
     LoweringError, ProofSearchExhaustion, TerminalMachineSelection, lower_machine,
     select_terminal_machine,
 };
+use diagnostics::{Diagnostic, ExceededProvision};
 use lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{
     PsiOptimizationStageError, PsiOptimizationStageResult, run_psi_optimization,
@@ -196,6 +197,27 @@ pub enum TerminalArtifactProductionError {
 }
 
 impl TerminalArtifactProductionError {
+    /// The refusal as the diagnostic compilation reports. A capacity
+    /// exhaustion carries its exceeded provision — resource name, limit,
+    /// declined demand and the unproved obligation as its internal-row
+    /// coordinate — so the compiler-request outcome publishes `Incomplete`
+    /// from that record instead of recognizing the message's wording.
+    pub fn diagnostic(&self) -> Diagnostic {
+        let message = self.diagnostic_message();
+        match self.incomplete_capacity() {
+            Some(exhaustion) => Diagnostic::incomplete(
+                message,
+                ExceededProvision {
+                    resource: exhaustion.capacity.resource_name(),
+                    limit: exhaustion.capacity.limit(),
+                    requested: exhaustion.requested,
+                    coordinate: exhaustion.obligation.get(),
+                },
+            ),
+            None => Diagnostic::error(message),
+        }
+    }
+
     /// Report the production verdict without making a consumer classify a
     /// lowerer's private failures. Capacity exhaustion is incomplete evidence,
     /// not a refutation; an absent compiler route retains its own report.
@@ -305,13 +327,15 @@ mod tests {
     }
 
     /// A proof-search capacity refusal reports the `Incomplete` outcome
-    /// class — the named capacity, declined demand and unproved obligation —
-    /// while an ordinary unavailable-proof rejection reports none of them.
+    /// class — the named capacity, declined demand and unproved obligation,
+    /// carried on its diagnostic as the exceeded provision — while an
+    /// ordinary unavailable-proof rejection reports none of them.
     #[test]
     fn a_capacity_refusal_reports_incomplete_and_a_rejection_does_not() {
         use checked_trees_to_lowered_psi::{
             LoweringError, ProofSearchCapacity, ProofSearchExhaustion,
         };
+        use diagnostics::ExceededProvision;
         use semantic_vocabulary::ObligationId;
 
         let obligation = ObligationId::new(41).unwrap();
@@ -335,11 +359,21 @@ mod tests {
             ProofSearchCapacity::ScalarInvariantRosterRounds.resource_name(),
             "proof_search_roster_rounds",
         );
-        assert_eq!(
-            refusal.diagnostic_message(),
-            "incomplete: terminal-artifact production stopped at the private \
+        let message = "incomplete: terminal-artifact production stopped at the private \
              `proof_search_roster_rounds` proof-search capacity (provision 128) with obligation \
-             41 unproved; the module is not shown invalid",
+             41 unproved; the module is not shown invalid";
+        assert_eq!(refusal.diagnostic_message(), message);
+        let diagnostic = refusal.diagnostic();
+        assert!(diagnostic.is_error());
+        assert_eq!(diagnostic.message, message);
+        assert_eq!(
+            diagnostic.exceeded_provision,
+            Some(ExceededProvision {
+                resource: "proof_search_roster_rounds",
+                limit: 128,
+                requested: 129,
+                coordinate: 41,
+            }),
         );
 
         let rejection = crate::terminal_production::TerminalArtifactProductionError::Lowering(
@@ -351,6 +385,7 @@ mod tests {
             rejection.diagnostic_message(),
             format!("terminal-artifact production failed: {rejection}"),
         );
+        assert_eq!(rejection.diagnostic().exceeded_provision, None);
         let missing = crate::terminal_production::TerminalArtifactProductionError::Lowering(
             LoweringError::InvalidUnitMachinePlan {
                 machine: "Main::run".into(),
@@ -362,6 +397,7 @@ mod tests {
             missing.diagnostic_message(),
             "unimplemented: missing lowering route"
         );
+        assert_eq!(missing.diagnostic().exceeded_provision, None);
     }
 
     /// Every product shares the instrumented body: without an entry identity

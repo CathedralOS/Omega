@@ -122,7 +122,9 @@ pub(crate) fn produce_retained_terminal_artifact(
                 timings: &mut production_timings,
             })
         })
-        .map_err(|error| vec![Diagnostic::error(error.error().diagnostic_message())])?;
+        // A capacity refusal keeps its exceeded provision on the diagnostic so
+        // the target's outcome publishes `Incomplete`, not a rejection.
+        .map_err(|error| vec![error.error().diagnostic()])?;
     merge_terminal_production_timings(&mut stage_timings, &production_timings);
     let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {
         vec![Diagnostic::error(

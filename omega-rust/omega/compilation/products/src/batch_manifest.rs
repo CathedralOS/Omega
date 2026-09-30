@@ -5,15 +5,21 @@
 //! support, test, deployment-matrix, or completeness claim: a named row is
 //! the exact outcome this invocation retained, not evidence that a target is
 //! supported.
+//!
+//! A failed child is either `Rejected` or `Incomplete`, the compiler
+//! request's two refusal outcomes: an `Incomplete` row binds the named
+//! private provision the child exceeded, so a search that stopped early never
+//! commits as the same row as a source the compiler refuted.
 
-use diagnostics::{Diagnostic, DiagnosticSeverity};
+use diagnostics::{Diagnostic, DiagnosticSeverity, ExceededProvision};
 use sha2::{Digest, Sha256};
 use target::TargetProfile;
 
 use crate::{ProductionArtifactIdentity, ProductionCompilationManifestIdentity};
 
 const BATCH_MANIFEST_DOMAIN: &[u8] = b"OMEGA-BATCH-COMPILATION-MANIFEST-V1\0";
-const BATCH_DIAGNOSTICS_DOMAIN: &[u8] = b"OMEGA-BATCH-CHILD-DIAGNOSTICS-V1\0";
+// V2 binds each diagnostic's exceeded provision beside its wording.
+const BATCH_DIAGNOSTICS_DOMAIN: &[u8] = b"OMEGA-BATCH-CHILD-DIAGNOSTICS-V2\0";
 
 /// Digest identifying one batch manifest's canonical bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -45,6 +51,14 @@ pub enum BatchChildOutcome {
     /// The child rejected; the row binds a digest over its exact ordered
     /// diagnostics rather than recording a bare failure flag.
     Rejected { diagnostics_digest: [u8; 32] },
+    /// The child stopped at a named private provision without a verdict on
+    /// the source it left unexamined — the compiler request's `Incomplete`
+    /// outcome. The row binds the provision its outcome names and the digest
+    /// over its exact ordered diagnostics.
+    Incomplete {
+        provision: ExceededProvision,
+        diagnostics_digest: [u8; 32],
+    },
 }
 
 impl BatchChildOutcome {
@@ -55,6 +69,21 @@ impl BatchChildOutcome {
             return Err("a rejected batch child must carry its diagnostics");
         }
         Ok(Self::Rejected {
+            diagnostics_digest: digest_diagnostics(diagnostics),
+        })
+    }
+
+    /// An incomplete row binds the provision its outcome names and its
+    /// ordered diagnostics, under the same nonempty rule as a rejection.
+    pub fn incomplete(
+        provision: ExceededProvision,
+        diagnostics: &[Diagnostic],
+    ) -> Result<Self, &'static str> {
+        if diagnostics.is_empty() {
+            return Err("an incomplete batch child must carry its diagnostics");
+        }
+        Ok(Self::Incomplete {
+            provision,
             diagnostics_digest: digest_diagnostics(diagnostics),
         })
     }
@@ -167,9 +196,24 @@ fn canonical_batch_manifest_bytes(rows: &[BatchChildRow]) -> Vec<u8> {
                 bytes.push(1);
                 bytes.extend_from_slice(diagnostics_digest);
             }
+            BatchChildOutcome::Incomplete {
+                provision,
+                diagnostics_digest,
+            } => {
+                bytes.push(2);
+                append_provision(&mut bytes, provision);
+                bytes.extend_from_slice(diagnostics_digest);
+            }
         }
     }
     bytes
+}
+
+fn append_provision(bytes: &mut Vec<u8>, provision: &ExceededProvision) {
+    append_field(bytes, provision.resource.as_bytes());
+    bytes.extend_from_slice(&provision.limit.to_le_bytes());
+    bytes.extend_from_slice(&provision.requested.to_le_bytes());
+    bytes.extend_from_slice(&provision.coordinate.to_le_bytes());
 }
 
 fn append_artifact_identity(bytes: &mut Vec<u8>, artifact: ProductionArtifactIdentity) {
@@ -198,6 +242,13 @@ fn digest_diagnostics(diagnostics: &[Diagnostic]) -> [u8; 32] {
             DiagnosticSeverity::Warning => 1,
         });
         append_field(&mut bytes, diagnostic.message.as_bytes());
+        match &diagnostic.exceeded_provision {
+            Some(provision) => {
+                bytes.push(1);
+                append_provision(&mut bytes, provision);
+            }
+            None => bytes.push(0),
+        }
         match &diagnostic.source_span {
             Some(span) => {
                 bytes.push(1);

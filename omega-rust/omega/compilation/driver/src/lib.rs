@@ -36,8 +36,9 @@ pub use compilation_products::{
     RetainedNativeArtifact,
 };
 pub use compilation_products::{
-    CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome, RequestedCompileProduct,
-    TargetCompileConfiguration, validate_lowered_ieee_float_comparison_custody,
+    CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome, CompilerRequestOutcome,
+    RequestedCompileProduct, TargetCompileConfiguration,
+    validate_lowered_ieee_float_comparison_custody,
     validate_lowered_integer_comparison_custody,
 };
 pub use compiler::compile;
