@@ -132,6 +132,12 @@ pub fn initializer_source(
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
     let (referent, access) =
         parts(program, reference).or_else(|| shared_borrowed_parts(program, reference))?;
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Name(_)
+    ) {
+        return borrowed_initializer_source(program, state, expression, reference);
+    }
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -172,6 +178,184 @@ pub fn initializer_source(
     })
 }
 
+/// A borrowed initializer may name one projected leaf of a formal carrier —
+/// `&receiver.field[i]` — where the whole-carrier arm above only spells a
+/// bare parameter. The authored address walks member hops and literal index
+/// hops off the receiver; the minted source is that parameter's position,
+/// the projected segments, and the `Referent` segment the result's access
+/// spells. Indexes bound to locals stay opaque: folding them would need the
+/// constant-binding evidence the producer resolves elsewhere.
+pub fn borrowed_initializer_source(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    reference: TypeReferenceHandle,
+) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+    let (referent, access) =
+        parts(program, reference).or_else(|| shared_borrowed_parts(program, reference))?;
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let authored_access = match borrow.access {
+        language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
+        language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+        language_core::ReferenceAccess::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,
+    };
+    if authored_access != access {
+        return None;
+    }
+    let mut projections = Vec::new();
+    let mut cursor = borrow.target;
+    loop {
+        cursor = match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                projections.push(cursor);
+                member.receiver
+            }
+            ExpressionNode::Indexed(indexed) => {
+                projections.push(cursor);
+                indexed.collection
+            }
+            _ => break,
+        };
+    }
+    if projections.is_empty() {
+        return None;
+    }
+    let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
+        return None;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    if !path.symbol.is_valid() || path.symbol != path.head_symbol {
+        return None;
+    }
+    let machine_symbol = program.machine_holding_state(state.symbol)?.symbol;
+    let found = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            !parameter.is_const
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .enumerate()
+        .find(|(_, parameter)| {
+            parameter.symbol == path.symbol || (parameter.is_self && path.symbol == machine_symbol)
+        });
+    let (position, parameter) = found?;
+    if !parameter.is_self && parameter.name != *name {
+        return None;
+    }
+    // Each member hop resolves against the nominal owner its receiver
+    // projects: the root carrier's declaration first, then each selected
+    // field's (or indexed element's) type. A `&self` root names the
+    // machine, whose fields live under its attached data.
+    let mut owner_type = parameter.type_reference;
+    let mut segments = Vec::with_capacity(projections.len() + 1);
+    for projection in projections.iter().rev() {
+        match program.expression_table.expression(*projection) {
+            ExpressionNode::Member(member) => {
+                let data = nominal_member_owner_type(program, owner_type)?;
+                // `member.member_symbol` names the authored selection, not
+                // necessarily the declaration: attached-storage accessors
+                // carry their own symbols. The mint's `Field` segment spells
+                // the declaration's path identity, so the uniquely named
+                // field inside the resolved owner is the honest match.
+                let mut fields = program.data_members(data).iter().filter_map(|candidate| {
+                    let typed_trees::data::DataMember::Field(field) = candidate else {
+                        return None;
+                    };
+                    (field.name.as_str() == member.member.as_str()
+                        && field.symbol.is_valid()
+                        && field.type_reference.is_valid())
+                    .then_some(field)
+                });
+                let Some(field) = fields.next() else {
+                    return None;
+                };
+                if fields.next().is_some() {
+                    return None;
+                }
+                segments.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+                    field.path_identity(),
+                ));
+                owner_type = field.type_reference;
+            }
+            ExpressionNode::Indexed(indexed) => {
+                let ExpressionNode::Integer(index) =
+                    program.expression_table.expression(indexed.index)
+                else {
+                    return None;
+                };
+                segments.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                    u64::try_from(index.value_i64()?).ok()?,
+                ));
+                owner_type = loop {
+                    match program.type_reference_table.type_reference(owner_type) {
+                        TypeReferenceNode::Constrained { base_type, .. } => owner_type = *base_type,
+                        TypeReferenceNode::FixedArray { element_type, .. } => break *element_type,
+                        _ => return None,
+                    }
+                };
+            }
+            _ => return None,
+        }
+    }
+    segments.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+    Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+        source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: u32::try_from(position).ok()?,
+        },
+        path: segments,
+        type_identity: program.normalized_type_identity(referent).into_string(),
+        access,
+    })
+}
+
+/// The nominal declaration whose member table owns a selected field: a data
+/// definition, or the attached storage of the machine a `&machine` carrier
+/// names.
+fn nominal_member_owner<'p>(
+    program: &'p TypedTrees,
+    symbol: SymbolHandle,
+) -> Option<&'p typed_trees::data::DataDefinition> {
+    crate::program_scope::data_definitions::data_definition_by_symbol(program, symbol).or_else(
+        || {
+            program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == symbol)
+                .and_then(|machine| {
+                    crate::program_scope::data_definitions::data_definition_by_symbol(
+                        program,
+                        machine.attached_data_symbol,
+                    )
+                })
+        },
+    )
+}
+
+/// Peel constraint shells and reference wrappers to the nominal owner one
+/// carrier's members live under.
+fn nominal_member_owner_type<'p>(
+    program: &'p TypedTrees,
+    mut reference: TypeReferenceHandle,
+) -> Option<&'p typed_trees::data::DataDefinition> {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+            TypeReferenceNode::Named { symbol, .. } => {
+                return nominal_member_owner(program, *symbol);
+            }
+            _ => return None,
+        }
+    }
+}
+
 /// Reconstruct the declaration-ordered reference roster from a complete
 /// constructor. Reference leaves retain formal ingress instead of scalar data.
 pub fn construction_sources(
@@ -198,14 +382,38 @@ pub fn returned_record_sources(
     if !is_reference_record(program, state.return_type) {
         return None;
     }
-    let StatementNode::Expression(expression) = program
+    let expression = tail_return_expression(program, state)?;
+    construction_sources(program, state, expression, state.return_type)
+}
+
+/// The expression producing a state's returned value: the tail expression
+/// statement, or the exit arm of a terminal return transition.
+pub fn tail_return_expression(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<typed_trees::expression::ExpressionHandle> {
+    let last = program
         .statement_table
         .statements(state.statement_nodes)
-        .last()?
-    else {
-        return None;
-    };
-    construction_sources(program, state, *expression, state.return_type)
+        .last()?;
+    match last {
+        StatementNode::Expression(expression) => Some(*expression),
+        StatementNode::Transition(transition)
+            if matches!(
+                transition.guard,
+                typed_trees::statement::TransitionGuardNode::Always
+            ) && transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                && !transition.continuation.is_valid() =>
+        {
+            match program.statement_table.transition_target(transition.target) {
+                typed_trees::statement::TransitionTargetNode::Value(expression) => {
+                    Some(*expression)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 fn construction_sources_with_calls(
@@ -1401,33 +1609,7 @@ fn mutable_view_source_parameter(
     if mutable_borrowed_parts(program, state.return_type).is_none() {
         return None;
     }
-    let Some(last) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .last()
-    else {
-        return None;
-    };
-    let expression = match last {
-        StatementNode::Expression(expression) => *expression,
-        StatementNode::Transition(transition)
-            if matches!(
-                transition.guard,
-                typed_trees::statement::TransitionGuardNode::Always
-            ) && transition.exit == typed_trees::statement::TransitionExit::Ordinary
-                && !transition.continuation.is_valid() =>
-        {
-            match program.statement_table.transition_target(transition.target) {
-                typed_trees::statement::TransitionTargetNode::Value(expression) => *expression,
-                _ => {
-                    return None;
-                }
-            }
-        }
-        _ => {
-            return None;
-        }
-    };
+    let expression = tail_return_expression(program, state)?;
     let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
         return None;
     };
