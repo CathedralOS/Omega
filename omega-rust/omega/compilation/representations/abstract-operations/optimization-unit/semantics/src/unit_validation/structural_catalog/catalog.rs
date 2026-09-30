@@ -134,8 +134,8 @@ pub(super) fn index_structural_types(
             ));
         }
         // A borrow carrier is one borrow permission over one referent: a
-        // primitive scalar leaf or a whole plain record, whose address
-        // transports the aggregate like the scalar leaf.
+        // primitive scalar leaf or a whole plain aggregate, whose address
+        // transports the storage like the scalar leaf.
         if let terminal_psi::StructuralTypeShape::Reference {
             referent, access, ..
         } = &declaration.shape
@@ -147,6 +147,7 @@ pub(super) fn index_structural_types(
                     Some(
                         terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
                             | terminal_psi::StructuralTypeShape::Record { .. }
+                            | terminal_psi::StructuralTypeShape::Sum { .. }
                     )
                 ),
                 terminal_psi::StructuralAccess::WriteOnlyBorrow => matches!(

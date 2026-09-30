@@ -103,6 +103,15 @@ pub enum TargetStructuralCaseSource {
         parameter: TargetStructuralParameter,
         layout: crate::TargetStructuralHomeLayout,
     },
+    /// An edge-carried join keeps the referent's address in the destination
+    /// block's retained pointer: the dispatch reads tag and payload leaves
+    /// through it, under the same readable-borrow contract as a borrowed
+    /// function parameter. The declaration is the block's own structural
+    /// parameter row — there is no entry ABI placement to retain.
+    BorrowedBlockParameter {
+        parameter: terminal_psi::StructuralParameterDeclaration,
+        layout: crate::TargetStructuralHomeLayout,
+    },
 }
 
 impl TargetStructuralCaseSource {
@@ -112,6 +121,7 @@ impl TargetStructuralCaseSource {
             Self::Parameter { parameter, .. } | Self::BorrowedParameter { parameter, .. } => {
                 parameter.place
             }
+            Self::BorrowedBlockParameter { parameter, .. } => parameter.place,
         }
     }
 
@@ -121,13 +131,16 @@ impl TargetStructuralCaseSource {
             Self::Parameter { parameter, .. } | Self::BorrowedParameter { parameter, .. } => {
                 parameter.structural_type
             }
+            Self::BorrowedBlockParameter { parameter, .. } => parameter.structural_type,
         }
     }
 
     pub const fn layout(&self) -> &crate::TargetStructuralHomeLayout {
         match self {
             Self::Home(home) => &home.layout,
-            Self::Parameter { layout, .. } | Self::BorrowedParameter { layout, .. } => layout,
+            Self::Parameter { layout, .. }
+            | Self::BorrowedParameter { layout, .. }
+            | Self::BorrowedBlockParameter { layout, .. } => layout,
         }
     }
 }
