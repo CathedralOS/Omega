@@ -175,21 +175,7 @@ pub(crate) fn validate_scalar_initializer(
     else {
         return Ok(());
     };
-    if !matches!(
-        carrier.as_str(),
-        "bool"
-            | "i8"
-            | "i16"
-            | "i32"
-            | "i64"
-            | "u8"
-            | "u16"
-            | "u32"
-            | "u64"
-            | "addr"
-            | "f32"
-            | "f64"
-    ) {
+    if !crate::constant::is_builtin_scalar_carrier(carrier.as_str()) {
         return Ok(());
     }
     let initializer = syntax.expressions.expression(constant.value);

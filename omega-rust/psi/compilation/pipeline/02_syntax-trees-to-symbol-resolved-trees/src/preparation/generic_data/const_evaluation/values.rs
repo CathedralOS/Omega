@@ -26,6 +26,7 @@ use crate::preparation::generic_data::arguments::{
 };
 use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::qualified_const_name;
+use numerics::literals::LandedIntegerType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(in crate::preparation::generic_data) enum CanonicalConstNode {
@@ -354,22 +355,8 @@ fn selected_type_label(
 ) -> Result<String, String> {
     match syntax.type_references.type_reference(reference) {
         TypeReferenceNode::Named(name)
-            if !matches!(
-                name.as_str(),
-                "bool"
-                    | "i8"
-                    | "i16"
-                    | "i32"
-                    | "i64"
-                    | "u8"
-                    | "u16"
-                    | "u32"
-                    | "u64"
-                    | "addr"
-                    | "f32"
-                    | "f64"
-                    | "string"
-            ) =>
+            if !crate::constant::is_builtin_scalar_carrier(name.as_str())
+                && name.as_str() != "string" =>
         {
             // A rewritten instance spelling labels through its retained
             // authored application so the label is the synthesized name the
@@ -565,24 +552,8 @@ fn same_carrier(
         syntax.type_references.type_reference(required),
     ) {
         (TypeReferenceNode::Named(left), TypeReferenceNode::Named(right)) => {
-            let primitive = |name: &str| {
-                matches!(
-                    name,
-                    "bool"
-                        | "i8"
-                        | "i16"
-                        | "i32"
-                        | "i64"
-                        | "u8"
-                        | "u16"
-                        | "u32"
-                        | "u64"
-                        | "addr"
-                        | "f32"
-                        | "f64"
-                        | "string"
-                )
-            };
+            let primitive =
+                |name: &str| crate::constant::is_builtin_scalar_carrier(name) || name == "string";
             if primitive(left.as_str()) || primitive(right.as_str()) {
                 return Ok(left.as_str() == right.as_str());
             }
@@ -742,11 +713,7 @@ fn validate_selected_const_type(
     let no_bindings = GenericApplicationSubstitution::new();
     match syntax.tables.type_references.type_reference(type_reference) {
         TypeReferenceNode::Named(name) => {
-            if matches!(
-                name.as_str(),
-                "bool" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64"
-                    | "addr"
-            ) {
+            if crate::constant::is_structural_scalar_carrier(name.as_str()) {
                 return Ok(());
             }
             if purpose == ConstValuePurpose::Declaration
@@ -1019,10 +986,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression(
             Ok(node)
         }
         TypeReferenceNode::Named(type_name)
-            if matches!(
-                type_name.as_str(),
-                "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "addr"
-            ) =>
+            if LandedIntegerType::from_name(type_name.as_str()).is_some() =>
         {
             let ExpressionNode::Integer(literal) = syntax.expressions.expression(expression) else {
                 return Err(format!("expected an integer literal for `{type_name}`"));
@@ -1538,17 +1502,10 @@ pub(in crate::preparation::generic_data) fn validate_syntax_integer_range(
     type_name: &str,
     value: i128,
 ) -> Result<(), String> {
-    let (minimum, maximum) = match type_name {
-        "i8" => (i128::from(i8::MIN), i128::from(i8::MAX)),
-        "i16" => (i128::from(i16::MIN), i128::from(i16::MAX)),
-        "i32" => (i128::from(i32::MIN), i128::from(i32::MAX)),
-        "i64" => (i128::from(i64::MIN), i128::from(i64::MAX)),
-        "u8" => (0, i128::from(u8::MAX)),
-        "u16" => (0, i128::from(u16::MAX)),
-        "u32" => (0, i128::from(u32::MAX)),
-        "u64" | "addr" => (0, i128::from(u64::MAX)),
-        _ => return Err(format!("`{type_name}` is not an integer const type")),
+    let Some(integer_type) = LandedIntegerType::from_name(type_name) else {
+        return Err(format!("`{type_name}` is not an integer const type"));
     };
+    let (minimum, maximum) = integer_type.bounds();
     if value < minimum || value > maximum {
         Err(format!("const value `{value}` does not fit `{type_name}`"))
     } else {

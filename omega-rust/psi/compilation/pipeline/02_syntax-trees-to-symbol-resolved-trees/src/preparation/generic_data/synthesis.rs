@@ -494,21 +494,14 @@ fn synthesize_instance(
             // Substitution closes a declared value; it does not turn that
             // value back into an anonymous literal with no operator home.
             // Typed fact evaluation must still select against this carrier.
-            let landed_type = match const_parameter_type_names.get(name).map(String::as_str) {
-                Some("i8") => LandedIntegerType::I8,
-                Some("i16") => LandedIntegerType::I16,
-                Some("i32") => LandedIntegerType::I32,
-                Some("i64") => LandedIntegerType::I64,
-                Some("u8") => LandedIntegerType::U8,
-                Some("u16") => LandedIntegerType::U16,
-                Some("u32") => LandedIntegerType::U32,
-                Some("u64") => LandedIntegerType::U64,
-                Some("addr") => LandedIntegerType::Addr,
-                _ => {
-                    return Err(vec![Diagnostic::error(format!(
-                        "const parameter `{name}` has no supported integer carrier for substitution"
-                    ))]);
-                }
+            let Some(landed_type) = const_parameter_type_names
+                .get(name)
+                .map(String::as_str)
+                .and_then(LandedIntegerType::from_name)
+            else {
+                return Err(vec![Diagnostic::error(format!(
+                    "const parameter `{name}` has no supported integer carrier for substitution"
+                ))]);
             };
             let literal = IntegerLiteral::from_parts(
                 *value < 0,
