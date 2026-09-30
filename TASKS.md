@@ -640,16 +640,14 @@ the complete product bar; focused successes below do not establish that baseline
   At `63c8a7fff91` on macOS ARM64, `sample_native_gate.py --jobs 6 --timeout
   600` records 122 of 143 scored samples meeting their documented oracles,
   including `descriptor_walk` and `calculator_rpn`. None built with a wrong
-  exit or output. Sixteen do not build: the rows below, plus
-  `probes/array_index_from_call` at Omega legalization `SourceCustodyMismatch`
-  (`structural_call/exclusive.rs:108`, introduced by 173390bb8dc; `stack_vm`
-  and `account_ledger`, also in that count, meet their oracles again once
-  scalar-graph state loans reach their private exit blocks),
-  `text/roman_numeral` at `InvalidUnitMachinePlan`, and `text/string_catalog`
-  at "scalar guarantee has no exact authored predicate". Package review for
-  `bouncing_particles`, `cellular_automaton` and `game_of_life_glider`, and
-  resume for `ripple_field`, exceeded 600 s under load; `probes/trapping_probe`
-  exceeded 600 s to build.
+  exit or output. Since then, at `a9f373809a`, `probes/array_index_from_call`,
+  `text/roman_numeral`, `text/string_catalog` and `rendering/ripple_field` meet
+  their oracles (`--filter` over the four, `--jobs 4 --timeout 1800`, 4/4), and
+  `stack_vm` and `account_ledger` meet theirs again once scalar-graph state
+  loans reach their private exit blocks. The remaining non-building samples
+  are the rows below. Package review for `bouncing_particles`,
+  `cellular_automaton` and `game_of_life_glider` exceeded 600 s under load;
+  `probes/trapping_probe` exceeded 600 s to build.
 
   | Customer group | Capability owner and remaining acceptance |
   | --- | --- |
