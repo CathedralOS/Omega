@@ -7,6 +7,8 @@ mod affine_local_frontier;
 mod arithmetic_modules;
 #[path = "straight_line/arithmetic_obligations.rs"]
 mod arithmetic_obligations;
+#[path = "straight_line/call_write_footprints.rs"]
+mod call_write_footprints;
 #[path = "straight_line/case_access.rs"]
 mod case_access;
 #[path = "straight_line/case_payload.rs"]

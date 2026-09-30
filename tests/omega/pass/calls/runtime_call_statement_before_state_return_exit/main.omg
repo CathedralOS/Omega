@@ -1,0 +1,33 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Counter { value: i32 in Wrapping; }
+data Store { counters: [Counter; 2]; count: u64; }
+data Main { console: Binding<Console>; store: Store; }
+
+machine Counter::add(&mut self, amount: i32 in Wrapping) {
+    self.value = self.value + amount;
+}
+
+machine advance(store: &mut Store) -> bool {
+    transition store.count < 2 {
+        true -> mutate(store)
+        false -> (false)
+    }
+    state mutate(store: &mut Store) -> bool {
+        store.counters[store.count].add(40);
+        store.count = store.count + 1;
+        true
+    }
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    let accepted: bool = advance(&mut context.store);
+    transition accepted && context.store.count == 1 && context.store.counters[0].value == 40 {
+        true -> finish(context, 42)
+        false -> finish(context, 1)
+    }
+    state finish(context: &mut Main, code: i32) {
+        context.console.exit_process(code);
+    }
+}
