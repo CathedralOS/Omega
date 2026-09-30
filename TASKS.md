@@ -1271,11 +1271,22 @@ the complete product bar; focused successes below do not establish that baseline
     already verifies and interprets scalar boundary outcomes; its structural
     guard control rejects. Native call continuations exist, but retained crash
     rows alone do not establish executed outcomes.
-  - Extend ordered completion beyond supported scalar contracts, closed integer
-    ranges and mutable Boolean snapshots to remaining qualified results,
-    state/control contracts and field/arithmetic guarantees. Reuse
-    `tests/unit_scalar_result_source/boundary_wrappers/`; preserve transitive
-    contracts and exact entry versions across joins.
+  - Extend ordered completion beyond scalar contracts, closed integer ranges,
+    mutable Boolean snapshots and Unit post-state field guarantees to remaining
+    qualified results, state/control contracts and compound arithmetic
+    guarantees. Ordinary and composed Unit bodies share guarantee publication
+    in stage 05's `unit/attached_unit/normal_guarantees.rs`; every clause still
+    needs an independently reconstructed exit proof. At `e181715305f` on macOS
+    ARM64, 50 focused guarantee/source-custody tests pass, but unchanged
+    `collections/runtime_fixed_vec_round_trip_exit` still stops at
+    `scalar guarantee has no exact authored predicate`: replay must preserve
+    every fact in its authored `ensures` clause and compose field arithmetic
+    through the shared scalar semantics. Ordinary package preparation also
+    reports three unresolved contract obligations; no approval substitutes
+    for their exit evidence. Acceptance remains package preparation followed
+    by `omega run tests/omega/pass/collections/runtime_fixed_vec_round_trip_exit/main.omg`
+    with exit 70. Reuse `tests/unit_scalar_result_source/boundary_wrappers/`;
+    preserve transitive contracts and exact entry versions across joins.
   - Complete package crash-expression projection in
     `review-evidence/src/capture/behavior/crash/expressions.rs`: indexed scalar
     reads, byte lengths and integer casts currently return `None`. Verify
