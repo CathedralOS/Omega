@@ -2025,7 +2025,16 @@ fn validate_operand_producers(
                     && validation::has_plain_owned_contents_with_numeric_constraints(
                         &checked.typed,
                         construction_type,
-                    );
+                    )
+                // A copy preserves existing field predicates; unlike a
+                // constructor it does not mint them. Source replay still
+                // checks the exact path, type and unrestricted snapshot.
+                || (matches!(node.kind,
+                        checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. })
+                    && result.multiplicity == Multiplicity::Unrestricted
+                    && validation::has_plain_owned_contents_with_represented_constraints(
+                        &checked.typed, construction_type,
+                    ));
             if names_result
                 && ((authored.boundary && !copied_array)
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned

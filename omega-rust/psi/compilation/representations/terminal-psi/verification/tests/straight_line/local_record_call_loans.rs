@@ -18,6 +18,9 @@ use super::{
 use semantic_vocabulary::PsiSemanticId;
 use terminal_psi::{BindingRelevance, StructuralPathSegment};
 
+#[path = "local_record_call_loans/copied_byte_records.rs"]
+mod copied_byte_records;
+
 const BANNER_TYPE: u64 = 1;
 const SCREEN_TYPE: u64 = 2;
 const LOCAL: u64 = 2;

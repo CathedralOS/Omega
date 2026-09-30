@@ -28,6 +28,17 @@ with status 0. Neither expectation is a report of a current successful run.
 Record the actual compilation diagnostic before attempting execution, and never
 run a stale image after a failed build.
 
+Run the actual product command from the repository root (POSIX shell):
+
+```sh
+omega run samples/cli/games/dungeon_crawler_cli/main.omg </dev/null
+printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/main.omg
+```
+
+Both cases should exit 0 after the initial room and goodbye output; the second
+also prints command help. These are acceptance commands, not passing receipts.
+`TASKS.md` records the current compiler failure.
+
 Current state cycle:
 
 - enter a room
@@ -36,7 +47,7 @@ Current state cycle:
 - classify the command into owned navigation data
 - move if the command names an adjacent room
 - render room details for `look` or `info`
-- render command and exit help for `exits` or `help`
+- render command and exit help for `paths` or `help`
 - otherwise render an invalid-command message and ask again
 - complete back to parent control flow from the terminal game state
 

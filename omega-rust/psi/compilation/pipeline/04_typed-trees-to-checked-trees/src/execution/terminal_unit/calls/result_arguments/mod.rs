@@ -418,6 +418,25 @@ pub(super) fn argument(
                     || validation::has_plain_owned_contents_with_numeric_constraints(
                         program, storage,
                     )
+                    // Owned snapshots retain the exact field declarations,
+                    // including bounded live-byte predicates. The producer and
+                    // source occurrence are rejoined below; this is not a loan
+                    // or permission to establish arbitrary constrained bytes.
+                    || (access == CheckedStructuralAccess::Owned
+                        && place.root == facts::PlaceRoot::Expression(expression)
+                        && facts.values.structural_values.root_for_expression(
+                            state, result.statement_index, expression,
+                        ).is_some_and(|root| {
+                            root.machine == machine
+                                && facts.values.structural_values.nodes.is_valid(root.root)
+                                && matches!(facts.values.structural_values.nodes.get(root.root).kind,
+                                    checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. })
+                                && program.normalized_type_identity(root.type_reference).as_str()
+                                    == result.type_identity
+                        })
+                        && validation::has_plain_owned_contents_with_represented_constraints(
+                            program, storage,
+                        ))
             })
         {
             return None;

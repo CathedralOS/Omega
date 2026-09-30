@@ -1235,22 +1235,21 @@ the complete product bar; focused successes below do not establish that baseline
   require exact finite candidate-origin coverage, never universal coverage from
   unresolved selectors.
 
-  Re-drive `omega --check --target linux_x86_64 samples/cli/games/dungeon_crawler_cli/main.omg`
-  without bypassing `RoomLookup`, `MazeBuilder` or game-state field validity.
-  At a9f373809a4 on macOS ARM64 the check stops at `Game::run_game_loop`
-  state 0, statement 1 (`self.view.render_title(&mut self.console)`, phase
-  `parameter path`): a `Binding<Console>` field lent to a `console: &mut
-  Console` formal. Projected `&mut` field arguments themselves run, including
-  affine records that hold a binding. `&mut Console` is a leftover of the
-  retired bare-trait carrier, and Psi checking admits any place for it; the
-  spec spelling `&mut Binding<Console>` waits on **ENTRY-CONTENT-ROOTS**'
-  borrowed-`Binding<R>` transport, after which the view helpers migrate to
-  it. Next, `render_room` stops at `caller structural result` on the by-value
-  `[copy]` `Level` (member `label: [u8; 16] in Utf8`, `calls/result_arguments`),
-  then at `&mut self.output` (`[u8; 128] in Utf8`) lent to bare `&mut [u8;
-  128]` formals, which Terminal structural access rejects; those writers must
-  declare `&mut [u8; 128] in Utf8`. Checking alone does not establish native
-  execution.
+  Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
+  closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At b458fb9a0f plus
+  the copied-owned-byte repair on macOS ARM64, the actual command exits 200
+  before emission: `Game::run_game_loop` state 3 (`read_command`) stops at
+  `state graph: terminator: guarded jump successors: roster`. The authored
+  subject is `transition block self.console.read_line(&mut self.input)`;
+  **STATE-LOCAL-VALUE-FRONTIER** must retain its once-only result and selected
+  case payload through ordinary call/dispatch composition. Borrowed bindings
+  and copied `Level` operands now pass their earlier gates; active output
+  writers retain `&mut [u8; 128] in Utf8` through their state formals. The
+  copied nested-byte regression round-trips through independent Terminal
+  verification, but neither that nor the eight checked corpus controls proves
+  the game runs. Acceptance remains native exit 0 with the authored room,
+  prompt, command and goodbye output.
   Coordinate canonical range migration with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
   explicit policy casts with **IMPLICIT-STORE-CONVERSION**, and any `&mut Room`
   output migration with **WRITE-ONLY-BORROW**. Constrained nested `&write`
@@ -2499,9 +2498,8 @@ completion syntax or other terminal service is a prerequisite.
 
   - Execute the remaining borrowed-service customers:
     `samples/cli/games/dungeon_crawler_cli` now uses `&mut Binding<Console>`
-    formals; on macOS ARM64 its checked route now stops at `Game::run_game_loop`,
-    `call operation: structural arguments: caller structural result` (state 1,
-    statement 3). Carry that existing command flow to native execution. Make
+    formals; **NOMINAL-FIELD-FLOW** records its current command-flow frontier.
+    Carry that existing flow to native execution. Make
     `capabilities/uses_caller_folder` lend the caller's field to
     `Librarian::archive(folder: &Binding<Folder>)` and execute its service effects.
     Shared/mutable machine and state formals now retain exact binding identity,

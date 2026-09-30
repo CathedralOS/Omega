@@ -12,6 +12,55 @@ fn input(program: &TypedTrees) -> TypeReferenceHandle {
 }
 
 #[test]
+fn owned_snapshots_retain_bounded_byte_predicates_without_granting_construction() {
+    for carrier in ["Bytes", "[Bytes; 2]", "Holder<Holder<Bytes>>"] {
+        let program = crate::front_end::typed_program(&format!(
+            "domain [u8; 16]::Text requires valid_utf8(self);
+             data Bytes [copy] {{ value: [u8; 16] in Text; count: u32 in Wrapping; }}
+             data Holder<T> {{ value: T; }}
+             machine inspect(value: {carrier}) {{}}"
+        ));
+        let reference = input(&program);
+        assert!(
+            super::has_plain_owned_contents_with_represented_constraints(&program, reference),
+            "{carrier}"
+        );
+        assert!(!super::has_plain_owned_contents_with_numeric_constraints(
+            &program, reference
+        ));
+        assert!(!super::has_structural_construction_contents(
+            &program, reference
+        ));
+    }
+}
+
+#[test]
+fn owned_snapshots_do_not_admit_loans_cleanup_or_unrepresented_predicates() {
+    for declaration in [
+        "data Bytes { value: &[u8]; }",
+        "data Bytes { value: &mut [u8; 16] in Text; }",
+        "data Bytes [linear] { value: [u8; 16] in Text; }",
+        "data Bytes { value: [u8; 16] in Text; } machine Bytes::drop(&mut self) {}",
+        "data Bytes { value [erased]: [u8; 16] in Text; }",
+        "data Bytes { value: [u8; 16] in Strict; }",
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "domain [u8; 16]::Text requires valid_utf8(self);
+             domain [u8; 16]::Strict requires valid_utf8(self) && non_empty(self);
+             {declaration}
+             machine inspect(value: Bytes) {{}}"
+        ));
+        assert!(
+            !super::has_plain_owned_contents_with_represented_constraints(
+                &program,
+                input(&program)
+            ),
+            "{declaration}"
+        );
+    }
+}
+
+#[test]
 fn structural_construction_shares_interval_members_without_erasing_other_obligations() {
     let program = crate::front_end::typed_program(
         "domain i32::Ten requires 0 <= self && self <= 10;
