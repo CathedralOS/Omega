@@ -16,6 +16,23 @@ use resolved::types::TypeReference;
 #[cfg(test)]
 mod tests;
 
+/// A projected place selects a method through the same exact declared type
+/// used to bind its fields. Existing selections remain the caller's owner.
+pub(crate) fn declared_receiver_method_target(
+    program: &resolved::SymbolResolvedTrees,
+    expressions: &resolved::expression::ExpressionTable,
+    receiver: ExpressionHandle,
+    target: &resolved::name::DiagnosticName,
+) -> SymbolHandle {
+    declared_type(program, expressions, receiver, 0)
+        .map(|reference| {
+            crate::expressions::call_results::declared_type_method_target(
+                program, reference, target,
+            )
+        })
+        .unwrap_or_default()
+}
+
 impl ExpressionTableLowerer<'_, '_, '_> {
     pub(super) fn declared_member_symbol(&self, member: &TableMemberExpression) -> SymbolHandle {
         // A nonzero selection already has an owner. Preserve it, including a

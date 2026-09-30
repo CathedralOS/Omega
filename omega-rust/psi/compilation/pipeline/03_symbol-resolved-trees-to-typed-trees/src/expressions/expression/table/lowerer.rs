@@ -366,6 +366,15 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 let target_symbol = if !call.target_symbol.is_valid() {
                     self.program
                         .map(|program| {
+                            let declared = super::declared_receiver_method_target(
+                                program,
+                                self.source,
+                                call.receiver,
+                                &call.target,
+                            );
+                            if declared.is_valid() {
+                                return declared;
+                            }
                             crate::expressions::call_results::computed_receiver_method_target(
                                 program,
                                 &self.target_trees.expression_table,

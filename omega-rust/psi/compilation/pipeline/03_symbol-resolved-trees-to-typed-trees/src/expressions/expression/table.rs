@@ -2,6 +2,8 @@ mod lowerer;
 mod member_binding;
 mod structural_equality;
 
+pub(crate) use member_binding::declared_receiver_method_target;
+
 use crate::expressions::equatable::EqualityScope;
 use diagnostics::Diagnostic;
 use symbol_resolved_trees as resolved;

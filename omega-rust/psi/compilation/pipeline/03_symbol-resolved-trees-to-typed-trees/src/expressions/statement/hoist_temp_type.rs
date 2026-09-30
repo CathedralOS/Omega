@@ -91,7 +91,16 @@ pub(super) fn infer_hoist_temp_type(
         // typed at this phase -- reject it with the actionable fix
         // instead of the confusing Unit frame-slot layout error.
         ExpressionNode::Call(call) => {
-            let target_symbol = call.target_symbol;
+            let target_symbol = if call.target_symbol.is_valid() {
+                call.target_symbol
+            } else {
+                crate::expressions::expression::declared_receiver_method_target(
+                    lowerer.source_trees,
+                    expressions,
+                    call.receiver,
+                    &call.target,
+                )
+            };
             let target_name = call.target.as_str().to_string();
             let mut machine_substitutions = Vec::new();
             let declared_state = crate::expressions::call_results::declared_call_state(

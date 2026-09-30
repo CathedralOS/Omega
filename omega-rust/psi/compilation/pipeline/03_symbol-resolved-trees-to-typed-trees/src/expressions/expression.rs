@@ -34,6 +34,7 @@ mod domain_membership;
 mod name_paths;
 mod operators;
 mod table;
+pub(crate) use table::declared_receiver_method_target;
 #[cfg(test)]
 mod tests;
 

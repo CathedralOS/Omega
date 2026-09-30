@@ -119,31 +119,59 @@ pub(crate) fn computed_receiver_method_target(
                 _ => return None,
             };
         }
-        let resolved::types::TypeReference::Named { symbol: owner, .. } = peel(program, reference)
-        else {
-            return None;
-        };
-        if !owner.is_valid() || program.symbols.get(*owner).kind != SymbolKind::Data {
-            return None;
-        }
-        let qualified = format!("{}::{}", program.symbols.name(*owner), target.as_str());
-        let machine_symbol = program
-            .symbols
-            .find_top_level_by_name_and_kinds_from_source(
-                &qualified,
-                &[SymbolKind::Machine],
-                target.source_span(),
-            )?;
-        let machine = program.machines.iter().find(|machine| {
-            machine.symbol == machine_symbol && machine.attached_data_symbol == *owner
-        })?;
-        let mut states = program
-            .machine_state_handles(machine.states)
-            .iter()
-            .map(|handle| program.machine_state(*handle))
-            .filter(|state| state.name.as_str() == target.as_str());
-        let state = states.next()?;
-        (states.next().is_none() && state.symbol.is_valid()).then_some(state.symbol)
+        Some(declared_type_method_target(program, reference, target))
     };
     resolve().unwrap_or_else(SymbolHandle::invalid)
+}
+
+/// Select a method only on the receiver's exact nominal owner. A matching
+/// spelling elsewhere cannot supply a result type or a callable identity.
+pub(crate) fn declared_type_method_target(
+    program: &resolved::SymbolResolvedTrees,
+    reference: &resolved::types::TypeReference,
+    target: &resolved::name::DiagnosticName,
+) -> SymbolHandle {
+    let resolved::types::TypeReference::Named { symbol: owner, .. } = peel(program, reference)
+    else {
+        return SymbolHandle::invalid();
+    };
+    if !owner.is_valid() || program.symbols.get(*owner).kind != SymbolKind::Data {
+        return SymbolHandle::invalid();
+    }
+    let qualified = format!("{}::{}", program.symbols.name(*owner), target.as_str());
+    let symbols::SymbolLookup::Unique(machine_symbol) = program
+        .symbols
+        .lookup_signature_free_top_level_from_source_matching(
+            &qualified,
+            &[SymbolKind::Machine],
+            target.source_span(),
+            |candidate| {
+                program.machines.iter().any(|machine| {
+                    machine.symbol == candidate && machine.attached_data_symbol == *owner
+                })
+            },
+        )
+    else {
+        return SymbolHandle::invalid();
+    };
+    let Some(machine) = program
+        .machines
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol && machine.attached_data_symbol == *owner)
+    else {
+        return SymbolHandle::invalid();
+    };
+    let mut states = program
+        .machine_state_handles(machine.states)
+        .iter()
+        .map(|handle| program.machine_state(*handle))
+        .filter(|state| state.name.as_str() == target.as_str());
+    let Some(state) = states.next() else {
+        return SymbolHandle::invalid();
+    };
+    if states.next().is_none() {
+        state.symbol
+    } else {
+        SymbolHandle::invalid()
+    }
 }

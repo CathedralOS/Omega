@@ -854,23 +854,29 @@ the complete product bar; focused successes below do not establish that baseline
   failure: old diagnostics and expired claims are not current blockers.
 
   Published application `a3186ac92eb2bc495817e3d42a9222460db53983` still has
-  the disconnected entry. A restored candidate on that base now checks all 282
-  source files on macOS ARM64 with `omega --check
-  samples/apps/squalr/squalr-tests/main.omg --target linux_x86_64`, after ordinary
-  update/review/resume for 17 packages. The shared member diagnostic now retains
-  selected-case identity instead of confusing same-named response payloads;
-  579 validation tests include valid, foreign-case, borrowed and nested controls.
-  Native emission (`omega run --keep --target linux_x86_64` on the same root)
-  stops at `Main::main`: missing checked transitive machine plan, with local
-  construction refused at `state signature: parameter signature: attached data
-  shape, state 0`. Coordinate the admitted body with STATIC-MACHINE-MIGRATION.
+  the disconnected entry. Unpublished application checkpoint `c9e4cf4` restores
+  that route and delegates listing to Snapshot's deletion-aware page/count APIs,
+  retaining global IDs and the eight/seven-result oracle. On macOS ARM64,
+  `omega update --project samples/apps/squalr/squalr-tests --target linux_x86_64`
+  now passes nested-receiver method typing but rejects the list executor's
+  `element` state: a nested scalar call in a field assignment hits the legacy
+  result fence, and its Exact increment remains unproved with an explicit
+  loop-state precondition. Coordinate ordered scalar computation storage and
+  state facts with STATE-LOCAL-VALUE-FRONTIER; keep the authored nested call.
+  The shared receiver-type repair uses nominal-owner eligibility before source
+  lookup precedence; 113 typing tests and native
+  `calls/runtime_nested_receiver_guard_exit` (exit 42) cover the repair.
+  Before the listing change, the restored entry checked 282 sources but native
+  emission stopped at `Main::main`'s missing checked transitive machine plan
+  (`state signature: parameter signature: attached data shape, state 0`).
+  Coordinate that admission with STATIC-MACHINE-MIGRATION.
   A separate deeper payload probe reaches stage 05's fixed-depth
   `resolve_case_payload` fence in
   `expression_preparation/bindings/structural_fields/`; generalize retained
   projection paths and dominating-case evidence with the `successor_edge.rs`
-  owner, not another path-length branch. Production listing also bypasses
-  `Snapshot::deleted_indices` and marks failure-default live reads as present;
-  preserve the seven-result delete/list oracle and real value-presence checks.
+  owner, not another path-length branch. Live reads still alias captured-current
+  values and mark failure-default reads present while attached; preserve the
+  seven-result delete/list oracle and add distinct recent-read presence/value.
 
   Preserve Windows and Linux ARM64 geometry, `set_alignment`, parsing/refusal
   and error-text parity, native clone/serialization of case-bearing alignment,
