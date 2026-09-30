@@ -152,13 +152,15 @@ pub(crate) struct Invocation<'program> {
     state: &'program State,
 }
 
-struct ArgumentSnapshot {
-    receiver: bool,
-    original: ExpressionHandle,
-    literal: Option<ExpressionNode>,
-}
+type ArgumentSnapshot = crate::machine_execution::admission::SnapshotArgument;
 
 impl Invocation<'_> {
+    /// A published guarded ceiling has no private whole-body summary, and an
+    /// authored `requires` premise has no meaning outside an invocation.
+    /// Check the exact call instead of inspecting the body to narrow either
+    /// contract, or treating successful interpretation as admission evidence:
+    /// the shared snapshot probe's ordinary checking discharges the premise
+    /// and the guarded routes at the snapshot arguments.
     fn require_concrete_failure_discharge(
         &self,
         expression: ExpressionHandle,
@@ -166,76 +168,28 @@ impl Invocation<'_> {
         return_type: typed_trees::types::TypeReferenceHandle,
         snapshots: Vec<ArgumentSnapshot>,
     ) -> Result<(), String> {
-        // A published guarded ceiling has no private whole-body summary, and an
-        // authored `requires` premise has no meaning outside an invocation.
-        // Check the exact call instead of inspecting the body to narrow either
-        // contract, or treating successful interpretation as admission
-        // evidence: the probe's ordinary checking discharges the premise and
-        // the guarded routes at the snapshot arguments.
-        // All original initializer probes must leave this private body check:
-        // their detached expressions use exact evaluation, not runtime ranges.
-        let mut probe = self.program.typed().clone();
-        let machines = probe
+        let retained: Vec<symbols::SymbolHandle> = self
+            .program
+            .typed()
             .machines()
             .iter()
-            .filter(|candidate| !self.program.probe_symbols.contains(&candidate.symbol))
-            .cloned()
-            .collect::<Vec<_>>();
-        probe.roots.machines = arena::HandleSpan::empty();
-        for candidate in machines {
-            probe.push_machine(candidate);
-        }
-        let ExpressionNode::Call(mut call) = probe.expression_table.expression(expression).clone()
-        else {
-            return Err("constant invocation lost its selected call".into());
-        };
-        let mut arguments = Vec::new();
-        for snapshot in snapshots {
-            let expression = match snapshot.literal {
-                Some(literal) => probe.expression_table.insert(literal),
-                None => snapshot.original,
-            };
-            if snapshot.receiver {
-                call.receiver = expression;
-            } else {
-                arguments.push(expression);
-            }
-        }
-        call.arguments = probe.expression_table.insert_expression_handles(arguments);
-        let concrete = probe.expression_table.insert(ExpressionNode::Call(call));
-        probe.expression_table.set_source_span(
-            concrete,
-            self.program
-                .typed()
-                .expression_table
-                .source_span(expression),
-        );
-        let owner = append_probe(
-            &mut probe,
+            .filter(|machine| !self.program.probe_symbols.contains(&machine.symbol))
+            .map(|machine| machine.symbol)
+            .collect();
+        crate::machine_execution::admission::snapshot_arguments_discharge(
+            self.program.typed(),
+            &retained,
             self.machine.symbol,
-            "@const-invocation".into(),
-            concrete,
-            return_type,
-        );
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            probe,
+            "@const-invocation",
             &typed_trees_to_checked_trees::CheckingRequest::settled(),
+            expression,
+            &callee,
+            return_type,
+            snapshots,
+            &crate::const_evaluation::range_endpoints::deferred_endpoint_stand_ins(
+                self.program.typed(),
+            ),
         )
-        .map_err(|diagnostics| {
-            format!("constant invocation of `{callee}` failed checking: {diagnostics:?}")
-        })?;
-        let causes = typed_trees_to_checked_trees::infer_checked_machine_crash_causes(
-            &checked.typed,
-            &checked.facts,
-            owner,
-        )
-        .ok_or("constant invocation has no complete checked failure summary")?;
-        if !causes.is_empty() {
-            return Err(format!(
-                "constant invocation of `{callee}` retains unhandled {causes:?} routes at its concrete arguments"
-            ));
-        }
-        Ok(())
     }
 
     pub(super) fn validate_custody(

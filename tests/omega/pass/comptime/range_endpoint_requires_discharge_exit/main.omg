@@ -1,0 +1,36 @@
+// An authored `requires` clause on a range-endpoint callee discharges at the
+// concrete argument: `bounded(256)` re-checks its exact call under literal
+// arguments, so `value <= 512` instantiates to `256 <= 512` — proved by the
+// same instantiated judgment that refutes the false direction. An argument
+// that violates the clause (513) or a premise on a nested callee the caller
+// never proved still rejects at checking.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine bounded(value: u64) -> u64
+requires value <= 512
+{
+    transition { _ -> (value) }
+}
+
+machine take_bounded(value: u64[0..=bounded(256)]) -> u64 { value }
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let kept: u64 = take_bounded(7);
+    transition kept == 7 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
