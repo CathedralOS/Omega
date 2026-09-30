@@ -152,66 +152,66 @@ pub data TokenStream {
     last_retained: bool;
 }
 
-machine TokenStream::clear(&mut self, source: SourceId) {
-    self.token_count = 0;
-    self.decoded_length = 0;
-    self.accepted = true;
-    self.last_retained = true;
-    self.diagnostic.code = LexDiagnosticCode::None;
-    self.diagnostic.source_span.source = source;
-    self.diagnostic.source_span.span.start = 0;
-    self.diagnostic.source_span.span.end = 0;
+machine TokenStream::clear(token_stream: &mut TokenStream, source: SourceId) {
+    token_stream.token_count = 0;
+    token_stream.decoded_length = 0;
+    token_stream.accepted = true;
+    token_stream.last_retained = true;
+    token_stream.diagnostic.code = LexDiagnosticCode::None;
+    token_stream.diagnostic.source_span.source = source;
+    token_stream.diagnostic.source_span.span.start = 0;
+    token_stream.diagnostic.source_span.span.end = 0;
 }
 
 machine TokenStream::reject(
-    &mut self,
+    token_stream: &mut TokenStream,
     source: SourceId,
     code: LexDiagnosticCode,
     start: u64 in Trapping,
     end: u64 in Trapping
 ) {
-    self.accepted = false;
-    self.diagnostic.code = code;
-    self.diagnostic.source_span.source = source;
-    self.diagnostic.source_span.span.start = start;
-    self.diagnostic.source_span.span.end = end;
+    token_stream.accepted = false;
+    token_stream.diagnostic.code = code;
+    token_stream.diagnostic.source_span.source = source;
+    token_stream.diagnostic.source_span.span.start = start;
+    token_stream.diagnostic.source_span.span.end = end;
 }
 
 machine TokenStream::push(
-    &mut self,
+    token_stream: &mut TokenStream,
     token: Token
 ) {
-    self.last_retained = false;
-    transition self.token_count < 16384 {
-        true -> retain(token)
-        _ -> full()
+    token_stream.last_retained = false;
+    transition token_stream.token_count < 16384 {
+        true -> retain(token_stream, token)
+        _ -> full(token_stream)
     }
 
-    state retain(&mut self, token: Token) {
-        self.tokens[self.token_count] = token;
-        self.token_count = self.token_count + 1;
-        self.last_retained = true;
+    state retain(token_stream: &mut TokenStream, token: Token) {
+        token_stream.tokens[token_stream.token_count] = token;
+        token_stream.token_count = token_stream.token_count + 1;
+        token_stream.last_retained = true;
     }
 
-    state full(&mut self) {
-        self.last_retained = false;
+    state full(token_stream: &mut TokenStream) {
+        token_stream.last_retained = false;
     }
 }
 
-machine TokenStream::push_decoded(&mut self, byte: u8) {
-    self.last_retained = false;
-    transition self.decoded_length < 65536 {
-        true -> retain(byte)
-        _ -> full()
+machine TokenStream::push_decoded(token_stream: &mut TokenStream, byte: u8) {
+    token_stream.last_retained = false;
+    transition token_stream.decoded_length < 65536 {
+        true -> retain(token_stream, byte)
+        _ -> full(token_stream)
     }
 
-    state retain(&mut self, byte: u8) {
-        self.decoded[self.decoded_length] = byte;
-        self.decoded_length = self.decoded_length + 1;
-        self.last_retained = true;
+    state retain(token_stream: &mut TokenStream, byte: u8) {
+        token_stream.decoded[token_stream.decoded_length] = byte;
+        token_stream.decoded_length = token_stream.decoded_length + 1;
+        token_stream.last_retained = true;
     }
 
-    state full(&mut self) {
-        self.last_retained = false;
+    state full(token_stream: &mut TokenStream) {
+        token_stream.last_retained = false;
     }
 }

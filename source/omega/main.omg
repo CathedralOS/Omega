@@ -13,7 +13,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.lexer.initialize(1);
+    Lexer::initialize(&mut self.lexer, 1);
     transition { _ -> read() }
 
     state read(&mut self) {
@@ -25,7 +25,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state retain(&mut self, value: i32) {
-        self.lexer.append_source_byte(value as u8);
+        Lexer::append_source_byte(&mut self.lexer, value as u8);
         transition self.lexer.source.last_retained {
             true -> read()
             _ -> source_full()
@@ -37,7 +37,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state tokenize(&mut self) {
-        self.lexer.tokenize();
+        Lexer::tokenize(&mut self.lexer);
         transition self.lexer.output.accepted {
             true -> parse()
             _ -> lex_rejected()
@@ -45,11 +45,10 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state parse(&mut self) {
-        self.parser.initialize(
-            self.lexer.source.id,
+        Parser::initialize(&mut self.parser, self.lexer.source.id,
             self.lexer.source.length as u64 in Trapping
         );
-        self.parser.parse(&self.lexer.output);
+        Parser::parse(&mut self.parser, &self.lexer.output);
         transition self.parser.output.accepted {
             true -> accepted()
             _ -> parse_rejected()

@@ -181,34 +181,34 @@ pub data SyntaxTrees {
     accepted: bool;
 }
 
-pub machine SyntaxTrees::clear(&mut self, source: SourceId) {
-    self.root_count = 0;
-    self.use_count = 0;
-    self.member_count = 0;
-    self.data_count = 0;
-    self.generic_parameter_count = 0;
-    self.field_count = 0;
-    self.data_member_count = 0;
-    self.case_count = 0;
-    self.payload_field_count = 0;
-    self.type_reference_count = 0;
-    self.accepted = true;
-    self.diagnostic.code = ParseDiagnosticCode::None;
-    self.diagnostic.source_span.source = source;
-    self.diagnostic.source_span.span.start = 0;
-    self.diagnostic.source_span.span.end = 0;
+pub machine SyntaxTrees::clear(syntax_trees: &mut SyntaxTrees, source: SourceId) {
+    syntax_trees.root_count = 0;
+    syntax_trees.use_count = 0;
+    syntax_trees.member_count = 0;
+    syntax_trees.data_count = 0;
+    syntax_trees.generic_parameter_count = 0;
+    syntax_trees.field_count = 0;
+    syntax_trees.data_member_count = 0;
+    syntax_trees.case_count = 0;
+    syntax_trees.payload_field_count = 0;
+    syntax_trees.type_reference_count = 0;
+    syntax_trees.accepted = true;
+    syntax_trees.diagnostic.code = ParseDiagnosticCode::None;
+    syntax_trees.diagnostic.source_span.source = source;
+    syntax_trees.diagnostic.source_span.span.start = 0;
+    syntax_trees.diagnostic.source_span.span.end = 0;
 }
 
 pub machine SyntaxTrees::reject(
-    &mut self,
+    syntax_trees: &mut SyntaxTrees,
     code: ParseDiagnosticCode,
     source: SourceId,
     start: u64 in Trapping,
     end: u64 in Trapping
 ) {
-    self.accepted = false;
-    self.diagnostic.code = code;
-    self.diagnostic.source_span.source = source;
-    self.diagnostic.source_span.span.start = start;
-    self.diagnostic.source_span.span.end = end;
+    syntax_trees.accepted = false;
+    syntax_trees.diagnostic.code = code;
+    syntax_trees.diagnostic.source_span.source = source;
+    syntax_trees.diagnostic.source_span.span.start = start;
+    syntax_trees.diagnostic.source_span.span.end = end;
 }
