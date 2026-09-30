@@ -20,12 +20,11 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
-mod borrowed_slice_view;
 mod dispatch;
-mod mutable_slice_view;
 mod record;
+mod slice_view;
 mod structural_case;
-pub(crate) use borrowed_slice_view::authored_collection_path;
+pub(crate) use slice_view::authored_collection_path;
 mod owned_places;
 mod view_element_copy;
 pub(crate) use owned_places::validate as validate_owned_place;
@@ -266,32 +265,31 @@ pub(crate) fn validate(
             return unsupported("structural construction exchanged authored value occurrences");
         }
         match node.kind.clone() {
-            // A borrowed `&[T]` view rejoins its shared loan exactly: the
-            // retained argument names the lent collection root and path, and
-            // `EstablishElementView` carries the runtime extent descriptor.
+            // A borrowed `&[T]` or `&mut [T]` view rejoins its loan exactly:
+            // the retained argument names the lent collection root and path
+            // under the view's access, and `EstablishElementView` or
+            // `EstablishMutableElementView` carries the runtime extent
+            // descriptor.
             CheckedStructuralValueKind::BorrowedSliceView { source: argument } => {
-                borrowed_slice_view::validate(
+                slice_view::validate(
                     checked,
                     owner,
                     source,
                     result.statement_index,
                     expression,
                     &argument,
+                    crate::expression_preparation::bindings::LoanAccess::Shared,
                 )?;
             }
-            // A mutably borrowed `&mut [T]` view rejoins its mutable loan
-            // exactly, mirroring the shared sibling: the retained argument
-            // names the lent collection root and path under `MutableBorrow`,
-            // and `EstablishMutableElementView` carries the runtime extent
-            // descriptor.
             CheckedStructuralValueKind::MutableSliceView { source: argument } => {
-                mutable_slice_view::validate(
+                slice_view::validate(
                     checked,
                     owner,
                     source,
                     result.statement_index,
                     expression,
                     &argument,
+                    crate::expression_preparation::bindings::LoanAccess::Mutable,
                 )?;
             }
             CheckedStructuralValueKind::Place(argument) => {
@@ -2003,12 +2001,21 @@ pub(crate) fn plain_record(
 
 /// A non-byte slice uses the ElementView carrier. Byte slices keep their
 /// distinct ByteSequence representation and must not enter this producer lane.
+/// The shell's access is reported, not required.
+fn element_view_shell(
+    checked: &CheckedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<validation::SliceViewShell> {
+    validation::slice_view_shell(&checked.typed, reference, &[])
+        .filter(|view| checked.primitive_type_reference(view.element) != Some(PrimitiveType::U8))
+}
+
+/// The ElementView carrier a borrowed non-byte slice lends, under any access.
 pub(crate) fn borrowed_element_view_referent(
     checked: &CheckedTrees,
-    reference: checked_trees::types::TypeReferenceHandle,
-) -> Option<checked_trees::types::TypeReferenceHandle> {
-    let (carrier, element, _) = borrowed_slice_type(checked, reference)?;
-    (checked.primitive_type_reference(element) != Some(PrimitiveType::U8)).then_some(carrier)
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    element_view_shell(checked, reference).map(|view| view.slice)
 }
 
 /// The carrier a `&mut`-referee binding joins: element-view referees
@@ -2021,8 +2028,9 @@ pub(crate) fn mutable_view_carrier(
     checked: &CheckedTrees,
     reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
-    validation::reference_result_custody::mutable_borrowed_parts(&checked.typed, reference)?;
-    borrowed_element_view_referent(checked, reference)
+    element_view_shell(checked, reference)
+        .filter(|view| view.access == language_semantics::ReferenceAccess::Mutable)
+        .map(|view| view.slice)
 }
 
 /// The carrier of an actual shared slice view, including byte slices. This
@@ -2030,42 +2038,9 @@ pub(crate) fn mutable_view_carrier(
 /// or ElementView storage; mutable and write-only references cannot lend it.
 pub(crate) fn shared_slice_view_referent(
     checked: &CheckedTrees,
-    reference: checked_trees::types::TypeReferenceHandle,
-) -> Option<checked_trees::types::TypeReferenceHandle> {
-    let (carrier, _, access) = borrowed_slice_type(checked, reference)?;
-    (access == language_semantics::ReferenceAccess::Shared).then_some(carrier)
-}
-
-/// Peel exactly one reference shell and its constraints, retaining access.
-fn borrowed_slice_type(
-    checked: &CheckedTrees,
-    mut reference: checked_trees::types::TypeReferenceHandle,
-) -> Option<(
-    checked_trees::types::TypeReferenceHandle,
-    checked_trees::types::TypeReferenceHandle,
-    language_semantics::ReferenceAccess,
-)> {
-    let mut access = None;
-    let mut visited = Vec::new();
-    while reference.is_valid() && !visited.contains(&reference) {
-        visited.push(reference);
-        match checked.type_reference_table.type_reference(reference) {
-            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                reference = *base_type;
-            }
-            checked_trees::types::TypeReferenceNode::Reference {
-                referee,
-                access: borrowed_access,
-                ..
-            } if access.is_none() => {
-                access = Some(*borrowed_access);
-                reference = *referee;
-            }
-            checked_trees::types::TypeReferenceNode::Slice { element_type } => {
-                return Some((reference, *element_type, access?));
-            }
-            _ => return None,
-        }
-    }
-    None
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    validation::slice_view_shell(&checked.typed, reference, &[])
+        .filter(|view| view.access == language_semantics::ReferenceAccess::Shared)
+        .map(|view| view.slice)
 }

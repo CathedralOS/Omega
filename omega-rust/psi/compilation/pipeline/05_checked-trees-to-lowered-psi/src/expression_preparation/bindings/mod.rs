@@ -17,6 +17,33 @@ mod tests;
 pub(crate) mod view_locals;
 pub(crate) use structural_fields::StructuralScalarFieldBinding;
 
+/// The access of a readable loan a view or borrowed selection joins: a
+/// shared read or an exclusive borrow. A write-only loan lends no readable
+/// place, so it has no variant here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LoanAccess {
+    Shared,
+    Mutable,
+}
+
+impl LoanAccess {
+    /// The access the checked plan records for this loan.
+    pub(crate) fn planned_access(self) -> checked_trees::CheckedStructuralAccess {
+        match self {
+            Self::Shared => checked_trees::CheckedStructuralAccess::SharedBorrow,
+            Self::Mutable => checked_trees::CheckedStructuralAccess::MutableBorrow,
+        }
+    }
+
+    /// The access the Terminal structural argument carries for this loan.
+    pub(crate) fn structural_access(self) -> StructuralAccess {
+        match self {
+            Self::Shared => StructuralAccess::SharedBorrow,
+            Self::Mutable => StructuralAccess::MutableBorrow,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct ScalarBindings {
     /// The binding-ordinal namespace: the scalar formals, then every
