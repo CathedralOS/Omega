@@ -38,6 +38,13 @@ before golden comparison and recording, so `--record` cannot bless wrong or
 missing output. A declaration-only or foreign-target build supplies no runtime
 evidence and cannot satisfy that promise; use a matching bound host.
 
+`--native-target <target>` builds for another catalogued target and diffs
+against that target's golden. Products execute only where the host runs
+them: an Apple-silicon macOS host runs `macos_x86_64` under Rosetta
+(`arch -x86_64`); other foreign targets are realized without executing.
+
+    python3 tools/corpus_gate.py --native-target macos_x86_64 --filter host/
+
 Interpreted leg — also execute each runnable fixture on the checked
 interpreter `omega run --both` uses, diffing against
 `tests/omega/corpus_interpreted.txt`; `--both` runs the native and
@@ -132,6 +139,7 @@ HOST_TARGETS = {
     ("linux", "x86_64"): "linux_x86_64",
     ("linux", "aarch64"): "linux_arm64",
     ("darwin", "arm64"): "macos_arm64",
+    ("darwin", "x86_64"): "macos_x86_64",
 }
 
 
@@ -160,12 +168,14 @@ def native_exit_failures(records: list[dict], corpus: Path, target: str) -> list
 
     A golden may retain an unfinished compile, but cannot redefine an explicit
     runtime promise. `trap` means the ISA crash leaf: BRK/SIGTRAP on ARM64,
-    UD2/SIGILL on Unix x86-64, or STATUS_ILLEGAL_INSTRUCTION on Windows.
+    UD2/SIGILL on Unix x86-64 (Linux and Intel macOS), or
+    STATUS_ILLEGAL_INSTRUCTION on Windows.
     Segfaults, missing execution and timeouts are not successful traps.
     """
     traps = {"macos_arm64": {"exit": "signal", "signal": "5"},
              "linux_arm64": {"exit": "signal", "signal": "5"},
              "linux_x86_64": {"exit": "signal", "signal": "4"},
+             "macos_x86_64": {"exit": "signal", "signal": "4"},
              "windows_x86_64": {"exit": str(-1073741795)}}
     failures = []
     for record in records:
@@ -748,6 +758,11 @@ def main() -> int:
                              "the run tier, *_exit and explicit native-exit fixtures, "
                              "and diff against "
                              "tests/omega/corpus_native_<target>.txt")
+    parser.add_argument("--native-target", metavar="TARGET",
+                        help="implies --native: build for TARGET instead of the "
+                             "host (macos_x86_64 executes under Rosetta on an "
+                             "Apple-silicon host) and diff against "
+                             "tests/omega/corpus_native_<TARGET>.txt")
     parser.add_argument("--interpret", action="store_true",
                         help="also execute runnable fixtures on the checked "
                              "interpreter and diff against "
@@ -798,13 +813,16 @@ def main() -> int:
     if options.both:
         options.native = True
         options.interpret = True
+    if options.native_target:
+        options.native = True
+        os.environ["OMEGA_CORPUS_NATIVE_TARGET"] = options.native_target
     if options.interpret:
         os.environ["OMEGA_CORPUS_INTERPRET"] = "1"
         leg = "interpreted"
         if options.golden == GOLDEN and not options.native:
             options.golden = ROOT / "tests" / "omega" / "corpus_interpreted.txt"
     if options.native:
-        target = host_target()
+        target = options.native_target or host_target()
         if target is None:
             print("corpus_gate: this host has no catalogued Omega target for --native")
             return usage_error
@@ -817,7 +835,9 @@ def main() -> int:
         if options.golden != GOLDEN and not leg:
             print("corpus_gate: --baseline and --golden name different goldens")
             return usage_error
-        options.golden = baseline_path(leg)
+        # A foreign native target keeps its own baseline beside the host's.
+        options.golden = baseline_path(
+            f"{leg}-{options.native_target}" if options.native_target else leg)
         if not options.golden.is_file() and not options.record:
             print(f"corpus_gate: no baseline at {options.golden.relative_to(ROOT)}; "
                   "record one from a clean tree first:\n"
