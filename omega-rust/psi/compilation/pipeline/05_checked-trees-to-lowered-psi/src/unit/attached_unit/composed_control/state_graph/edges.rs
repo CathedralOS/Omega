@@ -29,11 +29,24 @@ pub(super) fn validate(
     edge: &CheckedStructuralControlSuccessorPlan,
     ordinal: usize,
 ) -> Result<(), LoweringError> {
-    validate_bindings(checked, plan, source, state, transition, edge, ordinal, &[])?;
+    validate_bindings(
+        checked,
+        plan,
+        source,
+        state,
+        transition,
+        edge,
+        ordinal,
+        &[],
+        None,
+    )?;
     validate_cleanup(checked, plan, source, state, edge)
 }
 
 /// Case dispatch validates local-result cleanup separately from parameter cleanup.
+///
+/// `dispatched_parameter` is the authored position of the affine owned
+/// parameter a closed-sum dispatch consumes, when its subject is one.
 pub(super) fn validate_bindings(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
@@ -43,6 +56,7 @@ pub(super) fn validate_bindings(
     edge: &CheckedStructuralControlSuccessorPlan,
     ordinal: usize,
     payloads: &[checked_trees::CheckedClosedSumPayloadTransferPlan],
+    dispatched_parameter: Option<u32>,
 ) -> Result<(), LoweringError> {
     let TransitionTargetNode::Named {
         path, arguments, ..
@@ -63,25 +77,39 @@ pub(super) fn validate_bindings(
         return unsupported("Unit graph successor disagrees with source control");
     }
     // Every edge's owned-parameter discards are exactly those its checked
-    // cleanup evidence names; an edge without evidence discards none.
+    // cleanup evidence names, less a closed-sum dispatch's own subject; an
+    // edge without evidence discards none.
     //
     // The evidence counts a parameter as dying on the edge whenever the
-    // edge's transition moves none of it, and a closed-sum dispatch moves no
-    // place: its arms read payloads out of the subject. Terminal ownership
-    // accounts every owned obligation on an edge exactly once, and the case
-    // dispatch itself is the subject's explicit terminal consumption, so the
-    // producer's edge evidence omits it by construction. Naming it here again
-    // would be a second disposition. The
-    // opposite reading, that the arm transfers the payload and discards the
-    // shell, would need the dispatch to leave the subject live, which the
-    // StructuralCase terminator does not.
-    let evidence = checked
+    // edge's transition moves none of it. A case test moves nothing, and a
+    // selected payload is a plain copy out of its parent, so the evidence
+    // names the dispatched subject parameter on every case edge. Terminal
+    // ownership accounts every owned obligation on an edge exactly once, and
+    // on a closed-sum dispatch that death is the dispatch itself: the
+    // StructuralCase terminator is the subject's explicit terminal
+    // consumption. The edge naming the subject again as a no-code discard
+    // would be a second disposition, so the subject's evidence row is required
+    // and taken here as the dispatch's consumption. The opposite reading, that
+    // the arm transfers the payload and discards the shell, would need the
+    // dispatch to leave the subject live, which the StructuralCase terminator
+    // does not. Guarded case tests outside a closed-sum dispatch keep the
+    // subject among their ordinary edge discards.
+    let cleanup = checked
         .facts
         .flow
         .terminal_structural_control_cleanups
-        .for_edge(plan.machine, state.state, edge.statement_ordinal)
+        .for_edge(plan.machine, state.state, edge.statement_ordinal);
+    let mut evidence = cleanup
         .map(|cleanup| cleanup.trivial_affine_discard_parameter_positions.to_vec())
         .unwrap_or_default();
+    if let Some(subject) = dispatched_parameter
+        && cleanup.is_some()
+    {
+        let Some(row) = evidence.iter().position(|position| *position == subject) else {
+            return unsupported("Unit case edge cleanup evidence omits its dispatched subject");
+        };
+        evidence.remove(row);
+    }
     if evidence != edge.trivial_affine_discard_parameter_positions {
         return unsupported("Unit graph successor discards disagree with cleanup evidence");
     }
