@@ -64,6 +64,9 @@ For a dynamically linked Linux ELF executable, `build.omg` may select the
 exact interpreter pathname per output and target. An explicit selection
 overrides a default declared by the selected target/toolchain environment.
 An architecture alone does not imply glibc, musl, or a loader pathname.
+The ordinary Build field is `builder.elf_interpreter.<target>`: one byte-string
+row per canonical ELF target name (`linux_arm64`, `linux_x86_64`), where an
+empty row keeps the declared default.
 
 Retain the effective path and target in normalized output configuration and
 the corresponding artifact/review inputs, including when a declared default

@@ -93,6 +93,27 @@ pub(super) fn initial_value(
             },
         ));
     }
+    // ELF loader selection (wiki/spec/build/configuration.md
+    // #elf-executable-loader-selection): every row is empty until the root
+    // build machine assigns it, so each Linux target keeps its target
+    // environment's declared default.
+    if has_exact_toolchain_build_facet(typed, "ElfInterpreterSelection") {
+        build_fields.push((
+            "elf_interpreter".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "ElfInterpreterSelection".to_owned(),
+                fields: target::ELF_INTERPRETER_TARGET_PROFILES
+                    .iter()
+                    .map(|target| {
+                        (
+                            target.target_name().to_owned(),
+                            BuildTimeValue::Text(Vec::new()),
+                        )
+                    })
+                    .collect(),
+            },
+        ));
+    }
     if has_exact_toolchain_build_facet(typed, "BuildSource")
         && has_exact_toolchain_build_facet(typed, "BuildOutput")
     {
