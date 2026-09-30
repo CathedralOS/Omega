@@ -1,10 +1,8 @@
 use super::{
-    CapabilityDirectory, CapabilityOpenOptions, FollowSymlinks, OsString, Path, PathBuf,
-    RecordFileError, RecordFileRoot, io_error, single_file_name, verify_regular_identity,
+    CapabilityDirectory, OsString, Path, PathBuf, RecordFileError, RecordFileRoot, io_error,
+    single_file_name, verify_regular_identity,
 };
-use cap_fs_ext::OpenOptionsFollowExt;
-#[cfg(unix)]
-use cap_std::fs::OpenOptionsExt;
+use crate::lock_file::open_or_create_lock_file;
 use std::fs::{File, TryLockError};
 
 /// An exclusive OS lock on a persistent record file. Dropping the guard unlocks
@@ -38,16 +36,7 @@ impl RecordFileRoot {
             .directory
             .try_clone()
             .map_err(|error| io_error(&self.display_path, error))?;
-        let mut options = CapabilityOpenOptions::new();
-        options
-            .read(true)
-            .write(true)
-            .create(true)
-            .follow(FollowSymlinks::No);
-        #[cfg(unix)]
-        options.mode(0o600);
-        let file = directory
-            .open_with(file_name, &options)
+        let file = open_or_create_lock_file(&directory, file_name)
             .map_err(|error| io_error(&display_path, error))?
             .into_std();
         let guard = RecordFileLock {
