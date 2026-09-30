@@ -1,0 +1,8 @@
+// FAIL CANARY -- the query names a slot the target profile does not declare.
+// A description is issued only against an actual required root slot, so the
+// query rejects before any binding exists.
+machine build(builder: &mut Build) {
+    builder.application("product_entry_query_undeclared_slot");
+    let entry: ProductEntryRef = builder.product.entry("launch", "windows_x86_64::UndeclaredEntry");
+    builder.roots.bind(windows_x86_64::ProgramEntry, entry);
+}
