@@ -159,8 +159,8 @@ pass/calls/value_call_transition_argument built 16255ms exit:70 @f17a009cdd4b+wt
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
 pass/capabilities/acquires_through_helper_return built 301ms
 pass/capabilities/boundary_trait_multiple_effects checked 164ms
-pass/capabilities/callback_direct_install_compile rejected 445ms
-	receiving terminal-authority policy version 7 does not classify normalized foreign mechanism NormalizedForeign(NormalizedForeignTerminalMechanismIdentity { target: LinuxX64, locator_identity: ForeignLocatorIdentityDigest([249, 238, 159, 239, 157, 216, 220, 117, 195, 246, 105, 90, 137, 213, 22, 182, 137, 236, 217, 218, 54, 48, 209, 240, 207, 182, 20, 204, 208, 45, 116, 6]), implementation_contract: BoundaryCallingPlanCommitment([30, 43, 205, 1, 9, 53, 142, 194, 146, 98, 234, 160, 90, 186, 46, 167, 187, 250, 82, 81, 236, 51, 39, 49, 47, 120, 75, 132, 165, 153, 60, 243]), argument_contract: AdmittedPlan }) required by `named-callable(path(HookRegistrar::install),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())`
+pass/capabilities/callback_direct_install_compile rejected 4506ms @5ce9755c44a5+wt
+	final callback address does not resolve to its exact private function
 pass/capabilities/derives_through_helper built 272ms
 pass/capabilities/external_leaf_binding_forms built 308ms
 pass/capabilities/sysv_small_aggregate_import_compile rejected 235ms

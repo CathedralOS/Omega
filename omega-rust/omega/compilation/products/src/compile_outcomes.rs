@@ -160,6 +160,11 @@ impl CompileOutcomes {
                 native.identity(),
             ));
         }
+        if let Some(dynamic) = report.retained_dynamic_elf_artifact() {
+            return BatchChildCommitment::Artifact(ProductionArtifactIdentity::DynamicElf(
+                dynamic.identity(),
+            ));
+        }
         if let Some(artifact) = report.artifact() {
             return BatchChildCommitment::Artifact(ProductionArtifactIdentity::Terminal(
                 artifact.manifest().identity(),

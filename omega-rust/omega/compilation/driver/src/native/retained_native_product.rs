@@ -42,6 +42,7 @@ pub fn realize_retained_native_artifact(
                     &request.terminal_authority_permission_policy,
                 ),
                 image_request: request.image_request,
+                elf_interpreter: proposal.application().elf_interpreter.as_ref(),
                 optimization_selections: request.optimization_selections,
                 callback_thunks: &prepared.callback_thunks,
             },

@@ -341,6 +341,7 @@ fn compile_one_prepared_target<Observation>(
 mod tests {
     use super::PathBuf;
     mod accepted_lock;
+    mod elf_loader;
     mod receiving_admission;
     use crate::review::ReviewOnlyRootPolicyDisposition;
     use std::sync::atomic::{AtomicU64, Ordering};

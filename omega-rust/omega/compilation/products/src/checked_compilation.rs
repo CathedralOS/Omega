@@ -153,6 +153,10 @@ impl CheckedCompilation {
     /// Project the build-owned image metadata as one retention unit. The name
     /// comes from the application declaration; intent, signing identity and
     /// subsystem come from evaluated configuration and remain distinct facts.
+    /// The ELF loader is the realized target's effective selection: the
+    /// build's explicit row, else the target environment's declared default.
+    /// Retaining it here carries a defaulted path through the same proposal,
+    /// report and package custody as an authored one.
     pub fn project_native_application_metadata(&self) -> target::NativeApplicationMetadata {
         target::NativeApplicationMetadata {
             name: self
@@ -169,6 +173,14 @@ impl CheckedCompilation {
                 .application_identifier
                 .clone(),
             subsystem: self.execution.build.config.settings.subsystem,
+            elf_interpreter: self.selected_target_profile().and_then(|profile| {
+                self.execution
+                    .build
+                    .config
+                    .settings
+                    .elf_interpreters
+                    .effective(profile)
+            }),
         }
     }
 

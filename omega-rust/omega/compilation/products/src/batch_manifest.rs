@@ -230,6 +230,10 @@ fn append_artifact_identity(bytes: &mut Vec<u8>, artifact: ProductionArtifactIde
             bytes.push(2);
             bytes.extend_from_slice(&identity);
         }
+        ProductionArtifactIdentity::DynamicElf(identity) => {
+            bytes.push(3);
+            bytes.extend_from_slice(identity.as_bytes());
+        }
     }
 }
 

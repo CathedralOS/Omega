@@ -5422,18 +5422,21 @@ justified skips; **RC-RELEASE-RECORD-AND-CLOSURE** joins the same-commit evidenc
 These are independent host runs of shared gates; capability repairs retain
 their existing owners.
 
-- **ELF-LOADER-CONFIGURATION.** Wire [build-owned loader selection](wiki/spec/build/configuration.md#elf-executable-loader-selection)
-  through normalized output configuration, native requests, and package artifact
-  review. Reuse `NormalizedElfInterpreterPlan` and `normalize_elf_interpreter_plan`;
-  replace direct-only request construction where a dynamic executable is selected.
-  Carry the explicit per-output/target override or target-environment default to
-  emission, without host probing. Acceptance: a real Linux shared-library call
-  executes with its declared loader; override/default selection survives the
-  package path; missing configuration, relative paths and embedded NUL reject;
-  cross-target emission does not inspect the host loader; static output has no
-  `PT_INTERP`. `providers/external_boundary_requirement_via_exit` imports
-  `msvcrt.dll` and is not a Linux execution witness. Supply a target-appropriate
-  external binding rather than treating an emitted DLL dependency as Linux success.
+- **ELF-LOADER-CONFIGURATION.** Build-owned [loader selection](wiki/spec/build/configuration.md#elf-executable-loader-selection)
+  is wired end to end: `builder.elf_interpreter.<target>` rows override the
+  Linux target environments' declared glibc defaults, the effective loader
+  rides `NativeApplicationMetadata` through the retained proposal and package
+  path, `settle_elf_loader` turns only import-bearing ELF objects into
+  `DynamicElf`, and publication installs the flat dynamic ELF; relative paths
+  reject (`fail/build/elf_interpreter_relative_path`) and static output has no
+  `PT_INTERP`. Remaining acceptance: a Linux x86-64 host run of
+  `providers/external_boundary_requirement_via_exit` (libc.so.6 `abs`/`exit` at
+  GLIBC_2.2.5) records `built … exit:21` in `corpus_native_linux_x86_64.txt`.
+  Its `linux_arm64` bindings request GLIBC_2.2.5, which aarch64 glibc (from
+  GLIBC_2.17) does not define; fix the fixture before an arm64 run. Dynamic
+  images also expose `pass/capabilities/callback_direct_install_compile`:
+  `image-emission/src/final_image_validation.rs::validate_callback_relocation_targets`
+  finds the dynamic writer's callback rel32 target off its private function.
 
 - **RC-NATIVE-MATRIX-LINUX-X86-64.** Close the shared gates with actual ELF
   x86-64 execution, including dynamic imports (**ELF-LOADER-CONFIGURATION**).

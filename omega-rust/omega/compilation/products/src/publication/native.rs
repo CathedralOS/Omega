@@ -4,8 +4,8 @@ use super::companions::{appended_file_name_path, remove_stale_companion, stage_p
 use crate::CompileReport;
 use crate::PccPublicationReceipt;
 use native_artifact::{
-    PreparedExecutablePublication, build_native_proof_sidecar, publish_macos_application_package,
-    validate_native_pair,
+    PreparedDynamicElfPublication, PreparedExecutablePublication, build_native_proof_sidecar,
+    publish_macos_application_package, validate_native_pair,
 };
 use platform_custody::file_publication::{install_staged_files, stage_exact_bytes};
 use terminal_codec::PreparedPsiProofPair;
@@ -27,6 +27,9 @@ pub(super) fn publish(
     report: CompileReport,
     build_dir: &std::path::Path,
 ) -> Result<CompileReport, String> {
+    if report.retained_dynamic_elf_artifact().is_some() {
+        return publish_dynamic_elf(report, build_dir);
+    }
     // The entrypoint already checked complete input custody and selected this
     // product; native evidence preparation below owns its additional judgments.
     let artifact = report.retained_native_artifact().ok_or_else(|| {
@@ -191,4 +194,47 @@ pub(super) fn publish(
     let receipt = publication.into_receipt(output_path)?;
 
     report.record_native_publication(receipt, pcc_publications, package_publication)
+}
+
+/// Publish a retained dynamically linked ELF product as one flat file and
+/// replace its pre-publication custody with an exact dynamic receipt.
+///
+/// Dynamic output is always Linux ELF, so only the flat route applies. A
+/// requested Psi pair stages beside the executable exactly as on the direct
+/// route; a native proof product was already refused when the report
+/// retained its proof context. Every stale companion that no longer commits
+/// to these bytes is removed before the new bytes install.
+fn publish_dynamic_elf(
+    report: CompileReport,
+    build_dir: &std::path::Path,
+) -> Result<CompileReport, String> {
+    let artifact = report.retained_dynamic_elf_artifact().ok_or_else(|| {
+        "dynamic ELF publication requires exactly one retained dynamic ELF artifact".to_owned()
+    })?;
+    let publication = PreparedDynamicElfPublication::new(artifact)?;
+    let output = artifact.image().output();
+    std::fs::create_dir_all(build_dir).map_err(|error| {
+        format!(
+            "failed to create output directory {}: {error}",
+            build_dir.display()
+        )
+    })?;
+    let output_path = build_dir.join(&output.file_name);
+    let mut staged_products = Vec::new();
+    let mut pcc_publications = Vec::new();
+    let psi_path = appended_file_name_path(&output_path, ".psi");
+    if report.pcc_requests().psi {
+        let pair =
+            PreparedPsiProofPair::new(artifact.psi_artifact(), report.terminal_admission_profile())
+                .map_err(|error| error.to_string())?;
+        pcc_publications.push(stage_psi_pair(&pair, &psi_path, &mut staged_products)?);
+    } else {
+        remove_stale_companion(&appended_file_name_path(&psi_path, ".proof"))?;
+        remove_stale_companion(&psi_path)?;
+    }
+    remove_stale_companion(&appended_file_name_path(&output_path, ".proof"))?;
+    staged_products.push(stage_exact_bytes(&output_path, &output.bytes, true)?);
+    install_staged_files(&staged_products)?;
+    let receipt = publication.into_receipt(output_path);
+    report.record_dynamic_elf_publication(receipt, pcc_publications)
 }

@@ -3,7 +3,8 @@
 //! so adding a field is a new domain rather than a silent reinterpretation.
 
 use native_artifact::{
-    NativeArtifact, NativeArtifactIdentity, NativePhysicalEvidence, NativePhysicalEvidenceGap,
+    DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity, NativeArtifact,
+    NativeArtifactIdentity, NativePhysicalEvidence, NativePhysicalEvidenceGap,
 };
 use package_compilation::ProductionCompilationSubject;
 use sha2::{Digest, Sha256};
@@ -25,6 +26,9 @@ pub enum ProductionArtifactIdentity {
     Terminal(TerminalArtifactIdentity),
     Native(NativeArtifactIdentity),
     BuildOutputs([u8; 32]),
+    /// A dynamically linked ELF product. Its identity domain is separate from
+    /// [`Self::Native`], so equal bytes never collapse the two image classes.
+    DynamicElf(DynamicElfNativeArtifactIdentity),
 }
 
 /// Fail-closed rejection from the narrow package/native physical-evidence
@@ -134,6 +138,22 @@ impl ProductionCompilationManifest {
         ))
     }
 
+    pub fn for_dynamic_elf(
+        subject: ProductionCompilationSubject,
+        artifact: &DynamicElfNativeArtifact,
+    ) -> Result<Self, &'static str> {
+        artifact
+            .validate()
+            .map_err(|_| "production manifest received invalid dynamic ELF artifact")?;
+        if subject.native_target() != artifact.target() {
+            return Err("production manifest subject target disagrees with dynamic ELF artifact");
+        }
+        Ok(Self::new(
+            subject,
+            ProductionArtifactIdentity::DynamicElf(artifact.identity()),
+        ))
+    }
+
     fn new(subject: ProductionCompilationSubject, artifact: ProductionArtifactIdentity) -> Self {
         let canonical_bytes = canonical_manifest_bytes(&subject, artifact);
         let mut digest = Sha256::new();
@@ -187,6 +207,13 @@ impl ProductionCompilationManifest {
         ) && self.subject.native_target() == artifact.target()
     }
 
+    pub fn matches_dynamic_elf_artifact(&self, artifact: &DynamicElfNativeArtifact) -> bool {
+        matches!(
+            self.artifact,
+            ProductionArtifactIdentity::DynamicElf(identity) if identity == artifact.identity()
+        ) && self.subject.native_target() == artifact.target()
+    }
+
     /// Borrow the exact physical evidence already owned by this manifest's
     /// native artifact. No receipt, digest proxy, or blanket Terminal-complete
     /// bit is minted here.
@@ -236,6 +263,10 @@ fn canonical_manifest_bytes(
         ProductionArtifactIdentity::BuildOutputs(identity) => {
             bytes.push(3);
             bytes.extend_from_slice(&identity);
+        }
+        ProductionArtifactIdentity::DynamicElf(identity) => {
+            bytes.push(4);
+            bytes.extend_from_slice(identity.as_bytes());
         }
     }
     bytes
