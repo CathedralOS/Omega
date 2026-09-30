@@ -192,8 +192,7 @@ the complete product bar; focused successes below do not establish that baseline
     `report(context, Main::make_change(100, 55), 17)`, is an ordinary
     `EstablishStructuralValue` performed on the selected edge; the static
     sample exits **70** natively. **COMPOSITE-TRANSITION-ARGUMENT** owns the
-    composite sources that still decline; **VALUE-CALL-SUBEXPRESSION** covers
-    the related operand position.
+    composite sources that still decline.
 
     `omega run tests/omega/pass/calls/runtime_nested_case_argument_exit/main.omg`
     on macOS arm64 now clears copy/affine case-return cleanup in Psi, but
@@ -640,7 +639,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `rendering/bouncing_particles` | With std `Clock` at `82df922beeb` on macOS ARM64 it stops after 163 s at the private `proof_search_candidate_work` provision (16384) with Unit call obligation 2^63 + 9 unproved; at `9e546211a69` its package review exceeds `sample_native_gate.py`'s 2400 s timeout. `collections/entity_list`, formerly in this row, meets its oracle. |
   | std `Clock` on Linux hosts (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`) | Both linux `nanosleep` leaves stop target lowering with `MissingBoundarySettlement`: provider admission classifies an authored syscall leaf's mechanism but settles no native realization for it. Then linux_x86_64 can take the darwin leg's shape, a checked adapter over a std-private wait requirement, through the integer-only `poll` syscall (7); linux_arm64 has only `ppoll` and `nanosleep`, whose `timespec*` needs a pointer argument that syscall plans do not admit. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
-  | `systems/wire_protocol`, `probes/value_call_in_expr` | **RECORD-LITERAL-ARRAY-FIELD** and **VALUE-CALL-SUBEXPRESSION** own the respective operations. |
+  | `systems/wire_protocol` | **RECORD-LITERAL-ARRAY-FIELD** owns its operation. |
   | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
   | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the remaining native customers are `windowed_calculator` on **OPERATOR-BOUNDARY-CALLS** (`F64::from_i32`); `dungeon_crawler_cli` on the `&mut` projected-field parameter path in `terminal_unit/calls` (**STATE-LOCAL-VALUE-FRONTIER**); `game_of_life`: replace retired element-range annotations with `[i32; 16]` and an ordinary state-traversing predicate in `where`, per [collection invariants](wiki/spec/language/dependent_values.md#collection-invariants). Prove zero initialization, invariant restoration after updates, and indexed consequences through checked helper theorems; implement missing proof/lowering support and preserve the sample's value constraints and output oracle. No new quantifier syntax or range-only migration domain (also CANONICALIZE-SCALAR-RANGE-CONTRACTS). |
@@ -1719,32 +1718,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Coordinate that dependency with
   `SAMPLE-CORPUS`/`claude-worker / clock-intrinsic`; native exit 70 is still
   required, not inferred from successful Terminal verification.
-
-- **VALUE-CALL-SUBEXPRESSION.** (new-scope) Finish composing scalar machine
-  results under surrounding expressions at each execution site. The builder
-  in `values/scalar/computations.rs` and `computations/integers.rs` already
-  handles calls, arithmetic, casts and comparisons; stage 05's
-  `scalar_return_calls_source/integer_computations.rs` lowers a call under
-  addition, comparison and short-circuiting. Do not rebuild this as a new
-  left-operand special case. The recorded rejections for
-  `tests/omega/pass/calls/{value_call_embedded_in_binary_exit,
-  transition_arg_local_from_embedded_call_exit}` report a pure initializer;
-  `control/statement_sequence.rs::scalar_computation_local_at` takes that
-  fallback when the exact computation root is absent. Reproduce each remaining
-  site and retain its state, statement, binding and call occurrence through
-  construction/emission rather than substituting a pure expression.
-  `tests/omega/pass/calls/value_call_subexpression` currently discards
-  `twelve() + 0`; make its value observable. Exercise arithmetic on either
-  side, casts and both comparison operands in locals, field stores and guards,
-  with bare/parenthesized-call and call-free controls, ordinary/field receivers,
-  and Exact/`Wrapping` policies. Preserve result-owned carrier/policy and the
-  [evaluation schedule](wiki/spec/language/expressions.md): ordered, single
-  invocation, selective short-circuiting, no reevaluation at state arrival.
-  Acceptance: both corpus rows verify **46** and exit **70** after Terminal
-  reload and native execution; the second must carry the local across a state
-  edge. `samples/cli/probes/value_call_in_expr` must preserve **46, 40, 64, 70**
-  through its nested calls and transitions and exit **70**. Its historical
-  slot-collision comment is not a diagnosis of the current compiler.
 
 - **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish the composite internal
   state arguments that selected-edge establishment does not reach. Record and

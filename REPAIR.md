@@ -69,8 +69,6 @@ exists; admission declines or omits without diagnostic), not new-capability:
   any depth; `&mut` works only for a self-rooted direct name.
 - `RECORD-LITERAL-ARRAY-FIELD` — array-typed record-literal fields have no
   route.
-- `VALUE-CALL-SUBEXPRESSION` — value calls omit in any non-root expression
-  position.
 - `BYTE-CARRIER-STORE-LITERAL-ONLY` — owned `[u8; N]` field store admits only
   a bare string literal; anything else declines with no diagnostic.
 - `COMPOSITE-TRANSITION-ARGUMENT` — composite transition arguments route only
