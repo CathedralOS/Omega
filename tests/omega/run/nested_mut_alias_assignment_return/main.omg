@@ -1,4 +1,6 @@
-use omega::language::std::console;
+// Run: omega run --both tests/omega/run/nested_mut_alias_assignment_return/main.omg
+// Nested mutable calls preserve the seeded generator state and print "yes".
+use omega_language_std::console;
 use omega::language::core::binding;
 
 data RandomState {
@@ -19,7 +21,7 @@ machine Random::seed(
 
 machine Random::next_u32(
     state: &mut RandomState
-    ) -> u32 {
+) -> u32 {
     state.seed = state.seed * 6364136223846793005 + 1442695040888963407;
     state.calls = state.calls + 1;
 
@@ -29,7 +31,9 @@ machine Random::next_u32(
 machine Random::range(
     state: &mut RandomState,
     exclusive_max: u32
-    ) -> u32 {
+) -> u32
+requires exclusive_max > 0
+{
     let raw: u32 = Random::next_u32(state);
 
     raw % exclusive_max
@@ -40,8 +44,10 @@ machine Random::chance(
     state: &mut RandomState,
     numerator: u32,
     denominator: u32
-    ) -> bool {
-    let roll: u32 = random.range(state, denominator);
+) -> bool
+requires denominator > 0
+{
+    let roll: u32 = Random::range(state, denominator);
 
     roll < numerator
 }
@@ -52,7 +58,7 @@ data Generator {
 }
 
 machine Generator::run(generator: &mut Generator) reaches Console {
-    let random: RandomState;
+    let mut random: RandomState;
     Random::seed(1, &mut random);
 
     let carve: bool = Generator::should_carve(generator, &mut random, 1);
@@ -61,9 +67,6 @@ machine Generator::run(generator: &mut Generator) reaches Console {
         true -> yes(generator)
         false -> no(generator)
     }
-    
-
-
     state yes(generator: &mut Generator) {
         generator.console.write_line("yes");
     }
@@ -77,7 +80,7 @@ machine Generator::should_carve(
     generator: &mut Generator,
     random: &mut RandomState,
     depth: u32
-    ) -> bool {
+) -> bool {
     let chance: u32 = 99;
     let rolled: bool = Random::chance(&mut generator.rng, random, chance, 100);
 
@@ -88,7 +91,6 @@ data Main {
     generator: Generator;
 }
 
-machine Main::main(&mut self) -> i32 reaches Console {
-    Generator::run(&mut self.generator);
-    0
+machine Main::main(context: &mut Main) reaches Console {
+    Generator::run(&mut context.generator);
 }

@@ -1021,4 +1021,4 @@ pass/wire/wire_data_reserved_field built 242ms
 pass/wire/wire_preserving_decode_relay_exit rejected 411ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural result shape` (state 0, statement 3)
 run/contained_health_loop_command_branch checked 192ms
-run/nested_mut_alias_assignment_return checked 230ms
+run/nested_mut_alias_assignment_return built 944ms exit:0 stdout:match @874bbd295e3e+wt
