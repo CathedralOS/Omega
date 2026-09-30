@@ -147,7 +147,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     let (_, result_type) = qualifications.scalar_state_types(checked, entry_state.state)?;
     // Each explicit borrowed formal belongs to its state's block namespace.
     // A successor forwards the current loan into that destination roster;
-    // equal carrier types never imply equal storage identities.
+    // equal carrier types never imply equal storage identities. The private
+    // blocks emitted beneath a state receive its exclusive record loans in
+    // `scalar_graph_module::state_borrows`.
     //
     // The one exception binds nothing on an edge: a tail fusion of
     // single-state machines whose every member retains the entry's exact

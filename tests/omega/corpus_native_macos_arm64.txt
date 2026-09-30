@@ -86,6 +86,7 @@ pass/calls/guarded_arm_tail_call_to_state_machine_exit built 1487ms exit:70 @c9c
 pass/calls/guarded_value_call_arm_exit built 718ms exit:70
 pass/calls/local_array_direct_read_exit built 824ms exit:70 @ef96dd31bdca
 pass/calls/local_projected_field_scalar_result_argument_exit built 583ms exit:70 @f22b140301c7+wt
+pass/calls/local_record_forwarded_across_callee_states_exit built 3015ms exit:70 @0508a5426a27+wt
 pass/calls/local_record_shared_argument_exit built 526ms exit:70 @f22b140301c7+wt
 pass/calls/machine_self_call_recursion_compile built 353ms
 pass/calls/mutable_output_host_call built 1130ms
@@ -150,6 +151,7 @@ pass/calls/runtime_value_call_statement_recursive_walk_exit built 2344ms exit:70
 pass/calls/runtime_value_call_terminal_exit rejected 1563ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 2)
 pass/calls/serviceful_borrowed_scalar_exit built 933ms exit:70 stdout:match @f9a8ced78a89
+pass/calls/state_graph_callee_forwards_mut_parameter_exit built 3872ms exit:70 @0508a5426a27+wt
 pass/calls/statement_call_recursive_overload_compile checked 181ms
 pass/calls/static_context_forwarded_twice_exit built 828ms exit:70 @339c45cd5326
 pass/calls/static_state_context_field_window_exit built 6453ms exit:70 @29ae131e8c31+wt

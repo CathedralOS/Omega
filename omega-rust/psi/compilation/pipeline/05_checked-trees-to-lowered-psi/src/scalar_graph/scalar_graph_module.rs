@@ -1,8 +1,9 @@
 //! Scalar-graph terminal module assembly: `build_scalar_graph_module_in_namespace`
 //! allocates the parameter and identity namespaces, emits every state through
 //! `GraphEmission` (`state_emission`, `short_circuit_staging`), finalizes the
-//! reserved groups (`pending_blocks`), then assembles the machine, contract
-//! and proof bundle.
+//! reserved groups (`pending_blocks`), carries each authored state's exclusive
+//! record loan into the private blocks that read it (`state_borrows`), then
+//! assembles the machine, contract and proof bundle.
 //! Boundary applications borrow the enclosing closure's admitted declarations,
 //! just like ordinary calls borrow its machine identities. Scalar result shape
 //! does not create a separate provider namespace or bypass invocation custody.
@@ -31,6 +32,7 @@ mod pending_blocks;
 mod qualifications;
 mod ranking;
 mod short_circuit_staging;
+mod state_borrows;
 mod state_contracts;
 mod state_emission;
 use crate::scalar_graph::scalar_contracts;
@@ -175,6 +177,10 @@ pub(crate) fn build_scalar_graph_module(
         &scalar_contracts::ContractViewNamespace::EMPTY,
         literal_places,
         loop_plan,
+        // A closure member binds no structural formals and names no
+        // structural type here, so no state carries an exclusive loan to
+        // forward and no place is allocated from this counter.
+        &mut 1,
     )
 }
 
@@ -198,6 +204,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     views: &scalar_contracts::ContractViewNamespace<'_>,
     literal_places: &[crate::scalar_graph::scalar_computations::literals::Slot],
     loop_plan: Option<&crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan>,
+    next_place: &mut u64,
 ) -> Result<LoweredPsi, LoweringError> {
     let scalar_qualifications = scalar_qualifications.clone();
     let structural_parameters: Vec<StructuralParameterDeclaration> = view_parameters
@@ -411,6 +418,15 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             .unwrap_or(&structural_parameters),
         scalar_source_block(identity_base, 0),
         &mut blocks,
+    )?;
+    // With every block emitted and every authored formal bound, carry each
+    // state's exclusive record loan into the private blocks that read it.
+    state_borrows::forward_private_state_borrows(
+        &mut blocks,
+        identity_base,
+        state_symbols.len(),
+        views.structural_types,
+        next_place,
     )?;
     let result = ValueDeclaration {
         id: value_id(next_value_identity),

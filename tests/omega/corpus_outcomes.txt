@@ -1194,6 +1194,7 @@ pass/calls/local_projected_field_argument_exit checked 1231ms @2d8ed253669f
 pass/calls/local_projected_field_record_result_argument_exit checked 1980ms @2d8ed253669f
 pass/calls/local_projected_field_scalar_result_argument_exit checked 1947ms @2d8ed253669f
 pass/calls/local_projected_field_shared_argument_exit checked 1272ms @2d8ed253669f
+pass/calls/local_record_forwarded_across_callee_states_exit checked 2197ms @0508a5426a27+wt
 pass/calls/local_record_mutable_argument_exit checked 1211ms @2d8ed253669f
 pass/calls/local_record_record_result_argument_exit checked 1977ms @2d8ed253669f
 pass/calls/local_record_shared_argument_exit checked 1248ms @2d8ed253669f
@@ -1270,6 +1271,7 @@ pass/calls/runtime_value_call_terminal_exit rejected 4060ms @2d8ed253669f
 	terminal-artifact production failed: Lowering(Unsupported("Unit graph primitive store has no retained parameter destination"))
 pass/calls/serviceful_borrowed_scalar_exit checked 1548ms @2d8ed253669f
 pass/calls/state_and_machine_names_exit checked 401ms @2d8ed253669f
+pass/calls/state_graph_callee_forwards_mut_parameter_exit checked 2856ms @0508a5426a27+wt
 pass/calls/statement_call_recursive_overload_compile checked 278ms @2d8ed253669f
 pass/calls/static_state_context_field_window_exit checked 6807ms @29ae131e8c31+wt
 pass/calls/structural_mut_to_shared_argument checked 378ms @2d8ed253669f

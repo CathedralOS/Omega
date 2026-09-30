@@ -237,7 +237,7 @@ impl StateGraphEmission<'_, '_> {
             &mut self.catalogs.temporary_places,
         )?;
         evaluation.blocks.extend(edge_blocks);
-        super::borrow_transport::forward_private_state_borrows(
+        crate::emission::private_borrow_transport::forward_private_state_borrows(
             self.state_ids[position],
             &mut evaluation.blocks,
             &self.catalogs.structural_types,

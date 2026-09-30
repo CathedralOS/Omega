@@ -114,12 +114,14 @@ build authority, and artifact verification remain separate obligations.
   `Duration::checked_subtract(&first, second)`) transfers its
   `Ok { duration }` payload to a successor. The same call over a parameter
   operand runs.
-  Remaining structural-argument refusals: for Unit, scalar and record results
+  A value-returning callee forwards a lent `&mut` record (a static context,
+  or a local whole or by field) across its own states to scalar and record
+  results (`pass/calls/state_graph_callee_forwards_mut_parameter_exit`,
+  `pass/calls/local_record_forwarded_across_callee_states_exit`).
+  Remaining structural-argument refusal: for Unit, scalar and record results
   alike, a fixed-index loan of a local's record-array element
   (`&mut board.tallies[1]`) stops at stage 05 `Unit structural result
-  argument has invalid checked custody`; for scalar and
-  record results, a callee that forwards its `&mut` parameter across states
-  stops at Terminal `OwnedStructuralPlaceNotLiveAtOperation`. A static
+  argument has invalid checked custody`. A static
   `generic_counters` uses explicit generic calls and two invocation-local
   counters, preserving repeated writes and separate integer/Boolean values.
   On macOS ARM64 at `bbd0a9fdb8` plus namespace-call interpretation,
@@ -639,9 +641,10 @@ the complete product bar; focused successes below do not establish that baseline
   600` records 122 of 143 scored samples meeting their documented oracles,
   including `descriptor_walk` and `calculator_rpn`. None built with a wrong
   exit or output. Sixteen do not build: the rows below, plus
-  `probes/array_index_from_call`, `interpreters/stack_vm` and
-  `systems/account_ledger` at Terminal `OwnedStructuralPlaceNotLiveAtOperation`
-  (a callee forwarding its `&mut` parameter across states),
+  `probes/array_index_from_call` at Omega legalization `SourceCustodyMismatch`
+  (`structural_call/exclusive.rs:108`, introduced by 173390bb8dc; `stack_vm`
+  and `account_ledger`, also in that count, meet their oracles again once
+  scalar-graph state loans reach their private exit blocks),
   `text/roman_numeral` at `InvalidUnitMachinePlan`, and `text/string_catalog`
   at "scalar guarantee has no exact authored predicate". Package review for
   `bouncing_particles`, `cellular_automaton` and `game_of_life_glider`, and
