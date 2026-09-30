@@ -275,6 +275,17 @@ pub(crate) fn build_affine_array_construction_prefix(
             local.symbol,
         ));
     }
+    // A declaration-only array of zero-constructible elements is established
+    // zeroed at its declaration, so the root's exit drop carries that
+    // establishment's provenance. The elements here are fieldless and need no
+    // nominal drop: the zeroed tail holds no data and takes no cleanup action,
+    // so the element-wise construction and its reverse cleanup still describe
+    // the whole root.
+    let declaration_provenance = language_semantics::PermissionProvenance::Established {
+        machine_symbol: machine.symbol,
+        state_symbol: state.symbol,
+        source: PermissionEventSource::Statement { statement_index: 0 },
+    };
     let exit_events = facts
         .flow
         .ownership
@@ -288,7 +299,7 @@ pub(crate) fn build_affine_array_construction_prefix(
                 && event.multiplicity == Multiplicity::Affine
                 && event.access == PermissionAccess::Owned
                 && event.claim_identity == PermissionClaimIdentity::Unknown
-                && event.provenance == language_semantics::PermissionProvenance::Unknown
+                && event.provenance == declaration_provenance
                 && event.root == facts::PlaceRoot::Symbol(local.symbol)
                 && !event.obligation_live
         })
