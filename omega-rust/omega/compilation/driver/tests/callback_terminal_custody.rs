@@ -24,6 +24,11 @@ use terminal_psi_to_abstract_operations::provider_admission;
 
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
 
+/// The direct callback canary's entry header: the free `main` its build root
+/// binds and the anchor before which the import-bound variant declares its
+/// leaf provider. The canary carries no receiver data for a `Main::main`.
+const DIRECT_ENTRY: &str = "machine main() reaches HookRegistrar {";
+
 fn fixture_root(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!(
         "omega-{name}-{}-{}",
@@ -311,13 +316,18 @@ machine Main::main(&mut self) reaches WindowRegistrar {
         )
         .expect("read direct callback source canary")
         .replacen("use calling;", "use omega_language_std::calling;", 1);
+        assert_eq!(
+            source.matches(DIRECT_ENTRY).count(),
+            1,
+            "direct canary entry"
+        );
         fs::write(&main, source).expect("write package-aware direct callback source canary");
         fs::write(
             root.join("build.omg"),
             format!(
                 "machine build(builder: &mut Build) {{\n    \
                  builder.application(\"direct_callback_terminal_custody\");\n\
-                 {}    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}}\n",
+                 {}    builder.roots.bind(windows_x86_64::ProgramEntry, main);\n}}\n",
                 bundled_standard_library_dependency_declaration(),
             ),
         )
@@ -335,7 +345,7 @@ machine Main::main(&mut self) reaches WindowRegistrar {
                 1,
             )
             .replacen(
-                "data Main { }",
+                DIRECT_ENTRY,
                 r#"windows_x86_64 machine install_binding() -> ForeignBinding<12, 24, 0> {
     ForeignBinding::DllImport {
         import: DllImport::PeByName {
@@ -350,7 +360,7 @@ where machine Handler satisfies HookProcedure::call;
 satisfies HookRegistrar::install
 via install_binding();
 
-data Main { }"#,
+machine main() reaches HookRegistrar {"#,
                 1,
             )
             .replace(
