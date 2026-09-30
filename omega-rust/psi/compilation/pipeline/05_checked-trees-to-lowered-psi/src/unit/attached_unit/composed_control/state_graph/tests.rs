@@ -10,6 +10,90 @@ mod qualified_invocation;
 mod receiver_subslice_edges;
 
 #[test]
+fn scalar_returns_rejoin_local_cleanup_evidence() {
+    use language_semantics::{PermissionEventKind, PermissionEventSource};
+    let checked = crate::front_end::checked_program(
+        "data Token { value: i32; }
+         machine make() -> Token { Token { value: 42 } }
+         machine route(accepted: bool) -> bool {
+             let token: Token = make();
+             transition accepted {
+                 true -> observe(token)
+                 false -> (false)
+             }
+             state observe(token: Token) -> bool {
+                 let comparison: Token = make();
+                 token.value == comparison.value
+             }
+         }",
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "route")
+        .expect("source machine")
+        .symbol;
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .expect("scalar completion graph");
+    admission::admit(&checked, plan).expect("conditional and direct scalar cleanup");
+    for state in &plan.states {
+        let source = checked
+            .machines()
+            .iter()
+            .find(|source| source.symbol == machine)
+            .unwrap();
+        let source = checked
+            .machine_states(source)
+            .iter()
+            .find(|source| source.symbol == state.state)
+            .unwrap();
+        let local = checked
+            .statement_table
+            .statements(source.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                checked_trees::statement::StatementNode::LocalData(local) => Some(local.symbol),
+                _ => None,
+            })
+            .expect("each return state owns a local");
+        let (drop_handle, original) = checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .find(|(_, event)| {
+                event.machine_symbol == machine
+                    && event.state_symbol == state.state
+                    && event.root == facts::PlaceRoot::Symbol(local)
+                    && event.source == PermissionEventSource::StateExit
+                    && event.kind == PermissionEventKind::AffineDrop
+            })
+            .expect("owned cleanup at each returning state");
+        for corruption in 0..3 {
+            let mut changed = checked.clone();
+            let permissions = &mut changed.facts.flow.ownership.permissions;
+            match corruption {
+                0 => permissions.get_mut(drop_handle).source = PermissionEventSource::StateEntry,
+                1 => permissions.get_mut(drop_handle).root = facts::PlaceRoot::Unknown,
+                2 => {
+                    permissions.insert(original.clone());
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                admission::admit(&changed, plan).is_err(),
+                "missing, substituted or duplicate cleanup rejects: {corruption}"
+            );
+        }
+    }
+}
+
+#[test]
 fn local_field_loan_preserves_owned_home_custody() {
     use language_semantics::{PermissionAccess, PermissionEventKind};
     let checked = crate::front_end::checked_program(

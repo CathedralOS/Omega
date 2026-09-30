@@ -1205,11 +1205,16 @@ pub(super) fn return_discards(
         PermissionProvenance,
     };
     let parameters = checked.state_parameters(source);
+    // Unit and scalar completion transfer no structural result. Both retain
+    // the same local custody until return disposal; structural completion
+    // instead rejoins the returned owner's transfer before residual cleanup.
     let local_discards = if matches!(
         state.terminator,
         CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
             | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                 return_arm: checked_trees::CheckedConditionalReturnArm::Unit { .. }
+                    | checked_trees::CheckedConditionalReturnArm::Scalar { .. }
                     | checked_trees::CheckedConditionalReturnArm::Call(_),
                 ..
             }
