@@ -7,6 +7,7 @@ mod closed_cases;
 mod composite_arguments;
 mod displaced_field_replacement;
 mod qualified_invocation;
+mod receiver_subslice_edges;
 
 #[test]
 fn local_field_loan_preserves_owned_home_custody() {
