@@ -56,7 +56,7 @@ pub(super) struct Transport {
     pub(super) pointers: Vec<(PlaceId, VirtualRegisterId)>,
     pub(super) result_pointer: Option<VirtualRegisterId>,
     views: Vec<ByteViewHomes>,
-    element_views: Vec<ElementViewHomes>,
+    pub(super) element_views: Vec<ElementViewHomes>,
     pub fragments: Vec<(PlaceId, u32, VirtualRegisterId)>,
     pub slots: Vec<SelectedOutgoingArgumentSlot>,
     pub local_slots: Vec<selected_instructions::SelectedLocalStorageSlot>,

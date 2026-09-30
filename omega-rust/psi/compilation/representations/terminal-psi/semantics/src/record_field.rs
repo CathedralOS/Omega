@@ -126,21 +126,26 @@ fn walk_record_fields<'types>(
     for (index, segment) in path.iter().enumerate() {
         if let CanonicalStructuralPathSegment::FixedIndex(element_index) = segment {
             // The index may only end the walk; the caller's shape check then
-            // confirms the element owns the observed field.
+            // confirms the element owns the observed field. An element view
+            // carries no literal extent — its live length is the bound.
             if index + 1 != path.len() {
                 return None;
             }
             let declaration = types
                 .clone()
                 .find(|declaration| declaration.id == structural_type)?;
-            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                return None;
+            let element = match &declaration.shape {
+                StructuralTypeShape::FixedArray { element, length } => {
+                    if *element_index >= *length {
+                        return None;
+                    }
+                    *element
+                }
+                StructuralTypeShape::ElementView { element } => *element,
+                _ => return None,
             };
-            if *element_index >= *length {
-                return None;
-            }
             runtime_path.push(StructuralPathSegment::FixedIndex(*element_index));
-            structural_type = *element;
+            structural_type = element;
             continue;
         }
         let CanonicalStructuralPathSegment::Field(field) = segment else {

@@ -127,17 +127,18 @@ pub(super) fn validate(
                                 parameter.multiplicity,
                             ))
                 };
-                if binding.parameter != parameter.place
-                    || binding.argument.access != parameter.access
-                    || !exact_source
-                    || function
-                        .entry_claim_declarations
-                        .iter()
-                        .any(|claim| claim.input == binding.argument.place)
+                let claim_hit = function
+                    .entry_claim_declarations
+                    .iter()
+                    .any(|claim| claim.input == binding.argument.place)
                     || function
                         .content_entry_claims
                         .iter()
-                        .any(|claim| claim.input.root == binding.argument.place)
+                        .any(|claim| claim.input.root == binding.argument.place);
+                if binding.parameter != parameter.place
+                    || binding.argument.access != parameter.access
+                    || !exact_source
+                    || claim_hit
                 {
                     return Err(invalid());
                 }
@@ -244,16 +245,24 @@ fn source_contract(
             | O::EstablishElementView { result, .. }
             | O::ElementViewSubslice { result, .. }
                 if result.place == place
-                    && result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty() =>
             {
-                Some((
-                    result.structural_type,
-                    StructuralAccess::SharedBorrow,
-                    StructuralMultiplicity::Unrestricted,
-                ))
+                // An affine view is the mutable establishment's descriptor:
+                // it supplies its exclusive loan's access, so both shared and
+                // mutable projected loans may root at it.
+                let (access, multiplicity) = match result.multiplicity {
+                    StructuralMultiplicity::Unrestricted => {
+                        (StructuralAccess::SharedBorrow, result.multiplicity)
+                    }
+                    _ => (StructuralAccess::MutableBorrow, result.multiplicity),
+                };
+                Some((result.structural_type, access, multiplicity))
             }
             _ => None,
         })

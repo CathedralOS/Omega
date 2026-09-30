@@ -289,10 +289,23 @@ pub(in crate::legalization) fn read(
         {
             return None;
         }
-        (
-            result.structural_type,
-            terminal_psi::StructuralAccess::Owned,
-        )
+        // An element view's descriptor is the read's carrier, not the
+        // observed storage: a view element read borrows through the live
+        // extent, an owned result reads its own value storage.
+        let access = if types
+            .iter()
+            .find(|declaration| declaration.id == result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                )
+            }) {
+            terminal_psi::StructuralAccess::SharedBorrow
+        } else {
+            terminal_psi::StructuralAccess::Owned
+        };
+        (result.structural_type, access)
     };
     // A final `Case` step selects which payload overlay holds the field. It
     // names no storage of its own: the payload lives at the sum's place, so
@@ -374,16 +387,22 @@ fn runtime_path(
             semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
                 if position + 1 == path.len() =>
             {
-                let terminal_psi::StructuralTypeShape::FixedArray { element, length } = &types
+                let element = match &types
                     .iter()
                     .find(|declaration| declaration.id == carrier)?
                     .shape
-                else {
-                    return None;
+                {
+                    terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+                        if index >= length {
+                            return None;
+                        }
+                        element
+                    }
+                    // An element view's live extent is the bound proven by
+                    // its producer; the index names one member.
+                    terminal_psi::StructuralTypeShape::ElementView { element } => element,
+                    _ => return None,
                 };
-                if index >= length {
-                    return None;
-                }
                 runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
                 carrier = *element;
             }

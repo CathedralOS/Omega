@@ -1,7 +1,10 @@
 //! Selected successors partition existing local obligations, not value storage.
 
 use super::super::{CheckedUnitStructuralResultBindingPlan, SymbolHandle};
-use super::{CheckedStructuralControlSuccessorPlan, Multiplicity, StatementNode, TypedTrees};
+use super::{
+    CheckedStructuralControlSuccessorPlan, Multiplicity, StatementNode, TypeReferenceNode,
+    TypedTrees,
+};
 use crate::execution::terminal_unit::types::type_graph_requires_nominal_drop;
 /// A state-exit receipt permits disposal only on successors that do not move
 /// this local. Keep the operation's global discard flag false: scalar edge
@@ -49,6 +52,22 @@ fn validate(
                 .normalized_type_identity(local.type_reference)
                 .into_string()
         };
+    // A reference-loaned result publishes its referent identity — the loan's
+    // access mode lives on the root, not the bound value — the same peel the
+    // shared-referee admission and call-result storage paths apply. An owned
+    // or view-carried binding keeps the declared type's full spelling.
+    let referent_identity = {
+        let mut cursor = local.type_reference;
+        loop {
+            match program.type_reference_table.type_reference(cursor) {
+                TypeReferenceNode::Constrained { base_type, .. } => cursor = *base_type,
+                TypeReferenceNode::Reference { referee, .. } => {
+                    break Some(program.normalized_type_identity(*referee).into_string());
+                }
+                _ => break None,
+            }
+        }
+    };
     if !local.symbol.is_valid()
         || (!program.expression_table.expression_is_valid(local.initial_value)
             && !validation::zeroed_structural_parts(program, local.type_reference))
@@ -59,7 +78,8 @@ fn validate(
             .state_parameters(state)
             .iter()
             .any(|parameter| parameter.symbol == local.symbol)
-        || result.type_identity != expected_identity
+        || !(result.type_identity == expected_identity
+            || referent_identity.as_ref() == Some(&result.type_identity))
         || result.multiplicity != program.type_multiplicity(local.type_reference)
         // Unrestricted results carry no owned custody; the owned-contents and
         // nominal-drop gates only bound results that hold storage. A borrowed
