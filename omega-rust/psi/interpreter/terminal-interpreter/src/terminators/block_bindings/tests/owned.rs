@@ -175,10 +175,10 @@ fn owned_execution(
             (2, TerminalScalarValue::Boolean(boolean)),
         ] {
             execution.structural_scalar_fields.insert(
-                StructuralScalarRuntimeField {
-                    parent: StructuralRuntimePlace::from(root),
-                    field: StructuralFieldId::new(field).unwrap(),
-                },
+                StructuralScalarRuntimeField::member(
+                    StructuralRuntimePlace::from(root),
+                    StructuralFieldId::new(field).unwrap(),
+                ),
                 value,
             );
         }
@@ -241,16 +241,10 @@ fn case_payload_copy_checks_the_tag_and_transfers_independent_storage() {
         let field = StructuralFieldId::new(field).unwrap();
         let value = execution
             .structural_scalar_fields
-            .remove(&StructuralScalarRuntimeField {
-                parent: root.clone(),
-                field,
-            })
+            .remove(&StructuralScalarRuntimeField::member(root.clone(), field))
             .unwrap();
         execution.structural_scalar_fields.insert(
-            StructuralScalarRuntimeField {
-                parent: member.clone(),
-                field,
-            },
+            StructuralScalarRuntimeField::member(member.clone(), field),
             value,
         );
     }
@@ -310,17 +304,12 @@ fn case_payload_copy_checks_the_tag_and_transfers_independent_storage() {
     assert_ne!(copy_root.opaque_identity, root.opaque_identity);
     let integer_field = StructuralFieldId::new(1).unwrap();
     execution.structural_scalar_fields.insert(
-        StructuralScalarRuntimeField {
-            parent: copy_root,
-            field: integer_field,
-        },
+        StructuralScalarRuntimeField::member(copy_root, integer_field),
         unsigned(99),
     );
     assert_eq!(
-        execution.structural_scalar_fields[&StructuralScalarRuntimeField {
-            parent: member,
-            field: integer_field,
-        }],
+        execution.structural_scalar_fields
+            [&StructuralScalarRuntimeField::member(member, integer_field)],
         unsigned(7)
     );
     let machine = std::sync::Arc::get_mut(&mut execution.program)
@@ -353,10 +342,8 @@ fn case_payload_copy_checks_the_tag_and_transfers_independent_storage() {
     let arrival =
         StructuralRuntimePlace::from(&execution.structural_values[&PlaceId::new(3).unwrap()]);
     assert_eq!(
-        execution.structural_scalar_fields[&StructuralScalarRuntimeField {
-            parent: arrival,
-            field: integer_field,
-        }],
+        execution.structural_scalar_fields
+            [&StructuralScalarRuntimeField::member(arrival, integer_field)],
         unsigned(99)
     );
 }

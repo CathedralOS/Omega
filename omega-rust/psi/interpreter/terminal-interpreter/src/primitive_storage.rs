@@ -284,10 +284,10 @@ impl TerminalExecution {
                         && field.field_type.scalar_type() == Some(scalar_type)
                     {
                         return Ok((
-                            PrimitiveStorage::ScalarField(StructuralScalarRuntimeField {
-                                parent: StructuralRuntimePlace::from(&projected),
-                                field: field.id,
-                            }),
+                            PrimitiveStorage::ScalarField(StructuralScalarRuntimeField::member(
+                                StructuralRuntimePlace::from(&projected),
+                                field.id,
+                            )),
                             scalar_type,
                         ));
                     }
@@ -410,13 +410,13 @@ impl TerminalExecution {
         {
             return Err(invalid());
         }
-        Ok(StructuralScalarRuntimeField {
-            parent: StructuralRuntimePlace {
+        Ok(StructuralScalarRuntimeField::member(
+            StructuralRuntimePlace {
                 opaque_identity: view.opaque_identity,
                 path: parent_path.to_vec(),
             },
-            field: field.id,
-        })
+            field.id,
+        ))
     }
 
     pub(crate) fn execute_primitive_establishment(
@@ -515,18 +515,13 @@ impl TerminalExecution {
         if field.relevance.is_erased() || declared != scalar_type {
             return Err(invalid());
         }
-        let parent = self.observed_field_parent(source, &carrier)?;
-        let value = self
-            .structural_scalar_fields
-            .get(&StructuralScalarRuntimeField {
-                parent,
-                field: field.id,
-            })
-            .copied()
-            .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
+        let cell = self.observed_field_cell(source, &carrier, field.id)?;
+        let value = self.structural_scalar_fields.get(&cell).copied().ok_or(
+            TerminalInterpretError::StructuralScalarFieldMissing {
                 source,
                 field: field.id,
-            })?;
+            },
+        )?;
         if value.scalar_type() != scalar_type {
             return Err(invalid());
         }

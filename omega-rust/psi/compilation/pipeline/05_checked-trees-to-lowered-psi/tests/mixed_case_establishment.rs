@@ -341,3 +341,207 @@ fn exhaustive_mixed_dispatch_needs_no_fallback() {
         .expect("an exhaustive mixed dispatch verifies");
     }
 }
+
+/// Source for the interpreted mixed-establishment tests: the common `bonus`
+/// is recorded without case knowledge, the common `consumed` selects the
+/// payload read, and the `Treasure` payload records `gold`.
+const OBSERVED_MIXED_SOURCE: &str = r#"
+    boundary trait Sink { machine record(value: i32); }
+    data Event {
+        consumed: bool;
+        bonus: i32;
+        case Nothing;
+        case Treasure(gold: i32);
+    }
+    machine observe(event: Event) reaches Sink {
+        Sink::record(event.bonus);
+        transition event.consumed {
+            true -> payload(event)
+            false -> unconsumed()
+        }
+        state payload(event: Event) {
+            transition event {
+                Event::Treasure { gold } -> treasure(gold)
+                Event::Nothing -> nothing()
+            }
+        }
+        state treasure(gold: i32) { Sink::record(gold); }
+        state nothing() { Sink::record(1); }
+        state unconsumed() { Sink::record(2); }
+    }
+    data Main {}
+    machine Main::main() reaches Sink {
+        observe(Event::Treasure { consumed: true, bonus: 3, gold: 50 });
+    }
+"#;
+
+/// Run a verified artifact to completion and return the i32 values its
+/// `Sink::record` effects carried, in order.
+fn recorded_by_interpreter(semantic: &[u8], proof: &[u8]) -> Vec<i128> {
+    use terminal_interpreter::{
+        AcceptTerminalEffects, TerminalEffect, TerminalExecution, TerminalExecutionResult,
+        TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralInputs,
+    };
+    let mut execution = TerminalExecution::start_artifact(
+        semantic,
+        proof,
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .expect("the verified artifact starts");
+    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
+    for _ in 0..512 {
+        match execution
+            .resume(&mut fuel, &mut AcceptTerminalEffects)
+            .expect("execution resumes")
+        {
+            TerminalExecutionStatus::SponsorExhausted(_) => fuel.replenish(1).unwrap(),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
+                return execution
+                    .effects()
+                    .iter()
+                    .map(|effect| {
+                        let TerminalEffect::BoundaryCall { arguments, .. } = effect else {
+                            panic!("only Sink recording effects");
+                        };
+                        let [TerminalScalarValue::Integer { value, .. }] = arguments.as_slice()
+                        else {
+                            panic!("one i32 recording argument");
+                        };
+                        match value {
+                            semantic_vocabulary::IntegerValue::Signed(value) => *value,
+                            other => panic!("signed recording argument, found {other:?}"),
+                        }
+                    })
+                    .collect();
+            }
+            other => panic!("mixed observation execution: {other:?}"),
+        }
+    }
+    panic!("mixed observation execution did not complete");
+}
+
+/// The terminal interpreter executes a mixed establishment: the roster binds
+/// the runtime common fields, then the payload, and each field reads back
+/// through its own route -- a common field without a `Case` step, a payload
+/// field through one.
+#[test]
+fn interpreted_mixed_establishment_reads_common_fields_and_payload() {
+    let checked = crate::front_end::checked_program(OBSERVED_MIXED_SOURCE);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(
+        terminal_production::TerminalProductionCustody::artifact_only(
+            &mut terminal_production::TerminalProductionTimings::default(),
+        ),
+    )
+    .map(|produced| produced.into_artifact())
+    .unwrap_or_else(|error| panic!("the mixed observation lowers: {error:?}"));
+    assert_eq!(
+        recorded_by_interpreter(artifact.semantic_bytes(), artifact.proof_bytes()),
+        vec![3, 50],
+        "the common `bonus`, then the `Treasure` payload `gold`"
+    );
+}
+
+/// Common and payload field identities are separate Terminal namespaces
+/// (`validation/structural/case.rs` matches a roster by position), so a
+/// verified module may number `gold` exactly like the common `consumed`.
+/// This producer numbers them apart; renumbering `gold` onto `consumed`'s
+/// id keeps the module verified, and the interpreter must still keep the two
+/// cells apart -- a runtime keyed by field id alone would read the Boolean
+/// `consumed` back as `gold`.
+#[test]
+fn interpreted_mixed_establishment_keeps_colliding_field_ids_apart() {
+    let checked = crate::front_end::checked_program(OBSERVED_MIXED_SOURCE);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("the mixed observation lowers");
+    let mut module = lowered.semantic_module.clone();
+    let event = module
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.identity.contains("Event"))
+        .expect("the mixed declaration");
+    let StructuralTypeShape::Mixed {
+        fields: common,
+        cases,
+    } = &mut event.shape
+    else {
+        panic!("Event lowers as a mixed shape");
+    };
+    let consumed = common
+        .iter()
+        .find(|field| field.identity.contains("consumed"))
+        .expect("the common `consumed` field")
+        .id;
+    let gold_declaration = cases
+        .iter_mut()
+        .flat_map(|case| &mut case.fields)
+        .find(|field| field.identity.contains("gold"))
+        .expect("the `gold` payload field");
+    let gold = gold_declaration.id;
+    assert_ne!(gold, consumed, "the producer numbers the namespaces apart");
+    gold_declaration.id = consumed;
+
+    // Every reference to `gold` names it by id beside a `Case` step (or as a
+    // payload binding), never on the common route; renumber exactly those.
+    let mut renumbered = 0;
+    for block in module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+    {
+        for operation in &mut block.operations {
+            match &mut operation.kind {
+                OperationKind::EstablishStructuralCase { fields, .. } => {
+                    for binding in fields.iter_mut().filter(|binding| binding.field == gold) {
+                        binding.field = consumed;
+                        renumbered += 1;
+                    }
+                }
+                OperationKind::IntegerStructuralField { path, field, .. }
+                    if *field == gold
+                        && matches!(
+                            path.last(),
+                            Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_))
+                        ) =>
+                {
+                    *field = consumed;
+                    renumbered += 1;
+                }
+                _ => {}
+            }
+        }
+        if let terminal_psi::Terminator::StructuralCase { cases, .. } = &mut block.terminator {
+            for field in cases
+                .iter_mut()
+                .flat_map(|case| &mut case.payload_fields)
+                .filter(|field| **field == gold)
+            {
+                *field = consumed;
+                renumbered += 1;
+            }
+        }
+    }
+    assert!(
+        renumbered >= 2,
+        "the establishment and the payload read both name `gold`"
+    );
+    terminal_verifier::verify_module(
+        &module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("overlapping common and payload ids verify");
+    let semantic = terminal_codec::encode_module(&module).expect("encode");
+    let proof =
+        terminal_codec::encode_proof_section(&module, &lowered.proof_bundle).expect("encode");
+    assert_eq!(
+        recorded_by_interpreter(&semantic, &proof),
+        vec![3, 50],
+        "`consumed` and `gold` keep their own cells"
+    );
+}

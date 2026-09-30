@@ -80,10 +80,7 @@ pub(crate) fn bind(
         // Key by runtime referent so aliases cannot provide conflicting contents.
         if values
             .insert(
-                StructuralScalarRuntimeField {
-                    parent,
-                    field: argument.field,
-                },
+                StructuralScalarRuntimeField::member(parent, argument.field),
                 argument.value,
             )
             .is_some()
@@ -121,7 +118,7 @@ pub(crate) fn bind(
         .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
         let mut parent = StructuralRuntimePlace::from(root);
         parent.path.extend(carrier.path);
-        if !values.contains_key(&StructuralScalarRuntimeField { parent, field }) {
+        if !values.contains_key(&StructuralScalarRuntimeField::member(parent, field)) {
             return Err(TerminalInterpretError::StructuralBooleanFieldMissing { source, field });
         }
     }
