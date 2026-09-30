@@ -168,8 +168,10 @@ pub(super) fn validate_copied_place(
     let Some(unwrapped) = validation::unwrapped_type_reference(&checked.typed, reference) else {
         return unsupported("copied place lost its leaf type");
     };
-    // A `&[T]` leaf's registry entry names its borrowed view carrier — the
-    // unwrapped referee's identity — while owned leaves keep their own.
+    // Storage identities may name the unwrapped carrier: a `&[T]` view uses
+    // its referee and an arithmetic-policy-qualified value uses its layout.
+    // Independently require the complete source and destination types to
+    // match; equal storage alone cannot erase policy or confer ownership.
     if checked.normalized_type_identity(leaf).as_str() != argument.type_identity
         && checked.normalized_type_identity(unwrapped).as_str() != argument.type_identity
         || checked.normalized_type_identity(leaf) != checked.normalized_type_identity(reference)

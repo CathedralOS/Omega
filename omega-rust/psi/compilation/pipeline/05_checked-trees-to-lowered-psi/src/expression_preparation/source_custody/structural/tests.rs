@@ -11,6 +11,73 @@ fn checked() -> CheckedTrees {
 }
 
 #[test]
+fn assignment_replay_rejects_erased_arithmetic_policy() {
+    let original = crate::front_end::checked_program(
+        "data Buffers {
+            source: [i32; 3] in Wrapping;
+            destination: [i32; 3] in Wrapping;
+        }
+        machine copy(buffers: &mut Buffers) {
+            buffers.destination = buffers.source;
+        }",
+    );
+    let (machine, state, _) = operation(&original);
+    let mut operation = original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("array assignment has a Unit plan")
+        .operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+            )
+        })
+        .expect("assignment establishes a copied array")
+        .clone();
+    validate(&original, machine, state, &operation).expect("exact assignment destination");
+    let (root_handle, root) = original
+        .facts
+        .values
+        .structural_values
+        .roots
+        .iter()
+        .next()
+        .expect("assignment value root");
+    let erased = validation::unwrapped_type_reference(&original.typed, root.type_reference)
+        .expect("array carrier beneath the policy");
+    assert_ne!(
+        original.normalized_type_identity(root.type_reference),
+        original.normalized_type_identity(erased),
+        "the negative control must change semantic type, not merely its handle"
+    );
+    let mut forged = original.clone();
+    forged
+        .facts
+        .values
+        .structural_values
+        .roots
+        .get_mut(root_handle)
+        .type_reference = erased;
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } = &mut operation
+    else {
+        panic!("expected structural value establishment");
+    };
+    result.type_identity = original.normalized_type_identity(erased).into_string();
+    let error = validate(&forged, machine, state, &operation)
+        .expect_err("internally matching forged identities cannot replace the authored type");
+    assert!(
+        error
+            .to_string()
+            .contains("substituted its owner or result type"),
+        "independent destination reconstruction must reject the substitution: {error}"
+    );
+}
+
+#[test]
 fn record_replay_rejects_swapped_same_carrier_fields_and_operands() {
     let original = crate::front_end::checked_program(
         "data Pair[copy] { first: u64; second: u64; }

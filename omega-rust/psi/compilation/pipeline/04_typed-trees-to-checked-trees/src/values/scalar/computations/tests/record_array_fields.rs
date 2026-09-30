@@ -178,3 +178,65 @@ machine clone(info: &Info) -> Info {
         "a projected array source copies its place instead of claiming a literal roster"
     );
 }
+
+#[test]
+fn array_assignment_retains_the_destination_arithmetic_policy() {
+    for array_type in ["[i32; 3] in Wrapping", "[[u16; 2]; 4] in Saturating"] {
+        let source = r#"
+data Buffers {
+    source: ARRAY;
+    destination: ARRAY;
+}
+machine copy(buffers: &mut Buffers) {
+    buffers.destination = buffers.source;
+}
+"#
+        .replace("ARRAY", array_type);
+        let checked = checked_source(&source, false);
+        let machine = &checked.machines()[0];
+        let state = &checked.machine_states(machine)[0];
+        let typed_trees::statement::StatementNode::Assignment(assignment) =
+            &checked.statement_table.statements(state.statement_nodes)[0]
+        else {
+            panic!("expected the authored array assignment");
+        };
+        let expected =
+            validation::declared_place_type_raw(&checked, machine, Some(state), assignment.target)
+                .expect("destination retains its declared array type");
+        let values = &checked.facts.values.structural_values;
+        let root = values
+            .root_for_expression(state.symbol, 0, assignment.value)
+            .expect("an array assignment plans the same copied value as a field initializer");
+        assert_eq!(
+            checked.normalized_type_identity(root.type_reference),
+            checked.normalized_type_identity(expected),
+            "structural value custody must not erase the destination's arithmetic policy"
+        );
+        let CheckedStructuralValueKind::CopiedStructuralPlace { source, leaf } =
+            &values.nodes.get(root.root).kind
+        else {
+            panic!("whole-array assignment must copy its exact source place");
+        };
+        assert_eq!(
+            checked.normalized_type_identity(*leaf),
+            checked.normalized_type_identity(expected),
+            "the source leaf retains its complete semantic type"
+        );
+        let carrier = validation::peel_arithmetic_policy(&checked, expected);
+        assert_eq!(
+            source.type_identity,
+            checked.normalized_type_identity(carrier).as_str(),
+            "the copy's physical source names the registered storage carrier"
+        );
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .structural_types
+                .iter()
+                .any(|declaration| declaration.identity == source.type_identity),
+            "the copy must rejoin an actual carrier declaration"
+        );
+    }
+}

@@ -396,10 +396,14 @@ fn resolve(
             }
             let contents = resolve(program, *base_type, arguments, requirement)?;
             let understood = rows.iter().all(|constraint| match constraint {
-                typed_trees::types::TypeConstraintNode::Range { .. }
-                | typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => {
+                typed_trees::types::TypeConstraintNode::Range { .. } => {
                     matches!(contents, ContentType::Scalar(_))
                 }
+                // Operation policy changes neither storage nor custody. The
+                // underlying contents have already been classified recursively;
+                // keeping their policy cannot grant loans or erase cleanup.
+                // Exact type correspondence remains the caller's obligation.
+                typed_trees::types::TypeConstraintNode::ArithmeticDomain(_) => true,
                 typed_trees::types::TypeConstraintNode::Domain(domain) => {
                     (matches!(
                         requirement,

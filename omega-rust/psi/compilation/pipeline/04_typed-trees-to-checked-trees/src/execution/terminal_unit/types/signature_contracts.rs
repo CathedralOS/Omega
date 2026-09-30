@@ -374,17 +374,15 @@ pub(in crate::execution::terminal_unit) fn parameter_qualifications(
                 base_type,
                 constraints,
             } => {
-                // An arithmetic-policy shell (`i32 in Wrapping`) carries no
-                // semantic-domain custody for a parameter to honor: the
-                // integer policy stays in the type identity while the plan
-                // peels to the underlying carrier.
-                if validation::is_arithmetic_policy_only_integer(program, type_reference) {
-                    type_reference = *base_type;
-                    continue;
-                }
                 for constraint in program.type_reference_table.constraints(*constraints) {
-                    let TypeConstraintNode::Domain(domain) = constraint else {
-                        return None;
+                    let domain = match constraint {
+                        // Arithmetic policy remains in the exact type identity,
+                        // but adds no semantic-domain obligation. This is true
+                        // for aggregate contents as well as scalar parameters;
+                        // any accompanying predicate keeps its own custody.
+                        TypeConstraintNode::ArithmeticDomain(_) => continue,
+                        TypeConstraintNode::Domain(domain) => domain,
+                        _ => return None,
                     };
                     if !domain.semantic_id.is_valid() {
                         return None;
