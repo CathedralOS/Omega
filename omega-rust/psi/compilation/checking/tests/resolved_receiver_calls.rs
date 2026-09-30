@@ -5,6 +5,8 @@
 //! declaration the call invokes, never a waiver of the caller's
 //! obligations.
 
+mod namespace_calls;
+
 fn rejects(source: &str, fragment: &str) {
     let diagnostics = validation::validate_program(&crate::front_end::typed_program(source))
         .expect_err("invalid resolved receiver call must reject");

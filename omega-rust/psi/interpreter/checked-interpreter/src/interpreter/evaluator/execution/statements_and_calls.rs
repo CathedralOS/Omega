@@ -505,47 +505,52 @@ impl<'program> Evaluator<'program> {
         if is_statically_harvested_build_declaration(call.target.as_str()) {
             return Ok(Value::Unit);
         }
-        if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
-            return Ok(value);
-        }
-        // Build behavior exclusions are EVALUATED selections: the executed
-        // call against the activation's root Build records the selection;
-        // a spelled call that never runs is not a selection.
-        if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {
-            return Ok(value);
-        }
-        if self
-            .try_build_facet_filesystem_statement(call, frame)?
-            .is_some()
-        {
-            return Ok(Value::Unit);
-        }
-        if self.try_build_output_include_source_statement(call, frame)? {
-            return Ok(Value::Unit);
-        }
-        if self.try_build_log_write_line_statement(call, frame)? {
-            return Ok(Value::Unit);
-        }
-        if self.try_build_product_entry_statement(call, frame)? {
-            return Ok(Value::Unit);
-        }
-        if self.try_build_product_schema_statement(call, frame)? {
-            return Ok(Value::Unit);
-        }
-        if self.try_build_product_provider_statement(call, frame)? {
-            return Ok(Value::Unit);
-        }
-        if self.try_build_output_obligation_statement(call, frame)? {
-            return Ok(Value::Unit);
-        }
-        if self.try_required_output_path_statement(call, frame)? {
-            return Ok(Value::Unit);
-        }
-        if self.try_product_type_schema_path_statement(call, frame)? {
-            return Ok(Value::Unit);
-        }
-        if self.try_product_provider_ref_path_statement(call, frame)? {
-            return Ok(Value::Unit);
+        // Activation facets require a runtime receiver. A declaration called
+        // `write` or `close` is not a facet merely because its leaf matches;
+        // let ordinary selected-target dispatch handle namespace calls below.
+        if !self.statement_receiver_is_namespace(call) {
+            if let Some(value) = self.try_provider_selection_statement(statement, call, frame)? {
+                return Ok(value);
+            }
+            // Build behavior exclusions are EVALUATED selections: the executed
+            // call against the activation's root Build records the selection;
+            // a spelled call that never runs is not a selection.
+            if let Some(value) = self.try_behavior_exclusion_statement(statement, call, frame)? {
+                return Ok(value);
+            }
+            if self
+                .try_build_facet_filesystem_statement(call, frame)?
+                .is_some()
+            {
+                return Ok(Value::Unit);
+            }
+            if self.try_build_output_include_source_statement(call, frame)? {
+                return Ok(Value::Unit);
+            }
+            if self.try_build_log_write_line_statement(call, frame)? {
+                return Ok(Value::Unit);
+            }
+            if self.try_build_product_entry_statement(call, frame)? {
+                return Ok(Value::Unit);
+            }
+            if self.try_build_product_schema_statement(call, frame)? {
+                return Ok(Value::Unit);
+            }
+            if self.try_build_product_provider_statement(call, frame)? {
+                return Ok(Value::Unit);
+            }
+            if self.try_build_output_obligation_statement(call, frame)? {
+                return Ok(Value::Unit);
+            }
+            if self.try_required_output_path_statement(call, frame)? {
+                return Ok(Value::Unit);
+            }
+            if self.try_product_type_schema_path_statement(call, frame)? {
+                return Ok(Value::Unit);
+            }
+            if self.try_product_provider_ref_path_statement(call, frame)? {
+                return Ok(Value::Unit);
+            }
         }
 
         // Host boundary call? (e.g. self.console.exit_process(70))
@@ -626,13 +631,7 @@ impl<'program> Evaluator<'program> {
         // unchanged while selecting a different entry symbol for each
         // application. Never reselect that machine by its display name or
         // mistake the namespace for a field on the caller's instance.
-        let receiver_starts_at_self = self
-            .program
-            .statement_table
-            .name_path_members(call.receiver)
-            .first()
-            .is_some_and(|member| member.is_self_receiver());
-        if !receiver_starts_at_self && self.is_declaration_namespace(call.receiver_symbol) {
+        if self.statement_receiver_is_namespace(call) {
             return self.resolve_namespace_call(call.target_symbol, target, frame);
         }
 
@@ -656,6 +655,16 @@ impl<'program> Evaluator<'program> {
             .machine_entry_state(machine)
             .ok_or_else(|| Halt::Unsupported(format!("call target `{target}` has no state")))?;
         Ok((machine, entry_state, frame.self_cell.clone()))
+    }
+
+    fn statement_receiver_is_namespace(&self, call: &TableCall) -> bool {
+        !self
+            .program
+            .statement_table
+            .name_path_members(call.receiver)
+            .first()
+            .is_some_and(|member| member.is_self_receiver())
+            && self.is_declaration_namespace(call.receiver_symbol)
     }
 
     /// Declaration namespaces are resolved symbols, not runtime places or

@@ -2,8 +2,8 @@
 //! state or boundary trait signature the receiver's type resolves to.
 
 use super::{
-    CallScope, boundary_trait_signature, declared_receiver_type_reference, generic_requirement,
-    machine_state_by_symbol, validate_call_arguments_handles,
+    CallScope, boundary_trait_signature, call_gates, declared_receiver_type_reference,
+    generic_requirement, machine_state_by_symbol, validate_call_arguments_handles,
     validate_call_arguments_handles_with_self_argument, validate_generic_bound_argument_types,
     validate_machine_call_type_parameter_bounds, validate_resolved_target_type_parameter_bounds,
     validate_result_use,
@@ -34,6 +34,22 @@ pub(super) fn validate_receiver_call(
     arguments: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // A namespace supplies no runtime receiver. Rejoin its resolved target
+    // before the legacy place/name ladder, which can see a different local or
+    // declaration sharing the namespace's leaf spelling. Operator declarations
+    // keep their separate signature validator; absence of an ordinary selected
+    // target is a rejection, never permission to search by name again.
+    if call_gates::receiver_is_declaration_namespace(scope, receiver_members) {
+        if !validate_resolved_receiver_call(scope, arguments, true, diagnostics)
+            && !call_gates::receiver_is_operator_namespace(scope, receiver_members, arguments.len())
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "qualified call `{}` has no resolved callable declaration",
+                scope.call.target,
+            )));
+        }
+        return;
+    }
     let CallScope {
         program,
         call,
@@ -224,30 +240,52 @@ pub(super) fn validate_receiver_call(
         return;
     }
 
+    validate_resolved_receiver_call(scope, arguments, false, diagnostics);
+}
+
+/// The exact target owns the call's signature. Namespace and runtime-place
+/// calls share these checks, but only a namespace supplies every parameter as
+/// an explicit argument while legacy instance calls bind their receiver.
+fn validate_resolved_receiver_call(
+    scope: &CallScope<'_>,
+    arguments: &[ExpressionHandle],
+    namespace: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let CallScope {
+        program,
+        call,
+        current_machine,
+        current_state,
+        symbols,
+        writable_roots,
+        value_environment,
+        ..
+    } = *scope;
     // Resolved-target rung (see the function doc): every receiver kind the
     // name ladder misses still resolved `call.target_symbol`. An exact
     // state target validates against its own machine and state; a boundary
     // parameter target rejoins its selected trait signature through the
-    // write-frame owner's exact receiver/symbol join. An unresolved target
-    // (invalid symbol) keeps the previous silence -- nothing here invents a
-    // callee.
+    // write-frame owner's exact receiver/symbol join. Return whether a
+    // declaration was found so namespace callers reject missing identity.
     if let Some((callee_machine, state)) = machine_state_by_symbol(program, call.target_symbol) {
+        if namespace
+            && callee_machine.attached_data_symbol.is_valid()
+            && call.receiver_symbol != callee_machine.attached_data_symbol
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "selected attached call `{}` does not belong to the receiver's exact data type",
+                call.target,
+            )));
+            return true;
+        }
         // A receiver that names a declaration rather than a runtime place
         // (`Receipt::ack(value)`, `Domain::content(&v)`) supplies the callee's
         // `self` parameter as an explicit argument, exactly as the lowering's
         // `explicit_self` rule does. A place receiver -- parameter, local,
         // field, or nested member path -- binds `self` through the receiver
         // itself, so `self` stays out of the argument correspondence.
-        let self_is_argument = matches!(
-            program.symbols.get(call.receiver_symbol).kind,
-            symbols::SymbolKind::BuiltinType
-                | symbols::SymbolKind::Data
-                | symbols::SymbolKind::Domain
-                | symbols::SymbolKind::Machine
-                | symbols::SymbolKind::Module
-                | symbols::SymbolKind::Trait
-                | symbols::SymbolKind::ConformanceParameter
-        );
+        let self_is_argument = namespace;
         validate_result_use(
             program,
             call,
@@ -280,7 +318,7 @@ pub(super) fn validate_receiver_call(
             self_is_argument,
             diagnostics,
         );
-        return;
+        return true;
     }
     if let Some(signature) = boundary_trait_signature(program, current_machine, call) {
         validate_result_use(
@@ -302,5 +340,7 @@ pub(super) fn validate_receiver_call(
             writable_roots,
             diagnostics,
         );
+        return true;
     }
+    false
 }
