@@ -10,6 +10,7 @@ mod attached_receiver_shapes;
 mod borrowed_view_returns;
 mod boundary_result_operands;
 mod binding_parameter_calls;
+mod byte_literal_equality;
 mod call_result_field_stores;
 pub(crate) mod calls;
 mod cleanup;

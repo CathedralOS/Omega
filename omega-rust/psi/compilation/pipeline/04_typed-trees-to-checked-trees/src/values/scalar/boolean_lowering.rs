@@ -228,13 +228,13 @@ pub(crate) fn lower_boolean_expression(
             {
                 return integer_comparison;
             }
-            // A bounded owned byte carrier compared against a byte-sequence
-            // literal has no scalar operand pair: content equality is the
-            // live-length observation plus each literal byte at its fixed
-            // index, evaluated left to right so the length dominates every
-            // indexed read.
+            // A byte carrier compared against a byte-sequence literal has no
+            // scalar operand pair: content equality is the live-length
+            // observation plus each literal byte at its fixed index,
+            // evaluated left to right so the length dominates every indexed
+            // read.
             if let Some(equality) =
-                bounded_carrier_literal_equality(program, binary, authored_parameters)
+                byte_carrier_literal_equality(program, binary, authored_parameters)
             {
                 return Some(if binary.operator == BinaryOperator::NotEqual {
                     CheckedBooleanExpression::Not(Box::new(equality))
@@ -304,11 +304,23 @@ pub(crate) fn lower_boolean_expression(
     }
 }
 
-/// `carrier == "literal"` on a bounded owned byte field admits no scalar
-/// operand pair: content equality is the live-length observation plus each
-/// literal byte at its fixed index. The fold keeps the length comparison
-/// leftmost so short-circuit evaluation dominates every indexed read.
-fn bounded_carrier_literal_equality(
+/// `carrier == "literal"` admits no scalar operand pair: content equality is
+/// the carrier's live length plus each literal byte at its fixed index. The
+/// fold keeps the length comparison leftmost so short-circuit evaluation
+/// dominates every indexed read, and each read's `index < length` obligation
+/// is the true-path fact of that comparison.
+///
+/// Two carrier families have a live length and byte reads: a bounded owned
+/// byte field (`[u8; N] in Utf8`), whose length is stored beside its bytes,
+/// and a readable borrowed byte view (`&[u8]`, `&mut [u8]`, with or without
+/// a domain such as `in Utf8`), whose length is its descriptor's extent. A
+/// view is compared through the same observations wherever its storage root
+/// is: a whole view parameter, a view field below a structural parameter, or
+/// an immutable view local an earlier statement established. A write-only
+/// view grants no observation of its bytes and a borrowed fixed array has no
+/// live length, so both decline, as do element views: they count elements,
+/// not the literal's bytes.
+fn byte_carrier_literal_equality(
     program: &TypedTrees,
     binary: &typed_trees::expression::TableBinaryExpression,
     authored_parameters: &[StateParameter],
@@ -317,24 +329,15 @@ fn bounded_carrier_literal_equality(
         let ExpressionNode::String(bytes) = program.expression_table.expression(literal) else {
             continue;
         };
-        let (parameter_position, path, type_reference) =
-            structural_fields::structural_parameter_place(program, authored_parameters, carrier)?;
-        if !matches!(
-            crate::execution::terminal_unit::types::byte_sequence_carrier(
-                program,
-                type_reference,
-                &[],
-            ),
-            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-        ) {
+        let Some((root, path)) =
+            literal_comparable_byte_carrier(program, authored_parameters, carrier)
+        else {
             continue;
-        }
+        };
         let mut equality = CheckedBooleanExpression::IntegerComparison {
             kind: CheckedIntegerComparisonKind::Equal,
             left: Box::new(CheckedScalarExpression::StructuralParameterByteLength {
-                root: checked_trees::CheckedStorageRoot::Parameter {
-                    index: parameter_position,
-                },
+                root,
                 path: path.clone(),
             }),
             right: Box::new(integer_literal(
@@ -344,9 +347,7 @@ fn bounded_carrier_literal_equality(
         };
         for (index, byte) in bytes.iter().enumerate() {
             let read = CheckedScalarExpression::StructuralParameterIndexedRead {
-                root: checked_trees::CheckedStorageRoot::Parameter {
-                    index: parameter_position,
-                },
+                root,
                 path: path.clone(),
                 index: Box::new(integer_literal(
                     u64::try_from(index).ok()?,
@@ -369,6 +370,67 @@ fn bounded_carrier_literal_equality(
         return Some(equality);
     }
     None
+}
+
+/// The storage root and path of a byte carrier whose live length and bytes
+/// a literal comparison may observe, or `None` when `carrier` names no such
+/// place.
+fn literal_comparable_byte_carrier(
+    program: &TypedTrees,
+    authored_parameters: &[StateParameter],
+    carrier: ExpressionHandle,
+) -> Option<(
+    checked_trees::CheckedStorageRoot,
+    Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+)> {
+    if let Some((parameter_position, path, type_reference)) =
+        structural_fields::structural_parameter_place(program, authored_parameters, carrier)
+    {
+        return literal_comparable_byte_carrier_type(program, type_reference).then_some((
+            checked_trees::CheckedStorageRoot::Parameter {
+                index: parameter_position,
+            },
+            path,
+        ));
+    }
+    // A view local is observed whole: its root never carries a projection,
+    // and a bounded owner is never a view local.
+    let (symbol, type_reference) =
+        structural_fields::view_local_root(program, authored_parameters, carrier)?;
+    (literal_comparable_byte_carrier_type(program, type_reference)
+        && matches!(
+            crate::execution::terminal_unit::types::byte_sequence_carrier(
+                program,
+                type_reference,
+                &[],
+            ),
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. })
+        ))
+    .then_some((
+        checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+        Vec::new(),
+    ))
+}
+
+/// Whether a carrier of `type_reference` has a live byte length and readable
+/// bytes: a bounded owned byte buffer, or a shared or mutable borrowed byte
+/// view.
+fn literal_comparable_byte_carrier_type(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    matches!(
+        crate::execution::terminal_unit::types::byte_sequence_carrier(program, type_reference, &[]),
+        Some(
+            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                | checked_trees::CheckedByteSequenceCarrier::BorrowedView {
+                    access: Some(
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                            | checked_trees::CheckedStructuralAccess::MutableBorrow
+                    ),
+                }
+        )
+    )
 }
 
 fn integer_literal(value: u64, primitive_type: PrimitiveType) -> Option<CheckedScalarExpression> {
