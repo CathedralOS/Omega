@@ -848,6 +848,23 @@ pub(crate) fn validate_transfer_shape(
                 type_ids,
                 structural_types,
             );
+            // A whole bounded byte owner lends its carrier to a formal of the
+            // same carrier. Result-use validation joined the formal's domains
+            // to the local's declaration; Terminal replays the byte predicates
+            // from the owner's own establishment rather than this plan.
+            let bounded_owner_borrow = argument.path.is_empty()
+                && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                && target.projected_qualifications.is_empty()
+                && !target.is_self
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == structural_type
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                });
             // A live result binding lends one of its record's scalar leaves
             // through an exclusive borrow; the projected path resolves to the
             // same plain leaf shape the argument presents.
@@ -904,7 +921,7 @@ pub(crate) fn validate_transfer_shape(
                     && !case_receiver_borrow
                     && !(argument.access == checked_trees::CheckedStructuralAccess::Owned
                         && argument.path.is_empty()))
-                || !target.qualifications.is_empty()
+                || (!target.qualifications.is_empty() && !bounded_owner_borrow)
                 || target.fused_service_erasure.is_some()
                 || transfers.iter().any(|transfer| {
                     arguments

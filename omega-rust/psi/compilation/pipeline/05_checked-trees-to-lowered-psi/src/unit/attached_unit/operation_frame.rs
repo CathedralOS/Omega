@@ -1494,6 +1494,22 @@ impl OperationFrame<'_, '_> {
             .require_next(result, "literal local binding is not dense")?;
         super::literal_locals::validate(self.checked, self.state, operation)?;
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
+        if self
+            .structural_types
+            .declarations()
+            .iter()
+            .any(|declaration| {
+                declaration.id == structural_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    )
+            })
+        {
+            return self.establish_owned_byte_sequence_literal(result, bytes, structural_type);
+        }
         if !self
             .structural_types
             .declarations()
@@ -1548,6 +1564,46 @@ impl OperationFrame<'_, '_> {
                 structural_type,
                 declaration_ordinal,
             },
+            self.structural_types.declarations(),
+            self.operations,
+        )
+    }
+
+    /// Bind an owned bounded byte local to fresh backing copied from its
+    /// literal. The concatenation result is the local's own place: later
+    /// loans, lengths and reads name it exactly as they name any owned result.
+    fn establish_owned_byte_sequence_literal(
+        &mut self,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        bytes: &[u8],
+        structural_type: semantic_vocabulary::StructuralTypeId,
+    ) -> Result<(), LoweringError> {
+        // Only a roster this body owns may gain the generated literal-view
+        // carrier; a published roster must already hold it.
+        if let StructuralTypeRoster::Owned(types) = &mut self.structural_types {
+            crate::emission::structural_byte_sequence_store::literal_view_type(types)?;
+        }
+        let (declaration, produced) =
+            crate::emission::structural_byte_sequence_store::emit_owned_literal(
+                bytes,
+                structural_type,
+                self.structural_types.declarations(),
+                self.private_places.literals(),
+                self.next_place,
+                self.next_value,
+                &mut self.calls.next_obligation_identity,
+                self.operations,
+            )?;
+        match &mut self.results {
+            StructuralResults::Dense(roster) => roster.push((declaration, false)),
+            StructuralResults::StateGraph { places, .. } => places.push(declaration),
+        }
+        self.evaluation.establish_structural_result(
+            self.checked,
+            self.state,
+            result,
+            true,
+            produced,
             self.structural_types.declarations(),
             self.operations,
         )

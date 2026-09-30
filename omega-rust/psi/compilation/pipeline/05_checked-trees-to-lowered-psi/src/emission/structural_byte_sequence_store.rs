@@ -341,12 +341,14 @@ pub(crate) fn emit(
     let mut emitter = ValueEmitter {
         plan: &store.value,
         parameters,
-        structural_types,
-        places: literal_places,
-        next_place,
-        next_value,
-        next_obligation,
-        operations,
+        emission: ByteEmission {
+            structural_types,
+            places: literal_places,
+            next_place,
+            next_value,
+            next_obligation,
+            operations,
+        },
     };
     let (operand, capacity) = emitter.emit(store.value.root, 0)?;
     let (source, length) = match operand {
@@ -356,7 +358,7 @@ pub(crate) fn emit(
             // existing two-span materialization with an empty second span
             // snapshots its live bytes into fresh owned backing before any
             // destination write, including a write through an alias.
-            let (empty, _) = emitter.literal(&[])?;
+            let (empty, _) = emitter.emission.literal(&[])?;
             emitter.owned(field, empty, capacity)?
         }
     };
@@ -385,9 +387,63 @@ pub(crate) fn emit(
     }
 }
 
-struct ValueEmitter<'input> {
-    plan: &'input CheckedByteSequenceValuePlan,
-    parameters: &'input [(u32, StructuralParameterDeclaration)],
+/// Establish an owned bounded byte local from a quoted literal.
+///
+/// `let text: [u8; 8] in Utf8 = "150";` owns capacity 8 and live length 3
+/// (wiki/spec/language/domains.md, "Byte containers and encoding domains").
+/// The octets are copied, not lent from image storage: the literal view and
+/// an empty view concatenate into fresh backing of the local's declared
+/// carrier, exactly the materialization a bounded field store uses. The
+/// concatenation's capacity obligation proves the literal fits; Terminal
+/// replays the local's byte predicates from the literal operand.
+///
+/// Returns the result place's declaration and the established result. The
+/// caller publishes the declaration in its own result roster.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_owned_literal(
+    bytes: &[u8],
+    structural_type: StructuralTypeId,
+    structural_types: &[StructuralTypeDeclaration],
+    literal_places: &mut Vec<StructuralPlaceDeclaration>,
+    next_place: &mut u64,
+    next_value: &mut u64,
+    next_obligation: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<
+    (
+        StructuralPlaceDeclaration,
+        terminal_psi::StructuralOperationResult,
+    ),
+    LoweringError,
+> {
+    let Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+        capacity,
+    })) = structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+        .map(|declaration| declaration.shape.clone())
+    else {
+        return unsupported("owned literal local carrier is not a bounded byte owner");
+    };
+    if u64::try_from(bytes.len()).map_or(true, |length| length > capacity) {
+        return unsupported("owned literal local exceeds its declared capacity");
+    }
+    let mut emission = ByteEmission {
+        structural_types,
+        places: literal_places,
+        next_place,
+        next_value,
+        next_obligation,
+        operations,
+    };
+    let (literal, _) = emission.literal(bytes)?;
+    let (empty, _) = emission.literal(&[])?;
+    emission.concatenate(literal, empty, structural_type)
+}
+
+/// The operation, place and value counters one byte materialization emits
+/// into. Literal views and owned concatenations are its only producers.
+struct ByteEmission<'input> {
     structural_types: &'input [StructuralTypeDeclaration],
     places: &'input mut Vec<StructuralPlaceDeclaration>,
     next_place: &'input mut u64,
@@ -396,7 +452,7 @@ struct ValueEmitter<'input> {
     operations: &'input mut OperationBuffer,
 }
 
-impl ValueEmitter<'_> {
+impl ByteEmission<'_> {
     fn length(
         &mut self,
         kind: OperationKind,
@@ -446,6 +502,62 @@ impl ValueEmitter<'_> {
         Ok((ByteSequenceOperand::Whole { source, length }, capacity))
     }
 
+    /// Materialize `left` then `right` into fresh owned backing of
+    /// `structural_type`. The result place's declaration is returned rather
+    /// than published: a store's temporary and a local binding publish it in
+    /// different rosters.
+    fn concatenate(
+        &mut self,
+        left: ByteSequenceOperand,
+        right: ByteSequenceOperand,
+        structural_type: StructuralTypeId,
+    ) -> Result<
+        (
+            StructuralPlaceDeclaration,
+            terminal_psi::StructuralOperationResult,
+        ),
+        LoweringError,
+    > {
+        let source = place_id(allocate_dense(self.next_place)?);
+        let id = self.operations.allocate();
+        let declaration = StructuralPlaceDeclaration {
+            id: source,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id,
+                structural_type,
+            },
+        };
+        let result = terminal_psi::StructuralOperationResult {
+            place: source,
+            structural_type,
+            multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        };
+        self.operations.push(Operation {
+            id,
+            static_reach_binding: None,
+            suspension_crossing: None,
+            result: OperationResult::Structural(result.clone()),
+            kind: OperationKind::EstablishByteSequenceConcatenation {
+                left,
+                right,
+                capacity_obligation: obligation_id(allocate_dense(self.next_obligation)?),
+            },
+        });
+        Ok((declaration, result))
+    }
+}
+
+struct ValueEmitter<'input> {
+    plan: &'input CheckedByteSequenceValuePlan,
+    parameters: &'input [(u32, StructuralParameterDeclaration)],
+    emission: ByteEmission<'input>,
+}
+
+impl ValueEmitter<'_> {
     fn owned(
         &mut self,
         left: ByteSequenceOperand,
@@ -454,6 +566,7 @@ impl ValueEmitter<'_> {
     ) -> Result<(semantic_vocabulary::PlaceId, semantic_vocabulary::ValueId), LoweringError> {
         let identity = format!("compiler(byte-sequence-owned:{capacity})");
         let structural_type = self
+            .emission
             .structural_types
             .iter()
             .find(|candidate| {
@@ -467,36 +580,12 @@ impl ValueEmitter<'_> {
                 "owned byte carrier absent from shared catalog",
             ))?
             .id;
-        let source = place_id(allocate_dense(self.next_place)?);
-        let id = self.operations.allocate();
-        self.places.push(StructuralPlaceDeclaration {
-            id: source,
-            kind: StructuralPlaceKind::OperationResult {
-                producer: id,
-                structural_type,
-            },
-        });
-        self.operations.push(Operation {
-            id,
-            static_reach_binding: None,
-            suspension_crossing: None,
-            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                place: source,
-                structural_type,
-                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                qualification_establishments: Vec::new(),
-                claims: Vec::new(),
-            }),
-            kind: OperationKind::EstablishByteSequenceConcatenation {
-                left,
-                right,
-                capacity_obligation: obligation_id(allocate_dense(self.next_obligation)?),
-            },
-        });
-        let length = self.length(OperationKind::ByteSequenceLength { source })?;
-        Ok((source, length))
+        let (declaration, result) = self.emission.concatenate(left, right, structural_type)?;
+        self.emission.places.push(declaration);
+        let length = self.emission.length(OperationKind::ByteSequenceLength {
+            source: result.place,
+        })?;
+        Ok((result.place, length))
     }
 
     fn emit(
@@ -508,7 +597,7 @@ impl ValueEmitter<'_> {
             return unsupported("byte value plan has an invalid child");
         }
         match self.plan.nodes.get(node) {
-            ByteValue::Literal(bytes) => self.literal(bytes),
+            ByteValue::Literal(bytes) => self.emission.literal(bytes),
             ByteValue::Field {
                 parameter_position,
                 carrier_path,
@@ -534,7 +623,7 @@ impl ValueEmitter<'_> {
                         parameter.structural_type,
                         carrier_path,
                         field_identity,
-                        self.structural_types,
+                        self.emission.structural_types,
                     )?;
                 if field.field_type.byte_sequence_carrier()
                     != Some(terminal_psi::ByteSequenceCarrier::BoundedOwned {
@@ -551,11 +640,13 @@ impl ValueEmitter<'_> {
                 let field = field.id;
                 // Observe at this operand's evaluation point. Later effects cannot
                 // retroactively supply this source's extent or content custody.
-                let length = self.length(OperationKind::StructuralByteSequenceFieldLength {
-                    source: source.place,
-                    path,
-                    field,
-                })?;
+                let length =
+                    self.emission
+                        .length(OperationKind::StructuralByteSequenceFieldLength {
+                            source: source.place,
+                            path,
+                            field,
+                        })?;
                 Ok((
                     ByteSequenceOperand::Field {
                         source,

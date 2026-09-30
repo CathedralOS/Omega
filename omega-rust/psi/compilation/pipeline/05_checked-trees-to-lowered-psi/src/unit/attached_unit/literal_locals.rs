@@ -1,6 +1,13 @@
 //! A literal local establishes fresh immutable byte storage at its authored
 //! declaration. Replay joins the payload and view type before any storage or
 //! local binding is published; no caller's parameter lends it authority.
+//!
+//! Two carriers qualify. A shared byte view (`let s: &[u8] = "ab";`) lends the
+//! literal's image storage. A bounded owner (`let s: [u8; 8] in Utf8 = "ab";`)
+//! owns its capacity and a live length: a domain-qualified fixed byte array is
+//! a bounded carrier, never a zero-filled raw array
+//! (wiki/spec/language/domains.md, "Byte containers and encoding domains").
+//! A raw `[u8; N]` without a domain keeps its exact-length rule and is refused.
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
@@ -33,6 +40,17 @@ pub(crate) fn validate(
         return unsupported("literal local changed its binding custody");
     }
     let reference = super::parameters::structural_carrier_type(checked, local.type_reference)?;
+    if let Some(capacity) =
+        validation::bounded_byte_buffer_capacity(&checked.typed, local.type_reference)
+    {
+        if bytes.len() > capacity
+            || checked.normalized_type_identity(reference).as_str() != result.type_identity
+            || !matches!(checked.expression_table.expression(local.initial_value), checked_trees::expression::ExpressionNode::String(authored) if authored.as_ref() == bytes.as_slice())
+        {
+            return unsupported("owned literal local changed its authored bytes or carrier");
+        }
+        return Ok(());
+    }
     let checked_trees::types::TypeReferenceNode::Reference {
         referee,
         access: language_semantics::ReferenceAccess::Shared,
