@@ -310,6 +310,19 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         root: crate::CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,
     },
+    /// Authored byte-sequence literal supplied directly to a borrowed
+    /// `&[u8]`-shaped parameter. The literal has no custody root: the edge
+    /// establishes the octets into immutable storage the target parameter
+    /// reads, with the parameter's declared domains as its evidence.
+    ByteSequenceLiteral {
+        bytes: Vec<u8>,
+    },
+    /// The machine's own receiver, claimed by a target state that declares
+    /// `self` from a source state that did not. A self-less source never
+    /// surrendered the receiver: it rides the machine ambiently and keeps
+    /// its entry place, so the edge forwards the machine's receiver
+    /// descriptor rather than a source parameter.
+    MachineReceiver,
     /// A fresh composite argument with no prior custody root: an inline
     /// record, case, or fixed-array literal supplied directly to the
     /// successor. `value` is the checked structural construction the edge

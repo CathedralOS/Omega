@@ -290,15 +290,24 @@ impl StateGraphEmission<'_, '_> {
                 .find(|(_, (parameter, _))| parameter.position as usize == argument_position)
             {
                 if target_parameter.is_self {
-                    let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
-                        index,
-                    } = transfer.source
-                    else {
-                        return unsupported("Unit graph receiver cannot be rebound");
+                    // A carried `self` names its source parameter's place;
+                    // a self-less source forwards the machine's ambient
+                    // receiver — the entry place itself in either shape.
+                    let source_place = match transfer.source {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
+                            index,
+                        } => state_parameters
+                            .get(index as usize)
+                            .map(|parameter| parameter.place),
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
+                            self.parameters
+                                .iter()
+                                .find(|parameter| parameter.is_self)
+                                .map(|parameter| parameter.place)
+                        }
+                        _ => return unsupported("Unit graph receiver cannot be rebound"),
                     };
-                    if state_parameters
-                        .get(index as usize)
-                        .map(|parameter| parameter.place)
+                    if source_place
                         != self
                             .parameters
                             .iter()
@@ -523,6 +532,63 @@ impl StateGraphEmission<'_, '_> {
                                 target_parameter, destination, operations,
                             )?);
                             destination
+                        }
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
+                            ref bytes,
+                        } => {
+                            // An authored literal carries no custody root:
+                            // the edge establishes the octets into immutable
+                            // literal storage the target's shared byte view
+                            // reads — the establishment a byte-literal call
+                            // argument plans, with the parameter's declared
+                            // domains as its membership evidence.
+                            let destination =
+                                place_id(allocate_dense(&mut self.catalogs.next_place)?);
+                            let structural_type = crate::terminal_identities::lookup_type_id(
+                                &self.catalogs.type_ids,
+                                &target_parameter.type_identity,
+                            )?;
+                            let declaration_ordinal =
+                                crate::emission::next_byte_sequence_literal_ordinal(
+                                    &self.catalogs.temporary_places,
+                                )?;
+                            self.catalogs.temporary_places.push(
+                                StructuralPlaceDeclaration {
+                                    id: destination,
+                                    kind: StructuralPlaceKind::ByteSequenceLiteral {
+                                        declaration_ordinal,
+                                        structural_type,
+                                    },
+                                },
+                            );
+                            let qualifications = target_parameter
+                                .qualifications
+                                .iter()
+                                .map(|domain| {
+                                    crate::terminal_identities::lookup_domain_id(
+                                        &self.catalogs.domain_ids,
+                                        *domain,
+                                    )
+                                })
+                                .collect::<Result<Vec<_>, _>>()?;
+                            let producer = operations.allocate();
+                            operations.push(Operation {
+                                static_reach_binding: None,
+                                suspension_crossing: None,
+                                id: producer,
+                                result: OperationResult::Unit,
+                                kind: OperationKind::EstablishByteSequenceLiteral {
+                                    destination,
+                                    bytes: bytes.clone(),
+                                    qualifications,
+                                },
+                            });
+                            destination
+                        }
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
+                            return unsupported(
+                                "Unit graph machine receiver has no argument place",
+                            );
                         }
                     };
                 // Shared loan subjects keep their backing local's storage
