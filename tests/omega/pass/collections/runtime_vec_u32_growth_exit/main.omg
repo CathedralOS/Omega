@@ -69,45 +69,45 @@ machine Main::main(&mut self) reaches Console {
     self.v.live = 0;
     self.v.rung = 0;
     self.v.len = 0;
-    let r4a: Request = self.pool.request4();
-    let opened_e: u64 = self.v.open4(r4a, &mut self.eb);
+    let r4a: Request = Pool::request4(&mut self.pool);
+    let opened_e: u64 = Vec::open4(&mut self.v, r4a, &mut self.eb);
     self.v.drain4(&mut self.eb, &mut self.out4);
-    self.pool.release4();
+    Pool::release4(&mut self.pool);
 
     // ---- main lifecycle: open at rung 4 over caller-supplied b4 ----
-    let r4b: Request = self.pool.request4();
-    let opened_v: u64 = self.v.open4(r4b, &mut self.b4);
-    self.v.push4(&mut self.b4, 0, 1);
-    self.v.push4(&mut self.b4, 1, 2);
-    self.v.push4(&mut self.b4, 2, 3);
-    self.v.push4(&mut self.b4, 3, 4);
+    let r4b: Request = Pool::request4(&mut self.pool);
+    let opened_v: u64 = Vec::open4(&mut self.v, r4b, &mut self.b4);
+    Vec::push4(&mut self.v, &mut self.b4, 0, 1);
+    Vec::push4(&mut self.v, &mut self.b4, 1, 2);
+    Vec::push4(&mut self.v, &mut self.b4, 2, 3);
+    Vec::push4(&mut self.v, &mut self.b4, 3, 4);
 
     // first growth: 4 -> 8 through the pool's grant
-    let r8: Request = self.pool.request8();
-    let moved1: u64 = self.v.grow4to8(&mut self.b4, &mut self.b8, r8);
-    self.pool.release4();
-    self.v.push8(&mut self.b8, 4, 5);
-    self.v.push8(&mut self.b8, 5, 6);
-    self.v.push8(&mut self.b8, 6, 7);
-    self.v.push8(&mut self.b8, 7, 8);
+    let r8: Request = Pool::request8(&mut self.pool);
+    let moved1: u64 = Vec::grow4to8(&mut self.v, &mut self.b4, &mut self.b8, r8);
+    Pool::release4(&mut self.pool);
+    Vec::push8(&mut self.v, &mut self.b8, 4, 5);
+    Vec::push8(&mut self.v, &mut self.b8, 5, 6);
+    Vec::push8(&mut self.v, &mut self.b8, 6, 7);
+    Vec::push8(&mut self.v, &mut self.b8, 7, 8);
 
     // second growth: 8 -> 16 through the pool's grant
-    let r16: Request = self.pool.request16();
-    let moved2: u64 = self.v.grow8to16(&mut self.b8, &mut self.b16, r16);
-    self.pool.release8();
-    self.v.push16(&mut self.b16, 8, 9);
-    self.v.push16(&mut self.b16, 9, 10);
+    let r16: Request = Pool::request16(&mut self.pool);
+    let moved2: u64 = Vec::grow8to16(&mut self.v, &mut self.b8, &mut self.b16, r16);
+    Pool::release8(&mut self.pool);
+    Vec::push16(&mut self.v, &mut self.b16, 8, 9);
+    Vec::push16(&mut self.v, &mut self.b16, 9, 10);
 
     // allocation failure: the 16-rung supply is exhausted, so this
     // request is denied and grow8to16 must preserve contents, custody,
     // and the caller's spare store untouched.
-    let r16b: Request = self.pool.request16();
-    let unmoved: u64 = self.v.grow8to16(&mut self.b8, &mut self.spare16, r16b);
+    let r16b: Request = Pool::request16(&mut self.pool);
+    let unmoved: u64 = Vec::grow8to16(&mut self.v, &mut self.b8, &mut self.spare16, r16b);
 
     // explicit backing return: drain the resident 16-rung store back to
     // caller-owned out16, then release the slot and close the handle.
     self.v.drain16(&mut self.b16, &mut self.out16);
-    self.pool.release16();
+    Pool::release16(&mut self.pool);
     let v_len: u64 = self.v.len;
     let v_live: u64 = self.v.live;
     let v_rung: u64 = self.v.rung;
