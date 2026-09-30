@@ -1540,14 +1540,26 @@ impl Builder<'_, '_> {
         else {
             return None;
         };
-        if !validation::has_plain_owned_contents_with_numeric_constraints(self.program, expected)
-            && !validation::has_cleanup_owned_contents(self.program, expected)
-            && !validation::has_linear_owned_contents(self.program, expected)
-            && !validation::reference_result_custody::is_reference_record(self.program, expected)
-            && !crate::execution::terminal_unit::types::record_with_owned_or_shared_view_fields(
-                self.program,
-                expected,
-            )
+        let plain_contents = |reference| {
+            validation::has_plain_owned_contents_with_numeric_constraints(self.program, reference)
+                || validation::has_cleanup_owned_contents(self.program, reference)
+                || validation::has_linear_owned_contents(self.program, reference)
+                || validation::reference_result_custody::is_reference_record(
+                    self.program,
+                    reference,
+                )
+                || crate::execution::terminal_unit::types::record_with_owned_or_shared_view_fields(
+                    self.program,
+                    reference,
+                )
+        };
+        // A custody domain on the declared type (`Region in Owned`) qualifies
+        // the binding, not the record's storage: the shape question is about
+        // the underlying record. Domain-qualified storage that is not a plain
+        // owned shape still refuses on the unwrapped check.
+        if !plain_contents(expected)
+            && !validation::unwrapped_type_reference(self.program, expected)
+                .is_some_and(|unwrapped| unwrapped != expected && plain_contents(unwrapped))
         {
             return None;
         }

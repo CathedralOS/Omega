@@ -31,16 +31,18 @@ fn local_bound_receivers_plan_but_stop_at_named_source_custody_rules() {
     // next repair lands against it rather than against a missing plan. Since
     // 632ecf27347 a linear local moves whole through the structural result-use
     // gate like an affine one, so each linear row stops at the next source
-    // custody rule: structural construction custody has no linear-contents arm
-    // yet, and a receiver alias bound from a linear call result has no
-    // admitted call-result source.
+    // custody rule: structural construction custody now carries a
+    // linear-contents arm, so a whole linear local reaches the no-code
+    // ownership replayer, which replays affine locals only; a receiver alias
+    // bound from a linear call result still has no admitted call-result
+    // source.
     for (label, source, expected) in [
         (
             "whole linear local move",
             format!(
                 "{RECEIPT}machine run(issued: Receipt) -> i32 {{ let forwarded: Receipt = issued; forwarded.ack(); 0 }}"
             ),
-            "structural construction substituted its owner or result type",
+            "structural local changed its whole no-code ownership provenance",
         ),
         (
             "linear call result bound by a local",

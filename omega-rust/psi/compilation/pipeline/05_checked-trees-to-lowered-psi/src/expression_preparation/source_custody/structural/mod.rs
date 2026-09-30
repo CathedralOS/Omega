@@ -180,6 +180,10 @@ pub(crate) fn validate(
         || expected_multiplicity != result.multiplicity
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
             || validation::has_cleanup_owned_contents(&checked.typed, carrier)
+            // A linear record is an owned construction too: its disposal is
+            // the binding's terminal obligation, exactly as stage 04's
+            // record-value gate admits it.
+            || validation::has_linear_owned_contents(&checked.typed, carrier)
             // A construction, like stage 04's constructed-value binding, may
             // carry scalar members under an exact-interval domain; each member's
             // range obligation proves it.
