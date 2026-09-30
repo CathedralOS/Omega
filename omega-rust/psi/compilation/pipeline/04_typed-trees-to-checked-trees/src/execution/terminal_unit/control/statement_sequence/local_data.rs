@@ -10,15 +10,14 @@
 //! establish their binding directly. What remains is a call initializer:
 //! its result binding goes back to the sequence, which plans the call.
 use super::{
-    CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
+    CheckFacts, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, ExpressionNode,
     LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
-    TypeReferenceNode, TypedTrees, checked_boolean_contains_short_circuit,
-    checked_structural_result_type, consume_results, consume_value_places,
-    is_record_pattern_marker, retain_selected_sources, scalar_computation_local_at,
-    structural_operands,
+    TypeReferenceNode, TypedTrees, checked_structural_result_type, consume_results,
+    consume_value_places, is_record_pattern_marker, retain_selected_sources,
+    scalar_computation_local_at, structural_operands,
 };
 
 /// The sequence state a `let` statement reads and extends.
@@ -480,35 +479,25 @@ pub(super) fn plan(
             ) {
                 return None;
             }
-            local_phase(
-                "statement sequence: local data: mutable primitive local: storage initializer",
-            );
-            let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
-                state.symbol,
+            // A call or ordered selection initializes storage through its
+            // retained computation, exactly as a pure value does: the local
+            // is still established at its own declaration.
+            let value = super::storage_initializer::value(
+                program,
+                facts,
+                machine.symbol,
+                state,
                 statement_index,
-                CheckedScalarExpressionRole::StorageInitializer,
+                local,
+                primitive_type,
+                trace,
             )?;
-            if binding.expression != local.initial_value
-                || binding.destination != local.symbol
-                || crate::values::scalar_expression_type(value) != Some(primitive_type)
-                || !super::super::super::structural_scalar_store::scalar_custody_is_exact(
-                    program,
-                    facts,
-                    state,
-                    binding,
-                    value,
-                    primitive_type,
-                )
-                || matches!(value, CheckedScalarExpression::Boolean(expression) if checked_boolean_contains_short_circuit(expression))
-            {
-                return None;
-            }
             operations.push(CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
                 statement_index,
                 symbol: local.symbol,
                 type_identity: shapes.add_type(local.type_reference, binders, &[])?,
                 primitive_type,
-                value: value.clone(),
+                value,
             });
             return Some(LocalPlan::Planned);
         }

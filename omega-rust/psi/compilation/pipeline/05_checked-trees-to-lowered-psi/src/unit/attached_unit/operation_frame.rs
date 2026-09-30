@@ -119,7 +119,8 @@ pub(super) struct OperationFrame<'f, 'c> {
     pub(super) structural_types: StructuralTypeRoster<'f>,
     pub(super) type_ids: &'f [(String, StructuralTypeId)],
     pub(super) service_ids: &'f [(ServiceReachId, ServiceId)],
-    /// Established primitive referents; a composed state establishes none.
+    /// Primitive referents the route has established so far; each route
+    /// keeps its own roster of `establish_primitive_local` results.
     pub(super) primitive_locals: &'f [PrimitiveLocal],
     pub(super) results: StructuralResults<'f>,
     pub(super) private_places: PrivatePlaces<'f>,

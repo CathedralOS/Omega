@@ -1245,7 +1245,12 @@ impl MachineEmission<'_> {
                 return self.emit_call_through_frame(operation, step);
             }
             CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. } => {
-                self.establish_primitive_local(operation, &step)?
+                let local = self
+                    .frame(step.source_value_count)
+                    .establish_primitive_local(operation)?;
+                self.next_call_obligation = self.scalar_calls.next_obligation_identity;
+                self.primitive_local_places.push(local);
+                return Ok(());
             }
             CheckedUnitEffectOperationPlan::EstablishReference { .. } => {
                 self.establish_reference(operation)?

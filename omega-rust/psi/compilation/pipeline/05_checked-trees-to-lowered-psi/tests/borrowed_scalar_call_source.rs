@@ -170,7 +170,7 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
             panic!("second primitive declaration");
         };
         let checked_trees::CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
-            value: initializer,
+            value: checked_trees::CheckedCallScalarArgument::Pure(initializer),
             ..
         } = &operations[0]
         else {

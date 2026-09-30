@@ -1,0 +1,37 @@
+// A mutable primitive local initialized by a call owns ordinary mutable
+// storage in a multi-state machine (exit 70).
+//
+// `let mut total: i32 = echo(seed);` evaluates the call on the ordinary
+// operand schedule, before the local's storage exists, and establishes that
+// storage from the call's result. Later statements read the storage, not the
+// initializer: `echo(total)` passes the stored 70 as a call argument, and the
+// transition guard reads `total` again after that call. A local whose
+// initializer was refused, or a read that resolved to another binding's
+// value, exits 71.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine echo(value: i32) -> i32 {
+    value
+}
+
+machine seven() -> i32 {
+    7
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut seed: i32 = 70;
+    let mut total: i32 = echo(seed);
+    let first: i32 = echo(total);
+    let third: i32 = seven();
+    transition first == 70 && total == 70 && third == 7 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

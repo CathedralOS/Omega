@@ -15,10 +15,7 @@ use crate::checked_trees::flow::terminal::{
     CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
-use crate::{
-    CheckedScalarExpression, CheckedStructuralCaseFieldStorePlan,
-    CheckedStructuralScalarFieldStorePlan,
-};
+use crate::{CheckedStructuralCaseFieldStorePlan, CheckedStructuralScalarFieldStorePlan};
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
@@ -169,12 +166,15 @@ pub enum CheckedUnitEffectOperationPlan {
     },
     /// Establish initialized mutable storage at its authored declaration.
     /// Later reads and borrows name the symbol, never the initializer value.
+    /// The initializer is the `StorageInitializer` value checking retained:
+    /// a pure expression, or the computation rooted there when it evaluates
+    /// calls or ordered selections (`let mut stored: i32 = echo(a);`).
     EstablishPrimitiveLocal {
         statement_index: u32,
         symbol: SymbolHandle,
         type_identity: String,
         primitive_type: PrimitiveType,
-        value: CheckedScalarExpression,
+        value: CheckedCallScalarArgument,
     },
     /// Normal edge after the named call completes. Cleanup belongs to this
     /// continuation, not the caller's final return or a synthetic source call.
