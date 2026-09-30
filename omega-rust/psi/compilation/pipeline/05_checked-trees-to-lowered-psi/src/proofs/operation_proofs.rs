@@ -279,6 +279,30 @@ fn proof_from_available_facts(
             rule: ProofRule::SemanticAxiom { index },
         });
     }
+    // An imported guarantee arrives as one conjunction: select the goal from
+    // it by conjunction elimination.
+    let premises = assumptions
+        .iter()
+        .enumerate()
+        .map(|(index, premise)| (premise, ProofRule::Assumption { index }))
+        .chain(
+            semantic_axioms
+                .iter()
+                .enumerate()
+                .map(|(index, premise)| (premise, ProofRule::SemanticAxiom { index })),
+        );
+    for (premise, rule) in premises {
+        if let Some(proof) = conjunct_of(
+            ProofNode {
+                conclusion: premise.clone(),
+                rule,
+            },
+            goal,
+            0,
+        ) {
+            return Some(proof);
+        }
+    }
     let Proposition::Conjunction(conjuncts) = goal else {
         return None;
     };
@@ -290,4 +314,33 @@ fn proof_from_available_facts(
         conclusion: goal.clone(),
         rule: ProofRule::ConjunctionIntroduction(proofs),
     })
+}
+
+/// Project `goal` out of a proved conjunction, descending through nested
+/// conjunctions a bounded depth.
+fn conjunct_of(proof: ProofNode, goal: &Proposition, depth: usize) -> Option<ProofNode> {
+    const MAXIMUM_CONJUNCTION_DEPTH: usize = 8;
+    let Proposition::Conjunction(conjuncts) = &proof.conclusion else {
+        return None;
+    };
+    if depth >= MAXIMUM_CONJUNCTION_DEPTH {
+        return None;
+    }
+    let conjuncts = conjuncts.clone();
+    for (conjunct, candidate) in conjuncts.iter().enumerate() {
+        let projected = ProofNode {
+            conclusion: candidate.clone(),
+            rule: ProofRule::ConjunctionElimination {
+                conjunction: Box::new(proof.clone()),
+                conjunct,
+            },
+        };
+        if candidate == goal {
+            return Some(projected);
+        }
+        if let Some(found) = conjunct_of(projected, goal, depth + 1) {
+            return Some(found);
+        }
+    }
+    None
 }

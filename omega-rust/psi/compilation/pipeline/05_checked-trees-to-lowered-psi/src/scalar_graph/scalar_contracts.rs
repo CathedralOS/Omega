@@ -389,10 +389,11 @@ impl ScalarContractTerms<'_> {
                     ..declaration.clone()
                 })
                 .collect();
+            // IEEE leaves keep their exact format, as entry requirements do.
             return crate::proofs::crash_routes::lower_structural_member_term(
                 *parameter_position,
                 path,
-                crate::emission::scalar_types::integer_scalar_type(*primitive_type)?,
+                crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
                 &parameters,
                 self.views.structural_types,
             );

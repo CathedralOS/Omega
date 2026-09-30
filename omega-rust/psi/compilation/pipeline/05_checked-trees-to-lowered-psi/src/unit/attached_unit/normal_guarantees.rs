@@ -49,9 +49,28 @@ pub(super) fn lower(
             scalar_contracts::validate_post_state_guarantees(checked, source, source_state)?;
         &post_state[..]
     };
+    // Returning execution restores the declared domain of every exclusive
+    // loan: the declaration predicate roster's restored rows follow the
+    // authored guarantees as the same kind of obligation, rederived from the
+    // entry parameters' declared storage rather than read from a package.
+    let mut guarantees = ensures.to_vec();
+    guarantees.extend(
+        validation::machine_declaration_predicates(
+            &checked.typed,
+            &checked.facts.operators,
+            source,
+        )
+        .into_iter()
+        .filter(|row| row.restored_on_return)
+        .map(|row| {
+            Some(checked_trees::ClosedScalarContractValue::Predicate(
+                row.predicate,
+            ))
+        }),
+    );
     let mut namespace = parameters.to_vec();
     namespace.extend(result);
-    scalar_contracts::clauses(ensures, &namespace, erased, views)?
+    scalar_contracts::clauses(&guarantees, &namespace, erased, views)?
         .into_iter()
         .map(|proposition| {
             Ok(ContractClause {

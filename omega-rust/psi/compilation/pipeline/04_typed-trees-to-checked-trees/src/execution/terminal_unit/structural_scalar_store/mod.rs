@@ -486,7 +486,7 @@ fn plan_assignment(
     }
     let field_data =
         crate::facts::field_domain::data_definition_for_field_type(program, field.type_reference)?;
-    if plain_record(field_data, program) {
+    if plain_record(field_data, program, &facts.operators) {
         return record_literal_stores(
             program,
             facts,

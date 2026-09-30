@@ -84,6 +84,12 @@ and a callee requirement that restates a standing `where` fact at the
 argument's field is discharged by that fact. Execution erases a citation of
 a theorem-only machine ([fact-only citations](src/machine_calls/fact_only_citations.rs)):
 it plans no call, so Terminal receives none of the cited conclusions.
+Terminal instead carries the declared facts themselves through the
+[declaration predicate roster](src/machine_calls/structural_call_custody/declaration_predicates.rs):
+one row per `where` fact on storage a machine's parameters reach, where a
+collection predicate contributes each element's `true`-path interval. The
+roster is exact for a declaration only when exploring the predicate over
+those intervals decides `true`; only then may Terminal store into it.
 The explored fragment is transitions over builtin comparisons, connectives,
 literals, parameters, in-bounds element reads and Exact index steps; anything
 else stands down, and a complete exploration within its work budget is its

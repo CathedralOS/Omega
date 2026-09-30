@@ -370,10 +370,14 @@ fn build_structural_runtime_requirements(
             .into_iter()
             .collect::<Option<Vec<_>>>()?,
     );
+    // The declaration predicate roster closes the package: every standing
+    // `where` fact on storage an entry parameter reaches, which the caller
+    // establishes at the call and the root installation at program entry.
+    // Replay splits this derived tail off before rejoining authored clauses.
     requirements.extend(
-        crate::facts::where_requirements::machine_entry_where_requirements(
-            program, machine, operators,
-        ),
+        validation::machine_declaration_predicates(program, operators, machine)
+            .into_iter()
+            .map(|row| row.predicate),
     );
     Some(requirements)
 }

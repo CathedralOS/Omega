@@ -36,20 +36,21 @@ fn generated_store_owner_requires_closed_origin_and_preserves_record_gates() {
         .iter()
         .find(|owner| owner.generic_instance.is_some())
         .unwrap();
-    assert!(plain_record(owner, program));
+    let operators = checked_trees::CheckedOperatorFacts::default();
+    assert!(plain_record(owner, program, &operators));
     let mut missing_origin = owner.clone();
     missing_origin.generic_instance = Some(typed_trees::types::TypeReferenceHandle::invalid());
-    assert!(!plain_record(&missing_origin, program));
+    assert!(!plain_record(&missing_origin, program, &operators));
     let mut gated = owner.clone();
     gated.zero_gated = true;
-    assert!(!plain_record(&gated, program));
+    assert!(!plain_record(&gated, program, &operators));
     let template = program
         .data_definitions()
         .iter()
         .find(|owner| !program.data_type_parameters(owner).is_empty())
         .unwrap();
     assert!(
-        !plain_record(template, program),
+        !plain_record(template, program, &operators),
         "open owner stays unsupported"
     );
 }
