@@ -233,20 +233,40 @@ pub(super) fn instantiated_fact_judgment(
         | BinaryOperator::LessOrEqual
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual => {
-            // Ordering decides only over closed integer values: an operand
-            // that stays symbolic leaves the fact for the positive prover's
-            // bound, guard, and hypothesis channels.
-            let Some((StructuralTerm::Integer(left), StructuralTerm::Integer(right))) =
-                instantiated_operands(program, judge, binary, map)
-            else {
+            // Ordering decides only over closed values: an operand that stays
+            // symbolic leaves the fact for the positive prover's bound, guard,
+            // and hypothesis channels.
+            let Some((left, right)) = instantiated_operands(program, judge, binary, map) else {
                 return StructuralJudgment::Unknown;
             };
-            let verdict = match binary.operator {
-                BinaryOperator::Less => left < right,
-                BinaryOperator::LessOrEqual => left <= right,
-                BinaryOperator::Greater => left > right,
-                BinaryOperator::GreaterOrEqual => left >= right,
-                _ => unreachable!(),
+            let verdict = match (&left, &right) {
+                (StructuralTerm::Integer(left), StructuralTerm::Integer(right)) => {
+                    match binary.operator {
+                        BinaryOperator::Less => left < right,
+                        BinaryOperator::LessOrEqual => left <= right,
+                        BinaryOperator::Greater => left > right,
+                        BinaryOperator::GreaterOrEqual => left >= right,
+                        _ => unreachable!(),
+                    }
+                }
+                // A float literal's exact decimal value widens losslessly to
+                // binary64, so ordering is IEEE-exact at f64 regardless of the
+                // authored format. UndeterminedNaN never termifies; a
+                // synthesized NaN spelling declines rather than decide.
+                (StructuralTerm::Float(left), StructuralTerm::Float(right)) => {
+                    let (left, right) = (left.value_f64(), right.value_f64());
+                    if left.is_nan() || right.is_nan() {
+                        return StructuralJudgment::Unknown;
+                    }
+                    match binary.operator {
+                        BinaryOperator::Less => left < right,
+                        BinaryOperator::LessOrEqual => left <= right,
+                        BinaryOperator::Greater => left > right,
+                        BinaryOperator::GreaterOrEqual => left >= right,
+                        _ => unreachable!(),
+                    }
+                }
+                _ => return StructuralJudgment::Unknown,
             };
             if verdict {
                 StructuralJudgment::Proven

@@ -277,6 +277,10 @@ pub(super) fn structural_term_in_scope(
             structural_term_in_scope(program, scope, binary.right)?,
         ),
         ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
+        // A determinate float literal carries its exact decimal spelling; the
+        // ordering arm widens it once at judgment. UndeterminedNaN stays
+        // term-less so a NaN operand can never pose as a decided value.
+        ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
         ExpressionNode::Call(call) => {
             if (!call.receiver.is_valid() || static_call_receiver(program, call))
                 && call.evidence_arguments.is_empty()

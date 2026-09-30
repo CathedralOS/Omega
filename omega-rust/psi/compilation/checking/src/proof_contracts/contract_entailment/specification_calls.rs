@@ -415,7 +415,7 @@ fn term_has_complete_substitution(program: &TypedTrees, term: &StructuralTerm) -
             term_has_complete_substitution(program, left)
                 && term_has_complete_substitution(program, right)
         }
-        StructuralTerm::Variable(_) | StructuralTerm::Integer(_) => true,
+        StructuralTerm::Variable(_) | StructuralTerm::Integer(_) | StructuralTerm::Float(_) => true,
         StructuralTerm::Constructor { data, case, fields } => {
             constructor_fields_are_complete(program, data, case, fields)
                 && fields
