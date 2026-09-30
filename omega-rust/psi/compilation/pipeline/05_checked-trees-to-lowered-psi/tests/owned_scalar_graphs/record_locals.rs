@@ -80,14 +80,19 @@ fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
         .nodes
         .iter()
         .find_map(|(handle, node)| match &node.kind {
-            checked_trees::CheckedStructuralValueKind::Place(argument)
-                if argument.source == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: first } => Some(handle),
+            // A copyable local's later read is a snapshot of its current
+            // contents, planned as a shared read of the whole local.
+            checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { source, .. }
+                if source.source == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: first } => Some(handle),
             _ => None,
         })
         .unwrap();
     for corruption in 0..3 {
         let mut forged = checked.clone();
-        let checked_trees::CheckedStructuralValueKind::Place(argument) = &mut forged
+        let checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace {
+            source: argument,
+            ..
+        } = &mut forged
             .facts
             .values
             .structural_values
@@ -95,7 +100,7 @@ fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
             .get_mut(handle)
             .kind
         else {
-            panic!("whole-place copy");
+            panic!("whole-local copy");
         };
         match corruption {
             0 => {
@@ -104,7 +109,7 @@ fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
                         symbol: other,
                     }
             }
-            1 => argument.access = checked_trees::CheckedStructuralAccess::SharedBorrow,
+            1 => argument.access = checked_trees::CheckedStructuralAccess::Owned,
             _ => argument.type_identity.push_str("substituted"),
         }
         assert!(

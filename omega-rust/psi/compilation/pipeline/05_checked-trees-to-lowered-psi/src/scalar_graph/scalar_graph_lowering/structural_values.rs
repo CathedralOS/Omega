@@ -239,6 +239,18 @@ impl Preparation<'_> {
                 }
             };
         }
+        if let CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } = &node.kind {
+            // A whole read of an earlier copyable local snapshots its current
+            // contents: its owned home binds into a fresh unrestricted home,
+            // the same copy an owned unrestricted transfer makes above.
+            if source.type_identity != identity.as_str()
+                || self.checked.type_multiplicity(reference) != Multiplicity::Unrestricted
+            {
+                return unsupported("scalar record copy changed its carrier");
+            }
+            let source = self.bindings.copied_local_home(source)?;
+            return self.bind_place(source, declaration.id, StructuralMultiplicity::Unrestricted);
+        }
         if let CheckedStructuralValueKind::ZeroedStructural {} = &node.kind {
             // A declared-only local establishes a zeroed whole shape: mint the
             // fresh home with no field operands, mirroring the Unit path's

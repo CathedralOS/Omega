@@ -751,6 +751,34 @@ impl ScalarBindings {
         })
     }
 
+    /// The owned home a whole copyable local's snapshot reads. The copy plan
+    /// is a shared read of the complete local; binding this home into a fresh
+    /// unrestricted home copies its current contents and leaves it live.
+    pub(crate) fn copied_local_home(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<StructuralArgument, LoweringError> {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+            argument.source
+        else {
+            return unsupported("copied record requires an established local");
+        };
+        let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
+        let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
+            "copied record lost its established local",
+        ))?;
+        if !symbol.is_valid()
+            || locals.next().is_some()
+            || !argument.path.is_empty()
+            || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+            || !source.path.is_empty()
+            || source.access != StructuralAccess::Owned
+        {
+            return unsupported("copied record changes its source custody");
+        }
+        Ok(source.clone())
+    }
+
     /// Resolve a source-validated whole owned parameter without inventing a loan.
     pub(crate) fn owned_argument(
         &self,

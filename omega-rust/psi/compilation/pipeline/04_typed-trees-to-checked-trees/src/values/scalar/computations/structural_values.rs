@@ -793,6 +793,21 @@ impl Builder<'_, '_> {
                     expected,
                 )?,
             }
+        } else if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::Name(_)
+        ) && validation::scalar_case_constructor(self.program, expression).is_none()
+            && let Some(argument) = self.owned_record_place(expression, expected)
+            && matches!(
+                argument.source,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            )
+        {
+            // A whole owned parameter has no producer in this body: reading it
+            // transfers the caller's value, which an unrestricted carrier
+            // copies. Only a local's later read takes the copy route below,
+            // because the local's initializer need not be its current value.
+            CheckedStructuralValueKind::Place(argument)
         } else if let Some(view) = self.slice_view_place(expression, expected) {
             // A view's authored producer is spelled as a call but establishes
             // no call result: it lends storage that already exists. Classify
