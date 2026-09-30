@@ -4,7 +4,7 @@ use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::super::super::super::integer_evidence::Citation;
-use super::super::super::super::super::{affine_custody::DefinitionIndex, affine_selection};
+use super::super::super::super::super::{affine_custody::DefinitionIndex, root_selection};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn prove(
@@ -30,7 +30,7 @@ pub(super) fn prove(
         Proposition::LessOrEqual(goal_left.clone(), target_alias.clone())
     };
     let affine = if allow_cast {
-        affine_selection::prove_with_definitions(
+        root_selection::prove_affine_bound(
             context,
             &relation,
             assumptions,
@@ -38,7 +38,7 @@ pub(super) fn prove(
             definitions,
         )
     } else {
-        affine_selection::prove_without_cast(
+        root_selection::prove_affine_bound_without_cast(
             context,
             &relation,
             assumptions,

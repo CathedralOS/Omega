@@ -10,7 +10,7 @@ use proof_admission::{
 };
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
-use super::candidates;
+use super::visit_affine_inputs;
 use crate::proofs::nonzero_divisor_certificate::{scope_identity, search_context};
 
 /// Source-ordered semantic rows that may extend one exact affine value chain.
@@ -86,7 +86,7 @@ struct Tables {
 impl Tables {
     fn new(semantic_axioms: &[Proposition]) -> Self {
         let mut by_input = BTreeMap::<ScalarTerm, Vec<usize>>::new();
-        candidates::visit(semantic_axioms, |index, input| {
+        visit_affine_inputs(semantic_axioms, |index, input| {
             let candidates = by_input.entry(input.clone()).or_default();
             if candidates.last() != Some(&index) {
                 candidates.push(index);

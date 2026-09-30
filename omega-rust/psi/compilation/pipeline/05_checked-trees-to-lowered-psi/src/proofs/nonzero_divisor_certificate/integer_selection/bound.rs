@@ -4,9 +4,7 @@ use crate::proofs::nonzero_divisor_certificate::integer_evidence::literal_value;
 use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarType};
 
-use super::super::{
-    affine_custody::DefinitionIndex, affine_selection, cast_custody, cast_selection,
-};
+use super::super::{affine_custody::DefinitionIndex, cast_custody, root_selection};
 use super::{derived, order, range, shift, substitution, wrapping};
 
 pub(super) fn prove(
@@ -57,10 +55,10 @@ fn prove_uncached(
     }
 
     order::prove_aliased_integer_bound(context, goal, assumptions, semantic_axioms)
-        .or_else(|| cast_selection::prove(context, goal, assumptions, semantic_axioms))
+        .or_else(|| root_selection::prove_cast_bound(context, goal, assumptions, semantic_axioms))
         .or_else(|| prove_derived_cast_bound(context, goal, assumptions, semantic_axioms))
         .or_else(|| {
-            affine_selection::prove_with_definitions(
+            root_selection::prove_affine_bound(
                 context,
                 goal,
                 assumptions,
@@ -120,10 +118,10 @@ fn prove_candidate_endpoint_uncached(
     }
 
     order::prove_aliased_integer_bound(context, goal, assumptions, semantic_axioms)
-        .or_else(|| cast_selection::prove(context, goal, assumptions, semantic_axioms))
+        .or_else(|| root_selection::prove_cast_bound(context, goal, assumptions, semantic_axioms))
         .or_else(|| prove_derived_cast_bound(context, goal, assumptions, semantic_axioms))
         .or_else(|| {
-            affine_selection::prove_without_cast(
+            root_selection::prove_affine_bound_without_cast(
                 context,
                 goal,
                 assumptions,

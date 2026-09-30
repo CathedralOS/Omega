@@ -4,7 +4,7 @@ use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, PropositionContext};
 
 use super::super::super::integer_evidence::closed_integer_relation;
-use super::super::super::{affine_custody::DefinitionIndex, affine_selection};
+use super::super::super::{affine_custody::DefinitionIndex, root_selection};
 use super::super::order::{
     prove_exact_or_closed_transitive_integer_bound, prove_two_fact_transitive_integer_bound,
 };
@@ -23,7 +23,7 @@ pub(super) fn prove(
         .or_else(|| prove_two_fact_transitive_integer_bound(relation, assumptions, semantic_axioms))
         .or_else(|| {
             if allow_cast {
-                affine_selection::prove_with_definitions(
+                root_selection::prove_affine_bound(
                     context,
                     relation,
                     assumptions,
@@ -31,7 +31,7 @@ pub(super) fn prove(
                     definitions,
                 )
             } else {
-                affine_selection::prove_without_cast(
+                root_selection::prove_affine_bound_without_cast(
                     context,
                     relation,
                     assumptions,
