@@ -68,10 +68,10 @@ pub use physical::{
     PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
 };
 pub use publication::{
-    ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
-    NativePackageEvidenceDigest, NativePublicationCertificateDigest,
-    NativePublicationEvidenceDigest, PackageComponentDigest, PreparedExecutablePublication,
-    executable_installation_evidence_digest, validate_native_pair,
+    DynamicElfPublicationReceipt, ExecutableContainerDigest, ExecutableInstallationEvidenceDigest,
+    ExecutablePublicationReceipt, NativePackageEvidenceDigest, NativePublicationCertificateDigest,
+    NativePublicationEvidenceDigest, PackageComponentDigest, PreparedDynamicElfPublication,
+    PreparedExecutablePublication, executable_installation_evidence_digest, validate_native_pair,
 };
 pub use semantic_wrapper_object::{
     OptimizedProgramStorageSemanticWrapperCallResolution,

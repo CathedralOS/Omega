@@ -9,7 +9,9 @@
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 
+mod dynamic_elf;
 mod preparation;
+pub use dynamic_elf::{DynamicElfPublicationReceipt, PreparedDynamicElfPublication};
 pub use preparation::PreparedExecutablePublication;
 
 #[cfg(test)]
@@ -332,47 +334,61 @@ impl ExecutablePublicationReceipt {
     /// and executable mode must all still match — the publication contract's
     /// byte- and mode-drift detection.
     pub fn validate_published_file(&self) -> Result<(), String> {
-        let bytes = std::fs::read(&self.output_path).map_err(|error| {
-            format!(
-                "cannot replay published executable {}: {error}",
-                self.output_path.display()
-            )
-        })?;
-        if bytes.len() != self.container_byte_count {
-            return Err(format!(
-                "published executable {} has {} bytes; the receipt recorded {}",
-                self.output_path.display(),
-                bytes.len(),
-                self.container_byte_count
-            ));
-        }
-        if executable_container_digest(&bytes) != self.container_digest {
-            return Err(format!(
-                "published executable {} no longer matches its receipt's content digest",
-                self.output_path.display()
-            ));
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-
-            let mode = std::fs::metadata(&self.output_path)
-                .map_err(|error| {
-                    format!(
-                        "cannot stat published executable {}: {error}",
-                        self.output_path.display()
-                    )
-                })?
-                .permissions()
-                .mode();
-            if mode & 0o777 != 0o755 {
-                return Err(format!(
-                    "published executable {} drifted to mode {:o}; the receipt expects 755",
-                    self.output_path.display(),
-                    mode & 0o7777
-                ));
-            }
-        }
-        Ok(())
+        validate_published_container(
+            &self.output_path,
+            self.container_byte_count,
+            self.container_digest,
+        )
     }
+}
+
+/// Replay one installed executable container against its recorded length,
+/// content digest and 755 mode. Shared by the direct and dynamic receipts.
+pub(crate) fn validate_published_container(
+    output_path: &std::path::Path,
+    container_byte_count: usize,
+    container_digest: ExecutableContainerDigest,
+) -> Result<(), String> {
+    let bytes = std::fs::read(output_path).map_err(|error| {
+        format!(
+            "cannot replay published executable {}: {error}",
+            output_path.display()
+        )
+    })?;
+    if bytes.len() != container_byte_count {
+        return Err(format!(
+            "published executable {} has {} bytes; the receipt recorded {}",
+            output_path.display(),
+            bytes.len(),
+            container_byte_count
+        ));
+    }
+    if executable_container_digest(&bytes) != container_digest {
+        return Err(format!(
+            "published executable {} no longer matches its receipt's content digest",
+            output_path.display()
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mode = std::fs::metadata(output_path)
+            .map_err(|error| {
+                format!(
+                    "cannot stat published executable {}: {error}",
+                    output_path.display()
+                )
+            })?
+            .permissions()
+            .mode();
+        if mode & 0o777 != 0o755 {
+            return Err(format!(
+                "published executable {} drifted to mode {:o}; the receipt expects 755",
+                output_path.display(),
+                mode & 0o7777
+            ));
+        }
+    }
+    Ok(())
 }
