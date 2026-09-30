@@ -491,21 +491,21 @@ pub macos_arm64 machine MacosClock::sleep(&mut self, milliseconds: u32) {
 
 // `Clock::get_tick_count()` — milliseconds since boot, low 32 bits (the Win32
 // GetTickCount wrap contract: u32 rolls over at ~49.7 days).
-pub macos_arm64 machine MacosClock::get_tick_count(&mut self) -> u32 {
-    self.ns = darwin_clock_ns(6);
-    self.scaled = self.ns / 1000000;
-    narrow_u64_to_u32_wrapping(self.scaled)
+pub macos_arm64 machine MacosClock::get_tick_count(macos_clock: &mut MacosClock) -> u32 {
+    macos_clock.ns = darwin_clock_ns(6);
+    macos_clock.scaled = macos_clock.ns / 1000000;
+    narrow_u64_to_u32_wrapping(macos_clock.scaled)
 }
 
 // `Clock::perf_counter()` — the raw nanosecond read (Win32
 // QueryPerformanceCounter analogue): MONOTONIC uptime, ns units.
-pub macos_arm64 machine MacosClock::perf_counter(&mut self) -> u64 {
+pub macos_arm64 machine MacosClock::perf_counter(macos_clock: &mut MacosClock) -> u64 {
     darwin_clock_ns(6)
 }
 
 // `Clock::perf_frequency()` — ticks per second for perf_counter. The darwin
 // seam reads nanoseconds directly, so the frequency is the constant 10^9.
-pub macos_arm64 machine MacosClock::perf_frequency(&mut self) -> u64 {
+pub macos_arm64 machine MacosClock::perf_frequency(macos_clock: &mut MacosClock) -> u64 {
     transition { _ -> ret() }
     state ret() -> u64 { 1000000000 }
 }

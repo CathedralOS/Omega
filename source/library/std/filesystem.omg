@@ -59,8 +59,8 @@ pub data ErrorKind {
 
 // Observe a saved category and construct a fresh value. A borrowed receiver
 // cannot transfer its stored affine ErrorKind into another result.
-machine ErrorKind::reconstruct(&self) -> ErrorKind {
-    transition self {
+machine ErrorKind::reconstruct(error_kind: &ErrorKind) -> ErrorKind {
+    transition error_kind {
         ErrorKind::Other -> ErrorKind::Other
         ErrorKind::NotFound -> ErrorKind::NotFound
         ErrorKind::PermissionDenied -> ErrorKind::PermissionDenied
@@ -181,18 +181,18 @@ pub data Permissions [copy] {
 
 // Rust `Permissions::readonly()` — true when the owner-write bit (0o200 = 128)
 // is clear.
-pub machine Permissions::readonly(&self) -> bool {
-    (self.mode & 128) == 0
+pub machine Permissions::readonly(permissions: &Permissions) -> bool {
+    (permissions.mode & 128) == 0
 }
 
 // Rust `Permissions::set_readonly(bool)` — clear the write bits (owner/group/
 // other, 0o222 = 146) to make read-only, or set them to make writable. The
 // masks stay within the 9 permission bits (0o777 = 511; 511 ^ 146 = 365 keeps
 // read+execute while clearing write).
-pub machine Permissions::set_readonly(&mut self, readonly: bool) {
-    transition readonly { true -> lock() _ -> unlock() }
-    state lock(&mut self) { self.mode = self.mode & 365; }
-    state unlock(&mut self) { self.mode = self.mode | 146; }
+pub machine Permissions::set_readonly(permissions: &mut Permissions, readonly: bool) {
+    transition readonly { true -> lock(permissions) _ -> unlock(permissions) }
+    state lock(permissions: &mut Permissions) { permissions.mode = permissions.mode & 365; }
+    state unlock(permissions: &mut Permissions) { permissions.mode = permissions.mode | 146; }
 }
 
 // File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; `is_dir`
@@ -256,101 +256,101 @@ data StatView {
 // st_mode format bits directly (mode & S_IFMT == S_IFREG) rather than `!is_dir &&
 // !is_symlink`, so a special file (char/block device, fifo, socket) is correctly
 // NOT a regular file. `S_IFMT = 0o170000 = 61440`, `S_IFREG = 0o100000 = 32768`.
-pub machine Metadata::is_file(&self) -> bool {
-    (self.mode & 61440) == 32768
+pub machine Metadata::is_file(metadata: &Metadata) -> bool {
+    (metadata.mode & 61440) == 32768
 }
 
 // Rust `os::unix::fs::FileTypeExt` — the special (non-regular, non-dir, non-link)
 // file types, decoded from the same st_mode format bits (mode & S_IFMT).
 // S_IFCHR = 0o020000 = 8192, S_IFBLK = 0o060000 = 24576, S_IFIFO = 0o010000 =
 // 4096, S_IFSOCK = 0o140000 = 49152.
-pub machine Metadata::is_char_device(&self) -> bool {
-    (self.mode & 61440) == 8192
+pub machine Metadata::is_char_device(metadata: &Metadata) -> bool {
+    (metadata.mode & 61440) == 8192
 }
-pub machine Metadata::is_block_device(&self) -> bool {
-    (self.mode & 61440) == 24576
+pub machine Metadata::is_block_device(metadata: &Metadata) -> bool {
+    (metadata.mode & 61440) == 24576
 }
-pub machine Metadata::is_fifo(&self) -> bool {
-    (self.mode & 61440) == 4096
+pub machine Metadata::is_fifo(metadata: &Metadata) -> bool {
+    (metadata.mode & 61440) == 4096
 }
-pub machine Metadata::is_socket(&self) -> bool {
-    (self.mode & 61440) == 49152
+pub machine Metadata::is_socket(metadata: &Metadata) -> bool {
+    (metadata.mode & 61440) == 49152
 }
 
 // Rust `Metadata::permissions().readonly()` — true when the owner-write bit
 // (0o200 = 128) is clear in the permission bits.
-pub machine Metadata::readonly(&self) -> bool {
-    (self.mode & 128) == 0
+pub machine Metadata::readonly(metadata: &Metadata) -> bool {
+    (metadata.mode & 128) == 0
 }
 
 // Rust `Metadata::permissions()` — the permission bits (low 9 of `st_mode`,
 // masked with 0o777 = 511) as a `Permissions`.
-pub machine Metadata::permissions(&self) -> Permissions {
-    Permissions { mode: self.mode & 511 }
+pub machine Metadata::permissions(metadata: &Metadata) -> Permissions {
+    Permissions { mode: metadata.mode & 511 }
 }
 
 // Rust `os::unix::fs::MetadataExt::nlink()` — the hard-link count (`st_nlink`). A
 // fresh regular file is 1; each additional `hard_link` to the same inode adds one.
-pub machine Metadata::nlink(&self) -> u64 {
-    self.nlink
+pub machine Metadata::nlink(metadata: &Metadata) -> u64 {
+    metadata.nlink
 }
 
 // Rust `os::unix::fs::MetadataExt::ino()` — the inode number (`st_ino`). Two hard
 // links to the same file share it (the identity of the underlying inode).
-pub machine Metadata::ino(&self) -> u64 {
-    self.ino
+pub machine Metadata::ino(metadata: &Metadata) -> u64 {
+    metadata.ino
 }
 
 // Rust `os::unix::fs::MetadataExt::dev()` — the device id (`st_dev`). The `(dev,
 // ino)` pair is a file's identity: two paths name the same file iff both match.
-pub machine Metadata::dev(&self) -> u64 {
-    self.dev
+pub machine Metadata::dev(metadata: &Metadata) -> u64 {
+    metadata.dev
 }
 
 // Rust `os::unix::fs::MetadataExt::ctime()` — the last status-change time
 // (`st_ctime`): when the inode metadata last changed (chmod, rename, link, …).
 // Distinct from `modified()` (content) and `created()` (birth).
-pub machine Metadata::changed(&self) -> i64 {
-    self.changed_secs
+pub machine Metadata::changed(metadata: &Metadata) -> i64 {
+    metadata.changed_secs
 }
 
 // Rust `os::unix::fs::MetadataExt::uid()` — the owning user id (`st_uid`).
-pub machine Metadata::uid(&self) -> u32 {
-    self.uid
+pub machine Metadata::uid(metadata: &Metadata) -> u32 {
+    metadata.uid
 }
 
 // Rust `os::unix::fs::MetadataExt::gid()` — the owning group id (`st_gid`).
-pub machine Metadata::gid(&self) -> u32 {
-    self.gid
+pub machine Metadata::gid(metadata: &Metadata) -> u32 {
+    metadata.gid
 }
 
 // Rust `os::unix::fs::MetadataExt::rdev()` — the device id THIS file represents
 // (`st_rdev`), nonzero only for a device special file; 0 for a regular file/dir.
-pub machine Metadata::rdev(&self) -> u64 {
-    self.rdev
+pub machine Metadata::rdev(metadata: &Metadata) -> u64 {
+    metadata.rdev
 }
 
 // Rust `os::unix::fs::MetadataExt::blocks()` — the number of 512-byte blocks
 // allocated to the file (`st_blocks`); may be less than `len`/512 for a sparse file.
-pub machine Metadata::blocks(&self) -> u64 {
-    self.blocks
+pub machine Metadata::blocks(metadata: &Metadata) -> u64 {
+    metadata.blocks
 }
 
 // Rust `os::unix::fs::MetadataExt::blksize()` — the filesystem's preferred I/O
 // block size (`st_blksize`), e.g. 4096.
-pub machine Metadata::blksize(&self) -> u64 {
-    self.blksize
+pub machine Metadata::blksize(metadata: &Metadata) -> u64 {
+    metadata.blksize
 }
 
 // Rust `Metadata::modified()` — the last-modification time. Rust returns a
 // `SystemTime`; Omega returns whole seconds since the Unix epoch (`st_mtime`).
-pub machine Metadata::modified(&self) -> i64 {
-    self.modified_secs
+pub machine Metadata::modified(metadata: &Metadata) -> i64 {
+    metadata.modified_secs
 }
 
 // Rust `Metadata::accessed()` — the last-access time (`st_atime`).
-pub machine Metadata::accessed(&self) -> i64 {
-    self.accessed_secs
+pub machine Metadata::accessed(metadata: &Metadata) -> i64 {
+    metadata.accessed_secs
 }
 
 // Rust `Metadata::created()` — the creation (birth) time (`st_birthtime`, which
@@ -564,7 +564,7 @@ invokes
         create: true,
         create_new: false,
     };
-    self.encode_open_options();
+    Filesystem::encode_open_options(&mut self);
     // Mode is a LITERAL (438 = 0o666, Rust's create mode; the umask trims it):
     // the darwin arm64 variadic encoder marshals the trailing mode on the
     // STACK and requires a compile-time immediate -- a field-held mode
@@ -573,7 +573,7 @@ invokes
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err(fd) }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = self.last_error_i32(fd); OpenResult::Error { kind: kind } }
+    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, fd); OpenResult::Error { kind: kind } }
 }
 
 // Atomically create a NEW file, failing if it already exists (Rust
@@ -593,11 +593,11 @@ invokes
         create: false,
         create_new: true,
     };
-    self.encode_open_options();
+    Filesystem::encode_open_options(&mut self);
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err(fd) }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = self.last_error_i32(fd); OpenResult::Error { kind: kind } }
+    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, fd); OpenResult::Error { kind: kind } }
 }
 
 // Open an existing file for reading. The selected target format supplies its
@@ -616,12 +616,12 @@ invokes
         create: false,
         create_new: false,
     };
-    self.encode_open_options();
+    Filesystem::encode_open_options(&mut self);
     self.read_flags = self.open_flags;
     let fd: i32 = self.host.open(path, self.read_flags);
     transition fd >= 0 { true -> ok(fd) _ -> err(fd) }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = self.last_error_i32(fd); OpenResult::Error { kind: kind } }
+    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, fd); OpenResult::Error { kind: kind } }
 }
 
 // `Filesystem::open_with` is implemented in each target format package beside
@@ -649,11 +649,11 @@ invokes
         create: false,
         create_new: false,
     };
-    self.encode_open_options();
+    Filesystem::encode_open_options(&mut self);
     let fd: i32 = self.host.open(path, self.open_flags);
     transition fd >= 0 { true -> ok(fd) _ -> err(fd) }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = self.last_error_i32(fd); OpenResult::Error { kind: kind } }
+    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, fd); OpenResult::Error { kind: kind } }
 }
 
 // Read up to `count` bytes into `buffer`; returns the number read (0 = EOF).
@@ -670,7 +670,7 @@ invokes
         let converted_count: u64 = narrow_i64_to_u64_exact(n);
         IoResult::Ok { count: converted_count }
     }
-    state err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = self.last_error_i64(n); IoResult::Error { kind: kind } }
+    state err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i64(&mut self, n); IoResult::Error { kind: kind } }
 }
 
 // Write `bytes`; returns the number written.
@@ -687,7 +687,7 @@ invokes
         let converted_count: u64 = narrow_i64_to_u64_exact(n);
         IoResult::Ok { count: converted_count }
     }
-    state err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = self.last_error_i64(n); IoResult::Error { kind: kind } }
+    state err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i64(&mut self, n); IoResult::Error { kind: kind } }
 }
 
 // ---------------------------------------------------------------------------
@@ -743,7 +743,7 @@ invokes
         create: true,
         create_new: false,
     };
-    self.encode_open_options();
+    Filesystem::encode_open_options(&mut self);
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     let n: i64 = self.host.write(fd, bytes);
     let rc: i32 = self.host.close(fd);
@@ -752,8 +752,8 @@ invokes
     state err(&mut self, fd: i32, n: i64) -> UnitResult {
         transition fd < 0 { true -> open_err(fd) _ -> write_err(n) }
     }
-    state open_err(&mut self, fd: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(fd); UnitResult::Error { kind: kind } }
-    state write_err(&mut self, n: i64) -> UnitResult { let kind: ErrorKind = self.last_error_i64(n); UnitResult::Error { kind: kind } }
+    state open_err(&mut self, fd: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, fd); UnitResult::Error { kind: kind } }
+    state write_err(&mut self, n: i64) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i64(&mut self, n); UnitResult::Error { kind: kind } }
 }
 
 // Read a whole file into `buffer` in one shot (Rust `std::fs::read`): open the
@@ -777,7 +777,7 @@ invokes
         create: false,
         create_new: false,
     };
-    self.encode_open_options();
+    Filesystem::encode_open_options(&mut self);
     self.read_flags = self.open_flags;
     let fd: i32 = self.host.open(path, self.read_flags);
     let n: i64 = self.host.read(fd, buffer, count);
@@ -790,8 +790,8 @@ invokes
     state err(&mut self, fd: i32, n: i64) -> IoResult {
         transition fd < 0 { true -> open_err(fd) _ -> read_err(n) }
     }
-    state open_err(&mut self, fd: i32) -> IoResult { let kind: ErrorKind = self.last_error_i32(fd); IoResult::Error { kind: kind } }
-    state read_err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = self.last_error_i64(n); IoResult::Error { kind: kind } }
+    state open_err(&mut self, fd: i32) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, fd); IoResult::Error { kind: kind } }
+    state read_err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i64(&mut self, n); IoResult::Error { kind: kind } }
 }
 
 // Copy the contents of `from` to `to` (Rust `std::fs::copy`), returning the
@@ -824,7 +824,7 @@ invokes
         create: false,
         create_new: false,
     };
-    self.encode_open_options();
+    Filesystem::encode_open_options(&mut self);
     self.read_flags = self.open_flags;
     let src: i32 = self.host.open(from, self.read_flags);
     let n: i64 = self.host.read(src, buffer, cap);
@@ -837,7 +837,7 @@ invokes
         create: true,
         create_new: false,
     };
-    self.encode_open_options();
+    Filesystem::encode_open_options(&mut self);
     let dst: i32 = self.host.open_create(to, self.open_flags, 438);
     let written: i64 = self.host.write(dst, buffer);
     let truncated: i32 = self.host.set_len(dst, n);
@@ -861,8 +861,8 @@ invokes
     state err(&mut self, src: i32, n: i64) -> IoResult {
         transition src < 0 { true -> open_err(src) _ -> read_err(n) }
     }
-    state open_err(&mut self, src: i32) -> IoResult { let kind: ErrorKind = self.last_error_i32(src); IoResult::Error { kind: kind } }
-    state read_err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = self.last_error_i64(n); IoResult::Error { kind: kind } }
+    state open_err(&mut self, src: i32) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, src); IoResult::Error { kind: kind } }
+    state read_err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i64(&mut self, n); IoResult::Error { kind: kind } }
 }
 
 // Does a path exist? (Rust `Path::exists` = `metadata().is_ok()`.) Faithfully
@@ -886,7 +886,7 @@ invokes
 // present-but-unreadable file is `Yes` (stat needs no read perm); `Error` is
 // reserved for a real failure such as an unsearchable ancestor directory (EACCES on
 // a parent) — surfaced, not silently reported as absent.
-pub machine Filesystem::try_exists(&mut self, path: &[u8] in Path) -> ExistsResult
+pub machine Filesystem::try_exists(filesystem: &mut Filesystem, path: &[u8] in Path) -> ExistsResult
 reaches
     FilesystemHost
 invokes
@@ -894,15 +894,15 @@ invokes
 {
     // Capture the target-normalized code immediately after the stat result. Libc
     // targets read errno here; Linux decodes the explicit negative syscall result.
-    self.stat_rc = self.host.read_metadata(path, &mut self.stat_buf);
-    self.stat_errno = self.native_error_code_i32(self.stat_rc);
-    transition self.stat_rc == 0 { true -> present() _ -> absent() }
-    state present(&mut self) -> ExistsResult { ExistsResult::Yes }
-    state absent(&mut self) -> ExistsResult {
-        transition self.stat_errno == 2 { true -> no() _ -> other() }
+    filesystem.stat_rc = filesystem.host.read_metadata(path, &mut filesystem.stat_buf);
+    filesystem.stat_errno = Filesystem::native_error_code_i32(filesystem, filesystem.stat_rc);
+    transition filesystem.stat_rc == 0 { true -> present(filesystem) _ -> absent(filesystem) }
+    state present(filesystem: &mut Filesystem) -> ExistsResult { ExistsResult::Yes }
+    state absent(filesystem: &mut Filesystem) -> ExistsResult {
+        transition filesystem.stat_errno == 2 { true -> no(filesystem) _ -> other(filesystem) }
     }
-    state no(&mut self) -> ExistsResult { ExistsResult::No }
-    state other(&mut self) -> ExistsResult { let kind: ErrorKind = self.last_error_i32(self.stat_rc); ExistsResult::Error { kind: kind } }
+    state no(filesystem: &mut Filesystem) -> ExistsResult { ExistsResult::No }
+    state other(filesystem: &mut Filesystem) -> ExistsResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, filesystem.stat_rc); ExistsResult::Error { kind: kind } }
 }
 
 // SHARED stat->Metadata decode (metadata_path / metadata / symlink_metadata all
@@ -911,8 +911,8 @@ invokes
 // code owns only semantic field names and the necessary width conversions.
 // `is_symlink` is computed from S_IFLNK bits (40960): stat/fstat follow links,
 // while lstat can report one, so the same decode remains correct for all three.
-machine Filesystem::decode_metadata(&mut self) -> Metadata {
-    let stat: &StatView = &self.stat_buf[0] as &StatView;
+machine Filesystem::decode_metadata(filesystem: &mut Filesystem) -> Metadata {
+    let stat: &StatView = &filesystem.stat_buf[0] as &StatView;
     let mode: u32 = stat.value.mode;
     let nlink: u64 = stat.value.nlink;
     let ino: u64 = stat.value.ino;
@@ -947,24 +947,24 @@ invokes
 {
     let rc: i32 = self.host.read_metadata(path, &mut self.stat_buf);
     transition rc == 0 { true -> decode() _ -> err(rc) }
-    state decode(&mut self) -> MetadataResult { let m: Metadata = self.decode_metadata(); MetadataResult::Ok { meta: m } }
-    state err(&mut self, rc: i32) -> MetadataResult { let kind: ErrorKind = self.last_error_i32(rc); MetadataResult::Error { kind: kind } }
+    state decode(&mut self) -> MetadataResult { let m: Metadata = Filesystem::decode_metadata(&mut self); MetadataResult::Ok { meta: m } }
+    state err(&mut self, rc: i32) -> MetadataResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); MetadataResult::Error { kind: kind } }
 }
 
 // Rust `fs::symlink_metadata` — metadata of the path ITSELF, not following a
 // final symlink (via `lstat`). Same byte-decode as `metadata_path`, but a symlink
 // reports `is_symlink` true (st_mode file-type S_IFLNK = 0o120000 = 40960) and so
 // `is_file()` false. For a non-symlink it is identical to `metadata_path`.
-pub machine Filesystem::symlink_metadata(&mut self, path: &[u8] in Path) -> MetadataResult
+pub machine Filesystem::symlink_metadata(filesystem: &mut Filesystem, path: &[u8] in Path) -> MetadataResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    let rc: i32 = self.host.read_symlink_metadata(path, &mut self.stat_buf);
-    transition rc == 0 { true -> decode() _ -> err(rc) }
-    state decode(&mut self) -> MetadataResult { let m: Metadata = self.decode_metadata(); MetadataResult::Ok { meta: m } }
-    state err(&mut self, rc: i32) -> MetadataResult { let kind: ErrorKind = self.last_error_i32(rc); MetadataResult::Error { kind: kind } }
+    let rc: i32 = filesystem.host.read_symlink_metadata(path, &mut filesystem.stat_buf);
+    transition rc == 0 { true -> decode(filesystem) _ -> err(filesystem, rc) }
+    state decode(filesystem: &mut Filesystem) -> MetadataResult { let m: Metadata = Filesystem::decode_metadata(filesystem); MetadataResult::Ok { meta: m } }
+    state err(filesystem: &mut Filesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
 }
 
 // Remove a file.
@@ -977,7 +977,7 @@ invokes
     let rc: i32 = self.host.remove(path);
     transition rc == 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); UnitResult::Error { kind: kind } }
 }
 
 // Classify the most recent libc-backed failure as an `ErrorKind` (Rust
@@ -986,7 +986,7 @@ invokes
 // syscall wrappers use `last_error_i32`/`last_error_i64` instead: they carry
 // the negative syscall result explicitly into target-owned normalization and
 // never manufacture hidden libc state.
-machine Filesystem::last_error(&mut self) -> ErrorKind
+machine Filesystem::last_error(filesystem: &mut Filesystem) -> ErrorKind
 reaches FilesystemHost
 {
     // errno -> ErrorKind via a value-yielding `match` TERMINAL (assigned to a field,
@@ -995,8 +995,8 @@ reaches FilesystemHost
     // cases are payload-free -> tag arithmetic), so it observes the real errno
     // host-call result; a transition-guard chain read the pre-store ZII zero in an
     // inlined value-call (see TASKS_FS.md "terminal-value completion").
-    self.err_code = self.host.errno();
-    self.err_kind = match self.err_code {
+    filesystem.err_code = filesystem.host.errno();
+    filesystem.err_kind = match filesystem.err_code {
         2 -> ErrorKind::NotFound,
         13 -> ErrorKind::PermissionDenied,
         1 -> ErrorKind::PermissionDenied,
@@ -1006,7 +1006,7 @@ reaches FilesystemHost
         35 -> ErrorKind::WouldBlock,
         _ -> ErrorKind::Other
     };
-    self.err_kind.reconstruct()
+    ErrorKind::reconstruct(&filesystem.err_kind)
 }
 
 // Result-carrying failure classification. The selected target implements the
@@ -1014,9 +1014,9 @@ reaches FilesystemHost
 // result and read their thread-local errno, while Linux decodes `-errno`
 // directly from the syscall result. Both return the canonical code set used by
 // this common map (notably WouldBlock = 35).
-machine Filesystem::last_error_i32(&mut self, result: i32) -> ErrorKind {
-    self.err_code = self.native_error_code_i32(result);
-    self.err_kind = match self.err_code {
+machine Filesystem::last_error_i32(filesystem: &mut Filesystem, result: i32) -> ErrorKind {
+    filesystem.err_code = Filesystem::native_error_code_i32(filesystem, result);
+    filesystem.err_kind = match filesystem.err_code {
         2 -> ErrorKind::NotFound,
         13 -> ErrorKind::PermissionDenied,
         1 -> ErrorKind::PermissionDenied,
@@ -1026,12 +1026,12 @@ machine Filesystem::last_error_i32(&mut self, result: i32) -> ErrorKind {
         35 -> ErrorKind::WouldBlock,
         _ -> ErrorKind::Other
     };
-    self.err_kind.reconstruct()
+    ErrorKind::reconstruct(&filesystem.err_kind)
 }
 
-machine Filesystem::last_error_i64(&mut self, result: i64) -> ErrorKind {
-    self.err_code = self.native_error_code_i64(result);
-    self.err_kind = match self.err_code {
+machine Filesystem::last_error_i64(filesystem: &mut Filesystem, result: i64) -> ErrorKind {
+    filesystem.err_code = Filesystem::native_error_code_i64(filesystem, result);
+    filesystem.err_kind = match filesystem.err_code {
         2 -> ErrorKind::NotFound,
         13 -> ErrorKind::PermissionDenied,
         1 -> ErrorKind::PermissionDenied,
@@ -1041,7 +1041,7 @@ machine Filesystem::last_error_i64(&mut self, result: i64) -> ErrorKind {
         35 -> ErrorKind::WouldBlock,
         _ -> ErrorKind::Other
     };
-    self.err_kind.reconstruct()
+    ErrorKind::reconstruct(&filesystem.err_kind)
 }
 
 // Create a directory.
@@ -1055,7 +1055,7 @@ invokes
     let rc: i32 = self.host.create_dir(path, self.dir_mode);
     transition rc == 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); UnitResult::Error { kind: kind } }
 }
 
 // Remove an empty directory.
@@ -1068,7 +1068,7 @@ invokes
     let rc: i32 = self.host.remove_dir(path);
     transition rc == 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); UnitResult::Error { kind: kind } }
 }
 
 // Recursively create a directory and all of its missing parents (Rust
@@ -1092,7 +1092,7 @@ invokes
     FilesystemHost;
 {
     self.dir_mode = 493;
-    transition { _ -> self.mkall_walk(path, 1) }
+    transition { _ -> Filesystem::mkall_walk(&mut self, path, 1) }
 }
 
 // Climbing-index walk: at each position create the ancestor prefix (via the
@@ -1100,29 +1100,29 @@ invokes
 // recurse in the ENTRY -- the only shape the `Nat::BoundedDistance` decreases
 // proof accepts. `path`'s domain survives the interleaved `mkall_step` call
 // because a SHARED parameter's declared domain is invariant (checker grant).
-machine Filesystem::mkall_walk(&mut self, path: &[u8] in Path, i: u64)
+machine Filesystem::mkall_walk(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64)
 terminates by (i, path.len) -> Nat::BoundedDistance;
 -> UnitResult
 reaches FilesystemHost
 {
-    self.walk_rc = self.mkall_step(path, i);
+    filesystem.walk_rc = Filesystem::mkall_step(filesystem, path, i);
     transition i < path.len {
-        true -> mkall_walk(path, i + 1)
-        false -> self.mkall_leaf(path)
+        true -> mkall_walk(filesystem, path, i + 1)
+        false -> mkall_leaf(filesystem, path)
     }
-    state mkall_leaf(&mut self, path: &[u8] in Path) -> UnitResult {
-        let rc: i32 = self.host.create_dir(path, self.dir_mode);
-        transition rc == 0 { true -> ok() _ -> exists_ok(rc) }
+    state mkall_leaf(filesystem: &mut Filesystem, path: &[u8] in Path) -> UnitResult {
+        let rc: i32 = filesystem.host.create_dir(path, filesystem.dir_mode);
+        transition rc == 0 { true -> ok(filesystem) _ -> exists_ok(filesystem, rc) }
     }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state exists_ok(&mut self, rc: i32) -> UnitResult {
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state exists_ok(filesystem: &mut Filesystem, rc: i32) -> UnitResult {
         // AlreadyExists (the target dir is already present) is success for
         // create_dir_all; any other error is surfaced.
-        let code: i32 = self.native_error_code_i32(rc);
-        transition code == 17 { true -> ok() _ -> mkall_error(rc) }
+        let code: i32 = Filesystem::native_error_code_i32(filesystem, rc);
+        transition code == 17 { true -> ok(filesystem) _ -> mkall_error(filesystem, rc) }
     }
-    state mkall_error(&mut self, rc: i32) -> UnitResult {
-        let kind: ErrorKind = self.last_error_i32(rc);
+    state mkall_error(filesystem: &mut Filesystem, rc: i32) -> UnitResult {
+        let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc);
         UnitResult::Error { kind: kind }
     }
 }
@@ -1130,27 +1130,27 @@ reaches FilesystemHost
 // Create the ancestor prefix `path[0..i]` iff position i is a '/' separator.
 // Guards `i < path.len` INTERNALLY so the caller's recursion needs no
 // pre-established bound. Returns the `create_dir` rc (best-effort; ignored).
-machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: u64) -> i32 {
+machine Filesystem::mkall_step(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64) -> i32 {
     transition i < path.len {
-        true -> self.mkall_at(path, i)
-        false -> mkall_noop()
+        true -> mkall_at(filesystem, path, i)
+        false -> mkall_noop(filesystem)
     }
-    state mkall_at(&mut self, path: &[u8] in Path, i: u64) -> i32 {
+    state mkall_at(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64) -> i32 {
         transition path[i] == 47 {
-            true -> self.mkall_mk(path, i)
-            false -> mkall_noop()
+            true -> mkall_mk(filesystem, path, i)
+            false -> mkall_noop(filesystem)
         }
     }
-    state mkall_mk(&mut self, path: &[u8] in Path, i: u64) -> i32 {
+    state mkall_mk(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64) -> i32 {
         // The prefix must reach the native call NUL-TERMINATED: the copy
         // walk below fills the scratch and issues the mkdir. Oversized
         // prefixes skip their best-effort create (D-cda).
         transition i < 255 {
-            true -> self.mkall_copy(path, i, 0)
-            false -> mkall_noop()
+            true -> Filesystem::mkall_copy(filesystem, path, i, 0)
+            false -> mkall_noop(filesystem)
         }
     }
-    state mkall_noop(&mut self) -> i32 { 0 }
+    state mkall_noop(filesystem: &mut Filesystem) -> i32 { 0 }
 }
 
 // Prefix copy walk: ENTRY-recursion (the only shape the ranking proof
@@ -1159,14 +1159,14 @@ machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: u64) -> i32 {
 // chain selects arms correctly; value-call arm effects would be a compile
 // error by design). The byte writer also lays the C-string NUL at j == i,
 // so the mkdir fires on a complete prefix.
-machine Filesystem::mkall_copy(&mut self, path: &[u8] in Path, i: u64, j: u64)
+machine Filesystem::mkall_copy(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32
 {
-    self.mkall_put(path, i, j);
+    Filesystem::mkall_put(filesystem, path, i, j);
     transition j < i {
-        true -> mkall_copy(path, i, j + 1)
-        false -> self.mkall_issue(i)
+        true -> mkall_copy(filesystem, path, i, j + 1)
+        false -> Filesystem::mkall_issue(filesystem, i)
     }
 }
 
@@ -1174,45 +1174,45 @@ terminates by (j, i) -> Nat::BoundedDistance;
 // (cross-state facts do not travel to contract provers or index checks):
 // writes `path[j]` while j < i, and the NUL exactly at j == i. Out-of-range
 // steps (oversized prefixes) are no-ops -- the mkdir is best-effort (D-cda).
-machine Filesystem::mkall_put(&mut self, path: &[u8] in Path, i: u64, j: u64) {
+machine Filesystem::mkall_put(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64, j: u64) {
     transition j < i {
-        true -> put_byte(path, i, j)
-        false -> put_nul(j)
+        true -> put_byte(filesystem, path, i, j)
+        false -> put_nul(filesystem, j)
     }
-    state put_byte(&mut self, path: &[u8] in Path, i: u64, j: u64) {
+    state put_byte(filesystem: &mut Filesystem, path: &[u8] in Path, i: u64, j: u64) {
         transition j < path.len {
-            true -> put_byte_bounded(path, j)
-            false -> put_done()
+            true -> put_byte_bounded(filesystem, path, j)
+            false -> put_done(filesystem)
         }
     }
-    state put_byte_bounded(&mut self, path: &[u8] in Path, j: u64) {
+    state put_byte_bounded(filesystem: &mut Filesystem, path: &[u8] in Path, j: u64) {
         transition j < 255 {
-            true -> put_byte_write(path, j)
-            false -> put_done()
+            true -> put_byte_write(filesystem, path, j)
+            false -> put_done(filesystem)
         }
     }
-    state put_byte_write(&mut self, path: &[u8] in Path, j: u64) {
+    state put_byte_write(filesystem: &mut Filesystem, path: &[u8] in Path, j: u64) {
         // Split through a FIELD: the DUAL-indexed frame-descriptor-to-machine
-        // copy (`self.mkall_scratch[j] = path[j]`) has no single instruction
+        // copy (`filesystem.mkall_scratch[j] = path[j]`) has no single instruction
         // in the dispatched context, but both halves lower (frame-indexed
         // read -> field; machine place -> machine-indexed write). A LET
         // carrier does not resolve as the write's source under a dispatched
         // arm (the let-local face), so the byte rides a field.
-        self.mkall_byte = path[j];
-        self.mkall_scratch[j] = self.mkall_byte;
-        transition { _ -> put_done() }
+        filesystem.mkall_byte = path[j];
+        filesystem.mkall_scratch[j] = filesystem.mkall_byte;
+        transition { _ -> put_done(filesystem) }
     }
-    state put_nul(&mut self, j: u64) {
+    state put_nul(filesystem: &mut Filesystem, j: u64) {
         transition j < 255 {
-            true -> put_nul_write(j)
-            false -> put_done()
+            true -> put_nul_write(filesystem, j)
+            false -> put_done(filesystem)
         }
     }
-    state put_nul_write(&mut self, j: u64) {
-        self.mkall_scratch[j] = 0;
-        transition { _ -> put_done() }
+    state put_nul_write(filesystem: &mut Filesystem, j: u64) {
+        filesystem.mkall_scratch[j] = 0;
+        transition { _ -> put_done(filesystem) }
     }
-    state put_done(&mut self) { }
+    state put_done(filesystem: &mut Filesystem) { }
 }
 
 // The mkdir on the NUL-terminated scratch prefix. The host call lives in a
@@ -1220,19 +1220,19 @@ machine Filesystem::mkall_put(&mut self, path: &[u8] in Path, i: u64, j: u64) {
 // the subslice is in bounds; called as a transition-target value call whose
 // arms hold no effects beyond this machine's own dispatch (statement-shape
 // sibling of mkall_step's original mkall_mk).
-machine Filesystem::mkall_issue(&mut self, i: u64) -> i32
+machine Filesystem::mkall_issue(filesystem: &mut Filesystem, i: u64) -> i32
 reaches FilesystemHost
 {
     transition i < 255 {
-        true -> issue_mk(i)
-        false -> issue_skip()
+        true -> issue_mk(filesystem, i)
+        false -> issue_skip(filesystem)
     }
-    state issue_mk(&mut self, i: u64) -> i32 {
+    state issue_mk(filesystem: &mut Filesystem, i: u64) -> i32 {
         // let-bound, never a bare terminal host call (see Filesystem::close).
-        let rc: i32 = self.host.create_dir_name(self.mkall_scratch[0..i], self.dir_mode);
+        let rc: i32 = filesystem.host.create_dir_name(filesystem.mkall_scratch[0..i], filesystem.dir_mode);
         rc
     }
-    state issue_skip(&mut self) -> i32 { 0 }
+    state issue_skip(filesystem: &mut Filesystem) -> i32 { 0 }
 }
 
 // ---------------------------------------------------------------------------
@@ -1290,40 +1290,40 @@ invokes
     let rc: i32 = self.host.set_permissions(path, self.perm_mode);
     transition rc == 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); UnitResult::Error { kind: kind } }
 }
 
 // Create a symbolic link `link` pointing at `target` (Rust
 // `std::os::unix::fs::symlink`). Fails with `AlreadyExists` if `link` is taken.
-pub machine Filesystem::symlink(&mut self, target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
+pub machine Filesystem::symlink(filesystem: &mut Filesystem, target: &[u8] in Path, link: &[u8] in Path) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    let rc: i32 = self.host.symlink(target, link);
-    transition rc == 0 { true -> ok() _ -> err(rc) }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    let rc: i32 = filesystem.host.symlink(target, link);
+    transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state err(filesystem: &mut Filesystem, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }
 
 // Read a symbolic link's target into `buffer` (Rust `std::fs::read_link`),
 // returning the number of target bytes written. (Rust returns a fresh `PathBuf`;
 // Omega fills a caller buffer to stay allocation-free — size it via
 // `metadata_path(link).len` or a generous fixed buffer.)
-pub machine Filesystem::read_link(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
+pub machine Filesystem::read_link(filesystem: &mut Filesystem, path: &[u8] in Path, buffer: &mut [u8], count: u64) -> IoResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    let n: i64 = self.host.read_link(path, buffer, count);
-    transition n >= 0 { true -> ok(n) _ -> err(n) }
-    state ok(&mut self, n: i64) -> IoResult {
+    let n: i64 = filesystem.host.read_link(path, buffer, count);
+    transition n >= 0 { true -> ok(filesystem, n) _ -> err(filesystem, n) }
+    state ok(filesystem: &mut Filesystem, n: i64) -> IoResult {
         let converted_count: u64 = narrow_i64_to_u64_exact(n);
         IoResult::Ok { count: converted_count }
     }
-    state err(&mut self, n: i64) -> IoResult { let kind: ErrorKind = self.last_error_i64(n); IoResult::Error { kind: kind } }
+    state err(filesystem: &mut Filesystem, n: i64) -> IoResult { let kind: ErrorKind = Filesystem::last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
 }
 
 // ---------------------------------------------------------------------------
@@ -1345,18 +1345,18 @@ invokes
 
 // Set an OPEN file's permission bits (Rust `File::set_permissions`), the fd-based
 // counterpart to `set_permissions`. Uses `fchmod`, so it needs no path.
-pub machine Filesystem::set_file_permissions(&mut self, file: File, perms: Permissions) -> UnitResult
+pub machine Filesystem::set_file_permissions(filesystem: &mut Filesystem, file: File, perms: Permissions) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    self.perm_mode = perms.mode;
-    let rc: i32 = self.host.set_file_permissions(self.file_fd, self.perm_mode);
-    transition rc == 0 { true -> ok() _ -> err(rc) }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    filesystem.file_fd = file.fd;
+    filesystem.perm_mode = perms.mode;
+    let rc: i32 = filesystem.host.set_file_permissions(filesystem.file_fd, filesystem.perm_mode);
+    transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state err(filesystem: &mut Filesystem, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }
 
 // Move/rename a path.
@@ -1369,7 +1369,7 @@ invokes
     let rc: i32 = self.host.rename(from, to);
     transition rc == 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); UnitResult::Error { kind: kind } }
 }
 
 // ---------------------------------------------------------------------------
@@ -1387,17 +1387,17 @@ invokes
 // ---------------------------------------------------------------------------
 
 // Truncate or extend an open file to `length` bytes (Rust `File::set_len`).
-pub machine Filesystem::set_len(&mut self, file: File, length: i64) -> UnitResult
+pub machine Filesystem::set_len(filesystem: &mut Filesystem, file: File, length: i64) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.set_len(self.file_fd, length);
-    transition rc == 0 { true -> ok() _ -> err(rc) }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    filesystem.file_fd = file.fd;
+    let rc: i32 = filesystem.host.set_len(filesystem.file_fd, length);
+    transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state err(filesystem: &mut Filesystem, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }
 
 // Set an open file's access + modification times (Rust `File::set_times`) from
@@ -1416,39 +1416,39 @@ invokes
     let rc: i32 = self.host.sync(self.file_fd);
     transition rc == 0 { true -> ok() _ -> err(rc) }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); UnitResult::Error { kind: kind } }
 }
 
 // Flush a file's DATA to durable storage (Rust `File::sync_data`) -- like
 // `sync`/`sync_all` but may skip metadata the reader doesn't need. On darwin
 // there is no `fdatasync`, so this maps to `fsync` (as Rust's own std does).
-pub machine Filesystem::sync_data(&mut self, file: File) -> UnitResult
+pub machine Filesystem::sync_data(filesystem: &mut Filesystem, file: File) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.sync_data(self.file_fd);
-    transition rc == 0 { true -> ok() _ -> err(rc) }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    filesystem.file_fd = file.fd;
+    let rc: i32 = filesystem.host.sync_data(filesystem.file_fd);
+    transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state err(filesystem: &mut Filesystem, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }
 
 // Duplicate an open file handle (Rust `File::try_clone`): the new `File` refers to
 // the same underlying open file (natively via `dup`, sharing the file offset). On
 // `Ok` the caller gets a second independent `File` to close separately.
-pub machine Filesystem::try_clone(&mut self, file: File) -> OpenResult
+pub machine Filesystem::try_clone(filesystem: &mut Filesystem, file: File) -> OpenResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let fd: i32 = self.host.duplicate(self.file_fd);
-    transition fd >= 0 { true -> ok(fd) _ -> err(fd) }
-    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self, fd: i32) -> OpenResult { let kind: ErrorKind = self.last_error_i32(fd); OpenResult::Error { kind: kind } }
+    filesystem.file_fd = file.fd;
+    let fd: i32 = filesystem.host.duplicate(filesystem.file_fd);
+    transition fd >= 0 { true -> ok(filesystem, fd) _ -> err(filesystem, fd) }
+    state ok(filesystem: &mut Filesystem, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(filesystem: &mut Filesystem, fd: i32) -> OpenResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
 }
 
 // Advisory whole-file locking is target-specific. POSIX targets use flock;
@@ -1462,43 +1462,43 @@ invokes
 // current owner succeeds.
 
 // Change a path's owner/group, following symlinks (Rust `chown`).
-pub machine Filesystem::set_owner(&mut self, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+pub machine Filesystem::set_owner(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    let rc: i32 = self.host.change_owner(path, uid, gid);
-    transition rc == 0 { true -> ok() _ -> err(rc) }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    let rc: i32 = filesystem.host.change_owner(path, uid, gid);
+    transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state err(filesystem: &mut Filesystem, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }
 
 // Change a path's owner/group WITHOUT following a final symlink (Rust `lchown`).
-pub machine Filesystem::set_owner_no_follow(&mut self, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
+pub machine Filesystem::set_owner_no_follow(filesystem: &mut Filesystem, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    let rc: i32 = self.host.change_owner_no_follow(path, uid, gid);
-    transition rc == 0 { true -> ok() _ -> err(rc) }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    let rc: i32 = filesystem.host.change_owner_no_follow(path, uid, gid);
+    transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state err(filesystem: &mut Filesystem, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }
 
 // Change an open file's owner/group by descriptor (Rust `fchown`).
-pub machine Filesystem::set_file_owner(&mut self, file: File, uid: i32, gid: i32) -> UnitResult
+pub machine Filesystem::set_file_owner(filesystem: &mut Filesystem, file: File, uid: i32, gid: i32) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.change_file_owner(self.file_fd, uid, gid);
-    transition rc == 0 { true -> ok() _ -> err(rc) }
-    state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self, rc: i32) -> UnitResult { let kind: ErrorKind = self.last_error_i32(rc); UnitResult::Error { kind: kind } }
+    filesystem.file_fd = file.fd;
+    let rc: i32 = filesystem.host.change_file_owner(filesystem.file_fd, uid, gid);
+    transition rc == 0 { true -> ok(filesystem) _ -> err(filesystem, rc) }
+    state ok(filesystem: &mut Filesystem) -> UnitResult { UnitResult::Ok }
+    state err(filesystem: &mut Filesystem, rc: i32) -> UnitResult { let kind: ErrorKind = Filesystem::last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
 }
 
 // Metadata of an open file (Rust `File::metadata`). Uses `fstat` on the
@@ -1515,6 +1515,6 @@ invokes
     self.file_fd = file.fd;
     let rc: i32 = self.host.read_file_metadata(self.file_fd, &mut self.stat_buf);
     transition rc == 0 { true -> decode() _ -> err(rc) }
-    state decode(&mut self) -> MetadataResult { let m: Metadata = self.decode_metadata(); MetadataResult::Ok { meta: m } }
-    state err(&mut self, rc: i32) -> MetadataResult { let kind: ErrorKind = self.last_error_i32(rc); MetadataResult::Error { kind: kind } }
+    state decode(&mut self) -> MetadataResult { let m: Metadata = Filesystem::decode_metadata(&mut self); MetadataResult::Ok { meta: m } }
+    state err(&mut self, rc: i32) -> MetadataResult { let kind: ErrorKind = Filesystem::last_error_i32(&mut self, rc); MetadataResult::Error { kind: kind } }
 }
