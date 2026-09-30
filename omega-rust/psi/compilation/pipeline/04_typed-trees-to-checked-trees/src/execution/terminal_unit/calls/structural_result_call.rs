@@ -90,6 +90,18 @@ pub(super) fn build(
     } else {
         arena::Handle::invalid()
     };
+    // A result whose contents hold no reference, slice or cleanup owner
+    // cannot retain a loan of its operands: whatever the callee read or wrote
+    // through a borrowed argument stays in the lender's storage.
+    let result_retains_no_loan = !reference_loan.is_valid()
+        && ((matches!(
+            result.multiplicity,
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        ) && validation::has_plain_owned_contents_with_numeric_constraints(
+            program,
+            target_state.return_type,
+        )) || (result.multiplicity == Multiplicity::Unrestricted
+            && validation::is_closed_primitive_array_type(program, target_state.return_type)));
     // A result signature is available before its ordinary or graph body plan.
     // The closure pass below retains this call only when that complete body
     // was produced, avoiding an authored machine-order dependency.
@@ -189,6 +201,23 @@ pub(super) fn build(
                     && argument
                         .source_structural_result_binding_ordinal()
                         .is_some())
+                // An exclusive loan of an earlier result or local record,
+                // whole or by fixed field and index path, was rejoined the
+                // same way to its captured `&mut` access. Only a result that
+                // retains no loan admits it, so the loan ends with the call
+                // and the lender keeps its owner.
+                || (argument.access == CheckedStructuralAccess::MutableBorrow
+                    && result_retains_no_loan
+                    && argument
+                        .source_structural_result_binding_ordinal()
+                        .is_some()
+                    && argument.path.iter().all(|segment| {
+                        matches!(
+                            segment,
+                            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                                | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                        )
+                    }))
                 || argument.byte_sequence_literal().is_some()
                 || matches!(
                     argument.source,

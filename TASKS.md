@@ -74,9 +74,11 @@ build authority, and artifact verification remain separate obligations.
   `.as_slice()` establishes a view over a local home, and a zeroed local record
   lends `&mut` whole (`pass/calls/local_fixed_byte_array_loan_exit`,
   `pass/slices/local_array_element_view_exit`); a local record lends `&mut` or
-  `&` whole and `&mut` by fixed field path to Unit- and scalar-result calls,
-  numeric field domains included
-  (`pass/calls/local_{record_mutable,record_shared,projected_field,projected_field_scalar_result}_argument_exit`).
+  `&` whole and `&mut` by fixed field path to Unit-, scalar- and
+  plain-record-result calls, numeric field domains included
+  (`pass/calls/local_{record_mutable,record_shared,projected_field,projected_field_scalar_result}_argument_exit`,
+  `pass/calls/local_{record,projected_field}_record_result_argument_exit`,
+  `pass/calls/local_records_mixed_record_result_arguments_exit`).
   `dutch_flag` (70), `modular_exponentiation` (87), `value_call_in_expr` (70)
   and `slice_maximum` (9) run with native/interpreter agreement. Direct scalar
   element reads from local arrays retain the original home after a borrowed
@@ -86,8 +88,12 @@ build authority, and artifact verification remain separate obligations.
   operand support` until `ordinary_projected_call_is_supported`
   (`calls/argument_paths.rs`) admits `SharedBorrow` in its result-binding arm;
   the argument, claim-transfer, stage 05 and Terminal checks already admit it.
-  An ordinary structural-result call taking any local loan stops at `call
-  operation: claim-free affine result`. A static `generic_counters` plans its
+  For Unit, scalar and record results alike, a fixed-index loan of a local's
+  record-array element (`&mut board.tallies[1]`) stops at stage 05 `Unit
+  structural result argument has invalid checked custody`; for scalar and
+  record results, a callee that forwards its `&mut` parameter across states
+  stops at Terminal `OwnedStructuralPlaceNotLiveAtOperation`. A static
+  `generic_counters` plans its
   local loans and stops inside the specialized callee at `scalar field store
   sequence: write frame agreement`. Stage 02 element-view establishment
   resolves a local backing from its producer operation because threading the

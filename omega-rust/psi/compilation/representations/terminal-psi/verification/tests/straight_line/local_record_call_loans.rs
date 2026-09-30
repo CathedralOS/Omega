@@ -1,16 +1,19 @@
 //! A static machine's zero-established local record lends an exact field
-//! subtree to a Unit callee. The loan moves no custody: the local keeps its
-//! whole value and retires on the caller's own return. The loan is still an
-//! ordinary argument, so its source, path type, liveness and overlap with a
-//! sibling loan are each replayed here rather than trusted.
+//! subtree to a Unit callee, or to a callee returning a plain record. The loan
+//! moves no custody: the local keeps its whole value and retires on the
+//! caller's own return, and a plain record result holds no reference that
+//! could carry the loan past the call. The loan is still an ordinary
+//! argument, so its source, path type, liveness and overlap with a sibling
+//! loan are each replayed here rather than trusted.
 
 use super::{
     AdmissionProfile, Block, IntegerSign, IntegerType, MachineContract, ModuleError, Operation,
     OperationKind, OperationResult, ProofBundle, ScalarType, StructuralAccess, StructuralArgument,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, unit_module, validate_module, verify_module,
+    StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeDeclaration,
+    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    unit_module, validate_module, verify_module,
 };
 use semantic_vocabulary::PsiSemanticId;
 use terminal_psi::{BindingRelevance, StructuralPathSegment};
@@ -24,6 +27,10 @@ const FIRST_FORMAL: u64 = 10;
 const SECOND_FORMAL: u64 = 11;
 const ESTABLISH: u64 = 1;
 const LOAN_CALL: u64 = 3;
+const CALL_RESULT: u64 = 4;
+const CALLEE_RESULT: u64 = 12;
+const CALLEE_RETURNED: u64 = 13;
+const CALLEE_ESTABLISH: u64 = 911;
 
 fn id<T: PsiSemanticId>(raw: u64) -> T {
     T::new(raw).unwrap()
@@ -215,6 +222,111 @@ fn local_loan_module(
     module
 }
 
+/// The same callee returning a fresh zeroed `Banner`: a plain record with no
+/// reference or claim, so nothing it returns can retain a caller loan.
+fn record_result_callee(accesses: &[StructuralAccess]) -> TerminalMachine {
+    let mut machine = callee(accesses);
+    let owned = machine
+        .structural_parameters
+        .iter()
+        .filter(|formal| formal.access == StructuralAccess::Owned)
+        .map(|formal| formal.place)
+        .collect();
+    machine.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+        place: id(CALLEE_RESULT),
+        structural_type: id(BANNER_TYPE),
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+        reference_sources: Vec::new(),
+    });
+    machine.structural_places.extend([
+        StructuralPlaceDeclaration {
+            id: id(CALLEE_RESULT),
+            kind: StructuralPlaceKind::Result,
+        },
+        StructuralPlaceDeclaration {
+            id: id(CALLEE_RETURNED),
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id(CALLEE_ESTABLISH),
+                structural_type: id(BANNER_TYPE),
+            },
+        },
+    ]);
+    machine.blocks[0].operations = vec![Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(CALLEE_ESTABLISH),
+        result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place: id(CALLEE_RETURNED),
+            structural_type: id(BANNER_TYPE),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Default::default(),
+            projected_qualifications: Default::default(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::EstablishZeroedStructural {},
+    }];
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: id(910),
+        source: id(CALLEE_RETURNED),
+        returned_claims: Vec::new(),
+        trivial_affine_discards: owned,
+    };
+    machine
+}
+
+/// `let mut screen: Screen; let report: Banner = Banner::report(&mut
+/// screen.top);`: the loan call binds a plain record result, which the
+/// caller discards on its return beside the local.
+fn local_loan_record_result_module(
+    arguments: Vec<StructuralArgument>,
+    formals: &[StructuralAccess],
+) -> TerminalModule {
+    let mut module = local_loan_module(arguments, formals);
+    module.machines[1] = record_result_callee(formals);
+    let caller = &mut module.machines[0];
+    caller.structural_places.push(StructuralPlaceDeclaration {
+        id: id(CALL_RESULT),
+        kind: StructuralPlaceKind::OperationResult {
+            producer: id(LOAN_CALL),
+            structural_type: id(BANNER_TYPE),
+        },
+    });
+    let call = &mut caller.blocks[0].operations[1];
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = std::mem::replace(&mut call.kind, OperationKind::EstablishZeroedStructural {})
+    else {
+        unreachable!("local_loan_module lends through one Unit call")
+    };
+    call.kind = OperationKind::CallStructural {
+        callee: id(CALLEE),
+        structural_arguments,
+        claim_transfers: Vec::new(),
+        returned_claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+        selected_evidence: Vec::new(),
+    };
+    call.result = OperationResult::Structural(StructuralOperationResult {
+        qualification_establishments: Vec::new(),
+        place: id(CALL_RESULT),
+        structural_type: id(BANNER_TYPE),
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Default::default(),
+        projected_qualifications: Default::default(),
+        claims: Vec::new(),
+    });
+    caller.blocks[0].terminator = Terminator::ReturnUnit {
+        edge: id(900),
+        trivial_affine_discards: vec![id(CALL_RESULT), id(LOCAL)],
+    };
+    module
+}
+
 fn verified(module: &TerminalModule) -> bool {
     verify_module(
         module,
@@ -286,5 +398,37 @@ fn a_local_record_loan_replays_source_path_liveness_and_overlap() {
             Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation { .. })
         ),
         "a loan before the local's establishment is refused"
+    );
+}
+
+#[test]
+fn a_local_record_lends_an_exact_field_subtree_to_a_plain_record_result_call() {
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::SharedBorrow,
+    ] {
+        let module = local_loan_record_result_module(vec![loan(&["top"], access)], &[access]);
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| panic!("{access:?} field loan into a record result: {error:?}"));
+    }
+
+    // The plain result relaxes neither the overlap rule nor the path type.
+    let exclusive = StructuralAccess::MutableBorrow;
+    let overlapping = local_loan_record_result_module(
+        vec![loan(&["top"], exclusive), loan(&["top"], exclusive)],
+        &[exclusive, exclusive],
+    );
+    assert!(
+        validate_module(&overlapping).is_err(),
+        "one field lent exclusively twice into a record result call"
+    );
+    let whole = local_loan_record_result_module(vec![loan(&[], exclusive)], &[exclusive]);
+    assert!(
+        validate_module(&whole).is_err(),
+        "a local cannot shed its authored field projection at a record result call"
     );
 }

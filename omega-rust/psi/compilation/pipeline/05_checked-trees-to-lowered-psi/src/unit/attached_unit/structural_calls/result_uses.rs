@@ -18,6 +18,40 @@ fn ordinary_unit_call(operation: &CheckedUnitEffectOperationPlan) -> Option<&Che
         .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
 }
 
+/// Whether an ordinary call's result can retain no loan of its operands:
+/// nothing, a scalar, or a structural result that mints no reference loan
+/// or returned claim and whose callee declares contents holding no
+/// reference, slice or cleanup owner. The declared return type is read from
+/// the callee itself rather than from the checked plan's result shape, so a
+/// loan lent into such a call provably ends with it.
+fn loan_free_ordinary_call(
+    checked: &CheckedTrees,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> bool {
+    let Some(call) = operation.call().filter(|call| !call.is_boundary()) else {
+        return false;
+    };
+    let binding = match call.result() {
+        CheckedUnitCallResult::Unit | CheckedUnitCallResult::Scalar(_) => return true,
+        CheckedUnitCallResult::Structural { binding, .. } => binding,
+    };
+    call.structural_custody().is_some_and(|custody| {
+        !custody.reference_loan.is_valid() && custody.returned_claim_transfers.is_empty()
+    }) && crate::expression_preparation::source_custody::authored_state(checked, call.target.state)
+        .is_ok_and(|(_, callee_state)| {
+            let returned = callee_state.return_type;
+            checked.typed.normalized_type_identity(returned).as_str() == binding.type_identity
+                && ((matches!(
+                    binding.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                ) && validation::has_plain_owned_contents_with_numeric_constraints(
+                    &checked.typed,
+                    returned,
+                )) || (binding.multiplicity == Multiplicity::Unrestricted
+                    && validation::is_closed_primitive_array_type(&checked.typed, returned)))
+        })
+}
+
 /// The structural result binding of a call, ordinary or boundary.
 fn call_structural_result(
     operation: &CheckedUnitEffectOperationPlan,
@@ -1422,15 +1456,9 @@ pub(crate) fn validate_consumer(
         // consumed, the projected path (empty for a whole-place loan) is
         // already rejoined against the authored operand above, and the
         // borrowed formal carries no claims. A whole-place shared loan keeps
-        // the general check below. The callee returns nothing or a scalar,
-        // so no result custody can retain the loan past the call.
-        let value_free_ordinary_call = operation.call().is_some_and(|call| {
-            !call.is_boundary()
-                && matches!(
-                    call.result(),
-                    CheckedUnitCallResult::Unit | CheckedUnitCallResult::Scalar(_)
-                )
-        });
+        // the general check below. The callee's result retains no loan, so
+        // no result custody can carry the loan past the call.
+        let value_free_ordinary_call = loan_free_ordinary_call(checked, operation);
         let lent_access = match argument.access {
             checked_trees::CheckedStructuralAccess::MutableBorrow
             | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => true,

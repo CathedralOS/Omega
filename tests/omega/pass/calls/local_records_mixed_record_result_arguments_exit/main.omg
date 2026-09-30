@@ -1,0 +1,35 @@
+// A static machine lends two distinct local records to one record-returning
+// call: `&mut left` exclusively and `&right` shared. Neither loan aliases the
+// other, and the returned `Report` holds only plain numeric fields, so both
+// loans end with the call. Exits 70 only when the report and both locals
+// show exactly one write through the exclusive loan.
+
+use omega_language_std::console;
+
+data Tally { hits: i32 in Wrapping; misses: i32 in Wrapping; }
+data Report { total: i32 in Wrapping; }
+
+machine Tally::bump(tally: &mut Tally, by: i32 in Wrapping) {
+    tally.hits = tally.hits + by;
+}
+
+machine Tally::absorb(into: &mut Tally, from: &Tally) -> Report {
+    into.hits = into.hits + from.hits;
+    transition { _ -> (Report { total: into.hits + into.misses }) }
+}
+
+machine main() reaches Console {
+    let mut left: Tally;
+    let mut right: Tally;
+    Tally::bump(&mut left, 30);
+    Tally::bump(&mut right, 40);
+    let merged: Report = Tally::absorb(&mut left, &right);
+    transition merged.total == 70 && left.hits == 70 && right.hits == 40 {
+        true -> done(70)
+        _ -> done(71)
+    }
+
+    state done(code: i32) {
+        Console::exit_process(code);
+    }
+}
