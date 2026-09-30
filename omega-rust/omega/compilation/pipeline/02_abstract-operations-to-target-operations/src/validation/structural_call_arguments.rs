@@ -3366,7 +3366,7 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             result,
             ..
         }
-        | AbstractOperation::IntegerStructuralField {
+        | AbstractOperation::StructuralScalarFieldRead {
             psi_operation,
             result,
             ..
@@ -3498,12 +3498,7 @@ fn scalar_home_result(operation: &AbstractOperation) -> Option<(OperationId, Abs
         )
     };
     Some(match operation {
-        AbstractOperation::BooleanStructuralField {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::BooleanNot {
+        AbstractOperation::BooleanNot {
             psi_operation,
             result,
             ..

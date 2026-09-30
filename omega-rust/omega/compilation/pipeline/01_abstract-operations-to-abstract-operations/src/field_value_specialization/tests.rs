@@ -202,8 +202,9 @@ fn array_element_field_read_yields_no_candidate() {
         .any(|node| {
             matches!(
                 &node.operation,
-                AbstractOperation::BooleanStructuralField { path, .. }
-                    if matches!(
+                AbstractOperation::StructuralScalarFieldRead { result, path, .. }
+                    if result.scalar_type == semantic_vocabulary::ScalarType::Boolean
+                        && matches!(
                         path.as_slice(),
                         [
                             semantic_vocabulary::CanonicalStructuralPathSegment::Field(_),
@@ -449,8 +450,7 @@ fn nested_unestablished_child_stays_unproven() {
                 .any(|node| {
                     matches!(
                         node.operation,
-                        AbstractOperation::IntegerStructuralField { .. }
-                            | AbstractOperation::BooleanStructuralField { .. }
+                        AbstractOperation::StructuralScalarFieldRead { .. }
                     )
                 })
         })
@@ -736,8 +736,7 @@ fn zeroed_child_field_reads_fold() {
         .filter(|node| {
             matches!(
                 &node.operation,
-                AbstractOperation::IntegerStructuralField { source, path, .. }
-                    | AbstractOperation::BooleanStructuralField { source, path, .. }
+                    AbstractOperation::StructuralScalarFieldRead { source, path, .. }
                     if *source == place
                         && matches!(
                             path.as_slice(),
@@ -805,11 +804,11 @@ fn zeroed_array_element_field_read_folds_beneath_fixed_index() {
                 .flat_map(|block| &block.nodes)
                 .find(|node| matches!(
                     &node.operation,
-                    AbstractOperation::IntegerStructuralField { psi_operation, .. }
+                    AbstractOperation::StructuralScalarFieldRead { psi_operation, .. }
                         if *psi_operation == read.0
                 ))
                 .map(|node| &node.operation),
-            Some(AbstractOperation::IntegerStructuralField { path, .. })
+            Some(AbstractOperation::StructuralScalarFieldRead { path, .. })
                 if matches!(
                     path.as_slice(),
                     [
@@ -1289,8 +1288,7 @@ fn bound_observation(unit: &PsiOptimizationUnit, machine: MachineId) -> (PlaceId
         .iter()
         .flat_map(|block| &block.nodes)
         .find_map(|node| match &node.operation {
-            AbstractOperation::IntegerStructuralField { source, .. }
-            | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
+            AbstractOperation::StructuralScalarFieldRead { source, .. } => Some(*source),
             _ => None,
         })
         .expect("a field read observes the parameter");
@@ -1407,8 +1405,7 @@ fn outer_establishment(
         .iter()
         .flat_map(|block| &block.nodes)
         .find_map(|node| match &node.operation {
-            AbstractOperation::IntegerStructuralField { source, .. }
-            | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
+            AbstractOperation::StructuralScalarFieldRead { source, .. } => Some(*source),
             _ => None,
         })
         .expect("a field read observes the outer place");
@@ -1480,14 +1477,7 @@ fn field_read_on(
     for block in &function.blocks {
         for (node_index, node) in block.nodes.iter().enumerate() {
             let (psi_operation, result, source, field) = match &node.operation {
-                AbstractOperation::BooleanStructuralField {
-                    psi_operation,
-                    result,
-                    source,
-                    field,
-                    ..
-                } => (*psi_operation, *result, *source, *field),
-                AbstractOperation::IntegerStructuralField {
+                AbstractOperation::StructuralScalarFieldRead {
                     psi_operation,
                     result,
                     source,

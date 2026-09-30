@@ -15,6 +15,7 @@ use abstract_operations::{
     IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection,
     IntegerShiftPolicy,
 };
+use semantic_vocabulary::ScalarType;
 
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
@@ -213,30 +214,26 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*result);
             bytes.boolean(*value);
         }
-        O::BooleanStructuralField {
+        // A Boolean read keeps tag 11 and its untyped result; any other
+        // scalar keeps tag 51 and its typed result. These were the tags and
+        // result layouts of the former Boolean and integer field-read
+        // variants, so folding them into one operation moves no identity.
+        O::StructuralScalarFieldRead {
             psi_operation,
             result,
             source,
             path,
             field,
         } => {
-            bytes.u8(11);
-            bytes.id(*psi_operation);
-            bytes.id(*result);
-            bytes.id(*source);
-            encode_canonical_path(bytes, path);
-            bytes.id(*field);
-        }
-        O::IntegerStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => {
-            bytes.u8(51);
-            bytes.id(*psi_operation);
-            encode_abstract_result(bytes, *result);
+            if result.scalar_type == ScalarType::Boolean {
+                bytes.u8(11);
+                bytes.id(*psi_operation);
+                bytes.id(result.value);
+            } else {
+                bytes.u8(51);
+                bytes.id(*psi_operation);
+                encode_abstract_result(bytes, *result);
+            }
             bytes.id(*source);
             encode_canonical_path(bytes, path);
             bytes.id(*field);

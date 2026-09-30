@@ -1,6 +1,6 @@
 //! Optimizer module role: proposal leaf. Proven field-value specialization plans.
 //!
-//! A `BooleanStructuralField`/`IntegerStructuralField` observation is
+//! A Boolean or integer `StructuralScalarFieldRead` observation is
 //! foldable when the stored value it reads is proven by the unit itself. At
 //! an empty path an `EstablishRecord` producer proves the field's
 //! initializer; at a lone `Case` path an `EstablishCase` producer

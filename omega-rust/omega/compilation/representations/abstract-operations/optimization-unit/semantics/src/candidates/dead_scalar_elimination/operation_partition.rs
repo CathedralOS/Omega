@@ -53,7 +53,6 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::IeeeFloatCompare { .. }
-        | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
@@ -67,7 +66,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
-        | O::IntegerStructuralField { .. }
+        | O::StructuralScalarFieldRead { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
         // Restoration windows carry custody, not a scalar result a

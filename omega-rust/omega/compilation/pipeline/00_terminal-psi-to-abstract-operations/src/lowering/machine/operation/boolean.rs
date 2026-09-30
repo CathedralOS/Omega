@@ -1,4 +1,5 @@
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractResult};
+use semantic_vocabulary::ScalarType;
 use terminal_psi::{Operation, OperationKind};
 
 use crate::lowering::LoweringError;
@@ -14,9 +15,12 @@ pub(super) fn lower(operation: &Operation) -> Result<AbstractOperation, Lowering
             source,
             path,
             field,
-        } => AbstractOperation::BooleanStructuralField {
+        } => AbstractOperation::StructuralScalarFieldRead {
             psi_operation: operation.id,
-            result: operation.result.expect_scalar().id,
+            result: AbstractResult {
+                value: operation.result.expect_scalar().id,
+                scalar_type: ScalarType::Boolean,
+            },
             source,
             path,
             field,

@@ -84,8 +84,7 @@ pub(super) fn validate_current_ownership_cfg(
 
             if let O::StructuralCase { source, .. }
             | O::StructuralCaseMembership { source, .. }
-            | O::IntegerStructuralField { source, .. }
-            | O::BooleanStructuralField { source, .. } = &node.operation
+            | O::StructuralScalarFieldRead { source, .. } = &node.operation
             {
                 let signature =
                     crate::unit_validation::operation_contracts::structural_source_contract(

@@ -129,13 +129,17 @@ pub(crate) fn operation_scalar_types_match(
         | O::StoreStructuralField { .. }
         | O::StructuralLeafCopy { .. }
         | O::PortWrite { .. }
-        | O::BooleanStructuralField { .. }
         | O::StructuralCase { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => true,
-        O::IntegerStructuralField { result, .. } => {
-            matches!(result.scalar_type, ScalarType::Integer(_))
+        // The read's result is the field's Boolean or integer type; the
+        // structural-root pass matches it against the declared field.
+        O::StructuralScalarFieldRead { result, .. } => {
+            matches!(
+                result.scalar_type,
+                ScalarType::Boolean | ScalarType::Integer(_)
+            )
         }
         O::IntegerConstant {
             scalar_type, value, ..

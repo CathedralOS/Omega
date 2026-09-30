@@ -322,8 +322,7 @@ fn canonical_nested_scalar_reads_retain_the_carrier_path() {
         module.machines = vec![machine];
         let plan = lower(&module).expect("verified nested field read lowers");
         let retained = match &plan.functions[0].operations[0] {
-            AbstractOperation::IntegerStructuralField { path, .. }
-            | AbstractOperation::BooleanStructuralField { path, .. } => path,
+            AbstractOperation::StructuralScalarFieldRead { path, .. } => path,
             other => panic!("expected field read, got {other:?}"),
         };
         assert_eq!(
@@ -347,8 +346,7 @@ fn canonical_nested_scalar_reads_retain_the_carrier_path() {
         ] {
             let mut changed = unit.clone();
             match &mut changed.functions[0].blocks[0].nodes[0].operation {
-                AbstractOperation::IntegerStructuralField { path, .. }
-                | AbstractOperation::BooleanStructuralField { path, .. } => *path = replacement,
+                AbstractOperation::StructuralScalarFieldRead { path, .. } => *path = replacement,
                 _ => unreachable!(),
             }
             changed.identity =
@@ -477,7 +475,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
         .nodes
         .iter_mut()
         .find_map(|node| {
-            if let AbstractOperation::IntegerStructuralField { source, field, .. } =
+            if let AbstractOperation::StructuralScalarFieldRead { source, field, .. } =
                 &mut node.operation
             {
                 assert_eq!(*source, place);
@@ -490,7 +488,7 @@ fn owned_record_read_retains_its_actual_root_and_rejects_field_substitution() {
     *read = id::<StructuralFieldId>(99);
     changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
     assert!(matches!(optimization_unit_semantics::validate_psi_optimization_unit(&changed),
-        Err(optimization_unit_semantics::OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })));
+        Err(optimization_unit_semantics::OptimizationUnitValidationError::InvalidStructuralScalarFieldRead { .. })));
 }
 
 #[test]

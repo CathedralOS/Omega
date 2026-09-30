@@ -90,7 +90,6 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::IeeeFloatCompare { .. }
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
         | AbstractOperation::BooleanConstant { .. }
-        | AbstractOperation::BooleanStructuralField { .. }
         | AbstractOperation::ByteSequenceRead { .. }
         | AbstractOperation::ByteSequenceSubslice { .. }
         | AbstractOperation::ByteSequenceLength { .. }
@@ -101,7 +100,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::ElementViewSubslice { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
         | AbstractOperation::StructuralByteSequenceFieldRead { .. }
-        | AbstractOperation::IntegerStructuralField { .. }
+        | AbstractOperation::StructuralScalarFieldRead { .. }
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BooleanEqual { .. }
         | AbstractOperation::IntegerEqual { .. }

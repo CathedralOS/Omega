@@ -181,8 +181,7 @@ pub(super) fn changes_length(
         | O::EstablishCase { .. }
         | O::EstablishRecord { .. }
         | O::StructuralCaseMembership { .. }
-        | O::IntegerStructuralField { .. }
-        | O::BooleanStructuralField { .. }
+        | O::StructuralScalarFieldRead { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }

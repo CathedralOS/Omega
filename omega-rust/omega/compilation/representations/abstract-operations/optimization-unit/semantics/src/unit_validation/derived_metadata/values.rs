@@ -42,13 +42,12 @@ pub(crate) fn expected_definitions(
         | O::ElementViewRead { result, .. }
         | O::StructuralByteSequenceFieldLength { result, .. }
         | O::StructuralByteSequenceFieldRead { result, .. }
-        | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
+        | O::StructuralScalarFieldRead { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Scalar(result),
             ..
         } => Some((result.value, result.scalar_type)),
         O::BooleanConstant { result, .. }
-        | O::BooleanStructuralField { result, .. }
         | O::BooleanNot { result, .. }
         | O::BooleanEqual { result, .. }
         | O::IeeeFloatCompare { result, .. }

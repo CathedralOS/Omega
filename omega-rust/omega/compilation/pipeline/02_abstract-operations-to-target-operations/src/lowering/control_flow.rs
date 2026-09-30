@@ -163,7 +163,6 @@ pub(super) fn lower(
         let result = match operation {
             AbstractOperation::IntegerConstant { result, .. }
             | AbstractOperation::BooleanConstant { result, .. }
-            | AbstractOperation::BooleanStructuralField { result, .. }
             | AbstractOperation::IeeeFloatConstant { result, .. }
             | AbstractOperation::IeeeFloatCompare { result, .. }
             | AbstractOperation::IntegerWiden { result, .. }
@@ -184,7 +183,7 @@ pub(super) fn lower(
             AbstractOperation::ByteSequenceLength { result, .. }
             | AbstractOperation::ByteSequenceRead { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
-            | AbstractOperation::IntegerStructuralField { result, .. }
+            | AbstractOperation::StructuralScalarFieldRead { result, .. }
             | AbstractOperation::StructuralByteSequenceFieldLength { result, .. }
             | AbstractOperation::StructuralByteSequenceFieldRead { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. }

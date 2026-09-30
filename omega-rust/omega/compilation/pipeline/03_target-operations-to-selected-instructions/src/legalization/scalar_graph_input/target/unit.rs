@@ -633,8 +633,7 @@ pub(super) fn validate_operation(
                 field,
                 ..
             },
-            AbstractOperation::IntegerStructuralField { .. }
-            | AbstractOperation::BooleanStructuralField { .. },
+            AbstractOperation::StructuralScalarFieldRead { .. },
         )
         | (
             TargetUnitOperation::StructuralByteSequenceFieldLength {

@@ -483,7 +483,7 @@ fn arrival_source(block_access: StructuralAccess) -> abstract_operations::Abstra
             psi_edge: EdgeId::new(12).unwrap(),
             cleanup_actions: Vec::new(),
         },
-        O::IntegerStructuralField {
+        O::StructuralScalarFieldRead {
             psi_operation: OperationId::new(13).unwrap(),
             result: AbstractResult {
                 value: ValueId::new(104).unwrap(),

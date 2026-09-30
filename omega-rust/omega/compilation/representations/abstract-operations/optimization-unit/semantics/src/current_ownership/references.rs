@@ -539,8 +539,7 @@ pub(super) fn apply_operation(
         O::PrimitiveScalarRead { source, .. }
         | O::StructuralCaseMembership { source, .. }
         | O::StructuralCase { source, .. }
-        | O::IntegerStructuralField { source, .. }
-        | O::BooleanStructuralField { source, .. } => {
+        | O::StructuralScalarFieldRead { source, .. } => {
             check_root_access(function, block, node, live, *source)?
         }
         O::PrimitiveLocalStore { destination, .. } => {

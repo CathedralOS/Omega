@@ -337,7 +337,6 @@ fn operation_effect(
         | O::EstablishRecord { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }
-        | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
@@ -348,7 +347,7 @@ fn operation_effect(
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
-        | O::IntegerStructuralField { .. }
+        | O::StructuralScalarFieldRead { .. }
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),
         O::AtomicEvent { event, .. } => {
             // Atomic memory is shared across activations: every atomic

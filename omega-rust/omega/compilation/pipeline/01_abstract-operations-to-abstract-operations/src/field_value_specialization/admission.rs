@@ -205,13 +205,23 @@ fn block_dominators(
     }
 }
 
-/// The scalar kind a resolved observation must carry: `Boolean` for a
-/// `BooleanStructuralField` result, `Integer` for an `IntegerStructuralField`
-/// result.
+/// The scalar kind a resolved observation must carry: the Boolean or integer
+/// type of its `StructuralScalarFieldRead` result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ObservedFieldKind {
     Boolean,
     Integer,
+}
+
+impl ObservedFieldKind {
+    /// `None` for a result type no field read observes.
+    fn of(scalar_type: ScalarType) -> Option<Self> {
+        match scalar_type {
+            ScalarType::Boolean => Some(Self::Boolean),
+            ScalarType::Integer(_) => Some(Self::Integer),
+            ScalarType::IeeeFloat(_) => None,
+        }
+    }
 }
 
 /// The proven stored value of one field observation plus the witness it was
@@ -224,8 +234,8 @@ struct ProvenFieldValue {
     resolution: FieldValueResolution,
 }
 
-/// The admissibility of one node under `evidence`: a `BooleanStructuralField`
-/// or `IntegerStructuralField` observing the evidence's place whose stored
+/// The admissibility of one node under `evidence`: a Boolean or integer
+/// `StructuralScalarFieldRead` observing the evidence's place whose stored
 /// value the unit proves. `None` for every other node.
 pub(super) fn admit_field_node(
     unit: &PsiOptimizationUnit,
@@ -236,44 +246,18 @@ pub(super) fn admit_field_node(
     node_index: usize,
     node: &OptimizationNode,
 ) -> Option<FieldValueRow> {
-    let (psi_operation, result, scalar_type, source, path, field, kind) = match &node.operation {
-        O::BooleanStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => (
-            psi_operation,
-            *result,
-            ScalarType::Boolean,
-            source,
-            path,
-            field,
-            ObservedFieldKind::Boolean,
-        ),
-        O::IntegerStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => {
-            if !matches!(result.scalar_type, ScalarType::Integer(_)) {
-                return None;
-            }
-            (
-                psi_operation,
-                result.value,
-                result.scalar_type,
-                source,
-                path,
-                field,
-                ObservedFieldKind::Integer,
-            )
-        }
-        _ => return None,
+    let O::StructuralScalarFieldRead {
+        psi_operation,
+        result,
+        source,
+        path,
+        field,
+    } = &node.operation
+    else {
+        return None;
     };
+    let kind = ObservedFieldKind::of(result.scalar_type)?;
+    let (result, scalar_type) = (result.value, result.scalar_type);
     if *source != evidence.declaration.id {
         return None;
     }

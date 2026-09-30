@@ -14,6 +14,8 @@ mod integer_policy_tags_tests;
 mod scalar;
 mod scalar_shapes;
 mod structural;
+#[cfg(test)]
+mod structural_scalar_field_read_tags_tests;
 
 pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
     use AbstractOperation as O;
@@ -56,7 +58,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
 
         O::IntegerConstant { .. }
         | O::BooleanConstant { .. }
-        | O::BooleanStructuralField { .. }
+        | O::StructuralScalarFieldRead { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceWrite { .. }
         | O::ByteSequenceStore { .. }
@@ -68,7 +70,6 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::ElementViewWrite { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
-        | O::IntegerStructuralField { .. }
         | O::BooleanNot { .. }
         | O::BooleanEqual { .. }
         | O::IntegerEqual { .. }

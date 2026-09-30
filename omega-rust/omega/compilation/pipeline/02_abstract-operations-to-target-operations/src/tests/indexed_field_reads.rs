@@ -23,7 +23,12 @@ fn field_read(plan: &mut AbstractOperationPlan) -> &mut AbstractOperation {
     plan.functions
         .iter_mut()
         .flat_map(|function| &mut function.operations)
-        .find(|operation| matches!(operation, AbstractOperation::IntegerStructuralField { .. }))
+        .find(|operation| {
+            matches!(
+                operation,
+                AbstractOperation::StructuralScalarFieldRead { .. }
+            )
+        })
         .expect("integer structural field read")
 }
 
@@ -41,7 +46,7 @@ fn field_read_carrier_rejects_unbounded_and_malformed_index_segments() {
             // The literal must stay below the declared extent even though the
             // producer's bound was already proven.
             "out of range" => {
-                let AbstractOperation::IntegerStructuralField { path, .. } =
+                let AbstractOperation::StructuralScalarFieldRead { path, .. } =
                     field_read(&mut source)
                 else {
                     unreachable!()
@@ -50,7 +55,7 @@ fn field_read_carrier_rejects_unbounded_and_malformed_index_segments() {
             }
             // The index only ends the carrier; a deeper segment is malformed.
             "non-terminal index" => {
-                let AbstractOperation::IntegerStructuralField { path, .. } =
+                let AbstractOperation::StructuralScalarFieldRead { path, .. } =
                     field_read(&mut source)
                 else {
                     unreachable!()
@@ -59,7 +64,7 @@ fn field_read_carrier_rejects_unbounded_and_malformed_index_segments() {
             }
             // The receiver record is not an array carrier.
             "index into a record" => {
-                let AbstractOperation::IntegerStructuralField { path, .. } =
+                let AbstractOperation::StructuralScalarFieldRead { path, .. } =
                     field_read(&mut source)
                 else {
                     unreachable!()
@@ -68,7 +73,7 @@ fn field_read_carrier_rejects_unbounded_and_malformed_index_segments() {
             }
             // Case segments never belong to a scalar field carrier.
             "case segment" => {
-                let AbstractOperation::IntegerStructuralField { path, .. } =
+                let AbstractOperation::StructuralScalarFieldRead { path, .. } =
                     field_read(&mut source)
                 else {
                     unreachable!()

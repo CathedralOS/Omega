@@ -75,9 +75,12 @@ pub(crate) fn boolean_structural_field_unit() -> PsiOptimizationUnit {
                         operation_offset: 0,
                     }],
                     operations: vec![
-                        AbstractOperation::BooleanStructuralField {
+                        AbstractOperation::StructuralScalarFieldRead {
                             psi_operation: id(4_707, OperationId::new),
-                            result,
+                            result: AbstractResult {
+                                value: result,
+                                scalar_type: ScalarType::Boolean,
+                            },
                             path: Vec::new(),
                             source: place,
                             field,
@@ -204,7 +207,7 @@ pub(crate) fn direct_realization_integer_structural_field_unit() -> PsiOptimizat
         value: result,
         scalar_type: integer,
     });
-    function.blocks[0].nodes[0].operation = AbstractOperation::IntegerStructuralField {
+    function.blocks[0].nodes[0].operation = AbstractOperation::StructuralScalarFieldRead {
         psi_operation: id(4_707, OperationId::new),
         result: AbstractResult {
             value: result,

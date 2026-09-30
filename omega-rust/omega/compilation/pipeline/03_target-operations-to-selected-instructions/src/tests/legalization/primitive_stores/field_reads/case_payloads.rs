@@ -104,25 +104,15 @@ fn case_payload_read(
     let speed = StructuralFieldId::new(SPEED).unwrap();
     function.result = AbstractFunctionResult::Scalar(result);
     function.operations = vec![
-        if scalar == ScalarType::Boolean {
-            AbstractOperation::BooleanStructuralField {
-                psi_operation: OperationId::new(1).unwrap(),
-                result: read,
-                source: parameter.place,
-                path,
-                field: speed,
-            }
-        } else {
-            AbstractOperation::IntegerStructuralField {
-                psi_operation: OperationId::new(1).unwrap(),
-                result: AbstractResult {
-                    value: read,
-                    scalar_type: scalar,
-                },
-                source: parameter.place,
-                path,
-                field: speed,
-            }
+        AbstractOperation::StructuralScalarFieldRead {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: AbstractResult {
+                value: read,
+                scalar_type: scalar,
+            },
+            source: parameter.place,
+            path,
+            field: speed,
         },
         AbstractOperation::Return {
             psi_edge: EdgeId::new(1).unwrap(),
@@ -328,16 +318,11 @@ fn case_payload_reads_load_the_named_overlay_and_reject_substitution() {
                     ),
                 ] {
                     let mut changed = source.clone();
-                    let (AbstractOperation::IntegerStructuralField {
+                    let AbstractOperation::StructuralScalarFieldRead {
                         path: row_path,
                         field: row_field,
                         ..
-                    }
-                    | AbstractOperation::BooleanStructuralField {
-                        path: row_path,
-                        field: row_field,
-                        ..
-                    }) = &mut changed.functions[0].operations[0]
+                    } = &mut changed.functions[0].operations[0]
                     else {
                         panic!("case payload read");
                     };

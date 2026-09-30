@@ -60,7 +60,6 @@ pub(crate) fn expected_provenance(
         | O::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
         | O::IeeeFloatCompare { psi_operation, .. }
         | O::BooleanConstant { psi_operation, .. }
-        | O::BooleanStructuralField { psi_operation, .. }
         | O::ByteSequenceRead { psi_operation, .. }
         | O::ByteSequenceWrite { psi_operation, .. }
         | O::ByteSequenceStore { psi_operation, .. }
@@ -75,7 +74,7 @@ pub(crate) fn expected_provenance(
         | O::ElementViewSubslice { psi_operation, .. }
         | O::StructuralByteSequenceFieldLength { psi_operation, .. }
         | O::StructuralByteSequenceFieldRead { psi_operation, .. }
-        | O::IntegerStructuralField { psi_operation, .. }
+        | O::StructuralScalarFieldRead { psi_operation, .. }
         | O::BooleanNot { psi_operation, .. }
         | O::BooleanEqual { psi_operation, .. }
         | O::IntegerEqual { psi_operation, .. }

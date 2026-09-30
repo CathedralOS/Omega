@@ -128,7 +128,7 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         kind: StructuralPlaceKind,
     },
-    InvalidBooleanStructuralField {
+    InvalidStructuralScalarFieldRead {
         machine: MachineId,
         block: BlockId,
         node: u32,
@@ -164,11 +164,6 @@ pub enum OptimizationUnitValidationError {
         node: u32,
     },
     InvalidByteSequenceLength {
-        machine: MachineId,
-        block: BlockId,
-        node: u32,
-    },
-    InvalidIntegerStructuralField {
         machine: MachineId,
         block: BlockId,
         node: u32,

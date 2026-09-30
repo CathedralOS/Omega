@@ -239,7 +239,7 @@ fn provider_specialization_and_service_custody(with_receiver: bool, with_local: 
         );
         source.functions[0].operations.insert(
             0,
-            AbstractOperation::IntegerStructuralField {
+            AbstractOperation::StructuralScalarFieldRead {
                 psi_operation: OperationId::new(8).unwrap(),
                 result: abstract_operations::AbstractResult {
                     value: parameter.value,

@@ -147,7 +147,6 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         AbstractOperation::BooleanConstant { .. }
         | AbstractOperation::BooleanEqual { .. }
         | AbstractOperation::BooleanNot { .. }
-        | AbstractOperation::BooleanStructuralField { .. }
         | AbstractOperation::BoundaryCall { .. }
         | AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::ByteSequenceRead { .. }
@@ -186,7 +185,6 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::IntegerExactCast { .. }
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::IntegerLessThan { .. }
-        | AbstractOperation::IntegerStructuralField { .. }
         | AbstractOperation::IntegerWiden { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }
@@ -201,6 +199,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::MoveStructuralField { .. }
         | AbstractOperation::StoreStructuralField { .. }
         | AbstractOperation::EstablishTrivialAffineLocal { .. }
+        | AbstractOperation::StructuralScalarFieldRead { .. }
         | AbstractOperation::StructuralScalarFieldStore { .. }
         | AbstractOperation::TrappingInteger { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. } => AdmissionRoute::BodyAdmitted,

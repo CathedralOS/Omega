@@ -59,7 +59,6 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
         | O::IeeeFloatCompare { psi_operation, .. }
         | O::BooleanConstant { psi_operation, .. }
-        | O::BooleanStructuralField { psi_operation, .. }
         | O::ByteSequenceRead { psi_operation, .. }
         | O::ByteSequenceWrite { psi_operation, .. }
         | O::ByteSequenceStore { psi_operation, .. }
@@ -74,7 +73,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::ElementViewSubslice { psi_operation, .. }
         | O::StructuralByteSequenceFieldLength { psi_operation, .. }
         | O::StructuralByteSequenceFieldRead { psi_operation, .. }
-        | O::IntegerStructuralField { psi_operation, .. }
+        | O::StructuralScalarFieldRead { psi_operation, .. }
         | O::BooleanNot { psi_operation, .. }
         | O::BooleanEqual { psi_operation, .. }
         | O::IntegerEqual { psi_operation, .. }

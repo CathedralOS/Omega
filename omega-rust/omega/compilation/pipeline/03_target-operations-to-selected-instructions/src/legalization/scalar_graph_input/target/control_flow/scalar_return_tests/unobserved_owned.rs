@@ -200,7 +200,7 @@ fn unobserved_owned_arrivals_reject_substituted_bindings_cleanup_and_abi() {
 fn owned_arrival_field_read_requires_the_matching_native_graph() {
     let native = ::target::NativeTarget::macos_arm64();
     let (mut plan, target, _) = owned_fixture(native);
-    let observation = AbstractOperation::IntegerStructuralField {
+    let observation = AbstractOperation::StructuralScalarFieldRead {
         psi_operation: operation(1),
         result: AbstractResult {
             value: value(3),

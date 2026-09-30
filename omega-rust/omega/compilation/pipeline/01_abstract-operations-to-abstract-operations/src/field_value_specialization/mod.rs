@@ -1,7 +1,7 @@
 //! Optimizer module role: executable entrance. Proven field-value specialization boundary.
 //!
-//! One bounded specialization family: a `BooleanStructuralField` or
-//! `IntegerStructuralField` observation whose `source` place carries a stored
+//! One bounded specialization family: a Boolean or integer
+//! `StructuralScalarFieldRead` observation whose `source` place carries a stored
 //! field value the unit itself proves. Six proofs qualify. Record
 //! establishment: the place is declared `StructuralPlaceKind::OperationResult`
 //! and its producer node in the same function is an `EstablishRecord` — the

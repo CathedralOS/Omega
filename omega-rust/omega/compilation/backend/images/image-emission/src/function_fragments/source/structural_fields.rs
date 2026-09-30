@@ -3,9 +3,7 @@
 //! including the original referent or owned input's current local home. No second
 //! field-offset calculator or legacy expression-tree realization belongs here.
 
-use abstract_operations::{
-    AbstractFunction, AbstractOperation, AbstractResult, AbstractStructuralCallResult,
-};
+use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
 use semantic_vocabulary::ScalarType;
 use target_operations::{TargetFunction, TargetUnitOperation};
 use terminal_psi::StructuralArgument;
@@ -594,32 +592,17 @@ pub(super) fn retained(
             });
         return reads.next() == Some((result, source, path, selectors)) && reads.next().is_none();
     }
-    let (identity, result, place, path, field) = match operation {
-        AbstractOperation::IntegerStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => (*psi_operation, *result, *source, path, *field),
-        AbstractOperation::BooleanStructuralField {
-            psi_operation,
-            result,
-            source,
-            path,
-            field,
-        } => (
-            *psi_operation,
-            AbstractResult {
-                value: *result,
-                scalar_type: ScalarType::Boolean,
-            },
-            *source,
-            path,
-            *field,
-        ),
-        _ => return false,
+    let AbstractOperation::StructuralScalarFieldRead {
+        psi_operation: identity,
+        result,
+        source: place,
+        path,
+        field,
+    } = operation
+    else {
+        return false;
     };
+    let (identity, result, place, field) = (*identity, *result, *place, *field);
     let Some((access, mut carrier)) = read_access(function, target, place, AccessPurpose::Field)
     else {
         return false;

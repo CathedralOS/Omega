@@ -374,7 +374,8 @@ pub(crate) fn validate_structural_root_operations(
                         );
                     }
                 }
-                O::BooleanStructuralField {
+                O::StructuralScalarFieldRead {
+                    result,
                     source,
                     path,
                     field,
@@ -382,35 +383,18 @@ pub(crate) fn validate_structural_root_operations(
                 } => {
                     // Root catalogs and dominance are checked before this pass;
                     // current ownership separately checks live, whole owned inputs.
-                    let valid = readable_field_type(function, *source).is_some_and(|root| {
+                    // The read observes a Boolean or integer field of exactly
+                    // its result's type; float fields have no read here.
+                    let valid = matches!(
+                        result.scalar_type,
+                        ScalarType::Boolean | ScalarType::Integer(_)
+                    ) && readable_field_type(function, *source).is_some_and(|root| {
                         observed_scalar_field(structural_types, root, path, *field)
-                            == Some(ScalarType::Boolean)
+                            == Some(result.scalar_type)
                     });
                     if !valid {
                         return Err(
-                            OptimizationUnitValidationError::InvalidBooleanStructuralField {
-                                machine: function.machine,
-                                block: block.id,
-                                node: node_index,
-                            },
-                        );
-                    }
-                }
-                O::IntegerStructuralField {
-                    result,
-                    source,
-                    path,
-                    field,
-                    ..
-                } => {
-                    let valid = matches!(result.scalar_type, ScalarType::Integer(_))
-                        && readable_field_type(function, *source).is_some_and(|root| {
-                            observed_scalar_field(structural_types, root, path, *field)
-                                == Some(result.scalar_type)
-                        });
-                    if !valid {
-                        return Err(
-                            OptimizationUnitValidationError::InvalidIntegerStructuralField {
+                            OptimizationUnitValidationError::InvalidStructuralScalarFieldRead {
                                 machine: function.machine,
                                 block: block.id,
                                 node: node_index,

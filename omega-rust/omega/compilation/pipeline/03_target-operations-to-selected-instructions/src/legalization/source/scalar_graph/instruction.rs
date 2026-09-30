@@ -60,8 +60,7 @@ pub(super) fn project(
             .ok_or(Error::custody())?;
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field }
         }
-        AbstractOperation::IntegerStructuralField { .. }
-        | AbstractOperation::BooleanStructuralField { .. } => {
+        AbstractOperation::StructuralScalarFieldRead { .. } => {
             let (_, _, source, case, field) = scalar_graph_input::structural_fields::read(
                 optimized,
                 &node.operation,

@@ -44,10 +44,9 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                 matches!(
                     node.operation,
                     AbstractOperation::StructuralCaseMembership { .. }
-                        | AbstractOperation::IntegerStructuralField { .. }
                         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
                         | AbstractOperation::StructuralByteSequenceFieldRead { .. }
-                        | AbstractOperation::BooleanStructuralField { .. }
+                        | AbstractOperation::StructuralScalarFieldRead { .. }
                         | AbstractOperation::EstablishScalarArray { .. }
                         | AbstractOperation::EstablishByteSequenceConcatenation { .. }
                         | AbstractOperation::EstablishRecord { .. }

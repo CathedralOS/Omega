@@ -25,8 +25,7 @@ pub(super) fn validate_structural_scalar_field_read(
                 case,
                 field,
             },
-            AbstractOperation::IntegerStructuralField { .. }
-            | AbstractOperation::BooleanStructuralField { .. },
+            AbstractOperation::StructuralScalarFieldRead { .. },
         ) => (source, *case, field),
         (
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field },
