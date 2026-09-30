@@ -160,7 +160,9 @@ fn case_literal_leaves_erased_payload_members_out_of_the_roster() {
 
 /// A payload member under a plain domain that means exactly an interval is a
 /// bounded carrier: construction binds it with a range obligation that
-/// independent verification proves from the literal.
+/// independent verification proves from the literal. Such a member is
+/// numeric-owned scalar content, so the payload-only sum establishes through
+/// the scalar case family.
 #[test]
 fn case_literal_binds_an_interval_domain_payload_with_its_range_obligation() {
     let checked = crate::front_end::checked_program(
@@ -182,7 +184,7 @@ fn case_literal_binds_an_interval_domain_payload_with_its_range_obligation() {
         .flat_map(|machine| &machine.blocks)
         .flat_map(|block| &block.operations)
         .filter_map(|operation| match &operation.kind {
-            OperationKind::EstablishStructuralCase { fields, .. } => Some(fields),
+            OperationKind::EstablishScalarCase { fields, .. } => Some(fields),
             _ => None,
         })
         .collect::<Vec<_>>()[..]
@@ -192,13 +194,7 @@ fn case_literal_binds_an_interval_domain_payload_with_its_range_obligation() {
     let [amount] = fields.as_slice() else {
         panic!("one payload member");
     };
-    assert!(matches!(
-        amount.value,
-        RecordFieldValue::Scalar {
-            range_obligation: Some(_),
-            ..
-        }
-    ));
+    assert!(amount.range_obligation.is_some());
     terminal_verifier::verify_module(
         module,
         &lowered.proof_bundle,
