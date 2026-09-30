@@ -232,6 +232,19 @@ pub(crate) fn leaf_type(
     fields: &[terminal_psi::StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if let terminal_psi::StructuralPathSegment::FixedIndex(index) = segment {
+            let declaration = types.get(&current)?;
+            let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
+                &declaration.shape
+            else {
+                return None;
+            };
+            if index >= length {
+                return None;
+            }
+            current = *element;
+            continue;
+        }
         let terminal_psi::StructuralPathSegment::Field(identity) = segment else {
             return None;
         };
@@ -288,12 +301,12 @@ pub(crate) fn reference_access(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
 ) -> Option<terminal_psi::StructuralAccess> {
-    types.get(&structural_type).and_then(|declaration| {
-        match declaration.shape {
+    types
+        .get(&structural_type)
+        .and_then(|declaration| match declaration.shape {
             terminal_psi::StructuralTypeShape::Reference { access, .. } => Some(access),
             _ => None,
-        }
-    })
+        })
 }
 
 /// Loan strength: whether a place held with `authority` may lend `requested`.
@@ -622,15 +635,14 @@ pub(crate) fn validate_function_references(
         result.structural_type,
         result.reference_sources.len(),
     )
-    .unwrap_or_else(|| {
-        std::process::exit(1)
-    });
+    .unwrap_or_else(|| std::process::exit(1));
     // Result sources are a canonical map, not a lifecycle schedule. Constructors
     // and cleanup keep declaration order; only this interface comparison sorts.
     paths.sort();
     if paths.len() != result.reference_sources.len() {
         return Err(invalid());
-    }    let mut sources = BTreeSet::new();
+    }
+    let mut sources = BTreeSet::new();
     for (path, mapping) in paths.iter().zip(&result.reference_sources) {
         let expected_referent =
             leaf_referent(types, result.structural_type, path).ok_or_else(invalid)?;

@@ -184,15 +184,27 @@ pub(super) fn leaf_referent(
     })
 }
 
-/// The structural type the field-only path names beneath `current`: each
+/// The structural type the path names beneath `current`: each `Field`
 /// segment descends through record or mixed fields, with a plain leaf field
-/// resolving to its canonical standalone declaration.
+/// resolving to its canonical standalone declaration, and a `FixedIndex`
+/// segment descends into a fixed array's element within its declared extent.
 pub(super) fn leaf_type(
     types: &StructuralTypeLookup<'_>,
     mut current: StructuralTypeId,
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
+        if let StructuralPathSegment::FixedIndex(index) = segment {
+            let declaration = types.get(&current)?;
+            let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+                return None;
+            };
+            if index >= length {
+                return None;
+            }
+            current = *element;
+            continue;
+        }
         let StructuralPathSegment::Field(identity) = segment else {
             return None;
         };
