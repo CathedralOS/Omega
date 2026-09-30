@@ -412,6 +412,21 @@ fn is_graph_local(
 ) -> bool {
     live.structural_homes.contains_key(&argument.place)
         || live.trivial_affine_locals.contains_key(&argument.place)
+        // An established element view is a graph-local producer: its
+        // argument source replays the descriptor's own establishment, which
+        // only the live-graph routes mint. Byte views stay roster-eligible —
+        // `lower_structural_argument` carries their own source arm.
+        || live
+            .views
+            .get(&argument.place)
+            .is_some_and(|(_, structural_type)| {
+                matches!(
+                    types
+                        .get(structural_type)
+                        .map(|declaration| &declaration.shape),
+                    Some(terminal_psi::StructuralTypeShape::ElementView { .. })
+                )
+            })
         || super::references::touches(function, types, live, argument)
         || live.block_views.contains(&argument.place)
         || live.address_joins.contains(&argument.place)

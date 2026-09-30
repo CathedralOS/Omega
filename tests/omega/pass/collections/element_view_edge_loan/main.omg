@@ -1,0 +1,87 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell {
+    value: i32;
+    tag: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+    at: u64 [0..=3];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.bag.cells[0].value = 5;
+    self.bag.cells[1].value = 3;
+    self.bag.cells[2].value = 5;
+    self.bag.cells[3].value = 7;
+    self.at = 2;
+    self.fill_literal();
+    self.fill_field();
+    self.fill_local();
+    self.fill_param(3);
+    self.read_shared(0);
+    transition
+        self.bag.cells[2].value == 20
+            && self.bag.cells[1].value == 9
+            && self.bag.cells[0].value == 5
+            && self.bag.cells[3].value == 9
+    {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::fill_literal(&mut self) {
+    let cells: &mut [Cell] = self.bag.cells.as_mut_slice();
+    self.set_at(&mut cells[2], 40);
+}
+
+machine Main::fill_field(&mut self) {
+    let cells: &mut [Cell] = self.bag.cells.as_mut_slice();
+    self.set_at(&mut cells[self.at], 20);
+}
+
+machine Main::fill_local(&mut self) {
+    let i: u64 = 1;
+    let cells: &mut [Cell] = self.bag.cells.as_mut_slice();
+    self.set_at(&mut cells[i], 9);
+}
+
+machine Main::fill_param(&mut self, k: u64) requires k < 4 {
+    let cells: &mut [Cell] = self.bag.cells.as_mut_slice();
+    self.set_at(&mut cells[k], 9);
+}
+
+machine Main::read_shared(&mut self, k: u64) requires k < 4 {
+    let cells: &[Cell] = self.bag.cells.as_slice();
+    self.inspect(&cells[k]);
+}
+
+machine Main::set_at(&mut self, cell: &mut Cell, v: i32) {
+    cell.value = v;
+}
+
+machine Main::inspect(&mut self, cell: &Cell) {
+    transition cell.value == 5 {
+        true -> done()
+        _ -> miss()
+    }
+
+    state done(&mut self) { }
+    state miss(&mut self) { }
+}

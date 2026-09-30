@@ -683,15 +683,36 @@ fn local_view_source_is_exact(
     let StructuralSourceLocation::Stack { byte_offset } = argument.source_location else {
         return false;
     };
-    argument.access == StructuralAccess::SharedBorrow
-        && argument.path.is_empty()
-        && argument.root_structural_type == argument.structural_type
-        && argument.shape == ValueShape::borrowed_reference(16, 8)
-        && argument.source_byte_offset == 0
-        && byte_offset.is_multiple_of(8)
-        && byte_offset
+    if !byte_offset.is_multiple_of(8)
+        || !byte_offset
             .checked_add(16)
             .is_some_and(|end| end <= frame_bytes)
+    {
+        return false;
+    }
+    if argument.path.is_empty() {
+        // Whole-descriptor forward: the argument's storage is the 16-byte
+        // descriptor itself at the recorded slot.
+        return argument.access == StructuralAccess::SharedBorrow
+            && argument.root_structural_type == argument.structural_type
+            && argument.shape == ValueShape::borrowed_reference(16, 8)
+            && argument.source_byte_offset == 0;
+    }
+    // Element loan: the same descriptor residence supplies the backing
+    // pointer; the projection selects the element and `source_byte_offset`
+    // (plus runtime selector rows) carries its displacement.
+    argument.access != StructuralAccess::Owned
+        && argument.path.iter().all(|segment| {
+            matches!(
+                segment,
+                StructuralPathSegment::Field(_)
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RuntimeIndex { .. }
+            )
+        })
+        && argument.shape.alignment != 0
+        && argument.fixed_array_length.is_none()
+        && argument.element_stride.is_none()
 }
 
 fn outgoing_pointer_fits(placement: &ValuePlacement, frame_bytes: u32) -> bool {

@@ -32,7 +32,7 @@ pub(crate) use payloadless_calls::{
     exact_payloadless_case_return_exits, exact_payloadless_structural_call,
 };
 pub(crate) use structural_arguments::{
-    StructuralArgumentSourcePolicy, is_runtime_indexed_borrow_path,
+    StructuralArgumentSourcePolicy, is_runtime_indexed_borrow_path, is_static_borrow_path,
     is_unrestricted_mutable_subloan, is_unrestricted_shared_subloan, structural_access_can_supply,
     validate_structural_arguments,
 };

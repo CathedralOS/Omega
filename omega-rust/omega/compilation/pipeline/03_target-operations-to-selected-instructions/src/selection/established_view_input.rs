@@ -291,6 +291,69 @@ pub(super) fn accepts(
     Some(())
 }
 
+/// An element loan rooted at an established element view: the argument's
+/// referent is the projected element, so the producer check names the view's
+/// own type as the root — unlike `accepts`, which replays whole-view forwards
+/// where the argument type IS the view type. A mutable view establishes an
+/// affine result, so multiplicity admits Affine beside Unrestricted.
+pub(super) fn accepts_view_loan(
+    source: &LegalizedScalarFunction,
+    call: OperationId,
+    target: &TargetStructuralArgument,
+) -> Option<()> {
+    let TargetStructuralArgumentSource::EstablishedElementView { psi_operation } = target.source
+    else {
+        return None;
+    };
+    let signature = source.structural.as_ref()?;
+    let mut occurrences = source.blocks.iter().flat_map(|block| {
+        block
+            .instructions
+            .iter()
+            .enumerate()
+            .map(move |(position, row)| (block.id, position, row))
+    });
+    let producer = occurrences
+        .clone()
+        .find(|(_, _, row)| row.operation == psi_operation)?;
+    let used = occurrences.find(|(_, _, row)| row.operation == call)?;
+    if producer.2.result.is_some() || producer.0 == used.0 && producer.1 >= used.1 {
+        return None;
+    }
+    let (result, destination) = match &producer.2.kind {
+        LegalizedScalarInstructionKind::EstablishElementView {
+            result,
+            destination,
+            ..
+        } => (result, Some(*destination)),
+        LegalizedScalarInstructionKind::ElementViewSubslice { result, .. } => (result, None),
+        _ => return None,
+    };
+    (destination.is_none_or(|destination| destination == target.place)
+        && result.place == target.place
+        && result.structural_type == target.root_structural_type
+        && matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && signature.structural_places.iter().any(|place| {
+            place.id == result.place
+                && place.kind
+                    == StructuralPlaceKind::OperationResult {
+                        producer: psi_operation,
+                        structural_type: result.structural_type,
+                    }
+        })
+        && signature.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+        }))
+    .then_some(())
+}
+
 /// Completed owned concatenations are readable byte storage, without granting
 /// the borrowed descriptor ABI or mutable view authority to their owner.
 pub(super) fn readable_byte_type(

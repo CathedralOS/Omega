@@ -21,13 +21,13 @@ fn constructible_case(module: &TerminalModule, fields: &[StructuralFieldDeclarat
     fields.iter().all(|field| {
         erased_member(field)
             || field.relevance == terminal_psi::BindingRelevance::Relevant
-            && match field.field_type {
-                StructuralFieldType::Structural(child) => {
-                    crate::validation::record::constructible_type(module, child)
-                        || crate::validation::references::referent(module, child).is_some()
+                && match field.field_type {
+                    StructuralFieldType::Structural(child) => {
+                        crate::validation::record::constructible_type(module, child)
+                            || crate::validation::references::referent(module, child).is_some()
+                    }
+                    _ => field.field_type.scalar_type().is_some(),
                 }
-                _ => field.field_type.scalar_type().is_some(),
-            }
     })
 }
 

@@ -66,12 +66,15 @@ pub(super) fn project_static_path(
             let declaration = indexed
                 .get(&structural_type)
                 .ok_or(InvalidStructuralShape)?;
-            let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
-                return Err(InvalidStructuralShape);
+            let element = match declaration.shape {
+                StructuralTypeShape::FixedArray { element, length } if *index < length => element,
+                // A view's extent is its stored runtime length: no literal
+                // bound applies here — the obligation the emitted hop
+                // re-proves is exactly what the checker's slice admission
+                // leaves live.
+                StructuralTypeShape::ElementView { element } => element,
+                _ => return Err(InvalidStructuralShape),
             };
-            if *index >= length {
-                return Err(InvalidStructuralShape);
-            }
             let element_shape = shape(element, &indexed, &mut cache, &mut active)?;
             let stride = align(element_shape.byte_size, u32::from(element_shape.alignment))?;
             let element_offset = u64::from(stride)
@@ -163,12 +166,18 @@ pub(super) fn project_runtime_path(
             .ok_or(InvalidStructuralShape)?;
         match segment {
             StructuralPathSegment::RuntimeIndex { index, .. } => {
-                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
-                    return Err(InvalidStructuralShape);
+                let (element, extent) = match declaration.shape {
+                    StructuralTypeShape::FixedArray { element, length } => (element, length),
+                    // A view's extent is live storage, not a declared bound:
+                    // no static length exists to publish — the selector's
+                    // own verified obligation carries it. u64::MAX records
+                    // "unbounded" rather than a fictitious literal extent.
+                    StructuralTypeShape::ElementView { element } => (element, u64::MAX),
+                    _ => return Err(InvalidStructuralShape),
                 };
                 let element_shape = shape(element, &indexed, &mut cache, &mut active)?;
                 let stride = align(element_shape.byte_size, u32::from(element_shape.alignment))?;
-                elements.push((*index, length, stride));
+                elements.push((*index, extent, stride));
                 structural_type = element;
             }
             _ => {

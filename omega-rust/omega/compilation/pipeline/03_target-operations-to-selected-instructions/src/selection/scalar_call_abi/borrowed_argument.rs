@@ -234,6 +234,39 @@ pub(super) fn validate_borrowed_argument(
             &signature.structural_types,
         )
     });
+    // An element loan rooted at an established element view keeps the view
+    // type as its root and carries the projected element's offset — the
+    // descriptor's establishment, not a parameter or a home, is its source.
+    let established_view_loan =
+        crate::selection::established_view_input::element_view_type(source, semantic.place)
+            .filter(|_| !semantic.path.is_empty())
+            .and_then(|view_type| {
+                let (selected, offset, elements) =
+                    crate::structural_inputs::structural_reference_input::runtime_projection(
+                        view_type,
+                        &semantic.path,
+                        &signature.structural_types,
+                    )?;
+                if target.root_structural_type != view_type
+                    || target.structural_type != selected
+                    || target.source_byte_offset != offset
+                    || target.fixed_array_length.is_some()
+                    || target.element_stride.is_some()
+                    || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+                        indices, &elements,
+                    )
+                {
+                    return None;
+                }
+                let referent = crate::structural_inputs::structural_reference_input::shape(
+                    selected,
+                    &signature.structural_types,
+                )?;
+                Some(ValueShape::borrowed_reference(
+                    referent.byte_size,
+                    referent.alignment,
+                ))
+            });
     let window = byte_view
         .map(|(offset, _)| offset)
         .or(element_view.map(|(offset, _, _)| offset));
@@ -312,6 +345,8 @@ pub(super) fn validate_borrowed_argument(
             return None;
         }
         destination_shape
+    } else if let Some(shape) = established_view_loan {
+        shape
     } else if let Some((_, result, _, referent)) = local {
         if target.structural_type != result.structural_type
             || target.root_structural_type != result.structural_type
@@ -398,6 +433,7 @@ pub(super) fn validate_borrowed_argument(
             && byte_field.is_none()
             && byte_owner.is_none()
             && element_view.is_none()
+            && established_view_loan.is_none()
             && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
         || target.access != semantic.access
@@ -410,6 +446,7 @@ pub(super) fn validate_borrowed_argument(
             && byte_field.is_none()
             && byte_owner.is_none()
             && element_view.is_none()
+            && established_view_loan.is_none()
             && target.root_structural_type != target.structural_type)
         || target.shape != shape
         || (!exclusive
@@ -420,6 +457,7 @@ pub(super) fn validate_borrowed_argument(
             && byte_field.is_none()
             && byte_owner.is_none()
             && element_view.is_none()
+            && established_view_loan.is_none()
             && target.source_byte_offset != 0)
         || target.fixed_array_length
             != byte_view
@@ -481,6 +519,13 @@ pub(super) fn validate_borrowed_argument(
             {
                 return None;
             }
+        }
+        target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
+            if established_view_loan.is_some() =>
+        {
+            // A descriptor-rooted element loan loans mutable or shared —
+            // exclusive is exactly the mutable view's own authority.
+            crate::selection::established_view_input::accepts_view_loan(source, operation, target)?;
         }
         target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
         | target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }

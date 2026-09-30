@@ -11,7 +11,7 @@ use super::super::argument_evaluation;
 use super::super::call_closure::unique_unit_boundary;
 use super::super::lower_structural_path;
 use super::super::parameters::{
-    StructuralResultCustody, lower_structural_arguments, validate_transfer_shape,
+    self, StructuralResultCustody, lower_structural_arguments, validate_transfer_shape,
 };
 use super::calls::CallInputs;
 use super::{BoundaryParameters, OperationFrame, StructuralResults};
@@ -239,6 +239,14 @@ impl OperationFrame<'_, '_> {
         let earlier = self
             .results
             .earlier(structural_arguments, self.operations)?;
+        parameters::mint_element_view_length_observations(
+            structural_arguments,
+            self.parameters,
+            &earlier,
+            self.structural_types.declarations(),
+            self.next_value,
+            self.operations,
+        )?;
         validate_transfer_shape(
             structural_arguments,
             completion_receipts,

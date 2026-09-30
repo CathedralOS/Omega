@@ -49,7 +49,29 @@ pub(super) fn argument(
             types,
         );
     }
-    let (root_type, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
+    // An established element view is a descriptor root, not ordinary storage:
+    // the argument names its producer so the image replays the descriptor's
+    // own establishment, and the projected element offset rides on top. A
+    // mutable view's affine cleanup home is custody bookkeeping, never the
+    // borrowed pointer's canonical storage.
+    let (root_type, source) = if let Some((producer, structural_type)) = live
+        .views
+        .get(&argument.place)
+        .filter(|(_, structural_type)| {
+            matches!(
+                types
+                    .get(structural_type)
+                    .map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::ElementView { .. })
+            )
+        }) {
+        (
+            *structural_type,
+            target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+                psi_operation: *producer,
+            },
+        )
+    } else if let Some(home) = live.structural_homes.get(&argument.place) {
         if home.has_claims()
             || home.multiplicity() == StructuralMultiplicity::Linear
             || !home.qualifications().is_empty()

@@ -33,10 +33,16 @@ pub(super) fn location(
         if *psi_operation == producer)
     });
     let byte_size = match producers.next() {
+        // A whole-view forward's argument type is the view type; an element
+        // loan's root type is. `root_structural_type` covers both, and a
+        // mutable view's affine result supplies the same descriptor residence.
         Some(abstract_operations::AbstractOperation::ByteSequenceSubslice { result, .. })
             if result.place == argument.place
-                && result.structural_type == argument.structural_type
-                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.structural_type == argument.root_structural_type
+                && matches!(
+                    result.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty() =>
@@ -45,8 +51,11 @@ pub(super) fn location(
         }
         Some(abstract_operations::AbstractOperation::ElementViewSubslice { result, .. })
             if result.place == argument.place
-                && result.structural_type == argument.structural_type
-                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.structural_type == argument.root_structural_type
+                && matches!(
+                    result.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty() =>
@@ -55,8 +64,11 @@ pub(super) fn location(
         }
         Some(abstract_operations::AbstractOperation::EstablishElementView { result, .. })
             if result.place == argument.place
-                && result.structural_type == argument.structural_type
-                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.structural_type == argument.root_structural_type
+                && matches!(
+                    result.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty() =>
@@ -137,8 +149,27 @@ fn local_location(
     byte_size: u32,
 ) -> Result<StructuralSourceLocation, Error> {
     let invalid = || Error::Mismatch("local view differs from current descriptor custody");
-    if argument.access != StructuralAccess::SharedBorrow
-        || !argument.path.is_empty()
+    // A whole forward ships the descriptor as the argument; an element loan
+    // ships the projected element's address, so its access, projection and
+    // shape differ — the descriptor residence it checks is identical.
+    let element_loan = !argument.path.is_empty();
+    if element_loan {
+        if argument.access == StructuralAccess::Owned
+            || !argument.path.iter().all(|segment| {
+                matches!(
+                    segment,
+                    terminal_psi::StructuralPathSegment::Field(_)
+                        | terminal_psi::StructuralPathSegment::FixedIndex(_)
+                        | terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+                )
+            })
+            || argument.shape.alignment == 0
+            || argument.fixed_array_length.is_some()
+            || argument.element_stride.is_some()
+        {
+            return Err(invalid());
+        }
+    } else if argument.access != StructuralAccess::SharedBorrow
         || argument.root_structural_type != argument.structural_type
         || argument.shape != ValueShape::borrowed_reference(16, 8)
         || argument.source_byte_offset != 0
@@ -152,8 +183,15 @@ fn local_location(
         .as_ref()
         .ok_or_else(invalid)?
         .structural_types;
+    // The view type is the argument's own type on a forward and its root on
+    // an element loan.
+    let view_type = if element_loan {
+        argument.root_structural_type
+    } else {
+        argument.structural_type
+    };
     if !declarations.iter().any(|declaration| {
-        declaration.id == argument.structural_type
+        declaration.id == view_type
             && matches!(
                 declaration.shape,
                 StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })

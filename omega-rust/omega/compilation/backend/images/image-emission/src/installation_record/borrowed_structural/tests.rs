@@ -45,7 +45,9 @@ fn established_descriptor_shape_uses_real_aligned_local_storage() {
             0 => changed.access = StructuralAccess::Owned,
             1 => changed.shape = ValueShape::integer(16, 8),
             2 => changed.source_byte_offset = 8,
-            3 => changed.path.push(StructuralPathSegment::FixedIndex(0)),
+            3 => changed
+                .path
+                .push(StructuralPathSegment::FixedByteRange { start: 0, end: 1 }),
             4 => {
                 changed.root_structural_type =
                     semantic_vocabulary::StructuralTypeId::new(2).unwrap()

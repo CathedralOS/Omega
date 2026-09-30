@@ -805,10 +805,19 @@ fn structural_contract_substitutions(
                 terminal_psi::StructuralAccess::SharedBorrow
                     | terminal_psi::StructuralAccess::MutableBorrow
             ) && crate::validation::is_runtime_indexed_borrow_path(&argument.path);
+        // The same omission applies to a literal-indexed borrow rooted at a
+        // live element-view binding: the descriptor's stored extent means the
+        // FixedIndex hop has no canonical FixedArray spelling either. Runtime
+        // index hops into a view already ride runtime_indexed_borrow above.
+        let element_view_borrow = !argument.path.is_empty()
+            && argument.access != terminal_psi::StructuralAccess::Owned
+            && crate::validation::is_static_borrow_path(&argument.path)
+            && crate::validation::element_view::view_loan_result(caller, argument.place).is_some();
         if observed
             || (!crate::validation::is_reference_projection(module, caller, argument)
                 && !fixed_window
-                && !runtime_indexed_borrow)
+                && !runtime_indexed_borrow
+                && !element_view_borrow)
         {
             return Err(ModuleError::InvalidReferenceCustody {
                 machine: caller.id,

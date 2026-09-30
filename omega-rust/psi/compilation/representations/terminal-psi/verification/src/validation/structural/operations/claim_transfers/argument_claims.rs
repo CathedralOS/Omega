@@ -1,8 +1,9 @@
 //! One argument's claim correspondence with its callee parameter.
 
 use crate::validation::structural::operations::structural_arguments::{
-    is_unrestricted_mutable_subloan, is_unrestricted_shared_subloan,
-    is_unrestricted_write_only_subloan, linear_call_result,
+    is_runtime_indexed_borrow_path, is_static_borrow_path, is_unrestricted_mutable_subloan,
+    is_unrestricted_shared_subloan, is_unrestricted_write_only_subloan, linear_call_result,
+    structural_access_can_supply,
 };
 use crate::validation::{
     ModuleError, OperationId, OperationKind, StructuralArgument, StructuralMultiplicity,
@@ -84,12 +85,31 @@ pub(in crate::validation) fn validate_argument_claims(
                 .entry_claims
                 .iter()
                 .all(|claim| claim.input != argument.place);
+        // An element loan rooted at a view binding carries no claims either:
+        // the descriptor keeps its own custody and the projected element
+        // rides the same borrow path the access check validated.
+        let claim_free_element_view_loan =
+            crate::validation::element_view::view_loan_result(caller, argument.place).is_some_and(
+                |(_, source_access)| {
+                    structural_access_can_supply(source_access, argument.access)
+                        && argument.access == parameter.access
+                        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+                        && (is_static_borrow_path(&argument.path)
+                            || is_runtime_indexed_borrow_path(&argument.path))
+                        && callee_claims.is_empty()
+                        && caller
+                            .entry_claims
+                            .iter()
+                            .all(|claim| claim.input != argument.place)
+                },
+            );
         if !(is_record_loan(module, caller, parameter, argument) && callee_claims.is_empty())
             && !claim_free_unrestricted_write_only_field
             && !claim_free_reference
             && !claim_free_unrestricted_shared_field
             && !claim_free_unrestricted_mutable_field
             && !claim_free_direct_affine
+            && !claim_free_element_view_loan
             && !matches!(callee_claims.as_slice(), [claim] if claim.path.is_empty())
         {
             return Err(ModuleError::UnitCallClaimPresenceMismatch {

@@ -160,8 +160,22 @@ fn argument_pointer(
                 })
         })
     };
-    let pointer =
-        structural::call_pointer(builder, operation, pointer_place, target.source_byte_offset)?;
+    let pointer = if matches!(
+        target.source,
+        target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
+    ) && !semantic.path.is_empty()
+    {
+        // An element loan transports the view's backing pointer projected to
+        // the element, never the descriptor's own address.
+        structural::view_element_pointer(
+            builder,
+            operation,
+            pointer_place,
+            target.source_byte_offset,
+        )?
+    } else {
+        structural::call_pointer(builder, operation, pointer_place, target.source_byte_offset)?
+    };
     let pointer = if indices.is_empty() {
         pointer
     } else {
