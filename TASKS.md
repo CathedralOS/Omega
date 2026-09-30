@@ -886,22 +886,22 @@ the complete product bar; focused successes below do not establish that baseline
   The published array-shape repair gets past `Main::main`'s attached data shape
   without application changes. The application command remains `omega run
   --target linux_x86_64 --keep samples/apps/squalr/squalr-tests/main.omg`.
-  At `b084dba2112`, the optimized test-profile compiler returns in 156 seconds
-  and refuses `CommandDriver::run`, state 0, statement 7:
-  `call operation: structural arguments: caller structural result`, at the
-  `set_scan_settings(settings)` handoff after updating alignment. Unit-call
-  copy classification is checkpointed separately on `repair-unit-copy`
-  (`d8682c61dde`), not published: the independent consumer in stage 05's
-  `unit/attached_unit/structural_calls/result_uses.rs::validate_operand_producers`
-  still confuses fresh copied storage with the original constructor result.
-  Coordinate that exact producer/operand join with STATIC-MACHINE-MIGRATION;
-  preserve source identity and transfer checks. Scalar-call operands now use
-  ordinary ordered copy operations, so later argument effects cannot change an
-  earlier value argument. `structural/runtime_structural_operand_snapshot_exit`
-  observes 17 before a later argument writes 25 and exits 42 on macOS ARM64
-  (`14f449e5e62b`, including the integrated static-call repair);
-  the affine double-transfer control still rejects. This does not close the
-  Unit-call handoff or the application. Complete
+  The fresh `7006d1d3665` baseline refuses the mutable settings handoff at
+  `CommandDriver::run`, state 0, statement 7. The copied-place repair on base
+  `67d7361cadc` closes that handoff: unrestricted local reads use the existing
+  copy operation, and stage 05 rejoins the fresh operand's exact occurrence
+  rather than the backing local's initializer. On macOS ARM64, ordinary
+  `omega run --both
+  tests/omega/pass/structural/runtime_mutable_record_copy_exit/main.omg`
+  returns native/interpreter exit 42 after observing 17 and 25 around mutation.
+  The earlier scalar-call snapshot regression still returns 42, and affine
+  double-transfer controls still reject. The unchanged application now refuses
+  `CommandDriver::run`, state 13, statement 1, with
+  `call operation: structural arguments: caller structural result`, at
+  `filters.push(&DataTypeRef::new("u8"))` in `ignored_filter_payload`.
+  Continue at stage 04's `execution/terminal_unit/calls/structural_arguments.rs`:
+  rejoin the borrowed temporary's producer, evaluation order and lifetime
+  without rewriting the application. This does not close the application. Complete
   the documented native acceptance on Linux x86-64 after emission succeeds;
   cross-target compilation on macOS does not establish execution.
   Live reads still alias captured-current

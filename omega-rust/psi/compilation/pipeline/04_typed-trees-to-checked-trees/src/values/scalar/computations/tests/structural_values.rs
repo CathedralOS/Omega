@@ -7,6 +7,66 @@ use checked_trees::{
 };
 
 #[test]
+fn copyable_record_reads_retain_current_place_instead_of_owned_transfer() {
+    let checked = checked_source(
+        r#"
+data Settings [copy] { count: i32; }
+machine Settings::default() -> Settings { Settings { count: 1 } }
+machine Settings::set_count(settings: &mut Settings, count: i32) { settings.count = count; }
+machine Settings::capture(output: &mut i32, settings: Settings) { output = settings.count; }
+machine observe(output: &mut i32) {
+    let mut settings: Settings = Settings::default();
+    Settings::set_count(&mut settings, 17);
+    Settings::capture(&mut output, settings);
+    Settings::set_count(&mut settings, 25);
+    Settings::capture(&mut output, settings);
+}
+"#,
+        false,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "observe")
+        .expect("authored caller");
+    let values = &checked.facts.values.structural_values;
+    let copies = values
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| root.machine == machine.symbol)
+        .filter_map(|root| match &values.nodes.get(root.root).kind {
+            CheckedStructuralValueKind::CopiedStructuralPlace { source, .. } => {
+                Some((root.statement_ordinal, source))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(copies.len(), 2, "one fresh read for each call operand");
+    assert_eq!(copies[0].0, 2);
+    assert_eq!(copies[1].0, 4);
+    assert_eq!(copies[0].1, copies[1].1, "both read the same storage");
+    assert_eq!(
+        copies[0].1.access,
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+    );
+    assert!(copies[0].1.path.is_empty());
+    assert!(matches!(
+        copies[0].1.source,
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+    ));
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine.symbol)
+            .is_some(),
+        "the caller sequences both copied operands before their consumers"
+    );
+}
+
+#[test]
 fn closed_scalar_arrays_have_one_producer_inside_case_payloads() {
     let checked = checked_source(
         "data Packet { case Empty; case Samples(values: [i32; 2]); }
