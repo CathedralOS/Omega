@@ -648,7 +648,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `systems/wire_protocol` | **RECORD-LITERAL-ARRAY-FIELD** owns its operation. |
   | `gui/{image_viewer,window_app,window_demo}` | At `0d3a0f15b72` plus the borrowed-reference boundary plans on macOS ARM64, `sample_native_gate.py --filter gui/window_demo,gui/window_app,gui/windowed_calculator --jobs 3 --timeout 1800` builds none of the three. Borrowed `&u8`/`&i32` requirements (`ObjectiveC::get_class`, `register_selector`, `send_string`, `send_byte_string`, `CoreGraphics::bitmap_context`) now have boundary plans, and a provider body's forwarded `&u8` loan and fixed element `&words.bytes[2]` reach libSystem `_strlen` natively (`pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit`, exit **70**). `window_demo` and `windowed_calculator` stop in stage 05 `structural_calls/result_uses.rs` ("Unit structural result argument has invalid claim-free custody") at `objc_get_class(&cbuf1[0])`, a shared loan of a local array's fixed element that ordinary calls also reject, then `attached_unit/parameters.rs` ("invalid checked custody"); the by-value parameter element `&title[0]` next stops at "primitive array parameter requires exact whole owned transport", and Omega's normalized foreign call still admits only caller-parameter-rooted loans, not a local array's structural home. `window_app` stops earlier, in stage 04 at `structural field store: destination parameter` for `let padded: [u8; 11]; padded[0] = title[0];`. The providers' fields remain owner question `provider-private-state-home`. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the argument/result matrix. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault` | At `96b196739593` on macOS ARM64, `omega run samples/cli/systems/file_journal/main.omg` exits 200 during fresh package review: `Main::fs` and `Main::files::host` have no selected Fused `FilesystemHost` provider. The canonical table in `provider-planning/src/provider_settlement/canonical_filesystem_host.rs` covers only limited Linux x86-64 leaves. The raw boundary's mixed-platform full-schema contract needs the `filesystem-host-platform-coverage` decision in **OWNER_QUESTIONS.md** before a complete Darwin provider can be supplied honestly. Next acceptance is the real seven-step workflow, exit 7; no filesystem effects occurred in this run. Subsequent result custody, library callee composition and indexed nested-field initialization remain with **STATE-LOCAL-VALUE-FRONTIER**; re-drive `note_vault` separately through `Filesystem::create_dir_all`. |
-  | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the remaining native customers are `windowed_calculator` on the GUI row's stage 05 local-array element loan (`objc_get_class(&cbuf1[0])`); `dungeon_crawler_cli` on borrowed `Binding<Console>` transport (**ENTRY-CONTENT-ROOTS**; frontier in **NOMINAL-FIELD-FLOW**); `game_of_life` declares `board`/`next` as `[i32; 16]` under `where cells_valid(&board) == true, cells_valid(&next) == true`, a sixteen-state walk per [collection invariants](wiki/spec/language/dependent_values.md#collection-invariants). Checking explores that body to admit the zeroed grid, re-prove the facts after each element store, prove the helper theorem `cell_is_bit`, and bound each cited cell for the Exact neighbor sums and checksum (`{pass,fail}/dependent/collection_predicate_*`). Native execution stops at stage 04 `structural field store: carrier path` in `Main::init_board`: `structural_scalar_store/destination.rs` admits only interval-only `where` facts. Terminal needs the predicate's checked elementwise consequence (each cell in `[0, 1]`) as call-entry requirements and `&mut` normal-return restoration on every machine reaching `Grid` (the declaration predicate roster **FLOAT-RANGE-ATTACHED-FIELD** plans), including package-review projection of fixed-index contract paths and discharge of unchanged-field restoration, then erasure of the fact-only `cell_is_bit` citations, whose predicate `requires` has no Terminal form, before that gate opens. |
+  | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the remaining native customers are `windowed_calculator` on the GUI row's stage 05 local-array element loan (`objc_get_class(&cbuf1[0])`) and `dungeon_crawler_cli` on borrowed `Binding<Console>` transport (**ENTRY-CONTENT-ROOTS**; frontier in **NOMINAL-FIELD-FLOW**). |
   | Clock-bearing samples | The nine pacing providers keep their call scratch in locals, where the [static-machine contract](wiki/spec/language/machines.md#static-declarations-and-explicit-state) places invocation scratch, so none needs provider installation storage. At `13348321787` plus that migration on macOS ARM64, `bouncing_console`, `sort_visualizer`, `ripple_field`, `random_walk`, `game_of_life_glider` and `langtons_ant` meet their oracles (`sample_native_gate.py --filter`, 6/6); `random_walk` and `langtons_ant` spend 5 to 7 minutes compiling in stage 05's integer proof search. `binary_search_viz` stops after 19 minutes at the `proof_search_candidate_work` provision (16384) with obligation 35 unproved, and `cellular_automaton` is still compiling after 20 minutes. `tick_marquee` meets its oracle (exit 0, 24 `#` frames, elapsed at least 100 ms): its `tick_count` reads `darwin_clock_ns` into a local and returns the scaled count. Verify pacing and the other declared hosts once these close. |
   | Text/index/match programs | **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY** own their missing operations/facts. Retain `Utf8` and ordinary domain evidence; recognized function names or weakened invariants cannot replace it. |
 
@@ -1746,35 +1746,31 @@ crash and native exit behavior. Use affected check/native corpus slices under
   and all five customers execute with those oracles. A migrated unused field
   or disappearance of the old phase label alone does not close this task.
 
-  Current frontier (macOS ARM64, 2026-09-30, based on `fae4389239`):
-  `omega run tests/omega/pass/float/finite_core_domain_range_discharge/main.omg`
-  now proves the repaired field's `Finite` transition argument and admits the
-  zero-valid entry context, preserving the transient NaN and range violation.
-  It still exits 200 before execution at `structural field store: carrier path`
-  (state 0, statement 1). Stage 04's
-  `execution/terminal_unit/structural_scalar_store/destination.rs` admits record
-  `where` facts only when `data_where_field_intervals` retains integer bounds.
-  Terminal now retains exact-format IEEE field terms, store/read bit equations,
-  overwrite invalidation and saved SSA predicates through module/proof codec
-  reload. Checked equality transport proves a restored field/read's range,
-  rejects NaN and `2.0`, and preserves an earlier `0.5` read across both writes.
-  Stage 05 now lowers IEEE entry comparisons and structural float leaves through
-  `unit/runtime_requirements.rs` and `proofs/crash_routes/structural_members.rs`,
-  retaining exact formats, paths and unordered-inclusive negation. All 34
-  affected contract tests pass; the 92 float/dependent corpus records retain
-  the previous checkpoint's semantic results (49 checked, 43 rejected).
-  This is lowering support, not native acceptance. Next derive one declaration
-  predicate roster in checking's `machine_calls/structural_call_custody.rs` and
-  feed call-entry requirements, state-arrival obligations and mutable-parameter
-  normal-return restoration. State arrivals alone miss invocation entry, and
-  current closed scalar guarantees retain only authored `ensures`; preserve
-  authored clause counts while independently replaying derived tails. Boundary
-  calls also consume open windows even without a record argument. Only then
-  open the destination gate: zero eligibility is not a per-store invariant
-  proof. Coordinate the destination with `STATIC-ZERO-ARRAY-FIELD-STORES`, the
-  state roster consumer with `COMPOSITE-TRANSITION-ARGUMENT`, and signature,
-  guarantee and namespace consumers with `STATIC-MACHINE-MIGRATION`. Native
-  exit 77 and the three recast customers remain open.
+  Current frontier (macOS ARM64, 2026-09-30): the declaration predicate
+  roster (`machine_calls/structural_call_custody/declaration_predicates.rs`)
+  carries `where` facts into Terminal. Every machine whose entry parameters
+  reach a data declaration requires its rows at entry, and an exclusive borrow
+  also restores them at normal return; stage 05 rederives the roster to replay
+  the requirement tail and publish the restored guarantees. A relational,
+  Boolean or IEEE fact is one row as spelled; a collection predicate
+  contributes each element's checked interval through static element leaves.
+  The store gate (`structural_scalar_store/destination.rs`) admits a
+  declaration only when its rows imply every fact. `game_of_life` and
+  `pass/dependent/{collection_predicate_terminal_rows_exit,data_where_relational_callee_restored_exit,data_where_invariant_window_restored_exit}`
+  run natively with exit 70. `omega run
+  tests/omega/pass/float/finite_core_domain_range_discharge/main.omg` now
+  passes the gate and stops at stage 04 `state graph: terminator: jump
+  successor: parameter transfer` (state 0, statement 4): the transition hands
+  the `&mut Main` receiver to `accepts_range(main: &Main, ..)`, and structural
+  parameter transfer requires equal access. Two roster consumers remain. A
+  callee that stores a ranged IEEE field has no proof producer for its
+  restored row (value-equality transport then closed IEEE evaluation; both
+  kernel rules exist), so it fails `OperationProofUnavailable`. Cyclic state
+  graphs have no state-arrival rows, so facts cut at a back edge cannot
+  restore a guarantee after the loop. Coordinate the state-arrival consumer
+  with `COMPOSITE-TRANSITION-ARGUMENT`, and signature, guarantee and namespace
+  consumers with `STATIC-MACHINE-MIGRATION`. Native exit 77 and the three
+  recast customers remain open.
 
   The const-container customer is now a native control (macOS ARM64,
   2026-09-30): `omega run --both

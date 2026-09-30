@@ -448,6 +448,9 @@ fail/dependent/case_where_unproved_bound_rejected rejected 316ms expected @2d8ed
 	data `Interval` case `Range` literal cannot prove the case constraint: a `where`-mentioned field's value is neither a literal nor a declared-range place whose interval decides the fact -- spell a literal, or constrain the value's declared range
 fail/dependent/case_where_zero_refuted_first_case_rejected rejected 320ms expected @2d8ed253669f
 	construction of `Main` omits gated field `v`: its zero-filled representation is not an established value -- initialize it explicitly
+fail/dependent/collection_predicate_caller_store_before_call_rejected rejected 94ms expected @a7a8cec34dad+wt
+	the next whole-value read of `context` occurs inside an OPEN invariant window: a prior write left data `Grid`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	data `Grid`'s default domain is still FALSE at a call: the invariant window opened on `context.grid` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/collection_predicate_element_store_violates_rejected rejected 102ms expected @8e99dd8cbe00+wt
 	data `Grid`'s default domain is still FALSE at state exit: the invariant window opened on `context.grid` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/dependent/collection_predicate_helper_theorem_false_rejected rejected 193ms expected @8e99dd8cbe00+wt
@@ -1458,6 +1461,7 @@ pass/dependent/case_where_match_contributes checked 288ms @2d8ed253669f
 pass/dependent/case_where_zero_decided_first_case checked 302ms @2d8ed253669f
 pass/dependent/collection_predicate_element_store_restored checked 199ms @8e99dd8cbe00+wt
 pass/dependent/collection_predicate_helper_theorem_bounds_sum checked 193ms @8e99dd8cbe00+wt
+pass/dependent/collection_predicate_terminal_rows_exit checked 732ms @a7a8cec34dad+wt
 pass/dependent/collection_predicate_zero_initialized checked 184ms @8e99dd8cbe00+wt
 pass/dependent/data_where_call_frame_preserves_disjoint_valuation_compile checked 288ms @2d8ed253669f
 pass/dependent/data_where_callee_establishes rejected 399ms @2d8ed253669f
@@ -1465,11 +1469,11 @@ pass/dependent/data_where_callee_establishes rejected 399ms @2d8ed253669f
 pass/dependent/data_where_field_read_during_window_compile checked 277ms @2d8ed253669f
 pass/dependent/data_where_gated_literal_proves rejected 394ms @2d8ed253669f
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
-pass/dependent/data_where_invariant_window_restored_exit rejected 761ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: carrier path`
+pass/dependent/data_where_invariant_window_restored_exit checked 695ms @a7a8cec34dad+wt
 pass/dependent/data_where_membership_literal_compile checked 304ms @2d8ed253669f
 pass/dependent/data_where_ranged_param_constructs rejected 404ms @2d8ed253669f
 	entry machine `Main::main` requests a provisioned `Main` context, but its all-zero image is not a valid value; use a free entry and construct the state explicitly
+pass/dependent/data_where_relational_callee_restored_exit checked 707ms @a7a8cec34dad+wt
 pass/dependent/data_where_standing_bound_exit checked 1223ms @2d8ed253669f
 pass/dependent/local_alias_forwards_entry_origin checked 286ms @2d8ed253669f
 pass/dependent/mutable_referent_alias_corruption_restored_compile checked 283ms @2d8ed253669f
@@ -1615,8 +1619,8 @@ pass/float/build_runtime_semantics_twins_x86_baseline rejected 4056ms @2d8ed2536
 pass/float/builtin_extrema_field_store_exit checked 5149ms @2d8ed253669f
 pass/float/f32_arg_const_arith_landed_exit checked 4338ms @2d8ed253669f
 pass/float/f32_per_operation_rounding_exit checked 4917ms @2d8ed253669f
-pass/float/finite_core_domain_range_discharge rejected 2517ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
+pass/float/finite_core_domain_range_discharge rejected 1146ms @a7a8cec34dad+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: parameter transfer` (state 0, statement 4)
 pass/float/float_saturating_arithmetic_exit rejected 396ms @2d8ed253669f
 	cannot prove assignment value `subtract(0.0, self.maximum) as f32 ` satisfies `finite` for bounded target `self.negative_maximum` in `Main::main.main`
 pass/float/float_to_int_exact_proofs_exit rejected 2540ms @2d8ed253669f

@@ -30,6 +30,7 @@ mod const_container_custody;
 mod constructed_case_membership;
 mod content_conservation;
 mod cyclic_byte_literal_calls;
+mod declaration_predicate_roster;
 mod discarded_boundary_results;
 mod dynamic_composed_unit;
 mod element_view_computed_arguments;

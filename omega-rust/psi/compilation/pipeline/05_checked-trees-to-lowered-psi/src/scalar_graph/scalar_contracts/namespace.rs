@@ -87,6 +87,7 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         // structural signature lowering names its retained place and field
         // path. An empty path would name the whole parameter — never a
         // scalar leaf — and an address member has no fixed-integer carrier.
+        // An IEEE leaf keeps its exact format for an IEEE comparison.
         CheckedScalarExpression::StructuralParameterField {
             path,
             primitive_type,
@@ -97,7 +98,7 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
                     "closed scalar contract operand requires a scalar namespace",
                 ));
             }
-            crate::emission::scalar_types::integer_scalar_type(*primitive_type).map(|_| ())
+            crate::emission::scalar_types::terminal_scalar_type(*primitive_type).map(|_| ())
         }
         CheckedScalarExpression::StructuralParameterByteLength { .. } => {
             Err(LoweringError::Unsupported(

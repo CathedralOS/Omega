@@ -22,8 +22,14 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+mod declaration_predicates;
 #[cfg(test)]
 mod tests;
+
+pub use declaration_predicates::{
+    DeclarationPredicateRow, declaration_facts_carried, machine_declaration_predicates,
+    state_declaration_predicates,
+};
 
 /// One scalar row a state's `requires` contracts leave for a proof lane.
 #[derive(Debug, Clone, PartialEq, Eq)]

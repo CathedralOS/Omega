@@ -375,6 +375,118 @@ pub(crate) fn standing_field_elements(
     constrained.then_some(elements)
 }
 
+/// The interval shape of one argument field's consequence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ConsequenceShape {
+    /// One inclusive interval per element of a fixed integer array.
+    Array(Vec<(i128, i128)>),
+    Integer((i128, i128)),
+}
+
+/// The consequence one data fact grants one of its argument fields.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FieldConsequence {
+    pub(crate) field: symbols::SymbolHandle,
+    pub(crate) elements: ConsequenceShape,
+}
+
+/// The checked elementwise consequence of one collection-predicate data fact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FactConsequence {
+    /// One row per distinct argument field, in argument order.
+    pub(crate) fields: Vec<FieldConsequence>,
+    /// Whether the intervals also imply the fact: exploring the predicate
+    /// with every argument field confined to its intervals returns `true` on
+    /// every path. Rows bounding each element then carry the complete fact.
+    pub(crate) exact: bool,
+}
+
+/// Under a data fact `P(&field, ..) == true`, the interval hull of the values
+/// each argument field's elements hold on the paths of `P`'s own body that
+/// return `true`, explored with no other knowledge. `None` outside the
+/// explorer's fragment or budget, or when no path returns `true`.
+pub(crate) fn data_fact_element_consequences(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    fact: ExpressionHandle,
+) -> Option<FactConsequence> {
+    let (unfolding, fields) = data_fact_unfolding(program, definition, fact, &mut |field| {
+        unknown_knowledge(program, field.type_reference)
+    })?;
+    let mut consequences: Vec<(symbols::SymbolHandle, Vec<IntegerSet>, bool)> = Vec::new();
+    for (position, field) in fields.iter().enumerate() {
+        let Some(field) = field else {
+            continue;
+        };
+        let implied = unfolding.when_true(position)?;
+        let is_array = matches!(
+            unknown_knowledge(program, field_type(program, definition, *field)?)?,
+            ArgumentKnowledge::Array(_)
+        );
+        match consequences
+            .iter_mut()
+            .find(|(symbol, _, _)| symbol == field)
+        {
+            Some((_, existing, _)) if existing.len() == implied.len() => {
+                for (element, implied) in existing.iter_mut().zip(&implied) {
+                    *element = element.intersect(implied);
+                }
+            }
+            Some(_) => return None,
+            None => consequences.push((*field, implied, is_array)),
+        }
+    }
+    let mut rows = Vec::with_capacity(consequences.len());
+    for (field, elements, is_array) in &consequences {
+        let intervals = elements
+            .iter()
+            .map(IntegerSet::bounds)
+            .collect::<Option<Vec<_>>>()?;
+        rows.push(FieldConsequence {
+            field: *field,
+            elements: if *is_array {
+                ConsequenceShape::Array(intervals)
+            } else {
+                ConsequenceShape::Integer(*intervals.first()?)
+            },
+        });
+    }
+    let exact = data_fact_decided(program, definition, fact, &mut |field| {
+        let row = rows.iter().find(|row| row.field == field.symbol)?;
+        Some(match &row.elements {
+            ConsequenceShape::Array(intervals) => ArgumentKnowledge::Array(
+                intervals
+                    .iter()
+                    .map(|(low, high)| IntegerSet::range(*low, *high))
+                    .collect(),
+            ),
+            ConsequenceShape::Integer((low, high)) => {
+                ArgumentKnowledge::Integer(IntegerSet::range(*low, *high))
+            }
+        })
+    }) == Some(true);
+    Some(FactConsequence {
+        fields: rows,
+        exact,
+    })
+}
+
+fn field_type(
+    program: &TypedTrees,
+    definition: &DataDefinition,
+    field: symbols::SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    program
+        .data_members(definition)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Field(candidate) if candidate.symbol == field => {
+                Some(candidate.type_reference)
+            }
+            _ => None,
+        })
+}
+
 /// Whether a machine's own premises prove `goal` at an exit that cannot have
 /// changed any parameter: the machine is a single entry state with no
 /// assignment or local declaration, and every parameter is read-only.

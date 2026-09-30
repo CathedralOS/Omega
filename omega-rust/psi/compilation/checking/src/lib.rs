@@ -28,10 +28,12 @@ pub use machine_calls::static_machine_call_contracts::{
     validate_static_machine_parameter_contracts,
 };
 pub use machine_calls::structural_call_custody::{
-    StateScalarContractRow, reconstruct_structural_call_custody,
+    DeclarationPredicateRow, StateScalarContractRow, declaration_facts_carried,
+    machine_declaration_predicates, reconstruct_structural_call_custody,
     reconstruct_structural_parameter_return_claims, restates_structural_parameter_qualification,
     structural_claim_path, structural_result_projected_qualifications,
-    structural_result_qualifications, structural_state_contract_scalar_predicates,
+    state_declaration_predicates, structural_result_qualifications,
+    structural_state_contract_scalar_predicates,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,

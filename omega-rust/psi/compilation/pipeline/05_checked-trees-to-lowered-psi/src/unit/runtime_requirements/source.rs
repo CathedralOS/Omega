@@ -27,7 +27,29 @@ pub(crate) fn validate_scalar_source(
         .ok_or(LoweringError::Unsupported(
             "scalar completion lacks complete entry requirements",
         ))?;
-    let mut retained = requirements.iter();
+    // The package closes with the declaration predicate roster. Rederive it
+    // from the entry parameters' declared storage and require that exact
+    // tail, so authored clauses and ranges rejoin only the prefix before it.
+    let derived = validation::machine_declaration_predicates(
+        &checked.typed,
+        &checked.facts.operators,
+        machine,
+    );
+    let authored_end =
+        requirements
+            .len()
+            .checked_sub(derived.len())
+            .ok_or(LoweringError::Unsupported(
+                "scalar entry requirements lost their declaration predicate rows",
+            ))?;
+    if !requirements[authored_end..]
+        .iter()
+        .zip(&derived)
+        .all(|(retained, row)| *retained == row.predicate)
+    {
+        return unsupported("scalar entry requirements differ from their declaration predicates");
+    }
+    let mut retained = requirements[..authored_end].iter();
     for contract in checked
         .machine_contracts(machine)
         .iter()

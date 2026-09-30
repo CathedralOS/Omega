@@ -1,0 +1,37 @@
+// RUN CANARY (exit 70). A relational default-domain fact crosses calls in
+// Terminal: `start <= end` is `Main`'s declaration predicate row, so
+// `widen` requires it at entry and restores it at return through the
+// `&mut self` receiver. Its first store opens a window (`end` = 15 below
+// `start` = 20 is never observed) and the second closes it. `main`
+// establishes the row from its own stores before the call and exits on the
+// restored span.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main
+where
+    start <= end,
+{
+    console: Binding<Console>;
+    start: i32;
+    end: i32;
+}
+
+machine Main::widen(&mut self) {
+    self.start = 20;
+    self.end = 30;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.start = 10;
+    self.end = 15;
+    self.widen();
+    transition self.end == 30 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+
+    state bad(&mut self) { self.console.exit_process(71); }
+}

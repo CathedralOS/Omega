@@ -79,6 +79,9 @@ pub(super) struct Destination<'a> {
     /// local's own type) and its record owner when the root is a record.
     root_type: typed_trees::types::TypeReferenceHandle,
     root_owner: Option<&'a typed_trees::data::DataDefinition>,
+    /// Operator selections, which decide whether a carrier's `where` facts
+    /// are spelled in the Terminal requirement vocabulary.
+    operators: &'a checked_trees::CheckedOperatorFacts,
 }
 
 /// The checked carrier path to a record, and that record's declaration.
@@ -90,7 +93,7 @@ pub(super) struct Carrier<'a> {
 /// Resolve the authored target, its root and the root's write authority.
 pub(super) fn resolve<'a>(
     program: &'a TypedTrees,
-    facts: &CheckFacts,
+    facts: &'a CheckFacts,
     machine: &'a typed_trees::machine::Machine,
     state: &'a typed_trees::state::State,
     roots: StoreRoots<'a>,
@@ -168,6 +171,7 @@ pub(super) fn resolve<'a>(
                 .or_else(|| {
                     owned_local_root(
                         program,
+                        &facts.operators,
                         state,
                         root_symbol,
                         ordinal,
@@ -210,6 +214,7 @@ pub(super) fn resolve<'a>(
                 selectors,
                 root_type: *referee,
                 root_owner,
+                operators: &facts.operators,
             })
         }
         StoreRoots::RecordLocals => {
@@ -241,6 +246,7 @@ pub(super) fn resolve<'a>(
                     program,
                     local.type_reference,
                 ),
+                operators: &facts.operators,
             })
         }
     }
@@ -253,6 +259,7 @@ pub(super) fn resolve<'a>(
 /// home place directly rather than rebuilding the local's scalar ledger.
 fn owned_local_root<'a>(
     program: &'a TypedTrees,
+    operators: &'a checked_trees::CheckedOperatorFacts,
     state: &'a typed_trees::state::State,
     root_symbol: SymbolHandle,
     ordinal: usize,
@@ -312,6 +319,7 @@ fn owned_local_root<'a>(
             program,
             local.type_reference,
         ),
+        operators,
     })
 }
 
@@ -427,11 +435,14 @@ impl<'a> Destination<'a> {
         segments: &[facts::PlaceSegment],
         may_end_at_mixed: bool,
     ) -> Option<Carrier<'a>> {
+        let operators = self.operators;
         let final_owner = |owner: &typed_trees::data::DataDefinition| {
-            plain_record(owner, program) || (may_end_at_mixed && plain_mixed(owner, program))
+            plain_record(owner, program, operators)
+                || (may_end_at_mixed && plain_mixed(owner, program, operators))
         };
         if let Some(owner) = self.root_owner
-            && !(plain_record(owner, program) || (segments.is_empty() && final_owner(owner)))
+            && !(plain_record(owner, program, operators)
+                || (segments.is_empty() && final_owner(owner)))
         {
             return None;
         }
@@ -442,7 +453,7 @@ impl<'a> Destination<'a> {
             match segment {
                 facts::PlaceSegment::Field { symbol } => {
                     let field_owner = owner?;
-                    if !plain_record(field_owner, program) {
+                    if !plain_record(field_owner, program, operators) {
                         return None;
                     }
                     let carrier = exact_relevant_field(program, field_owner, *symbol)?;
@@ -547,29 +558,43 @@ impl<'a> Destination<'a> {
 /// erased fields, `crosses_reference` stops every carrier hop at a reference,
 /// and a reference leaf has no primitive type. Runtime generic arity is still
 /// excluded by the type-parameter and owner-application tests below.
-pub(super) fn plain_record(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
-    plain_checked_shape(data, program)
+pub(super) fn plain_record(
+    data: &typed_trees::data::DataDefinition,
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+) -> bool {
+    plain_checked_shape(data, program, operators)
         && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Record
 }
 
 /// A mixed shape whose common fields a leaf store may write, under the same
 /// supply, generic and fact conditions as [`plain_record`].
-fn plain_mixed(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
-    plain_checked_shape(data, program)
+fn plain_mixed(
+    data: &typed_trees::data::DataDefinition,
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+) -> bool {
+    plain_checked_shape(data, program, operators)
         && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Mixed
 }
 
-fn plain_checked_shape(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
+fn plain_checked_shape(
+    data: &typed_trees::data::DataDefinition,
+    program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
+) -> bool {
     data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && program.data_type_parameters(data).is_empty()
         && retained_record_owner_application(data, program)
         && data.quotient.is_none()
-        // Interval-only facts are the fields' own bounds, which each store's
-        // range obligation re-proves; relational facts stay refused.
-        && (data.where_facts.is_empty()
-            || validation::data_where_field_intervals(program, data).is_some())
+        // A store may break a `where` fact only where Terminal re-proves the
+        // whole default domain: interval-only facts bound the fields' own
+        // carriers, and every other fact must be carried exactly by the
+        // declaration predicate roster, whose rows each call, arrival and
+        // return re-proves. Zero validity alone proves nothing per store.
+        && validation::declaration_facts_carried(program, operators, data)
         && !data.zero_gated
 }
 
@@ -767,7 +792,7 @@ fn rejoin_loan_local(
 /// exclusivity and lifetime were all admitted by the loan itself.
 fn borrowed_view_local_root<'a>(
     program: &'a TypedTrees,
-    facts: &CheckFacts,
+    facts: &'a CheckFacts,
     machine: &'a typed_trees::machine::Machine,
     state: &'a typed_trees::state::State,
     root_symbol: SymbolHandle,
@@ -830,5 +855,6 @@ fn borrowed_view_local_root<'a>(
         selectors,
         root_type: referee,
         root_owner: crate::facts::field_domain::data_definition_for_field_type(program, referee),
+        operators: &facts.operators,
     })
 }
