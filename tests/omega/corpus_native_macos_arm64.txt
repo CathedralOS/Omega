@@ -62,14 +62,12 @@ pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
 pass/boundary/later_state_requirement_scalar_result_exit built 3738ms exit:70 @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 4150ms exit:70 @44d31b02f28e+wt
 pass/build/conditional_root_binding built 283ms
-pass/build/described_runner_entry_left_exit built 2056ms exit:11
-pass/build/described_runner_entry_right_exit built 2050ms exit:37
+pass/build/described_runner_entry_left_exit built 2356ms exit:11 @26b974b5cae7+wt
+pass/build/described_runner_entry_right_exit built 2175ms exit:37 @26b974b5cae7+wt
 pass/build/runtime_depend_mapping_exit built 612ms exit:70
 pass/build/runtime_main_source_builder_is_ordinary_exit built 619ms exit:70
-pass/build/same_leaf_runner_entry_left_exit rejected 1595ms @b09f66e07ebd+wt
-	terminal-artifact production failed: Lowering(Unsupported("composed Unit attachment is ambiguous or generic"))
-pass/build/same_leaf_runner_entry_right_exit rejected 1897ms @b09f66e07ebd+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary receiver` (state 0, statement 0)
+pass/build/same_leaf_runner_entry_left_exit built 2715ms exit:11 @26b974b5cae7+wt
+pass/build/same_leaf_runner_entry_right_exit built 2443ms exit:37 @26b974b5cae7+wt
 pass/build/uefi_os_handoff_invocation rejected 981ms
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity

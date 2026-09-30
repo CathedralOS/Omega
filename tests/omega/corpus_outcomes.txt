@@ -1139,16 +1139,12 @@ pass/borrows/shared_recast_loan_member_read checked 1387ms @2d8ed253669f
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit checked 3779ms @44d31b02f28e+wt
 pass/build/conditional_root_binding checked 389ms @2d8ed253669f
-pass/build/described_runner_entry_left_exit rejected 1343ms @2d8ed253669f
-	Linux x86-64 hosted receiver bridge lost exact contract, storage, or entry custody
-pass/build/described_runner_entry_right_exit rejected 1007ms @2d8ed253669f
-	Linux x86-64 hosted receiver bridge lost exact contract, storage, or entry custody
+pass/build/described_runner_entry_left_exit checked 1945ms @26b974b5cae7+wt
+pass/build/described_runner_entry_right_exit checked 1992ms @26b974b5cae7+wt
 pass/build/runtime_depend_mapping_exit checked 1263ms @2d8ed253669f
 pass/build/runtime_main_source_builder_is_ordinary_exit checked 1191ms @2d8ed253669f
-pass/build/same_leaf_runner_entry_left_exit rejected 2457ms @b09f66e07ebd+wt
-	terminal-artifact production failed: Lowering(Unsupported("composed Unit attachment is ambiguous or generic"))
-pass/build/same_leaf_runner_entry_right_exit rejected 2360ms @b09f66e07ebd+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary receiver` (state 0, statement 0)
+pass/build/same_leaf_runner_entry_left_exit checked 1954ms @26b974b5cae7+wt
+pass/build/same_leaf_runner_entry_right_exit checked 1911ms @26b974b5cae7+wt
 pass/build/uefi_os_handoff_invocation rejected 1222ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
 pass/calls/ambient_receiver_scalar_return_exit checked 1291ms @2d8ed253669f

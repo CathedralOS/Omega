@@ -2247,15 +2247,10 @@ extend that route through ordinary checked Build execution and retained outputs.
   and **BUILD-ADMISSION-CHECKPOINT** source custody, never durable authority from
   names or evaluator indices.
 
-  The scalar/multi-state customer is registered.
-  `pass/build/described_runner_entry_{left,right}_exit` (sibling leaves) exit
-  **11** and **37** natively and interpreted. The literal same-leaf twins
-  `same_leaf_runner_entry_{left,right}_exit`, where both modules declare
-  `Runner`, still reject: stages 04/05 resolve the attached data by leaf name
-  rather than symbol in `terminal_unit/calls/boundary_admission.rs`
-  (`provider_attachment_receiver_matches`, right twin: "call operation:
-  boundary receiver") and `unit/attached_unit/composed_control/admission.rs`
-  (left twin: "composed Unit attachment is ambiguous or generic").
+  The scalar/multi-state customer runs. `pass/build/described_runner_entry_{left,right}_exit`
+  (sibling leaves) and the literal same-leaf twins
+  `same_leaf_runner_entry_{left,right}_exit` (both modules declare `Reader`,
+  `Provider`, `Runner`) exit **11** and **37** natively and interpreted.
   **STATE-LOCAL-VALUE-FRONTIER** owns scalar/provider and state-call closure;
   **ENTRY-CONTENT-ROOTS** owns receiver attachment.
 
@@ -2268,6 +2263,21 @@ extend that route through ordinary checked Build execution and retained outputs.
   generated/layout cycles, and the positive control that an explicitly
   delegated private entry description stays usable without enumeration
   authority.
+
+- **SAME-NAME-REQUIREMENT-CALL-TARGETS.** (new-scope) When two modules each
+  declare a boundary `Sink` and a machine calls `self.sink.emit(..)` as a
+  statement, stage 02 stamps the sibling module's `Sink::emit` as the call
+  target (stage 03 copies it), and stage 04's
+  `lookup/receivers.rs::declared_receiver_target` rejects with "projected
+  binding call target belongs to a different requirement", in entry and named
+  states alike. Resolve the call through the receiver field's declared type
+  symbol, pin it with a two-module runtime fixture, and swap the remaining
+  name-matched attached-data lookups (stage 04 `calls/signatures.rs`,
+  `operators/receiver.rs`, `lookup/calls.rs`, `facts/carry.rs`,
+  `borrow/roots.rs`, `checks/contracts/evaluator/collections.rs`,
+  `monomorphization/body_cloning.rs`; stage 05
+  `returns/boundary_scalar_return/source_custody.rs`) for
+  `TypedTrees::attached_data_definition` where a customer reaches them.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish coherent capture and host acceptance under the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
