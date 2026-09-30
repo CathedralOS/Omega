@@ -351,7 +351,21 @@ fn plan_assignment(
         );
     };
     let facts::PlaceSegment::Field { symbol } = leaf else {
-        return None;
+        // An indexed leaf reaches a primitive element the `WriteOnlyPrimitiveStore`
+        // path already walks — fields and selectors compose the same way over a
+        // root the primitive lane's own admission declined (a view local, an
+        // erased alias), the destination's resolved authority still carrying
+        // the store.
+        return primitive::indexed_store(
+            program,
+            facts,
+            machine,
+            state,
+            &destination,
+            statement_index,
+            assignment,
+        )
+        .map(|store| vec![store]);
     };
     let carrier = destination.leaf_carrier(program, carriers)?;
     trace.phase("structural field store: field owner record");

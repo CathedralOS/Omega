@@ -168,6 +168,89 @@ pub(super) fn store_at(
             })?,
         )
     };
+    let value = primitive_store_value(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment,
+        authored_symbol,
+        authored_whole,
+        primitive_type,
+    )?;
+    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        statement_index,
+        destination,
+        path,
+        value,
+    })
+}
+
+/// The primitive element store of one authored assignment whose destination
+/// already resolved through the structural lane's exclusive authority: a
+/// root `storage_place` declines — an exclusive view local, an erased borrow
+/// alias — still reaches a primitive leaf over the same checked fields and
+/// selectors the `WriteOnlyPrimitiveStore` path carries. The destination's
+/// own resolved root supplies the store root.
+pub(super) fn indexed_store(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    destination: &super::destination::Destination<'_>,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let path = primitive_path(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment.target,
+        &destination.place.segments,
+    )?;
+    let primitive_type = program.primitive_type_reference(primitive_leaf_type_reference(
+        program,
+        machine,
+        state,
+        assignment.target,
+    )?)?;
+    let value = primitive_store_value(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment,
+        SymbolHandle::invalid(),
+        false,
+        primitive_type,
+    )?;
+    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+        statement_index,
+        destination: destination.root.destination(),
+        path,
+        value,
+    })
+}
+
+/// The stored value of one primitive store: the statement's own call result
+/// or the pure scalar bound at `AssignmentValue`, retagged to the leaf's
+/// declared primitive. Whole-root stores keep the authored root symbol as
+/// the bound destination; every element or field store binds `invalid`.
+fn primitive_store_value(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    authored_symbol: SymbolHandle,
+    authored_whole: bool,
+    primitive_type: PrimitiveType,
+) -> Option<checked_trees::CheckedCallScalarArgument> {
     // Computed RHS values share the ordinary scalar evaluator. Keep the
     // authored assignment root until emission completes it, then replace storage.
     let computations = &facts.values.scalar_computations;
@@ -198,12 +281,9 @@ pub(super) fn store_at(
         {
             return None;
         }
-        return Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            statement_index,
-            destination,
-            path,
-            value: checked_trees::CheckedCallScalarArgument::Computation(root.root),
-        });
+        return Some(checked_trees::CheckedCallScalarArgument::Computation(
+            root.root,
+        ));
     }
     let Some((binding, value)) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
@@ -224,12 +304,9 @@ pub(super) fn store_at(
     {
         return None;
     }
-    Some(CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-        statement_index,
-        destination,
-        path,
-        value: checked_trees::CheckedCallScalarArgument::Pure(value.clone()),
-    })
+    Some(checked_trees::CheckedCallScalarArgument::Pure(
+        value.clone(),
+    ))
 }
 
 /// The stores of a closed array literal written whole into a primitive-array
