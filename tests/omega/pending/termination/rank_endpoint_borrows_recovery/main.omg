@@ -54,10 +54,10 @@ machine Main::main(&mut self) reaches Console {
     let settled: u64 = walk(4, indirect);
 
     transition settled == 0 {
-        true -> good()
-        _ -> bad()
+        true -> good(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state good(&mut self) { self.console.exit_process(0); }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state good(main: &mut Main) { main.console.exit_process(0); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
 }
