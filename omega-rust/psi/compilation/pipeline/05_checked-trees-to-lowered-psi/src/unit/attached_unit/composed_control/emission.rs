@@ -4,10 +4,10 @@
 //! emits every one through `attached_unit::operation_frame::OperationFrame`,
 //! the per-operation emitter the ordinary machine uses. This file owns only
 //! what is composed-specific: the frame over the state's environment (its
-//! registry-backed result namespace, the machine-wide claim table and the
-//! shared temporary roster) and the state's own operand schedule, which
-//! evaluates each call's scalar operands and literals just before the call
-//! (`literal_arguments`).
+//! registry-backed result namespace, the machine-wide claim table, the
+//! shared temporary roster and the primitive locals the sequence establishes)
+//! and the state's own operand schedule, which evaluates each call's scalar
+//! operands and literals just before the call (`literal_arguments`).
 use super::super::super::{
     BlockId, ClaimId, LoweredSourceCallOccurrence, PermissionClaimIdentity,
     StructuralParameterDeclaration,
@@ -17,6 +17,7 @@ use super::super::operation_frame::{
     CallInputs, Callees, CallerCustody, ClaimBindings, OperationFrame, PrivatePlaces,
     StructuralResults, StructuralTypeRoster,
 };
+use super::super::primitive_locals::PrimitiveLocal;
 use super::super::{
     Block, CheckedUnitEffectOperationPlan, Terminator, ValueDeclaration, allocate_dense, edge_id,
     unsupported,
@@ -199,6 +200,10 @@ pub(super) fn emit_call_operations(
     // frontier this sequence carries.
     let mut windows = crate::emission::borrowed_window::BorrowedWindowLedger::default();
     let plans = UnitPlans::published(&checked.facts.flow.terminal_unit_effects);
+    // The mutable primitive locals this sequence establishes. Their places
+    // live in the shared private roster; this roster keys later stores to
+    // them by authored symbol, as the ordinary machine's roster does.
+    let mut primitive_locals = Vec::<PrimitiveLocal>::new();
     // A returned final expression evaluates in the `Return` role.
     let scalar_result = match &state.terminator {
         checked_trees::CheckedComposedUnitControlTerminatorPlan::ReturnScalar {
@@ -209,7 +214,11 @@ pub(super) fn emit_call_operations(
     for operation in planned_operations {
         // A call's operands complete just before it, on this state's own
         // schedule; every other operation reads its operands itself.
-        let call_operands = if OperationFrame::lowers(operation) {
+        let establishes_local = matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
+        );
+        let call_operands = if establishes_local || OperationFrame::lowers(operation) {
             None
         } else {
             Some(literal_arguments::evaluate(
@@ -241,7 +250,7 @@ pub(super) fn emit_call_operations(
             },
             type_ids: &catalogs.type_ids,
             service_ids: &catalogs.service_ids,
-            primitive_locals: &[],
+            primitive_locals: &primitive_locals,
             results: StructuralResults::StateGraph {
                 state,
                 places: &mut catalogs.result_places,
@@ -275,6 +284,11 @@ pub(super) fn emit_call_operations(
             },
         };
         match &call_operands {
+            None if establishes_local => {
+                let local = frame.establish_primitive_local(operation)?;
+                catalogs.temporary_places.push(local.declaration);
+                primitive_locals.push(local);
+            }
             None => frame.emit(operation)?,
             Some((arguments, byte_places)) => {
                 if frame

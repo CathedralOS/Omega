@@ -1,79 +1,16 @@
-//! Places only an ordinary body establishes for itself: primitive and trivial
-//! affine locals, references and scalar arrays. Scalar locals and structural
-//! values (whose member operands are calls) emit through the shared
+//! Places only an ordinary body establishes for itself: trivial affine
+//! locals, references and scalar arrays. Scalar locals, primitive locals and
+//! structural values (whose member operands are calls) emit through the shared
 //! `operation_frame`.
 
-use super::super::{
-    parameters, primitive_locals, reference_results, scalar_arrays, structural_values,
-};
-use super::{MachineEmission, StepInputs};
+use super::super::{parameters, reference_results, scalar_arrays, structural_values};
+use super::MachineEmission;
 use crate::unit::{
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError, OperationKind,
-    StructuralPlaceKind, StructuralTypeShape, lookup_type_id, terminal_scalar_type, unsupported,
+    StructuralPlaceKind, lookup_type_id, unsupported,
 };
 
 impl MachineEmission<'_> {
-    pub(super) fn establish_primitive_local(
-        &mut self,
-        operation: &CheckedUnitEffectOperationPlan,
-        step: &StepInputs,
-    ) -> Result<Option<OperationKind>, LoweringError> {
-        let checked = self.checked;
-        let plan = self.plan;
-        let CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
-            statement_index,
-            symbol,
-            type_identity,
-            primitive_type,
-            ..
-        } = operation
-        else {
-            unreachable!("dispatched establish_primitive_local")
-        };
-        if self
-            .primitive_local_places
-            .iter()
-            .any(|local| local.symbol == *symbol)
-        {
-            return unsupported("primitive local is established more than once");
-        }
-        let value =
-            crate::expression_preparation::bindings::ScalarBindings::new(step.source_value_count)
-                .with_primitive_storage(&self.evaluation.primitive_storage)
-                .expression_at(
-                    checked,
-                    plan.state,
-                    *statement_index,
-                    CheckedScalarExpressionRole::StorageInitializer,
-                )?;
-        let structural_type = lookup_type_id(self.type_ids, type_identity)?;
-        if value.scalar_type() != terminal_scalar_type(*primitive_type)?
-            || !self.structural_types.iter().any(|declaration| {
-                declaration.id == structural_type
-                    && declaration.shape
-                        == StructuralTypeShape::PrimitiveScalar(value.scalar_type())
-            })
-        {
-            return unsupported("primitive local initializer and referent types disagree");
-        }
-        let local = primitive_locals::emit(
-            *symbol,
-            structural_type,
-            &value,
-            &self.scalar_result_values,
-            &mut self.next_place,
-            &mut self.next_value_identity,
-            &mut self.operations,
-        )?;
-        self.evaluation.primitive_storage.push((
-            local.symbol,
-            local.declaration.id,
-            local.scalar_type,
-        ));
-        self.primitive_local_places.push(local);
-        Ok(None)
-    }
-
     pub(super) fn establish_reference(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,

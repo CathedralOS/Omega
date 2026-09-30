@@ -12,6 +12,8 @@ use terminal_production::{
     TerminalProductionTimings,
 };
 
+#[path = "primitive_local_unit_calls/call_initializers.rs"]
+mod call_initializers;
 #[path = "primitive_local_unit_calls/crash_routes.rs"]
 mod crash_routes;
 #[path = "primitive_local_unit_calls/custody.rs"]
@@ -137,7 +139,7 @@ fn deferred_primitive_zero_is_replayed_from_its_declaration() {
         for operation in &mut plan.operations {
             if let CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { value, .. } = operation
             {
-                *value = one.clone();
+                *value = checked_trees::CheckedCallScalarArgument::Pure(one.clone());
             }
         }
     }

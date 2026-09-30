@@ -48,6 +48,7 @@ mod bounded_byte_literal;
 mod completion;
 mod local_data;
 mod statement_call;
+mod storage_initializer;
 
 /// Completion forwards a whole parameter only when its exact output contract
 /// and, for linear values, checked input-origin claim outcome agree.

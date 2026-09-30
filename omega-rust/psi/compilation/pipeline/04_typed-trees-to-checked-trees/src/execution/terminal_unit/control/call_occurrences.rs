@@ -365,14 +365,21 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
             }
             continue;
         }
+        // A primitive local's initializer computation owns the calls it
+        // evaluates, whether it binds an immutable local or initializes
+        // mutable storage; only immutable locals take a binding ordinal.
         if let StatementNode::LocalData(local) = statement
-            && !local.is_mutable
             && let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
         {
-            let role = CheckedScalarExpressionRole::LocalInitializer {
-                binding_ordinal: scalar_local_count,
+            let role = if local.is_mutable {
+                CheckedScalarExpressionRole::StorageInitializer
+            } else {
+                let role = CheckedScalarExpressionRole::LocalInitializer {
+                    binding_ordinal: scalar_local_count,
+                };
+                scalar_local_count = scalar_local_count.checked_add(1)?;
+                role
             };
-            scalar_local_count = scalar_local_count.checked_add(1)?;
             if let Some(root) = facts.values.scalar_computations.root_at(
                 state.symbol,
                 u32::try_from(statement_index).ok()?,

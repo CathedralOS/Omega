@@ -1,7 +1,8 @@
 //! Readable-reference initialization rejoins the authored input, not cached agreement.
 
 use checked_trees::{
-    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
+    CheckedCallScalarArgument, CheckedScalarExpression, CheckedScalarExpressionRole,
+    CheckedUnitEffectOperationPlan,
 };
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
@@ -36,6 +37,9 @@ fn reference_initializer_rejects_coherent_cached_and_operation_read_substitution
             &mut changed.facts.flow.terminal_unit_effects.machines[caller].operations[0]
         else {
             panic!("initialized primitive local");
+        };
+        let CheckedCallScalarArgument::Pure(value) = value else {
+            panic!("input must remain a pure initializer");
         };
         let CheckedScalarExpression::StorageRead { symbol, .. } = value else {
             panic!("input must remain a storage read");
