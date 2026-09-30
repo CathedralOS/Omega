@@ -217,13 +217,25 @@ fn structural_divisor_keeps_whole_root_requirements_and_rejects_partial_cleanup(
             // Projected owned moves need the separate partial-affine cleanup
             // consumer, whose current source shape excludes mixed scalar
             // inputs and an effectful callee. Do not erase the live spare.
-            assert!(matches!(
-                checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("Main::main")),
-                Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-                    machine, reason, ..
-                }) if machine == "Main::main"
-                    && reason == "attached Unit closure is missing a checked transitive machine plan"
-            ));
+            // `Main::main` has no receiver, so the free route reports the
+            // scalar graph's decline and the Unit omission names the wall.
+            let result = checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::main"),
+            );
+            assert!(
+                matches!(
+                    &result,
+                    Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
+                        machine, reason, omission,
+                    }) if machine == "Main::main"
+                        && *reason == "machine has no source-independent checked scalar control plan (terminator)"
+                        && omission.as_deref().is_some_and(|omission| {
+                            omission.contains("call operation: projected operand support")
+                        })
+                ),
+                "{result:?}"
+            );
         } else {
             roundtrip(&checked);
         }

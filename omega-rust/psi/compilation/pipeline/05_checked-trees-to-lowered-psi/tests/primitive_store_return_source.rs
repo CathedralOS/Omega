@@ -134,8 +134,10 @@ fn execute(
     );
 }
 
+/// Qualification contributes no storage: each static store return retains no
+/// attachment, and a plan that forges another owner's attachment rejects.
 #[test]
-fn attached_store_return_retains_its_exact_owner() {
+fn qualified_store_return_rejects_a_forged_owner() {
     let mut checked = crate::front_end::checked_program(
         "data First {} data Second {} machine First::reset(value: &mut u64) -> u64 { value = 0; 0 } machine Second::reset(value: &mut u64) -> u64 { value = 0; 0 }",
     );
@@ -155,7 +157,12 @@ fn attached_store_return_retains_its_exact_owner() {
         .terminal_structural_scalar_returns
         .machines;
     assert_eq!(plans.len(), 2);
-    plans[0].attachment_type_identity = plans[1].attachment_type_identity.clone();
+    assert!(
+        plans
+            .iter()
+            .all(|plan| plan.attachment_type_identity.is_none())
+    );
+    plans[0].attachment_type_identity = Some("named(name(Second))".to_owned());
     assert!(
         checked_trees_to_lowered_psi::lower_machine(
             &checked,

@@ -15,6 +15,7 @@ use super::{
     lower_structural_type_plans, lower_unit_parameters, machine_id, obligation_id, operation_id,
     terminal_scalar_type, unsupported, value_id,
 };
+use crate::terminal_identities::lookup_attachment_type_id;
 pub(crate) fn lower_structural_unit_control_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralUnitControlMachinePlan,
@@ -47,7 +48,8 @@ pub(crate) fn lower_structural_unit_control_machine(
                     && parameter.multiplicity == Multiplicity::Unrestricted
                     && parameter.qualifications.is_empty()
                     && parameter.fused_service_erasure.is_none()
-                    && parameter.type_identity == plan.attachment_type_identity
+                    && plan.attachment_type_identity.as_deref()
+                        == Some(parameter.type_identity.as_str())
             } else {
                 parameter.multiplicity == Multiplicity::Affine
                     && parameter.qualifications.is_empty()
@@ -576,7 +578,7 @@ pub(crate) fn lower_structural_unit_control_machine(
         closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
-        attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+        attachment: lookup_attachment_type_id(&type_ids, plan.attachment_type_identity.as_deref())?,
         parameters: state_scalar_parameters[0].clone(),
         structural_parameters: entry_parameters.clone(),
         ranked_scc: None,
@@ -774,7 +776,7 @@ fn lower_ranked_structural_unit_countdown(
         closed_reach_application: None,
         declared_service_reach: Vec::new(),
         id: machine_id(1),
-        attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+        attachment: lookup_attachment_type_id(&type_ids, plan.attachment_type_identity.as_deref())?,
         parameters: vec![ValueDeclaration {
             qualifications: Default::default(),
             id: initial,

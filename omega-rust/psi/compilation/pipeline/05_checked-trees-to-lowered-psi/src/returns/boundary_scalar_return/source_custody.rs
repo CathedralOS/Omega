@@ -39,7 +39,12 @@ pub(super) fn validate(
         attachment_identity.push(character);
     }
     attachment_identity.push_str("))");
-    if attachment_identity != plan.attachment_type_identity {
+    // The family admits a qualified owner, but only an authored receiver
+    // retains it as attachment storage.
+    let retained_identity = program
+        .machine_has_receiver(machine)
+        .then_some(attachment_identity);
+    if retained_identity != plan.attachment_type_identity {
         return unsupported("boundary scalar return attachment disagrees with its authored owner");
     }
     let mut source_flows = checked

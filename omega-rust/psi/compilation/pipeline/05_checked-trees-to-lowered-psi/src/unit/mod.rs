@@ -116,7 +116,8 @@ pub(crate) mod unit_cleanup;
 /// Lower the one checked Unit plan a selected machine carries: the body that
 /// owns its kind, then the publication that kind completes. The cleanup kinds
 /// finalize their operand proofs; the partial cleanup and composed control
-/// bodies publish an exact machine catalog and no debug map.
+/// bodies publish an exact machine catalog. No kind publishes the checked
+/// debug map, which describes a scalar entry result.
 pub(crate) fn lower_unit_plan_machine(
     checked: &CheckedTrees,
     plan: CheckedUnitPlan<'_>,
@@ -126,6 +127,7 @@ pub(crate) fn lower_unit_plan_machine(
             lower_nominal_affine_unit_cleanup_machine(checked, plan)?,
             LoweringCompletion {
                 operands: OperandProofCompletion::Finalize,
+                debug: DebugPublication::Omit,
                 ..Default::default()
             },
             vec![plan.machine.machine],
@@ -148,7 +150,10 @@ pub(crate) fn lower_unit_plan_machine(
         ),
         CheckedUnitPlan::StructuralControl(plan) => LoweredSelectedMachine::entry_only(
             lower_structural_unit_control_machine(checked, plan)?,
-            LoweringCompletion::default(),
+            LoweringCompletion {
+                debug: DebugPublication::Omit,
+                ..Default::default()
+            },
             vec![plan.machine],
         ),
     })

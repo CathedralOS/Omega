@@ -61,13 +61,17 @@ pub(crate) fn build_checked_structural_unit_control_plans(
     let retained = machines
         .iter()
         .flat_map(|machine| {
-            std::iter::once(machine.attachment_type_identity.as_str()).chain(
-                machine
-                    .states
-                    .iter()
-                    .flat_map(|state| &state.structural_parameters)
-                    .map(|parameter| parameter.type_identity.as_str()),
-            )
+            machine
+                .attachment_type_identity
+                .as_deref()
+                .into_iter()
+                .chain(
+                    machine
+                        .states
+                        .iter()
+                        .flat_map(|state| &state.structural_parameters)
+                        .map(|parameter| parameter.type_identity.as_str()),
+                )
         })
         .collect::<BTreeSet<_>>();
     shapes.retain_transitive(&retained);

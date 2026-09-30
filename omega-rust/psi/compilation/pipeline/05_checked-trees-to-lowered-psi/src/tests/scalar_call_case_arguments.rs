@@ -140,16 +140,17 @@ fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
     }
     let plan_index = ordered_plan_index(&checked, "MemoryAlignment::from");
     let unrelated = ordered_plan_index(&checked, "Unrelated::new");
-    let unrelated_identity = checked.facts.flow.terminal_unit_effects.composed_machines[unrelated]
-        .attachment_type_identity
-        .clone()
-        .expect("unrelated nominal owner");
-    assert_ne!(
-        checked.facts.flow.terminal_unit_effects.composed_machines[plan_index]
-            .attachment_type_identity
-            .as_ref(),
-        Some(&unrelated_identity)
-    );
+    let composed = &checked.facts.flow.terminal_unit_effects.composed_machines;
+    // Qualification contributes no storage: neither static constructor
+    // retains an attachment.
+    assert_eq!(composed[plan_index].attachment_type_identity, None);
+    assert_eq!(composed[unrelated].attachment_type_identity, None);
+    let checked_trees::CheckedControlResultPlan::Structural(unrelated_result) =
+        &composed[unrelated].result
+    else {
+        panic!("unrelated nominal result");
+    };
+    let unrelated_identity = unrelated_result.type_identity.clone();
     let mut changed = checked.clone();
     changed.facts.flow.terminal_unit_effects.composed_machines[plan_index]
         .attachment_type_identity = Some(unrelated_identity);
@@ -160,10 +161,10 @@ fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
                 TerminalMachineSelection::Name("MemoryAlignment::from")
             ),
             Err(LoweringError::Unsupported(
-                "composed Unit attachment disagrees with its authored owner"
+                "Unit plan attachment disagrees with its selected signature"
             ))
         ),
-        "an existing unrelated nominal type cannot replace the static constructor's owner"
+        "an existing unrelated nominal type cannot be forged as the static constructor's owner"
     );
     for corruption in [
         "reordered guards",

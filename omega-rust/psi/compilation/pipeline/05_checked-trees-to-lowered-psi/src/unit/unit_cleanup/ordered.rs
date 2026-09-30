@@ -110,17 +110,20 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
     {
         return unsupported("ordered nominal cleanup structural types are empty or duplicated");
     }
-    let attachment_shape = nominal_types
-        .iter()
-        .find(|candidate| {
-            plan.attachment_type_identity.as_deref() == Some(candidate.identity.as_str())
-        })
-        .ok_or(LoweringError::Unsupported(
-            "ordered nominal cleanup attachment shape is absent",
-        ))?;
-    if !matches!(&attachment_shape.shape, CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty())
-    {
-        return unsupported("ordered nominal cleanup attachment is not an empty record");
+    // A receiver-free caller, qualified or not, retains no attachment
+    // storage. A retained owner must be an empty record: the dispatcher
+    // carries no attachment state across its cleanup edges.
+    if let Some(attachment) = plan.attachment_type_identity.as_deref() {
+        let attachment_shape = nominal_types
+            .iter()
+            .find(|candidate| candidate.identity == attachment)
+            .ok_or(LoweringError::Unsupported(
+                "ordered nominal cleanup attachment shape is absent",
+            ))?;
+        if !matches!(&attachment_shape.shape, CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty())
+        {
+            return unsupported("ordered nominal cleanup attachment is not an empty record");
+        }
     }
     for parameter in &plan.structural_parameters {
         let shape = nominal_types

@@ -54,6 +54,10 @@ fn retains_exact_payloadless_guarded_identity_call() {
     );
 }
 
+/// Qualification contributes no argument or storage: a static caller in
+/// another namespace shares the callee's absent attachment and forms the
+/// bounded carrier. A caller whose receiver retains its own owner cannot
+/// have the callee's attachment forged onto it.
 #[test]
 fn guarded_payloadless_identity_call_rejects_foreign_attachment() {
     let checked = checked(
@@ -76,15 +80,28 @@ fn guarded_payloadless_identity_call_rejects_foreign_attachment() {
                 Outcome::Failure { } -> saved
             }
         }
+
+        machine Other::attached_caller(&self) -> Outcome {
+            let saved: Outcome = Root::produce();
+            transition saved {
+                Outcome::Success { ; selected: local } -> saved
+                Outcome::Failure { } -> saved
+            }
+        }
         "#,
     );
-    let caller = machine_named(&checked, "caller");
+    let plans = &checked.facts.flow.terminal_structural_call_returns;
+    let static_plan = plans
+        .payloadless_guarded_for_machine(machine_named(&checked, "caller"))
+        .expect("a static foreign caller shares the callee's absent attachment");
+    assert_eq!(static_plan.attachment_type_identity, None);
+    assert_eq!(
+        static_plan.target_machine,
+        machine_named(&checked, "produce")
+    );
     assert!(
-        checked
-            .facts
-            .flow
-            .terminal_structural_call_returns
-            .payloadless_guarded_for_machine(caller)
+        plans
+            .payloadless_guarded_for_machine(machine_named(&checked, "attached_caller"))
             .is_none(),
         "the bounded call carrier must not forge the callee attachment onto a foreign caller"
     );

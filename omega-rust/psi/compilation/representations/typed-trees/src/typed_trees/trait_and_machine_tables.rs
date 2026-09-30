@@ -382,6 +382,20 @@ impl TypedTrees {
         self.machine_states.span_mut_or_empty(machine.states)
     }
 
+    /// Whether some state of `machine` declares an authored `self`
+    /// parameter. Only such a receiver requests attachment storage while
+    /// receiver-based source is migrated: under the static-machine contract a
+    /// carrier qualification (`Counter::clear`) names the semantic owner and
+    /// contributes no argument or storage, so `machine.attached_data` alone
+    /// never implies an attachment.
+    pub fn machine_has_receiver(&self, machine: &machine::Machine) -> bool {
+        self.machine_states(machine).iter().any(|state| {
+            self.state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+        })
+    }
+
     /// The machine whose state list stores `state_symbol`. A state's
     /// retained parent names its owning machine, so the common case is one
     /// symbol read, one machines-row scan, and one membership check. The

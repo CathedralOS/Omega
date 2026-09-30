@@ -16,6 +16,34 @@ use crate::execution::terminal_unit::{
     SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, strips_erased_parameter,
 };
 
+/// Which attachment storage a qualified machine's signature retains.
+///
+/// A carrier qualification names the semantic owner and contributes no
+/// argument or storage, so ordinary Terminal plans retain an attachment only
+/// for an authored receiver during the static-machine migration. Admission
+/// is unchanged: the qualified signature helpers still require the machine
+/// to name its data owner, whatever storage they retain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AttachmentStorage {
+    /// Retain the owner only when some state declares `self`.
+    AuthoredReceiver,
+    /// Retain the data owner itself. Boundary machine plans keep their
+    /// owner's identity as ABI metadata, which stage 05 rejoins against the
+    /// authored data attachment.
+    DataOwner,
+}
+
+impl AttachmentStorage {
+    fn retains(self, program: &TypedTrees, machine: &typed_trees::machine::Machine) -> bool {
+        match self {
+            Self::AuthoredReceiver => program.machine_has_receiver(machine),
+            Self::DataOwner => true,
+        }
+    }
+}
+
+/// The qualified structural signature of a state without scalar
+/// parameters, and the attachment an authored receiver retains.
 pub(crate) fn structural_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
@@ -23,7 +51,7 @@ pub(crate) fn structural_signature(
     state: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
     retain_reference_self: bool,
-) -> Option<(String, Vec<CheckedUnitStructuralParameterPlan>)> {
+) -> Option<(Option<String>, Vec<CheckedUnitStructuralParameterPlan>)> {
     let (attachment, structural, scalar) = structural_signature_with_partial_affine(
         program,
         shapes,
@@ -34,7 +62,7 @@ pub(crate) fn structural_signature(
         false,
         retain_reference_self,
     )?;
-    scalar.is_empty().then_some((attachment?, structural))
+    scalar.is_empty().then_some((attachment, structural))
 }
 
 pub(crate) fn fused_service_scalar_signature(
@@ -45,11 +73,11 @@ pub(crate) fn fused_service_scalar_signature(
     binders: &[(SymbolHandle, String)],
     retain_reference_self: bool,
 ) -> Option<(
-    String,
+    Option<String>,
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
-    let (attachment, structural, scalar) = structural_signature_with_partial_affine(
+    structural_signature_with_partial_affine(
         program,
         shapes,
         machine,
@@ -58,8 +86,7 @@ pub(crate) fn fused_service_scalar_signature(
         false,
         true,
         retain_reference_self,
-    )?;
-    Some((attachment?, structural, scalar))
+    )
 }
 
 fn scalar_parameter_signature(
@@ -157,7 +184,8 @@ pub(crate) fn partial_affine_structural_signature(
 /// `retain_reference_self` keeps a borrowed `self` as structural parameter 0
 /// with the reference's access, so a body can root `self.field` arguments at
 /// it. Without it a borrowed attachment stays ambient and only its
-/// provider-specialized fields have places.
+/// provider-specialized fields have places. A qualified machine without a
+/// receiver keeps its qualified admission but retains no attachment.
 fn structural_signature_with_partial_affine(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
@@ -179,10 +207,14 @@ fn structural_signature_with_partial_affine(
                 .data_definitions()
                 .iter()
                 .find(|data| data.name == *attached_name)?;
-            Some((
-                shapes.add_attached_application(machine, binders)?,
-                attached.properties.multiplicity,
-            ))
+            if AttachmentStorage::AuthoredReceiver.retains(program, machine) {
+                Some((
+                    shapes.add_attached_application(machine, binders)?,
+                    attached.properties.multiplicity,
+                ))
+            } else {
+                None
+            }
         }
         None if allow_partial_affine => None,
         None => return None,
@@ -344,7 +376,7 @@ pub(crate) fn structural_scalar_signature(
     binders: &[(SymbolHandle, String)],
     retain_reference_self: bool,
 ) -> Option<(
-    String,
+    Option<String>,
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
@@ -357,6 +389,32 @@ pub(crate) fn structural_scalar_signature(
         retain_reference_self,
         &LocalConstructionTrace::default(),
     )
+}
+
+/// `structural_scalar_signature` retaining the data owner even without a
+/// receiver: a boundary machine keeps its owner identity as ABI metadata.
+pub(crate) fn boundary_owner_scalar_signature(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+) -> Option<(
+    String,
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
+    let (attachment, structural, scalar) = structural_scalar_signature_with_storage(
+        program,
+        shapes,
+        machine,
+        state,
+        binders,
+        false,
+        AttachmentStorage::DataOwner,
+        &LocalConstructionTrace::default(),
+    )?;
+    Some((attachment?, structural, scalar))
 }
 
 /// `structural_scalar_signature`, marking the signature guard (attached data
@@ -373,7 +431,34 @@ pub(crate) fn structural_scalar_signature_traced(
     retain_reference_self: bool,
     trace: &LocalConstructionTrace,
 ) -> Option<(
-    String,
+    Option<String>,
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
+    structural_scalar_signature_with_storage(
+        program,
+        shapes,
+        machine,
+        state,
+        binders,
+        retain_reference_self,
+        AttachmentStorage::AuthoredReceiver,
+        trace,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn structural_scalar_signature_with_storage(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    binders: &[(SymbolHandle, String)],
+    retain_reference_self: bool,
+    storage: AttachmentStorage,
+    trace: &LocalConstructionTrace,
+) -> Option<(
+    Option<String>,
     Vec<CheckedUnitStructuralParameterPlan>,
     Vec<CheckedStructuralScalarParameterPlan>,
 )> {
@@ -383,13 +468,19 @@ pub(crate) fn structural_scalar_signature_traced(
         .data_definitions()
         .iter()
         .find(|data| data.name == *attached_name)?;
-    let attachment_type_identity = shapes.add_attached_application(machine, binders)?;
+    let attachment_type_identity = if storage.retains(program, machine) {
+        Some(shapes.add_attached_application(machine, binders)?)
+    } else {
+        None
+    };
     let (structural_parameters, scalar_parameters) = scalar_and_structural_parameters(
         program,
         shapes,
         state,
         binders,
-        Some((&attachment_type_identity, attached.properties.multiplicity)),
+        attachment_type_identity
+            .as_deref()
+            .map(|identity| (identity, attached.properties.multiplicity)),
         retain_reference_self,
         trace,
     )?;

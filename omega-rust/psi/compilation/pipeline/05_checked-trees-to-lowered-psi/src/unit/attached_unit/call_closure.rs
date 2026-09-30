@@ -102,6 +102,25 @@ pub(super) fn checked_terminal_machine_name(
     checked: &CheckedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Result<&str, LoweringError> {
+    let selection = unique_terminal_selection(checked, symbol)?;
+    if !matches!(
+        selection.signature,
+        CheckedTerminalSignatureEligibility::Attached
+            | CheckedTerminalSignatureEligibility::FreeUnitEffect
+            | CheckedTerminalSignatureEligibility::Eligible
+    ) {
+        return unsupported("Unit-effect member has an invalid checked terminal selection");
+    }
+    Ok(&selection.name)
+}
+
+/// The exact selection naming `symbol`, whatever its signature class. A
+/// bodyless boundary machine is never lowered as a Terminal root, so its
+/// `Unsupported` class does not bear on the identity its calls name.
+fn unique_terminal_selection(
+    checked: &CheckedTrees,
+    symbol: symbols::SymbolHandle,
+) -> Result<&checked_trees::CheckedTerminalMachineSelection, LoweringError> {
     let mut matches = checked
         .facts
         .flow
@@ -122,18 +141,10 @@ pub(super) fn checked_terminal_machine_name(
                  terminal machine for it",
             omission: crate::unit::unit_plan_omission_explanation(checked, symbol),
         })?;
-    if matches.next().is_some()
-        || !matches!(
-            selection.signature,
-            CheckedTerminalSignatureEligibility::Attached
-                | CheckedTerminalSignatureEligibility::FreeUnitEffect
-                | CheckedTerminalSignatureEligibility::Eligible
-        )
-        || selection.name.is_empty()
-    {
+    if matches.next().is_some() || selection.name.is_empty() {
         return unsupported("Unit-effect member has an invalid checked terminal selection");
     }
-    Ok(&selection.name)
+    Ok(selection)
 }
 
 pub(crate) fn checked_unit_boundary_identity(
@@ -194,7 +205,10 @@ pub(crate) fn checked_unit_boundary_identity(
             typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator),
         );
     }
-    checked_terminal_machine_name(checked, symbol).map(str::to_owned)
+    // An owner-qualified boundary machine keeps its qualified display name.
+    // Qualification contributes no receiver, so its selection class is the
+    // bodyless `Unsupported` one rather than `Attached`.
+    unique_terminal_selection(checked, symbol).map(|selection| selection.name.clone())
 }
 
 pub(super) fn validate_unit_operation_sequence(

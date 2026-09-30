@@ -188,8 +188,10 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
                 };
                 call.coordinate.statement_index += 1;
             }
+            // The static callee retains no attachment: neither a foreign owner
+            // nor its own qualifying record may be fabricated as storage.
             5 => callee.attachment_type_identity = Some("named(name(Root))".to_owned()),
-            6 => callee.attachment_type_identity = None,
+            6 => callee.attachment_type_identity = Some("named(name(Writer))".to_owned()),
             _ => unreachable!(),
         }
         assert!(

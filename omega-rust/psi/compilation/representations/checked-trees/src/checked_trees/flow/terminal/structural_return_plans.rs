@@ -89,7 +89,9 @@ impl CheckedStructuralCallReturnPlans {
 pub struct CheckedPayloadlessGuardedCallReturnMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub attachment_type_identity: String,
+    /// The owner an authored receiver retains as attachment storage; `None`
+    /// for a receiver-free machine, qualified or not.
+    pub attachment_type_identity: Option<String>,
     pub result: CheckedStructuralResultPlan,
     pub call: CheckedUnitCallCoordinate,
     pub target_machine: SymbolHandle,
@@ -124,7 +126,9 @@ pub struct CheckedPayloadlessGuardedCallEvidenceUsePlan {
 pub struct CheckedStructuralReturnMachinePlan {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    pub attachment_type_identity: String,
+    /// The owner an authored receiver retains as attachment storage; `None`
+    /// for a receiver-free machine, qualified or not.
+    pub attachment_type_identity: Option<String>,
     /// Exact structural signature in dense terminal order: one returned linear
     /// root followed by a finite claim-free affine cleanup tail.
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,

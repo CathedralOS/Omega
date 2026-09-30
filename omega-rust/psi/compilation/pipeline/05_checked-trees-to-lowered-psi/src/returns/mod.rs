@@ -111,8 +111,11 @@ pub(crate) fn lower_return_machine(
     plan: CheckedReturnPlan<'_>,
 ) -> Result<LoweredSelectedMachine, LoweringError> {
     let mut completion = LoweringCompletion::default();
+    // The checked debug map describes a scalar entry result. A structural
+    // result publishes none, whether or not its machine retains attachment.
     let terminal = match plan {
         CheckedReturnPlan::PayloadlessGuardedCall(plan) => {
+            completion.debug = DebugPublication::Omit;
             lower_payloadless_guarded_call_return_machine(checked, plan)?
         }
         CheckedReturnPlan::TraitOperator(plan) => {
@@ -127,7 +130,10 @@ pub(crate) fn lower_return_machine(
                 completion,
             ));
         }
-        CheckedReturnPlan::Structural(plan) => lower_structural_return_machine(checked, plan)?,
+        CheckedReturnPlan::Structural(plan) => {
+            completion.debug = DebugPublication::Omit;
+            lower_structural_return_machine(checked, plan)?
+        }
         CheckedReturnPlan::ClaimFreeAffine(plan) => {
             completion.debug = DebugPublication::Omit;
             lower_affine_return_machine(checked, plan)?

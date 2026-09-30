@@ -51,12 +51,7 @@ pub(crate) fn build_checked_terminal_machine_selections(
                 // its ordinary signature and its own published contract.
                 // A qualified static name does not supply a receiver. The
                 // legacy signature class follows the authored parameters.
-                signature: if program.machine_states(machine).iter().any(|state| {
-                    program
-                        .state_parameters(state)
-                        .iter()
-                        .any(|parameter| parameter.is_self)
-                }) {
+                signature: if program.machine_has_receiver(machine) {
                     CheckedTerminalSignatureEligibility::Attached
                 } else if !machine.type_parameters.is_empty()
                     || !machine.owned_data.is_empty()

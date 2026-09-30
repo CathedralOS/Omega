@@ -366,10 +366,14 @@ fn dead_scalar_elimination_keeps_the_transitive_returned_value_chain() {
 /// pins the consumer gate with interior constants. The refusal itself has its
 /// own coverage in `dead_scalar_selection_preserves_proof_questions_and_rejects_unchecked_context_changes`
 /// and `copy_propagation_preserves_proof_questions_and_keeps_proof_bearing_identities`.
+/// A qualified static machine lowers through the compact scalar graph like
+/// any free machine. These rewrite checks need the Unit-closure shape that
+/// carries every live value across blocks, so the fixture states that route
+/// with the explicit legacy receiver its sibling fixtures use.
 fn dead_block_parameter_fixture() -> LoweredPsi {
     let checked = crate::front_end::checked_program(
         "data Main { value: i32; }\n\
-         machine Main::compute(a: i32, b: i32) -> i32 {\n\
+         machine Main::compute(&self, a: i32, b: i32) -> i32 {\n\
              let unused: bool = a < b;\n\
              let dead_const: i32 = 7;\n\
              transition {\n\
@@ -378,7 +382,7 @@ fn dead_block_parameter_fixture() -> LoweredPsi {
              }\n\
          }\n\
          machine Main::main(&mut self) {\n\
-             self.value = Main::compute(1, 2);\n\
+             self.value = self.compute(1, 2);\n\
          }\n",
     );
     lower_machine(&checked, TerminalMachineSelection::Name("Main::compute"))

@@ -245,13 +245,7 @@ impl ProofOnlyClassification {
             let attached_is_proof_only = program
                 .attached_data_definition(machine)
                 .is_some_and(|definition| self.is_proof_only(definition.symbol));
-            let has_receiver = program.machine_states(machine).iter().any(|state| {
-                program
-                    .state_parameters(state)
-                    .iter()
-                    .any(|parameter| parameter.is_self)
-            });
-            if !has_receiver {
+            if !program.machine_has_receiver(machine) {
                 // A static-style attached operation carries no receiver to
                 // fence (`machine - Nat::subtract(left, right)`): whether it
                 // is proof-side is decided by the ordinary signature rule

@@ -225,9 +225,9 @@ fn select_dynamic_dispatch_plan<'checked>(
 
 /// The one checked return plan `selection` lowers, if any. Every result kind
 /// shares this admission: the selection's signature is the one the plan's
-/// attachment implies — attached when the plan retains its owner, free
-/// otherwise. The operator-realized kinds constrain their realization rather
-/// than the caller's selection and admit any signature.
+/// attachment implies — attached when the plan retains its owner, either
+/// free signature otherwise. The operator-realized kinds constrain their
+/// realization rather than the caller's selection and admit any signature.
 fn select_return_plan<'checked>(
     checked: &'checked CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
@@ -235,10 +235,7 @@ fn select_return_plan<'checked>(
     let Some(plan) = CheckedReturnPlan::for_machine(&checked.facts.flow, selection.machine) else {
         return Ok(None);
     };
-    if plan
-        .expected_signature()
-        .is_some_and(|expected| expected != selection.signature)
-    {
+    if !plan.admits_signature(selection.signature) {
         return unsupported("return plan attachment disagrees with its selected signature");
     }
     Ok(Some(plan))

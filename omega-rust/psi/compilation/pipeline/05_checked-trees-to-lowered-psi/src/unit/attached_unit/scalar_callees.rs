@@ -105,7 +105,7 @@ pub(super) fn retain_catalog_roots<'checked>(
                 checked_unit_boundary_identity(checked, boundary.machine)?,
             ));
         }
-        type_roots.push(plan.attachment_type_identity.clone());
+        type_roots.extend(plan.attachment_type_identity.iter().cloned());
         type_roots.extend(
             plan.structural_parameters
                 .iter()
