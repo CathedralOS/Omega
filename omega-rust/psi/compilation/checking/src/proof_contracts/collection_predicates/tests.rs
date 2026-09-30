@@ -166,6 +166,46 @@ fn a_helper_theorem_selects_one_element_from_the_predicate() {
     }
 }
 
+/// Whether contract entailment leaves any `ensures` of `machine` unjudged:
+/// package admission refuses a stand-down it cannot later discharge.
+fn machine_stands_down(program: &TypedTrees, machine: &str) -> bool {
+    let machine = program
+        .machines()
+        .iter()
+        .find(|candidate| candidate.name.as_str() == machine)
+        .unwrap();
+    crate::collect_contract_entailment_stand_downs(program)
+        .iter()
+        .any(|stand_down| stand_down.machine_symbol == machine.symbol)
+}
+
+#[test]
+fn a_proved_helper_theorem_leaves_no_entailment_stand_down() {
+    let proved = r#"
+        machine cell_is_bit(cells: &[i32; 4], index: u64)
+        requires cells_valid(cells) == true
+        requires index < 4
+        ensures cells[index] >= 0 && cells[index] <= 1
+        {
+        }
+    "#;
+    for predicate in [WALK, LOOP] {
+        assert!(
+            !machine_stands_down(&program(predicate, proved), "cell_is_bit"),
+            "{predicate}"
+        );
+    }
+    // A goal the predicate does not imply is still unjudged, not proved.
+    let unproved = proved.replace(
+        "cells[index] >= 0 && cells[index] <= 1",
+        "cells[index] >= 1",
+    );
+    assert!(machine_stands_down(
+        &program(WALK, &unproved),
+        "cell_is_bit"
+    ));
+}
+
 #[test]
 fn a_helper_theorem_without_the_predicate_or_with_a_false_goal_is_unproved() {
     for theorem in [
