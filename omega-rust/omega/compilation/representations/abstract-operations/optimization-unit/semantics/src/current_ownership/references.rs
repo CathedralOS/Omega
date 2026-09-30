@@ -187,12 +187,9 @@ fn normalized_source(
     if let Some((terminal_psi::StructuralPathSegment::Referent, carrier_path)) =
         source.path.split_last()
     {
-        if let Some(parent) = live
-            .iter()
-            .find(|reference| {
-                reference.carrier == source.place && reference.carrier_path == carrier_path
-            })
-        {
+        if let Some(parent) = live.iter().find(|reference| {
+            reference.carrier == source.place && reference.carrier_path == carrier_path
+        }) {
             if live
                 .iter()
                 .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))
@@ -712,7 +709,8 @@ pub(super) fn apply_operation(
                     "call cannot access a suspended root or move its referent",
                 ));
             }
-            let (root, _) = normalized_source(function, structural_types, block, node, live, argument)?;
+            let (root, _) =
+                normalized_source(function, structural_types, block, node, live, argument)?;
             normalized_arguments.push((root, argument.access, true));
         } else {
             normalized_arguments.push((
@@ -892,7 +890,8 @@ pub(super) fn apply_operation(
                 reference.carrier_path = path;
                 reference
             } else {
-                let (root, parent) = normalized_source(function, structural_types, block, node, live, &source)?;
+                let (root, parent) =
+                    normalized_source(function, structural_types, block, node, live, &source)?;
                 LiveReference {
                     identity: ReferenceIdentity {
                         place: result.place,
