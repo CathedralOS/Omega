@@ -171,9 +171,9 @@ fn is_plain_referent<'a>(
     active.push(identity);
     let plain = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(_) => true,
-        StructuralTypeShape::Record { fields } => {
-            !fields.is_empty() && plain_fields(fields, lookup, active)
-        }
+        // Empty records still have a borrowed address carrier. No payload
+        // bytes are copied, and the join retains its place and loan custody.
+        StructuralTypeShape::Record { fields } => plain_fields(fields, lookup, active),
         StructuralTypeShape::FixedArray { element, .. } => {
             is_plain_referent(*element, lookup, active)
         }

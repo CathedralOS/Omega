@@ -108,6 +108,66 @@ fn shared_primitive_and_plain_record_joins_carry_an_address() {
 }
 
 #[test]
+fn empty_record_address_joins_retain_access_and_exact_catalog_identity() {
+    let mut types = catalog();
+    types.extend([
+        declaration(8, StructuralTypeShape::Record { fields: Vec::new() }),
+        declaration(
+            9,
+            StructuralTypeShape::Record {
+                fields: vec![field(6, StructuralFieldType::Structural(id(8)))],
+            },
+        ),
+    ]);
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        for structural_type in [8, 9] {
+            let borrowed = parameter(structural_type, access);
+            assert!(is_address_join(&borrowed, &types));
+            let mut affine = borrowed.clone();
+            affine.multiplicity = StructuralMultiplicity::Affine;
+            assert!(!is_address_join(&affine, &types));
+            let mut receiver = borrowed;
+            receiver.is_self = true;
+            assert!(!is_address_join(&receiver, &types));
+        }
+        // Empty storage does not make its declaration optional or ambiguous.
+        let mut missing = types.clone();
+        missing.retain(|declaration| declaration.id != id(8));
+        assert!(!is_address_join(&parameter(8, access), &missing));
+        assert!(!is_address_join(&parameter(9, access), &missing));
+        let mut duplicate = types.clone();
+        duplicate.push(declaration(
+            8,
+            StructuralTypeShape::Record { fields: Vec::new() },
+        ));
+        assert!(!is_address_join(&parameter(8, access), &duplicate));
+        assert!(!is_address_join(&parameter(9, access), &duplicate));
+        // Reference and descriptor storage are still not plain referents.
+        for structural_type in [4, 5, 6, 7] {
+            assert!(!is_address_join(
+                &parameter(structural_type, access),
+                &types
+            ));
+        }
+    }
+    for access in [StructuralAccess::Owned, StructuralAccess::WriteOnlyBorrow] {
+        assert!(!is_address_join(&parameter(8, access), &types));
+    }
+    assert_eq!(super::referent_type(types.iter(), id(8), &[]), Some(id(8)));
+    assert_eq!(
+        super::referent_type(
+            types.iter(),
+            id(8),
+            &[StructuralPathSegment::Field("missing".into())]
+        ),
+        None
+    );
+}
+
+#[test]
 fn exclusive_owned_descriptor_and_loan_bearing_joins_stay_closed() {
     let types = catalog();
     for access in [

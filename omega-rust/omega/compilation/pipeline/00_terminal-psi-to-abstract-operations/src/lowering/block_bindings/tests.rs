@@ -163,6 +163,42 @@ fn shared_view_block_parameters_retain_their_declarations() {
 }
 
 #[test]
+fn empty_record_block_parameters_keep_their_borrowed_places() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut module = fixture();
+        module.structural_types[0].shape = StructuralTypeShape::Record { fields: Vec::new() };
+        module.machines[0].structural_parameters[0].access = access;
+        module.machines[0].blocks[1].structural_parameters[0].access = access;
+        let Terminator::Jump {
+            structural_arguments,
+            ..
+        } = &mut module.machines[0].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        structural_arguments[0].access = access;
+        assert_eq!(validate_structural_block_bindings(&module), Ok(()));
+        assert_ne!(
+            module.machines[0].structural_parameters[0].place,
+            module.machines[0].blocks[1].structural_parameters[0].place,
+        );
+        let rejected = Err(LoweringError::UnsupportedStructuralBlockParameters {
+            machine: module.entry,
+            block: BlockId::new(2).unwrap(),
+        });
+        let mut missing = module.clone();
+        missing.structural_types.clear();
+        assert_eq!(validate_structural_block_bindings(&missing), rejected);
+        module.machines[0].blocks[1].structural_parameters[0].access =
+            StructuralAccess::WriteOnlyBorrow;
+        assert_eq!(validate_structural_block_bindings(&module), rejected);
+    }
+}
+
+#[test]
 fn each_conditional_arm_is_checked_even_without_byte_operations() {
     for selected_arm in 0..2 {
         let mut module = fixture();
