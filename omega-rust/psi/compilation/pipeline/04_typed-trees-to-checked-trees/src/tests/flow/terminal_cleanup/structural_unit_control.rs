@@ -1,6 +1,36 @@
 use crate::tests::front_end::checked_program;
 
 #[test]
+fn local_array_view_retains_conditional_cleanup() {
+    let checked = checked_program(
+        "data Entry { value: i32 in Wrapping; }
+         data Root {}
+         machine observe(entries: &[Entry]) -> i32
+         requires entries.len > 0; { entries[0].value as i32 }
+         machine Root::route(context: &mut Root) {
+             let mut entries: [Entry; 1];
+             entries[0].value = 70;
+             let view: &[Entry] = entries.as_slice();
+             let total: i32 = observe(view);
+             transition total == 70 {
+                 true -> good(context)
+                 _ -> bad(context)
+             }
+             state good(context: &mut Root) {}
+             state bad(context: &mut Root) {}
+         }",
+    );
+    let (machine, entry) = super::machine_and_entry_state(&checked, "route");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_state(machine, entry)
+        .expect("zeroed array keeps its owned cleanup");
+    assert_eq!(plan.edges.len(), 2);
+}
+
+#[test]
 fn local_field_loan_write_retains_conditional_cleanup() {
     let checked = checked_program(
         r#"

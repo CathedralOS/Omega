@@ -2,6 +2,57 @@ use super::{
     CheckedScalarDispatchPattern, CheckedStructuralValueKind, CheckedTrees,
     CheckedUnitEffectOperationPlan, SymbolHandle, validate,
 };
+
+#[test]
+fn zeroed_local_array_supplies_slice_view_without_an_initializer_expression() {
+    let checked = crate::front_end::checked_program(
+        "data Entry { value: u8; }
+         machine run() {
+             let mut entries: [Entry; 2];
+             let view: &[Entry] = entries.as_slice();
+         }",
+    );
+    let values = &checked.facts.values.structural_values;
+    let (_, root) = values
+        .roots
+        .iter()
+        .find(|(_, root)| {
+            matches!(
+                values.nodes.get(root.root).kind,
+                CheckedStructuralValueKind::BorrowedSliceView { .. }
+            )
+        })
+        .expect("slice view root");
+    let CheckedStructuralValueKind::BorrowedSliceView { source: argument } =
+        &values.nodes.get(root.root).kind
+    else {
+        unreachable!()
+    };
+    let (machine, state) = super::super::authored_state(&checked, root.state).unwrap();
+    let replay = |statement, argument| {
+        super::slice_view::validate(
+            &checked,
+            machine,
+            state,
+            statement,
+            root.expression,
+            argument,
+            crate::expression_preparation::bindings::LoanAccess::Shared,
+        )
+    };
+    replay(root.statement_ordinal, argument).expect("declaration establishes zeroed backing");
+    assert!(
+        replay(0, argument).is_err(),
+        "backing must precede the view"
+    );
+    let mut wrong_access = argument.clone();
+    wrong_access.access = checked_trees::CheckedStructuralAccess::MutableBorrow;
+    assert!(
+        replay(root.statement_ordinal, &wrong_access).is_err(),
+        "cannot widen access"
+    );
+}
+
 fn checked() -> CheckedTrees {
     let source = "data Tag { case First; case Second; }
         machine choose(selector: u64) -> Tag {

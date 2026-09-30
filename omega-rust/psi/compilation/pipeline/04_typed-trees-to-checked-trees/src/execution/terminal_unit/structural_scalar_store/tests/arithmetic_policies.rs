@@ -5,6 +5,39 @@ use crate::tests::front_end::checked_program;
 use language_semantics::SemanticDomainTable;
 
 #[test]
+fn owned_local_stores_use_statement_sequence_field_policy() {
+    for policy in ["Wrapping", "Saturating", "Trapping"] {
+        let source = format!(
+            "data Record {{ value: u8 in {policy}; }}
+             machine run(value: u8) {{
+                 let mut record: Record;
+                 record.value = value as u8 in {policy};
+             }}"
+        );
+        let checked = checked_program(&source);
+        let program = &checked.typed;
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "run")
+            .unwrap();
+        let mut shapes = ShapeCollector::new(program);
+        let plan = build_checked_machine(
+            program,
+            &checked.facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &checked.facts.flow.terminal_structural_scalar_returns,
+            },
+            &mut shapes,
+            machine,
+            None,
+        );
+        assert!(plan.is_some(), "owned local with {policy} field");
+    }
+}
+
+#[test]
 fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
     for (policy, identity) in [
         ("Wrapping", SemanticDomainTable::WRAPPING),
@@ -16,11 +49,11 @@ fn builtin_store_policies_do_not_become_nominal_body_qualifications() {
             domain u8::Marker requires true;
             machine identity(value: u8) -> u8 {{ value }}
             data Record {{ value: u8 in {policy}; }}
-            machine Record::replace(&mut self, value: u8) {{ self.value = identity(value) as u8 in {policy}; }}
-            machine Record::walk(&mut self, value: u8) {{
-                self.value = identity(value) as u8 in {policy};
-                transition {{ _ -> done(value) }}
-                state done(&mut self, value: u8) {{ self.value = identity(value) as u8 in {policy}; }}
+            machine Record::replace(record: &mut Record, value: u8) {{ record.value = identity(value) as u8 in {policy}; }}
+            machine Record::walk(record: &mut Record, value: u8) {{
+                record.value = identity(value) as u8 in {policy};
+                transition {{ _ -> done(record, value) }}
+                state done(record: &mut Record, value: u8) {{ record.value = identity(value) as u8 in {policy}; }}
             }}
         "#
         );

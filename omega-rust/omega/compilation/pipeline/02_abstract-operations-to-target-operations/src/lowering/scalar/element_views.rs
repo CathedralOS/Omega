@@ -598,7 +598,7 @@ fn established_source(
     ))
 }
 
-/// The one operation establishing an owned, unrestricted, claim-free and
+/// The one operation establishing an owned, non-linear, claim-free and
 /// unqualified local aggregate at `place`: an array construction or zeroed
 /// local, a record, a leaf copy, or a structural call result. Its home is the
 /// view's backing. Operation-level lowering reaches element views without the
@@ -637,7 +637,10 @@ fn local_aggregate_home(
     });
     let (producer, result) = homes.next()?;
     (homes.next().is_none()
-        && result.multiplicity == StructuralMultiplicity::Unrestricted
+        && matches!(
+            result.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty())
@@ -669,5 +672,61 @@ fn observes_length(
                 && lengths.get(&length) == Some(&source)
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_view_borrows_affine_backing_without_copying_ownership() {
+        let place = PlaceId::new(1).unwrap();
+        let producer = OperationId::new(1).unwrap();
+        let result = terminal_psi::StructuralOperationResult {
+            place,
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            multiplicity: StructuralMultiplicity::Affine,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            qualification_establishments: Vec::new(),
+            claims: Vec::new(),
+        };
+        let mut function = AbstractFunction {
+            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+            attachment: None,
+            entry: semantic_vocabulary::BlockId::new(1).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: abstract_operations::AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: Vec::new(),
+            operations: vec![AbstractOperation::EstablishZeroedStructural {
+                psi_operation: producer,
+                result: result.clone(),
+            }],
+        };
+        assert_eq!(
+            local_aggregate_home(&function, place),
+            Some((producer, &result))
+        );
+        function.operations.push(function.operations[0].clone());
+        assert!(
+            local_aggregate_home(&function, place).is_none(),
+            "duplicate producer"
+        );
+        function.operations.pop();
+        let AbstractOperation::EstablishZeroedStructural { result, .. } =
+            &mut function.operations[0]
+        else {
+            unreachable!()
+        };
+        result.multiplicity = StructuralMultiplicity::Linear;
+        assert!(
+            local_aggregate_home(&function, place).is_none(),
+            "linear backing requires its own custody support"
+        );
+        assert!(local_aggregate_home(&function, PlaceId::new(2).unwrap()).is_none());
     }
 }

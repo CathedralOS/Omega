@@ -132,11 +132,11 @@ pub(crate) fn initial_linear_places(
         // independently of which validated expression produced it. The ordinary
         // LocalData write establishes this root; later replacement settles the
         // old value before establishing the new one, including mutable locals.
-        // A local with no initializer but a zero-constructible record
+        // A local with no initializer but a zero-constructible structural
         // type owns its zeroed shape: the declaration itself establishes the
-        // root (the written-target mint keys it to this statement). Fixed
-        // arrays stay on the element-wise construction prefix even when their
-        // elements are zero-constructible.
+        // root (the written-target mint keys it to this statement). This
+        // includes arrays of zero-constructible elements; subsequent element
+        // stores replace initialized contents rather than minting the root.
         let type_node = program
             .type_reference_table
             .type_reference(local.type_reference);
@@ -145,6 +145,7 @@ pub(crate) fn initial_linear_places(
                 type_node,
                 typed_trees::types::TypeReferenceNode::Named { .. }
                     | typed_trees::types::TypeReferenceNode::Generic { .. }
+                    | typed_trees::types::TypeReferenceNode::FixedArray { .. }
             ) && validation::zeroed_structural_parts(program, local.type_reference));
         if claims.is_empty()
             && type_multiplicity(program, local.type_reference) == Multiplicity::Affine
