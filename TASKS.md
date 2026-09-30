@@ -884,22 +884,24 @@ the complete product bar; focused successes below do not establish that baseline
   The published array-shape repair gets past `Main::main`'s attached data shape
   without application changes. The application command remains `omega run
   --target linux_x86_64 --keep samples/apps/squalr/squalr-tests/main.omg`.
-  The fresh `7006d1d3665` baseline refuses the mutable settings handoff at
-  `CommandDriver::run`, state 0, statement 7. The copied-place repair on base
-  `67d7361cadc` closes that handoff: unrestricted local reads use the existing
-  copy operation, and stage 05 rejoins the fresh operand's exact occurrence
-  rather than the backing local's initializer. On macOS ARM64, ordinary
-  `omega run --both
-  tests/omega/pass/structural/runtime_mutable_record_copy_exit/main.omg`
-  returns native/interpreter exit 42 after observing 17 and 25 around mutation.
-  The earlier scalar-call snapshot regression still returns 42, and affine
-  double-transfer controls still reject. The unchanged application now refuses
-  `CommandDriver::run`, state 13, statement 1, with
-  `call operation: structural arguments: caller structural result`, at
-  `filters.push(&DataTypeRef::new("u8"))` in `ignored_filter_payload`.
-  Continue at stage 04's `execution/terminal_unit/calls/structural_arguments.rs`:
-  rejoin the borrowed temporary's producer, evaluation order and lifetime
-  without rewriting the application. This does not close the application. Complete
+  The temporary-loan repair on base `90e2c919eb7` gets past
+  `filters.push(&DataTypeRef::new("u8"))` without changing the application:
+  per-operand producer, permission and continuation identities replace the
+  fixed call-count and Unit-result restrictions. On macOS ARM64,
+  `python3 tools/corpus_gate.py --native --interpret --filter
+  borrows/runtime_shared_temporary_call_exit` executes native exit 42;
+  the interpreter declines. Independent rejection controls retain affine
+  move and conflicting-borrow failures. Ordinary callers retain scalar and
+  structural results independently of the dying argument owners; 23 focused
+  tests cover source identity, cleanup substitution, order and escaping loans.
+  The unchanged application command next refuses
+  `SqualrEngine::init`, statement 1, at `statement sequence: assignment:
+  structural call result field store`. A diagnostic probe isolates stage 04's
+  `control/call_results.rs` result-shape classification: `EnginePrivilegedState`
+  nests task slots whose held payload carries `Binding<WaitWake>`. Empty slots
+  need no fabricated binding, but transporting the aggregate must preserve
+  routed authority and must not grant plain no-code disposal. Continue that
+  result's custody without rewriting the application. Complete
   the documented native acceptance on Linux x86-64 after emission succeeds;
   cross-target compilation on macOS does not establish execution.
   Live reads still alias captured-current

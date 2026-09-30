@@ -12,6 +12,121 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationResult, Terminator};
 
 #[test]
+fn anonymous_shared_reference_cannot_escape_its_temporary_owner() {
+    crate::front_end::checked_program_result(
+        r#"
+        data Token { value: u64; }
+        machine make() -> Token { Token { value: 17 } }
+        machine borrow(token: &Token) -> &Token { token }
+        machine leak() -> &Token { borrow(&make()) }
+        "#,
+    )
+    .expect_err("a borrowed result cannot outlive its temporary owner");
+}
+
+#[test]
+fn anonymous_shared_scalar_result_retains_ordinary_call_cleanup() {
+    let original = crate::front_end::checked_program(
+        r#"
+        data Token { value: u64; }
+        machine make() -> Token { Token { value: 17 } }
+        machine read(token: &Token) -> bool { token.value == 17 }
+        data Main {}
+        machine Main::main() { let observed: bool = read(&make()); }
+        "#,
+    );
+    encoded_locals(&original, &["observed"]);
+}
+
+#[test]
+fn anonymous_shared_structural_result_keeps_its_distinct_owner() {
+    let original = crate::front_end::checked_program(
+        r#"
+        data Token { value: u64; }
+        machine make() -> Token { Token { value: 17 } }
+        machine read(token: &Token) -> Token { Token { value: token.value } }
+        data Main {}
+        machine Main::main() { let observed: Token = read(&make()); }
+        "#,
+    );
+    encoded_locals(&original, &["observed"]);
+}
+
+#[test]
+fn anonymous_shared_siblings_keep_separate_reverse_ordered_cleanup() {
+    let original = crate::front_end::checked_program(
+        r#"
+        data Token { value: u64; }
+        machine make(value: u64) -> Token { Token { value: value } }
+        machine read(first: &Token, flag: bool, second: &Token) {}
+        data Main {}
+        machine Main::main() { read(&make(17), true, &make(25)); }
+        "#,
+    );
+    encoded_locals(&original, &[]);
+    let machine = main_machine(&original).symbol;
+    let operations = &original
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .expect("caller plan")
+        .operations;
+    let cleanup_index = operations
+        .iter()
+        .position(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+            )
+        })
+        .expect("one normal continuation");
+    let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+        affine_discards, ..
+    } = &operations[cleanup_index]
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        affine_discards.len(),
+        2,
+        "both temporary owners die after the call"
+    );
+    for mutation in ["missing", "duplicate", "reordered"] {
+        let mut changed = original.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| plan.machine == machine)
+            .expect("caller plan");
+        let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+            affine_discards, ..
+        } = &mut plan.operations[cleanup_index]
+        else {
+            unreachable!()
+        };
+        match mutation {
+            "missing" => {
+                affine_discards.pop();
+            }
+            "duplicate" => {
+                affine_discards[1] = affine_discards[0].clone();
+            }
+            "reordered" => affine_discards.reverse(),
+            _ => unreachable!(),
+        }
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .expect_err(mutation);
+    }
+}
+
+#[test]
 fn anonymous_shared_result_keeps_its_owner_until_call_completion() {
     let pure = crate::front_end::checked_program(
         r#"

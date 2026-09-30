@@ -108,8 +108,8 @@ pub(super) fn admit(
                     }
                 )
                 && value.access == CheckedStructuralAccess::Owned => {}
-            // A result may die on its producing statement's continuation.
-            // The cleanup shares the producer's coordinate rather than
+            // A result may die on its producing or borrowing call's continuation.
+            // The cleanup shares that call's coordinate rather than
             // consuming a new authored statement; sequenced stores may sit
             // between the producer -- the statement's call, or the
             // establishment of a construction replacing a field -- and the
@@ -129,10 +129,9 @@ pub(super) fn admit(
                     .iter()
                     .rev()
                     .find(|operation| match operation {
-                        // Any call with a structural result, ordinary or boundary.
-                        CheckedUnitEffectOperationPlan::Call(call) => {
-                            call.structural_result().is_some()
-                        }
+                        // A scalar/Unit consumer can retire its argument owners
+                        // just as a structural producer can retire its result.
+                        CheckedUnitEffectOperationPlan::Call(_) => true,
                         CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => true,
                         // A bound-value replacement's move-out produces the
                         // displaced binding the cleanup retires.

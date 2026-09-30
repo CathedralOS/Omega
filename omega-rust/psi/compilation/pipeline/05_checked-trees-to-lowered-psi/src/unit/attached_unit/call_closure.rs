@@ -288,8 +288,9 @@ pub(super) fn validate_unit_operation_sequence(
                 }
             }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
-                // The completed call is an ordinary Unit call or any call
-                // with a structural result.
+                // An ordinary call's continuation may retire its argument
+                // owners regardless of the returned value. Boundary calls
+                // retain their distinct structural-result disposal route.
                 let completed_call = operation_index
                     .checked_sub(1)
                     .and_then(|previous| machine.operations.get(previous))
@@ -298,10 +299,8 @@ pub(super) fn validate_unit_operation_sequence(
                         call.coordinate == *coordinate
                             && matches!(
                                 (call.route(), call.result()),
-                                (
-                                    CheckedUnitCallRoute::Module { .. },
-                                    CheckedUnitCallResult::Unit
-                                ) | (_, CheckedUnitCallResult::Structural { .. })
+                                (CheckedUnitCallRoute::Module { .. }, _)
+                                    | (_, CheckedUnitCallResult::Structural { .. })
                             )
                     });
                 if !completed_call
