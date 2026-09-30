@@ -5,6 +5,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use semantic_vocabulary::{BlockId, EdgeId, Proposition};
 use terminal_psi::{TerminalMachine, Terminator};
 
+use super::super::substitution::{FactIndex, SharedRoster};
+
 pub(super) fn deterministic_block_order(
     machine: &TerminalMachine,
     ignored_backedges: &BTreeSet<EdgeId>,
@@ -68,7 +70,7 @@ pub(super) fn deterministic_block_order(
 }
 
 pub(super) fn take_guaranteed_incoming(
-    incoming: &mut BTreeMap<BlockId, Vec<Vec<Proposition>>>,
+    incoming: &mut BTreeMap<BlockId, Vec<SharedRoster>>,
     block: BlockId,
 ) -> Vec<Proposition> {
     let paths = incoming
@@ -77,15 +79,20 @@ pub(super) fn take_guaranteed_incoming(
     intersect_paths(paths).expect("block has an incoming path")
 }
 
-pub(super) fn guaranteed_exit_facts(exits: Vec<Vec<Proposition>>) -> Vec<Proposition> {
+pub(super) fn guaranteed_exit_facts(exits: Vec<SharedRoster>) -> Vec<Proposition> {
     intersect_paths(exits).unwrap_or_default()
 }
 
-fn intersect_paths(paths: Vec<Vec<Proposition>>) -> Option<Vec<Proposition>> {
-    let mut paths = paths.into_iter();
-    let mut guaranteed = paths.next()?;
+fn intersect_paths(paths: Vec<SharedRoster>) -> Option<Vec<Proposition>> {
+    let mut paths = paths.iter();
+    let mut guaranteed = paths.next()?.to_vec();
     for path in paths {
-        guaranteed.retain(|fact| path.contains(fact));
+        // One fingerprint pass per incoming path turns each retained fact's
+        // membership check into a bucket lookup instead of a roster scan;
+        // `position_of` resolves full equality, so all-path membership
+        // semantics match `contains` exactly.
+        let index = FactIndex::new(path);
+        guaranteed.retain(|fact| index.position_of(path, fact).is_some());
     }
     Some(guaranteed)
 }

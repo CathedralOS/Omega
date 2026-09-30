@@ -427,6 +427,122 @@ pub(crate) fn push_unique_fact(axioms: &mut Vec<Proposition>, proposition: Propo
     }
 }
 
+/// Read access to a proposition roster — either a materialized `Vec` or a
+/// [`SharedRoster`] sharing its spine. Positions number the roster in
+/// iteration order, so citation indexes mean the same thing under either
+/// representation.
+pub(crate) trait AxiomRoster {
+    fn roster_len(&self) -> usize;
+    fn roster_fact(&self, index: usize) -> &Proposition;
+}
+
+/// Append access to a proposition roster.
+pub(crate) trait AxiomRosterMut: AxiomRoster {
+    fn push_fact(&mut self, proposition: Proposition);
+}
+
+impl AxiomRoster for Vec<Proposition> {
+    fn roster_len(&self) -> usize {
+        self.len()
+    }
+
+    fn roster_fact(&self, index: usize) -> &Proposition {
+        &self[index]
+    }
+}
+
+impl AxiomRoster for [Proposition] {
+    fn roster_len(&self) -> usize {
+        self.len()
+    }
+
+    fn roster_fact(&self, index: usize) -> &Proposition {
+        &self[index]
+    }
+}
+
+impl AxiomRosterMut for Vec<Proposition> {
+    fn push_fact(&mut self, proposition: Proposition) {
+        self.push(proposition);
+    }
+}
+
+/// One edge's proposition roster: the predecessor's facts shared by
+/// reference plus this edge's own appended tail.
+///
+/// Every terminator successor starts from the same established roster — a
+/// conditional's two arms and a case's arms each hold the parent's facts
+/// plus their own bound pushes. Materializing that per edge deep-clones
+/// every `Proposition` for every successor; keeping the established facts
+/// behind an `Rc` and appending edge facts in a private tail shares the
+/// spine at O(1) per arm. Roster order is the shared facts then the tail —
+/// the same order a materialized `Vec` gives — so positions and first-match
+/// semantics are unchanged. The view lives only inside reconstruction:
+/// joins and exit rosters materialize to `Vec<Proposition>` at their
+/// boundaries, so exported obligation types are untouched.
+#[derive(Clone)]
+pub(crate) struct SharedRoster {
+    shared: std::rc::Rc<Vec<Proposition>>,
+    tail: Vec<Proposition>,
+}
+
+impl SharedRoster {
+    /// Wrap a materialized roster as the shared spine later edge views
+    /// reference.
+    pub(crate) fn whole(axioms: Vec<Proposition>) -> Self {
+        Self {
+            shared: std::rc::Rc::new(axioms),
+            tail: Vec::new(),
+        }
+    }
+
+    /// An empty-tailed edge view over this roster's shared spine.
+    pub(crate) fn successor(&self) -> Self {
+        Self {
+            shared: self.shared.clone(),
+            tail: Vec::new(),
+        }
+    }
+
+    /// The roster's fact count.
+    pub(crate) fn len(&self) -> usize {
+        self.shared.len() + self.tail.len()
+    }
+
+    /// Iterate shared facts then tail facts — roster order.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Proposition> {
+        self.shared.iter().chain(self.tail.iter())
+    }
+
+    /// Materialize the whole roster — the join and export boundary shape.
+    pub(crate) fn to_vec(&self) -> Vec<Proposition> {
+        self.iter().cloned().collect()
+    }
+
+    /// Append one fact to this edge's private tail.
+    pub(crate) fn push(&mut self, proposition: Proposition) {
+        self.tail.push(proposition);
+    }
+}
+
+impl AxiomRoster for SharedRoster {
+    fn roster_len(&self) -> usize {
+        self.len()
+    }
+
+    fn roster_fact(&self, index: usize) -> &Proposition {
+        self.shared
+            .get(index)
+            .unwrap_or_else(|| &self.tail[index - self.shared.len()])
+    }
+}
+
+impl AxiomRosterMut for SharedRoster {
+    fn push_fact(&mut self, proposition: Proposition) {
+        self.push(proposition);
+    }
+}
+
 /// Fingerprint-bucketed view of a proposition roster for repeated membership
 /// and position queries.
 ///
@@ -448,11 +564,11 @@ pub(crate) struct FactIndex {
 impl FactIndex {
     /// Fingerprint `axioms` once. Index construction is the same single
     /// roster pass one linear membership scan costs.
-    pub(crate) fn new(axioms: &[Proposition]) -> Self {
+    pub(crate) fn new(axioms: &(impl AxiomRoster + ?Sized)) -> Self {
         let mut positions = HashMap::<u64, Vec<usize>>::new();
-        for (position, axiom) in axioms.iter().enumerate() {
+        for position in 0..axioms.roster_len() {
             positions
-                .entry(index_key(axiom))
+                .entry(index_key(axioms.roster_fact(position)))
                 .or_default()
                 .push(position);
         }
@@ -464,7 +580,7 @@ impl FactIndex {
     /// [`roster_equation_position`].
     pub(crate) fn equation_position(
         &self,
-        axioms: &[Proposition],
+        axioms: &(impl AxiomRoster + ?Sized),
         left: &ScalarTerm,
         right: &ScalarTerm,
     ) -> Option<usize> {
@@ -472,7 +588,7 @@ impl FactIndex {
             .get(&equation_key(left, right))?
             .iter()
             .copied()
-            .find(|&position| match &axioms[position] {
+            .find(|&position| match axioms.roster_fact(position) {
                 Proposition::Equal(l, r) => (l == left && r == right) || (l == right && r == left),
                 _ => false,
             })
@@ -481,18 +597,22 @@ impl FactIndex {
     /// The first roster position holding `proposition` exactly.
     pub(crate) fn position_of(
         &self,
-        axioms: &[Proposition],
+        axioms: &(impl AxiomRoster + ?Sized),
         proposition: &Proposition,
     ) -> Option<usize> {
         self.positions
             .get(&index_key(proposition))?
             .iter()
             .copied()
-            .find(|&position| &axioms[position] == proposition)
+            .find(|&position| axioms.roster_fact(position) == proposition)
     }
 
     /// [`roster_has_fact`] answered through the index.
-    pub(crate) fn has_fact(&self, axioms: &[Proposition], proposition: &Proposition) -> bool {
+    pub(crate) fn has_fact(
+        &self,
+        axioms: &(impl AxiomRoster + ?Sized),
+        proposition: &Proposition,
+    ) -> bool {
         match proposition {
             Proposition::Equal(left, right)
                 if matches!(left, ScalarTerm::Value { .. })
@@ -514,10 +634,14 @@ impl FactIndex {
     }
 
     /// [`push_unique_fact`] answered through the index.
-    pub(crate) fn push_unique(&mut self, axioms: &mut Vec<Proposition>, proposition: Proposition) {
+    pub(crate) fn push_unique(
+        &mut self,
+        axioms: &mut impl AxiomRosterMut,
+        proposition: Proposition,
+    ) {
         if !self.has_fact(axioms, &proposition) {
-            self.record(axioms.len(), &proposition);
-            axioms.push(proposition);
+            self.record(axioms.roster_len(), &proposition);
+            axioms.push_fact(proposition);
         }
     }
 }

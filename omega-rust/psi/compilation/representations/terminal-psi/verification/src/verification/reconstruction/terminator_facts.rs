@@ -10,7 +10,7 @@ use semantic_vocabulary::{
 use terminal_psi::OutcomeSpecificGuard;
 use terminal_psi::{Block, TerminalMachine, Terminator};
 
-use super::super::substitution::substitute_proposition_places;
+use super::super::substitution::{SharedRoster, substitute_proposition_places};
 use super::{
     ReconstructedCrashSiteFacts, ReconstructedOperationObligation,
     ReconstructedTerminalObligationOwner, operation_facts, path_facts,
@@ -28,10 +28,10 @@ pub(super) fn append_terminator(
     reconstruct_path_facts: bool,
     crash_facts: bool,
     mut axioms: Vec<Proposition>,
-    incoming: &mut BTreeMap<BlockId, Vec<Vec<Proposition>>>,
-    exits: &mut Vec<Vec<Proposition>>,
+    incoming: &mut BTreeMap<BlockId, Vec<SharedRoster>>,
+    exits: &mut Vec<SharedRoster>,
     outcome_guard: Option<OutcomeSpecificGuard>,
-    outcome_exits: &mut BTreeMap<OutcomeSpecificGuard, Vec<Vec<Proposition>>>,
+    outcome_exits: &mut BTreeMap<OutcomeSpecificGuard, Vec<SharedRoster>>,
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
     crash_sites: &mut Vec<ReconstructedCrashSiteFacts>,
     ignored_backedges: &std::collections::BTreeSet<EdgeId>,
@@ -48,8 +48,9 @@ pub(super) fn append_terminator(
                 return;
             }
             let target_block = blocks.get(target).expect("validator requires jump target");
+            let mut roster = SharedRoster::whole(axioms);
             path_facts::bind_successor_axioms(
-                &mut axioms,
+                &mut roster,
                 target_block,
                 arguments,
                 value_term,
@@ -57,12 +58,12 @@ pub(super) fn append_terminator(
                 reconstruct_path_facts,
             );
             path_facts::bind_successor_structural_axioms(
-                &mut axioms,
+                &mut roster,
                 target_block,
                 structural_arguments,
                 reconstruct_path_facts,
             );
-            incoming.entry(*target).or_default().push(axioms);
+            incoming.entry(*target).or_default().push(roster);
         }
         Terminator::Conditional {
             condition,
@@ -83,6 +84,7 @@ pub(super) fn append_terminator(
                 value_term,
                 proposition_context,
             );
+            let shared = SharedRoster::whole(axioms);
             for (successor, condition_fact, positive) in [
                 (when_true, true_fact.as_ref(), true),
                 (when_false, false_fact.as_ref(), false),
@@ -93,7 +95,7 @@ pub(super) fn append_terminator(
                 let target_block = blocks
                     .get(&successor.target)
                     .expect("validator requires conditional target");
-                let mut arm_axioms = axioms.clone();
+                let mut arm_axioms = shared.successor();
                 path_facts::bind_successor_axioms(
                     &mut arm_axioms,
                     target_block,
@@ -139,11 +141,12 @@ pub(super) fn append_terminator(
             }
         }
         Terminator::StructuralCase { source, cases } => {
+            let shared = SharedRoster::whole(axioms);
             for successor in cases {
                 if ignored_backedges.contains(&successor.edge) {
                     continue;
                 }
-                let mut arm_axioms = axioms.clone();
+                let mut arm_axioms = shared.successor();
                 arm_axioms.push(Proposition::StructuralCaseMembership {
                     subject: StructuralCaseSubject::new(*source, Vec::new()),
                     case: successor.case,
@@ -223,7 +226,7 @@ pub(super) fn append_terminator(
                     operation_obligations,
                 );
             }
-            exits.push(axioms);
+            exits.push(SharedRoster::whole(axioms));
         }
         Terminator::ReturnUnitNominalAffine { edge, cleanups } => {
             for (cleanup_position, cleanup) in cleanups.iter().enumerate() {
@@ -237,10 +240,10 @@ pub(super) fn append_terminator(
                     operation_obligations,
                 );
             }
-            exits.push(axioms);
+            exits.push(SharedRoster::whole(axioms));
         }
         Terminator::ReturnUnit { .. } | Terminator::ReturnUnitPartialAffine { .. } => {
-            exits.push(axioms)
+            exits.push(SharedRoster::whole(axioms))
         }
         Terminator::ReturnStructural {
             source,
@@ -268,10 +271,11 @@ pub(super) fn append_terminator(
                     .filter(|reshuffle| returned_claims.contains(&reshuffle.claim))
                     .flat_map(|reshuffle| reshuffle.inferred_propositions()),
             );
+            let exit = SharedRoster::whole(axioms);
             if let Some(guard) = outcome_guard {
-                outcome_exits.entry(guard).or_default().push(axioms.clone());
+                outcome_exits.entry(guard).or_default().push(exit.clone());
             }
-            exits.push(axioms);
+            exits.push(exit);
         }
         // A crash establishes no normal-return guarantee. Retain only facts
         // reconstructed before it, not the producer's asserted site guards.
