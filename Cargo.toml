@@ -103,6 +103,7 @@ members = [
     "omega-rust/omega/compilation/build-evaluation",
     "omega-rust/omega/packages/build-output",
     "omega-rust/omega/compilation/realization/provider-planning",
+    "omega-rust/omega/compilation/realization/external-root-writer",
     "omega-rust/psi/compilation/checking/representation-planning",
     "omega-rust/omega/compilation/realization/trust-model",
     "omega-rust/omega/compilation/products",
