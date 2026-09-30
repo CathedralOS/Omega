@@ -464,6 +464,20 @@ impl<'program> Evaluator<'program> {
             );
         }
 
+        // The statement twin of the value-position requirement route: a
+        // boundary requirement application runs its checked-selected
+        // realization by identity, and the statement discards the result.
+        if let Some(value) = self.try_operator_application(
+            call.target_symbol,
+            ExpressionHandle::invalid(),
+            self.program
+                .statement_table
+                .expression_handles(call.arguments),
+            frame,
+        )? {
+            return Ok(value);
+        }
+
         // Asm intrinsic statement (`asm { hlt }`): the tree-walker cannot model
         // halting the CPU, but `hlt` in an idle loop is observably a no-op step
         // (the loop simply proceeds), so evaluate it as unit. Memory fences,

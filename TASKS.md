@@ -1872,8 +1872,15 @@ crash and native exit behavior. Use affected check/native corpus slices under
     `omega run tests/omega/pass/float/runtime_std_is_finite_exit/main.omg`
     exits **70** unchanged; `float/scalar_helper_boundary_sequence_exit`
     also exits **70** with intervening ordinary calls and nested operands.
-    Both build for linux_x86_64. Checked interpretation still declines the
-    selected bodyless float realization; these are native execution results.
+    Both build for linux_x86_64. Checked interpretation runs the same
+    selection (`checked-interpreter/.../execution/operator_applications.rs`):
+    one checked satisfier body, compiler-intrinsic destination-owned
+    conversions keyed by source carrier, destination carrier and result
+    domain, and the sealed `Float` slots bound from spelled operations. With
+    `OMEGA_CORPUS_NATIVE=1 OMEGA_CORPUS_INTERPRET=1` these fixtures and the
+    rest of the float/provider cohort report `interpreter:agrees`. A
+    requirement with several checked satisfiers still declines there,
+    because checked Psi does not retain the Build's provider choice.
     A `let` after a call-result field store keeps its own value and source:
     source roles key it by its authored local ordinal
     (`TypedTrees::immutable_scalar_locals_before`), while its plan keeps the
