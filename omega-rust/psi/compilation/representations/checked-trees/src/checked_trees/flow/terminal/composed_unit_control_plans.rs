@@ -285,7 +285,20 @@ impl CheckedComposedUnitControlStatePlan {
                 .collect(),
             _ => Vec::new(),
         };
-        self.operations.iter().chain(selected)
+        // A composite argument established on an edge runs its operation
+        // there, after selection; it is still one of this state's
+        // dependencies, calls included.
+        let established = self
+            .successors()
+            .into_iter()
+            .flat_map(|successor| &successor.transfers)
+            .filter_map(|transfer| match &transfer.source {
+                crate::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                    establishment,
+                } => Some(establishment.as_ref()),
+                _ => None,
+            });
+        self.operations.iter().chain(selected).chain(established)
     }
 
     /// Control-flow successors of this state's terminator, in terminator

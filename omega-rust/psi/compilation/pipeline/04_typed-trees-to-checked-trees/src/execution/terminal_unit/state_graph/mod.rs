@@ -1059,6 +1059,7 @@ enum SuccessorGuard {
     ResultTransfer,
     CasePayloadTransfer,
     EstablishedArgument,
+    ProjectedCopy,
     LoanTransfer,
     ParameterTransfer,
     ScalarArguments,
@@ -1098,6 +1099,7 @@ impl SuccessorEdge {
                     SuccessorGuard::EstablishedArgument => {
                         guard_phase!($edge, "established argument")
                     }
+                    SuccessorGuard::ProjectedCopy => guard_phase!($edge, "projected copy"),
                     SuccessorGuard::LoanTransfer => guard_phase!($edge, "loan transfer"),
                     SuccessorGuard::ParameterTransfer => guard_phase!($edge, "parameter transfer"),
                     SuccessorGuard::ScalarArguments => guard_phase!($edge, "scalar arguments"),
@@ -1188,6 +1190,15 @@ fn declared_contains_reference(
     false
 }
 
+/// The callee catalog and source-state entry claims an edge plans its own
+/// operand calls against. A composite argument's call runs only on the
+/// selected edge, under the same argument custody an in-sequence call takes.
+#[derive(Clone, Copy)]
+pub(super) struct EdgeCalls<'a> {
+    pub(super) scalar_callees: ScalarCalleePlans<'a>,
+    pub(super) entry_claims: &'a [checked_trees::CheckedUnitEntryClaimPlan],
+}
+
 fn successor(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1198,6 +1209,7 @@ fn successor(
     transition: &typed_trees::statement::TableTransition,
     ordinal: u32,
     edge: SuccessorEdge,
+    edge_calls: EdgeCalls<'_>,
     shapes: &mut ShapeCollector<'_>,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
@@ -1212,6 +1224,7 @@ fn successor(
         ordinal,
         &[],
         edge,
+        edge_calls,
         shapes,
         trace,
     )?;
@@ -1264,6 +1277,7 @@ fn successor_bindings(
     ordinal: u32,
     payload_parameters: &[u32],
     edge: SuccessorEdge,
+    edge_calls: EdgeCalls<'_>,
     shapes: &mut ShapeCollector<'_>,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
@@ -1476,22 +1490,85 @@ fn successor_bindings(
                 }
             }
             mark(SuccessorGuard::EstablishedArgument);
-            // An inline composite argument — a record, case, or fixed-array
-            // literal — has no custody root to name; the edge establishes the
-            // registered fresh construction into the parameter's storage.
+            // A fresh composite argument — a record, case, or fixed-array
+            // literal, or a call's structural result — has no custody root to
+            // name; the edge establishes the registered value into the
+            // parameter's storage. Its calls are planned exactly as a `let`
+            // initializer's are, against this state's parameters, and run on
+            // the selected edge only. A nested structural operand would need
+            // establishing ahead of the edge's selection, so it declines.
             if target.access == CheckedStructuralAccess::Owned
                 && let Some(root) = facts.values.structural_values.root_for_expression(
                     source.symbol,
                     ordinal,
                     expression,
                 )
+                && root.machine == machine.symbol
                 && program.normalized_type_identity(root.type_reference).into_string()
                     == target.type_identity
             {
+                // Edge-local bindings number after the state's own results,
+                // so no source result ordinal is reused on this edge.
+                let mut operand_calls = Vec::new();
+                let mut result_count = returns::next_result_ordinal(operations)?;
+                let calls = control::structural_operands::value_calls(
+                    program,
+                    facts,
+                    edge_calls.scalar_callees,
+                    shapes,
+                    machine,
+                    source,
+                    source_structural,
+                    &[],
+                    edge_calls.entry_claims,
+                    &[],
+                    &mut operand_calls,
+                    &mut result_count,
+                    root.root,
+                    trace,
+                )?;
+                mark(SuccessorGuard::EstablishedArgument);
+                if !operand_calls.is_empty() {
+                    return None;
+                }
+                let establishment = CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result: checked_trees::CheckedUnitStructuralResultBindingPlan {
+                        statement_index: ordinal,
+                        binding_ordinal: u32::try_from(result_count).ok()?,
+                        type_identity: target.type_identity.clone(),
+                        multiplicity: target.multiplicity,
+                    },
+                    value: root.root,
+                    calls,
+                    operand_source: None,
+                    discard_result_on_return: false,
+                };
                 return Some(CheckedStructuralControlTransferPlan {
                     source: checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
-                        value: root.root,
-                        calls: Vec::new(),
+                        establishment: Box::new(establishment),
+                    },
+                    target_parameter_index: u32::try_from(target_index).ok()?,
+                });
+            }
+            mark(SuccessorGuard::ProjectedCopy);
+            // `parameter.field` supplied to an owned unrestricted parameter
+            // copies that subtree out of a live source parameter into fresh
+            // storage the target owns; the source keeps its whole custody.
+            if target.access == CheckedStructuralAccess::Owned
+                && target.multiplicity == Multiplicity::Unrestricted
+                && let Some(subject) = projected_copy_subject(
+                    program,
+                    machine,
+                    source,
+                    source_structural,
+                    ordinal,
+                    expression,
+                    target,
+                )
+            {
+                return Some(CheckedStructuralControlTransferPlan {
+                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy {
+                        subject,
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
@@ -1914,6 +1991,86 @@ fn successor_bindings(
         erased_arguments,
         erased_proof_arguments,
         trivial_affine_discard_parameter_positions: Vec::new(),
+    })
+}
+
+/// The rooted place an owned `parameter.field` argument copies from.
+///
+/// The argument must name a member projection below one readable source
+/// parameter, and the projected subtree must be a whole unrestricted
+/// plain-owned value of exactly the target's type: copying it observes the
+/// source without moving any custody out of it. A local root, an indexed
+/// projection or a projection reaching borrowed storage keeps its own route.
+fn projected_copy_subject(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    source: &typed_trees::state::State,
+    source_structural: &[CheckedUnitStructuralParameterPlan],
+    ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+    target: &CheckedUnitStructuralParameterPlan,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_)
+    ) {
+        return None;
+    }
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        source.symbol,
+        ordinal as usize,
+        expression,
+    )?;
+    let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
+        return None;
+    };
+    if place.segments.is_empty() {
+        return None;
+    }
+    let (position, _) =
+        program
+            .state_parameters(source)
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| {
+                super::types::parameter_root_symbol(machine.symbol, parameter) == root_symbol
+                    || parameter.symbol == root_symbol
+            })?;
+    let (parameter_index, parameter) = source_structural
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| parameter.position as usize == position)?;
+    if parameter.access == CheckedStructuralAccess::WriteOnlyBorrow {
+        return None;
+    }
+    let (projected_type, path) = calls::projected_borrowed_path(
+        program,
+        machine.symbol,
+        source.symbol,
+        ordinal as usize,
+        &place,
+    )?;
+    if path.is_empty()
+        || !path
+            .iter()
+            .all(|segment| matches!(segment, CheckedUnitStructuralPathSegment::Field(_)))
+        || program.type_multiplicity(projected_type) != Multiplicity::Unrestricted
+        || !validation::has_plain_owned_contents_with_numeric_constraints(program, projected_type)
+        || program
+            .normalized_type_identity(projected_type)
+            .into_string()
+            != target.type_identity
+    {
+        return None;
+    }
+    Some(CheckedUnitStructuralArgumentPlan {
+        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: u32::try_from(parameter_index).ok()?,
+        },
+        path,
+        type_identity: target.type_identity.clone(),
+        access: CheckedStructuralAccess::Owned,
     })
 }
 

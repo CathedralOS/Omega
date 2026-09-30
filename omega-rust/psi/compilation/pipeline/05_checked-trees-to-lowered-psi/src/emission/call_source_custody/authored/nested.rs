@@ -49,19 +49,19 @@ pub(crate) fn authored_postorder(
                 arguments
                     .iter()
                     .rev()
-                    .map(|argument| (*argument, true, None)),
+                    .map(|argument| Walk::Enter(*argument, true)),
             );
             next_ordinal = 1;
             (true, ExpressionHandle::invalid())
         }
         StatementNode::LocalData(local) => {
-            pending.push((local.initial_value, true, None));
+            pending.push(Walk::Enter(local.initial_value, true));
             (false, local.initial_value)
         }
         StatementNode::Assignment(assignment) => {
             // A store assignment's produced call lives in the written value;
             // the target path is an l-value destination, not a call operand.
-            pending.push((assignment.value, true, None));
+            pending.push(Walk::Enter(assignment.value, true));
             (false, assignment.value)
         }
         StatementNode::Expression(expression)
@@ -81,14 +81,15 @@ pub(crate) fn authored_postorder(
                         && root.type_reference == state.return_type
                 }) =>
         {
-            pending.push((*expression, true, None));
+            pending.push(Walk::Enter(*expression, true));
             (false, *expression)
         }
         StatementNode::Transition(transition)
             if transition.guard == TransitionGuardNode::Always
                 && matches!(
                     checked.statement_table.transition_target(transition.target),
-                    TransitionTargetNode::Named { .. }
+                    TransitionTargetNode::Named { path, .. }
+                        if !internal_jump(checked, machine, path.symbol)
                 ) =>
         {
             let (_, arguments) =
@@ -97,7 +98,7 @@ pub(crate) fn authored_postorder(
                 arguments
                     .iter()
                     .rev()
-                    .map(|argument| (*argument, true, None)),
+                    .map(|argument| Walk::Enter(*argument, true)),
             );
             // The statement itself owns preorder zero. Operand calls execute
             // first but retain their captured ordinals starting at one.
@@ -109,12 +110,16 @@ pub(crate) fn authored_postorder(
             // the target, then the continuation — the order the borrow
             // collection numbers the same statement's calls. `pending` pops
             // from the end, so seeds push in reverse. Unconditional named
-            // calls are handled above. The guarded-return route still
-            // declines named arms; a coordinate reaching this branch names
-            // a guard or a `Value` arm, never a fabricated call expression.
+            // machine calls are handled above. A jump to an internal state
+            // invokes nothing, but its named target still holds the ordinal
+            // after the guard's calls; its operands follow as direct
+            // arguments. The guarded-return route still declines named
+            // machine arms; a coordinate reaching this branch names a guard,
+            // an internal jump's operand or a `Value` arm, never a
+            // fabricated call expression.
             let mut seeds = Vec::new();
             if let TransitionGuardNode::When(guard) = transition.guard {
-                seeds.push((guard, true, None));
+                seeds.push(Walk::Enter(guard, true));
             }
             for target in [transition.target, transition.continuation] {
                 if !checked.statement_table.transition_target_is_valid(target) {
@@ -122,7 +127,19 @@ pub(crate) fn authored_postorder(
                 }
                 match checked.statement_table.transition_target(target) {
                     TransitionTargetNode::Value(expression) => {
-                        seeds.push((*expression, true, None));
+                        seeds.push(Walk::Enter(*expression, true));
+                    }
+                    TransitionTargetNode::Named {
+                        path, arguments, ..
+                    } if internal_jump(checked, machine, path.symbol) => {
+                        let operands = checked.statement_table.expression_handles(*arguments);
+                        if operands.len() != arguments.count() as usize {
+                            return unsupported(
+                                "internal jump has an invalid authored argument span",
+                            );
+                        }
+                        seeds.push(Walk::InternalJump);
+                        seeds.extend(operands.iter().map(|operand| Walk::Enter(*operand, true)));
                     }
                     TransitionTargetNode::Named { .. } => {
                         return unsupported(
@@ -132,9 +149,10 @@ pub(crate) fn authored_postorder(
                     TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
                 }
             }
-            let outer = seeds
-                .first()
-                .map_or_else(ExpressionHandle::invalid, |seed| seed.0);
+            let outer = match seeds.first() {
+                Some(Walk::Enter(expression, _)) => *expression,
+                _ => ExpressionHandle::invalid(),
+            };
             pending.extend(seeds.into_iter().rev());
             (false, outer)
         }
@@ -144,14 +162,25 @@ pub(crate) fn authored_postorder(
     let mut active = Vec::new();
     let mut calls = Vec::new();
     let mut order = Vec::new();
-    while let Some((expression, direct_argument, exiting)) = pending.pop() {
-        if let Some(ordinal) = exiting {
-            active.pop();
-            if let Some(ordinal) = ordinal {
-                order.push((ordinal, expression));
+    while let Some(step) = pending.pop() {
+        let (expression, direct_argument) = match step {
+            Walk::Enter(expression, direct_argument) => (expression, direct_argument),
+            Walk::Exit(expression, ordinal) => {
+                active.pop();
+                if let Some(ordinal) = ordinal {
+                    order.push((ordinal, expression));
+                }
+                continue;
             }
-            continue;
-        }
+            Walk::InternalJump => {
+                next_ordinal = next_ordinal
+                    .checked_add(1)
+                    .ok_or(LoweringError::Unsupported(
+                        "nested authored call ordinal space is exhausted",
+                    ))?;
+                continue;
+            }
+        };
         if !table.expression_is_valid(expression) || active.contains(&expression) {
             return unsupported("nested call syntax contains a stale or cyclic expression");
         }
@@ -246,7 +275,7 @@ pub(crate) fn authored_postorder(
                             },
                             expression,
                         )?;
-                        children.push((call.receiver, true, None));
+                        children.push((call.receiver, true));
                     }
                 }
                 if !call.carries_only_positional_arguments()
@@ -260,7 +289,7 @@ pub(crate) fn authored_postorder(
                 if arguments.len() != call.arguments.count() as usize {
                     return unsupported("nested expression call has an invalid argument span");
                 }
-                children.extend(arguments.iter().map(|argument| (*argument, true, None)));
+                children.extend(arguments.iter().map(|argument| (*argument, true)));
                 let ordinal = next_ordinal;
                 next_ordinal = next_ordinal
                     .checked_add(1)
@@ -274,7 +303,7 @@ pub(crate) fn authored_postorder(
                 if fields.len() != literal.fields.count() as usize {
                     return unsupported("nested constructor has an invalid field span");
                 }
-                children.extend(fields.iter().map(|field| (field.value, true, None)));
+                children.extend(fields.iter().map(|field| (field.value, true)));
                 None
             }
             ExpressionNode::ArrayLiteral(elements) => {
@@ -284,46 +313,46 @@ pub(crate) fn authored_postorder(
                 }
                 // Calls inside leaves keep their authored occurrence numbers;
                 // the leaf computation still owns selective execution.
-                children.extend(values.iter().map(|element| (*element, false, None)));
+                children.extend(values.iter().map(|element| (*element, false)));
                 None
             }
             ExpressionNode::Binary(binary) => {
-                children.extend([binary.left, binary.right].map(|child| (child, false, None)));
+                children.extend([binary.left, binary.right].map(|child| (child, false)));
                 None
             }
             ExpressionNode::Match(dispatch) => {
-                children.push((dispatch.subject, false, None));
+                children.push((dispatch.subject, false));
                 let arms = table.match_arms(dispatch.arms);
                 if arms.len() != dispatch.arms.len() {
                     return unsupported("nested dispatch has a stale authored arm span");
                 }
                 for arm in arms {
                     if let checked_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        children.push((pattern, false, None));
+                        children.push((pattern, false));
                     }
                     // The selected arm produces the match result directly: a
                     // structural match root may select a call product projected
                     // through a member/indexed path. Scalar matches still reach
                     // their calls as scalar helpers because a record-producing
                     // call cannot compose in an indirect operand position.
-                    children.push((arm.value, direct_argument, None));
+                    children.push((arm.value, direct_argument));
                 }
                 None
             }
             ExpressionNode::Unary(unary) => {
-                children.push((unary.operand, false, None));
+                children.push((unary.operand, false));
                 None
             }
             ExpressionNode::Cast(cast) => {
-                children.push((cast.value, false, None));
+                children.push((cast.value, false));
                 None
             }
             ExpressionNode::Member(member) if member.case_variant.is_none() => {
-                children.push((member.receiver, direct_argument, None));
+                children.push((member.receiver, direct_argument));
                 None
             }
             ExpressionNode::Borrow(borrow) if direct_argument => {
-                children.push((borrow.target, true, None));
+                children.push((borrow.target, true));
                 None
             }
             ExpressionNode::Indexed(indexed)
@@ -337,8 +366,8 @@ pub(crate) fn authored_postorder(
                 // A runtime index is walked the way the checker numbers it:
                 // the collection keeps the operand's directness while the
                 // selector evaluates separately and is never an operand slot.
-                children.push((indexed.collection, direct_argument, None));
-                children.push((indexed.index, false, None));
+                children.push((indexed.collection, direct_argument));
+                children.push((indexed.index, false));
                 None
             }
             ExpressionNode::Range(range) if !range.end_inclusive => {
@@ -348,7 +377,7 @@ pub(crate) fn authored_postorder(
                     [range.start, range.end]
                         .into_iter()
                         .filter(|endpoint| endpoint.is_valid())
-                        .map(|endpoint| (endpoint, false, None)),
+                        .map(|endpoint| (endpoint, false)),
                 );
                 None
             }
@@ -358,8 +387,13 @@ pub(crate) fn authored_postorder(
             | ExpressionNode::Float(_) => None,
             _ => return unsupported("nested structural arguments contain unsupported syntax"),
         };
-        pending.push((expression, direct_argument, Some(ordinal)));
-        pending.extend(children.into_iter().rev());
+        pending.push(Walk::Exit(expression, ordinal));
+        pending.extend(
+            children
+                .into_iter()
+                .rev()
+                .map(|(child, direct)| Walk::Enter(child, direct)),
+        );
     }
     if statement_root {
         order.push((0, ExpressionHandle::invalid()));
@@ -415,4 +449,32 @@ fn validate_static_receiver(
         return Ok(());
     }
     unsupported("nested call root receiver is not its exact static namespace")
+}
+
+/// One step of the authored occurrence walk.
+enum Walk {
+    /// Visit an operand; the flag marks a direct argument position.
+    Enter(ExpressionHandle, bool),
+    /// Leave an operand, recording its preorder ordinal when it is a call.
+    Exit(ExpressionHandle, Option<u32>),
+    /// A jump to one of this machine's internal states. It invokes nothing,
+    /// but the call-site traversal numbers its named target between the
+    /// guard's calls and its operands', so it holds one ordinal.
+    InternalJump,
+}
+
+/// Whether a named transition target is one of `machine`'s own internal
+/// states rather than a machine invocation. Naming the machine itself is a
+/// recursive invocation, not an internal jump.
+fn internal_jump(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    target: SymbolHandle,
+) -> bool {
+    target != machine.symbol
+        && checked
+            .typed
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.symbol == target)
 }

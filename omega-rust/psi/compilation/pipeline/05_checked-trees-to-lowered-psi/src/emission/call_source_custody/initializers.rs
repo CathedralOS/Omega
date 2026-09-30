@@ -124,12 +124,17 @@ pub(crate) fn validate_structural(
                         &checked.typed,
                         target.return_type,
                     )))
+                // An ordinary callee's copyable result owns no cleanup: a
+                // closed primitive array or plain-owned `[copy]` data.
                 || (result.multiplicity == Multiplicity::Unrestricted
                     && !authored.boundary
-                    && validation::is_closed_primitive_array_type(
+                    && (validation::is_closed_primitive_array_type(
                         &checked.typed,
                         target.return_type,
-                    )))
+                    ) || validation::has_plain_owned_contents(
+                        &checked.typed,
+                        target.return_type,
+                    ))))
             || checked
                 .normalized_type_identity(target.return_type)
                 .into_string()

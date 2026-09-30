@@ -7,9 +7,9 @@ use super::super::super::super::super::{
     SuccessorEdge, ValueId, block_id,
 };
 use super::super::super::super::{
-    Block, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-    Operation, OperationKind, OperationResult, PlaceId, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense,
+    Block, CheckedScalarExpression, CheckedScalarExpressionRole, Operation, OperationKind,
+    OperationResult, PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, Terminator, ValueDeclaration, allocate_dense,
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression, place_id,
     terminal_scalar_type, unsupported, validate_direct_parameter_types,
 };
@@ -144,6 +144,7 @@ impl StateGraphEmission<'_, '_> {
         )) || edge.transfers.iter().any(|transfer| matches!(
             transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. }
                 | checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { .. }
+                | checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedCopy { .. }
         )) || guarded
                 && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
                     transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice { .. }
@@ -352,57 +353,42 @@ impl StateGraphEmission<'_, '_> {
                 }
                 let mut argument_path = Vec::new();
                 let place = match transfer.source {
-                        checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { value, ref calls } => {
-                            // The edge establishes the fresh construction into
-                            // the parameter's home: its binding ordinal is
-                            // identity-only — no statement binding rejoins it.
-                            let operation = CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                                result: checked_trees::CheckedUnitStructuralResultBindingPlan {
-                                    statement_index: edge.statement_ordinal,
-                                    binding_ordinal: u32::MAX,
-                                    type_identity: target_parameter.type_identity.clone(),
-                                    multiplicity: target_parameter.multiplicity,
-                                },
-                                value,
-                                calls: calls.clone(),
-                                operand_source: None,
-                                discard_result_on_return: false,
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { ref establishment } => {
+                            // The edge performs its ordinary establishment
+                            // through the state's operation emitter, so the
+                            // member calls run here, after selection, exactly
+                            // as a `let` initializer's would. Its bindings
+                            // are edge-local: they register in a registry of
+                            // their own, and the state's registry returns
+                            // untouched once the argument's place is read.
+                            let Some(result) = establishment.structural_result_binding() else {
+                                return unsupported(
+                                    "Unit graph established argument has no result binding",
+                                );
                             };
-                            let mut call_context = self.catalogs.scalar_calls.emission_context();
-                            let mut emit_member_call = |_: &CheckedUnitEffectOperationPlan,
-                                                        _: Option<&[ValueDeclaration]>,
-                                                        _: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
-                                                        _: &mut u64,
-                                                        _: &mut crate::emission::operation_emission::calls::CallEmissionContext<'_>,
-                                                        _: &mut OperationBuffer,
-                                                        _: &mut u64| {
-                                unsupported("edge literal argument embeds no member call")
-                            };
-                            let declaration = crate::unit::attached_unit::structural_values::emit(
+                            let state_bindings = std::mem::take(&mut operations.structural_values);
+                            let emitted = super::super::super::emission::emit_call_operations(
                                 checked,
                                 plan.machine,
-                                state.state,
-                                &operation,
-                                &self.catalogs.structural_types,
-                                &self.catalogs.type_ids,
-                                &mut self.catalogs.next_place,
-                                &mut self.catalogs.temporary_places,
-                                &mut emit_member_call,
-                                &mut call_context,
+                                state,
+                                std::slice::from_ref(establishment.as_ref()),
+                                self.catalogs,
+                                state_parameters,
+                                &self.claims.source_claims,
                                 &mut edge_evaluation,
                                 &mut edge_values,
+                                &self.state_erased[position],
                                 next_value,
                                 next_block,
                                 next_edge,
                                 operations,
-                            )?;
-                            let Some(declaration) = declaration else {
-                                return unsupported(
-                                    "Unit graph edge literal argument lost its establishment",
-                                );
-                            };
-                            self.structural_places.push(declaration);
-                            declaration.id
+                            )
+                            .and_then(|()| {
+                                case_emission::result(state, result.binding_ordinal, operations)
+                                    .map(|binding| binding.place())
+                            });
+                            operations.structural_values = state_bindings;
+                            edge_evaluation.current_structural_place(emitted?)
                         }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => edge_evaluation.current_structural_place(case_emission::result(state, binding_ordinal, operations)?.place()),
                         checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index } => {
