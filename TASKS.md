@@ -1557,19 +1557,6 @@ crash and native exit behavior. Use affected check/native corpus slices under
   re-encoding the decoded view to five bytes with payload [72, 105]. Run checked
   and interpreter/native legs; leaving an omission cluster is not execution.
 
-- **PASS-TIER-GUARDS-OWED.** Recheck and promote
-  `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` into
-  `pass/calls/` with scoped checked and native golden updates. Preserve its
-  nested `[copy]` field read through `&mut self`, by-value argument, named state,
-  terminal effect and authored ProgramEntry bindings. Make the exit observe a
-  nonzero copied value at the callee and the unchanged source; add
-  `expected_native_exit.txt` so the corpus gate executes this fixture.
-  Copy establishment exists in `values/scalar/computations/call_arguments.rs`;
-  `calls/structural_arguments.rs` selects its fresh result instead of moving
-  borrowed backing. Repair any remaining omission before promotion. Recheck
-  product roots under **OMEGA-PRODUCT-COMPILER-SOURCE** separately; the fixture
-  does not establish their later operations.
-
 - **FLOAT-RANGE-ATTACHED-FIELD.** (new-scope) Carry float invariants and
   constrained const applications through attached/nested data execution.
   First migrate the customers under **CANONICALIZE-SCALAR-RANGE-CONTRACTS**:

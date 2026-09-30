@@ -187,6 +187,15 @@ pub(in crate::validation) fn validate_structural_argument(
                                 && argument.access == StructuralAccess::SharedBorrow
                                 && is_nonempty_field_path(&argument.path)
                                 && is_record_loan(module, caller, expected, argument))
+                            // Rebinding a loan at a state edge does not remove
+                            // its ability to lend a subtree. Resolve the same
+                            // subloan contract as for a machine parameter;
+                            // projected type, access, availability and overlap
+                            // remain independently checked below and by the
+                            // block-view and argument-pair replays.
+                            || (allow_projected
+                                && (is_unrestricted_shared_subloan(module, caller, expected, argument)
+                                    || is_unrestricted_mutable_subloan(module, caller, expected, argument)))
                             // A runtime-indexed borrow of a block parameter is
                             // the same per-element loan the machine-parameter
                             // arm admits: the path predicate keeps Referent and
