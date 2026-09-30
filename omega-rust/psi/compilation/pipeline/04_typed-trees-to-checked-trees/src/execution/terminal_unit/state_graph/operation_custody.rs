@@ -79,7 +79,12 @@ pub(super) fn admit(
             // index and element scalars rejoined dense at mint. The edge
             // carries the loan; the write claims no root of its own.
             | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
-            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
+            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            // A representation view store writes through the view's own
+            // loaned destination; each footprint byte's index obligation,
+            // operand, and destination rejoined at mint. No edge carries a
+            // root the write did not already claim.
+            | CheckedUnitEffectOperationPlan::RepresentationViewStore(_) => {}
             // The window pair the sequencer itself joined — a move-out
             // binding the displaced field value and the exact restoration
             // into the opened hole — carries no new custody across the

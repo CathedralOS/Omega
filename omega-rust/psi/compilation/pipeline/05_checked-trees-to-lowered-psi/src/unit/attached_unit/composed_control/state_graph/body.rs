@@ -561,6 +561,18 @@ pub(super) fn validate(
                     store,
                 )?;
             }
+            (
+                CheckedUnitEffectOperationPlan::RepresentationViewStore(store),
+                StatementNode::Assignment(assignment),
+            ) => {
+                crate::emission::representation_view_store::validate_assignment(
+                    checked,
+                    machine,
+                    state.state,
+                    assignment,
+                    store,
+                )?;
+            }
             // One atomic event occupies its carrier statement: the assignment
             // for a writing event, the local for a load. Emission rejoins the
             // event, place, orderings, operands and prior binding to that

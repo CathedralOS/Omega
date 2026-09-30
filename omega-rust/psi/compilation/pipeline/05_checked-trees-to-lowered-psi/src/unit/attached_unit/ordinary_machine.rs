@@ -1214,6 +1214,7 @@ impl MachineEmission<'_> {
         let kind = match operation {
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)

@@ -251,6 +251,9 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         }
         CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => Some(store.statement_index),
         CheckedUnitEffectOperationPlan::ElementViewWrite(write) => Some(write.statement_index),
+        CheckedUnitEffectOperationPlan::RepresentationViewStore(write) => {
+            Some(write.statement_index)
+        }
         CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
         | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
         | CheckedUnitEffectOperationPlan::Complete { .. } => None,

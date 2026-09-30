@@ -66,6 +66,11 @@ pub(super) struct Destination<'a> {
     pub(super) root: Root<'a>,
     pub(super) place: crate::flow::CanonicalPlace,
     pub(super) dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
+    /// The declared referee primitive of a recast loan local the target
+    /// names (`let view: &mut u32 = &mut self.buf[k] as &mut u32`): the
+    /// carrier the authored store writes at, distinct from the rejoined
+    /// leaf's own primitive.
+    pub(super) recast_view: Option<typed_trees::types::PrimitiveType>,
     /// The target's admitted element selectors, when every indexed step is
     /// an element of a declared fixed array.
     selectors: Option<super::selectors::TargetSelectors>,
@@ -119,7 +124,7 @@ pub(super) fn resolve<'a>(
     ) else {
         return None;
     };
-    let place = rejoin_loan_local(program, state, ordinal, place)?;
+    let (place, recast_view) = rejoin_loan_local(program, state, ordinal, place)?;
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
@@ -200,6 +205,7 @@ pub(super) fn resolve<'a>(
                 root: Root::Parameter { plan, parameter },
                 place,
                 dynamic_index,
+                recast_view,
                 selectors,
                 root_type: *referee,
                 root_owner,
@@ -227,6 +233,7 @@ pub(super) fn resolve<'a>(
                 },
                 place,
                 dynamic_index,
+                recast_view: None,
                 selectors,
                 root_type: local.type_reference,
                 root_owner: crate::facts::field_domain::data_definition_for_field_type(
@@ -287,6 +294,7 @@ fn owned_local_root<'a>(
         },
         place,
         dynamic_index,
+        recast_view: None,
         selectors,
         root_type: local.type_reference,
         root_owner: crate::facts::field_domain::data_definition_for_field_type(
@@ -650,9 +658,12 @@ fn rejoin_loan_local(
     state: &typed_trees::state::State,
     ordinal: usize,
     place: crate::flow::CanonicalPlace,
-) -> Option<crate::flow::CanonicalPlace> {
+) -> Option<(
+    crate::flow::CanonicalPlace,
+    Option<typed_trees::types::PrimitiveType>,
+)> {
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
-        return Some(place);
+        return Some((place, None));
     };
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut declarations =
@@ -667,14 +678,24 @@ fn rejoin_loan_local(
                 _ => None,
             });
     let Some((_, local)) = declarations.next() else {
-        return Some(place);
+        return Some((place, None));
     };
     if declarations.next().is_some() {
         return None;
     }
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
-    else {
-        return Some(place);
+    // `&mut place as &mut T` spells its recast as a cast of the borrow, so
+    // the loan's leading recast peels before the borrow itself.
+    let mut initial = local.initial_value;
+    let mut recast = false;
+    while let ExpressionNode::Cast(cast) = program.expression_table.expression(initial) {
+        if !cast.form.is_recast() {
+            break;
+        }
+        initial = cast.value;
+        recast = true;
+    }
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(initial) else {
+        return Some((place, None));
     };
     // A reseatable binding does not denote one place, and a shared loan
     // carries no write authority to rejoin. A write-only loan carries
@@ -688,14 +709,35 @@ fn rejoin_loan_local(
     {
         return None;
     }
+    let mut target = borrow.target;
+    while let ExpressionNode::Cast(cast) = program.expression_table.expression(target) {
+        if !cast.form.is_recast() {
+            break;
+        }
+        target = cast.value;
+        recast = true;
+    }
+    let recast_view = if recast {
+        match program
+            .type_reference_table
+            .type_reference(local.type_reference)
+        {
+            TypeReferenceNode::Reference { referee, .. } => {
+                Some(program.primitive_type_reference(*referee)?)
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
     let mut loaned = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         ordinal,
-        borrow.target,
+        target,
     )?;
     loaned.segments.extend(place.segments);
-    Some(loaned)
+    Some((loaned, recast_view))
 }
 
 /// An exclusive borrowed view is a root of its own: `let cell: &mut Cell =
@@ -766,6 +808,7 @@ fn borrowed_view_local_root<'a>(
         },
         place,
         dynamic_index,
+        recast_view: None,
         selectors,
         root_type: referee,
         root_owner: crate::facts::field_domain::data_definition_for_field_type(program, referee),

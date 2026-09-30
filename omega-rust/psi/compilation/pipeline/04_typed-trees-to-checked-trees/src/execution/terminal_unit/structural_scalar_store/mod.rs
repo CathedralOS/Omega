@@ -45,6 +45,7 @@ mod selectors;
 #[cfg(test)]
 mod tests;
 mod value;
+mod view_stores;
 
 /// The scalar-graph lane's field store into one of its own record locals.
 pub(in crate::execution) fn build_local_scalar_field_store(
@@ -313,6 +314,25 @@ fn plan_assignment(
         return Some(vec![store]);
     }
     destination.exclusive_authority(program, state, roots, trace)?;
+    // A store through a recast loan local re-covers its rejoined leaf at
+    // the view's declared carrier — a family no leaf-store arm below
+    // answers, since the leaf's own primitive is not the stored value's.
+    if let Some(view) = destination.recast_view {
+        trace.phase("structural field store: representation view");
+        return view_stores::plan(
+            program,
+            facts,
+            machine,
+            state,
+            &destination,
+            view,
+            statement_index,
+            assignment,
+            source,
+            trace,
+        )
+        .map(|store| vec![store]);
+    }
     trace.phase("structural field store: carrier path");
     let Some((leaf, carriers)) = destination.place.segments.split_last() else {
         // The whole root is replaced: only a record literal decomposes into

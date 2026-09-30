@@ -249,6 +249,7 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
+                | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
@@ -361,6 +362,10 @@ pub(super) fn retain_available(
                     // and element scalars are dense, exactly as the byte-
                     // sequence and field-store siblings above.
                     | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
+                    // A store through a recast loan local names no callee
+                    // either: the destination rejoins a loan inside this
+                    // frame and the authored value is a dense scalar.
+                    | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::AtomicAccess(_)
