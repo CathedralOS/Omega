@@ -567,6 +567,31 @@ impl TerminalExecution {
                     );
                 }
                 terminal_semantics::ZeroedStructuralLeaf::ArrayScalar { path, scalar_type } => {
+                    // Byte views and scalar indexing must share one backing.
+                    // Storing these bytes as separate scalar cells would make
+                    // writes through a borrowed byte view invisible to the owner.
+                    if let Some((StructuralPathSegment::FixedIndex(_), parent)) = path.split_last()
+                        && let Some(array_type) =
+                            crate::structural_inputs::byte_arrays::array_path_type(
+                                &self.program.structural_types,
+                                result.structural_type,
+                                parent,
+                            )
+                        && let Some(length) =
+                            crate::structural_inputs::byte_arrays::byte_array_length(
+                                &self.program.structural_types,
+                                array_type,
+                            )
+                    {
+                        let length = usize::try_from(length).map_err(|_| invalid())?;
+                        self.structural_byte_arrays
+                            .entry(StructuralRuntimePlace {
+                                opaque_identity: value.opaque_identity,
+                                path: parent.to_vec(),
+                            })
+                            .or_insert_with(|| ByteSequenceView::new(vec![0; length]));
+                        continue;
+                    }
                     self.structural_primitive_storage.insert(
                         StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,
