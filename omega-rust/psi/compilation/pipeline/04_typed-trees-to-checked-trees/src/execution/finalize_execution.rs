@@ -11,6 +11,7 @@ pub(crate) fn finalize_execution(
     // One frame resolver answers every planner that still classifies typed
     // call frames.
     let call_frames = validation::CallFrameResolver::new(program);
+    crate::execution::citation_erasure::retire_fact_only_citations(program, &mut facts);
     // Finalize the discovered graph shapes against completed ownership facts.
     crate::execution::terminal_scalar::finalize_checked_scalar_graph_plans_with_call_frames(
         program,

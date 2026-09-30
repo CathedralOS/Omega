@@ -1012,6 +1012,11 @@ pub(in crate::execution::terminal_unit) fn build(
         trace.phase(statement_phase(statement));
         trace.statement(Some(statement_index));
         append_reference_releases(facts, machine.symbol, state.symbol, statement_index, &mut operations)?;
+        // A fact-only citation emits no runtime call or work; its flow row
+        // is retired (`execution::citation_erasure`), so it plans nothing.
+        if validation::is_fact_only_citation(program, statement) {
+            continue;
+        }
         // A value-returning body's completing expression is its final
         // statement: scalar tails carry a Return-rooted computation the scan
         // above already stops on, while a structural tail call reaches this

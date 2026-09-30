@@ -50,6 +50,10 @@ pub(crate) fn validate_store_and_initializer_calls(
         .iter()
         .any(|statement| matches!(statement, StatementNode::Assignment(_)));
     for (statement_index, statement) in statements.iter().enumerate() {
+        // An erased fact-only citation owes no call occurrence.
+        if validation::is_fact_only_citation(&checked.typed, statement) {
+            continue;
+        }
         let initializer = match statement {
             StatementNode::LocalData(local)
                 if checked
