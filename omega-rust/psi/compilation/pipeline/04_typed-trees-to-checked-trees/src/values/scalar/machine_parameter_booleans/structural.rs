@@ -7,16 +7,13 @@
 use super::structural_equality;
 use super::structural_paths::{path_primitive_type, path_type_reference};
 use crate::values::scalar::boolean_lowering::construct_integer_comparison;
-use crate::values::scalar::expression_facts::{
-    checked_integer_binary_kind, combine_arithmetic_domains, is_integer, operator_is_builtin,
-    parameter_position, scalar_expression_type,
-};
+use crate::values::scalar::expression_facts::{operator_is_builtin, scalar_expression_type};
+use crate::values::scalar::scalar_lowering::lower_scalar_operands;
 use crate::values::scalar::structural_fields::{structural_data, structural_parameter_field_path};
 use checked_trees::{
-    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedIntegerBinaryKind,
-    CheckedOperatorFacts, CheckedScalarExpression, CheckedStructuralParameterField,
+    CheckedBooleanExpression, CheckedIeeeFloatComparisonKind, CheckedOperatorFacts,
+    CheckedStructuralParameterField,
 };
-use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
@@ -157,18 +154,36 @@ pub(super) fn lower(
                 return Some(comparison);
             }
             let integer_comparison = (|| {
-                let (left, _) = lower_structural_integer_expression(
+                // Structural reads and scalar operations share operand landing
+                // and arithmetic policy. Keep the dense scalar roster separate
+                // from authored structural positions; entry admission and
+                // independent source replay still validate the resulting reads.
+                let scalar_parameters: Vec<_> = parameters
+                    .iter()
+                    .filter(|parameter| {
+                        crate::values::scalar::occupies_scalar_position(program, parameter)
+                    })
+                    .cloned()
+                    .collect();
+                let parameter_types = scalar_parameters
+                    .iter()
+                    .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+                    .collect::<Option<Vec<_>>>()?;
+                let ((left, _), (right, _)) = lower_scalar_operands(
                     program,
                     operators,
+                    binary,
+                    &scalar_parameters,
                     parameters,
-                    binary.left,
+                    &parameter_types,
+                    &[],
+                    &[],
                 )?;
-                let (right, _) = lower_structural_integer_expression(
-                    program,
-                    operators,
-                    parameters,
-                    binary.right,
-                )?;
+                if scalar_expression_type(&left) == Some(PrimitiveType::Addr)
+                    || scalar_expression_type(&right) == Some(PrimitiveType::Addr)
+                {
+                    return None;
+                }
                 construct_integer_comparison(binary.operator, left, right)
             })();
             if !matches!(
@@ -211,213 +226,6 @@ pub(super) fn lower(
             } else {
                 CheckedBooleanExpression::Or { left, right }
             })
-        }
-        _ => None,
-    }
-}
-
-fn lower_structural_integer_expression(
-    program: &TypedTrees,
-    operators: &CheckedOperatorFacts,
-    parameters: &[StateParameter],
-    expression: ExpressionHandle,
-) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
-    // Entry predicates and executable expressions observe the same extent.
-    // The shared reader distinguishes type-owned fixed bounds from stored live
-    // lengths and validates the parameter/member path before either is used.
-    if let Some(length) =
-        super::super::structural_fields::structural_sequence_length(program, parameters, expression)
-    {
-        return Some((length, ArithmeticDomain::Exact));
-    }
-    let mut path = Vec::new();
-    if let Some(parameter_position) =
-        structural_parameter_field_path(program, parameters, expression, &mut path)
-        && !path.is_empty()
-        && let Some(type_reference) =
-            path_type_reference(program, parameters, parameter_position, &path)
-        && let Some(primitive_type) = program.primitive_type_reference(type_reference)
-        && is_integer(primitive_type)
-        && primitive_type != PrimitiveType::Addr
-    {
-        return Some((
-            CheckedScalarExpression::StructuralParameterField {
-                parameter_position,
-                path,
-                primitive_type,
-            },
-            program.arithmetic_domain_for_type_reference(type_reference),
-        ));
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(name) => {
-            let source_position = parameter_position(program, name, parameters)?;
-            let parameter = parameters.get(source_position)?;
-            // An erased binding has no scalar position to read.
-            if parameter.relevance.is_erased() {
-                return None;
-            }
-            let primitive_type = program.primitive_type_reference(parameter.type_reference)?;
-            if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
-                return None;
-            }
-            // Scalar values use the dense primitive namespace, while
-            // structural member roots above retain authored positions.
-            let position = parameters[..source_position]
-                .iter()
-                .filter(|parameter| {
-                    crate::values::scalar::occupies_scalar_position(program, parameter)
-                })
-                .count();
-            Some((
-                CheckedScalarExpression::Parameter {
-                    position,
-                    primitive_type,
-                },
-                program.arithmetic_domain_for_type_reference(parameter.type_reference),
-            ))
-        }
-        ExpressionNode::Integer(literal) => Some((
-            CheckedScalarExpression::IntegerLiteral {
-                literal: literal.clone(),
-            },
-            literal
-                .landing()
-                .map(|landing| landing.domain)
-                .unwrap_or(ArithmeticDomain::Exact),
-        )),
-        ExpressionNode::Unary(unary)
-            if unary.operator == UnaryOperator::BitwiseNot
-                && operator_is_builtin(operators, expression) =>
-        {
-            let (operand, domain) =
-                lower_structural_integer_expression(program, operators, parameters, unary.operand)?;
-            let primitive_type = scalar_expression_type(&operand)?;
-            (is_integer(primitive_type) && primitive_type != PrimitiveType::Addr).then_some((
-                CheckedScalarExpression::IntegerBitwiseNot {
-                    primitive_type,
-                    operand: Box::new(operand),
-                },
-                domain,
-            ))
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
-            ) && operator_is_builtin(operators, expression) =>
-        {
-            let (left, left_domain) =
-                lower_structural_integer_expression(program, operators, parameters, binary.left)?;
-            let (right, right_domain) =
-                lower_structural_integer_expression(program, operators, parameters, binary.right)?;
-            let primitive_type = scalar_expression_type(&left)?;
-            let domain = combine_arithmetic_domains(left_domain, right_domain)?;
-            let kind = match binary.operator {
-                BinaryOperator::BitwiseAnd => CheckedIntegerBinaryKind::BitwiseAnd,
-                BinaryOperator::BitwiseOr => CheckedIntegerBinaryKind::BitwiseOr,
-                BinaryOperator::BitwiseXor => CheckedIntegerBinaryKind::BitwiseXor,
-                _ => unreachable!("guarded structural bitwise operator"),
-            };
-            (is_integer(primitive_type)
-                && primitive_type != PrimitiveType::Addr
-                && scalar_expression_type(&right) == Some(primitive_type))
-            .then_some((
-                CheckedScalarExpression::IntegerBinary {
-                    kind,
-                    primitive_type,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                domain,
-            ))
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Add
-                    | BinaryOperator::Subtract
-                    | BinaryOperator::Multiply
-                    | BinaryOperator::Divide
-                    | BinaryOperator::Modulo
-            ) && operator_is_builtin(operators, expression) =>
-        {
-            let (left, left_domain) =
-                lower_structural_integer_expression(program, operators, parameters, binary.left)?;
-            let (right, right_domain) =
-                lower_structural_integer_expression(program, operators, parameters, binary.right)?;
-            let primitive_type = scalar_expression_type(&left)?;
-            let domain = combine_arithmetic_domains(left_domain, right_domain)?;
-            let kind = checked_integer_binary_kind(binary.operator, domain)?;
-            let supported = matches!(
-                kind,
-                CheckedIntegerBinaryKind::ExactAdd
-                    | CheckedIntegerBinaryKind::ExactSubtract
-                    | CheckedIntegerBinaryKind::ExactMultiply
-                    | CheckedIntegerBinaryKind::ExactDivide
-                    | CheckedIntegerBinaryKind::ExactRemainder
-            ) || (primitive_type != PrimitiveType::Addr
-                && matches!(
-                    kind,
-                    CheckedIntegerBinaryKind::WrappingAdd
-                        | CheckedIntegerBinaryKind::SaturatingAdd
-                        | CheckedIntegerBinaryKind::WrappingSubtract
-                        | CheckedIntegerBinaryKind::SaturatingSubtract
-                        | CheckedIntegerBinaryKind::WrappingMultiply
-                        | CheckedIntegerBinaryKind::SaturatingMultiply
-                        | CheckedIntegerBinaryKind::WrappingDivide
-                        | CheckedIntegerBinaryKind::SaturatingDivide
-                        | CheckedIntegerBinaryKind::WrappingRemainder
-                        | CheckedIntegerBinaryKind::SaturatingRemainder
-                ));
-            (supported
-                && is_integer(primitive_type)
-                && scalar_expression_type(&right) == Some(primitive_type))
-            .then_some((
-                CheckedScalarExpression::IntegerBinary {
-                    kind,
-                    primitive_type,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                domain,
-            ))
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
-            ) && operator_is_builtin(operators, expression) =>
-        {
-            let (left, left_domain) =
-                lower_structural_integer_expression(program, operators, parameters, binary.left)?;
-            let (right, _) =
-                lower_structural_integer_expression(program, operators, parameters, binary.right)?;
-            let primitive_type = scalar_expression_type(&left)?;
-            let right_type = scalar_expression_type(&right)?;
-            let kind = checked_integer_binary_kind(binary.operator, left_domain)?;
-            (primitive_type != PrimitiveType::Addr
-                && right_type != PrimitiveType::Addr
-                && is_integer(primitive_type)
-                && is_integer(right_type)
-                && matches!(
-                    kind,
-                    CheckedIntegerBinaryKind::WrappingShiftLeft
-                        | CheckedIntegerBinaryKind::WrappingShiftRight
-                        | CheckedIntegerBinaryKind::ExactShiftLeft
-                        | CheckedIntegerBinaryKind::ExactShiftRight
-                        | CheckedIntegerBinaryKind::SaturatingShiftLeft
-                        | CheckedIntegerBinaryKind::SaturatingShiftRight
-                ))
-            .then_some((
-                CheckedScalarExpression::IntegerBinary {
-                    kind,
-                    primitive_type,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                left_domain,
-            ))
         }
         _ => None,
     }

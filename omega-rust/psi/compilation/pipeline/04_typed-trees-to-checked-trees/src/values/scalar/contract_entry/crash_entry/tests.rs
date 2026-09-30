@@ -11,6 +11,40 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[test]
+fn entry_requirements_compose_structural_arithmetic_and_literal_operands() {
+    for (predicate, operation) in [
+        (
+            "self.length - 1 < self.items.len",
+            checked_trees::CheckedIntegerBinaryKind::WrappingSubtract,
+        ),
+        (
+            "(3 - 2) + self.length < self.items.len",
+            checked_trees::CheckedIntegerBinaryKind::WrappingAdd,
+        ),
+    ] {
+        let checked = crate::tests::front_end::checked_program(&format!(
+            "data Buffer {{ items: [i32; 4]; length: u64 in Wrapping; }}
+         machine Buffer::inspect(&self) -> i32
+         requires self.length > 0; {predicate} {{ 0 }}"
+        ));
+        let machine = &checked.machines()[0];
+        let requirements = checked
+            .facts
+            .contract_plans
+            .for_machine(machine.symbol)
+            .and_then(|plan| plan.crash.structural_runtime_requirements())
+            .expect("structural arithmetic retains every authored requirement");
+        assert_eq!(requirements.len(), 2);
+        assert!(
+            matches!(&requirements[1], CheckedBooleanExpression::IntegerComparison { left, .. }
+        if matches!(left.as_ref(), checked_trees::CheckedScalarExpression::IntegerBinary {
+            kind, ..
+        } if *kind == operation))
+        );
+    }
+}
+
+#[test]
 fn entry_requirements_retain_type_owned_collection_extents() {
     let checked = crate::tests::front_end::checked_program(
         "data Buffer { items: [i32; 4]; }
