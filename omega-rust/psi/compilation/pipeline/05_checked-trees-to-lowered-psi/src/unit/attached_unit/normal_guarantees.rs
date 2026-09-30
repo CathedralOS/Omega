@@ -23,11 +23,6 @@ pub(super) fn lower(
 ) -> Result<Vec<ContractClause>, LoweringError> {
     let (source, source_state) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
-    if result.is_some() {
-        scalar_contracts::validate_guarantees(checked, source, source_state)?;
-    } else {
-        scalar_contracts::validate_post_state_guarantees(checked, source, source_state)?;
-    }
     let contract = checked
         .facts
         .contract_plans
@@ -35,21 +30,28 @@ pub(super) fn lower(
         .ok_or(LoweringError::Unsupported(
             "normal return has no checked contract",
         ))?;
+    // A scalar result publishes its whole refined contract; a Unit or
+    // structural result publishes only the rows its post-state validation
+    // accepted, leaving memberships and evidence lanes to their owners.
     let refined;
-    let plan = if result.is_some() {
+    let post_state;
+    let ensures = if result.is_some() {
+        scalar_contracts::validate_guarantees(checked, source, source_state)?;
         refined = scalar_contracts::with_result_range(
             checked,
             state,
             parameters.len(),
             &contract.closed_scalar_values,
         )?;
-        &refined
+        refined.ensures()
     } else {
-        &contract.closed_scalar_values
+        post_state =
+            scalar_contracts::validate_post_state_guarantees(checked, source, source_state)?;
+        &post_state[..]
     };
     let mut namespace = parameters.to_vec();
     namespace.extend(result);
-    scalar_contracts::clauses(plan.ensures(), &namespace, erased, views)?
+    scalar_contracts::clauses(ensures, &namespace, erased, views)?
         .into_iter()
         .map(|proposition| {
             Ok(ContractClause {
@@ -80,6 +82,44 @@ mod tests {
             "transition { _ -> reset() }
              state reset(&mut self) { self.length = 0; }",
         );
+    }
+
+    /// A structural result's domain membership belongs to its qualification
+    /// owner, not the closed scalar contract. Post-state publication skips
+    /// that clause and still publishes the scalar field guarantee beside it.
+    #[test]
+    fn structural_result_membership_stays_with_its_owner_beside_a_post_state_bound() {
+        let checked = crate::front_end::checked_program(
+            "pub data Folder { depth: u32; }
+             pub domain Folder::Writable established by Picker::pick;
+             data Picker { items: [i32; 4]; length: u64 in Wrapping; }
+             machine Picker::pick(&mut self) -> Folder
+             ensures result in Folder::Writable
+             ensures self.length < self.items.len
+             {
+                 self.length = 0;
+                 Folder { depth: 1 }
+             }
+             data Main { picker: Picker; }
+             machine Main::main(&mut self) {
+                 let folder: Folder = self.picker.pick();
+             }",
+        );
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+            .expect("a structural result with a membership guarantee lowers");
+        let published = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .map(|machine| machine.contract.ensures.len())
+            .sum::<usize>();
+        assert_eq!(published, 1, "only the scalar post-state bound publishes");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .unwrap();
     }
 
     fn verify_post_state(clear_body: &str) {
