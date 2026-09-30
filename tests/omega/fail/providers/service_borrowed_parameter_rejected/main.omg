@@ -1,8 +1,0 @@
-use omega::language::core::binding;
-
-pub boundary trait Ping { machine ping(); }
-
-data Harness { }
-machine Harness::run(service: &Binding<Ping>) {
-    service.ping();
-}

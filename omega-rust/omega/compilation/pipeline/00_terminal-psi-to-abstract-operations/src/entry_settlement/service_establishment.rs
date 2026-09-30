@@ -9,6 +9,9 @@ pub(super) fn validate_terminal_rows(
 ) -> Result<(), NativeProgramEntrySettlementError> {
     let rows = settlement.fused_service_establishments();
     if rows.is_empty() {
+        if eligibility.is_some_and(|eligible| !eligible.fused_service_fields().is_empty()) {
+            return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+        }
         return Ok(());
     }
     let Some(receiver_identity) = settlement.source().receiver().normalized_type_identity() else {
@@ -101,10 +104,10 @@ pub(super) fn validate_terminal_rows(
                 return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
             };
             if index + 1 == row.field_path().len() {
-                if !matches!(
-                    &field.field_type,
-                    terminal_psi::StructuralFieldType::Erased { type_identity }
-                        if type_identity == row.carrier_type_identity()
+                if !terminal_semantics::fused_service_field_matches(
+                    &module.structural_types,
+                    field,
+                    row.carrier_type_identity(),
                 ) {
                     return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
                 }

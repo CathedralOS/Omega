@@ -970,10 +970,13 @@ impl<'program> ShapeCollector<'program> {
                 })
                 .into_string();
             match fused_service_erasure {
-                Some(erasure) => CheckedUnitStructuralFieldType::FusedServiceBacked {
-                    provider_type_identity,
-                    erasure,
-                },
+                Some(erasure) => {
+                    self.add_fused_service_carrier_type(provider_node, binders)?;
+                    CheckedUnitStructuralFieldType::FusedServiceBacked {
+                        provider_type_identity,
+                        erasure,
+                    }
+                }
                 None => CheckedUnitStructuralFieldType::ProviderBacked {
                     provider_type_identity,
                 },
@@ -1046,53 +1049,63 @@ impl<'program> ShapeCollector<'program> {
         })
     }
 
-    /// Admit the first parameter-only Fused Binding carrier without widening
-    /// ordinary structural shape collection to boundary-opaque data. The
-    /// inserted empty record is a compiler-owned erased ABI shape; the exact
-    /// typed carrier and selection authority remain in the adjacent receipt.
-    pub(in crate::execution::terminal_unit) fn add_fused_service_parameter_type(
+    /// Register the semantic binding independently from its occurrence receipt.
+    /// Keeping a nonconstructible type lets fields and parameters share ordinary
+    /// loan paths without turning zero-sized layout into establishment authority.
+    fn add_fused_service_carrier_type(
         &mut self,
         type_reference: TypeReferenceHandle,
-        source_parameter: SymbolHandle,
         binders: &[(SymbolHandle, String)],
-    ) -> Option<(String, checked_trees::CheckedFusedServiceParameterReceipt)> {
+    ) -> Option<String> {
         let carrier = typed_trees::service::classify_exact_bound_service_carrier(
             self.program,
             type_reference,
         )
         .ok()??;
         self.program.fused_service_erasure(carrier.requirement)?;
-        if !source_parameter.is_valid() {
-            return None;
-        }
-
-        let mut base_type = type_reference;
-        while let TypeReferenceNode::Constrained {
-            base_type: unconstrained,
-            ..
-        } = self.program.type_reference_table.type_reference(base_type)
-        {
-            base_type = *unconstrained;
-        }
-        let type_identity = self
+        let identity = self
             .program
             .type_identity(TypeIdentityRequest {
                 binders,
-                ..TypeIdentityRequest::ordinary(base_type)
+                ..TypeIdentityRequest::ordinary(type_reference)
             })
             .into_string();
         let plan = CheckedUnitStructuralTypePlan {
-            identity: type_identity.clone(),
-            shape: CheckedUnitStructuralTypeShape::Record { fields: Vec::new() },
+            identity: identity.clone(),
+            shape: CheckedUnitStructuralTypeShape::FusedServiceBinding,
         };
         if self
             .types
-            .get(&type_identity)
+            .get(&identity)
             .is_some_and(|existing| existing != &plan)
         {
             return None;
         }
-        self.types.insert(type_identity.clone(), plan);
+        self.types.insert(identity.clone(), plan);
+        Some(identity)
+    }
+
+    /// Retain the exact source parameter, including any borrow shell, beside
+    /// its zero-payload semantic carrier. The receipt grants no new binding.
+    pub(in crate::execution::terminal_unit) fn add_fused_service_parameter_type(
+        &mut self,
+        type_reference: TypeReferenceHandle,
+        source_parameter: SymbolHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<(String, checked_trees::CheckedFusedServiceParameterReceipt)> {
+        let parameter_carrier = typed_trees::service::classify_exact_service_parameter_carrier(
+            self.program,
+            type_reference,
+        )
+        .ok()??;
+        let carrier = parameter_carrier.carrier;
+        self.program.fused_service_erasure(carrier.requirement)?;
+        if !source_parameter.is_valid() {
+            return None;
+        }
+
+        let type_identity =
+            self.add_fused_service_carrier_type(parameter_carrier.carrier_type, binders)?;
 
         Some((
             type_identity,
@@ -1139,12 +1152,16 @@ impl<'program> ShapeCollector<'program> {
                     ) => {
                         retained.extend(self.byte_view_elements.iter().cloned());
                     }
-                    CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+                    CheckedUnitStructuralTypeShape::FusedServiceBinding
+                    | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
                     | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
                     CheckedUnitStructuralTypeShape::Record { fields } => {
                         for field in fields {
-                            if let CheckedUnitStructuralFieldType::Structural { type_identity } =
-                                &field.field_type
+                            if let CheckedUnitStructuralFieldType::Structural { type_identity }
+                            | CheckedUnitStructuralFieldType::FusedServiceBacked {
+                                provider_type_identity: type_identity,
+                                ..
+                            } = &field.field_type
                             {
                                 retained.insert(type_identity.clone());
                             }
@@ -1161,8 +1178,11 @@ impl<'program> ShapeCollector<'program> {
                     }
                     CheckedUnitStructuralTypeShape::Sum { cases } => {
                         for field in cases.iter().flat_map(|case| &case.fields) {
-                            if let CheckedUnitStructuralFieldType::Structural { type_identity } =
-                                &field.field_type
+                            if let CheckedUnitStructuralFieldType::Structural { type_identity }
+                            | CheckedUnitStructuralFieldType::FusedServiceBacked {
+                                provider_type_identity: type_identity,
+                                ..
+                            } = &field.field_type
                             {
                                 retained.insert(type_identity.clone());
                             }
@@ -1173,8 +1193,11 @@ impl<'program> ShapeCollector<'program> {
                             .iter()
                             .chain(cases.iter().flat_map(|case| &case.fields))
                         {
-                            if let CheckedUnitStructuralFieldType::Structural { type_identity } =
-                                &field.field_type
+                            if let CheckedUnitStructuralFieldType::Structural { type_identity }
+                            | CheckedUnitStructuralFieldType::FusedServiceBacked {
+                                provider_type_identity: type_identity,
+                                ..
+                            } = &field.field_type
                             {
                                 retained.insert(type_identity.clone());
                             }

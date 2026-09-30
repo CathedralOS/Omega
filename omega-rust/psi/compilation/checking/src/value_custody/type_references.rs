@@ -154,6 +154,17 @@ impl TypeReferenceOwner<'_> {
         )
     }
 
+    fn allows_borrowed_routed_service_carrier(&self) -> bool {
+        matches!(
+            self,
+            Self::StateParameter {
+                owner: StateSignatureOwner::Machine(_),
+                generic_depth: 0,
+                ..
+            }
+        )
+    }
+
     /// `Self` is a legal type name inside TRAIT machine signatures
     /// (`machine equals(&self, other: &Self) -> bool;`): it denotes the
     /// conforming type, substituted per conformance.
@@ -440,10 +451,10 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
 }
 
 /// Find routed Binding carriers recursively rather than relying on the outer
-/// type shell. The first executable rung permits only a direct data field or
-/// direct concrete-machine parameter; references, aggregate/generic nesting,
-/// locals, returns, traits, requirements, and operators remain explicit
-/// implementation fences.
+/// type shell. Concrete-machine parameters may own or borrow one exact
+/// carrier. Borrowing preserves its identity; it does not establish another
+/// binding. Aggregate/generic nesting, reference fields, locals, returns,
+/// traits, requirements, and operators retain their implementation fences.
 fn validate_routed_service_carrier_placement(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
@@ -470,8 +481,25 @@ fn validate_routed_service_carrier_placement(
     }
 
     match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference { referee, .. } => {
-            validate_routed_service_carrier_placement(program, *referee, owner, false, diagnostics);
+        TypeReferenceNode::Reference {
+            access, referee, ..
+        } => {
+            let direct_borrow = direct
+                && owner.allows_borrowed_routed_service_carrier()
+                && matches!(
+                    access,
+                    language_semantics::ReferenceAccess::Shared
+                        | language_semantics::ReferenceAccess::Mutable
+                )
+                && typed_trees::service::classify_exact_bound_service_carrier(program, *referee)
+                    .is_ok_and(|carrier| carrier.is_some());
+            validate_routed_service_carrier_placement(
+                program,
+                *referee,
+                owner,
+                direct_borrow,
+                diagnostics,
+            );
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             validate_routed_service_carrier_placement(
@@ -506,7 +534,21 @@ fn validate_routed_service_carrier_placement(
                 );
             }
         }
-        TypeReferenceNode::Named { symbol, .. } => {
+        TypeReferenceNode::Named { symbol, name } => {
+            // A boundary names a requirement, never the value or reference
+            // that supplies it. Keep formal checking on the actual Binding
+            // carrier instead of letting a bare-trait reference skip custody.
+            if owner.allows_borrowed_routed_service_carrier()
+                && program
+                    .traits()
+                    .iter()
+                    .any(|definition| definition.symbol == *symbol && definition.is_boundary)
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{owner} uses boundary trait `{name}` as a value type; use `Binding<{name}>` or a borrow of that carrier"
+                )));
+                return;
+            }
             if let Some(origin) =
                 crate::program_scope::data_definitions::data_definition_by_symbol(program, *symbol)
                     .and_then(|definition| definition.generic_instance)

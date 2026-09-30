@@ -15,6 +15,157 @@ machine read(clock: &mut Clock) reaches Host {
 "#;
 
 #[test]
+fn borrowed_binding_parameter_keeps_exact_service_custody() {
+    for access in ["&", "&mut "] {
+        let checked = checked_with_service(&format!(
+            r#"
+pub boundary trait Host {{ machine mark(value: u64); }}
+machine report(host: {access}Binding<Host>, value: u64) reaches Host {{
+    host.mark(value);
+}}
+"#,
+        ));
+        let machine = machine_named(&checked, "report");
+        let plans = &checked.facts.flow.terminal_unit_effects;
+        let plan = plans.for_machine(machine).unwrap_or_else(|| {
+            panic!(
+                "borrowed binding lost: {:?}",
+                plans.omission_for_machine(machine)
+            )
+        });
+        let [parameter] = plan.structural_parameters.as_slice() else {
+            panic!("one borrowed binding parameter must survive");
+        };
+        assert_eq!(
+            parameter.access,
+            if access == "&" {
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+            } else {
+                checked_trees::CheckedStructuralAccess::MutableBorrow
+            }
+        );
+        assert!(parameter.fused_service_erasure.is_some());
+        assert_eq!(
+            plan.operations
+                .iter()
+                .filter(|operation| operation.call().is_some())
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn borrowed_binding_state_parameters_keep_service_and_byte_view_custody() {
+    let checked = checked_with_service(
+        r#"
+pub boundary trait Host { machine emit(bytes: &[u8]); }
+machine report(host: &mut Binding<Host>, bytes: &[u8], enabled: bool) reaches Host {
+    transition enabled {
+        true -> output(host, bytes)
+        false -> done(host)
+    }
+    state output(host: &mut Binding<Host>, bytes: &[u8]) {
+        host.emit(bytes);
+    }
+    state done(host: &mut Binding<Host>) {}
+}
+"#,
+    );
+    let machine = machine_named(&checked, "report");
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plan = plans
+        .composed_machines
+        .iter()
+        .find(|plan| plan.machine == machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "borrowed service state graph lost: {:?}",
+                plans.omission_for_machine(machine)
+            )
+        });
+    assert_eq!(plan.states.len(), 3);
+    for state in &plan.states {
+        let parameter = &state.structural_parameters[0];
+        assert_eq!(
+            parameter.access,
+            checked_trees::CheckedStructuralAccess::MutableBorrow
+        );
+        assert!(parameter.fused_service_erasure.is_some());
+    }
+}
+
+#[test]
+fn borrowed_binding_field_keeps_original_place_across_repeated_calls() {
+    let checked = checked_with_service(
+        r#"
+pub boundary trait Host { machine mark(value: u64); }
+pub data Context { host: Binding<Host>; }
+pub data Unrelated { host: Binding<Host>; }
+machine report(host: &mut Binding<Host>, value: u64) reaches Host { host.mark(value); }
+machine relay(context: &mut Context) reaches Host {
+    report(&mut context.host, 1);
+    report(&mut context.host, 2);
+}
+"#,
+    );
+    let machine = machine_named(&checked, "relay");
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plan = plans.for_machine(machine).unwrap_or_else(|| {
+        panic!(
+            "binding field loan lost: {:?}",
+            plans.omission_for_machine(machine)
+        )
+    });
+    let calls = plan
+        .operations
+        .iter()
+        .filter_map(|operation| operation.call())
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 2);
+    for call in calls {
+        let [argument] = call.structural_arguments.as_slice() else {
+            panic!("one existing binding field is lent");
+        };
+        assert_eq!(argument.source_parameter_index(), Some(0));
+        assert_eq!(
+            argument.access,
+            checked_trees::CheckedStructuralAccess::MutableBorrow
+        );
+        assert!(matches!(
+            argument.path.as_slice(),
+            [checked_trees::CheckedUnitStructuralPathSegment::Field(_)]
+        ));
+    }
+    assert!(
+        plan.operations
+            .iter()
+            .all(|operation| operation.call().is_some()
+                || matches!(
+                    operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::Complete { .. }
+                ))
+    );
+}
+
+#[test]
+fn bare_boundary_trait_parameter_cannot_stand_in_for_a_binding() {
+    for access in ["", "&", "&mut "] {
+        let typed = crate::tests::front_end::typed_program_with_core_service(&format!(
+            "pub boundary trait Host {{ machine mark(value: u64); }}
+             machine report(host: {access}Host) {{}}"
+        ));
+        let diagnostics = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+            .expect_err("a bare boundary requirement is not a service value");
+        assert!(diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("uses boundary trait `Host` as a value type")
+        }));
+    }
+}
+
+#[test]
 fn binding_field_of_explicit_parameter_keeps_boundary_calls() {
     assert_boundary_calls_retained(SOURCE);
 }

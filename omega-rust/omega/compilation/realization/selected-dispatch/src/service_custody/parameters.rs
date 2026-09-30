@@ -1,4 +1,6 @@
-//! Exact custody for the first direct owned routed-Service parameter rung.
+//! Exact Binding parameter custody across ordinary calls and composed states.
+//! Receipts retain the authored reference shell even though structural storage
+//! names its affine referent. Provider erasure never replaces loan checking.
 
 use checked_trees::{
     CheckedStructuralScalarParameterPlan, CheckedTrees, CheckedUnitCallResult,
@@ -9,6 +11,37 @@ use provider_planning::CompositionMode;
 use provider_planning::SelectedProviderReviewProvenance;
 
 mod forwarding;
+
+struct UnitState<'a> {
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    structural_parameters: &'a [CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &'a [CheckedStructuralScalarParameterPlan],
+    operations: Vec<&'a CheckedUnitEffectOperationPlan>,
+}
+
+fn unit_states(checked: &CheckedTrees) -> impl Iterator<Item = UnitState<'_>> {
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    plans
+        .machines
+        .iter()
+        .map(|plan| UnitState {
+            machine: plan.machine,
+            state: plan.state,
+            structural_parameters: &plan.structural_parameters,
+            scalar_parameters: &plan.scalar_parameters,
+            operations: plan.operations.iter().collect(),
+        })
+        .chain(plans.composed_machines.iter().flat_map(|machine| {
+            machine.states.iter().map(move |state| UnitState {
+                machine: machine.machine,
+                state: state.state,
+                structural_parameters: &state.structural_parameters,
+                scalar_parameters: &state.scalar_parameters,
+                operations: state.operation_dependencies().collect(),
+            })
+        }))
+}
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -24,7 +57,7 @@ fn validate_unit_machines(
     selected: &[SelectedProviderReviewProvenance],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for plan in &checked.facts.flow.terminal_unit_effects.machines {
+    for plan in unit_states(checked) {
         let typed_machines = checked
             .machines()
             .iter()
@@ -98,10 +131,8 @@ fn validate_unit_machines(
         }
 
         for (position, source_parameter) in source_parameters.iter().enumerate() {
-            let classification = typed_trees::service::classify_exact_bound_service_carrier(
-                checked,
-                source_parameter.type_reference,
-            );
+            let classification =
+                checked.bound_service_parameter_carrier(source_parameter.type_reference);
             let Ok(Some(carrier)) = classification else {
                 if let Err(reason) = classification {
                     diagnostics.push(Diagnostic::error(format!(
@@ -153,15 +184,15 @@ fn validate_unit_machines(
                 state,
                 source_parameter,
                 position,
-                carrier.requirement,
+                &carrier,
                 checked_parameter,
                 receipt,
-                plan,
+                &plan,
                 diagnostics,
             );
         }
 
-        for checked_parameter in &plan.structural_parameters {
+        for checked_parameter in plan.structural_parameters {
             let Some(receipt) = &checked_parameter.fused_service_erasure else {
                 continue;
             };
@@ -170,10 +201,11 @@ fn validate_unit_machines(
                 .filter(|parameter| parameter.symbol == receipt.source_parameter)
                 .into_iter()
                 .filter(|parameter| {
-                    typed_trees::service::exact_bound_service_requirement(
-                        checked,
-                        parameter.type_reference,
-                    ) == Some(receipt.requirement)
+                    checked
+                        .bound_service_parameter_carrier(parameter.type_reference)
+                        .ok()
+                        .flatten()
+                        .is_some_and(|carrier| carrier.requirement == receipt.requirement)
                 })
                 .count();
             if source_matches != 1 {
@@ -186,7 +218,6 @@ fn validate_unit_machines(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn validate_receipt(
     checked: &CheckedTrees,
     selected: &[SelectedProviderReviewProvenance],
@@ -194,23 +225,30 @@ fn validate_receipt(
     state: &typed_trees::state::State,
     source: &typed_trees::signature::StateParameter,
     position: usize,
-    requirement: symbols::SymbolHandle,
+    carrier: &checked_trees::CheckedServiceParameterCarrier,
     parameter: &CheckedUnitStructuralParameterPlan,
     receipt: &checked_trees::CheckedFusedServiceParameterReceipt,
-    plan: &checked_trees::CheckedUnitEffectMachinePlan,
+    plan: &UnitState<'_>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let label = format!("{}::{}", machine.name, source.name);
+    let requirement = carrier.requirement;
+    let expected_multiplicity = if carrier.access == checked_trees::CheckedStructuralAccess::Owned {
+        language_semantics::Multiplicity::Affine
+    } else {
+        language_semantics::Multiplicity::Unrestricted
+    };
     if source.is_self
         || source.is_const
         || source.is_mutable
+            != (carrier.access == checked_trees::CheckedStructuralAccess::MutableBorrow)
         || parameter.is_self
-        || parameter.multiplicity != language_semantics::Multiplicity::Affine
-        || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+        || parameter.multiplicity != expected_multiplicity
+        || parameter.access != carrier.access
         || usize::try_from(parameter.position).ok() != Some(position)
     {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service parameter `{label}` is not the exact direct owned affine source parameter",
+            "checked routed Service parameter `{label}` substituted its source access or multiplicity",
         )));
         return;
     }
@@ -220,20 +258,17 @@ fn validate_receipt(
         )));
         return;
     }
-    let source_carrier_identity = checked
-        .normalized_type_identity(source.type_reference)
-        .into_string();
-    if receipt.carrier_type_identity != source_carrier_identity {
+    if receipt.carrier_type_identity != carrier.carrier_type_identity {
         diagnostics.push(Diagnostic::error(format!(
             "checked routed Service parameter `{label}` substituted its normalized carrier identity",
         )));
         return;
     }
-    let (base_identity, mut source_qualifications) =
-        base_and_qualifications(checked, source.type_reference);
+    let mut source_qualifications = carrier.qualifications.clone();
     source_qualifications.sort_by_key(|domain| domain.0);
     source_qualifications.dedup();
-    if parameter.type_identity != base_identity || parameter.qualifications != source_qualifications
+    if parameter.type_identity != carrier.base_type_identity
+        || parameter.qualifications != source_qualifications
     {
         diagnostics.push(Diagnostic::error(format!(
             "checked routed Service parameter `{label}` substituted its structural base or authored qualification",
@@ -316,14 +351,10 @@ fn validate_receipt(
         })
         .map(|call| (call.statement_index, call.call_ordinal, call.target_symbol))
         .collect::<Vec<_>>();
-    if calls.is_empty() {
-        if let Err(reason) = forwarding::validate(checked, machine, state, parameter, receipt, plan)
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "checked routed Service parameter `{label}` is neither an exact direct-call route nor one exact whole-root forwarding hop: {reason}",
-            )));
-        }
-        return;
+    if let Err(reason) = forwarding::validate(checked, parameter, receipt, plan) {
+        diagnostics.push(Diagnostic::error(format!(
+            "checked routed Service parameter `{label}` lost its exact forwarding custody: {reason}",
+        )));
     }
     let operations = plan
         .operations
@@ -344,6 +375,23 @@ fn validate_receipt(
                 return None;
             }
             let coordinate = call.coordinate;
+            if !checked
+                .facts
+                .flow
+                .control
+                .calls
+                .span_or_empty(flow_state.calls)
+                .iter()
+                .any(|source_call| {
+                    source_call.receiver_symbol == source.symbol
+                        && source_call.has_receiver
+                        && source_call.statement_index == coordinate.statement_index as usize
+                        && source_call.call_ordinal == coordinate.call_ordinal as usize
+                        && source_call.target_symbol == target_state
+                })
+            {
+                return None;
+            }
             Some((
                 usize::try_from(coordinate.statement_index).ok()?,
                 usize::try_from(coordinate.call_ordinal).ok()?,
@@ -360,44 +408,12 @@ fn validate_receipt(
     }
 }
 
-fn base_and_qualifications(
-    checked: &CheckedTrees,
-    mut type_reference: typed_trees::types::TypeReferenceHandle,
-) -> (String, Vec<language_semantics::SemanticDomainId>) {
-    let mut qualifications = Vec::new();
-    while let typed_trees::types::TypeReferenceNode::Constrained {
-        base_type,
-        constraints,
-    } = checked.type_reference_table.type_reference(type_reference)
-    {
-        qualifications.extend(
-            checked
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .filter_map(|constraint| match constraint {
-                    typed_trees::types::TypeConstraintNode::Domain(domain) => {
-                        Some(domain.semantic_id)
-                    }
-                    _ => None,
-                }),
-        );
-        type_reference = *base_type;
-    }
-    (
-        checked
-            .normalized_type_identity(type_reference)
-            .into_string(),
-        qualifications,
-    )
-}
-
 fn reject_unsupported_receipts(checked: &CheckedTrees, diagnostics: &mut Vec<Diagnostic>) {
     let mut reject = |family: &str, parameters: &[CheckedUnitStructuralParameterPlan]| {
         for parameter in parameters {
             if parameter.fused_service_erasure.is_some() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "checked {family} fabricates a fused Service parameter receipt outside the first direct Unit-machine rung",
+                    "checked {family} fabricates a fused Service parameter receipt outside admitted Unit state plans",
                 )));
             }
         }
@@ -405,11 +421,6 @@ fn reject_unsupported_receipts(checked: &CheckedTrees, diagnostics: &mut Vec<Dia
     let flow = &checked.facts.flow;
     for plan in &flow.terminal_unit_effects.boundary_machines {
         reject("boundary machine", &plan.structural_parameters);
-    }
-    for machine in &flow.terminal_unit_effects.composed_machines {
-        for state in &machine.states {
-            reject("composed Unit state", &state.structural_parameters);
-        }
     }
     for plan in &flow.terminal_partial_affine_unit_cleanups.machines {
         reject(

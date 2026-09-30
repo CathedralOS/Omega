@@ -18,6 +18,59 @@ fn frame(program: &TypedTrees) -> NormalizedWriteFrame {
     frames.into_iter().next().unwrap()
 }
 
+fn binding_program(source: &str) -> TypedTrees {
+    let binding = "pub boundary data Binding<Requirement>;";
+    let mut sources = source::SourceMap::default();
+    let binding_id = sources
+        .add_with_metadata(
+            "source/library/core/binding.omg".into(),
+            binding.to_owned(),
+            "source/library/core".into(),
+            None,
+            source::SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let source_id = sources
+        .add("tests/main.omg".into(), source.to_owned())
+        .source_id;
+    crate::front_end::typed_program_from_source_map(
+        sources,
+        &[(binding_id, binding), (source_id, source)],
+    )
+}
+
+#[test]
+fn binding_receiver_frames_preserve_only_explicit_argument_storage() {
+    for access in ["", "&", "&mut "] {
+        for (body, expected) in [
+            ("sink.record(1);", Vec::<String>::new()),
+            ("sink.touch(value);", vec!["$P1".to_owned()]),
+        ] {
+            let program = binding_program(&format!(
+                "pub boundary trait Sink {{ machine record(value: u32); machine touch(value: &mut u32); }}
+                 machine inspect(sink: {access}Binding<Sink>, value: &mut u32) {{ {body} }}"
+            ));
+            assert_eq!(
+                frame(&program).complete_paths(),
+                Some(expected.as_slice()),
+                "access={access:?}, body={body}"
+            );
+        }
+    }
+}
+
+#[test]
+fn binding_receiver_cannot_supply_a_fabricated_result_storage_origin() {
+    let program = binding_program(
+        "pub boundary trait Sink { machine make() -> &mut u32; }
+         machine inspect(sink: &mut Binding<Sink>) { let value: &mut u32 = sink.make(); value = 9; }"
+    );
+    assert!(
+        !frame(&program).is_complete(),
+        "a provider result cannot be treated as storage inside its Binding carrier"
+    );
+}
+
 #[test]
 fn explicit_context_boundary_calls_keep_local_scratch_out_of_the_public_frame() {
     let program = crate::front_end::typed_program(
@@ -109,11 +162,13 @@ fn explicit_context_boundary_frames_follow_state_transitions() {
         }
     }
     for state in program.machine_states(machine) {
+        // Binding routes to provider state; the carrier field itself is not
+        // that state and service invocation cannot replace it.
         assert_eq!(
             resolver
                 .inferred_state_write_frame(machine, state)
                 .complete_paths(),
-            Some(["$P0.sink".to_owned()].as_slice()),
+            Some([].as_slice()),
             "{}",
             state.name.as_str()
         );

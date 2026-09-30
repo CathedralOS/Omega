@@ -24,7 +24,7 @@ pub(super) fn validate_type_shape(
                 return malformed("reference type requires a known referent and borrowed access");
             }
         }
-        StructuralTypeShape::PrimitiveScalar(_) => {}
+        StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::FusedServiceBinding => {}
         // Completed owned concatenations retain their bounded carrier here.
         // Formation and readers independently validate result custody; the
         // carrier declaration alone creates no source or borrowing authority.
@@ -217,6 +217,7 @@ pub(super) fn attachment_storage_types(
             }
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::FusedServiceBinding
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ElementView { .. } => {}

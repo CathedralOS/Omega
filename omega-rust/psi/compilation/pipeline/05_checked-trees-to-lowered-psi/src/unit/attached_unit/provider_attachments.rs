@@ -8,7 +8,7 @@
 
 use super::super::{
     BoundaryMachineId, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan,
-    CheckedUnitStructuralTypeShape, StructuralFieldType, StructuralTypeDeclaration,
+    CheckedUnitStructuralTypeShape, StructuralTypeDeclaration,
 };
 use super::{
     LoweringError, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
@@ -108,6 +108,7 @@ pub(super) fn validate_provider_attachment_requirements(
 pub(crate) fn lower_provider_attachment_places(
     attachment: StructuralTypeId,
     declaration: &StructuralTypeDeclaration,
+    structural_types: &[StructuralTypeDeclaration],
     requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],
     boundaries: &[(symbols::SymbolHandle, BoundaryMachineId)],
     next_place: &mut u64,
@@ -131,17 +132,16 @@ pub(crate) fn lower_provider_attachment_places(
                 .ok_or(LoweringError::Unsupported(
                     "provider-backed attachment requirement names an unknown field",
                 ))?;
-            // A requirement-bearing fused or provider field always carries
-            // erased binding relevance here: the carrier's runtime slot lives
-            // in the specialized attachment root minted below, not in the
-            // ordinary field, so relevance no longer distinguishes an authored
-            // `[erased]` carrier. The receipt chain upstream owns that check.
-            if !matches!(&field.field_type,
-                    StructuralFieldType::Erased { type_identity }
-                        if type_identity == &requirement.provider_type_identity)
-            {
+            // A retained binding keeps its semantic field path even though
+            // Fused realization has no payload. This specialization root is
+            // evidence, not a substitute argument or a new establishment.
+            if !terminal_semantics::fused_service_field_matches(
+                structural_types,
+                field,
+                &requirement.provider_type_identity,
+            ) {
                 return unsupported(
-                    "provider-backed attachment requirement disagrees with its erased carrier",
+                    "provider-backed attachment requirement disagrees with its exact carrier",
                 );
             }
             let boundary = boundaries

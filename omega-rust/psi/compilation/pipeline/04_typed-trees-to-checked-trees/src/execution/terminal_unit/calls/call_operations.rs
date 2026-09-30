@@ -424,10 +424,12 @@ pub(in crate::execution) fn build_call_operation(
                 .state_parameters(target_state)
                 .iter()
                 .any(|parameter| {
-                    typed_trees::service::exact_bound_service_requirement(
+                    typed_trees::service::classify_exact_service_parameter_carrier(
                         program,
                         parameter.type_reference,
                     )
+                    .ok()
+                    .flatten()
                     .is_some()
                 });
         phase(if carries_routed_service {
@@ -436,7 +438,15 @@ pub(in crate::execution) fn build_call_operation(
             "call operation: projected operand support"
         });
         let supported = if carries_routed_service {
-            service_forward::exact_single_fused_service_forward_is_supported(
+            service_forward::fused_service_arguments_match(
+                program,
+                machine,
+                state,
+                caller_parameters,
+                target_state,
+                call.statement_index,
+                &structural_arguments,
+            ) && ordinary_projected_call_is_supported(
                 program,
                 facts,
                 machine,
@@ -444,8 +454,8 @@ pub(in crate::execution) fn build_call_operation(
                 caller_parameters,
                 target_machine,
                 target_state,
-                call,
                 &structural_arguments,
+                allow_field_path_projection,
             )
         } else {
             ordinary_projected_call_is_supported(

@@ -89,7 +89,9 @@ pub(super) fn register_structural_types(
     }
     for declaration in &module.structural_types {
         match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::FusedServiceBinding => {}
             StructuralTypeShape::Reference { referent, access } => {
                 if !types.contains_key(referent) {
                     return Err(ModuleError::UnknownStructuralType(*referent));
@@ -188,6 +190,7 @@ pub(super) fn register_structural_types(
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element } => vec![*element],
             StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::FusedServiceBinding
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Reference { .. } => Vec::new(),
         };
@@ -241,6 +244,7 @@ fn attachment_storage_types(
             }
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
             StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::FusedServiceBinding
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ElementView { .. } => {}

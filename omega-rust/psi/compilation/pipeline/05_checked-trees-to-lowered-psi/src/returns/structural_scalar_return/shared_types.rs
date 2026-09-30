@@ -77,6 +77,9 @@ pub(super) fn reconstruct(
             _ => (1, 1),
         };
         let expected = match &plan.shape {
+            CheckedUnitStructuralTypeShape::FusedServiceBinding => {
+                StructuralTypeShape::FusedServiceBinding
+            }
             CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,

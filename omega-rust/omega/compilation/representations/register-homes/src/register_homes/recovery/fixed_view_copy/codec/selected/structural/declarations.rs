@@ -48,6 +48,7 @@ pub(super) fn encode_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDecla
     bytes.extend_from_slice(&declaration.id.get().to_le_bytes());
     encode_string(bytes, &declaration.identity);
     match &declaration.shape {
+        StructuralTypeShape::FusedServiceBinding => bytes.push(9),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.push(7);
             bytes.extend_from_slice(&referent.get().to_le_bytes());
@@ -92,6 +93,7 @@ pub(super) fn decode_type(
     let id = decode_id(cursor, StructuralTypeId::new)?;
     let identity = decode_string(cursor)?;
     let shape = match cursor.byte()? {
+        9 => StructuralTypeShape::FusedServiceBinding,
         7 => StructuralTypeShape::Reference {
             referent: decode_id(cursor, StructuralTypeId::new)?,
             access: decode_access(cursor)?,

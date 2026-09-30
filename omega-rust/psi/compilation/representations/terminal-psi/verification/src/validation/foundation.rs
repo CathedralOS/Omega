@@ -13,6 +13,7 @@ mod boundary_machines;
 mod domains;
 mod machine_foundations;
 mod provider_candidates;
+mod service_binding_custody;
 mod services;
 mod structural_types;
 
@@ -243,6 +244,7 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             module, machine, &machines, &types, &domains, &services,
         )?;
     }
+    service_binding_custody::validate_service_binding_custody(module, &types)?;
     Ok(())
 }
 
@@ -459,7 +461,17 @@ fn validate_provider_attachment_specialization(
             StructuralTypeShape::Record { fields } => Some(
                 fields
                     .iter()
-                    .filter(|field| matches!(field.field_type, StructuralFieldType::Erased { .. }))
+                    .filter(|field| {
+                        // The marker distinguishes a service occurrence from
+                        // constructible empty storage. Exact requirement and
+                        // provider authority still belong to the root roster
+                        // and independently replayed source/selection receipts.
+                        terminal_semantics::fused_service_field_carrier(
+                            &module.structural_types,
+                            field,
+                        )
+                        .is_some()
+                    })
                     .collect::<Vec<_>>(),
             ),
             _ => None,
@@ -590,7 +602,9 @@ fn validate_structural_type_graph(
         }
         let declaration = types[&id];
         match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::FusedServiceBinding => {}
             StructuralTypeShape::Reference { referent, .. } => {
                 visit(*referent, types, active, complete)?;
             }

@@ -570,7 +570,9 @@ fn is_material_write_only_type(
                 }
             }
             StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-            StructuralTypeShape::Reference { .. }
+            // Service authority is not write-only material storage.
+            StructuralTypeShape::FusedServiceBinding
+            | StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. }
             | StructuralTypeShape::Sum { .. }

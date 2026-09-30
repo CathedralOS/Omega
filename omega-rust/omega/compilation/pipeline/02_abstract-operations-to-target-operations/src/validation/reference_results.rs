@@ -145,7 +145,9 @@ fn contains_reference(declarations: &[StructuralTypeDeclaration], root: Structur
             }
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element } => pending.push(*element),
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::FusedServiceBinding
+            | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_) => {}
         }
     }
     false

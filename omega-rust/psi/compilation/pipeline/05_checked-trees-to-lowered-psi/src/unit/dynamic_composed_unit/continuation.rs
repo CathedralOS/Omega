@@ -230,6 +230,7 @@ pub(super) fn lower(
     let provider_places = crate::unit::attached_unit::lower_provider_attachment_places(
         caller_attachment,
         attachment,
+        &catalogs.structural_types,
         &continuation.provider_attachment_requirements,
         &provider_boundaries,
         &mut next_place,

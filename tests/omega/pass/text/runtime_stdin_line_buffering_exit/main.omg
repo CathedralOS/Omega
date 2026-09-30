@@ -62,13 +62,13 @@ machine Main::echo_line(&mut self) reaches Console {
 }
 
 // The bound is checked on the exact view before forming its output prefix.
-machine write_prefix(console: &mut Console, bytes: &[u8], count: u64) reaches Console {
+machine write_prefix(console: &mut Binding<Console>, bytes: &[u8], count: u64) reaches Console {
     transition count <= bytes.len {
         true -> output(console, bytes[0..count])
         false -> invalid(console)
     }
-    state output(console: &mut Console, bytes: &[u8]) {
+    state output(console: &mut Binding<Console>, bytes: &[u8]) {
         console.write_line(bytes);
     }
-    state invalid(console: &mut Console) { console.exit_process(1); }
+    state invalid(console: &mut Binding<Console>) { console.exit_process(1); }
 }

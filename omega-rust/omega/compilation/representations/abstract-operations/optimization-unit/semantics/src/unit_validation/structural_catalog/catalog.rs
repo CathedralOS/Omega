@@ -70,6 +70,9 @@ pub(super) fn index_structural_types(
             // A reference carrier holds loan permission, not referent
             // storage; its exact contract is checked once `types` is complete.
             terminal_psi::StructuralTypeShape::Reference { .. } => {}
+            // The marker declares no children; admission does not manufacture
+            // its affine service-binding occurrence.
+            terminal_psi::StructuralTypeShape::FusedServiceBinding => {}
             terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
             terminal_psi::StructuralTypeShape::ByteSequence(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
@@ -100,7 +103,8 @@ pub(super) fn index_structural_types(
     for declaration in &unit.structural_types {
         let referenced = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Reference { referent, .. } => vec![*referent],
-            terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+            terminal_psi::StructuralTypeShape::FusedServiceBinding
+            | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_) => Vec::new(),
             terminal_psi::StructuralTypeShape::Record { fields } => fields
                 .iter()
@@ -201,7 +205,8 @@ pub(super) fn index_structural_types(
                 .collect(),
             terminal_psi::StructuralTypeShape::FixedArray { element, .. }
             | terminal_psi::StructuralTypeShape::ElementView { element } => vec![*element],
-            terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+            terminal_psi::StructuralTypeShape::FusedServiceBinding
+            | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
             | terminal_psi::StructuralTypeShape::ByteSequence(_)
             | terminal_psi::StructuralTypeShape::Reference { .. }
             | terminal_psi::StructuralTypeShape::Record { .. } => Vec::new(),

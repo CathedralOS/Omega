@@ -235,6 +235,59 @@ pub(crate) fn shape(
     shape_inner(root, declarations, &mut Vec::new())
 }
 
+#[test]
+fn fused_binding_borrow_keeps_pointer_abi_without_payload() {
+    use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
+    let identity = StructuralTypeId::new(1).unwrap();
+    let declarations = [StructuralTypeDeclaration {
+        id: identity,
+        identity: "Binding<Console>".into(),
+        shape: StructuralTypeShape::FusedServiceBinding,
+    }];
+    assert_eq!(
+        shape(identity, &declarations),
+        Some(ValueShape::integer(0, 1))
+    );
+    assert!(owned_aggregate_shape(identity, &declarations).is_none());
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let parameter = StructuralParameterDeclaration {
+            place: semantic_vocabulary::PlaceId::new(1).unwrap(),
+            position: 0,
+            is_self: false,
+            structural_type: identity,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        };
+        let borrowed = parameter_shape(&parameter, &declarations).unwrap();
+        assert_eq!(borrowed, ValueShape::borrowed_reference(0, 1));
+        for policy in [
+            CallingPolicy::MicrosoftX64,
+            CallingPolicy::SystemVAMD64,
+            CallingPolicy::Aapcs64,
+        ] {
+            let plan = evaluate_call_plan(
+                policy,
+                &CallSignature {
+                    parameters: vec![borrowed],
+                    result: None,
+                },
+            )
+            .unwrap();
+            assert_eq!(plan.parameters[0].shape, borrowed);
+            assert!(
+                !plan.parameters[0].locations.is_empty(),
+                "zero payload must not erase the borrowed pointer"
+            );
+        }
+    }
+}
+
 /// Reconstruct parameter storage from its access, independently of body order.
 pub(crate) fn parameter_shape(
     parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -773,6 +826,9 @@ fn shape_inner(
         .iter()
         .find(|declaration| declaration.id == root)?;
     let result = match &declaration.shape {
+        // Borrowing preserves a pointer to the established occurrence even
+        // though the service marker itself contributes no payload bytes.
+        StructuralTypeShape::FusedServiceBinding => Some(ValueShape::integer(0, 1)),
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(carrier) => field_shape(
             &StructuralFieldType::ByteSequence(*carrier),

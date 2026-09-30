@@ -200,6 +200,8 @@ enum SignatureBinders {
 
 struct BoundaryWriteSignature<'program> {
     signature: &'program typed_trees::signature::StateSignature,
+    /// Caller-visible provider-object storage, not an authenticated service
+    /// binding that routes to independently established provider storage.
     has_runtime_receiver: bool,
     bindings: TypeBindings,
 }
@@ -368,7 +370,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                 }
             }
     };
-    (signatures.next().is_none()
+    let exact_signature = signatures.next().is_none()
         && program
             .state_signature_type_parameters(signature)
             .iter()
@@ -383,10 +385,34 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
             || !program
                 .state_signature_parameters(signature)
                 .iter()
-                .any(|parameter| parameter.is_self)))
-    .then_some(BoundaryWriteSignature {
+                .any(|parameter| parameter.is_self));
+    if !exact_signature {
+        return None;
+    }
+    // Selection above still requires the exact receiver occurrence and target.
+    // A compiler-known Binding lends routing authority, not its carrier as
+    // provider-object storage. Neither a provider write nor an exclusive result
+    // may fabricate an origin inside that authority carrier. Explicit argument
+    // origins remain governed by the selected signature's ordinary rules.
+    let binding_receiver = if has_runtime_receiver {
+        let carrier = typed_trees::service::classify_exact_service_parameter_carrier(
+            program,
+            receiver_reference,
+        )
+        .ok()?;
+        if carrier
+            .as_ref()
+            .is_some_and(|carrier| carrier.carrier.requirement != trait_definition.symbol)
+        {
+            return None;
+        }
+        carrier.is_some()
+    } else {
+        false
+    };
+    Some(BoundaryWriteSignature {
         signature,
-        has_runtime_receiver,
+        has_runtime_receiver: has_runtime_receiver && !binding_receiver,
         bindings,
     })
 }

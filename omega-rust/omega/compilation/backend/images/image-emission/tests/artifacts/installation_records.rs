@@ -166,12 +166,12 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
-    // Format 101 retains full aggregate sizes and offsets. Even this
+    // Format 102 retains the nonconstructible service-binding marker. Even this
     // field-free fixture carries the format and Terminal vocabulary in its
     // header, so either marker changes its identity. Pin those inputs beside
     // the digests and reconstruct fingerprint framing independently of the
     // production helper. A header relabel is not a format conversion.
-    assert_eq!(&bytes[8..12], &[101, 0, 112, 0]);
+    assert_eq!(&bytes[8..12], &[102, 0, 113, 0]);
     use sha2::{Digest, Sha256};
     let independent_fingerprint = |payload: &[u8]| {
         let mut digest = Sha256::new();
@@ -183,28 +183,28 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     let mut predecessor_payload = bytes.clone();
     predecessor_payload[8..10].copy_from_slice(&95_u16.to_le_bytes());
     assert_eq!(
-        independent_fingerprint(&predecessor_payload),
-        "32e08934228a2fcdf54ef7c166ba22262ee39667ee346d2ded675b3e2f79c1f6"
+        (
+            independent_fingerprint(&predecessor_payload),
+            independent_fingerprint(&bytes),
+            installation_fingerprint(&record)
+                .expect("installation fingerprint")
+                .to_string(),
+        ),
+        (
+            "d63e71ef1136a7e3cb7dbfb2cf4172b763c05141a19b2cccb7eb32152c3ea8d5".to_owned(),
+            "2e225fe0d3cf802d6aef0b84d2512683a40a586cb16874df54f4cfc1bb4ddb3b".to_owned(),
+            "2e225fe0d3cf802d6aef0b84d2512683a40a586cb16874df54f4cfc1bb4ddb3b".to_owned(),
+        )
     );
     assert_eq!(
         decode_installation_record(&predecessor_payload),
         Err(InstallationError::UnsupportedFormatMarker(95))
     );
-    assert_eq!(
-        independent_fingerprint(&bytes),
-        "0c305001753db8a0c6ef0c3287bddd692e0bb3bb0900b477d73d998aca488be5"
-    );
-    assert_eq!(
-        installation_fingerprint(&record)
-            .expect("installation fingerprint")
-            .to_string(),
-        "0c305001753db8a0c6ef0c3287bddd692e0bb3bb0900b477d73d998aca488be5"
-    );
     let mut previous_format = bytes.clone();
-    previous_format[8..10].copy_from_slice(&100_u16.to_le_bytes());
+    previous_format[8..10].copy_from_slice(&101_u16.to_le_bytes());
     assert_eq!(
         decode_installation_record(&previous_format),
-        Err(InstallationError::UnsupportedFormatMarker(100))
+        Err(InstallationError::UnsupportedFormatMarker(101))
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a

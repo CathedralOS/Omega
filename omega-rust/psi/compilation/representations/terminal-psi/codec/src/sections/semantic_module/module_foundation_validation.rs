@@ -122,7 +122,13 @@ fn validate_provider_attachment_foundation(
             StructuralTypeShape::Record { fields } => Some(
                 fields
                     .iter()
-                    .filter(|field| matches!(field.field_type, StructuralFieldType::Erased { .. }))
+                    .filter(|field| {
+                        terminal_semantics::fused_service_field_carrier(
+                            &module.structural_types,
+                            field,
+                        )
+                        .is_some()
+                    })
                     .collect::<Vec<_>>(),
             ),
             _ => None,
@@ -292,6 +298,9 @@ pub(crate) fn validate_structural_path(
             }
             (_, StructuralTypeShape::ByteSequence(_)) => {
                 return malformed("byte-sequence structural type has no projected children");
+            }
+            (_, StructuralTypeShape::FusedServiceBinding) => {
+                return malformed("fused service binding has no projected children");
             }
             // A view's extent is its stored runtime length: an index step
             // selects an element whose bound the verifier reconstructs at
@@ -1180,6 +1189,7 @@ fn validate_structural_type_graph(module: &TerminalModule) -> Result<(), CodecEr
             // A reference does not inline its referent storage. The target's
             // existence was checked above; following it here invents a by-value cycle.
             StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::FusedServiceBinding
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. } => {}

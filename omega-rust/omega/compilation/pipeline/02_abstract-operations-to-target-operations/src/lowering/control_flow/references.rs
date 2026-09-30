@@ -89,7 +89,9 @@ pub(super) fn contains_reference(types: &StructuralTypeLookup<'_>, root: Structu
             }
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element } => pending.push(*element),
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
+            StructuralTypeShape::FusedServiceBinding
+            | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_) => {}
         }
     }
     false

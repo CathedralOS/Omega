@@ -20,6 +20,9 @@ pub(crate) fn encode_structural_types(
         push_u64(bytes, declaration.id.get());
         encode_identity(bytes, &declaration.identity)?;
         match &declaration.shape {
+            terminal_psi::StructuralTypeShape::FusedServiceBinding => {
+                bytes.extend_from_slice(&[9, 0, 0, 0]);
+            }
             // A reference is semantic custody, not native pointer layout:
             // the wire row preserves referent identity and access mode and
             // no placement bytes accompany the declaration.
@@ -99,6 +102,7 @@ pub(crate) fn decode_structural_types(
             return Err(InstallationError::NonzeroReservedField);
         }
         let shape = match shape_tag {
+            9 => terminal_psi::StructuralTypeShape::FusedServiceBinding,
             8 => terminal_psi::StructuralTypeShape::ElementView {
                 element: StructuralTypeId::new(reader.u64()?).ok_or(
                     InstallationError::ZeroStructuralReturnIdentity("element view element type"),
@@ -160,4 +164,23 @@ pub(crate) fn decode_structural_types(
         });
     }
     Ok(declarations)
+}
+
+#[test]
+fn fused_binding_installation_codec_retains_marker_not_empty_record() {
+    let declarations = vec![terminal_psi::StructuralTypeDeclaration {
+        id: StructuralTypeId::new(1).unwrap(),
+        identity: "Binding<Console>".into(),
+        shape: terminal_psi::StructuralTypeShape::FusedServiceBinding,
+    }];
+    let mut bytes = Vec::new();
+    encode_structural_types(&mut bytes, &declarations).unwrap();
+    let mut reader = Reader::new(&bytes);
+    assert_eq!(decode_structural_types(&mut reader).unwrap(), declarations);
+    assert_eq!(reader.remaining(), 0);
+    let mut empty_record = declarations.clone();
+    empty_record[0].shape = terminal_psi::StructuralTypeShape::Record { fields: Vec::new() };
+    let mut record_bytes = Vec::new();
+    encode_structural_types(&mut record_bytes, &empty_record).unwrap();
+    assert_ne!(bytes, record_bytes);
 }

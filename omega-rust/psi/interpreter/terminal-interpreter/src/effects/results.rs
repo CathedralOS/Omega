@@ -110,7 +110,7 @@ impl TerminalExecution {
 }
 
 /// Opaque host identities establish neither bounded contents nor a reference's
-/// captured loan and original backing.
+/// captured loan and original backing, nor a fused binding's service authority.
 pub(crate) fn requires_materialized_host_custody(
     types: &BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
     root: StructuralTypeId,
@@ -126,7 +126,9 @@ pub(crate) fn requires_materialized_host_custody(
         };
         let mut fields = Vec::new();
         match &declaration.shape {
-            StructuralTypeShape::Reference { .. } => return true,
+            StructuralTypeShape::Reference { .. } | StructuralTypeShape::FusedServiceBinding => {
+                return true;
+            }
             StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::ByteSequence(_) => {}
             StructuralTypeShape::FixedArray { element, .. }
             | StructuralTypeShape::ElementView { element } => pending.push(*element),
@@ -155,6 +157,20 @@ pub(crate) fn requires_materialized_host_custody(
         }
     }
     false
+}
+
+#[test]
+fn opaque_host_result_cannot_supply_fused_binding_authority() {
+    let identity = StructuralTypeId::new(1).unwrap();
+    let declaration = StructuralTypeDeclaration {
+        id: identity,
+        identity: "test::Binding".into(),
+        shape: StructuralTypeShape::FusedServiceBinding,
+    };
+    let mut types = BTreeMap::from([(identity, declaration)]);
+    assert!(requires_materialized_host_custody(&types, identity));
+    types.get_mut(&identity).unwrap().shape = StructuralTypeShape::Record { fields: Vec::new() };
+    assert!(!requires_materialized_host_custody(&types, identity));
 }
 
 pub(crate) fn commit_boundary_result(

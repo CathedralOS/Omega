@@ -25,6 +25,7 @@ mod scalar_array;
 mod scalar_leaf_schema;
 mod scalar_leaf_semantics;
 mod semantic_rows;
+mod service_binding;
 mod static_path;
 mod structural_effect;
 #[cfg(test)]
@@ -83,6 +84,7 @@ pub use semantic_rows::{
     OperationSemanticCustody, OperationSemanticError, OperationSemanticRow, OperationSemanticTag,
     exact_operation_semantic_row_in, is_unconditionally_total_scalar, operation_semantic_row,
 };
+pub use service_binding::{fused_service_field_carrier, fused_service_field_matches};
 pub use static_path::{
     canonical_case_leaf_type, canonical_structural_path_tip, interior_member_borrow,
     runtime_index_bound, runtime_index_selects, runtime_structural_path_tip,

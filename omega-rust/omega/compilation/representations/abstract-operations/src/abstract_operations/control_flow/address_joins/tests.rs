@@ -97,6 +97,40 @@ fn parameter(structural_type: u64, access: StructuralAccess) -> StructuralParame
 }
 
 #[test]
+fn fused_binding_address_joins_preserve_borrow_access_without_owned_authority() {
+    let types = vec![declaration(1, StructuralTypeShape::FusedServiceBinding)];
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let borrowed = parameter(1, access);
+        assert!(is_address_join(&borrowed, &types));
+        let mut changed = borrowed.clone();
+        changed.multiplicity = StructuralMultiplicity::Affine;
+        assert!(!is_address_join(&changed, &types));
+        changed = borrowed.clone();
+        changed.is_self = true;
+        assert!(!is_address_join(&changed, &types));
+        changed = borrowed;
+        changed
+            .qualifications
+            .push(semantic_vocabulary::StructuralDomainId::new(1).unwrap());
+        assert!(!is_address_join(&changed, &types));
+    }
+    for access in [StructuralAccess::Owned, StructuralAccess::WriteOnlyBorrow] {
+        assert!(!is_address_join(&parameter(1, access), &types));
+    }
+    assert!(!is_address_join(
+        &parameter(1, StructuralAccess::MutableBorrow),
+        &[]
+    ));
+    assert!(!is_address_join(
+        &parameter(1, StructuralAccess::MutableBorrow),
+        &[types[0].clone(), types[0].clone()]
+    ));
+}
+
+#[test]
 fn shared_primitive_and_plain_record_joins_carry_an_address() {
     let types = catalog();
     for structural_type in [1, 2, 3] {

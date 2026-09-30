@@ -48,6 +48,10 @@ pub struct CheckedUnitStructuralTypePlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedUnitStructuralTypeShape {
+    /// An existing routed binding occurrence after selected Fused realization.
+    /// It has no payload but is not an empty record: construction requires
+    /// service establishment, not record or zero initialization.
+    FusedServiceBinding,
     /// An owned reference carrier, distinct from the borrowed referent shape.
     Reference {
         referent_identity: String,

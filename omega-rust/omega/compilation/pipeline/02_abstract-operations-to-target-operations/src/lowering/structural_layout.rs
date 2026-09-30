@@ -139,6 +139,9 @@ pub(crate) fn structural_shape(
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
         match &declaration.shape {
+            // Established Fused bindings have no payload. This describes only
+            // geometry; their marker is not an empty-record constructor.
+            StructuralTypeShape::FusedServiceBinding => Ok(ValueShape::integer(0, 1)),
             // A reference carrier transports no referent storage: custody is
             // compile-time metadata, so its value shape is an empty aggregate
             // slot rather than a pointer-sized payload.

@@ -1,4 +1,4 @@
-//! Exclusive whole-record state bindings keep the caller's storage identity.
+//! Exclusive record and service state loans keep the caller's storage identity.
 //!
 //! The ordinary mutable-parameter fixed point transfers the usable name on
 //! each edge. This replay also follows borrowed block aliases so an earlier
@@ -17,11 +17,61 @@ pub(crate) fn parameter_type(
     parameter: &StructuralParameterDeclaration,
 ) -> bool {
     parameter.access == StructuralAccess::MutableBorrow
-        && module.structural_types.iter().any(|declaration| {
-            declaration.id == parameter.structural_type
-                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
-        })
-        && super::super::record::plain_type(module, parameter.structural_type)
+        && borrowed_carrier_type(module, parameter.structural_type)
+}
+
+/// Borrowing an established binding does not require constructing its shape.
+/// Keep this receiving classifier separate from plain payloads and owned homes:
+/// accepting a state loan must not make a service locally constructible or
+/// copyable. Foundation has already validated the unique, acyclic type graph.
+pub(super) fn borrowed_carrier_type(
+    module: &TerminalModule,
+    root: super::StructuralTypeId,
+) -> bool {
+    if !module.structural_types.iter().any(|declaration| {
+        declaration.id == root
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::FusedServiceBinding | StructuralTypeShape::Record { .. }
+            )
+    }) {
+        return false;
+    }
+    let mut pending = vec![root];
+    let mut visited = BTreeSet::new();
+    while let Some(current) = pending.pop() {
+        if !visited.insert(current) || super::super::record::plain_type(module, current) {
+            continue;
+        }
+        let Some(declaration) = module.structural_types.iter().find(|row| row.id == current) else {
+            return false;
+        };
+        match &declaration.shape {
+            StructuralTypeShape::FusedServiceBinding => {}
+            StructuralTypeShape::Record { fields } => {
+                for field in fields {
+                    if field.relevance.is_erased()
+                        && matches!(
+                            field.field_type,
+                            terminal_psi::StructuralFieldType::Erased { .. }
+                        )
+                    {
+                        continue;
+                    }
+                    if field.relevance.is_erased() {
+                        return false;
+                    }
+                    match field.field_type {
+                        terminal_psi::StructuralFieldType::Structural(child) => pending.push(child),
+                        _ if field.field_type.scalar_type().is_some() => {}
+                        _ => return false,
+                    }
+                }
+            }
+            _ => return false,
+        }
+    }
+    true
 }
 
 /// A fresh plain owned home may back a state loan without moving its bytes or

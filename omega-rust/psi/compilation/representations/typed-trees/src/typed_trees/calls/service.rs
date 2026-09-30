@@ -20,6 +20,44 @@ pub struct ExactServiceCarrier {
     pub requirement: SymbolHandle,
 }
 
+/// A parameter's exact underlying binding and its separately retained borrow
+/// presentation. Unwrapping this shell is valid for parameter planning, not
+/// for deciding whether a value may be moved out of borrowed storage.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExactServiceParameterCarrier {
+    pub carrier: ExactServiceCarrier,
+    pub carrier_type: TypeReferenceHandle,
+    pub access: Option<language_semantics::ReferenceAccess>,
+}
+
+pub fn classify_exact_service_parameter_carrier(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Result<Option<ExactServiceParameterCarrier>, String> {
+    let (carrier_type, access) = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference {
+            referee, access, ..
+        } if matches!(
+            access,
+            language_semantics::ReferenceAccess::Shared
+                | language_semantics::ReferenceAccess::Mutable
+        ) =>
+        {
+            (*referee, Some(*access))
+        }
+        _ => (type_reference, None),
+    };
+    Ok(
+        classify_exact_bound_service_carrier(program, carrier_type)?.map(|carrier| {
+            ExactServiceParameterCarrier {
+                carrier,
+                carrier_type,
+                access,
+            }
+        }),
+    )
+}
+
 /// Classify one type shell. `Ok(None)` means it is not the exact core
 /// `Service` carrier; `Err` means it does name that carrier but violates the
 /// deliberately narrow first-rung contract. The carrier is closed: an authored

@@ -1,4 +1,5 @@
 use platform::console;
+use omega::language::core::binding;
 use player::player_state;
 use rooms::map;
 use rooms::rooms;
@@ -10,7 +11,7 @@ data GameView {
 
 machine GameView::render_title(
     &mut self,
-    console: &mut Console
+    console: &mut Binding<Console>
 ) reaches Console {
     console.write_line("###########################");
     console.write_line("#     Dungeon Crawler     #");
@@ -23,7 +24,7 @@ machine GameView::render_title(
 
 machine GameView::render_commands(
     &mut self,
-    console: &mut Console
+    console: &mut Binding<Console>
 ) reaches Console {
     console.write_line("[Commands] look | help | inv | char | use | fight | exit");
 }
@@ -36,7 +37,7 @@ machine GameView::render_room(
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    console: &mut Console,
+    console: &mut Binding<Console>,
     line: &mut [u8; 128]
 )
 reaches Console
@@ -60,7 +61,7 @@ machine GameView::render_look(
     gold_taken: bool,
     fountain_used: bool,
     enemy_defeated: bool,
-    console: &mut Console,
+    console: &mut Binding<Console>,
     line: &mut [u8; 128]
 )
 reaches Console
@@ -76,7 +77,7 @@ machine GameView::render_exits(
     &mut self,
     level: Level,
     cell: CellId,
-    console: &mut Console,
+    console: &mut Binding<Console>,
     line: &mut [u8; 128]
 )
 reaches Console
@@ -266,7 +267,7 @@ ensures out_line in Utf8
 machine GameView::render_inventory(
     &mut self,
     player: Player,
-    console: &mut Console,
+    console: &mut Binding<Console>,
     line: &mut [u8; 128]
 )
 reaches Console
@@ -279,7 +280,7 @@ ensures line in Utf8
 machine GameView::render_character(
     &mut self,
     player: Player,
-    console: &mut Console,
+    console: &mut Binding<Console>,
     line: &mut [u8; 128]
 )
 reaches Console
@@ -291,7 +292,7 @@ ensures line in Utf8
 
 machine GameView::render_prompt(
     &mut self,
-    console: &mut Console
+    console: &mut Binding<Console>
 ) reaches Console {
     console.write("> ");
 }
@@ -299,28 +300,28 @@ machine GameView::render_prompt(
 machine GameView::render_line(
     &mut self,
     line: [u8; 128] in Utf8,
-    console: &mut Console
+    console: &mut Binding<Console>
 ) reaches Console {
     console.write_line(line);
 }
 
 machine GameView::render_invalid_command(
     &mut self,
-    console: &mut Console
+    console: &mut Binding<Console>
 ) reaches Console {
     console.write_line("[Input] That action is not available right now.");
 }
 
 machine GameView::render_game_over(
     &mut self,
-    console: &mut Console
+    console: &mut Binding<Console>
 ) reaches Console {
     console.write_line("Game over.");
 }
 
 machine GameView::render_goodbye(
     &mut self,
-    console: &mut Console
+    console: &mut Binding<Console>
 ) reaches Console {
     console.write_line("Goodbye.");
 }

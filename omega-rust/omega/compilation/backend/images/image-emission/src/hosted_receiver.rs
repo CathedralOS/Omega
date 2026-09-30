@@ -1044,14 +1044,14 @@ fn receiver_layout(
 }
 
 /// Replay the receiver's record-field tree against the exact Fused
-/// establishment rows and determined-evidence rows. Every erased field — at
+/// establishment rows and determined-evidence rows. Every service or erased field — at
 /// the receiver root or under nested record fields — must rejoin exactly one
 /// row of exactly one roster by its complete field route, and every
 /// non-erased leaf keeps the zero-valid judgment. Nested
 /// `Structural` record children extend the route; array elements and sum
 /// cases cannot name a route and keep the source-free nested-erased
 /// rejection inside `zero_valid_record_storage`.
-/// The rows an erased receiver-tree field may rejoin: a Fused service
+/// The rows a service or erased receiver-tree field may rejoin: a Fused service
 /// establishment, or Psi's witness that the field is determined evidence.
 #[derive(Clone, Copy)]
 struct ErasedRows<'a> {
@@ -1081,12 +1081,14 @@ fn validate_receiver_fields(
 ) -> Result<(), Diagnostic> {
     use terminal_psi::{StructuralFieldType, StructuralTypeShape};
     for field in fields {
+        let service_carrier = terminal_semantics::fused_service_field_carrier(declarations, field);
         if field.relevance.is_erased()
             || matches!(field.field_type, StructuralFieldType::Erased { .. })
+            || service_carrier.is_some()
         {
-            let StructuralFieldType::Erased { type_identity } = &field.field_type else {
-                return Err(invalid());
-            };
+            // Retained service leaves require the same establishment as erased
+            // ones. Never recurse into their zero-payload type as zero-valid data.
+            let type_identity = service_carrier.ok_or_else(invalid)?;
             field_path.push(field.identity.clone());
             let mut matches = rows
                 .services
@@ -1098,7 +1100,10 @@ fn validate_receiver_fields(
                 .filter(|row| row.field_path() == field_path.as_slice());
             let outcome = match (matches.next(), determined.next()) {
                 (None, Some(row)) => {
-                    if determined.next().is_some() || row.carrier_type_identity() != type_identity {
+                    if !matches!(field.field_type, StructuralFieldType::Erased { .. })
+                        || determined.next().is_some()
+                        || row.carrier_type_identity() != type_identity
+                    {
                         Err(invalid())
                     } else {
                         erased.determined_evidence += 1;

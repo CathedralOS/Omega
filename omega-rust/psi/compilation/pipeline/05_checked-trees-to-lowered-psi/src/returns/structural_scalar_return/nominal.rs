@@ -489,6 +489,7 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
                     })
                     .map(|field| field.id),
                 StructuralTypeShape::Reference { .. }
+                | StructuralTypeShape::FusedServiceBinding
                 | StructuralTypeShape::PrimitiveScalar(_)
                 | StructuralTypeShape::ByteSequence(_)
                 | StructuralTypeShape::ElementView { .. }

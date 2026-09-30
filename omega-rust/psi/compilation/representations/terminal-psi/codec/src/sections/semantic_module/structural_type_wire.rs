@@ -19,6 +19,7 @@ pub(crate) fn encode_structural_type(
     writer.id(declaration.id);
     writer.string("structural type identity", &declaration.identity)?;
     match &declaration.shape {
+        StructuralTypeShape::FusedServiceBinding => writer.u8(9),
         StructuralTypeShape::Reference { referent, access } => {
             writer.u8(7);
             writer.id(*referent);
@@ -86,6 +87,7 @@ pub(crate) fn decode_structural_type(
     let id = reader.id("StructuralTypeId")?;
     let identity = reader.string("structural type identity")?;
     let shape = match reader.u8()? {
+        9 => StructuralTypeShape::FusedServiceBinding,
         7 => StructuralTypeShape::Reference {
             referent: reader.id("StructuralTypeId")?,
             access: super::structural_signature_wire::decode_structural_access(reader)?,
@@ -142,6 +144,42 @@ mod tests {
         CodecError,
         sections::semantic_module::wire::{Reader, Writer},
     };
+
+    #[test]
+    fn fused_service_binding_shape_has_a_distinct_payloadless_wire_tag() {
+        let declaration = StructuralTypeDeclaration {
+            id: StructuralTypeId::new(1).unwrap(),
+            identity: "B".into(),
+            shape: StructuralTypeShape::FusedServiceBinding,
+        };
+        let mut writer = Writer::default();
+        encode_structural_type(&mut writer, &declaration).unwrap();
+        let bytes = writer.finish();
+        assert_eq!(
+            bytes.len(),
+            14,
+            "the service marker has no record-field roster"
+        );
+        assert_eq!(bytes[13], 9);
+        let mut reader = Reader::new(&bytes);
+        assert_eq!(decode_structural_type(&mut reader), Ok(declaration.clone()));
+        assert_eq!(reader.remaining(), 0);
+        let mut unknown = bytes.clone();
+        unknown[13] = 255;
+        assert_eq!(
+            decode_structural_type(&mut Reader::new(&unknown)),
+            Err(CodecError::InvalidTag("StructuralTypeShape", 255))
+        );
+        let mut record = declaration;
+        record.shape = StructuralTypeShape::Record { fields: Vec::new() };
+        let mut writer = Writer::default();
+        encode_structural_type(&mut writer, &record).unwrap();
+        assert_ne!(
+            writer.finish(),
+            bytes,
+            "an empty record cannot share binding identity bytes"
+        );
+    }
 
     #[test]
     fn primitive_scalar_shape_uses_exact_stable_wire_tag() {

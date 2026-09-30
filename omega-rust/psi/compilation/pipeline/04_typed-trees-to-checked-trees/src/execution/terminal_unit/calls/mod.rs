@@ -44,8 +44,7 @@ pub(crate) use computation_arguments::{
 };
 pub(crate) use signatures::{
     ambient_self_scalar_graph_signature, boundary_owner_scalar_signature, entry_claims,
-    free_fused_service_scalar_signature, free_structural_scalar_signature,
-    free_structural_scalar_signature_traced, fused_service_scalar_signature,
+    free_structural_scalar_signature, free_structural_scalar_signature_traced,
     partial_affine_structural_signature, structural_scalar_signature,
     structural_scalar_signature_traced, structural_signature,
 };

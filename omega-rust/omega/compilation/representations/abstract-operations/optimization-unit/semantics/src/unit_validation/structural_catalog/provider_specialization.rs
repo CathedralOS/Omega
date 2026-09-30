@@ -5,8 +5,8 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BoundaryMachineId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Replay the exact specialization which replaces one relevant opaque Record
-/// field with a canonical boundary-specific provider-root roster. These roots
+/// Replay the exact specialization of an erased or retained service Record
+/// field into a canonical boundary-specific provider-root roster. These roots
 /// are retained specialization witnesses, not direct boundary/Unit-call
 /// structural arguments.
 pub(crate) fn validate_provider_attachment_specialization(
@@ -34,10 +34,18 @@ pub(crate) fn validate_provider_attachment_specialization(
                 fields
                     .iter()
                     .filter(|field| {
-                        matches!(
-                            field.field_type,
-                            terminal_psi::StructuralFieldType::Erased { .. }
-                        )
+                        // Catalog indexing already rejects duplicate type ids.
+                        // Pass its exact child to the shared shape join without
+                        // copying the catalog or converting the marker to data.
+                        let declarations = match field.field_type {
+                            terminal_psi::StructuralFieldType::Structural(child) => types
+                                .get(&child)
+                                .map(|declaration| std::slice::from_ref(*declaration))
+                                .unwrap_or_default(),
+                            _ => &[],
+                        };
+                        terminal_semantics::fused_service_field_carrier(declarations, field)
+                            .is_some()
                     })
                     .collect::<Vec<_>>(),
             ),

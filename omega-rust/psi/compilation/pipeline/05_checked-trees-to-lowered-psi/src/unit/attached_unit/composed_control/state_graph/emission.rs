@@ -545,6 +545,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             crate::unit::attached_unit::provider_attachments::lower_provider_attachment_places(
                 attachment,
                 declaration,
+                &catalogs.structural_types,
                 &plan.provider_attachment_requirements,
                 &boundaries,
                 &mut catalogs.next_place,

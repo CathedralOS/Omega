@@ -25,7 +25,10 @@ use crate::expression_preparation::bindings::structural_paths::{
 };
 use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use semantic_vocabulary::ValueId;
+#[cfg(test)]
+mod borrowed_service_tests;
 mod service_forward;
+pub(in crate::unit::attached_unit) use service_forward::validate_parameter as validate_service_parameter;
 mod source_path;
 pub(crate) use source_path::{
     expression_producer, source_path, source_place_path, statement_receiver_path,
@@ -52,7 +55,7 @@ pub(crate) fn structural_carrier_type(
     }
 }
 
-/// Rejoin direct Unit scalar parameters and routed-Service receipts to the
+/// Rejoin direct and composed Unit scalar parameters and routed-Service receipts to the
 /// exact typed state signature before raw checked-to-Terminal lowering erases
 /// their authored source partition. Owner-selected Fused provenance is
 /// validated by the compiler's later custody gate; this layer independently
@@ -75,6 +78,12 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             .terminal_unit_effects
             .composed_machines
             .iter()
+            .filter(|machine| {
+                !matches!(
+                    machine.result,
+                    checked_trees::CheckedControlResultPlan::Unit
+                )
+            })
             .flat_map(|machine| &machine.states)
             .any(|state| has_receipt(&state.structural_parameters))
         || flow
@@ -120,17 +129,52 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             .any(|machine| has_receipt(&machine.structural_parameters));
     if unsupported_receipt {
         return unsupported(
-            "fused Service parameter receipt appears outside the first direct Unit-machine rung",
+            "fused Service parameter receipt appears outside supported Unit parameter custody",
         );
     }
 
-    for plan in &checked.facts.flow.terminal_unit_effects.machines {
-        let carries_receipt = has_receipt(&plan.structural_parameters);
-        let carries_parameter_custody = carries_receipt || !plan.scalar_parameters.is_empty();
+    // The same authored state signature owns each parameter, whether execution
+    // uses one block or a composed state graph. A loan keeps the full reference
+    // identity in its receipt and the underlying Binding identity in its carrier.
+    let direct = flow.terminal_unit_effects.machines.iter().map(|plan| {
+        (
+            true,
+            plan.machine,
+            plan.state,
+            plan.scalar_parameters.as_slice(),
+            plan.structural_parameters.as_slice(),
+        )
+    });
+    let composed = flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .filter(|machine| {
+            matches!(
+                machine.result,
+                checked_trees::CheckedControlResultPlan::Unit
+            )
+        })
+        .flat_map(|machine| {
+            machine.states.iter().map(move |state| {
+                (
+                    false,
+                    machine.machine,
+                    state.state,
+                    state.scalar_parameters.as_slice(),
+                    state.structural_parameters.as_slice(),
+                )
+            })
+        });
+    for (direct, machine_symbol, state_symbol, scalar_parameters, structural_parameters) in
+        direct.chain(composed)
+    {
+        let carries_receipt = has_receipt(structural_parameters);
+        let carries_parameter_custody = carries_receipt || !scalar_parameters.is_empty();
         let Some(machine) = checked
             .machines()
             .iter()
-            .find(|machine| machine.symbol == plan.machine)
+            .find(|machine| machine.symbol == machine_symbol)
         else {
             if carries_parameter_custody {
                 return unsupported("direct Unit parameter plan has no exact typed machine");
@@ -140,7 +184,7 @@ pub(crate) fn validate_direct_unit_parameter_custody(
         let Some(state) = checked
             .machine_states(machine)
             .iter()
-            .find(|state| state.symbol == plan.state)
+            .find(|state| state.symbol == state_symbol)
         else {
             if carries_parameter_custody {
                 return unsupported("direct Unit parameter plan has no exact typed state");
@@ -148,22 +192,42 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             continue;
         };
         let source_parameters = checked.state_parameters(state);
+        let source_carriers = source_parameters
+            .iter()
+            .map(|source| {
+                checked
+                    .bound_service_parameter_carrier(source.type_reference)
+                    .map_err(|_| {
+                        LoweringError::Unsupported(
+                            "typed Unit parameter has an invalid routed Binding carrier",
+                        )
+                    })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        // This new composed-state join concerns routed Binding custody only.
+        // Source carriers still trigger replay when a producer drops receipts;
+        // unrelated composed signatures retain their existing validators.
+        if !direct && !carries_receipt && source_carriers.iter().all(Option::is_none) {
+            continue;
+        }
+        if structural_parameters.iter().any(|parameter| {
+            parameter.fused_service_erasure.is_some()
+                && usize::try_from(parameter.position)
+                    .ok()
+                    .is_none_or(|position| position >= source_parameters.len())
+        }) {
+            return unsupported("fused Service receipt has no authored parameter position");
+        }
         let expected_scalar_parameters = checked_scalar_source_parameters(checked, state)?;
-        if plan.scalar_parameters != expected_scalar_parameters {
+        if scalar_parameters != expected_scalar_parameters {
             return unsupported(
                 "direct Unit scalar parameters do not rejoin the exact typed source partition",
             );
         }
-        for (position, source) in source_parameters.iter().enumerate() {
-            let carrier = checked
-                .bound_service_parameter_carrier(source.type_reference)
-                .map_err(|_| {
-                    LoweringError::Unsupported(
-                        "typed Unit parameter has an invalid routed Binding carrier",
-                    )
-                })?;
-            let matches = plan
-                .structural_parameters
+        for (position, (source, carrier)) in
+            source_parameters.iter().zip(source_carriers).enumerate()
+        {
+            let matches = structural_parameters
                 .iter()
                 .filter(|parameter| usize::try_from(parameter.position).ok() == Some(position))
                 .collect::<Vec<_>>();
@@ -199,15 +263,18 @@ pub(crate) fn validate_direct_unit_parameter_custody(
             if source.is_self
                 || source.is_const
                 || source.is_mutable
+                    != (carrier.access == checked_trees::CheckedStructuralAccess::MutableBorrow)
                 || parameter.is_self
-                || parameter.multiplicity != Multiplicity::Affine
-                || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                || source.relevance.is_erased()
+                || parameter.multiplicity != service_parameter_multiplicity(carrier.access)?
+                || parameter.access != carrier.access
+                || !parameter.projected_qualifications.is_empty()
                 || receipt.source_parameter != source.symbol
                 || receipt.requirement != carrier.requirement
                 || receipt.carrier_type_identity != carrier.carrier_type_identity
             {
                 return unsupported(
-                    "fused Service parameter receipt does not rejoin its exact owned affine typed source",
+                    "fused Service parameter receipt does not rejoin its exact typed source custody",
                 );
             }
             if checked.fused_service_erasure(carrier.requirement).is_none() {
@@ -230,6 +297,21 @@ pub(crate) fn validate_direct_unit_parameter_custody(
     }
     service_forward::validate(checked)?;
     Ok(())
+}
+
+/// A borrowed Binding is an ordinary reference parameter, not an owned affine
+/// binding. Erasure changes storage, never the source access or multiplicity.
+fn service_parameter_multiplicity(
+    access: checked_trees::CheckedStructuralAccess,
+) -> Result<Multiplicity, LoweringError> {
+    match access {
+        checked_trees::CheckedStructuralAccess::Owned => Ok(Multiplicity::Affine),
+        checked_trees::CheckedStructuralAccess::SharedBorrow
+        | checked_trees::CheckedStructuralAccess::MutableBorrow => Ok(Multiplicity::Unrestricted),
+        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
+            unsupported("fused Service parameter cannot use write-only access")
+        }
+    }
 }
 
 pub(crate) fn checked_scalar_source_parameters(
@@ -360,9 +442,9 @@ pub(crate) fn lower_unit_parameters(
             }
             if parameter.fused_service_erasure.is_some()
                 && (parameter.is_self
-                    || parameter.multiplicity != Multiplicity::Affine
-                    || parameter.access != checked_trees::CheckedStructuralAccess::Owned
-                    || !parameter.qualifications.is_empty())
+                    || parameter.multiplicity != service_parameter_multiplicity(parameter.access)?
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty())
             {
                 return Err(LoweringError::Unsupported(
                     "fused Service parameter has an invalid checked structural shape",
