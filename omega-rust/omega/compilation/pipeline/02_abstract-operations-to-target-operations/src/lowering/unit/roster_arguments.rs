@@ -713,7 +713,16 @@ pub(in crate::lowering) fn fixed_array_view_argument(
     } else {
         return Ok(None);
     };
-    if shape != ValueShape::borrowed_reference(16, 8)
+    // The verified view declaration decides whether extent is carried at
+    // runtime. A bounded byte view has one pointer cell; dynamic byte and
+    // element views additionally carry their extent. Neither changes backing.
+    let carrier = structural_shape(
+        callee_parameter.structural_type,
+        structural_types,
+        shape_cache,
+        active,
+    )?;
+    if shape != ValueShape::borrowed_reference(carrier.byte_size, carrier.alignment)
         || backing_end.is_none_or(|end| end > u64::from(root_byte_size))
     {
         return Err(mismatch());

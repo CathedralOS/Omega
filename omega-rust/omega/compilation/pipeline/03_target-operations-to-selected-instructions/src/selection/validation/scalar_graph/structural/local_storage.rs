@@ -36,7 +36,9 @@ fn storage_origin_place(
     Some(semantic.place)
 }
 
-/// Stage only the descriptor; its backing remains the caller's original array.
+/// Replay the declared descriptor without replacing the original array.
+/// The argument join independently checked whether the exact view type keeps
+/// extent statically or carries a runtime length word.
 pub(in crate::selection::validation::scalar_graph) fn fixed_array_argument(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
@@ -44,7 +46,11 @@ pub(in crate::selection::validation::scalar_graph) fn fixed_array_argument(
     argument_index: u32,
     backing: VirtualRegisterId,
     length: u64,
+    descriptor_byte_size: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    if !matches!(descriptor_byte_size, 8 | 16) {
+        return Err(SelectedInstructionError::custody());
+    }
     let slot = LocalStorageSlotId::StructuralCallArgument {
         operation: row.operation,
         argument_index,
@@ -54,21 +60,23 @@ pub(in crate::selection::validation::scalar_graph) fn fixed_array_argument(
         .local_slots
         .push(selected_instructions::SelectedLocalStorageSlot {
             id: slot,
-            byte_size: 16,
+            byte_size: descriptor_byte_size,
             alignment: 8,
         });
     store(replay, row, slot, 0, backing)?;
-    let count = result(replay, place, 8)?;
-    replay.check_instruction(
-        SelectedInstructionKind::MaterializeI64 {
-            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
-        },
-        replay.constraints.keys.materialize_i64,
-        &[count],
-        &provenance(row),
-    )?;
-    store(replay, row, slot, 8, count)?;
-    address(replay, row, slot, 0, 16, false)
+    if descriptor_byte_size == 16 {
+        let count = result(replay, place, 8)?;
+        replay.check_instruction(
+            SelectedInstructionKind::MaterializeI64 {
+                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
+            },
+            replay.constraints.keys.materialize_i64,
+            &[count],
+            &provenance(row),
+        )?;
+        store(replay, row, slot, 8, count)?;
+    }
+    address(replay, row, slot, 0, descriptor_byte_size, false)
 }
 
 /// Replay only the staged descriptor; the field's live length word and bytes

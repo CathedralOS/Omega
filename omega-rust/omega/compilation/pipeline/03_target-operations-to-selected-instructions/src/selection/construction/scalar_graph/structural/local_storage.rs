@@ -36,7 +36,9 @@ fn storage_origin_place(
     Some(semantic.place)
 }
 
-/// Stage only the descriptor; its backing remains the caller's original array.
+/// Stage only the declared descriptor; backing remains the original array.
+/// Bounded views retain extent in their type and need only the pointer cell.
+/// Dynamic views additionally transport the independently checked extent.
 pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
@@ -44,7 +46,11 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
     argument_index: u32,
     backing: VirtualRegisterId,
     length: u64,
+    descriptor_byte_size: u32,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    if !matches!(descriptor_byte_size, 8 | 16) {
+        return Err(SelectedInstructionError::custody());
+    }
     let slot = LocalStorageSlotId::StructuralCallArgument {
         operation: row.operation,
         argument_index,
@@ -54,21 +60,23 @@ pub(in crate::selection::construction::scalar_graph) fn fixed_array_argument(
         .local_slots
         .push(selected_instructions::SelectedLocalStorageSlot {
             id: slot,
-            byte_size: 16,
+            byte_size: descriptor_byte_size,
             alignment: 8,
         });
     store(builder, row, slot, 0, backing)?;
-    let count = transport_register(builder, place, 8)?;
-    builder.emit(
-        SelectedInstructionKind::MaterializeI64 {
-            value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
-        },
-        builder.constraints.keys.materialize_i64,
-        &[count],
-        provenance(row),
-    )?;
-    store(builder, row, slot, 8, count)?;
-    address(builder, row, slot, 0, 16, false)
+    if descriptor_byte_size == 16 {
+        let count = transport_register(builder, place, 8)?;
+        builder.emit(
+            SelectedInstructionKind::MaterializeI64 {
+                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(length)),
+            },
+            builder.constraints.keys.materialize_i64,
+            &[count],
+            provenance(row),
+        )?;
+        store(builder, row, slot, 8, count)?;
+    }
+    address(builder, row, slot, 0, descriptor_byte_size, false)
 }
 
 /// Stage only the descriptor; the field's live length word and bytes remain in

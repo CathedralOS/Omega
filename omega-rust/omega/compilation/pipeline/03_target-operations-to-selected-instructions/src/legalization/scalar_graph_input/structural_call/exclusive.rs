@@ -111,11 +111,7 @@ pub(super) fn argument(
         crate::structural_inputs::structural_reference_input::shape(structural_type, types)
             .ok_or(LegalizationError::custody())?;
     let descriptor = byte_view.is_some() || byte_field.is_some() || element_view.is_some();
-    let shape = if descriptor {
-        ValueShape::borrowed_reference(16, 8)
-    } else {
-        ValueShape::borrowed_reference(referent.byte_size, referent.alignment)
-    };
+    let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
     if semantic.place != source.place
         || destination.access != semantic.access
         || !matches!(

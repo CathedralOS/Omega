@@ -206,6 +206,79 @@ fn fixed_byte_call_windows_replay_offset_extent_and_access() {
 }
 
 #[test]
+fn bounded_byte_calls_replay_the_declared_extent_and_pointer_cell() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        let (mut source, mut call) = fixed_array_call(native);
+        let signature = source.structural.as_mut().unwrap();
+        let mut declarations = signature.structural_types.to_vec();
+        declarations[2].shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                access: Some(StructuralAccess::MutableBorrow),
+                capacity: 17,
+            });
+        signature.structural_types = declarations.into();
+        let shape = ValueShape::borrowed_reference(8, 8);
+        call.call_plan = evaluate_call_plan(
+            call.call_plan.policy,
+            &CallSignature {
+                parameters: vec![shape],
+                result: None,
+            },
+        )
+        .unwrap();
+        let LegalizedScalarArgument::Structural { target, .. } = &mut call.arguments[0] else {
+            panic!("fixed-array loan argument");
+        };
+        target.shape = shape;
+        target.destination = call.call_plan.parameters[0].clone();
+        let operation = OperationId::new(1).unwrap();
+        assert_eq!(
+            validate_borrowed_argument(&source, &call, operation, 0),
+            Some(())
+        );
+
+        let mut wrong_extent = call.clone();
+        let LegalizedScalarArgument::Structural { target, .. } = &mut wrong_extent.arguments[0]
+        else {
+            panic!("fixed-array loan argument");
+        };
+        target.fixed_array_length = Some(16);
+        assert_eq!(
+            validate_borrowed_argument(&source, &wrong_extent, operation, 0),
+            None
+        );
+
+        // A self-consistent two-word ABI cannot replace the declared pointer
+        // cell: replay derives geometry from the type, not the retained rows.
+        let mut wrong_layout = call.clone();
+        let wide_shape = ValueShape::borrowed_reference(16, 8);
+        wrong_layout.call_plan = evaluate_call_plan(
+            call.call_plan.policy,
+            &CallSignature {
+                parameters: vec![wide_shape],
+                result: None,
+            },
+        )
+        .unwrap();
+        let LegalizedScalarArgument::Structural { target, .. } = &mut wrong_layout.arguments[0]
+        else {
+            panic!("fixed-array loan argument");
+        };
+        target.shape = wide_shape;
+        target.destination = wrong_layout.call_plan.parameters[0].clone();
+        assert_eq!(
+            validate_borrowed_argument(&source, &wrong_layout, operation, 0),
+            None
+        );
+    }
+}
+
+#[test]
 fn owned_record_array_geometry_retains_padding_and_rejects_invalid_contents() {
     let (source, _) = fixed_array_call(target::NativeTarget::linux_x64());
     // Geometry alone: the unrelated borrowed call fixture is not re-admitted.

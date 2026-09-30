@@ -1704,23 +1704,16 @@ crash and native exit behavior. Use affected check/native corpus slices under
   guarantee and namespace consumers with `STATIC-MACHINE-MIGRATION`. Native
   exit 77 and the three recast customers remain open.
 
-  The const-container customer (macOS ARM64, published `8778c44008`) now
-  checks and independently verifies after Terminal serialization/reload.
-  Exact closed-instance fields, declared const extent bounds, and private
-  state-borrow forwarding retain both capacities, witness arrays and getter
-  calls. Stale receiver substitution rejects. Its actual `omega run
+  The const-container customer is now a native control (macOS ARM64,
+  2026-09-30): `omega run --both
   tests/omega/pass/generics/runtime_const_container_methods_exit/main.omg`
-  still exits 200 before execution: target lowering reports
-  `UnsupportedStructuralByteSequence(StructuralTypeId(10))`. Type 10 is
-  the capacity-2 `BoundedView` witness (type 11 is capacity 4).
-  `02_abstract-operations-to-target-operations/src/lowering/structural_layout.rs`
-  omits that carrier from `structural_shape`, although `byte_sequence_shape`
-  already defines its pointer layout. Fixed-array call lowering, descriptor
-  construction and independent replay also assume the 16-byte slice descriptor;
-  they must retain the bounded view's 8-byte pointer cell and exact extent.
-  Coordinate that dependency with
-  `SAMPLE-CORPUS`/`claude-worker / clock-intrinsic`; native exit 70 is still
-  required, not inferred from successful Terminal verification.
+  exits **70** in both engines with source unchanged. Target lowering,
+  descriptor construction and independent replay derive geometry from the
+  declared view: bounded byte views carry one pointer cell, dynamic views
+  also carry their extent. Exact capacities **2/4**, generic witnesses and
+  values **30/40** survive execution; corrupted extent and pointer-cell
+  layout reject in four-host ABI replay tests. The float and recast customers
+  above remain this item's unfinished work.
 
 - **COMPOSITE-TRANSITION-ARGUMENT.** (new-scope) Finish the composite internal
   state arguments that selected-edge establishment does not reach. Record and

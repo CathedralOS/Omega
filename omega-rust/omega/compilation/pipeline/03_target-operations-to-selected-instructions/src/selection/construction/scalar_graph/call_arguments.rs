@@ -186,6 +186,7 @@ fn argument_pointer(
                 .map_err(|_| SelectedInstructionError::custody())?,
             pointer,
             length,
+            target.shape.byte_size,
         )?
     } else if let Some((field_offset, _)) = byte_field {
         if field_offset != target.source_byte_offset {
