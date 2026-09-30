@@ -10,6 +10,7 @@ use syntax_trees::expression::ExpressionNode;
 use syntax_trees::expression::TableBinaryExpression;
 use syntax_trees::item::Item;
 use syntax_trees::operator_spelling::OperatorSpelling;
+use syntax_trees::types::TypeReferenceNode;
 
 pub(crate) struct AnonymousNumericValue {
     pub(super) value: BigRational,
@@ -181,7 +182,14 @@ pub(super) fn has_builtin_const_operator(
     {
         return true;
     }
-    let spelling = match binary.operator {
+    let Some(spelling) = binary_operator_spelling(binary.operator) else {
+        return true;
+    };
+    has_no_authored_spelling(syntax, spelling)
+}
+
+fn binary_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling> {
+    Some(match operator {
         BinaryOperator::Add => OperatorSpelling::Add,
         BinaryOperator::Subtract => OperatorSpelling::Subtract,
         BinaryOperator::Multiply => OperatorSpelling::Multiply,
@@ -200,9 +208,8 @@ pub(super) fn has_builtin_const_operator(
         | BinaryOperator::BitwiseOr
         | BinaryOperator::BitwiseXor
         | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => return true,
-    };
-    has_no_authored_spelling(syntax, spelling)
+        | BinaryOperator::ShiftRight => return None,
+    })
 }
 
 fn has_no_authored_spelling(syntax: &SyntaxTrees, spelling: OperatorSpelling) -> bool {
@@ -214,21 +221,130 @@ fn has_no_authored_spelling(syntax: &SyntaxTrees, spelling: OperatorSpelling) ->
     // did (`boundary machine % Math::remainder` is that slot's new spelling),
     // and a trait requirement may bind one too, so machine items and trait
     // member signatures join the fence alongside the two legacy lanes.
-    !syntax.root_items().any(|item| match item {
-        Item::Operator(operator) => operator.spelling == Some(spelling),
-        Item::Machine(machine) => machine.spelling == Some(spelling),
+    !syntax.root_items().any(|item| {
+        authored_spelling_parameters(syntax, item, spelling).is_some()
+    })
+}
+
+/// The declared parameter carriers of one item's authored `spelling`, or
+/// `None` when the item does not author it. Each parameter yields the spelled
+/// name of its type (`u64`, `Nat`, `f32`); a parameter whose carrier cannot
+/// be read — a binder, a borrow, an uninspectable lane — yields `None`, which
+/// may bind any operand.
+fn authored_spelling_parameters(
+    syntax: &SyntaxTrees,
+    item: &Item,
+    spelling: OperatorSpelling,
+) -> Option<Vec<Option<String>>> {
+    match item {
+        Item::Machine(machine) if machine.spelling == Some(spelling) => {
+            Some(machine_parameter_names(syntax, machine))
+        }
+        // Operator declarations, domain-attached operators and trait member
+        // signatures author the spelling through shapes this pass does not
+        // read into parameter carriers; they conservatively may bind.
+        Item::Operator(operator) if operator.spelling == Some(spelling) => {
+            Some(vec![None, None])
+        }
         Item::Domain(domain) => syntax
             .items
             .operators(domain.operators)
             .iter()
-            .any(|operator| operator.spelling == Some(spelling)),
+            .any(|operator| operator.spelling == Some(spelling))
+            .then(|| vec![None, None]),
         Item::Trait(trait_definition) => syntax
             .items
             .state_signatures(trait_definition.machines)
             .iter()
-            .any(|handle| syntax.items.state_signature(*handle).spelling == Some(spelling)),
-        _ => false,
+            .any(|handle| syntax.items.state_signature(*handle).spelling == Some(spelling))
+            .then(|| vec![None, None]),
+        _ => None,
+    }
+}
+
+/// The parameter type names a spelled machine declares on its entry state,
+/// with the machine's own type binders left unread: `T` can carry any
+/// operand, so it stays `None`.
+fn machine_parameter_names(
+    syntax: &SyntaxTrees,
+    machine: &syntax_trees::item::Machine,
+) -> Vec<Option<String>> {
+    let binder_names: Vec<&str> = syntax
+        .items
+        .type_parameters(machine.type_parameters)
+        .iter()
+        .map(|parameter| parameter.name.as_str())
+        .collect();
+    let Some(entry) = syntax.items.state_handles(machine.states).first() else {
+        return Vec::new();
+    };
+    let state = syntax.items.state(*entry);
+    syntax
+        .items
+        .state_parameters(state.parameters)
+        .iter()
+        .map(|handle| {
+            let parameter = syntax.items.state_parameter(*handle);
+            let TypeReferenceNode::Named(name) = syntax
+                .type_references
+                .type_reference(parameter.type_reference)
+            else {
+                return None;
+            };
+            (!binder_names.contains(&name.as_str())).then(|| name.as_str().to_string())
+        })
+        .collect()
+}
+
+/// Whether one authored `spelling` occurrence could bind these closed operand
+/// values. `has_no_authored_spelling` answers before operand carriers are
+/// known, so the core `Nat` `<=`/`-` machines make every `x <= y` fact
+/// decline even where the operands could never reach a `Nat` parameter.
+/// Once both operands landed, a spelled machine applies only when each
+/// declared parameter accepts the operand's carrier; a fact between `u64`
+/// values cannot reach `Nat` or `f32` parameters and keeps the builtin
+/// meaning. Callers whose subject binding loses the carrier (domain replay
+/// on a scalar `self`) must keep `has_builtin_const_operator`'s answer.
+pub(super) fn authored_operator_can_bind(
+    syntax: &SyntaxTrees,
+    operator: BinaryOperator,
+    left: &super::fact_values::ConstFactValue,
+    right: &super::fact_values::ConstFactValue,
+) -> bool {
+    let Some(spelling) = binary_operator_spelling(operator) else {
+        return false;
+    };
+    syntax.root_items().any(|item| {
+        authored_spelling_parameters(syntax, item, spelling).is_some_and(|parameters| {
+            parameters.len() != 2
+                || parameter_binds(parameters[0].as_deref(), left)
+                    && parameter_binds(parameters[1].as_deref(), right)
+        })
     })
+}
+
+/// Whether a parameter declared with the named carrier accepts this operand.
+/// A declared-integer operand binds only its own carrier (`u64` reaches `u64`
+/// parameters, never `Nat`); an anonymous or bare integer binds only builtin
+/// integer carriers — never a nominal `Nat`, `f32` or `Quantity`; a Boolean
+/// binds `bool`.
+fn parameter_binds(
+    parameter_name: Option<&str>,
+    operand: &super::fact_values::ConstFactValue,
+) -> bool {
+    let Some(name) = parameter_name else {
+        return true;
+    };
+    use super::fact_values::ConstFactValue;
+    match operand {
+        ConstFactValue::DeclaredInteger { integer_type, .. } => {
+            name == integer_type.name()
+        }
+        ConstFactValue::Integer(_) | ConstFactValue::Anonymous(_) => {
+            numerics::literals::LandedIntegerType::from_name(name).is_some()
+        }
+        ConstFactValue::Boolean(_) => name == "bool",
+    }
 }
 
 pub(super) fn anonymous_numeric_expression(

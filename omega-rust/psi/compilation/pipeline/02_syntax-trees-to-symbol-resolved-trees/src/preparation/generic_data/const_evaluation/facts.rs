@@ -17,7 +17,9 @@ use crate::preparation::generic_data::evaluate_const_fact_binary;
 use crate::preparation::generic_data::integer_literal_value;
 use crate::preparation::generic_data::{ConstFactValue, ConstScalarSpelling, ConstScalarValue};
 
-use super::anonymous::{evaluate_anonymous_numeric_expression, has_builtin_const_operator};
+use super::anonymous::{
+    authored_operator_can_bind, evaluate_anonymous_numeric_expression, has_builtin_const_operator,
+};
 use super::arguments::validate_declared_integer;
 use numerics::literals::LandedIntegerType;
 
@@ -211,7 +213,15 @@ fn evaluate_const_fact_expression_at(
             UnaryOperator::BitwiseNot => Ok(None),
         },
         ExpressionNode::Binary(binary) => {
-            if !has_builtin_const_operator(syntax, binary) {
+            // `has_builtin_const_operator` answers before operand carriers
+            // are known: an authored spelling on an incompatible carrier
+            // (the core `Nat` `<=` and `-` machines) makes it decline facts
+            // the authored machine could never bind. A `self`-bound replay
+            // keeps that opaque answer — its scalar binding is carrier-lossy
+            // — while closed operands let `authored_operator_can_bind`
+            // decide by carrier.
+            let builtin = has_builtin_const_operator(syntax, binary);
+            if !builtin && self_value.is_some() {
                 return Ok(None);
             }
             validate_anonymous_remainder(syntax, binary)?;
@@ -241,6 +251,11 @@ fn evaluate_const_fact_expression_at(
             else {
                 return Ok(None);
             };
+            if !builtin
+                && authored_operator_can_bind(syntax, binary.operator, &left, &right)
+            {
+                return Ok(None);
+            }
             evaluate_const_fact_binary(syntax, expression, binary.operator, left, right, warnings)
                 .map(Some)
         }

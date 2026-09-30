@@ -37,6 +37,8 @@ mod synthesis;
 mod uses;
 
 #[cfg(test)]
+mod builtin_operator_tests;
+#[cfg(test)]
 mod division_tests;
 #[cfg(test)]
 mod fact_division_tests;
