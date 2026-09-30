@@ -863,6 +863,7 @@ pub(crate) fn ordinary_projected_call_is_supported(
                             CheckedUnitStructuralPathSegment::Field(_)
                                 | CheckedUnitStructuralPathSegment::FixedIndex(_)
                                 | CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+                                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
                         )
                     })
                     && matches!(

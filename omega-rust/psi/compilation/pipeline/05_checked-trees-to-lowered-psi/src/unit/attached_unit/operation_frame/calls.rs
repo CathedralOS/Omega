@@ -713,6 +713,14 @@ impl OperationFrame<'_, '_> {
             let earlier = self
                 .results
                 .earlier(&forwarded_arguments, self.operations)?;
+            parameters::mint_element_view_length_observations(
+                &forwarded_arguments,
+                self.parameters,
+                &earlier,
+                self.structural_types.declarations(),
+                self.next_value,
+                self.operations,
+            )?;
             validate_transfer_shape(
                 &forwarded_arguments,
                 &forwarded_transfers,

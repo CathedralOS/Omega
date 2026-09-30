@@ -106,55 +106,70 @@ pub(super) fn reconstruct(
             })
         };
         let after = site(call_operation).ok_or(LegalizationError::custody())?;
-        match structural_case::source_owner(caller, argument.place)? {
-            legalized_operations::LegalizedStructuralCaseSource::OperationResult {
-                operation,
-                result,
-            } => {
-                home_layout(&result, plan)?;
-                let before = site(operation).ok_or(LegalizationError::custody())?;
-                if (before.0 == after.0 && before.1 >= after.1)
-                    || (before.0 != after.0
-                        && !target::control_flow::sources::dominates(caller, before.0, after.0))
-                {
+        if let Some((producer, view_type)) = element_view_producer(caller, argument.place) {
+            // An element view is a descriptor root: the argument names its
+            // establishing producer, never a storage home, and the projected
+            // element offset rides on top. The descriptor's own liveness is
+            // proven by the established-view input check downstream.
+            (
+                view_type,
+                target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+                    psi_operation: producer,
+                },
+            )
+        } else {
+            match structural_case::source_owner(caller, argument.place)? {
+                legalized_operations::LegalizedStructuralCaseSource::OperationResult {
+                    operation,
+                    result,
+                } => {
+                    home_layout(&result, plan)?;
+                    let before = site(operation).ok_or(LegalizationError::custody())?;
+                    if (before.0 == after.0 && before.1 >= after.1)
+                        || (before.0 != after.0
+                            && !target::control_flow::sources::dominates(caller, before.0, after.0))
+                    {
+                        return Err(LegalizationError::custody());
+                    }
+                    (
+                        result.structural_type,
+                        target_operations::TargetStructuralArgumentSource::StructuralHome {
+                            psi_operation: operation,
+                        },
+                    )
+                }
+                legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                    block,
+                    declaration,
+                } => {
+                    if argument.access != terminal_psi::StructuralAccess::SharedBorrow
+                        || !target::control_flow::sources::dominates(caller, block, after.0)
+                        || !caller.structural_places.iter().any(|place| {
+                            place.id == declaration.place
+                                && place.kind
+                                    == StructuralPlaceKind::BlockParameter {
+                                        block,
+                                        position: declaration.position,
+                                    }
+                        })
+                    {
+                        return Err(LegalizationError::custody());
+                    }
+                    (
+                        declaration.structural_type,
+                        target_operations::TargetStructuralArgumentSource::BlockParameter {
+                            block,
+                            place: declaration.place,
+                        },
+                    )
+                }
+                // `source_owner` never resolves a function parameter.
+                legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
+                | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {
+                    ..
+                } => {
                     return Err(LegalizationError::custody());
                 }
-                (
-                    result.structural_type,
-                    target_operations::TargetStructuralArgumentSource::StructuralHome {
-                        psi_operation: operation,
-                    },
-                )
-            }
-            legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
-                block,
-                declaration,
-            } => {
-                if argument.access != terminal_psi::StructuralAccess::SharedBorrow
-                    || !target::control_flow::sources::dominates(caller, block, after.0)
-                    || !caller.structural_places.iter().any(|place| {
-                        place.id == declaration.place
-                            && place.kind
-                                == StructuralPlaceKind::BlockParameter {
-                                    block,
-                                    position: declaration.position,
-                                }
-                    })
-                {
-                    return Err(LegalizationError::custody());
-                }
-                (
-                    declaration.structural_type,
-                    target_operations::TargetStructuralArgumentSource::BlockParameter {
-                        block,
-                        place: declaration.place,
-                    },
-                )
-            }
-            // `source_owner` never resolves a function parameter.
-            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
-                return Err(LegalizationError::custody());
             }
         }
     };
@@ -217,4 +232,47 @@ pub(super) fn reconstruct(
         source,
         destination: placement.clone(),
     })
+}
+
+/// The caller place's exact element-view producer: an establishment writes
+/// `destination`, a subslice writes `result.place`. A mutable view's affine
+/// result still answers here — the argument loans the projected element, not
+/// the descriptor's own custody.
+fn element_view_producer(
+    caller: &PsiOptimizationFunction,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<(
+    semantic_vocabulary::OperationId,
+    semantic_vocabulary::StructuralTypeId,
+)> {
+    caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishElementView {
+                psi_operation,
+                result,
+                destination,
+                ..
+            } if *destination == place
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty() =>
+            {
+                Some((*psi_operation, result.structural_type))
+            }
+            AbstractOperation::ElementViewSubslice {
+                psi_operation,
+                result,
+                ..
+            } if result.place == place
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty() =>
+            {
+                Some((*psi_operation, result.structural_type))
+            }
+            _ => None,
+        })
 }

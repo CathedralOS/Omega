@@ -931,12 +931,9 @@ fn normalized_source(
     source: &StructuralArgument,
 ) -> Result<(ReferenceOrigin, ReferenceParent), ModuleError> {
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
-        if let Some(parent) = live
-            .iter()
-            .find(|reference| {
-                reference.carrier == source.place && reference.carrier_path == carrier_path
-            })
-        {
+        if let Some(parent) = live.iter().find(|reference| {
+            reference.carrier == source.place && reference.carrier_path == carrier_path
+        }) {
             if live
                 .iter()
                 .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))

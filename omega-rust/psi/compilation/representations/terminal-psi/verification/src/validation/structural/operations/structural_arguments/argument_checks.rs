@@ -249,6 +249,34 @@ pub(in crate::validation) fn validate_structural_argument(
                     StructuralPlaceKind::OperationResult { .. }
                         if ordinary_call
                             && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                            && !argument.path.is_empty()
+                            && matches!(
+                                argument.access,
+                                StructuralAccess::SharedBorrow
+                                    | StructuralAccess::MutableBorrow
+                                    | StructuralAccess::WriteOnlyBorrow
+                            )
+                            && crate::validation::element_view::view_loan_result(
+                                caller,
+                                argument.place,
+                            )
+                            .is_some() =>
+                    {
+                        // A live element-view binding lends one viewed element
+                        // through its descriptor: the place keeps the view's
+                        // root type and the projected path resolves the
+                        // element below exactly as a parameter subloan does.
+                        let (result, access) = crate::validation::element_view::view_loan_result(
+                            caller,
+                            argument.place,
+                        )
+                        .expect("view result checked above");
+                        Some((result.structural_type, result.multiplicity, access,
+                            result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
+                    }
+                    StructuralPlaceKind::OperationResult { .. }
+                        if ordinary_call
+                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
                             && argument.path.is_empty()
                             && argument.access == StructuralAccess::SharedBorrow
                             && crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place).is_some() =>
@@ -616,6 +644,21 @@ pub(in crate::validation) fn validate_structural_argument(
         is_unrestricted_shared_subloan(module, caller, expected, argument);
     let unrestricted_mutable_field_subloan =
         is_unrestricted_mutable_subloan(module, caller, expected, argument);
+    // An element loan rooted at a view binding presents unrestricted for the
+    // same reason a parameter subloan does: nothing moves, the descriptor
+    // stays the caller's custody, and each borrow kind stays inside the
+    // access the establishing operation minted the view with.
+    let element_view_loan =
+        crate::validation::element_view::view_loan_result(caller, argument.place).is_some_and(
+            |(_, source_access)| {
+                !argument.path.is_empty()
+                    && structural_access_can_supply(source_access, argument.access)
+                    && expected.access == argument.access
+                    && expected.multiplicity == StructuralMultiplicity::Unrestricted
+                    && (super::is_static_borrow_path(&argument.path)
+                        || is_runtime_indexed_borrow_path(&argument.path))
+            },
+        );
     // A shared view is unrestricted without changing the owning root's
     // affine multiplicity. Construction-local loans remain separate.
     let shared_affine_loan = argument.path.is_empty()
@@ -647,6 +690,7 @@ pub(in crate::validation) fn validate_structural_argument(
         } else if unrestricted_write_only_field_subloan
             || unrestricted_shared_field_subloan
             || unrestricted_mutable_field_subloan
+            || element_view_loan
             || shared_buffer_presentation
             || bounded_owner_presentation
             || (buffer_presentation

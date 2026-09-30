@@ -7,7 +7,7 @@ use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 enum SourceProjection {
     Field(ExpressionHandle, symbols::SymbolHandle),
     Index(u64),
-    RuntimeIndex(u32),
+    RuntimeIndex(checked_trees::CheckedRuntimeIndex),
     ByteRange(ExpressionHandle),
 }
 
@@ -247,7 +247,9 @@ pub(crate) fn source_place_path(
                     if let Some(position) = source_state.and_then(|state| {
                         runtime_index_parameter_position(checked, state, name.symbol)
                     }) {
-                        projections.push(SourceProjection::RuntimeIndex(position));
+                        projections.push(SourceProjection::RuntimeIndex(
+                            checked_trees::CheckedRuntimeIndex::Parameter { position },
+                        ));
                         expression = indexed.collection;
                         continue;
                     }
@@ -262,6 +264,23 @@ pub(crate) fn source_place_path(
                         expression = indexed.collection;
                         continue;
                     }
+                }
+                // A field-chain selector (`self.at` in `cells[self.at]`) is a
+                // storage read, not an operand: the checker minted the
+                // `RuntimeIndex::StructuralField` coordinate and this mirror
+                // reproduces it so the replayed path stays identical.
+                if let Some(selector) = source_state.and_then(|state| {
+                    crate::expression_preparation::source_custody::structural_places::runtime_index_selector(
+                        checked,
+                        machine,
+                        state,
+                        indexed.index,
+                    )
+                    .ok()
+                }) {
+                    projections.push(SourceProjection::RuntimeIndex(selector));
+                    expression = indexed.collection;
+                    continue;
                 }
                 let ExpressionNode::Integer(index) =
                     checked.expression_table.expression(indexed.index)
@@ -411,36 +430,49 @@ pub(crate) fn source_place_path(
                 type_reference = field.type_reference;
             }
             SourceProjection::Index(index) => {
-                let TypeReferenceNode::FixedArray {
-                    element_type,
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
-                } = checked.type_reference_table.type_reference(type_reference)
-                else {
-                    return unsupported("scalar wrapper index has no literal fixed-array owner");
-                };
-                if usize::try_from(index)
-                    .ok()
-                    .is_none_or(|index| index >= *length)
+                // A borrowed element view carries no declared extent — its
+                // live length is what the emitted segment's obligation
+                // re-proves — so the hop stays unproven here exactly the way
+                // the checker's slice admission leaves it.
+                let element_type = match checked.type_reference_table.type_reference(type_reference)
                 {
-                    return unsupported("scalar wrapper structural index is out of bounds");
-                }
+                    TypeReferenceNode::FixedArray {
+                        element_type,
+                        length: checked_trees::types::FixedArrayLength::Literal(length),
+                    } => {
+                        if usize::try_from(index)
+                            .ok()
+                            .is_none_or(|index| index >= *length)
+                        {
+                            return unsupported("scalar wrapper structural index is out of bounds");
+                        }
+                        *element_type
+                    }
+                    TypeReferenceNode::Slice { element_type } => *element_type,
+                    _ => {
+                        return unsupported(
+                            "scalar wrapper index has no literal fixed-array owner",
+                        );
+                    }
+                };
                 path.push(checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
                     index,
                 ));
-                type_reference = *element_type;
+                type_reference = element_type;
             }
-            SourceProjection::RuntimeIndex(position) => {
-                let TypeReferenceNode::FixedArray { element_type, .. } =
-                    checked.type_reference_table.type_reference(type_reference)
-                else {
-                    return unsupported("scalar wrapper runtime index has no fixed-array backing");
+            SourceProjection::RuntimeIndex(selector) => {
+                let element_type = match checked.type_reference_table.type_reference(type_reference)
+                {
+                    TypeReferenceNode::FixedArray { element_type, .. }
+                    | TypeReferenceNode::Slice { element_type } => *element_type,
+                    _ => {
+                        return unsupported(
+                            "scalar wrapper runtime index has no fixed-array backing",
+                        );
+                    }
                 };
-                path.push(
-                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                        checked_trees::CheckedRuntimeIndex::Parameter { position },
-                    ),
-                );
-                type_reference = *element_type;
+                path.push(checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector));
+                type_reference = element_type;
             }
         }
     }

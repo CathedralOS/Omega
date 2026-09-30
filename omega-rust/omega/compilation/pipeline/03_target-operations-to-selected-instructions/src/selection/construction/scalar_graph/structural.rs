@@ -185,6 +185,42 @@ pub(super) fn call_pointer(
     place_pointer(builder, row, place, byte_offset)
 }
 
+/// An element loan rides on the view's backing pointer, never the
+/// descriptor's own address: `element_backing_pointer` yields the stored base
+/// (or the derived home's live pointer) and the projected offset scales onto
+/// it exactly as a parameter-rooted subloan does.
+pub(super) fn view_element_pointer(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let input = element_views::element_backing_pointer(builder, row, place)?;
+    let output = transport_register(builder, place, byte_offset)?;
+    builder.emit(
+        if byte_offset == 0 {
+            SelectedInstructionKind::CopyI64
+        } else {
+            SelectedInstructionKind::AddressOffset { byte_offset }
+        },
+        if byte_offset == 0 {
+            builder.constraints.keys.copy_i64
+        } else {
+            builder
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| invalid())?
+        },
+        &[input, output],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
+}
+
 pub(super) fn operation(
     function: usize,
     source: &LegalizedScalarFunction,

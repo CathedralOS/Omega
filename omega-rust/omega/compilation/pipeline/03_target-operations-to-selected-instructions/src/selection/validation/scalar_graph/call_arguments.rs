@@ -176,8 +176,20 @@ fn argument_pointer(
                 })
         })
     };
-    let pointer =
-        structural::call_pointer(replay, operation, pointer_place, target.source_byte_offset)?;
+    let pointer = if matches!(
+        target.source,
+        target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
+    ) && !semantic.path.is_empty()
+    {
+        structural::view_element_pointer(
+            replay,
+            operation,
+            pointer_place,
+            target.source_byte_offset,
+        )?
+    } else {
+        structural::call_pointer(replay, operation, pointer_place, target.source_byte_offset)?
+    };
     let pointer = if indices.is_empty() {
         pointer
     } else {

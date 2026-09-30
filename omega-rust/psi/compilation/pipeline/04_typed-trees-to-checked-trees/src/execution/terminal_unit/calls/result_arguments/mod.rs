@@ -21,7 +21,9 @@ use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypedTrees;
 
-use crate::execution::terminal_unit::calls::argument_paths::projected_argument_path_with_identity;
+use crate::execution::terminal_unit::calls::argument_paths::{
+    projected_argument_path_with_identity, projected_borrowed_path,
+};
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_argument_access;
 
 mod anonymous_shared;
@@ -176,13 +178,26 @@ pub(super) fn argument(
     // names the argument's projected edge below. A projected borrow resolves
     // the same path to name the loaned subtree.
     let projected_path = if projected {
-        projected_argument_path_with_identity(
-            program,
-            state,
-            call.statement_index,
-            place,
-            target_identity,
-        )
+        if projected_borrow {
+            // An element or field borrow resolves runtime selectors the way
+            // the parameter lanes do: the segment carries the checked
+            // `RuntimeIndex` coordinate Terminal re-proves against the
+            // container's extent.
+            projected_borrowed_path(program, machine, state, call.statement_index, place)
+                .filter(|(projected, _)| {
+                    base_type_identity(program, *projected, &[])
+                        .is_some_and(|identity| identity == target_identity)
+                })
+                .map(|(_, path)| path)
+        } else {
+            projected_argument_path_with_identity(
+                program,
+                state,
+                call.statement_index,
+                place,
+                target_identity,
+            )
+        }
     } else {
         None
     };
@@ -527,7 +542,13 @@ pub(super) fn argument(
                 )
     );
     if !storage_identity_matches
-        || program.type_multiplicity(referent) != result.multiplicity
+        || (program.type_multiplicity(referent) != result.multiplicity
+            // A shared loan presents unrestricted regardless of the referent's
+            // own cleanup profile: the viewed element is already rejoined by
+            // the projected path's identity check, and the binding stores
+            // only the unrestricted descriptor.
+            && !(access == CheckedStructuralAccess::SharedBorrow
+                && result.multiplicity == Multiplicity::Unrestricted))
         || (!unrestricted
             && !linear
             && !owned_reference_record
@@ -585,20 +606,39 @@ pub(super) fn argument(
                         local.type_reference,
                     )
                 };
-                if (access == CheckedStructuralAccess::Owned && local.is_mutable)
-                    || local.symbol != symbol
-                    || (!unrestricted && !linear && !owned_reference_record && !owned_contents)
-                    || program.type_multiplicity(local.type_reference) != result.multiplicity
-                    || (unrestricted
-                        && !(validation::is_closed_primitive_array_type(
-                            program,
-                            local.type_reference,
-                        ) || validation::has_plain_owned_contents_with_numeric_constraints(
-                            program,
-                            local.type_reference,
-                        )))
-                    || base_type_identity(program, local.type_reference, &[])?
-                        != result.type_identity
+                // A borrowed-view binding lends elements through its
+                // descriptor, not through owned contents on its reference
+                // shell: the projected borrow's evidence is the exact
+                // access rejoined above, so only the binding's identity
+                // must match — the owned-local fences do not apply.
+                let view_binding = projected_borrow
+                    && local.symbol == symbol
+                    && matches!(
+                        program
+                            .type_reference_table
+                            .type_reference(local.type_reference),
+                        typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                            if matches!(
+                                program.type_reference_table.type_reference(*referee),
+                                typed_trees::types::TypeReferenceNode::Slice { .. }
+                            )
+                    );
+                if !view_binding
+                    && ((access == CheckedStructuralAccess::Owned && local.is_mutable)
+                        || local.symbol != symbol
+                        || (!unrestricted && !linear && !owned_reference_record && !owned_contents)
+                        || program.type_multiplicity(local.type_reference) != result.multiplicity
+                        || (unrestricted
+                            && !(validation::is_closed_primitive_array_type(
+                                program,
+                                local.type_reference,
+                            )
+                                || validation::has_plain_owned_contents_with_numeric_constraints(
+                                    program,
+                                    local.type_reference,
+                                )))
+                        || base_type_identity(program, local.type_reference, &[])?
+                            != result.type_identity)
                 {
                     return None;
                 }

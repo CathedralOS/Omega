@@ -11,7 +11,7 @@ use crate::validation::{
     ClaimId, ClaimTransfer, ModuleError, OperationId, PlaceId, ServiceId, StructuralAccess,
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, TerminalMachine, TerminalModule, is_nonempty_field_path,
-    resolve_structural_path,
+    is_runtime_indexed_borrow_path, resolve_structural_path,
 };
 
 pub(crate) fn validate_service_reach(
@@ -40,6 +40,26 @@ pub(crate) fn is_record_loan(
         && crate::validation::record::completed_source(module, caller, argument.place)
             .map(|result| result.structural_type)
             .or_else(|| {
+                // An element view produced earlier in the body is also a
+                // completed source — `completed_source` only names
+                // plain-record producers. A runtime-indexed path then
+                // resolves one exact element the loan presents.
+                crate::validation::structural::result_contracts::source_signature(
+                    caller,
+                    argument.place,
+                )
+                .map(|signature| signature.structural_type)
+                .filter(|root_type| {
+                    module.structural_types.iter().any(|declaration| {
+                        declaration.id == *root_type
+                            && matches!(
+                                declaration.shape,
+                                crate::validation::StructuralTypeShape::ElementView { .. }
+                            )
+                    })
+                })
+            })
+            .or_else(|| {
                 // A joined plain record still owns its fields. Shared field
                 // access borrows that selected storage rather than transferring
                 // it. Block declaration, dominance and live-frontier checks
@@ -61,8 +81,20 @@ pub(crate) fn is_record_loan(
                     .map(|source| source.structural_type)
             })
             .is_some_and(|root_type| {
-                resolve_structural_path(module, root_type, &argument.path)
-                    == Some(parameter.structural_type)
+                // A runtime-indexed loan of the record's exact element is the
+                // same subtree signature the static resolver mints for a
+                // literal index; the runtime resolver alone accepts the
+                // `RuntimeIndex` hop.
+                let exact_subtree = if is_runtime_indexed_borrow_path(&argument.path) {
+                    crate::validation::foundation::resolve_runtime_projection(
+                        module,
+                        root_type,
+                        &argument.path,
+                    )
+                } else {
+                    resolve_structural_path(module, root_type, &argument.path)
+                };
+                exact_subtree == Some(parameter.structural_type)
             })
 }
 

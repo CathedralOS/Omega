@@ -179,6 +179,22 @@ pub(crate) fn structural_arguments_match(
             && parameter.access == terminal_psi::StructuralAccess::SharedBorrow
             && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
             && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
+        // A live view binding lends one viewed element: the descriptor's
+        // custody stays with the caller, so the loan presents unrestricted
+        // exactly like a parameter subloan — even when the view result
+        // itself is affine (a mutable establishment's result is Affine, not
+        // Unrestricted, yet nothing moves when an element is borrowed).
+        let element_view_loan = !argument.path.is_empty()
+            && argument.access != terminal_psi::StructuralAccess::Owned
+            && matches!(
+                types
+                    .get(&source.structural_type)
+                    .map(|declaration| &declaration.shape),
+                Some(terminal_psi::StructuralTypeShape::ElementView { .. })
+            )
+            && structural_access_can_supply(source.access, argument.access)
+            && argument.access == parameter.access
+            && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
         // A bounded owned byte-sequence field supplies a borrowed byte-view
         // parameter without a structural type identity of its own. Boundary
         // calls admit the presentation outright; ordinary borrowed calls admit
@@ -431,6 +447,7 @@ pub(crate) fn structural_arguments_match(
                 || unrestricted_mutable_subloan
                 || unrestricted_owned_mutable_subloan
                 || unrestricted_shared_subloan
+                || element_view_loan
                 || shared_buffer_presentation
                 || (buffer_presentation
                     && source.access == terminal_psi::StructuralAccess::MutableBorrow
@@ -704,8 +721,10 @@ fn structural_operation_result_contract(
                 O::ByteSequenceSubslice { result, .. } => {
                     (result, terminal_psi::StructuralAccess::SharedBorrow)
                 }
-                O::EstablishElementView { result, .. }
-                | O::ElementViewSubslice { result, .. } => {
+                // The view's source access IS the loan's access: a mutable
+                // establishment lends mutable, a shared one lends shared.
+                O::EstablishElementView { result, source, .. } => (result, source.access),
+                O::ElementViewSubslice { result, .. } => {
                     (result, terminal_psi::StructuralAccess::SharedBorrow)
                 }
                 O::EstablishScalarArray { result, .. }

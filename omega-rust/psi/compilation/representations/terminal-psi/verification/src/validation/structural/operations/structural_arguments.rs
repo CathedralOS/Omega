@@ -343,7 +343,7 @@ pub(crate) fn is_admitted_unit_call_argument_path(
 // the receiving check separately resolves every field and fixed-index bound.
 // First-class reference paths retain their own authority rules.
 
-fn is_static_borrow_path(path: &[StructuralPathSegment]) -> bool {
+pub(crate) fn is_static_borrow_path(path: &[StructuralPathSegment]) -> bool {
     !path.is_empty()
         && path.iter().all(|segment| match segment {
             StructuralPathSegment::Field(identity) => !identity.is_empty(),

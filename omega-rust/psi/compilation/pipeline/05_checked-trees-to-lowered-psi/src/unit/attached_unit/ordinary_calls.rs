@@ -6,7 +6,8 @@ use super::super::{
 };
 use super::bodies::UnitPlans;
 use super::parameters::{
-    StructuralResultCustody, emitted_claim_transfers, mint_runtime_index_selectors,
+    StructuralResultCustody, emitted_claim_transfers, mint_element_view_length_observations,
+    mint_runtime_index_selectors,
 };
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
@@ -176,6 +177,14 @@ pub(super) fn prepare(
         operations,
     )?
     .into_iter();
+    mint_element_view_length_observations(
+        structural_arguments,
+        parameters,
+        structural_result_places,
+        structural_types,
+        next_value,
+        operations,
+    )?;
     let completed_results = &operations.structural_values;
     validate_transfer_shape(
         structural_arguments,

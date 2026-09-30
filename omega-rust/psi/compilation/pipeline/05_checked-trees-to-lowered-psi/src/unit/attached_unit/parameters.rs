@@ -885,11 +885,27 @@ pub(crate) fn validate_transfer_shape(
                         .as_ref()
                         == Some(expected)
                 });
+            // A live element-view binding lends one viewed element through
+            // any access the borrow evidence carries: the projected path
+            // resolves record fields and indexed view hops to exactly the
+            // element shape the argument presents.
+            let element_view_borrow =
+                matches!(
+                    argument.access,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                        | checked_trees::CheckedStructuralAccess::MutableBorrow
+                        | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                ) && view_element_projection_type(
+                    structural_types,
+                    structural_type,
+                    &argument.path,
+                ) == Some(lookup_type_id(type_ids, &argument.type_identity)?);
             if (!argument.path.is_empty()
                 && argument.access != checked_trees::CheckedStructuralAccess::Owned
                 && !record_borrow
                 && !reference_borrow
-                && !scalar_leaf_borrow)
+                && !scalar_leaf_borrow
+                && !element_view_borrow)
                 || argument.type_identity != target.type_identity
                 || (argument.path.is_empty()
                     && structural_type != lookup_type_id(type_ids, &argument.type_identity)?
@@ -897,6 +913,7 @@ pub(crate) fn validate_transfer_shape(
                 || (!record_borrow
                     && !reference_borrow
                     && !scalar_leaf_borrow
+                    && !element_view_borrow
                     && !array_borrow
                     && !matches!(
                         argument.access,
@@ -909,6 +926,7 @@ pub(crate) fn validate_transfer_shape(
                         || record_borrow
                         || reference_borrow
                         || scalar_leaf_borrow
+                        || element_view_borrow
                         || array_borrow
                         || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                     {
@@ -918,6 +936,7 @@ pub(crate) fn validate_transfer_shape(
                     }
                 || (target.is_self
                     && !record_borrow
+                    && !element_view_borrow
                     && !case_receiver_borrow
                     && !(argument.access == checked_trees::CheckedStructuralAccess::Owned
                         && argument.path.is_empty()))
@@ -1263,6 +1282,83 @@ pub(crate) fn mint_runtime_index_selectors(
     Ok(values)
 }
 
+/// A runtime-index argument rooted at an element view owes its bound the
+/// view's live extent, not a declaration: mint the dominating
+/// `ElementViewLength` observation whose scalar the segment's
+/// `index < length` obligation names — the same observation an element-view
+/// write carries as its `length` operand. Only a segment at path position
+/// zero resolves the view at the projection root; one observation per root
+/// place dominates every argument the call projects from that view.
+pub(crate) fn mint_element_view_length_observations(
+    arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+    parameters: &[StructuralParameterDeclaration],
+    structural_results: &[(StructuralPlaceDeclaration, bool)],
+    structural_types: &[StructuralTypeDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<(), LoweringError> {
+    let mut observed = BTreeSet::new();
+    for argument in arguments {
+        if !matches!(
+            argument.path.first(),
+            Some(CheckedUnitStructuralPathSegment::RuntimeIndex(_))
+        ) {
+            continue;
+        }
+        let (place, structural_type) =
+            if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
+                let (source, _) = structural_results
+                    .get(usize::try_from(ordinal).map_err(|_| {
+                        LoweringError::Unsupported(
+                            "Unit structural result binding ordinal exceeds usize",
+                        )
+                    })?)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit structural result binding is not produced",
+                    ))?;
+                let StructuralPlaceKind::OperationResult {
+                    structural_type, ..
+                } = source.kind
+                else {
+                    continue;
+                };
+                (source.id, structural_type)
+            } else if let Some(parameter_index) = argument.source_parameter_index() {
+                let parameter = parameters
+                    .get(usize::try_from(parameter_index).map_err(|_| {
+                        LoweringError::Unsupported("Unit structural argument index exceeds usize")
+                    })?)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit structural argument has an invalid caller parameter index",
+                    ))?;
+                (parameter.place, parameter.structural_type)
+            } else {
+                continue;
+            };
+        if !structural_types.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+        }) || !observed.insert(place)
+        {
+            continue;
+        }
+        let length = crate::terminal_identities::value_id(allocate_dense(next_value)?);
+        let id = operations.allocate();
+        operations.push(crate::unit::Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: crate::unit::OperationResult::Scalar(ValueDeclaration {
+                qualifications: Default::default(),
+                id: length,
+                scalar_type: terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
+            }),
+            kind: crate::unit::OperationKind::ElementViewLength { source: place },
+        });
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_structural_arguments(
     arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
@@ -1455,6 +1551,47 @@ fn record_scalar_leaf_shape(
         .find(|field| field.identity == *identity)?
         .field_type
         .canonical_leaf_shape()
+}
+
+/// Follow owned record fields, view-element index hops, and one referent
+/// hop to the projected element. An element-view binding lends exactly the
+/// element its indexed path names; a hop the shape cannot carry declines.
+fn view_element_projection_type(
+    types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let mut current = root;
+    for segment in path {
+        let shape = &types.iter().find(|item| item.id == current)?.shape;
+        current = match (shape, segment) {
+            (
+                StructuralTypeShape::Record { fields },
+                CheckedUnitStructuralPathSegment::Field(identity),
+            ) => {
+                let StructuralFieldType::Structural(child) = fields
+                    .iter()
+                    .find(|field| field.identity == *identity)?
+                    .field_type
+                else {
+                    return None;
+                };
+                child
+            }
+            (
+                StructuralTypeShape::ElementView { element }
+                | StructuralTypeShape::FixedArray { element, .. },
+                CheckedUnitStructuralPathSegment::FixedIndex(_)
+                | CheckedUnitStructuralPathSegment::RuntimeIndex(_),
+            ) => *element,
+            (
+                StructuralTypeShape::Reference { referent, .. },
+                CheckedUnitStructuralPathSegment::Referent,
+            ) => *referent,
+            _ => return None,
+        };
+    }
+    Some(current)
 }
 
 /// Follow only owned record fields. The caller separately decides whether

@@ -190,6 +190,40 @@ pub(super) fn call_pointer(
     place_pointer(replay, row, place, byte_offset)
 }
 
+/// Replay the element-loan pointer: the view's backing pointer, never the
+/// descriptor's own address, projected to the loaned element.
+pub(super) fn view_element_pointer(
+    replay: &mut Replay<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let input = element_views::element_backing_pointer(replay, row, place)?;
+    let output = result(replay, place, byte_offset)?;
+    replay.check_instruction(
+        if byte_offset == 0 {
+            SelectedInstructionKind::CopyI64
+        } else {
+            SelectedInstructionKind::AddressOffset { byte_offset }
+        },
+        if byte_offset == 0 {
+            replay.constraints.keys.copy_i64
+        } else {
+            replay
+                .constraints
+                .keys
+                .address_offset
+                .ok_or_else(|| replay.invalid())?
+        },
+        &[input, output],
+        &SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
+}
+
 pub(super) fn operation(
     source: &LegalizedScalarFunction,
     node: &LegalizedScalarInstruction,

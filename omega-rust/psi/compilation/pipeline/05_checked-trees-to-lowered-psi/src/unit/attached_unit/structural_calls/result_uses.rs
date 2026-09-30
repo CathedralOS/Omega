@@ -1518,6 +1518,7 @@ pub(crate) fn validate_consumer(
                     checked_trees::CheckedUnitStructuralPathSegment::Field(_)
                         | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
                         | checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+                        | checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
                 )
             })
             && lent_access
