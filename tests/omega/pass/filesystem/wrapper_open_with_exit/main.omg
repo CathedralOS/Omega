@@ -85,7 +85,7 @@ machine Main::main(&mut self) reaches Console {
         self.file_fd = file.fd;
         self.io_result = self.fs.write(File { fd: self.file_fd }, "tail");
         self.close_rc = self.fs.close(File { fd: self.file_fd });
-        self.io_result = self.fs.read_all("omega_ow_probe.txt", &mut self.back, 16);
+        self.io_result = Filesystem::read_all(&mut self.fs, "omega_ow_probe.txt", &mut self.back, 16);
         transition self.io_result { IoResult::Ok { count } -> ck4(count) _ -> bad(76) }
     }
     state ck4(&mut self, count: u64) {

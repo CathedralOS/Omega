@@ -36,7 +36,7 @@ machine Main::main(&mut self) reaches Console {
         transition count == 5 { true -> meta() _ -> bad(72) }
     }
     state meta(&mut self) {
-        self.meta_result = self.fs.metadata(File { fd: self.file_fd });
+        self.meta_result = Filesystem::metadata(&mut self.fs, File { fd: self.file_fd });
         transition self.meta_result { MetadataResult::Ok { meta } -> ckmeta(meta) _ -> bad(73) }
     }
     state ckmeta(&mut self, meta: Metadata) {
@@ -51,7 +51,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> locksh() _ -> bad(75) }
     }
     state locksh(&mut self) {
-        self.unit_result = self.fs.lock_shared(File { fd: self.file_fd });
+        self.unit_result = Filesystem::lock_shared(&mut self.fs, File { fd: self.file_fd });
         transition self.unit_result { UnitResult::Ok -> un2() _ -> bad(76) }
     }
     state un2(&mut self) {
@@ -59,7 +59,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> tryx() _ -> bad(77) }
     }
     state tryx(&mut self) {
-        self.try_result = self.fs.try_lock(File { fd: self.file_fd });
+        self.try_result = Filesystem::try_lock(&mut self.fs, File { fd: self.file_fd });
         transition self.try_result { TryLockResult::Acquired -> un3() _ -> bad(78) }
     }
     state un3(&mut self) {
@@ -67,7 +67,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> trysh() _ -> bad(79) }
     }
     state trysh(&mut self) {
-        self.try_result = self.fs.try_lock_shared(File { fd: self.file_fd });
+        self.try_result = Filesystem::try_lock_shared(&mut self.fs, File { fd: self.file_fd });
         transition self.try_result { TryLockResult::Acquired -> un4() _ -> bad(80) }
     }
     state un4(&mut self) {
