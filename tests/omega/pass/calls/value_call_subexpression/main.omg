@@ -1,43 +1,127 @@
-// A value (machine) call keeps its occurrence even when it is NOT the root
-// of the expression its construction site lowers. Every parented shape that
-// once dropped the call now checks and executes:
+// A value (machine) call keeps its occurrence and its result when it is not
+// the root of the expression its site lowers. Each shape below computes a
+// value that the program checks, with its own failure code:
 //
-//   let r: i32 = twelve();            checks   (call is the whole thing)
-//   let r: i32 = (twelve());          checks   (parens are transparent)
-//   let r: i32 = twelve() + 0;        checks   (this fixture)
-//   let r: i64 = twelve() as i64;     checks   (a CAST parent)
-//   let f: bool = twelve() == 12;     checks
-//   let r: i32 = 0 - twelve();        checks
-//   let r: i32 = self.add(twelve(), twelve());        checks
-//   base = self.add(twelve(), 0);                    checks
-//   transition { _ -> good(twelve() + 0) }                checks
-//   _ = self.add(twelve(), 1);                            checks
+//   71  `twelve() + 0` in a local           (call under arithmetic)
+//   72  `(twelve())`                        (parentheses are transparent)
+//   73  `twelve() as i64`                   (a cast parent)
+//   74  `twelve() == 12` as a Boolean local (a comparison parent)
+//   75  `0 - twelve()` and `1 + twelve()`   (call as either operand)
+//   76  `self.add(twelve(), twelve())`      (calls as call arguments)
+//   77  `self.total = twelve() * 2`         (a field store)
+//   78  `transition twelve() + 1 == 13`     (a guard subject)
+//   79  `self.tick() * 10 + self.tick()`    (ordered, single invocation: 12)
+//   80  `false && self.tick() == 3`         (the right operand never runs)
 //
-// Each shape was verified end-to-end natively on 2026-09-29: the inner calls
-// execute and their results reach the outer expression (exit codes carry the
-// computed values). The repair was 508b04b168f, retaining named terminal
-// calls through ordinary call planning.
+// Exit 70 means every call ran exactly as often as authored and its result
+// reached the enclosing expression. The repair was 508b04b168f, retaining
+// named terminal calls through ordinary call planning.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
+    total: i32;
+    ticks: u32 in Wrapping;
 }
 
-machine twelve() -> i32 {
+machine twelve() -> i32
+ensures result == 12
+{
     transition { _ -> (12) }
 }
 
+machine Main::add(&mut self, left: i32, right: i32) -> i32
+requires 0 <= left && left <= 100 && 0 <= right && right <= 100
+{
+    left + right
+}
+
+machine Main::tick(&mut self) -> u32 in Wrapping {
+    self.ticks = self.ticks + 1;
+    self.ticks
+}
+
 machine Main::main(&mut self) reaches Console {
-    let mut base: i32 = 1;
-    transition { _ -> check() }
-
-    state check(&mut self) {
-        let result: i32 = twelve() + 0;
-        transition { _ -> good() }
+    self.ticks = 0;
+    let sum: i32 = twelve() + 0;
+    transition sum == 12 {
+        true -> parenthesized()
+        false -> bad(71)
     }
 
-    state good(&mut self) {
-        self.console.exit_process(0);
+    state parenthesized(&mut self) {
+        let bare: i32 = (twelve());
+        transition bare == 12 {
+            true -> cast()
+            false -> bad(72)
+        }
     }
+
+    state cast(&mut self) {
+        let wide: i64 = twelve() as i64;
+        transition wide == 12 {
+            true -> compare()
+            false -> bad(73)
+        }
+    }
+
+    state compare(&mut self) {
+        let equal: bool = twelve() == 12;
+        transition equal {
+            true -> either_side()
+            false -> bad(74)
+        }
+    }
+
+    state either_side(&mut self) {
+        let negated: i32 = 0 - twelve();
+        let raised: i32 = 1 + twelve();
+        transition negated == -12 && raised == 13 {
+            true -> arguments()
+            false -> bad(75)
+        }
+    }
+
+    state arguments(&mut self) {
+        let doubled: i32 = self.add(twelve(), twelve());
+        transition doubled == 24 {
+            true -> store()
+            false -> bad(76)
+        }
+    }
+
+    state store(&mut self) {
+        self.total = twelve() * 2;
+        transition self.total == 24 {
+            true -> guard()
+            false -> bad(77)
+        }
+    }
+
+    state guard(&mut self) {
+        transition twelve() + 1 == 13 {
+            true -> ordered()
+            false -> bad(78)
+        }
+    }
+
+    state ordered(&mut self) {
+        let digits: u32 in Wrapping = self.tick() * 10 + self.tick();
+        transition digits == 12 && self.ticks == 2 {
+            true -> short_circuit()
+            false -> bad(79)
+        }
+    }
+
+    state short_circuit(&mut self) {
+        let skipped: bool = false && self.tick() == 3;
+        transition !skipped && self.ticks == 2 {
+            true -> good()
+            false -> bad(80)
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
 }
