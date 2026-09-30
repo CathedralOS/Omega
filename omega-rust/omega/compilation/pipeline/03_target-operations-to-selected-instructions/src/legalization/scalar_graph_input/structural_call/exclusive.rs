@@ -101,8 +101,12 @@ pub(super) fn argument(
     let (structural_type, source_byte_offset) =
         match (projection, byte_field, byte_view, element_view, byte_owner) {
             (None, None, None, None, Some((offset, _))) => (destination.structural_type, offset),
-            (_, None, Some((offset, _)), None, None)
-            | (_, None, None, Some((offset, _, _)), None) => (destination.structural_type, offset),
+            // A `&[u8]` view over a `[u8; N]` array satisfies both the byte
+            // and the u8 element view lookups; their windows coincide, so the
+            // byte view wins like in `borrowed_argument`.
+            (_, None, Some((offset, _)), _, None) | (_, None, None, Some((offset, _, _)), None) => {
+                (destination.structural_type, offset)
+            }
             (Some((projected, offset)), None, None, None, None) => (projected, offset),
             (None, Some((offset, _)), None, None, None) => (destination.structural_type, offset),
             _ => return Err(LegalizationError::custody()),
