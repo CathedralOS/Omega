@@ -63,6 +63,10 @@ pass/build/described_runner_entry_left_exit built 2056ms exit:11
 pass/build/described_runner_entry_right_exit built 2050ms exit:37
 pass/build/runtime_depend_mapping_exit built 612ms exit:70
 pass/build/runtime_main_source_builder_is_ordinary_exit built 619ms exit:70
+pass/build/same_leaf_runner_entry_left_exit rejected 1595ms @b09f66e07ebd+wt
+	terminal-artifact production failed: Lowering(Unsupported("composed Unit attachment is ambiguous or generic"))
+pass/build/same_leaf_runner_entry_right_exit rejected 1897ms @b09f66e07ebd+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary receiver` (state 0, statement 0)
 pass/build/uefi_os_handoff_invocation rejected 981ms
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity

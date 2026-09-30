@@ -1129,6 +1129,10 @@ pass/build/described_runner_entry_right_exit rejected 1007ms @2d8ed253669f
 	Linux x86-64 hosted receiver bridge lost exact contract, storage, or entry custody
 pass/build/runtime_depend_mapping_exit checked 1263ms @2d8ed253669f
 pass/build/runtime_main_source_builder_is_ordinary_exit checked 1191ms @2d8ed253669f
+pass/build/same_leaf_runner_entry_left_exit rejected 2457ms @b09f66e07ebd+wt
+	terminal-artifact production failed: Lowering(Unsupported("composed Unit attachment is ambiguous or generic"))
+pass/build/same_leaf_runner_entry_right_exit rejected 2360ms @b09f66e07ebd+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary receiver` (state 0, statement 0)
 pass/build/uefi_os_handoff_invocation rejected 1222ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Loader::drive`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::run`), which was itself omitted at an unavailable callee (`UefiOsHandoffCycle::acquire`), which was itself omitted at local construction at `call operation: projected operand support`
 pass/calls/ambient_receiver_scalar_return_exit checked 1291ms @2d8ed253669f

@@ -2312,14 +2312,17 @@ extend that route through ordinary checked Build execution and retained outputs.
   and **BUILD-ADMISSION-CHECKPOINT** source custody, never durable authority from
   names or evaluator indices.
 
-  Register the missing scalar/multi-state customer in `tests/omega`: the cited
-  `build_target_activation` Rust suite was removed. Select each module's
-  `Runner::run` as ProgramEntry and observe its provider's computed result
-  (**11** versus **37**) through ordinary calls and the state branch. Selected
-  identity must survive product descriptions, helper returns, Terminal production
-  and native execution with explicit exit oracles. **STATE-LOCAL-VALUE-FRONTIER**
-  owns scalar/provider and state-call closure; **ENTRY-CONTENT-ROOTS** owns receiver
-  attachment.
+  The scalar/multi-state customer is registered.
+  `pass/build/described_runner_entry_{left,right}_exit` (sibling leaves) exit
+  **11** and **37** natively and interpreted. The literal same-leaf twins
+  `same_leaf_runner_entry_{left,right}_exit`, where both modules declare
+  `Runner`, still reject: stages 04/05 resolve the attached data by leaf name
+  rather than symbol in `terminal_unit/calls/boundary_admission.rs`
+  (`provider_attachment_receiver_matches`, right twin: "call operation:
+  boundary receiver") and `unit/attached_unit/composed_control/admission.rs`
+  (left twin: "composed Unit attachment is ambiguous or generic").
+  **STATE-LOCAL-VALUE-FRONTIER** owns scalar/provider and state-call closure;
+  **ENTRY-CONTENT-ROOTS** owns receiver attachment.
 
   Retain source controls for qualified paths, computed receivers, named lifetimes,
   parent loans and conflicting later operands. `fail/build/product_entry_*` and
