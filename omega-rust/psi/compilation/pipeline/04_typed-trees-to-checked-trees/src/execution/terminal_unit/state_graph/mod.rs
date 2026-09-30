@@ -295,11 +295,17 @@ pub(super) fn build_traced(
         let binding_initializers = prefix_initializers(program, facts, state, &bindings, trace)?;
         bindings.truncate(binding_initializers.len());
         let binding_count = bindings.len();
+        // Only a final expression completes a value-returning state. Earlier
+        // Unit calls are ordinary operations, even when their source nodes
+        // are expressions. Keep them in the shared statement sequence so
+        // their call occurrences and following operations remain in order.
         let terminator_index = statements
             .iter()
-            .position(|statement| {
+            .enumerate()
+            .position(|(statement_index, statement)| {
                 matches!(statement, StatementNode::Transition(_))
                     || (result != checked_trees::CheckedControlResultPlan::Unit
+                        && statement_index + 1 == statements.len()
                         && matches!(statement, StatementNode::Expression(_)))
             })
             .unwrap_or(statements.len());
