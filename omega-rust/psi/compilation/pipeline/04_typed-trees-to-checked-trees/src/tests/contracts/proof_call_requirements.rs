@@ -127,10 +127,15 @@ fn case_citation_does_not_imply_zero_common_fields() {
     )
     .map(|_| ())
     .expect_err("a case guarantee supplies no common-field equation");
+    // The call is rejected on `zero_only`'s requirement: either the
+    // obligation stays unproved, or the refutation rung decides it false from
+    // `known`'s declared initial value.
     assert!(
-        diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("requires")),
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("requires")
+                || (diagnostic.message.contains("call to `zero_only`")
+                    && diagnostic.message.contains("violates required fact"))
+        }),
         "{diagnostics:?}"
     );
 }

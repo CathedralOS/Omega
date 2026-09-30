@@ -409,7 +409,7 @@ fn primitive_shared_loan_rejects_substituted_custody_path_or_leaf() {
 }
 
 #[test]
-fn primitive_shared_loan_keeps_the_root_pinned_and_the_leaf_unread_in_block() {
+fn primitive_shared_loan_keeps_the_root_pinned_and_reads_the_leaf_in_block() {
     // Writing through the loaned root while the scalar view observes it
     // disturbs the pin, even though the store's own access authority is
     // otherwise legal.
@@ -441,10 +441,10 @@ fn primitive_shared_loan_keeps_the_root_pinned_and_the_leaf_unread_in_block() {
         "a store through the pinned root must fail"
     );
 
-    // The operand lane that could read a joined primitive in place has no
-    // admitted spelling yet: an empty-path `PrimitiveScalarRead` reaches only
-    // signature parameters and established primitive locals, never a block
-    // parameter.
+    // An empty-path `PrimitiveScalarRead` reads a joined primitive in place
+    // through its borrowed block parameter: primitive storage reads admit a
+    // shared or mutable borrowed block argument, and reading leaves the
+    // root's pin intact.
     let mut module = scalar_loan_module(StructuralMultiplicity::Unrestricted);
     module.machines[0].blocks[1].operations.push(Operation {
         static_reach_binding: None,
@@ -460,12 +460,6 @@ fn primitive_shared_loan_keeps_the_root_pinned_and_the_leaf_unread_in_block() {
             path: Vec::new(),
         },
     });
-    assert!(
-        matches!(
-            validate_module(&module),
-            Err(ModuleError::InvalidPrimitiveScalarRead { place, .. })
-                if place == id::<semantic_vocabulary::PlaceId>(VIEW)
-        ),
-        "an in-block read of the joined scalar stays closed"
-    );
+    validate_module(&module)
+        .expect("an in-block read of the joined scalar reads its borrowed view");
 }
