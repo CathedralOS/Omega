@@ -136,6 +136,17 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
+    if let Some(argument) = owned_owner_loan(
+        semantic,
+        call_operation,
+        caller,
+        destination_parameter,
+        call,
+        parameter_ordinal,
+        plan,
+    )? {
+        return Ok(argument);
+    }
     // A whole dominating local array lends its producing home through a
     // borrowed byte or element view: the same presentation an incoming
     // parameter's fixed-array window takes, rejoined to the producer.
@@ -332,6 +343,107 @@ pub(in crate::legalization) fn argument_at(
             .ok_or(LegalizationError::custody())?
             .clone(),
     })
+}
+
+/// A whole owned bounded byte local (an owned concatenation result) lends its
+/// `{length, bytes}` home to a shared bounded-owner formal: the callee reads
+/// the owner layout in place through the home's address. The establishing
+/// concatenation must dominate the call, and the formal's carrier and the
+/// ABI slot's referent shape must both be the owner's exact storage.
+fn owned_owner_loan(
+    semantic: &StructuralArgument,
+    call_operation: semantic_vocabulary::OperationId,
+    caller: &PsiOptimizationFunction,
+    destination_parameter: &terminal_psi::StructuralParameterDeclaration,
+    call: &CallPlan,
+    parameter_ordinal: usize,
+    plan: &AbstractOperationPlan,
+) -> Result<Option<TargetStructuralArgument>, LegalizationError> {
+    if !semantic.path.is_empty()
+        || semantic.access != StructuralAccess::SharedBorrow
+        || !abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+            destination_parameter,
+            &plan.structural_types,
+        )
+    {
+        return Ok(None);
+    }
+    let site = |matches: &dyn Fn(&AbstractOperation) -> bool| {
+        caller.blocks.iter().find_map(|block| {
+            block
+                .nodes
+                .iter()
+                .position(|node| matches(&node.operation))
+                .map(|position| (block.id, position))
+        })
+    };
+    let Some((producer, result)) = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                ..
+            } if result.place == semantic.place => Some((*psi_operation, result)),
+            _ => None,
+        })
+    else {
+        return Ok(None);
+    };
+    let before = site(&|operation| {
+        matches!(operation, AbstractOperation::EstablishByteSequenceConcatenation {
+            psi_operation, ..
+        } if *psi_operation == producer)
+    })
+    .ok_or(LegalizationError::custody())?;
+    let after = site(&|operation| {
+        matches!(operation, AbstractOperation::CallStructural { psi_operation, .. }
+            if *psi_operation == call_operation)
+    })
+    .ok_or(LegalizationError::custody())?;
+    if result.structural_type != destination_parameter.structural_type
+        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+        || (before.0 == after.0 && before.1 >= after.1)
+        || (before.0 != after.0
+            && !super::target::control_flow::sources::dominates(caller, before.0, after.0))
+    {
+        return Err(LegalizationError::custody());
+    }
+    let referent = crate::structural_inputs::structural_reference_input::shape(
+        result.structural_type,
+        &plan.structural_types,
+    )
+    .ok_or(LegalizationError::custody())?;
+    let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
+    let destination = call
+        .parameters
+        .get(parameter_ordinal)
+        .ok_or(LegalizationError::custody())?
+        .clone();
+    if destination.shape != shape {
+        return Err(LegalizationError::custody());
+    }
+    Ok(Some(TargetStructuralArgument {
+        place: semantic.place,
+        access: semantic.access,
+        path: Vec::new(),
+        root_structural_type: result.structural_type,
+        structural_type: result.structural_type,
+        shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source: target_operations::TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: producer,
+        },
+        destination,
+    }))
 }
 
 /// Reconstruct a primitive borrow at its actual ordered call ABI position.

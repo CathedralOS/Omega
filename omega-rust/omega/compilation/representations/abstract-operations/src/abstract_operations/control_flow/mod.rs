@@ -5,6 +5,7 @@
 
 pub mod address_joins;
 mod functions;
+pub mod owner_loans;
 pub use functions::{AbstractBlockEntry, AbstractFunction};
 mod edges;
 pub use edges::{

@@ -290,7 +290,7 @@ pub(crate) fn structural_arguments_match(
             },
         );
         let bounded_owner_presentation = projection != StructuralProjectionPolicy::Boundary
-            && caller.structural_parameters.iter().any(|actual| {
+            && (caller.structural_parameters.iter().any(|actual| {
                 terminal_semantics::bounded_byte_owner_capacity_in(
                     types.values().copied(),
                     domains.values().copied(),
@@ -299,7 +299,9 @@ pub(crate) fn structural_arguments_match(
                     parameter,
                 )
                 .is_some()
-            })
+            }) || owned_bounded_owner_loan(
+                caller, argument, parameter, &source, types, domains,
+            ))
             && !caller
                 .entry_claim_declarations
                 .iter()
@@ -535,6 +537,63 @@ fn is_material_write_only_type(
         }
     }
     true
+}
+
+/// A whole owned bounded byte local (an immutable concatenation result) lent
+/// shared to a formal of the same bounded owner carrier. Every byte predicate
+/// the formal requires is replayed from the local's own operands in the
+/// current graph, mirroring Terminal's call rule for the same presentation.
+fn owned_bounded_owner_loan(
+    caller: &PsiOptimizationFunction,
+    argument: &terminal_psi::StructuralArgument,
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    source: &StructuralSourceContract<'_>,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
+) -> bool {
+    if !argument.path.is_empty()
+        || argument.access != terminal_psi::StructuralAccess::SharedBorrow
+        || parameter.access != terminal_psi::StructuralAccess::SharedBorrow
+        || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || parameter.is_self
+        || !parameter.projected_qualifications.is_empty()
+        || source.access != terminal_psi::StructuralAccess::Owned
+        || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || source.structural_type != parameter.structural_type
+        || !source.is_unqualified()
+        || !types
+            .get(&parameter.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+            })
+        || !caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .any(|node| {
+                matches!(&node.operation, O::EstablishByteSequenceConcatenation { result, .. }
+                    if result.place == argument.place)
+            })
+    {
+        return false;
+    }
+    let Some(required) =
+        terminal_semantics::byte_parameter_predicates_in(domains.values().copied(), parameter)
+    else {
+        return false;
+    };
+    crate::unit_validation::function_structure::whole_source_predicates(
+        types.values().copied(),
+        domains.values().copied(),
+        caller,
+        argument.place,
+    )
+    .is_some_and(|available| available.implies(required))
 }
 
 pub(crate) fn structural_source_contract(

@@ -109,6 +109,39 @@ fn address_join_argument(
     {
         return false;
     }
+    // A bounded owner loan is forwarded whole from an identically qualified
+    // signature or join parameter: its frozen referent carries the roster.
+    if abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
+        parameter,
+        |identity| structural_types.get(&identity).copied(),
+    ) {
+        return argument.path.is_empty()
+            && !live.structural_homes.contains_key(&argument.place)
+            && function
+                .structural_parameters
+                .iter()
+                .chain(
+                    live.address_joins
+                        .contains(&argument.place)
+                        .then(|| {
+                            function
+                                .block_entries
+                                .iter()
+                                .flat_map(|entry| &entry.structural_parameters)
+                        })
+                        .into_iter()
+                        .flatten(),
+                )
+                .any(|source| {
+                    source.place == argument.place
+                        && !source.is_self
+                        && source.structural_type == parameter.structural_type
+                        && source.access == parameter.access
+                        && source.multiplicity == parameter.multiplicity
+                        && source.qualifications == parameter.qualifications
+                        && source.projected_qualifications.is_empty()
+                });
+    }
     let root_type = if let Some(home) = live.structural_homes.get(&argument.place) {
         ((parameter.access == terminal_psi::StructuralAccess::SharedBorrow
             || home

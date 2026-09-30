@@ -297,5 +297,6 @@ pub(super) fn readable_byte_type(
     source: &LegalizedScalarFunction,
     place: PlaceId,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    view_type(source, place).or_else(|| super::byte_concatenation_input::owned_type(source, place))
+    view_type(source, place)
+        .or_else(|| super::byte_concatenation_input::owner_layout_type(source, place))
 }

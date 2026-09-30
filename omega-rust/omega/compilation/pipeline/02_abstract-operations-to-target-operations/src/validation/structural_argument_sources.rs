@@ -184,6 +184,13 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
                 psi_operation,
                 result,
                 ..
+            }
+            // An owned bounded byte concatenation keeps its `{length, bytes}`
+            // home; a loan of the whole owner names that exact producer.
+            | AbstractOperation::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                ..
             } => (result.place, ExpectedSource::Aggregate(*psi_operation)),
             AbstractOperation::EstablishTrivialAffineLocal {
                 psi_operation,

@@ -134,6 +134,38 @@ fn exclusive_owned_descriptor_and_loan_bearing_joins_stay_closed() {
 }
 
 #[test]
+fn shared_bounded_owner_loans_join_by_address_with_their_qualifications() {
+    let mut types = catalog();
+    types.push(declaration(
+        8,
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 }),
+    ));
+    let mut qualified = parameter(8, StructuralAccess::SharedBorrow);
+    qualified.qualifications = vec![semantic_vocabulary::StructuralDomainId::new(1).unwrap()];
+    assert!(is_address_join(&qualified, &types));
+    assert!(is_address_join(
+        &parameter(8, StructuralAccess::SharedBorrow),
+        &types
+    ));
+    // An exclusive or owned owner, a projected roster and a receiver stay
+    // outside the shared owner-loan carrier.
+    for access in [
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+        StructuralAccess::Owned,
+    ] {
+        assert!(!is_address_join(&parameter(8, access), &types));
+    }
+    let mut receiver = parameter(8, StructuralAccess::SharedBorrow);
+    receiver.is_self = true;
+    assert!(!is_address_join(&receiver, &types));
+    // A qualified plain referent is still not a join.
+    let mut qualified_record = parameter(2, StructuralAccess::SharedBorrow);
+    qualified_record.qualifications = qualified.qualifications.clone();
+    assert!(!is_address_join(&qualified_record, &types));
+}
+
+#[test]
 fn only_static_projections_name_one_address() {
     assert!(is_static_projection(&[]));
     assert!(is_static_projection(&[

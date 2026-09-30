@@ -87,7 +87,8 @@ pub(in crate::lowering) fn is_byte_parameter(
 
 /// The borrowed-referent byte size a byte-view parameter's placement must
 /// carry: the fat descriptor for a slice view, the single pointer cell for a
-/// bounded view.
+/// bounded view, and the whole `{length, bytes}` storage a shared bounded
+/// owner loan addresses.
 pub(in crate::lowering) fn byte_view_referent_size(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
@@ -99,7 +100,52 @@ pub(in crate::lowering) fn byte_view_referent_size(
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedView {
             ..
         }) => Some(8),
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+            capacity,
+        }) if is_owner_loan(parameter, structural_types) => {
+            u32::try_from(capacity.checked_add(8)?).ok()
+        }
         _ => None,
+    }
+}
+
+/// A shared loan of a bounded byte owner: carried as the owner's address,
+/// read through the owner layout (length word at 0, bytes from 8).
+pub(in crate::lowering) fn is_owner_loan(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> bool {
+    abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan(
+        parameter,
+        |identity| structural_types.get(&identity).copied(),
+    )
+}
+
+/// Whether a byte view reads the owner layout: an owned concatenation in this
+/// activation or a shared bounded owner loan, whose length word sits at
+/// offset 0 rather than after a descriptor's base pointer.
+fn reads_owner_layout(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    view: &TargetByteView,
+) -> bool {
+    match view {
+        TargetByteView::Owned { .. } => true,
+        TargetByteView::Parameter { place, .. } | TargetByteView::BlockParameter { place, .. } => {
+            function
+                .structural_parameters
+                .iter()
+                .chain(
+                    function
+                        .block_entries
+                        .iter()
+                        .flat_map(|entry| entry.structural_parameters.iter()),
+                )
+                .any(|parameter| {
+                    parameter.place == *place && is_owner_loan(parameter, structural_types)
+                })
+        }
+        TargetByteView::Literal { .. } | TargetByteView::Subslice { .. } => false,
     }
 }
 
@@ -284,7 +330,7 @@ pub(in crate::lowering) fn lower_byte_observation_with_lengths(
                 psi_operation,
                 source_value: result.value,
                 source,
-                length_byte_offset: if matches!(view, TargetByteView::Owned { .. }) {
+                length_byte_offset: if reads_owner_layout(function, structural_types, &view) {
                     0
                 } else {
                     8
@@ -394,7 +440,8 @@ pub(in crate::lowering) fn view_for_place(
             .map(|parameter| (entry, parameter))
     }) {
         if entry.block == function.entry
-            || !is_immutable_byte_parameter(parameter, structural_types)
+            || (!is_immutable_byte_parameter(parameter, structural_types)
+                && !is_owner_loan(parameter, structural_types))
         {
             return Err(invalid());
         }
@@ -413,7 +460,8 @@ pub(in crate::lowering) fn view_for_place(
             .iter()
             .find(|parameter| parameter.place == place)
             .ok_or_else(invalid)?;
-        if !is_immutable_byte_parameter(semantic, structural_types)
+        if (!is_immutable_byte_parameter(semantic, structural_types)
+            && !is_owner_loan(semantic, structural_types))
             || parameter.structural_type != semantic.structural_type
             || parameter.access != semantic.access
             || parameter.multiplicity != semantic.multiplicity

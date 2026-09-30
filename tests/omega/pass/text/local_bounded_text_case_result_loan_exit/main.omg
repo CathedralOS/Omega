@@ -1,0 +1,59 @@
+// A static entry lends a bounded text local to a machine whose result is a
+// case value. `leading` forwards the qualified shared loan to a successor
+// state, reads the owner's live length there, and returns the first byte,
+// read at a literal index against that live length, as a case payload. The
+// entry binds the result and dispatches on it. Exits 70 only when the first
+// byte of "OK" (79) comes back; an empty or zero-filled reading exits 71 or 72.
+
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 16]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+
+data Leading {
+    case Empty;
+    case Byte(value: u64);
+}
+
+machine leading(text: &[u8; 16] in Utf8) -> Leading {
+    transition {
+        _ -> inspect(text)
+    }
+
+    state inspect(text: &[u8; 16] in Utf8) -> Leading {
+        transition 0 < text.len {
+            true -> read(text)
+            _ -> (Leading::Empty)
+        }
+    }
+
+    state read(text: &[u8; 16] in Utf8) -> Leading {
+        let byte: u8 = text[0];
+        transition {
+            _ -> (Leading::Byte { value: byte as u64 })
+        }
+    }
+}
+
+machine main() reaches Console {
+    let text: [u8; 16] in Utf8 = "OK";
+    let lead: Leading = leading(&text);
+    transition lead {
+        Leading::Byte { value } -> check(value)
+        Leading::Empty -> finish(71)
+    }
+
+    state check(value: u64) {
+        transition value == 79 {
+            true -> finish(70)
+            _ -> finish(72)
+        }
+    }
+
+    state finish(code: i32) {
+        Console::exit_process(code);
+    }
+}

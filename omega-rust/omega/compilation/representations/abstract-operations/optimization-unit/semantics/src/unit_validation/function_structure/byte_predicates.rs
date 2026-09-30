@@ -72,12 +72,11 @@ pub(super) fn validate_indexed_byte_stores(
                     Operation::StructuralByteSequenceFieldStore {
                         destination: written_root, path: written, field: written_field, source, ..
                     } if written_root == destination && written == path && written_field == field
-                        && source_predicates(
-                            unit,
+                        && whole_source_predicates(
+                            unit.structural_types.iter(),
+                            unit.structural_domains.iter(),
                             function,
                             *source,
-                            function.structural_places.len().saturating_add(1),
-                            &mut Vec::new(),
                         )
                         .is_some_and(|available| available.implies(ascii)))
             };
@@ -164,14 +163,38 @@ pub(crate) fn replacement_preserves_predicates(
         return false;
     };
     required.is_empty()
-        || source_predicates(
-            unit,
+        || whole_source_predicates(
+            unit.structural_types.iter(),
+            unit.structural_domains.iter(),
             function,
             source,
-            function.structural_places.len().saturating_add(1),
-            &mut Vec::new(),
         )
         .is_some_and(|available| available.implies(required))
+}
+
+/// The byte predicates one whole source replays to: a parameter's declared
+/// plain byte domains, a literal's own octets, or an owned concatenation's
+/// operands. Catalogs are passed as iterators so a caller holding only
+/// identity maps shares the one derivation.
+pub(crate) fn whole_source_predicates<'t, 'd>(
+    types: impl Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'d terminal_psi::StructuralDomainDeclaration> + Clone,
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+) -> Option<ByteSequencePredicateSet> {
+    source_predicates(
+        &Catalogs { types, domains },
+        function,
+        source,
+        function.structural_places.len().saturating_add(1),
+        &mut Vec::new(),
+    )
+}
+
+/// The type and domain catalogs a predicate replay reads.
+struct Catalogs<Types, Domains> {
+    types: Types,
+    domains: Domains,
 }
 
 /// The declared byte predicates of one exact relevant byte field below a
@@ -184,15 +207,22 @@ pub(crate) fn byte_field_predicates(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Option<ByteSequencePredicateSet> {
+    byte_field_predicates_in(unit.structural_types.iter(), function, root, path, field)
+}
+
+fn byte_field_predicates_in<'t>(
+    types: impl Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
+    function: &PsiOptimizationFunction,
+    root: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Option<ByteSequencePredicateSet> {
     let parameter = function
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == root)?;
-    let declaration = terminal_semantics::runtime_structural_path_tip(
-        unit.structural_types.iter(),
-        parameter.structural_type,
-        path,
-    )?;
+    let declaration =
+        terminal_semantics::runtime_structural_path_tip(types, parameter.structural_type, path)?;
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return None;
     };
@@ -203,13 +233,17 @@ pub(crate) fn byte_field_predicates(
     Some(field.field_type.byte_predicates())
 }
 
-fn source_predicates(
-    unit: &PsiOptimizationUnit,
+fn source_predicates<'t, 'd, Types, Domains>(
+    catalogs: &Catalogs<Types, Domains>,
     function: &PsiOptimizationFunction,
     source: PlaceId,
     remaining: usize,
     memo: &mut Vec<(PlaceId, Option<ByteSequencePredicateSet>)>,
-) -> Option<ByteSequencePredicateSet> {
+) -> Option<ByteSequencePredicateSet>
+where
+    Types: Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
+    Domains: Iterator<Item = &'d terminal_psi::StructuralDomainDeclaration> + Clone,
+{
     if let Some((_, predicates)) = memo.iter().find(|(place, _)| *place == source) {
         return *predicates;
     }
@@ -219,18 +253,22 @@ fn source_predicates(
     // once, and an in-progress revisit rejects a cycle without recursive expansion.
     let index = memo.len();
     memo.push((source, None));
-    let result = derive_source_predicates(unit, function, source, remaining, memo);
+    let result = derive_source_predicates(catalogs, function, source, remaining, memo);
     memo[index].1 = result;
     result
 }
 
-fn derive_source_predicates(
-    unit: &PsiOptimizationUnit,
+fn derive_source_predicates<'t, 'd, Types, Domains>(
+    catalogs: &Catalogs<Types, Domains>,
     function: &PsiOptimizationFunction,
     source: PlaceId,
     remaining: usize,
     memo: &mut Vec<(PlaceId, Option<ByteSequencePredicateSet>)>,
-) -> Option<ByteSequencePredicateSet> {
+) -> Option<ByteSequencePredicateSet>
+where
+    Types: Iterator<Item = &'t StructuralTypeDeclaration> + Clone,
+    Domains: Iterator<Item = &'d terminal_psi::StructuralDomainDeclaration> + Clone,
+{
     let declaration = function
         .structural_places
         .iter()
@@ -248,10 +286,7 @@ fn derive_source_predicates(
             ) {
                 return None;
             }
-            terminal_semantics::byte_parameter_predicates_from_domains(
-                &unit.structural_domains,
-                parameter,
-            )
+            terminal_semantics::byte_parameter_predicates_in(catalogs.domains.clone(), parameter)
         }
         StructuralPlaceKind::ByteSequenceLiteral { .. } => {
             let mut producers = function
@@ -302,7 +337,7 @@ fn derive_source_predicates(
             let mut operand =
                 |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
                     terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
-                        source_predicates(unit, function, *source, remaining, memo)
+                        source_predicates(catalogs, function, *source, remaining, memo)
                     }
                     terminal_psi::control_flow::ByteSequenceOperand::Field {
                         source,
@@ -312,7 +347,13 @@ fn derive_source_predicates(
                         if source.access != StructuralAccess::SharedBorrow {
                             return None;
                         }
-                        byte_field_predicates(unit, function, source.place, &source.path, *field)
+                        byte_field_predicates_in(
+                            catalogs.types.clone(),
+                            function,
+                            source.place,
+                            &source.path,
+                            *field,
+                        )
                     }
                 };
             Some(operand(left)?.concatenation(operand(right)?))
@@ -397,13 +438,31 @@ mod tests {
         unit
     }
 
+    fn catalogs(
+        unit: &PsiOptimizationUnit,
+    ) -> Catalogs<
+        std::slice::Iter<'_, StructuralTypeDeclaration>,
+        std::slice::Iter<'_, terminal_psi::StructuralDomainDeclaration>,
+    > {
+        Catalogs {
+            types: unit.structural_types.iter(),
+            domains: unit.structural_domains.iter(),
+        }
+    }
+
     #[test]
     fn shared_concatenation_predicates_visit_each_source_once() {
         let unit = shared_concatenations();
         let function = &unit.functions[0];
         let mut memo = Vec::new();
-        let predicates =
-            source_predicates(&unit, function, PlaceId::new(41).unwrap(), 42, &mut memo).unwrap();
+        let predicates = source_predicates(
+            &catalogs(&unit),
+            function,
+            PlaceId::new(41).unwrap(),
+            42,
+            &mut memo,
+        )
+        .unwrap();
         assert!(predicates.holds_for(b"AAAA"));
         assert!(
             predicates
@@ -413,7 +472,13 @@ mod tests {
         assert_eq!(memo.len(), 41);
         let cached = memo.clone();
         assert_eq!(
-            source_predicates(&unit, function, PlaceId::new(41).unwrap(), 42, &mut memo),
+            source_predicates(
+                &catalogs(&unit),
+                function,
+                PlaceId::new(41).unwrap(),
+                42,
+                &mut memo
+            ),
             Some(predicates)
         );
         assert_eq!(memo, cached);
@@ -435,7 +500,7 @@ mod tests {
             let mut memo = Vec::new();
             assert_eq!(
                 source_predicates(
-                    &unit,
+                    &catalogs(&unit),
                     &unit.functions[0],
                     PlaceId::new(41).unwrap(),
                     42,

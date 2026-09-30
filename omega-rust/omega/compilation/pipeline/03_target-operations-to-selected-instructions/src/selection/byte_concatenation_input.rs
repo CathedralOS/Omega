@@ -27,6 +27,37 @@ pub(super) fn owned_type(
         })
 }
 
+/// The structural type of a place whose bytes use the owner layout (length
+/// word at offset 0, bytes from offset 8): an owned concatenation result in
+/// this activation, or a shared bounded owner loan whose signature or block
+/// parameter pointer is the owner's address.
+pub(super) fn owner_layout_type(
+    function: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<StructuralTypeId> {
+    owned_type(function, place).or_else(|| {
+        let signature = function.structural.as_ref()?;
+        signature
+            .parameters
+            .iter()
+            .map(|parameter| &parameter.semantic)
+            .chain(
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters),
+            )
+            .find(|parameter| parameter.place == place)
+            .filter(|parameter| {
+                abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+                    parameter,
+                    &signature.structural_types,
+                )
+            })
+            .map(|parameter| parameter.structural_type)
+    })
+}
+
 pub(super) fn capacity(
     function: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,

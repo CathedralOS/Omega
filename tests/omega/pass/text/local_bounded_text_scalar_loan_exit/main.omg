@@ -1,0 +1,86 @@
+// A static entry constructs a bounded text local from a shorter literal and
+// lends it to scalar-result machines. `[u8; 8] in Utf8` is a bounded owner:
+// capacity 8, live length 3 (the literal's), never a zero-filled raw array.
+// `digit_sum` forwards the qualified shared loan across its loop states and
+// reads the live length and each byte; `live_length` reads the length in its
+// single state; `forwarded_length` reads it in a successor state. Exits 70
+// only when the digits of "150" sum to 6 and both lengths are 3; a
+// zero-filled 8-byte array would read 8.
+
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::console;
+use omega::language::core::numeric_conversion;
+
+machine digit_sum(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
+    transition {
+        _ -> step(text, 0, 0)
+    }
+
+    state step(text: &[u8; 8] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0
+    {
+        transition index < text.len {
+            true -> digit(text, index, sum)
+            _ -> (sum)
+        }
+    }
+
+    state digit(text: &[u8; 8] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0
+    {
+        let byte: u8 = text[index];
+        let value: i32 in Wrapping = (widen_u8_to_i32(byte) as i32 in Wrapping) - 48;
+        let next_sum: i32 in Wrapping = sum + value;
+        transition index >= 0 && index < 8 {
+            true -> advance(text, index, next_sum)
+            _ -> (next_sum)
+        }
+    }
+
+    state advance(text: &[u8; 8] in Utf8, index: i32, sum: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0 && index < 8
+    {
+        let next_index: i32 = index + 1;
+        transition {
+            _ -> step(text, next_index, sum)
+        }
+    }
+}
+
+machine live_length(text: &[u8; 8] in Utf8) -> u64 {
+    transition {
+        _ -> (text.len)
+    }
+}
+
+machine forwarded_length(text: &[u8; 8] in Utf8) -> u64 {
+    transition {
+        _ -> measure(text)
+    }
+
+    state measure(text: &[u8; 8] in Utf8) -> u64 {
+        transition {
+            _ -> (text.len)
+        }
+    }
+}
+
+machine main() reaches Console {
+    let text: [u8; 8] in Utf8 = "150";
+    let sum: i32 in Wrapping = digit_sum(&text);
+    let length: u64 = live_length(&text);
+    let forwarded: u64 = forwarded_length(&text);
+    transition sum == 6 && length == 3 && forwarded == 3 {
+        true -> finish(70)
+        _ -> finish(71)
+    }
+
+    state finish(code: i32) {
+        Console::exit_process(code);
+    }
+}

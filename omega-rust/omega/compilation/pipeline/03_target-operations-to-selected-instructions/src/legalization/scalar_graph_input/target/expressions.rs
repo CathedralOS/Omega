@@ -106,7 +106,7 @@ impl Checker<'_> {
                         && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
             }
             Expression::ByteSequenceLength { psi_operation, source_value, source, view, length_byte_offset } => {
-                *length_byte_offset == if super::super::byte_views::owned_concatenation(self.optimized, *source).is_some() { 0 } else { 8 } && *source_value == resolved
+                *length_byte_offset == if super::super::byte_views::reads_owner_layout(self.optimized, *source, self.types) { 0 } else { 8 } && *source_value == resolved
                     && (self.byte_view(view, *source, aliases) || self.mutable_byte_view(view, *source))
                     && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
                         AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
