@@ -328,17 +328,20 @@ impl StateGraphEmission<'_, '_> {
                     }
                     continue;
                 }
-                if self
+                if let Some(root) = self
                     .admitted
                     .claim_transport
                     .aliased
                     .get(target)
-                    .is_some_and(|aliased| aliased.contains_key(&(target_index as u32)))
+                    .and_then(|aliased| aliased.get(&(target_index as u32)))
                 {
                     // A claim carried across the edge keeps the entry
                     // parameter's place; the block does not rebind it, so
                     // the transfer row must still name that exact
-                    // parameter and no edge argument is emitted.
+                    // parameter and no edge argument is emitted. The entry
+                    // place is read from the machine parameters directly:
+                    // state_views drains as each target block seals, so a
+                    // backward edge sees an emptied roster there.
                     let checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter {
                         index,
                     } = transfer.source
@@ -351,9 +354,8 @@ impl StateGraphEmission<'_, '_> {
                         .get(index as usize)
                         .map(|parameter| parameter.place)
                         != self
-                            .state_views
-                            .get(target)
-                            .and_then(|views| views.get(target_index))
+                            .parameters
+                            .get(*root as usize)
                             .map(|parameter| parameter.place)
                     {
                         return unsupported("Unit graph claim successor lost its entry place");
@@ -852,25 +854,24 @@ impl StateGraphEmission<'_, '_> {
                     .rank,
                 )
             } else if let Some(dense) = ranking::parameter_position(plan, target_state) {
-                if self
+                if let Some(root) = self
                     .admitted
                     .claim_transport
                     .aliased
                     .get(target)
-                    .is_some_and(|aliased| aliased.contains_key(&(dense as u32)))
+                    .and_then(|aliased| aliased.get(&(dense as u32)))
                 {
                     // An aliased rank subject is not an edge argument;
-                    // its byte length reads the retained entry place.
-                    self.state_views
-                        .get(target)
-                        .and_then(|views| views.get(dense))
-                        .map(|parameter| {
-                            crate::emission::operation_emission::emit_byte_length(
-                                parameter.place,
-                                next_value,
-                                operations,
-                            )
-                        })
+                    // its byte length reads the retained entry place — taken
+                    // from the machine parameters since the target's view
+                    // roster drains when its block seals.
+                    self.parameters.get(*root as usize).map(|parameter| {
+                        crate::emission::operation_emission::emit_byte_length(
+                            parameter.place,
+                            next_value,
+                            operations,
+                        )
+                    })
                 } else {
                     ranking::byte_argument_position(
                         plan,
