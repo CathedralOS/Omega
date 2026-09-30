@@ -725,7 +725,14 @@ fn rejoin_loan_local(
             .type_reference(local.type_reference)
         {
             TypeReferenceNode::Reference { referee, .. } => {
-                Some(program.primitive_type_reference(*referee)?)
+                match program.primitive_type_reference(*referee) {
+                    // A record referee's fields belong to the view's own
+                    // structure, not to the loaned place's segments, so the
+                    // rejoin keeps the local as root: the exclusive borrowed
+                    // view arm resolves its home through the loan ledger.
+                    None => return Some((place, None)),
+                    primitive => primitive,
+                }
             }
             _ => None,
         }
