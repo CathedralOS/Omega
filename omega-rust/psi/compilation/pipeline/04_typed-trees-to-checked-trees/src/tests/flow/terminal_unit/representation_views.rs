@@ -101,6 +101,67 @@ fn recast_guard_reads_retain_the_declared_carrier_beneath_the_view() {
     assert_eq!(reads.fields, [PrimitiveType::U32]);
 }
 
+/// A `&u8-place as &bool` loan read in a Boolean position spells the
+/// `{0, 1}` image the store side mints for the inverse direction: the guard
+/// is `!(read == 0)` over the integer leaf at its declared carrier, not a
+/// retagged field observation.
+#[test]
+fn a_bool_view_loan_read_spells_the_nonzero_image_of_its_integer_place() {
+    let checked = checked(
+        r#"
+        data Main { byte: u8 [0..=1]; }
+        machine Main::main(&mut self) {
+            self.byte = 1;
+            let byte_flag: &bool = &self.byte as &bool;
+            transition byte_flag {
+                true -> good()
+                _ -> bad()
+            }
+            state good(&mut self) {}
+            state bad(&mut self) {}
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("::main"))
+        .expect("the authored Main::main machine");
+    let state = &checked.machine_states(machine)[0];
+    let guard = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(state.symbol, 2, CheckedScalarExpressionRole::Guard)
+        .expect("the loan-read guard lowers to one pure expression");
+    let CheckedScalarExpression::Boolean(guard) = guard else {
+        panic!("a bare Boolean operand guards the transition: {guard:?}");
+    };
+    let CheckedBooleanExpression::Not(operand) = guard.as_ref() else {
+        panic!("the integer leaf's nonzero image is `!(read == 0)`: {guard:?}");
+    };
+    let CheckedBooleanExpression::IntegerComparison { left, right, .. } = operand.as_ref() else {
+        panic!("the nonzero image is an integer equality: {operand:?}");
+    };
+    assert!(
+        matches!(
+            left.as_ref(),
+            CheckedScalarExpression::StructuralParameterField {
+                primitive_type: PrimitiveType::U8,
+                ..
+            }
+        ),
+        "the comparison reads the byte leaf at its declared carrier: {left:?}"
+    );
+    assert!(
+        matches!(
+            right.as_ref(),
+            CheckedScalarExpression::IntegerLiteral { .. }
+        ),
+        "the comparison lands the zero literal: {right:?}"
+    );
+}
+
 #[test]
 fn a_runtime_offset_byte_region_view_retains_its_first_byte_element() {
     let checked = checked(
