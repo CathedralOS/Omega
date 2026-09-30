@@ -1450,8 +1450,11 @@ impl Emission<'_, '_, '_> {
                 // the carrier keeps no element field, so the view op's stride
                 // resolves through the primitive row directly.
                 StructuralTypeShape::ByteSequence(_) if declaration.id == self.structural_type => {
-                    crate::terminal_identities::lookup_type_id(self.type_ids, "named(name(u8))")
-                        .ok()
+                    crate::terminal_identities::lookup_type_id(
+                        self.type_ids,
+                        crate::terminal_identities::BYTE_VIEW_ELEMENT_TYPE_IDENTITY,
+                    )
+                    .ok()
                 }
                 _ => None,
             })

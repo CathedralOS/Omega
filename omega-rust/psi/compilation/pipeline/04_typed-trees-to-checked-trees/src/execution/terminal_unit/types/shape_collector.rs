@@ -13,6 +13,10 @@ pub(crate) struct ShapeCollector<'program> {
     pub(in crate::execution::terminal_unit) types: BTreeMap<String, CheckedUnitStructuralTypePlan>,
     pub(in crate::execution::terminal_unit) domains: Vec<CheckedUnitStructuralDomainPlan>,
     in_progress: BTreeSet<String>,
+    /// The element rows registered beside borrowed byte views. A byte
+    /// carrier's plan keeps no element field, so `retain_transitive` follows
+    /// this edge where it follows a `BorrowedSliceView`'s element identity.
+    byte_view_elements: BTreeSet<String>,
 }
 
 impl<'program> ShapeCollector<'program> {
@@ -22,6 +26,7 @@ impl<'program> ShapeCollector<'program> {
             types: BTreeMap::new(),
             domains: Vec::new(),
             in_progress: BTreeSet::new(),
+            byte_view_elements: BTreeSet::new(),
         }
     }
 
@@ -501,7 +506,8 @@ impl<'program> ShapeCollector<'program> {
                 if let TypeReferenceNode::Slice { element_type } =
                     self.program.type_reference_table.type_reference(referee)
                 {
-                    let _ = self.add_type(*element_type, binders, substitutions)?;
+                    let element = self.add_type(*element_type, binders, substitutions)?;
+                    self.byte_view_elements.insert(element);
                 }
             }
             let identity =
@@ -1123,6 +1129,15 @@ impl<'program> ShapeCollector<'program> {
                         referent_identity, ..
                     } => {
                         retained.insert(referent_identity.clone());
+                    }
+                    // The element row `add_type` registered beside a
+                    // borrowed byte view survives with it: an element-view
+                    // establishment of that view resolves its op's element
+                    // through this row.
+                    CheckedUnitStructuralTypeShape::ByteSequence(
+                        checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. },
+                    ) => {
+                        retained.extend(self.byte_view_elements.iter().cloned());
                     }
                     CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
                     | CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
