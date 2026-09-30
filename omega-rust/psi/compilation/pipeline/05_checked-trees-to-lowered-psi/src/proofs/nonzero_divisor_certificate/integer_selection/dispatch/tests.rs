@@ -40,6 +40,53 @@ fn math_value(identity: u64, integer_type: IntegerType) -> IntegerMathTerm {
 }
 
 #[test]
+fn address_distance_from_zero_uses_carrier_bounds_and_cited_zero_identity() {
+    for bits in [16, 32, 64, 128] {
+        let address = IntegerType::address(bits).unwrap();
+        let context = wide_context(address, 2);
+        let difference = IntegerMathTerm::Subtract(
+            Box::new(math_value(1, address)),
+            Box::new(math_value(2, address)),
+        );
+        let axioms = [Proposition::Equal(value(2, address), literal(0, address))];
+        for (lower, bound) in [(true, 0_u128), (false, u64::MAX as u128)] {
+            let bound = IntegerMathTerm::literal(IntegerValue::Unsigned(bound));
+            let goal = if lower {
+                Proposition::IntegerMathLessOrEqual(bound, difference.clone())
+            } else {
+                Proposition::IntegerMathLessOrEqual(difference.clone(), bound)
+            };
+            let produce = |axioms: &[Proposition]| {
+                produce_checked_canonical_integer_proof(
+                    &context,
+                    &goal,
+                    &[],
+                    axioms,
+                    &BTreeSet::new(),
+                    &mut crate::proofs::ProofSearchDeclines::default(),
+                )
+            };
+            if bits > 64 && !lower {
+                assert!(
+                    produce(&axioms).is_none(),
+                    "wide address fit is not implied"
+                );
+                continue;
+            }
+            let proof = produce(&axioms).expect("distance fits through its retained address model");
+            check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+            assert!(check_certificate(&context, &goal, &[], &[], &proof).is_err());
+            let changed_zero = [Proposition::Equal(value(2, address), literal(1, address))];
+            assert!(check_certificate(&context, &goal, &[], &changed_zero, &proof).is_err());
+            assert!(
+                check_certificate(&PropositionContext::default(), &goal, &[], &axioms, &proof)
+                    .is_err()
+            );
+        }
+    }
+}
+
+#[test]
 fn non_strict_endpoint_certificates_cannot_change_the_value_carrier() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     let other_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");

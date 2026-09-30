@@ -1085,12 +1085,10 @@ pub(super) fn lower_structural_parameter_field(
             ArithmeticDomain::Exact,
         ));
     }
-    // Floating leaves read the same statically named member storage an
-    // integer leaf does; an address carrier still has no admitted runtime
-    // observation.
-    if primitive_type == PrimitiveType::Addr
-        || (!is_integer(primitive_type)
-            && !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64))
+    // A field observation retains its declared scalar carrier, including
+    // address identity. Reading storage grants no numeric conversion.
+    if !is_integer(primitive_type)
+        && !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64)
     {
         return None;
     }

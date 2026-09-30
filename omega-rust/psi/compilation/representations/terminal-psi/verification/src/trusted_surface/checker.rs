@@ -99,7 +99,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         id: "primitive:integer-carrier-bound",
         family: LedgerFamily::PrimitiveJudgment,
         binding: dispatch(CoveredSurface::PrimitiveJudgments),
-        premises: "a LessOrEqual between a value of one fixed integer type and a same-type literal equal to that type's exact minimum or maximum",
+        premises: "a LessOrEqual between a fixed integer value and its same-type exact minimum or maximum, or an IntegerMathLessOrEqual between a context-validated MathValue and its retained integer/address carrier's exact endpoint",
         conclusion: "the carrier bound holds for the value",
         dependencies: &["formation:proposition-context"],
         implementation: &[KERNEL, NODES],

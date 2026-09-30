@@ -1,0 +1,16 @@
+// A dynamically received address whose numeric value exceeds i32 traps at
+// the authored conversion. Reading address storage grants no count identity.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; address: addr; result: i32; }
+
+machine convert(input: addr) -> i32 {
+    (input as i32 in Trapping) as i32
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    context.address = 2147483648;
+    context.result = convert(context.address);
+    context.console.exit_process(context.result);
+}

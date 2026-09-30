@@ -2,7 +2,7 @@ use crate::integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, check_integer_math_term_size, compare_integer_math_terms,
 };
 use crate::proof::integer_math_normalization::lift_exact_integer_relation;
-use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
+use semantic_vocabulary::{IntegerMathTerm, Proposition, PropositionContext, ScalarTerm};
 pub use terminal_psi::PrimitiveJudgment;
 
 #[cfg(test)]
@@ -29,6 +29,10 @@ pub fn decide_primitive(
         (PrimitiveJudgment::IntegerCarrierBound, Proposition::LessOrEqual(left, right)) => {
             integer_carrier_bound(left, right)
         }
+        (
+            PrimitiveJudgment::IntegerCarrierBound,
+            Proposition::IntegerMathLessOrEqual(left, right),
+        ) => mathematical_integer_carrier_bound(left, right),
         (PrimitiveJudgment::ReflexiveEquality, Proposition::Equal(left, right)) => left == right,
         (PrimitiveJudgment::ReflexiveEquality, Proposition::IntegerMathEqual(left, right)) => {
             left == right
@@ -98,6 +102,29 @@ fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
             } else {
                 integer_type.maximum_value()
             }
+}
+
+/// Embedding retains the declared carrier's range, including an address model.
+/// Only its exact endpoints are intrinsic facts; compound geometry and narrower
+/// count bounds still require their own proofs.
+fn mathematical_integer_carrier_bound(left: &IntegerMathTerm, right: &IntegerMathTerm) -> bool {
+    let (literal, source_type, lower) = match (left, right) {
+        (
+            IntegerMathTerm::IntegerLiteral(literal),
+            IntegerMathTerm::MathValue { source_type, .. },
+        ) => (literal, source_type, true),
+        (
+            IntegerMathTerm::MathValue { source_type, .. },
+            IntegerMathTerm::IntegerLiteral(literal),
+        ) => (literal, source_type, false),
+        _ => return false,
+    };
+    literal.as_integer_value(*source_type)
+        == Some(if lower {
+            source_type.minimum_value()
+        } else {
+            source_type.maximum_value()
+        })
 }
 
 pub(crate) fn compare_integer_literals(

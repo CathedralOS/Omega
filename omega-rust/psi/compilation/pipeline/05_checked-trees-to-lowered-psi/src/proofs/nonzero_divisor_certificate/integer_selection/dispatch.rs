@@ -107,6 +107,9 @@ fn prove_math_relation(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
+    if let Some(proof) = prove_subtract_zero_carrier_bound(context, goal) {
+        return Some(proof);
+    }
     if let Some(proof) = multiply::prove(context, goal, assumptions, semantic_axioms, definitions) {
         return Some(proof);
     }
@@ -177,6 +180,100 @@ fn prove_math_relation(
         rule,
     })
 }
+
+/// An address distance from zero keeps its address model until the exact
+/// subtraction proves count fit. Ring normalization proves only the zero
+/// identity, not the open value's range: that range comes from an independently
+/// checked carrier-bound leaf. SSA zeros arrive here only after the ordinary
+/// value-transport rule cites their defining equation.
+fn prove_subtract_zero_carrier_bound(
+    context: &PropositionContext,
+    goal: &Proposition,
+) -> Option<ProofNode> {
+    let Proposition::IntegerMathLessOrEqual(left, right) = goal else {
+        return None;
+    };
+    let (difference, requested_bound, lower) = match (left, right) {
+        (IntegerMathTerm::IntegerLiteral(_), IntegerMathTerm::Subtract(_, _)) => {
+            (right, left, true)
+        }
+        (IntegerMathTerm::Subtract(_, _), IntegerMathTerm::IntegerLiteral(_)) => {
+            (left, right, false)
+        }
+        _ => return None,
+    };
+    let IntegerMathTerm::Subtract(operand, zero) = difference else {
+        return None;
+    };
+    let IntegerMathTerm::MathValue { source_type, .. } = operand.as_ref() else {
+        return None;
+    };
+    if !matches!(zero.as_ref(), IntegerMathTerm::IntegerLiteral(literal) if literal.magnitude() == 0)
+    {
+        return None;
+    }
+    let primitive = |conclusion: Proposition, judgment| {
+        proof_admission::decide_primitive(context, &conclusion, judgment).ok()?;
+        Some(ProofNode {
+            conclusion,
+            rule: ProofRule::Primitive(judgment),
+        })
+    };
+    let carrier_bound = IntegerMathTerm::literal(if lower {
+        source_type.minimum_value()
+    } else {
+        source_type.maximum_value()
+    });
+    let bound = primitive(
+        if lower {
+            Proposition::IntegerMathLessOrEqual(carrier_bound.clone(), *operand.clone())
+        } else {
+            Proposition::IntegerMathLessOrEqual(*operand.clone(), carrier_bound.clone())
+        },
+        PrimitiveJudgment::IntegerCarrierBound,
+    )?;
+    let bound = if *requested_bound == carrier_bound {
+        bound
+    } else {
+        let inclusion = primitive(
+            if lower {
+                Proposition::IntegerMathLessOrEqual(requested_bound.clone(), carrier_bound)
+            } else {
+                Proposition::IntegerMathLessOrEqual(carrier_bound, requested_bound.clone())
+            },
+            PrimitiveJudgment::ClosedIntegerRelation,
+        )?;
+        let (left, right) = if lower {
+            (inclusion, bound)
+        } else {
+            (bound, inclusion)
+        };
+        ProofNode {
+            conclusion: if lower {
+                Proposition::IntegerMathLessOrEqual(requested_bound.clone(), *operand.clone())
+            } else {
+                Proposition::IntegerMathLessOrEqual(*operand.clone(), requested_bound.clone())
+            },
+            rule: ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: Box::new(left),
+                middle_less_or_equal_right: Box::new(right),
+            },
+        }
+    };
+    let identity = primitive(
+        Proposition::IntegerMathEqual(*operand.clone(), difference.clone()),
+        PrimitiveJudgment::ClosedIntegerRelation,
+    )?;
+    Some(ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerOrderSubstitution {
+            relation: Box::new(bound),
+            equality: Box::new(identity),
+            endpoint: usize::from(lower),
+        },
+    })
+}
+
 fn prove_direct_subtract_relation(
     context: &PropositionContext,
     goal: &Proposition,

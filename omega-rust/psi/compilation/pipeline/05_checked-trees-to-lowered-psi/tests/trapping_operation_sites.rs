@@ -122,6 +122,24 @@ const ADD: &str = "machine value(left: u8 in Trapping, right: u8 in Trapping) ->
                    { (left + right) as u8 }";
 
 #[test]
+fn trapping_address_conversion_preserves_values_and_traps_on_destination_overflow() {
+    let address = |value| TerminalScalarValue::Integer {
+        scalar_type: IntegerType::address(64).unwrap(),
+        value: IntegerValue::Unsigned(value),
+    };
+    let source = "machine value(input: addr) -> i32 { (input as i32 in Trapping) as i32 }";
+    for value in [0, 88, i32::MAX as u128] {
+        assert_returns(source, &[address(value)], signed(32, value as i128));
+    }
+    for value in [i32::MAX as u128 + 1, u64::MAX as u128] {
+        assert_traps(source, &[address(value)]);
+    }
+    let unsigned_source = "machine value(input: addr) -> u8 { (input as u8 in Trapping) as u8 }";
+    assert_returns(unsigned_source, &[address(255)], unsigned(8, 255));
+    assert_traps(unsigned_source, &[address(256)]);
+}
+
+#[test]
 fn trapping_subtract_and_multiply_trap_outside_their_carrier() {
     let subtract = "machine value(left: u8 in Trapping, right: u8 in Trapping) -> u8 \
                     { (left - right) as u8 }";

@@ -29,4 +29,5 @@ pub(crate) mod representation_view;
 pub(crate) mod saturating_cast;
 pub(crate) mod saturating_shift;
 pub(crate) mod source_custody;
+pub(crate) mod trapping_cast;
 pub(crate) mod wrapping_cast;
