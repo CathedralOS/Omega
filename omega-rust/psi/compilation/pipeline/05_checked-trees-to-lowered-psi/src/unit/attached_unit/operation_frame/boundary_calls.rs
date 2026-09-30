@@ -15,6 +15,10 @@ use super::super::parameters::{
 };
 use super::calls::CallInputs;
 use super::{BoundaryParameters, OperationFrame, StructuralResults};
+use crate::emission::operation_emission::boundary_calls::result_policy::{
+    self, BoundaryResultPolicy,
+};
+use crate::emission::operation_emission::buffer::SourceCallCoordinate;
 use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::unit::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, ClaimId, CompletionReceipt,
@@ -92,6 +96,18 @@ impl OperationFrame<'_, '_> {
             id: value_id(allocate_dense(self.next_value)?),
             scalar_type: terminal_scalar_type(result.primitive_type)?,
         };
+        let policy = BoundaryResultPolicy::prepare(
+            self.checked,
+            self.machine,
+            SourceCallCoordinate {
+                state: self.state,
+                statement_index: call.coordinate.statement_index as usize,
+                call_ordinal: call.coordinate.call_ordinal as usize,
+            },
+            call.source_site().flatten(),
+            *target_machine,
+        )?
+        .bind(value, &operands.arguments)?;
         let id = self.operations.allocate();
         self.record_source_call(
             call.coordinate,
@@ -106,7 +122,7 @@ impl OperationFrame<'_, '_> {
             result: OperationResult::Scalar(value),
             kind: operands.into_kind(),
         });
-        Ok(value)
+        result_policy::emit(policy, value, self.next_value, self.operations)
     }
 
     pub(super) fn boundary_structural_call(

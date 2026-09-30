@@ -1074,9 +1074,11 @@ version = "0.1.0"
 dependencies = [
  "checked-trees",
  "checked-trees-to-lowered-psi",
+ "language-core",
  "language-semantics",
  "lowered-psi",
  "lowered-psi-to-lowered-psi",
+ "numerics",
  "proof-admission",
  "semantic-vocabulary",
  "source-files-to-tokens",

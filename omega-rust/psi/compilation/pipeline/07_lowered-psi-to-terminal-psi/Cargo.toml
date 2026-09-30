@@ -14,6 +14,8 @@ terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 symbols = { path = "../../../foundation/symbols" }
 language-semantics = { path = "../../../foundation/language-semantics" }
+language-core = { path = "../../../foundation/language-core" }
+numerics = { path = "../../../foundation/numerics" }
 lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 validation = { path = "../../checking" }

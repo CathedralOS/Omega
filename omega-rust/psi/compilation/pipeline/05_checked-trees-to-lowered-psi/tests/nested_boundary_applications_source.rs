@@ -75,15 +75,351 @@ impl TerminalEffectHandler for Applications {
         let result = match name {
             "add" => left + right,
             "subtract" => left - right,
+            "divide" => left / right,
             _ => left * right,
         };
         Ok(TerminalEffectResult::Scalar(float(result)))
     }
 }
 
+#[test]
+fn result_policy_rejects_missing_duplicated_or_substituted_checked_selection() {
+    let checked = crate::front_end::checked_program(
+        "data Root {} pub boundary machine + Float::add(left: f64, right: f64) -> f64;
+         machine Root::enter(a: f64 in Saturating, b: f64 in Saturating) { let result: f64 in Saturating = a + b; }",
+    );
+    lowered(&checked).expect("unmodified selection lowers");
+    let (handle, selection) = checked
+        .facts
+        .operators
+        .named_requirement_uses
+        .iter()
+        .next()
+        .unwrap();
+    for mutation in 0..5 {
+        let mut substituted = checked.clone();
+        match mutation {
+            0 => substituted.facts.operators.named_requirement_uses = Default::default(),
+            1 => {
+                substituted
+                    .facts
+                    .operators
+                    .named_requirement_uses
+                    .insert(*selection);
+            }
+            2 => {
+                substituted
+                    .facts
+                    .operators
+                    .named_requirement_uses
+                    .get_mut(handle)
+                    .requirement_symbol = symbols::SymbolHandle::invalid()
+            }
+            3 => {
+                substituted
+                    .facts
+                    .operators
+                    .named_requirement_uses
+                    .get_mut(handle)
+                    .policy_adapter =
+                    checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly {
+                        format: numerics::float_semantics::FloatFormat::BINARY32,
+                    }
+            }
+            _ => {
+                substituted
+                    .facts
+                    .operators
+                    .named_requirement_uses
+                    .get_mut(handle)
+                    .origin = checked_trees::CheckedValueOrigin::default()
+            }
+        }
+        assert!(
+            lowered(&substituted).is_err(),
+            "selection mutation {mutation} rejects"
+        );
+    }
+}
+
+#[test]
+fn adapted_results_reach_consumers_and_traps_stop_later_calls() {
+    for policy in ["Saturating", "Trapping"] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Root {{}}
+             pub boundary machine + Float::add(left: f64, right: f64) -> f64;
+             pub boundary machine * Float::multiply(left: f64, right: f64) -> f64;
+             machine Root::enter(a: f64 in {policy}, b: f64 in {policy}) {{
+                 let result: f64 in {policy} = a * b + a;
+                 let observed: f64 = Float::add(result as f64, 0.0);
+             }}",
+        ));
+        let lowered = lowered(&checked).expect("composed policy calls lower");
+        let module = encode_module(&lowered.semantic_module).unwrap();
+        let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
+        let mut applications = Applications {
+            names: lowered
+                .semantic_module
+                .boundary_machines
+                .iter()
+                .map(|declaration| {
+                    (
+                        declaration.id,
+                        if declaration.identity.contains("multiply") {
+                            "multiply"
+                        } else {
+                            "add"
+                        },
+                    )
+                })
+                .collect(),
+            observed: Vec::new(),
+        };
+        let outcome = interpret_terminal_artifact_measured(
+            &module,
+            &proof,
+            &AdmissionProfile::default(),
+            &[float(f64::MAX), float(2.0)],
+            TerminalStructuralInputs::default(),
+            &mut applications,
+        );
+        if policy == "Saturating" {
+            outcome.expect("saturated results complete");
+            assert_eq!(
+                applications.observed,
+                [
+                    ("multiply", vec![f64::MAX, 2.0]),
+                    ("add", vec![f64::MAX, f64::MAX]),
+                    ("add", vec![f64::MAX, 0.0]),
+                ],
+                "each consumer sees the adapted value without repeating arithmetic"
+            );
+        } else {
+            let error = outcome.expect_err("overflow traps before the outer call");
+            assert!(
+                matches!(
+                    error,
+                    terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                        terminal_interpreter::TerminalInterpretError::Crash(_)
+                    )
+                ),
+                "expected an operation crash: {error:?}"
+            );
+            assert_eq!(applications.observed, [("multiply", vec![f64::MAX, 2.0])]);
+        }
+    }
+}
+
+#[test]
+fn unused_trapping_result_survives_scalar_elimination() {
+    let checked = crate::front_end::checked_program(
+        "data Root {} pub boundary machine + Float::add(left: f64, right: f64) -> f64;
+         machine Root::enter(a: f64 in Trapping, b: f64 in Trapping) {
+             let discarded: f64 in Trapping = a + b;
+             let after: f64 = Float::add(1.0, 2.0);
+         }",
+    );
+    let selections = optimization::PsiOptimizationSelections::new([
+        optimization::PsiOptimization::DeadPureScalarElimination,
+    ])
+    .unwrap();
+    let optimized =
+        lowered_psi_to_lowered_psi::run_psi_optimization(lowered(&checked).unwrap(), selections)
+            .unwrap();
+    let lowered = optimized.lowered();
+    assert_policy_custody(&checked, lowered).expect("optimization keeps policy custody");
+    let mut applications = Applications {
+        names: lowered
+            .semantic_module
+            .boundary_machines
+            .iter()
+            .map(|boundary| (boundary.id, "add"))
+            .collect(),
+        observed: Vec::new(),
+    };
+    let outcome = interpret_terminal_artifact_measured(
+        &encode_module(&lowered.semantic_module).unwrap(),
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+        &AdmissionProfile::default(),
+        &[float(f64::MAX), float(f64::MAX)],
+        TerminalStructuralInputs::default(),
+        &mut applications,
+    );
+    assert!(
+        matches!(
+            outcome,
+            Err(
+                terminal_interpreter::TerminalArtifactInterpretError::Execution(
+                    terminal_interpreter::TerminalInterpretError::Crash(_)
+                )
+            )
+        ),
+        "a discarded result still owns Trap: {outcome:?}"
+    );
+    assert_eq!(applications.observed, [("add", vec![f64::MAX, f64::MAX])]);
+}
+
 fn lowered(checked: &checked_trees::CheckedTrees) -> Result<lowered_psi::LoweredPsi, String> {
     lower_machine(checked, TerminalMachineSelection::Name("Root::enter"))
         .map_err(|error| format!("{error:?}"))
+}
+
+#[test]
+fn float_result_policy_follows_calls_not_surrounding_expression_shape() {
+    for policy in ["Saturating", "Trapping"] {
+        for (body, expected) in [
+            (
+                "machine Root::enter(a: f64 in POLICY, b: f64 in POLICY) { let result: f64 in POLICY = a * b + a; }",
+                2,
+            ),
+            (
+                "machine Root::enter(a: f64 in POLICY, b: f64 in POLICY) { let result: f64 in POLICY = a + b; }",
+                1,
+            ),
+            (
+                "machine Root::enter(a: f64 in POLICY, b: f64 in POLICY) -> f64 { a + b }",
+                1,
+            ),
+        ] {
+            let source = format!(
+                "data Root {{}} pub boundary machine + Float::add(left: f64, right: f64) -> f64; pub boundary machine * Float::multiply(left: f64, right: f64) -> f64; {}",
+                body.replace("POLICY", policy),
+            );
+            let checked = crate::front_end::checked_program(&source);
+            let lowered =
+                lowered(&checked).unwrap_or_else(|error| panic!("{policy}: {body}: {error}"));
+            let adapters = lowered
+                .semantic_module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .filter(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::FloatResultPolicy { .. }
+                    )
+                })
+                .count();
+            assert_eq!(adapters, expected, "{policy}: {body}");
+            terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .expect("emitted policies independently verify");
+            assert_policy_custody(&checked, &lowered).expect("source policy independently rejoins");
+        }
+    }
+}
+
+fn assert_policy_custody(
+    checked: &checked_trees::CheckedTrees,
+    lowered: &lowered_psi::LoweredPsi,
+) -> Result<(), String> {
+    let optimized =
+        lowered_psi_to_lowered_psi::run_psi_optimization(lowered.clone(), Default::default())
+            .map_err(|error| format!("{error:?}"))?;
+    let artifact = lowered_psi_to_terminal_psi::finalize_terminal_artifact(&optimized, None)
+        .map_err(|error| format!("{error:?}"))?;
+    lowered_psi_to_terminal_psi::checked_boundary_operator_scope(checked, &artifact, lowered)
+        .map(|_| ())
+        .map_err(str::to_owned)
+}
+
+#[test]
+fn source_policy_replay_rejects_valid_but_wrong_adapters() {
+    let checked = crate::front_end::checked_program(
+        "data Root {} pub boundary machine / Float::divide(left: f64, right: f64) -> f64;
+         machine Root::enter(a: f64 in Saturating, b: f64 in Saturating) -> f64 { a / b }",
+    );
+    let lowered = lowered(&checked).unwrap();
+    assert_policy_custody(&checked, &lowered).unwrap();
+    for mutation in 0..8 {
+        let mut substituted = lowered.clone();
+        substituted.debug_map = None;
+        let block = substituted
+            .semantic_module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .find(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::FloatResultPolicy { .. }
+                    )
+                })
+            })
+            .unwrap();
+        let position = block
+            .operations
+            .iter()
+            .position(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::FloatResultPolicy { .. }
+                )
+            })
+            .unwrap();
+        let adapted = block.operations[position].result.scalar().unwrap().id;
+        let terminal_psi::OperationKind::FloatResultPolicy {
+            policy:
+                terminal_psi::FloatResultPolicy::Saturating {
+                    raw_result,
+                    left,
+                    right,
+                    rule,
+                },
+        } = &mut block.operations[position].kind
+        else {
+            panic!("saturating result");
+        };
+        let raw = *raw_result;
+        let fallback = *left;
+        match mutation {
+            0 => *rule = terminal_psi::FloatSaturationRule::FiniteOperandOverflow,
+            1 => std::mem::swap(left, right),
+            2 => *raw_result = *left,
+            3 => {
+                block
+                    .terminator
+                    .map_scalar_uses(&mut |value| if value == adapted { raw } else { value });
+            }
+            4 => {
+                block.operations.remove(position);
+                block
+                    .terminator
+                    .map_scalar_uses(&mut |value| if value == adapted { raw } else { value });
+            }
+            5 => {
+                let mut duplicate = block.operations[position].clone();
+                duplicate.id = semantic_vocabulary::OperationId::new(1_000_000_000).unwrap();
+                duplicate.result.scalar_mut().unwrap().id =
+                    semantic_vocabulary::ValueId::new(1_000_000_000).unwrap();
+                block.operations.push(duplicate);
+            }
+            6 => substituted.source_call_occurrences.clear(),
+            _ => {
+                block.operations.drain(position - 1..=position);
+                block
+                    .terminator
+                    .map_scalar_uses(&mut |value| if value == adapted { fallback } else { value });
+            }
+        }
+        terminal_verifier::verify_module(
+            &substituted.semantic_module,
+            &substituted.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("mutation is independently valid Terminal, but not the authored policy");
+        let rejection =
+            assert_policy_custody(&checked, &substituted).expect_err("source policy rejects");
+        assert!(
+            rejection.starts_with("float"),
+            "mutation {mutation} must reach policy replay, not fail artifact formation: {rejection}"
+        );
+    }
 }
 
 /// The BoundaryCallArgument root of one statement's outer application.
