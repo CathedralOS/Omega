@@ -199,6 +199,7 @@ pub(super) fn same_target(
         (Profile::LinuxArm64, Target::LinuxArm64)
             | (Profile::LinuxX64, Target::LinuxX64)
             | (Profile::MacosArm64, Target::MacosArm64)
+            | (Profile::MacosX64, Target::MacosX64)
             | (Profile::WindowsX64, Target::WindowsX64)
             | (Profile::UefiX64, Target::UefiX64)
             | (Profile::CrossPlatformCli, Target::CrossPlatformCli)

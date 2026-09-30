@@ -98,6 +98,13 @@ pub(in crate::encoding::recovery) fn every_binding_kind_and_all_four_locator_for
                 symbol: b"_invoke".to_vec(),
             },
         ),
+        (
+            TargetProfile::MacosX64,
+            PackageReviewForeignLocator::MachODylibSymbol {
+                install_name: b"libsample.dylib".to_vec(),
+                symbol: b"_invoke".to_vec(),
+            },
+        ),
     ] {
         cases.push(policy(
             Binding::Import {
