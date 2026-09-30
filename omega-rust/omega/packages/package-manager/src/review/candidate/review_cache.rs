@@ -1301,3 +1301,6 @@ fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
         obligation_ledger_bytes,
     })
 }
+
+#[cfg(test)]
+mod tests;

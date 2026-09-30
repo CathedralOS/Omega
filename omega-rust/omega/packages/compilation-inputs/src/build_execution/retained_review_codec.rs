@@ -750,3 +750,6 @@ fn push_framed(out: &mut Vec<u8>, bytes: &[u8]) {
 fn cursor_count(cursor: &mut Cursor) -> Option<usize> {
     usize::try_from(cursor.u64()?).ok()
 }
+
+#[cfg(test)]
+mod tests;
