@@ -71,6 +71,12 @@ pub(crate) fn emit_call_leaf(
             &catalogs.structural_types,
             &mut catalogs.next_place,
         )?,
+        copies: crate::scalar_graph::scalar_computations::copies::prepare(
+            checked,
+            machine,
+            &catalogs.structural_types,
+            &mut catalogs.next_place,
+        )?,
         arrays: crate::scalar_graph::scalar_computations::arrays::prepare(
             checked,
             machine,
@@ -166,6 +172,10 @@ pub(crate) fn emit_call_leaf(
     });
     crate::scalar_graph::scalar_computations::literals::retain_declarations(
         &evaluation.literals,
+        evaluation.blocks.iter().flat_map(|block| &block.operations),
+        &mut catalogs.temporary_places,
+    )?;
+    crate::scalar_graph::scalar_computations::copies::retain_declarations(
         evaluation.blocks.iter().flat_map(|block| &block.operations),
         &mut catalogs.temporary_places,
     )?;

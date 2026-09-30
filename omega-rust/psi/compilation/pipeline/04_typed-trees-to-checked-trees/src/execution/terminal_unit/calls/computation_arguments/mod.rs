@@ -875,8 +875,9 @@ fn owned_copy_local_argument(
     let (_, local) = program
         .state_local_declaration(state, source_symbol)
         .filter(|&(ordinal, _)| ordinal < statement_index)?;
-    if local.is_mutable
-        || !program
+    // Scalar operand sequencing snapshots the current contents before later
+    // arguments run. The binding may mutate; the copied value cannot alias it.
+    if !program
             .expression_table
             .expression_is_valid(local.initial_value)
         // Copying a closed plain-owned local preserves its established storage

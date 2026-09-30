@@ -20,7 +20,7 @@ use arena::HandleSpan;
 use checked_trees::CheckedScalarComputationStructuralArgument;
 
 enum Operand {
-    ViewSubslice(LoweredScalarEffect),
+    Effect(LoweredScalarEffect),
     /// An exact byte literal established into its reserved place before the
     /// call reads it through a shared borrow.
     ByteLiteral(literals::Slot),
@@ -455,7 +455,7 @@ impl Expansion<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "computed range has no explicit structural ordinal",
                         ))?;
-                    operands.push(Operand::ViewSubslice(subslices::effect(
+                    operands.push(Operand::Effect(subslices::effect(
                         self.checked,
                         site.state,
                         site.statement,
@@ -484,6 +484,36 @@ impl Expansion<'_> {
                         ))?
                         .clone();
                     operands.push(Operand::ByteLiteral(slot));
+                }
+                if matches!(
+                    argument,
+                    CheckedScalarComputationStructuralArgument::Place(_)
+                ) && parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                    && parameter.multiplicity == language_semantics::Multiplicity::Unrestricted
+                {
+                    let slot = self
+                        .copies
+                        .iter()
+                        .find(|slot| {
+                            slot.source_call == source_call
+                                && slot.argument_ordinal == structural_ordinal
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "computed copy has no reserved operand place",
+                        ))?;
+                    let actual = &mut structural_arguments[structural_ordinal];
+                    if !actual.path.is_empty() || !actual.selector_positions.is_empty() {
+                        return unsupported("computed whole copy has a projected source");
+                    }
+                    // A value argument snapshots readable contents now, before
+                    // evaluating the next argument. Passing its original place
+                    // would defer this read until the call, after later effects.
+                    operands.push(Operand::Effect(LoweredScalarEffect::CopyStructuralValue {
+                        source: actual.place,
+                        place: slot.place,
+                        structural_type: slot.structural_type,
+                    }));
+                    actual.place = slot.place;
                 }
                 for segment in &structural_arguments[structural_ordinal].path {
                     if let checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
@@ -599,7 +629,7 @@ impl Expansion<'_> {
                         structural_arguments: Vec::new(),
                     },
                 }),
-                Operand::ViewSubslice(effect) => self.push(LoweredScalarBranchState {
+                Operand::Effect(effect) => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),
                     erased_formal_types: Vec::new(),

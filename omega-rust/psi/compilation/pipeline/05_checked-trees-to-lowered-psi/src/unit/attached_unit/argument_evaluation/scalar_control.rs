@@ -496,6 +496,7 @@ impl Evaluation {
         )
         .with_arrays(&self.arrays)
         .with_literals(&self.literals)
+        .with_copies(&self.copies)
         .with_subslices(&self.subslices)
         .with_cases(&self.cases)
         .with_fields(&self.record_fields)

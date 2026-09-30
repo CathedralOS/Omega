@@ -29,6 +29,72 @@ machine enter(limits: Limits, marker: u64) -> u64 {
 "#;
 
 #[test]
+fn mutable_copy_operands_observe_storage_without_reading_static_qualifiers() {
+    let checked = checked(
+        r#"
+        data Settings [copy] { count: i32; }
+        machine Settings::stamp(settings: &mut Settings, count: i32) -> i32 {
+            settings.count = count; count
+        }
+        machine Settings::observe(settings: Settings, later: i32) -> i32 { settings.count }
+        machine enter() -> i32 {
+            let mut settings: Settings = Settings { count: 17 };
+            let before: i32 = Settings::observe(settings, Settings::stamp(&mut settings, 25));
+            before
+        }
+    "#,
+    );
+    let owner = machine(&checked.typed, "enter");
+    let state = &checked.machine_states(owner)[0];
+    let plans = &checked.facts.values.scalar_computations;
+    let root = plans
+        .root_at(
+            state.symbol,
+            1,
+            CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+        )
+        .expect("copy and nested mutation retain their ordinary computation");
+    let checked_trees::CheckedScalarComputationKind::Call {
+        source_call,
+        structural_arguments,
+        ..
+    } = plans.nodes.get(root.root).kind
+    else {
+        panic!("outer call");
+    };
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+        .structural_arguments
+        .span(structural_arguments)
+        .unwrap()
+    else {
+        panic!("one owned copy");
+    };
+    let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+        argument.source
+    else {
+        panic!("original local storage");
+    };
+    assert_eq!(argument.access, CheckedStructuralAccess::Owned);
+    let call = checked.facts.flow.control.calls.get(source_call);
+    let observations = checked
+        .facts
+        .borrow
+        .argument_accesses
+        .span(call.accesses)
+        .unwrap();
+    assert_eq!(
+        observations.len(),
+        2,
+        "the copy and nested actual each observe storage: {observations:?}"
+    );
+    assert!(
+        observations
+            .iter()
+            .all(|access| access.root_symbol == symbol)
+    );
+}
+
+#[test]
 fn projected_const_record_arguments_retain_each_closed_call_in_a_sum() {
     for (parameters, expression) in [
         ("pair: &Pair", "read(&pair.left) + read(&pair.right)"),

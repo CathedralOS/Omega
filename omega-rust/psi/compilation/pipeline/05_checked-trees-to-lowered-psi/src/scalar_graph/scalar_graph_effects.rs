@@ -21,6 +21,31 @@ pub(crate) fn emit(
 ) -> Result<(), LoweringError> {
     for effect in effects {
         match effect {
+            LoweredScalarEffect::CopyStructuralValue {
+                source,
+                place,
+                structural_type,
+            } => {
+                let id = operations.allocate();
+                operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
+                        place: *place,
+                        structural_type: *structural_type,
+                        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::StructuralLeafCopy {
+                        source: *source,
+                        path: Vec::new(),
+                    },
+                });
+            }
             LoweredScalarEffect::StoreScalarField {
                 destination,
                 path,
