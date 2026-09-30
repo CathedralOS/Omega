@@ -66,3 +66,32 @@ fn private_realization_range_does_not_become_a_public_requirement_fact() {
     call.static_requirement_dispatch = Some(StaticRequirementDispatch::default());
     assert_eq!(range(&program, expression), None);
 }
+
+#[test]
+fn const_extent_floor_uses_resolved_binder_identity() {
+    let program = typed_program(
+        "machine inspect<const N: u64>(items: &[u8; N]) requires N >= 1 { }
+         machine foreign<const N: u64>(items: &[u8; N]) { }",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "inspect")
+        .unwrap();
+    let other = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "foreign")
+        .unwrap();
+    let binder = &program.machine_type_parameters(machine)[0];
+    let foreign = &program.machine_type_parameters(other)[0];
+    let state = &program.machine_states(machine)[0];
+    assert_eq!(
+        super::symbolic_extent_floor(&program, machine, state, binder.symbol, &binder.name),
+        Some(1)
+    );
+    assert_eq!(
+        super::symbolic_extent_floor(&program, machine, state, foreign.symbol, &binder.name),
+        None
+    );
+}

@@ -5,6 +5,9 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+#[cfg(test)]
+mod tests;
+
 /// Resolve the declared type of an already-retained statement receiver path.
 /// Statement-position calls preserve name members even when their synthesized
 /// accessor target symbols are intentionally absent from authored provenance.
@@ -224,13 +227,17 @@ pub(crate) fn data_definition_for_type(
     type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     let unwrapped = unwrapped_type_reference(program, type_reference)?;
+    if let Some(instance) = program.closed_data_definition(unwrapped) {
+        return Some(instance);
+    }
     let symbol = match program.type_reference_table.type_reference(unwrapped) {
         TypeReferenceNode::Named { symbol, .. } => *symbol,
         TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
         _ => return None,
     };
-    // Generic references select their retained declaration here; this lookup
-    // does not manufacture a closed instance or substitute its fields.
+    // An application without a uniquely retained closed instance still names
+    // its exact template. Its fields stay open: this query neither invents a
+    // specialization nor supplies a concrete extent from incomplete evidence.
     super::data_definition_by_symbol(program, symbol)
 }
 

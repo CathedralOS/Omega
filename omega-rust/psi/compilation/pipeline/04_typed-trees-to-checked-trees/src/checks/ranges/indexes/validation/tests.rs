@@ -445,6 +445,30 @@ fn length_difference_offset_reads_ensured_result_bounds() {
 #[test]
 fn const_generic_extent_index_discharge() {
     for (source, accepted) in [
+        (
+            "machine inspect<const N: u64>(items: &[u8; N]) requires N >= 1 { let x: u8 = items[0]; }",
+            true,
+        ),
+        (
+            "machine inspect<const N: u64>(items: &[u8; N]) requires 0 < N && N <= 8 { let x: u8 = items[0]; }",
+            true,
+        ),
+        (
+            "machine inspect<const N: u64>(items: &[u8; N]) requires N >= 0 { let x: u8 = items[0]; }",
+            false,
+        ),
+        (
+            "machine inspect<const N: u64, const Other: u64>(items: &[u8; N]) requires Other >= 1 { let x: u8 = items[0]; }",
+            false,
+        ),
+        (
+            "machine inspect<const N: u64>(items: &[u8; N]) requires N >= 1 || N == 0 { let x: u8 = items[0]; }",
+            false,
+        ),
+        (
+            "machine inspect<const N: u64>(items: &[u8; N]) requires N >= 1 { let x: u8 = items[1]; }",
+            false,
+        ),
         // Unproven scalar index is a real obligation, not a silent pass.
         (
             "machine inspect<const N: u64>(items: &[u8; N], index: u64) { let x: u8 = items[index]; }",
@@ -499,6 +523,34 @@ fn const_generic_extent_index_discharge() {
                 .any(|message| message.contains("const extent")),
             "{source}"
         );
+    }
+}
+
+#[test]
+fn const_generic_field_extent_uses_actual_binder_requirement() {
+    for (application, requirement, accepted) in [
+        ("Capacity", "Capacity >= 1", true),
+        ("Capacity", "Capacity > 0", true),
+        ("Capacity", "Other >= 1", false),
+        ("Other", "Capacity >= 1", false),
+        ("Capacity", "Capacity == 0", false),
+    ] {
+        let source = format!(
+            "data Buffer<const Count: u64> {{ items: [u8; Count]; }}
+             machine inspect<const Capacity: u64, const Other: u64>(buffer: &Buffer<{application}>)
+             requires {requirement} {{ let value: u8 = buffer.items[0]; }}"
+        );
+        let result = check_source(&source);
+        assert_eq!(result.is_ok(), accepted, "{source}: {result:?}");
+        if !accepted {
+            assert!(
+                result
+                    .unwrap_err()
+                    .iter()
+                    .any(|message| message.contains("const extent")),
+                "{source}"
+            );
+        }
     }
 }
 

@@ -148,6 +148,166 @@ pub struct OperationProjection<'a> {
 }
 
 impl OperationKind {
+    /// Rewrite every direct runtime structural root operand through `map`, in
+    /// operand order. Stores visit their destination before their source.
+    ///
+    /// This is a mechanical use inventory, not a custody transformation.
+    /// Result declarations and establishment destinations are definitions,
+    /// not uses. Scalar selectors, paths, access, and identities inside proof
+    /// terms, crash continuations, claims or other evidence stay unchanged.
+    /// Consumers must separately preserve that evidence and all module-level
+    /// catalogs when replacing a place; this method grants no new authority.
+    pub fn map_structural_uses(&mut self, map: &mut impl FnMut(PlaceId) -> PlaceId) {
+        match self {
+            Self::EstablishReference { source }
+            | Self::EstablishElementView { source, .. }
+            | Self::EstablishMutableElementView { source, .. } => {
+                source.place = map(source.place);
+            }
+            Self::ReleaseReference { source }
+            | Self::PrimitiveScalarRead { source, .. }
+            | Self::StructuralByteSequenceFieldLength { source, .. }
+            | Self::StructuralByteSequenceFieldRead { source, .. }
+            | Self::MoveStructuralField { source, .. }
+            | Self::StructuralCaseMembership { source, .. }
+            | Self::StructuralLeafCopy { source, .. }
+            | Self::StructuralCaseLeafCopy { source, .. }
+            | Self::ByteSequenceLength { source }
+            | Self::ByteSequenceRead { source, .. }
+            | Self::ByteSequenceSubslice { source, .. }
+            | Self::ElementViewLength { source }
+            | Self::ElementViewRead { source, .. }
+            | Self::ElementViewSubslice { source, .. }
+            | Self::BooleanStructuralField { source, .. }
+            | Self::IntegerStructuralField { source, .. } => *source = map(*source),
+            Self::StructuralByteSequenceFieldByteStore { destination, .. }
+            | Self::WriteOnlyPrimitiveStore { destination, .. }
+            | Self::StructuralScalarFieldStore { destination, .. }
+            | Self::ByteSequenceWrite { destination, .. }
+            | Self::ElementViewWrite { destination, .. } => {
+                *destination = map(*destination);
+            }
+            Self::ByteSequenceStore {
+                destination,
+                source,
+                ..
+            }
+            | Self::StructuralByteSequenceFieldStore {
+                destination,
+                source,
+                ..
+            } => {
+                *destination = map(*destination);
+                *source = map(*source);
+            }
+            Self::StoreStructuralField {
+                destination, value, ..
+            } => {
+                *destination = map(*destination);
+                value.place = map(value.place);
+            }
+            Self::EstablishByteSequenceConcatenation { left, right, .. } => {
+                for operand in [left, right] {
+                    match operand {
+                        crate::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+                            *source = map(*source);
+                        }
+                        crate::control_flow::ByteSequenceOperand::Field { source, .. } => {
+                            source.place = map(source.place);
+                        }
+                    }
+                }
+            }
+            Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
+                for field in fields {
+                    match &mut field.value {
+                        crate::RecordFieldValue::Structural(value) => {
+                            value.place = map(value.place);
+                        }
+                        crate::RecordFieldValue::Scalar { .. } => {}
+                    }
+                }
+            }
+            Self::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralScalar {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructural {
+                structural_arguments,
+                ..
+            }
+            | Self::CallStructuralWithScalarArguments {
+                structural_arguments,
+                ..
+            }
+            | Self::BoundaryCall {
+                structural_arguments,
+                ..
+            } => {
+                for argument in structural_arguments {
+                    argument.place = map(argument.place);
+                }
+            }
+            Self::AtomicAccess { place, .. } => *place = map(*place),
+            // Definitions, scalar-only operations and catalog coordinates
+            // have no direct structural root operands. Exhaustiveness keeps
+            // future operations from silently escaping this inventory.
+            Self::EstablishScalarArray { .. }
+            | Self::EstablishZeroedStructural { .. }
+            | Self::EstablishPrimitiveLocal { .. }
+            | Self::EstablishScalarCase { .. }
+            | Self::EstablishByteSequenceLiteral { .. }
+            | Self::EstablishTrivialAffineLocal { .. }
+            | Self::StoreDynamicDescriptor { .. }
+            | Self::Call { .. }
+            | Self::CallDynamicScalar { .. }
+            | Self::CallDynamicParameterScalar { .. }
+            | Self::CallDynamicUnit { .. }
+            | Self::CallDynamicParameterUnit { .. }
+            | Self::PortWrite { .. }
+            | Self::IntegerConstant { .. }
+            | Self::BooleanConstant { .. }
+            | Self::IeeeFloatConstant { .. }
+            | Self::IeeeFloatCompare { .. }
+            | Self::NearestIeeeFloatFusedMultiplyAdd { .. }
+            | Self::BooleanNot { .. }
+            | Self::BooleanEqual { .. }
+            | Self::IntegerEqual { .. }
+            | Self::IntegerLessThan { .. }
+            | Self::IntegerLessOrEqual { .. }
+            | Self::IntegerBitwiseNot { .. }
+            | Self::IntegerWiden { .. }
+            | Self::IntegerExactCast { .. }
+            | Self::IntegerBitwiseAnd { .. }
+            | Self::IntegerBitwiseOr { .. }
+            | Self::IntegerBitwiseXor { .. }
+            | Self::WrappingIntegerShiftLeft { .. }
+            | Self::WrappingIntegerShiftRight { .. }
+            | Self::ExactIntegerShiftLeft { .. }
+            | Self::ExactIntegerShiftRight { .. }
+            | Self::ExactIntegerAdd { .. }
+            | Self::ExactIntegerSubtract { .. }
+            | Self::ExactIntegerMultiply { .. }
+            | Self::ExactIntegerDivide { .. }
+            | Self::ExactIntegerRemainder { .. }
+            | Self::WrappingIntegerDivide { .. }
+            | Self::WrappingIntegerRemainder { .. }
+            | Self::SaturatingIntegerDivide { .. }
+            | Self::SaturatingIntegerRemainder { .. }
+            | Self::WrappingIntegerAdd { .. }
+            | Self::SaturatingIntegerAdd { .. }
+            | Self::WrappingIntegerSubtract { .. }
+            | Self::SaturatingIntegerSubtract { .. }
+            | Self::WrappingIntegerMultiply { .. }
+            | Self::SaturatingIntegerMultiply { .. }
+            | Self::TrappingInteger { .. } => {}
+        }
+    }
+
     /// Every name-spelled structural projection this operation carries, in
     /// operand order. This is the inventory runtime-index consumers walk:
     /// each `RuntimeIndex` found here is a scalar use of the operation and an
@@ -403,7 +563,163 @@ mod tests {
         StructuralPathSegment, is_bounded_structural_scalar_store_path,
         is_structural_scalar_store_path,
     };
-    use semantic_vocabulary::{ObligationId, ValueId};
+    use crate::{
+        OperationKind, RecordFieldInitializer, RecordFieldValue, StructuralAccess,
+        StructuralArgument,
+    };
+    use semantic_vocabulary::{
+        MachineId, ObligationId, PlaceId, ScalarTerm, StructuralFieldId, StructuralTypeId, ValueId,
+    };
+
+    fn place(identity: u64) -> PlaceId {
+        PlaceId::new(identity).unwrap()
+    }
+
+    fn argument(identity: u64) -> StructuralArgument {
+        StructuralArgument {
+            place: place(identity),
+            path: vec![runtime()],
+            access: StructuralAccess::SharedBorrow,
+        }
+    }
+
+    #[test]
+    fn structural_use_mapping_preserves_scalar_and_proof_call_operands() {
+        let scalar = ValueId::new(1).unwrap();
+        let evidence = ScalarTerm::boolean_field(place(1), StructuralFieldId::new(1).unwrap());
+        let mut operation = OperationKind::CallStructuralScalar {
+            callee: MachineId::new(1).unwrap(),
+            arguments: vec![scalar],
+            erased_arguments: vec![evidence.clone()],
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: vec![argument(1), argument(2)],
+            claim_transfers: Vec::new(),
+            requirement_obligations: vec![ObligationId::new(1).unwrap()],
+            crash_continuations: Vec::new(),
+        };
+        let mut expected = operation.clone();
+        if let OperationKind::CallStructuralScalar {
+            structural_arguments,
+            ..
+        } = &mut expected
+        {
+            structural_arguments[0].place = place(11);
+            structural_arguments[1].place = place(12);
+        }
+        let mut visited = Vec::new();
+        operation.map_structural_uses(&mut |source| {
+            visited.push(source);
+            place(source.get() + 10)
+        });
+        assert_eq!(visited, vec![place(1), place(2)]);
+        assert_eq!(operation, expected);
+    }
+
+    #[test]
+    fn structural_use_mapping_visits_nested_initializers_and_byte_operands() {
+        use crate::control_flow::ByteSequenceOperand;
+
+        let scalar = ValueId::new(1).unwrap();
+        let mut record = OperationKind::EstablishRecord {
+            fields: vec![
+                RecordFieldInitializer {
+                    field: StructuralFieldId::new(1).unwrap(),
+                    value: RecordFieldValue::Scalar {
+                        value: scalar,
+                        range_obligation: None,
+                    },
+                },
+                RecordFieldInitializer {
+                    field: StructuralFieldId::new(2).unwrap(),
+                    value: RecordFieldValue::Structural(argument(2)),
+                },
+            ],
+        };
+        let mut expected = record.clone();
+        if let OperationKind::EstablishRecord { fields } = &mut expected {
+            if let RecordFieldValue::Structural(source) = &mut fields[1].value {
+                source.place = place(12);
+            }
+        }
+        record.map_structural_uses(&mut |source| place(source.get() + 10));
+        assert_eq!(record, expected);
+
+        let mut concatenation = OperationKind::EstablishByteSequenceConcatenation {
+            left: ByteSequenceOperand::Whole {
+                source: place(1),
+                length: scalar,
+            },
+            right: ByteSequenceOperand::Field {
+                source: argument(2),
+                field: StructuralFieldId::new(1).unwrap(),
+                length: scalar,
+            },
+            capacity_obligation: ObligationId::new(1).unwrap(),
+        };
+        let mut expected = concatenation.clone();
+        if let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } = &mut expected
+        {
+            *left = ByteSequenceOperand::Whole {
+                source: place(11),
+                length: scalar,
+            };
+            if let ByteSequenceOperand::Field { source, .. } = right {
+                source.place = place(12);
+            }
+        }
+        concatenation.map_structural_uses(&mut |source| place(source.get() + 10));
+        assert_eq!(concatenation, expected);
+    }
+
+    #[test]
+    fn structural_use_mapping_distinguishes_stores_from_establishments() {
+        let mut store = OperationKind::StoreStructuralField {
+            destination: place(1),
+            path: vec![runtime()],
+            field: StructuralFieldId::new(1).unwrap(),
+            value: argument(2),
+        };
+        let mut expected = store.clone();
+        if let OperationKind::StoreStructuralField {
+            destination, value, ..
+        } = &mut expected
+        {
+            *destination = place(11);
+            value.place = place(12);
+        }
+        let mut visited = Vec::new();
+        store.map_structural_uses(&mut |source| {
+            visited.push(source);
+            place(source.get() + 10)
+        });
+        assert_eq!(visited, vec![place(1), place(2)]);
+        assert_eq!(store, expected);
+
+        let mut view = OperationKind::EstablishMutableElementView {
+            destination: place(1),
+            source: argument(2),
+            element: StructuralTypeId::new(1).unwrap(),
+        };
+        let mut expected = view.clone();
+        if let OperationKind::EstablishMutableElementView { source, .. } = &mut expected {
+            source.place = place(12);
+        }
+        view.map_structural_uses(&mut |source| place(source.get() + 10));
+        assert_eq!(view, expected);
+        for mut declaration in [
+            OperationKind::EstablishTrivialAffineLocal {
+                destination: place(1),
+            },
+            OperationKind::EstablishByteSequenceLiteral {
+                destination: place(1),
+                bytes: vec![7],
+                qualifications: Vec::new(),
+            },
+        ] {
+            declaration
+                .map_structural_uses(&mut |_| panic!("a destination declaration is not a use"));
+        }
+    }
 
     fn field(identity: &str) -> StructuralPathSegment {
         StructuralPathSegment::Field(identity.to_owned())

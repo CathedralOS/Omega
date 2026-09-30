@@ -236,8 +236,15 @@ impl StateGraphEmission<'_, '_> {
                 .flat_map(|block| &block.operations),
             &mut self.catalogs.temporary_places,
         )?;
+        evaluation.blocks.extend(edge_blocks);
+        super::borrow_transport::forward_private_state_borrows(
+            self.state_ids[position],
+            &mut evaluation.blocks,
+            &self.catalogs.structural_types,
+            &mut self.catalogs.next_place,
+            &mut self.structural_places,
+        )?;
         self.blocks.extend(evaluation.blocks);
-        self.blocks.extend(edge_blocks);
         self.catalogs.next_value = next_value;
         self.catalogs.next_block = next_block;
         self.catalogs.next_edge = next_edge;

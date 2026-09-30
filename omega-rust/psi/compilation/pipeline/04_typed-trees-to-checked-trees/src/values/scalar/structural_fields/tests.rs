@@ -8,6 +8,96 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceNode;
 
+#[test]
+fn closed_generic_getters_retain_scalar_bindings_after_setters() {
+    let typed = crate::tests::front_end::typed_program_with_generic_data_result(
+        "data Cell<T> { value: T; touched: i32 in Wrapping; }
+         machine Cell::set<T>(&mut self, value: T) {
+             self.value = value;
+             self.touched = self.touched + 1;
+         }
+         machine Cell::touch_count<T>(cell: &Cell<T>) -> i32 in Wrapping {
+             transition { _ -> (cell.touched) }
+         }
+         data Pair { first: Cell<i32>; second: Cell<bool>; }
+         machine exercise(pair: &mut Pair) -> i32 in Wrapping {
+             pair.first.set(7);
+             pair.second.set(true);
+             let first: i32 in Wrapping = Cell::touch_count(&pair.first);
+             let second: i32 in Wrapping = Cell::touch_count(&pair.second);
+             first + second
+         }",
+    )
+    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let program = &checked.typed;
+    let mut observed_owners = Vec::new();
+    for machine in program.machines().iter().filter(|machine| {
+        machine.name.as_str().contains("touch_count")
+            && program.machine_type_parameters(machine).is_empty()
+    }) {
+        let state = &program.machine_states(machine)[0];
+        let parameters = program.state_parameters(state);
+        let Some(owner) = super::structural_data(program, parameters[0].type_reference) else {
+            continue;
+        };
+        if owner.generic_instance.is_none() {
+            continue;
+        }
+        let (binding, _) = checked
+            .facts
+            .values
+            .scalar_expressions
+            .bound_expression_at(
+                state.symbol,
+                0,
+                checked_trees::CheckedScalarExpressionRole::Return,
+            )
+            .expect("closed getter retains its return expression and exact source binding");
+        assert!(
+            super::lower_structural_parameter_field(program, parameters, binding.expression)
+                .is_some()
+        );
+        let ExpressionNode::Member(member) =
+            program.expression_table.expression(binding.expression)
+        else {
+            panic!("getter returns one projected field");
+        };
+        let other = program
+            .data_definitions()
+            .iter()
+            .find(|candidate| {
+                candidate.symbol != owner.symbol && candidate.generic_instance.is_some()
+            })
+            .expect("other closed application");
+        let foreign = program
+            .data_members(other)
+            .iter()
+            .find_map(|member| match member {
+                DataMember::Field(field) if field.name.as_str() == "touched" => Some(field.symbol),
+                _ => None,
+            })
+            .unwrap();
+        let mut invalid = program.clone();
+        let mut wrong = member.clone();
+        wrong.member_symbol = foreign;
+        let expression = invalid
+            .expression_table
+            .insert(ExpressionNode::Member(wrong));
+        assert!(
+            super::lower_structural_parameter_field(&invalid, parameters, expression).is_none()
+        );
+        // Derived helpers and call specializations may share the same closed
+        // owner. Every body still needs evidence, but those generated copies
+        // do not introduce another application identity.
+        if !observed_owners.contains(&owner.symbol) {
+            observed_owners.push(owner.symbol);
+        }
+    }
+    assert_eq!(observed_owners.len(), 2);
+}
+
 fn byte_length_fixture(source: &str) -> (TypedTrees, ExpressionHandle) {
     let program = typed_program(source);
     let ExpressionNode::Binary(relation) =

@@ -22,6 +22,9 @@ use typed_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// The declared type of an assignment destination, preserving domain and
 /// capacity constraints. Machine-attached fields and direct state
 /// parameter/local places share the same write-establishment rule; only the
@@ -726,18 +729,23 @@ fn type_reference_data_name(
     }
 }
 
-/// The data definition a field's type names (a struct-typed field, peeling
-/// `&`/`&mut` and a domain wrapper), or `None` if the field is not data-typed.
-/// Used to descend a nested field path for the entry-invariant seed.
+/// The exact closed data owner of a field type. Closed generic
+/// applications rejoin their retained substituted instance; neither a template
+/// nor a same-spelled declaration can supply its fields or layout. Peeling a
+/// borrow here only finds its referent: store callers separately reject
+/// reference crossings and establish exclusive authority.
 pub(crate) fn data_definition_for_field_type(
     program: &typed_trees::TypedTrees,
-    type_reference: TypeReferenceHandle,
+    mut type_reference: TypeReferenceHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
-    let name = type_reference_data_name(program, type_reference)?;
-    program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name.as_str() == name.as_str())
+    while let TypeReferenceNode::Reference { referee, .. }
+    | TypeReferenceNode::Constrained {
+        base_type: referee, ..
+    } = program.type_reference_table.type_reference(type_reference)
+    {
+        type_reference = *referee;
+    }
+    program.closed_data_definition(type_reference)
 }
 
 /// The carrier-aware normalized declaration symbols for every declared-domain

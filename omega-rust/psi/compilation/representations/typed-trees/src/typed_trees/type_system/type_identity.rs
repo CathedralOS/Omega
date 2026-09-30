@@ -89,6 +89,134 @@ pub struct ExactOwnerTypeIdentityRequest<'a> {
 }
 
 impl TypedTrees {
+    /// Resolve an unwrapped nominal carrier to its uniquely retained closed
+    /// declaration. Named carriers may retain erased lifetime binders, but
+    /// neither route returns a declaration with open type parameters.
+    /// Applied types join through the exact resolved base and
+    /// complete normalized origin, never a generated declaration's spelling.
+    ///
+    /// This reads retained specialization evidence; it does not specialize an
+    /// open declaration, evaluate arguments, discharge predicates, or erase
+    /// reference/qualification wrappers. Consumers still check their own
+    /// storage and semantic requirements on the returned declaration.
+    pub fn closed_data_definition(
+        &self,
+        reference: TypeReferenceHandle,
+    ) -> Option<&crate::data::DataDefinition> {
+        use crate::types::TypeReferenceNode;
+
+        if !self.type_reference_table.contains_type_reference(reference) {
+            return None;
+        }
+        let unique_owner = |symbol: SymbolHandle| {
+            if !symbol.is_valid() {
+                return None;
+            }
+            let mut owners = self
+                .data_definitions()
+                .iter()
+                .filter(|data| data.symbol == symbol);
+            let owner = owners.next()?;
+            owners.next().is_none().then_some(owner)
+        };
+        let data = match self.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => unique_owner(*symbol)?,
+            TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                ..
+            } if lifetime_arguments.is_empty() => {
+                unique_owner(*base_symbol)?;
+                let identity = self.normalized_type_identity(reference);
+                let mut instances = self.data_definitions().iter().filter(|data| {
+                    let Some(origin) = data.generic_instance else {
+                        return false;
+                    };
+                    self.type_reference_table.contains_type_reference(origin)
+                        && matches!(self.type_reference_table.type_reference(origin),
+                            TypeReferenceNode::Generic { base_symbol: owner, lifetime_arguments, .. }
+                                if owner == base_symbol && lifetime_arguments.is_empty())
+                        && self.normalized_type_identity(origin) == identity
+                });
+                let instance = instances.next()?;
+                if instances.next().is_some() {
+                    return None;
+                }
+                if !instance.lifetime_parameters.is_empty() {
+                    return None;
+                }
+                unique_owner(instance.symbol)?
+            }
+            _ => return None,
+        };
+        data.type_parameters.is_empty().then_some(data)
+    }
+
+    /// Rejoin a record member to the closed receiver's substituted field.
+    /// Normalization may retain the template selection; only the matching
+    /// declaration position, identity and relevance authorize its translation.
+    /// Foreign and sibling-instance selections cannot be repaired by spelling.
+    /// The receiver is unwrapped, and case payloads retain their separate query.
+    pub fn closed_data_member_field(
+        &self,
+        reference: TypeReferenceHandle,
+        retained: SymbolHandle,
+        member_name: &str,
+    ) -> Option<&crate::data::DataField> {
+        let instance = self.closed_data_definition(reference)?;
+        let origin = instance.generic_instance?;
+        if !self.type_reference_table.contains_type_reference(origin) {
+            return None;
+        }
+        let crate::types::TypeReferenceNode::Generic { base_symbol, .. } =
+            self.type_reference_table.type_reference(origin)
+        else {
+            return None;
+        };
+        // A Named instance must also rejoin its unique retained application.
+        if self.closed_data_definition(origin)?.symbol != instance.symbol {
+            return None;
+        }
+        let mut templates = self
+            .data_definitions()
+            .iter()
+            .filter(|owner| owner.symbol == *base_symbol);
+        let template = templates.next()?;
+        if templates.next().is_some() {
+            return None;
+        }
+        let mut fields =
+            self.data_members(instance)
+                .iter()
+                .enumerate()
+                .filter_map(|(ordinal, member)| {
+                    let crate::data::DataMember::Field(field) = member else {
+                        return None;
+                    };
+                    (field.name.as_str() == member_name).then_some((ordinal, field))
+                });
+        let (ordinal, field) = fields.next()?;
+        if fields.next().is_some() {
+            return None;
+        }
+        let crate::data::DataMember::Field(original) = self.data_members(template).get(ordinal)?
+        else {
+            return None;
+        };
+        (field.name == original.name
+            && field.identity == original.identity
+            && field.relevance == original.relevance
+            && field.symbol.is_valid()
+            && original.symbol.is_valid()
+            && self
+                .type_reference_table
+                .contains_type_reference(field.type_reference)
+            && self.symbols.get(field.symbol).parent == instance.symbol
+            && self.symbols.get(original.symbol).parent == template.symbol
+            && (!retained.is_valid() || retained == field.symbol || retained == original.symbol))
+            .then_some(field)
+    }
+
     /// Canonical identity for an exact resolved declaration that may cross a
     /// target-neutral/target-closed compiler boundary. Managed package symbols
     /// retain their package digest; toolchain symbols retain their closed

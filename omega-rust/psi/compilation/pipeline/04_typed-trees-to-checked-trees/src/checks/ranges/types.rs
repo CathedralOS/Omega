@@ -349,6 +349,106 @@ fn enforced_range_of_type_reference(
     }
 }
 
+/// A generic field's extent belongs to its data declaration; its actual belongs
+/// to the receiver application. Join them by declaration and argument position,
+/// never by the two binders' possibly identical spellings.
+pub(in crate::checks::ranges) fn collection_symbolic_extent_floor(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    collection: ExpressionHandle,
+    extent: &(SymbolHandle, typed_trees::name::Identifier),
+) -> Option<i64> {
+    let actual = (|| {
+        let ExpressionNode::Member(member) = program.expression_table.expression(collection) else {
+            return None;
+        };
+        let mut receiver = expression_type_reference(program, machine, state, member.receiver)?;
+        while let TypeReferenceNode::Reference { referee, .. }
+        | TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } = program.type_reference_table.type_reference(receiver)
+        {
+            receiver = *referee;
+        }
+        let TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } = program.type_reference_table.type_reference(receiver)
+        else {
+            return None;
+        };
+        let data = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *base_symbol)?;
+        // Open generic members may not yet carry a member symbol. Resolve
+        // only inside this exact receiver declaration, then rejoin the field's
+        // declared extent symbol before substituting the actual argument.
+        let mut fields = program.data_members(data).iter().filter_map(|definition| {
+            let typed_trees::data::DataMember::Field(field) = definition else {
+                return None;
+            };
+            (if member.member_symbol.is_valid() {
+                field.symbol == member.member_symbol
+            } else {
+                field.name == member.member
+            })
+            .then_some(field)
+        });
+        let field = fields.next()?;
+        if fields.next().is_some()
+            || super::arrays::fixed_array_type_symbolic_extent(program, field.type_reference)?.0
+                != extent.0
+        {
+            return None;
+        }
+        let position = program
+            .data_type_parameters(data)
+            .iter()
+            .position(|parameter| {
+                parameter.symbol == extent.0
+                    && extent.0.is_valid()
+                    && matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Const { .. }
+                    )
+            })?;
+        program
+            .type_reference_table
+            .type_reference_handles(*arguments)
+            .get(position)
+            .copied()
+    })();
+    let Some(actual) = actual else {
+        return symbolic_extent_floor(program, machine, state, extent.0, &extent.1);
+    };
+    match program.type_reference_table.type_reference(actual) {
+        TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => {
+            symbolic_extent_floor(program, machine, state, *symbol, name)
+        }
+        // `validate_closed_const_argument` admits closed values as symbol-less
+        // Named atoms; ShapeCollector's const-length reader uses this encoding.
+        // This decodes retained const data, never an identified declaration.
+        TypeReferenceNode::Named { name, .. } => name.as_str().parse::<i64>().ok(),
+        TypeReferenceNode::ConstExpression(expression) => {
+            match program.expression_table.expression(*expression) {
+                ExpressionNode::Name(path) if path.symbol.is_valid() => {
+                    let name = program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .last()?;
+                    symbolic_extent_floor(program, machine, state, path.symbol, name)
+                }
+                ExpressionNode::Integer(literal) => literal.value_bignum()?.to_i64(),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 /// The floor a const-parameter extent's declared type guarantees — the closed
 /// declared range minimum of the binder (`const N: u64[1..=18446744073709551615]` contributes 1),
 /// else its unsigned carrier's zero. `None` means the binder contributes no
@@ -362,11 +462,15 @@ pub(in crate::checks::ranges) fn symbolic_extent_floor(
     extent_name: &typed_trees::name::Identifier,
 ) -> Option<i64> {
     let reference = type_reference_for_symbol(program, machine, state, extent_symbol)
-        .or_else(|| type_reference_for_name(program, machine, state, extent_name))
+        .or_else(|| {
+            (!extent_symbol.is_valid())
+                .then(|| type_reference_for_name(program, machine, state, extent_name))
+                .flatten()
+        })
         .or_else(|| {
             attached_data_const_parameter_reference(program, machine, extent_symbol, extent_name)
         })?;
-    constrained_minimum_of_type_reference(program, reference).or_else(|| {
+    let declared = constrained_minimum_of_type_reference(program, reference).or_else(|| {
         primitive_of_type_reference(program, reference).and_then(|primitive| {
             matches!(
                 primitive,
@@ -374,7 +478,97 @@ pub(in crate::checks::ranges) fn symbolic_extent_floor(
             )
             .then_some(0)
         })
-    })
+    });
+    let required = const_extent_requires_floor(program, machine, state, extent_symbol);
+    match (declared, required) {
+        (Some(declared), Some(required)) => Some(declared.max(required)),
+        (declared, required) => declared.or(required),
+    }
+}
+
+/// An immutable const binder can use its exact state's arrival contract.
+/// Selected builtin meaning, not comparison spelling, supplies the ordering;
+/// unrelated binders and disjunctive alternatives supply no bound.
+fn const_extent_requires_floor(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    extent: SymbolHandle,
+) -> Option<i64> {
+    use typed_trees::expression::BinaryOperator;
+
+    if !extent.is_valid()
+        || !program
+            .machine_type_parameters(machine)
+            .iter()
+            .any(|parameter| {
+                parameter.symbol == extent
+                    && matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Const { .. }
+                    )
+            })
+    {
+        return None;
+    }
+    let mut floor = None;
+    for fact in super::requirements::state_requires_facts(program, machine, state) {
+        let typed_trees::domain::ProofFact::Expression(expression) = program.proof_facts.get(fact)
+        else {
+            continue;
+        };
+        let mut pending = vec![*expression];
+        while let Some(expression) = pending.pop() {
+            if !validation::has_builtin_decomposed_guard_meaning(
+                program,
+                machine,
+                Some(state),
+                expression,
+            ) {
+                continue;
+            }
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(expression)
+            else {
+                continue;
+            };
+            if binary.operator == BinaryOperator::And {
+                pending.extend([binary.left, binary.right]);
+                continue;
+            }
+            for (subject, bound, left) in [
+                (binary.left, binary.right, true),
+                (binary.right, binary.left, false),
+            ] {
+                if !matches!(program.expression_table.expression(subject),
+                    ExpressionNode::Name(path) if path.symbol == extent
+                        && path.head_symbol == extent
+                        && program.expression_table.name_path_members(path.members).len() == 1)
+                {
+                    continue;
+                }
+                let ExpressionNode::Integer(literal) = program.expression_table.expression(bound)
+                else {
+                    continue;
+                };
+                let Some(bound) = literal.value_bignum().and_then(|value| value.to_i64()) else {
+                    continue;
+                };
+                let candidate = match (binary.operator, left) {
+                    (BinaryOperator::GreaterOrEqual, true)
+                    | (BinaryOperator::LessOrEqual, false)
+                    | (BinaryOperator::Equal, _) => Some(bound),
+                    (BinaryOperator::Greater, true) | (BinaryOperator::Less, false) => {
+                        bound.checked_add(1)
+                    }
+                    _ => None,
+                };
+                if let Some(candidate) = candidate {
+                    floor = Some(floor.map_or(candidate, |prior: i64| prior.max(candidate)));
+                }
+            }
+        }
+    }
+    floor
 }
 
 /// The declared carrier of a const binder that lives on the machine's ATTACHED
@@ -405,7 +599,8 @@ fn attached_data_const_parameter_reference(
         .find_map(|parameter| match &parameter.kind {
             typed_trees::data::TypeParameterKind::Const { type_reference }
             | typed_trees::data::TypeParameterKind::Value { type_reference }
-                if parameter.symbol == extent_symbol || parameter.name == *extent_name =>
+                if parameter.symbol == extent_symbol
+                    || (!extent_symbol.is_valid() && parameter.name == *extent_name) =>
             {
                 Some(*type_reference)
             }

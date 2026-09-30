@@ -48,19 +48,18 @@ pub(crate) fn contextual_canonical_place_from_expression(
                     .is_some_and(|member| member.is_self_receiver()),
             );
             for (offset, member_name) in members.iter().skip(start_index + 1).enumerate() {
-                let symbol = member_symbols
+                let retained = member_symbols
                     .get(offset + start_index + 1)
                     .copied()
-                    .filter(|symbol| symbol.is_valid())
-                    .or_else(|| {
-                        resolve_member_symbol_from_place(
-                            program,
-                            &place,
-                            member_name.as_str(),
-                            None,
-                        )
-                    })
                     .unwrap_or_else(SymbolHandle::invalid);
+                let symbol = resolve_member_symbol_from_place(
+                    program,
+                    &place,
+                    member_name.as_str(),
+                    None,
+                    retained,
+                )
+                .unwrap_or(retained);
                 push_field_place_segments(program, &mut place.segments, symbol);
             }
             Some(place)
@@ -87,6 +86,7 @@ pub(crate) fn contextual_canonical_place_from_expression(
                         &place,
                         member.member.as_str(),
                         member.case_variant.as_ref().map(|variant| variant.as_str()),
+                        member.member_symbol,
                     )
                     .unwrap_or_else(SymbolHandle::invalid)
                 }
@@ -157,11 +157,12 @@ fn resolve_contextual_name_path_root(
 /// one: payload spellings repeat across cases, so a qualified demand is
 /// answered only by the field that exact variant declares — an unqualified
 /// name search would mint a sibling case's same-named field for it.
-fn resolve_member_symbol_from_place(
+pub(super) fn resolve_member_symbol_from_place(
     program: &typed_trees::TypedTrees,
     place: &CanonicalPlace,
     member_name: &str,
     case_variant: Option<&str>,
+    retained: SymbolHandle,
 ) -> Option<SymbolHandle> {
     let position = match place.root {
         facts::PlaceRoot::Symbol(symbol) => resolution::symbol_type_position(program, symbol)?,
@@ -184,6 +185,16 @@ fn resolve_member_symbol_from_place(
     // for reference-world consumers.
     let position = resolution::member_position_after_segments(program, position, &place.segments)?;
 
+    if case_variant.is_none() {
+        if let Some(symbol) =
+            resolution::closed_generic_member_symbol(program, Some(position), member_name, retained)
+        {
+            return Some(symbol);
+        }
+        if retained.is_valid() {
+            return Some(retained);
+        }
+    }
     let current = resolution::position_leaf_symbol(program, position);
     match case_variant {
         Some(variant) => resolution::resolve_case_member_symbol_from_type_symbol(

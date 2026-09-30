@@ -1657,7 +1657,25 @@ crash and native exit behavior. Use affected check/native corpus slices under
   add it with snapshot/invalidation, store-equation and codec replay support,
   retaining restoration obligations at consumption points rather than every
   store. The vocabulary owner was notified under `HARD-TIER-ADDR-SUBTRACTION`.
-  Native exit 77, source-free replay, and the other four customers remain open.
+  Native exit 77 and the three recast customers remain open.
+
+  The const-container customer (macOS ARM64, based on `850c491bba`) now
+  checks and independently verifies after Terminal serialization/reload.
+  Exact closed-instance fields, declared const extent bounds, and private
+  state-borrow forwarding retain both capacities, witness arrays and getter
+  calls. Stale receiver substitution rejects. Its actual `omega run
+  tests/omega/pass/generics/runtime_const_container_methods_exit/main.omg`
+  still exits 200 before execution: target lowering reports
+  `UnsupportedStructuralByteSequence(StructuralTypeId(10))`. Type 10 is
+  the capacity-2 `BoundedView` witness (type 11 is capacity 4).
+  `02_abstract-operations-to-target-operations/src/lowering/structural_layout.rs`
+  omits that carrier from `structural_shape`, although `byte_sequence_shape`
+  already defines its pointer layout. Fixed-array call lowering, descriptor
+  construction and independent replay also assume the 16-byte slice descriptor;
+  they must retain the bounded view's 8-byte pointer cell and exact extent.
+  Coordinate that dependency with
+  `SAMPLE-CORPUS`/`claude-worker / clock-intrinsic`; native exit 70 is still
+  required, not inferred from successful Terminal verification.
 
 - **VALUE-CALL-SUBEXPRESSION.** (new-scope) Finish composing scalar machine
   results under surrounding expressions at each execution site. The builder

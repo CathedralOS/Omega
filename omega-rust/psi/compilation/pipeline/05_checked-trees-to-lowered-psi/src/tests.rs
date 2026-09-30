@@ -24,6 +24,7 @@ mod composed_unit_internal_calls;
 mod composed_unit_prefixed_control;
 mod conditional_result_custody;
 mod conditional_return_targets;
+mod const_container_custody;
 mod constructed_case_membership;
 mod content_conservation;
 mod cyclic_byte_literal_calls;
@@ -116,6 +117,25 @@ const CORE_SERVICE_OMG: &str = include_str!(concat!(
 /// `pub`. The digest is a stand-in; nothing here compares it against a
 /// realized plan.
 fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees {
+    checked_source_with_core_service_front_end(
+        source,
+        crate::front_end::typed_program_from_source_map,
+    )
+}
+
+/// The core-service fixture pipeline with closed generic data normalized
+/// before resolution, using the same fused-service authorization as above.
+fn checked_generic_source_with_core_service(source: &str) -> checked_trees::CheckedTrees {
+    checked_source_with_core_service_front_end(
+        source,
+        crate::front_end::typed_program_from_source_map_with_generic_data,
+    )
+}
+
+fn checked_source_with_core_service_front_end(
+    source: &str,
+    type_program: fn(SourceMap, &[(source::SourceId, &str)]) -> typed_trees::TypedTrees,
+) -> checked_trees::CheckedTrees {
     let mut sources = SourceMap::default();
     let service_source_id = sources
         .add_with_metadata(
@@ -129,7 +149,7 @@ fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees
     let user_source_id = sources
         .add(PathBuf::from("tests/main.omg"), source.to_owned())
         .source_id;
-    let mut typed = crate::front_end::typed_program_from_source_map(
+    let mut typed = type_program(
         sources,
         &[
             (service_source_id, CORE_SERVICE_OMG),

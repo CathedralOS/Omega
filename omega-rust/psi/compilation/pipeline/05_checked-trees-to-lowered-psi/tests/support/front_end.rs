@@ -96,6 +96,29 @@ pub(crate) fn typed_program_from_source_map(
     texts: &[(SourceId, &str)],
 ) -> TypedTrees {
     let (syntax, program) = parsed_forest(texts);
+    typed_forest(sources, syntax, program)
+}
+
+/// [`typed_program_from_source_map`] with generic data normalized between
+/// parsing and resolution, before the typed declarations are retained.
+pub(crate) fn typed_program_from_source_map_with_generic_data(
+    sources: SourceMap,
+    texts: &[(SourceId, &str)],
+) -> TypedTrees {
+    use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
+        GenericDataRequest, normalize_generic_data,
+    };
+
+    let (syntax, program) = parsed_forest(texts);
+    let syntax = stage(
+        "normalize generic data",
+        program,
+        normalize_generic_data(GenericDataRequest::new(syntax)),
+    );
+    typed_forest(sources, syntax, program)
+}
+
+fn typed_forest(sources: SourceMap, syntax: SyntaxTrees, program: &str) -> TypedTrees {
     let resolved = stage(
         "resolve",
         program,

@@ -339,6 +339,140 @@ fn closed_range_endpoints_keep_canonical_numeric_formatting() {
     }
 }
 #[test]
+fn closed_data_definition_joins_exact_origins_and_rejects_ambiguous_evidence() {
+    fn application(
+        program: &mut TypedTrees,
+        base_symbol: SymbolHandle,
+        value: &str,
+    ) -> crate::types::TypeReferenceHandle {
+        let argument = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: SymbolHandle::invalid(),
+                name: Identifier::generated(value),
+            });
+        let arguments = program
+            .type_reference_table
+            .insert_type_reference_handles([argument]);
+        program
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
+                base_symbol,
+                base_name: Identifier::generated("Buffer"),
+                lifetime_arguments: Vec::new(),
+                arguments,
+            })
+    }
+
+    let mut program = TypedTrees::default();
+    let base = SymbolHandle::from_arena_index(91);
+    let foreign = SymbolHandle::from_arena_index(94);
+    for symbol in [base, foreign] {
+        let mut template = DataDefinition {
+            symbol,
+            name: Identifier::generated("Buffer"),
+            ..DataDefinition::default()
+        };
+        program.push_data_type_parameter(&mut template, crate::data::TypeParameter::default());
+        program.push_data_definition(template);
+    }
+    let two = application(&mut program, base, "2");
+    let four = application(&mut program, base, "4");
+    for (symbol, origin) in [(92, two), (93, four)] {
+        program.push_data_definition(DataDefinition {
+            symbol: SymbolHandle::from_arena_index(symbol),
+            name: Identifier::generated("same diagnostic name"),
+            generic_instance: Some(origin),
+            ..DataDefinition::default()
+        });
+    }
+    for (symbol, origin) in [(92, two), (93, four)] {
+        assert_eq!(
+            program.closed_data_definition(origin).unwrap().symbol,
+            SymbolHandle::from_arena_index(symbol)
+        );
+    }
+    let eight = application(&mut program, base, "8");
+    let foreign_two = application(&mut program, foreign, "2");
+    assert!(program.closed_data_definition(eight).is_none());
+    assert!(program.closed_data_definition(foreign_two).is_none());
+    let concrete = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::from_arena_index(92),
+            name: Identifier::generated("unrelated spelling"),
+        });
+    assert_eq!(
+        program.closed_data_definition(concrete).unwrap().symbol,
+        SymbolHandle::from_arena_index(92)
+    );
+    let open = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: base,
+            name: Identifier::generated("Buffer"),
+        });
+    assert!(program.closed_data_definition(open).is_none());
+    let borrowed = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            access: ReferenceAccess::Shared,
+            lifetime: None,
+            referee: two,
+        });
+    assert!(program.closed_data_definition(borrowed).is_none());
+    assert!(
+        program
+            .closed_data_definition(crate::types::TypeReferenceHandle::invalid())
+            .is_none()
+    );
+
+    let owner = program
+        .tables
+        .data_definitions
+        .iter()
+        .find(|(_, data)| data.symbol == SymbolHandle::from_arena_index(92))
+        .unwrap()
+        .0;
+    let mut missing = program.clone();
+    missing
+        .tables
+        .data_definitions
+        .get_mut(owner)
+        .generic_instance = None;
+    assert!(missing.closed_data_definition(two).is_none());
+    let mut invalid = program.clone();
+    invalid
+        .tables
+        .data_definitions
+        .get_mut(owner)
+        .generic_instance = Some(crate::types::TypeReferenceHandle::invalid());
+    assert!(invalid.closed_data_definition(two).is_none());
+    let mut ambiguous = program.clone();
+    ambiguous.push_data_definition(DataDefinition {
+        symbol: SymbolHandle::from_arena_index(95),
+        generic_instance: Some(two),
+        ..DataDefinition::default()
+    });
+    assert!(ambiguous.closed_data_definition(two).is_none());
+    let mut duplicate_owner = program.clone();
+    duplicate_owner.push_data_definition(DataDefinition {
+        symbol: SymbolHandle::from_arena_index(92),
+        ..DataDefinition::default()
+    });
+    assert!(duplicate_owner.closed_data_definition(two).is_none());
+    assert!(duplicate_owner.closed_data_definition(concrete).is_none());
+    let mut open_instance = program.clone();
+    open_instance
+        .tables
+        .data_definitions
+        .get_mut(owner)
+        .lifetime_parameters = vec![Identifier::generated("a")];
+    assert!(open_instance.closed_data_definition(two).is_none());
+    assert!(open_instance.closed_data_definition(concrete).is_some());
+}
+
+#[test]
 fn generated_concrete_generic_nominal_normalizes_to_its_exact_origin() {
     let mut program = TypedTrees::default();
     let generic_symbol = SymbolHandle::from_arena_index(91);

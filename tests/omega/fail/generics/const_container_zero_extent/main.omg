@@ -1,0 +1,10 @@
+// A closed const application must satisfy the record's ordinary where facts.
+data FixedBuffer<const Capacity: u64> where Capacity >= 1 {
+    items: [i32; Capacity];
+}
+
+data Invalid {
+    buffer: FixedBuffer<0>;
+}
+
+machine main() {}
