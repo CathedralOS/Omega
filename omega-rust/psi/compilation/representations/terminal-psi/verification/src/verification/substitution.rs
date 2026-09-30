@@ -1,6 +1,7 @@
 //! Capture-free substitution for retained proposition, scalar, and content terms.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::hash::{Hash, Hasher};
 
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ContentConservation, ContentStructuralPlace, ContentTerm,
@@ -423,6 +424,175 @@ pub(crate) fn roster_has_fact(axioms: &[Proposition], proposition: &Proposition)
 pub(crate) fn push_unique_fact(axioms: &mut Vec<Proposition>, proposition: Proposition) {
     if !roster_has_fact(axioms, &proposition) {
         axioms.push(proposition);
+    }
+}
+
+/// Fingerprint-bucketed view of a proposition roster for repeated membership
+/// and position queries.
+///
+/// Reconstruction edges each consult a roster hundreds of times — every edge
+/// parameter binding, rewritten established fact, and discrete fact emission
+/// asks whether the roster already carries the fact or where it sits — so a
+/// call that fingerprints the roster once turns each of those roster scans
+/// into a bucket lookup. `Equal` propositions index under an operand-order
+/// fingerprint so one bucket answers both the exact match and the
+/// symmetric-twin match [`roster_equation_position`] applies; every bucket
+/// candidate is still resolved with full proposition equality, and bucket
+/// positions stay in roster order so first-match semantics are unchanged.
+/// The index owns no roster borrow: callers fingerprint the roster once and
+/// record each later push, so reads and pushes interleave freely.
+pub(crate) struct FactIndex {
+    positions: HashMap<u64, Vec<usize>>,
+}
+
+impl FactIndex {
+    /// Fingerprint `axioms` once. Index construction is the same single
+    /// roster pass one linear membership scan costs.
+    pub(crate) fn new(axioms: &[Proposition]) -> Self {
+        let mut positions = HashMap::<u64, Vec<usize>>::new();
+        for (position, axiom) in axioms.iter().enumerate() {
+            positions
+                .entry(index_key(axiom))
+                .or_default()
+                .push(position);
+        }
+        Self { positions }
+    }
+
+    /// The position of `left = right` in the roster under either operand
+    /// order, with the same first-match semantics as
+    /// [`roster_equation_position`].
+    pub(crate) fn equation_position(
+        &self,
+        axioms: &[Proposition],
+        left: &ScalarTerm,
+        right: &ScalarTerm,
+    ) -> Option<usize> {
+        self.positions
+            .get(&equation_key(left, right))?
+            .iter()
+            .copied()
+            .find(|&position| match &axioms[position] {
+                Proposition::Equal(l, r) => (l == left && r == right) || (l == right && r == left),
+                _ => false,
+            })
+    }
+
+    /// The first roster position holding `proposition` exactly.
+    pub(crate) fn position_of(
+        &self,
+        axioms: &[Proposition],
+        proposition: &Proposition,
+    ) -> Option<usize> {
+        self.positions
+            .get(&index_key(proposition))?
+            .iter()
+            .copied()
+            .find(|&position| &axioms[position] == proposition)
+    }
+
+    /// [`roster_has_fact`] answered through the index.
+    pub(crate) fn has_fact(&self, axioms: &[Proposition], proposition: &Proposition) -> bool {
+        match proposition {
+            Proposition::Equal(left, right)
+                if matches!(left, ScalarTerm::Value { .. })
+                    && matches!(right, ScalarTerm::Value { .. }) =>
+            {
+                self.equation_position(axioms, left, right).is_some()
+            }
+            _ => self.position_of(axioms, proposition).is_some(),
+        }
+    }
+
+    /// Register `axioms[position] = proposition` after a push so later
+    /// queries see it.
+    pub(crate) fn record(&mut self, position: usize, proposition: &Proposition) {
+        self.positions
+            .entry(index_key(proposition))
+            .or_default()
+            .push(position);
+    }
+
+    /// [`push_unique_fact`] answered through the index.
+    pub(crate) fn push_unique(&mut self, axioms: &mut Vec<Proposition>, proposition: Proposition) {
+        if !self.has_fact(axioms, &proposition) {
+            self.record(axioms.len(), &proposition);
+            axioms.push(proposition);
+        }
+    }
+}
+
+/// Bucket key for a rostered proposition. `Equal` rows share one
+/// operand-order bucket so a symmetric-twin lookup reads one bucket;
+/// other propositions bucket on their own fingerprint.
+fn index_key(proposition: &Proposition) -> u64 {
+    match proposition {
+        Proposition::Equal(left, right) => equation_key(left, right),
+        _ => fact_cache_fingerprint(proposition),
+    }
+}
+
+/// Operand-order-free bucket key for `left = right`: the same equation under
+/// either written order lands in one bucket.
+fn equation_key(left: &ScalarTerm, right: &ScalarTerm) -> u64 {
+    let mut hasher = FactHasher::default();
+    left.hash(&mut hasher);
+    let left = hasher.finish();
+    let mut hasher = FactHasher::default();
+    right.hash(&mut hasher);
+    let right = hasher.finish();
+    0x9e37_79b9_7f4a_7c15_u64 ^ (left ^ right)
+}
+
+/// Fast, non-authoritative bucketing for exact proposition deduplication.
+/// Collisions are always resolved with full proposition equality.
+fn fact_cache_fingerprint(proposition: &Proposition) -> u64 {
+    let mut hasher = FactHasher::default();
+    proposition.hash(&mut hasher);
+    hasher.finish()
+}
+
+#[derive(Default)]
+struct FactHasher(u64);
+
+impl FactHasher {
+    fn mix(&mut self, value: u64) {
+        self.0 = (self.0.rotate_left(5) ^ value).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+}
+
+impl Hasher for FactHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        let (chunks, remainder) = bytes.as_chunks::<8>();
+        for chunk in chunks {
+            self.mix(u64::from_ne_bytes(*chunk));
+        }
+        if !remainder.is_empty() {
+            let mut tail = [0_u8; 8];
+            tail[..remainder.len()].copy_from_slice(remainder);
+            self.mix(u64::from_ne_bytes(tail) ^ (remainder.len() as u64));
+        }
+    }
+
+    fn write_u64(&mut self, value: u64) {
+        self.mix(value);
+    }
+
+    fn write_u128(&mut self, value: u128) {
+        self.mix(value as u64);
+        self.mix((value >> 64) as u64);
+    }
+
+    fn write_usize(&mut self, value: usize) {
+        self.mix(value as u64);
+    }
+
+    fn write_isize(&mut self, value: isize) {
+        self.mix(value as u64);
     }
 }
 

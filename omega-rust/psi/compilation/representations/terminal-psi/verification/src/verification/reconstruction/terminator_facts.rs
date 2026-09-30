@@ -252,12 +252,12 @@ pub(super) fn append_terminator(
                 .structural()
                 .expect("validated structural return has a structural machine result");
             let substitutions = BTreeMap::from([(*source, result.place)]);
-            for proposition in axioms
-                .clone()
-                .into_iter()
-                .map(|proposition| substitute_proposition_places(&proposition, &substitutions))
-            {
-                if !axioms.contains(&proposition) {
+            let established_count = axioms.len();
+            let mut fact_index = crate::verification::substitution::FactIndex::new(&axioms);
+            for index in 0..established_count {
+                let proposition = substitute_proposition_places(&axioms[index], &substitutions);
+                if fact_index.position_of(&axioms, &proposition).is_none() {
+                    fact_index.record(axioms.len(), &proposition);
                     axioms.push(proposition);
                 }
             }
