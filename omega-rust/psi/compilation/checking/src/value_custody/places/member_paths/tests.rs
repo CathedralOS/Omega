@@ -3,6 +3,82 @@ use typed_trees::data::DataMember;
 use typed_trees::expression::{Expression, ExpressionNode, NamePath, TableMemberExpression};
 use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
 
+fn case_payload_program(member: &str, cases: &str) -> typed_trees::TypedTrees {
+    crate::front_end::typed_program(&format!(
+        "data Reset {{ success: bool; }}
+         data Metadata {{ count: u64; }}
+         data Scanned {{ metadata: Metadata; }}
+         data Response {{ {cases} }}
+         machine inspect(response: Response) -> u64 {{
+             transition response {{
+                 Response::Reset {{ response }} -> 0
+                 Response::Scanned {{ response }} -> response.{member}
+             }}
+         }}"
+    ))
+}
+
+#[test]
+fn nested_case_payload_members_use_selected_case_not_declaration_order() {
+    for cases in [
+        "case Reset(response: Reset); case Scanned(response: Scanned);",
+        "case Scanned(response: Scanned); case Reset(response: Reset);",
+    ] {
+        let program = case_payload_program("metadata.count", cases);
+        assert!(
+            crate::validate_program(&program).is_ok(),
+            "selected payload must validate: {:?}",
+            crate::validate_program(&program)
+        );
+    }
+}
+
+#[test]
+fn nested_case_payload_member_cannot_come_from_another_case() {
+    let program = case_payload_program(
+        "success",
+        "case Reset(response: Reset); case Scanned(response: Scanned);",
+    );
+    let diagnostics = crate::validate_program(&program).expect_err("foreign payload member");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "reads a nested member `success`, but data `Scanned` has no field `success`"
+            )),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn borrowed_case_payload_preserves_nested_member_identity() {
+    let program = crate::front_end::typed_program(
+        "data Small { first: u64; } data Large { second: u64; }
+         data Choice { case Small(value: Small); case Large(value: Large); }
+         machine inspect(choice: &Choice) -> u64 {
+             transition choice {
+                 Choice::Small { value } -> value.first
+                 Choice::Large { value } -> value.second
+             }
+         }",
+    );
+    assert!(crate::validate_program(&program).is_ok());
+}
+
+#[test]
+fn ordinary_nested_record_diagnoses_first_missing_member() {
+    let program = crate::front_end::typed_program(
+        "data Inner { count: u64; } data Outer { inner: Inner; }
+         machine inspect(value: &Outer) -> u64 { value.inner.count }
+         machine invalid(value: &Outer) -> u64 { value.missing.count }",
+    );
+    let diagnostics = crate::validate_program(&program).expect_err("missing intermediate field");
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert!(diagnostics[0].message.contains(
+        "machine `invalid` state `entry` reads a nested member `missing`, but data `Outer`"
+    ));
+}
+
 #[test]
 fn declared_const_array_members_use_exact_closed_extents_and_keep_open_fallback() {
     let mut program = crate::front_end::typed_program_with_generic_data(

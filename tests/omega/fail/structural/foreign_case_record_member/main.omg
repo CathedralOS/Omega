@@ -1,0 +1,13 @@
+// A field in Reset's response does not exist in Scanned's response.
+data Reset { count: u64; }
+data Scanned { success: bool; }
+data Response {
+    case Reset(response: Reset);
+    case Scanned(response: Scanned);
+}
+machine inspect(response: Response) -> u64 {
+    transition response {
+        Response::Reset { response } -> 0
+        Response::Scanned { response } -> response.count
+    }
+}
