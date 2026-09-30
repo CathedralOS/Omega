@@ -1,0 +1,28 @@
+// A bound that standing evidence could not name still discharges when the
+// argument's value is decidable at the call: `s` binds `opaque()`'s closed
+// result, so `scale <= 5` instantiates to `4 <= 5` — structurally true on
+// the same instantiated judgment that refutes the false direction. The
+// positive channel proves only what the terms themselves decide; a mutable
+// or unresolvable argument still rides the bound/guard channels.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine echo(scale: u64) -> u64
+requires scale <= 5
+{
+    transition { _ -> (scale) }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let s: u64 = opaque();
+    let r: u64 = echo(s);
+    self.console.exit_process(70);
+}
+
+machine opaque() -> u64 {
+    transition { _ -> (4u64) }
+}

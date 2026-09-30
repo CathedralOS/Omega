@@ -142,6 +142,7 @@ pub use ranking_range::{
     prove_ranking_range_edge, prove_ranking_range_entry, prove_ranking_range_transition,
     ranking_range_premise_symbols, ranking_range_required_symbols,
 };
+pub use refuted_requires::instantiated_value_call_requires_proven;
 pub(crate) use refuted_requires::reject_refuted_value_call_requires;
 pub use scoped_arithmetic::{
     ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticExpression,
