@@ -76,7 +76,7 @@ pub(super) fn collect_state_argument_facts_for_call(
     // name (`put(&mut buf)` delivers `buf.i` as the callee's `buf.i`). A `->
     // self` edge maps each parameter to its own continuing storage. Ordinary
     // calls and runtime-selector arguments carry no storage evidence.
-    let argument_storages: Vec<(crate::flow::CanonicalPlace, SymbolHandle)> =
+    let mut argument_storages: Vec<(crate::flow::CanonicalPlace, SymbolHandle)> =
         if !receiver_transition {
             Vec::new()
         } else if arguments.is_empty() {
@@ -133,12 +133,37 @@ pub(super) fn collect_state_argument_facts_for_call(
                 })
                 .collect()
         };
+    // A transition continues attached receiver storage too. A mixed guard can
+    // derive a numeric receiver bound from a source-state argument; replaying
+    // that argument's spelling in the destination would be unsound. Carry the
+    // already-derived bound and its exact receiver dependency through the same
+    // all-predecessor meet as argument storage. Ordinary calls never inherit it.
+    if receiver_transition
+        && let Some(receiver) = crate::flow::canonical_place_from_symbol(machine.symbol)
+    {
+        argument_storages.push((receiver, machine.symbol));
+    }
     let storage_rows = facts.storage_sub_places(program, machine, state, &argument_storages);
     let mut incoming_storage = Vec::new();
     for (source_label, expression, destination_place) in &storage_rows {
+        // The stable receiver identity is the machine, but range labels use
+        // the destination state's receiver parameter (self), not its machine
+        // name. Keep the canonical place for invalidation across later edges.
+        let label_root = if destination_place.root == facts::PlaceRoot::Symbol(machine.symbol) {
+            let Some(receiver) = program
+                .state_parameters(target_state)
+                .iter()
+                .find(|parameter| parameter.is_self)
+            else {
+                continue;
+            };
+            facts::PlaceRoot::Symbol(receiver.symbol)
+        } else {
+            destination_place.root
+        };
         let destination_label = facts::canonical_place_label_from_parts(
             program,
-            destination_place.root,
+            label_root,
             &destination_place.segments,
         );
         if let Some(length) = facts.exact_length(source_label) {
