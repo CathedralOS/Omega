@@ -15,8 +15,8 @@ use super::{
     ScalarCalleePlans, ShapeCollector, StatementNode, StatementSequence, SymbolHandle, TypedTrees,
     append_reference_releases, base_type_identity, consume_results, consume_value_places,
     parameter_qualifications, retain_selected_sources, returned_byte_sequence_literal,
-    returned_named_view, returned_parameter, returned_reference_leaf, returned_subslice,
-    structural_operands,
+    returned_mutable_view, returned_named_view, returned_parameter, returned_reference_leaf,
+    returned_subslice, structural_operands,
 };
 use checked_trees::{CheckedUnitCallPlan, CheckedUnitStructuralReturnPlan};
 
@@ -187,6 +187,17 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
     } else if let Some(result) = returned_reference_leaf(program, state, structural_parameters) {
         Some(result)
     } else if let Some((result, operation)) = returned_subslice(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        &mut structural_count,
+    ) {
+        operations.push(operation);
+        Some(result)
+    } else if let Some((result, operation)) = returned_mutable_view(
         program,
         facts,
         shapes,

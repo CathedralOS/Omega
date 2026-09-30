@@ -388,7 +388,12 @@ pub(super) fn account(
         // release. Only a loan-bound result needs the owner: an
         // Unrestricted view is admitted by its dominance permit, and
         // counting its release beside that permit would double-book.
-        let view_releases = if view_source.is_some() && result.multiplicity == Multiplicity::Affine
+        // A counted reborrow already owns the custody — the release the
+        // permissions still record is the same loan's lexical end, not a
+        // second owner, so it does not book twice beside the reborrow.
+        let view_releases = if view_source.is_some()
+            && result.multiplicity == Multiplicity::Affine
+            && reference_reborrows == 0
         {
             facts
                 .flow

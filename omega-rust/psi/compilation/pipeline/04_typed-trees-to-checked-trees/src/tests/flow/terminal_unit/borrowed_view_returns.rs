@@ -54,3 +54,60 @@ fn member_read_endpoints_lower_in_the_structural_namespace() {
         panic!("member-read endpoints retain evaluated expressions");
     };
 }
+
+/// A projected `&mut place` tail returned through a `&mut [T]` view local
+/// resolves its reference to the mutable parameter root plus the projection
+/// the loans and the place spell together — the channel that keeps providers
+/// shaped like `pick` inside the unit plan instead of stopping at result
+/// ownership for want of a returned_* arm.
+#[test]
+fn projected_mutable_view_returns_establish_the_parameter_projection() {
+    let checked = checked(
+        r#"
+        data Cell { value: u64; tag: u64; }
+        data Bag { cells: [Cell; 4]; }
+        machine pick(bag: &mut Bag) -> &mut Cell {
+            let cells: &mut [Cell] = bag.cells.as_mut_slice();
+            transition {
+                _ -> &mut cells[2]
+            }
+        }
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "pick"))
+        .expect("a mutable view return composes a Unit plan");
+    let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = plan
+        .states
+        .iter()
+        .flat_map(|state| state.operations.iter())
+        .find(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::EstablishReference { .. }
+            )
+        })
+        .expect("the tail's projected &mut place mints the borrowed reference")
+    else {
+        unreachable!();
+    };
+    let CheckedUnitStructuralArgumentSourcePlan::Parameter { .. } = source.source else {
+        panic!("the mutable view reference resolves to the &mut parameter root");
+    };
+    assert_eq!(
+        source.path,
+        [
+            checked_trees::CheckedUnitStructuralPathSegment::Field("cells".into()),
+            checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(2),
+        ],
+        "the loan's member projection composes with the returned element"
+    );
+    assert_eq!(
+        source.access,
+        checked_trees::CheckedStructuralAccess::MutableBorrow,
+        "the result keeps the exclusive borrow's access"
+    );
+}

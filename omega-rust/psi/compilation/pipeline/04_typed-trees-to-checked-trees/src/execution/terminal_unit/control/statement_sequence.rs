@@ -459,6 +459,75 @@ fn returned_subslice(
     ))
 }
 
+/// A `&mut place` tail completing an exclusive `&mut R`/`&mut [T]` view
+/// return delegates to the state-graph's mutable-view producer: the denoted
+/// place resolves through the state's own minted `&mut` loans until it roots
+/// at a `&mut` parameter (or a `self` member the loan publishes as its own
+/// root), and the projected path — runtime selectors included — spells the
+/// result's reference source. The tail is the expression or unconditional
+/// ordinary value-transition the state's exit spells, matching the shape the
+/// terminator route reads.
+fn returned_mutable_view(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    count: &mut usize,
+) -> Option<(
+    CheckedUnitStructuralReturnPlan,
+    CheckedUnitEffectOperationPlan,
+)> {
+    if !crate::execution::terminal_unit::types::mutable_borrowed_view(program, state.return_type) {
+        return None;
+    }
+    let expression = validation::reference_result_custody::tail_return_expression(program, state)?;
+    let statement_ordinal = u32::try_from(
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .len()
+            .checked_sub(1)?,
+    )
+    .ok()?;
+    let operation = super::super::state_graph::returns::mutable_view_result_operation(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        parameters,
+        count,
+        statement_ordinal,
+        expression,
+    )?;
+    let CheckedUnitEffectOperationPlan::EstablishReference { result, source } = operation else {
+        return None;
+    };
+    // The minted `&mut` view ends exactly once at the result, so the binding
+    // spells Affine rather than the exclusive borrow's Unrestricted type
+    // multiplicity — the same loan-custody spelling the subslice arm uses.
+    let result = CheckedUnitStructuralResultBindingPlan {
+        multiplicity: Multiplicity::Affine,
+        ..result
+    };
+    Some((
+        CheckedUnitStructuralReturnPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            },
+            type_identity: result.type_identity.clone(),
+            multiplicity: result.multiplicity,
+            reference_sources: vec![checked_trees::CheckedReferenceResultSourcePlan {
+                path: Vec::new(),
+                source: source.clone(),
+            }],
+        },
+        CheckedUnitEffectOperationPlan::EstablishReference { result, source },
+    ))
+}
+
 /// A `("bytes")` tail completing a borrowed `&[u8]` view return: the literal
 /// names its own immutable storage, so the result source is the spelled byte
 /// sequence itself — the same source shape a boundary call argument carries.
