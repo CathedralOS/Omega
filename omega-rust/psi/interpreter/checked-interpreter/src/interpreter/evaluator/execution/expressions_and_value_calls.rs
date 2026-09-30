@@ -950,6 +950,13 @@ impl<'program> Evaluator<'program> {
                     return Ok(value);
                 }
 
+                // Identity-backed intrinsic/requirement routes above remain
+                // valid for namespace calls. A missing ordinary declaration
+                // cannot inherit a host operation from its leaf spelling.
+                if self.expression_receiver_is_namespace(call.receiver) {
+                    return Err(halt);
+                }
+
                 if matches!(
                     target,
                     "tick_count"
@@ -1120,8 +1127,9 @@ impl<'program> Evaluator<'program> {
                         _ => None,
                     })
             });
-        let compatibility_call =
-            core_format.is_none() && matches!(target, "square_root" | "fused_multiply_add");
+        let compatibility_call = core_format.is_none()
+            && !self.expression_receiver_is_namespace(call.receiver)
+            && matches!(target, "square_root" | "fused_multiply_add");
         if core_format.is_none() && !compatibility_call {
             return Ok(None);
         }
@@ -1386,6 +1394,22 @@ impl<'program> Evaluator<'program> {
         Ok(Some(value))
     }
 
+    fn expression_receiver_is_namespace(&self, receiver: ExpressionHandle) -> bool {
+        if !receiver.is_valid() {
+            return false;
+        }
+        let ExpressionNode::Name(path) = self.program.expression_table.expression(receiver) else {
+            return false;
+        };
+        !self
+            .program
+            .expression_table
+            .name_path_members(path.members)
+            .first()
+            .is_some_and(|member| member.is_self_receiver())
+            && self.is_declaration_namespace(path.symbol)
+    }
+
     fn resolve_value_call_target(
         &mut self,
         call: &typed_trees::expression::TableCallExpression,
@@ -1424,6 +1448,14 @@ impl<'program> Evaluator<'program> {
             }
         };
 
+        // Qualification identifies the selected declaration, not a runtime
+        // object. Resolve it before probing storage so a same-spelled field
+        // cannot supply an instance. The target symbol also survives generic
+        // specialization and multi-component namespace paths.
+        if self.expression_receiver_is_namespace(call.receiver) {
+            return self.resolve_namespace_call(call.target_symbol, target, frame);
+        }
+
         // (1) Receiver expression resolving to a contained sub-machine / data instance
         // (e.g. `s.code()` where `s: &mut Circle`): run on that instance's machine.
         if call.receiver.is_valid()
@@ -1443,39 +1475,6 @@ impl<'program> Evaluator<'program> {
                 && let Some(state) = self.find_state(machine, target)
             {
                 return Ok((machine, state, cell));
-            }
-        }
-
-        // (1b) TYPE-qualified receiverless call (`Duration::from_milliseconds(x)`):
-        // the "receiver" names a type GROUP, not a place, and the callee is the
-        // group-qualified machine `<Type>::<target>`. Such a machine takes no
-        // receiver (a pure constructor/helper), so the caller's self cell rides
-        // along untouched -- same as the free-machine arm (3).
-        if call.receiver.is_valid()
-            && let typed_trees::expression::ExpressionNode::Name(path) =
-                self.program.expression_table.expression(call.receiver)
-        {
-            let members = self
-                .program
-                .expression_table
-                .name_path_members(path.members);
-            if members.len() == 1
-                && !members[0].is_self_receiver()
-                && frame.local_cell(path.head_symbol).is_none()
-            {
-                if let Some(resolved) = self.resolve_entry_state_symbol(call.target_symbol, frame) {
-                    return Ok(resolved);
-                }
-                let group = members[0].as_str();
-                if let Some(machine) = self.program.machines().iter().find(|machine| {
-                    let mut segments = machine.name.as_str().split("::");
-                    segments.next() == Some(group)
-                        && machine.name.as_str().ends_with(target)
-                        && self.find_state(machine, target).is_some()
-                }) && let Some(state) = self.find_state(machine, target)
-                {
-                    return Ok((machine, state, frame.self_cell.clone()));
-                }
             }
         }
 

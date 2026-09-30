@@ -51,10 +51,14 @@ if ($LASTEXITCODE -ne 16) { throw 'Expected exit 16' }
 guessing its filename. Expect empty stdout and `native exit 16` on stderr.
 Do not add `--target` to this execution command: an explicit target makes
 `run` compile-only. These commands describe each host's route, not a claim that
-all hosted targets have passed. The static/local version exits 16 natively on
-macOS ARM64. `omega run --both` reports native exit 16 but declines checked
-interpretation at `unknown call target record`; this is not interpreter
-agreement. The other declared hosts remain untested for this migration.
+all hosted targets have passed. The static/local version exits 16 in both
+native and checked interpretation on macOS ARM64:
+
+```sh
+omega run --both samples/cli/basics/generic_counters/main.omg
+```
+
+The other declared hosts remain untested for this migration.
 Remaining coverage is in [STATIC-MACHINE-MIGRATION](../../../../TASKS.md).
 
 ## Native regression

@@ -605,6 +605,8 @@ impl<'program> Evaluator<'program> {
 
     /// Resolve a call target -- a state name with an optional receiver path -- to the
     /// (machine, state, instance) it runs against. Priority:
+    /// 0. A declaration namespace selects its exact resolved static target;
+    ///    qualification supplies no runtime instance or implicit argument.
     /// 1. An explicit receiver path naming a CONTAINED sub-machine instance field whose
     ///    type defines the target state (`self.dungeon.foo()`): run on that sub-instance.
     ///    A resolved `target_symbol` (specialization rewrite or checked selection) picks
@@ -619,6 +621,21 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
     ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
         let target = call.target.as_str();
+        // `Counter::record` retains a receiver path for the namespace, not
+        // for storage. Generic specialization can leave the authored leaf
+        // unchanged while selecting a different entry symbol for each
+        // application. Never reselect that machine by its display name or
+        // mistake the namespace for a field on the caller's instance.
+        let receiver_starts_at_self = self
+            .program
+            .statement_table
+            .name_path_members(call.receiver)
+            .first()
+            .is_some_and(|member| member.is_self_receiver());
+        if !receiver_starts_at_self && self.is_declaration_namespace(call.receiver_symbol) {
+            return self.resolve_namespace_call(call.target_symbol, target, frame);
+        }
+
         // (1) Explicit receiver path to a contained sub-machine instance.
         if let Some(resolved) = self.resolve_receiver_state_call(call, frame)? {
             return Ok(resolved);
@@ -639,6 +656,58 @@ impl<'program> Evaluator<'program> {
             .machine_entry_state(machine)
             .ok_or_else(|| Halt::Unsupported(format!("call target `{target}` has no state")))?;
         Ok((machine, entry_state, frame.self_cell.clone()))
+    }
+
+    /// Declaration namespaces are resolved symbols, not runtime places or
+    /// strings to look up again. Both statement and value calls use this
+    /// classification before attempting storage lookup. Callers exclude the
+    /// legacy `self` path, whose root can also be a machine symbol.
+    pub(in crate::interpreter::evaluator) fn is_declaration_namespace(
+        &self,
+        symbol: SymbolHandle,
+    ) -> bool {
+        symbol.is_valid()
+            && matches!(
+                self.program.symbols.get(symbol).kind,
+                symbols::SymbolKind::BuiltinType
+                    | symbols::SymbolKind::Data
+                    | symbols::SymbolKind::Domain
+                    | symbols::SymbolKind::Machine
+                    | symbols::SymbolKind::Module
+                    | symbols::SymbolKind::Trait
+                    | symbols::SymbolKind::ConformanceParameter
+            )
+    }
+
+    /// A namespace contributes neither an instance nor an argument. Missing
+    /// target identity declines instead of selecting a same-spelled machine.
+    pub(in crate::interpreter::evaluator) fn resolve_namespace_call(
+        &self,
+        target_symbol: SymbolHandle,
+        target: &str,
+        frame: &Frame,
+    ) -> EvalResult<(&'program Machine, &'program State, Cell)> {
+        let resolved = self
+            .resolve_entry_state_symbol(target_symbol, frame)
+            .ok_or_else(|| {
+                Halt::Unsupported(format!(
+                    "qualified call target `{target}` has no resolved state"
+                ))
+            })?;
+        // Legacy receiver signatures bind through self_cell, not ordinary
+        // arguments. Do not silently drop an explicit receiver or substitute
+        // the caller's instance on this static route.
+        if self
+            .program
+            .state_parameters(resolved.1)
+            .iter()
+            .any(|parameter| parameter.is_self)
+        {
+            return Err(Halt::Unsupported(format!(
+                "qualified call target `{target}` retains an implicit receiver"
+            )));
+        }
+        Ok(resolved)
     }
 
     /// If the call has a receiver path that resolves (relative to `self`) to a CONTAINED
