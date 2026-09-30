@@ -6,11 +6,11 @@ use super::super::super::{
 use super::super::{
     BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedUnitEffectOperationPlan, LoweredPsi, SemanticDomainId, ServiceReachSummary,
-    StructuralDomainId, StructuralPlaceDeclaration, StructuralTypeId, lower_root_service_reach,
-    unsupported,
+    StructuralPlaceDeclaration, StructuralTypeId, lower_root_service_reach, unsupported,
 };
 use super::{CheckedTrees, LoweringError, internal_calls, scalar_calls};
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
+use crate::terminal_identities::StructuralDomainBinding;
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
 use crate::unit::attached_unit::catalog::{
     collect_installation_machine_contract_services, collect_published_contract_services,
@@ -31,7 +31,7 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) structural_types: Cow<'a, [StructuralTypeDeclaration]>,
     pub(crate) type_ids: Cow<'a, [(String, StructuralTypeId)]>,
     pub(crate) structural_domains: Cow<'a, [StructuralDomainDeclaration]>,
-    pub(crate) domain_ids: Cow<'a, [(SemanticDomainId, StructuralDomainId)]>,
+    pub(crate) domain_ids: Cow<'a, [StructuralDomainBinding]>,
     pub(crate) services: Cow<'a, [ServiceDeclaration]>,
     pub(crate) root_service_reach: Cow<'a, terminal_psi::TerminalRootServiceReach>,
     pub(crate) boundary_machines: Cow<'a, [BoundaryMachineDeclaration]>,
@@ -324,6 +324,7 @@ fn lower_catalogs(
             checked,
             boundaries,
             &type_ids,
+            &structural_types,
             &domain_ids,
             &service_ids,
             &mut next_place,

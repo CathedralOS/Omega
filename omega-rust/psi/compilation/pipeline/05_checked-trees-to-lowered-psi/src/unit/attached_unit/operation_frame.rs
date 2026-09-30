@@ -74,11 +74,11 @@ use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
 use crate::unit::{
     BoundaryMachineId, CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectOperationPlan,
     ClaimId, LoweringError, Operation, OperationKind, OperationResult, PermissionClaimIdentity,
-    PlaceId, ScalarType, SemanticDomainId, ServiceId, ServiceReachId, ServiceReachSummary,
-    StructuralAccess, StructuralDomainId, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
-    ValueDeclaration, allocate_dense, claim_id, lookup_service_id, lookup_type_id, place_id,
-    terminal_scalar_type, unsupported,
+    PlaceId, ScalarType, ServiceId, ServiceReachId, ServiceReachSummary, StructuralAccess,
+    StructuralDomainId, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, ValueDeclaration,
+    allocate_dense, claim_id, lookup_service_id, lookup_type_id, place_id, terminal_scalar_type,
+    unsupported,
 };
 use checked_trees::{CheckedComposedUnitControlStatePlan, CheckedUnitStructuralArgumentPlan};
 use std::borrow::Cow;
@@ -153,7 +153,7 @@ pub(super) struct Callees<'f> {
     /// `MachineSignature::call_target` is what a call substitutes into.
     pub(super) signatures: &'f [MachineSignature],
     pub(super) boundaries: &'f [BoundaryParameters],
-    pub(super) domain_ids: &'f [(SemanticDomainId, StructuralDomainId)],
+    pub(super) domain_ids: &'f [crate::terminal_identities::StructuralDomainBinding],
     /// The closure's Unit bodies: a scalar call may name one that completes
     /// with a scalar instead of a prepared scalar callee.
     pub(super) closure: &'f [symbols::SymbolHandle],
@@ -532,7 +532,21 @@ impl OperationFrame<'_, '_> {
                 self.indexed_write(IndexedWriteTarget::ByteField(store))
             }
             CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
-                self.indexed_write(IndexedWriteTarget::ByteView(write))
+                let target = match write.destination {
+                    checked_trees::CheckedStoreRoot::Parameter { .. } => {
+                        IndexedWriteTarget::ByteView(write)
+                    }
+                    checked_trees::CheckedStoreRoot::Local { symbol } => {
+                        let (place, structural_type) =
+                            self.local_store_root(symbol, &LocalStoreRoot::OWNED_BYTE_WRITE)?;
+                        IndexedWriteTarget::OwnedBytes {
+                            write,
+                            place,
+                            structural_type,
+                        }
+                    }
+                };
+                self.indexed_write(target)
             }
             CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
                 self.element_view_write(write)
@@ -865,7 +879,17 @@ impl OperationFrame<'_, '_> {
         let leaf = target.leaf();
         let dense;
         let bindings = match &self.evaluation.scalar_bindings {
-            Some(bindings) => bindings,
+            Some(bindings) => {
+                // State scalar positions are stable, but earlier operations
+                // may have established owned or borrowed storage since that
+                // namespace was created. Join the current local homes before
+                // lowering either indexed operand.
+                dense = bindings
+                    .clone()
+                    .with_structural_locals(&self.evaluation.structural_locals)
+                    .with_view_locals(&self.evaluation.view_locals);
+                &dense
+            }
             None => {
                 let namespace = self.dense_assignment_namespace();
                 dense = match leaf {
@@ -1854,15 +1878,19 @@ impl OperationFrame<'_, '_> {
         Ok(())
     }
 
-    /// Establish the literal's own immutable storage at its declaration, then
-    /// bind that place in the ordinary local and view namespaces. Its Terminal
-    /// producer remains Unit; it mints no owned-result or claim custody.
+    /// Establish the authored carrier at its declaration, then register the
+    /// actual backing in the local observation namespaces. A shared view
+    /// borrows immutable literal storage; a bounded owner constructs fresh
+    /// storage with its own live length and declared qualifications.
     fn establish_byte_sequence_literal(
         &mut self,
         operation: &CheckedUnitEffectOperationPlan,
     ) -> Result<(), LoweringError> {
-        let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes } =
-            operation
+        let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+            result,
+            bytes,
+            qualifications,
+        } = operation
         else {
             return unsupported("literal local has no producer");
         };
@@ -1870,6 +1898,18 @@ impl OperationFrame<'_, '_> {
             .require_next(result, "literal local binding is not dense")?;
         super::literal_locals::validate(self.checked, self.state, operation)?;
         let structural_type = lookup_type_id(self.type_ids, &result.type_identity)?;
+        let mut qualifications = qualifications
+            .iter()
+            .map(|domain| {
+                crate::terminal_identities::lookup_domain_id_for_carrier(
+                    self.callees.domain_ids,
+                    *domain,
+                    structural_type,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        qualifications.sort();
+        qualifications.dedup();
         if self
             .structural_types
             .declarations()
@@ -1884,7 +1924,12 @@ impl OperationFrame<'_, '_> {
                     )
             })
         {
-            return self.establish_owned_byte_sequence_literal(result, bytes, structural_type);
+            return self.establish_owned_byte_sequence_literal(
+                result,
+                bytes,
+                structural_type,
+                qualifications,
+            );
         }
         if !self
             .structural_types
@@ -1922,7 +1967,7 @@ impl OperationFrame<'_, '_> {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination,
                 bytes: bytes.clone(),
-                qualifications: Vec::new(),
+                qualifications,
             },
         });
         // The literal roster owns its declaration. Dense bindings index that
@@ -1953,6 +1998,7 @@ impl OperationFrame<'_, '_> {
         result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
         bytes: &[u8],
         structural_type: semantic_vocabulary::StructuralTypeId,
+        qualifications: Vec<StructuralDomainId>,
     ) -> Result<(), LoweringError> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; a published roster must already hold it.
@@ -1963,6 +2009,7 @@ impl OperationFrame<'_, '_> {
             crate::emission::structural_byte_sequence_store::emit_owned_literal(
                 bytes,
                 structural_type,
+                qualifications,
                 self.structural_types.declarations(),
                 self.private_places.literals(),
                 self.next_place,
@@ -2419,6 +2466,15 @@ struct LocalStoreRoot {
 }
 
 impl LocalStoreRoot {
+    const OWNED_BYTE_WRITE: Self = Self {
+        admits_mutable_borrow: false,
+        unknown_local: "byte write names an unknown owned local",
+        not_whole_home: "byte write local is not a whole owned home",
+        unproduced: "byte write local has no produced place",
+        // Byte predicates are retained on the owned result and independently
+        // checked by the byte operation, not rejected as opaque qualifications.
+        lost_custody: None,
+    };
     const ELEMENT_VIEW_WRITE: Self = Self {
         admits_mutable_borrow: true,
         unknown_local: "element-view write names an unknown structural local",

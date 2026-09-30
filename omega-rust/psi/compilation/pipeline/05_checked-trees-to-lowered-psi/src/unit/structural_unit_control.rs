@@ -100,6 +100,7 @@ pub(crate) fn lower_structural_unit_control_machine(
     let entry_parameters = lower_unit_parameters(
         &plan.states[0].structural_parameters,
         &type_ids,
+        &structural_types,
         &[],
         &mut next_place,
     )?;
@@ -755,6 +756,7 @@ fn lower_ranked_structural_unit_countdown(
     let structural_parameters = lower_unit_parameters(
         &header_plan.structural_parameters,
         &type_ids,
+        &structural_types,
         &[],
         &mut next_place,
     )?;

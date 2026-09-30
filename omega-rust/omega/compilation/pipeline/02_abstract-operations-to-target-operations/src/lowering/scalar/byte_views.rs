@@ -404,7 +404,8 @@ pub(in crate::lowering) fn view_for_place(
         AbstractOperation::EstablishByteSequenceConcatenation { result, .. } if result.place == place))
     {
         if result.multiplicity != StructuralMultiplicity::Unrestricted
-            || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
             || !structural_types.get(&result.structural_type).is_some_and(|declaration|
                 matches!(declaration.shape, StructuralTypeShape::ByteSequence(

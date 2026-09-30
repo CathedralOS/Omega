@@ -130,13 +130,14 @@ pub enum CheckedUnitEffectOperationPlan {
         binding_ordinal: u32,
         loan: arena::Handle<crate::BorrowLoanFact>,
     },
-    /// Establish the immutable bytes declared by one local initializer.
-    /// The binding joins the ordinary structural namespace. Terminal retains
-    /// its self-describing literal place and Unit establishment, rather than
-    /// manufacturing an owned operation result or a borrowed parameter.
+    /// Establish the literal bytes declared by one local initializer.
+    /// The binding retains its declared borrowed or owned carrier. Only the
+    /// authored byte-domain qualifications constrain later writes; incidental
+    /// predicates of the initial octets do not become declared invariants.
     EstablishByteSequenceLiteral {
         result: CheckedUnitStructuralResultBindingPlan,
         bytes: Vec<u8>,
+        qualifications: Vec<SemanticDomainId>,
     },
     /// Bind the statement's immutable view local to an exclusive range of an
     /// established view. `source` is the same `ByteSequenceSubslice` or

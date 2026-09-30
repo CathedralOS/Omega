@@ -1,17 +1,19 @@
-//! Established immutable view locals, as scalar observations see them.
+//! Established byte owners and view locals, as scalar observations see them.
 //!
 //! A view local (an `as_slice` loan or a subslice of another view) publishes
 //! one shared view place when its establishment completes. Lengths and
 //! element reads rooted at the local observe that exact place with the
 //! Terminal operation its view family selects, so the binding records the
 //! family its produced type declared rather than re-deriving it from source.
+//! Bounded byte owners use the same length/read observations on their own
+//! home; this registry grants no borrow or mutation authority.
 use super::{LoweringError, PlaceId, ScalarType, StructuralTypeId, unsupported};
 use terminal_psi::{ByteSequenceCarrier, StructuralTypeDeclaration, StructuralTypeShape};
 
 /// The Terminal view family of an established view place.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ViewCarrier {
-    /// A borrowed byte view: lengths count bytes, reads yield `u8`.
+    /// A byte owner or view: lengths count live bytes, reads yield `u8`.
     Bytes,
     /// A borrowed element view; `element` is the scalar a read yields, absent
     /// for record elements, which have no scalar read.
@@ -19,7 +21,7 @@ pub(crate) enum ViewCarrier {
 }
 
 impl ViewCarrier {
-    /// The view family `structural_type` declares, if it is a borrowed view.
+    /// The observation family `structural_type` declares, if it has live extent.
     pub(crate) fn of(
         structural_type: StructuralTypeId,
         types: &[StructuralTypeDeclaration],
@@ -28,9 +30,11 @@ impl ViewCarrier {
             .iter()
             .find(|declaration| declaration.id == structural_type)?;
         match declaration.shape {
-            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
-                Some(Self::Bytes)
-            }
+            StructuralTypeShape::ByteSequence(
+                ByteSequenceCarrier::BorrowedView { .. }
+                | ByteSequenceCarrier::BoundedView { .. }
+                | ByteSequenceCarrier::BoundedOwned { .. },
+            ) => Some(Self::Bytes),
             StructuralTypeShape::ElementView { element } => Some(Self::Elements {
                 element: types
                     .iter()

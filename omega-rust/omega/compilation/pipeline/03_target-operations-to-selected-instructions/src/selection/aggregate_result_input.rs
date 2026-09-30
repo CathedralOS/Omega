@@ -779,13 +779,17 @@ pub(super) fn home(
                 LegalizedScalarInstructionKind::Call(call) => call.structural_result.as_ref()?,
                 _ => return None,
             };
-            (result.place == place).then_some((row.operation, result))
+            (result.place == place).then_some((row, result))
         });
-    let (operation, result) = selected.next()?;
+    let (row, result) = selected.next()?;
+    let operation = row.operation;
     if selected.next().is_some()
         || result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
+        // Byte predicates retain the same owned layout. Its exact concat
+        // producer replays that layout; semantic validation owns the predicates.
+        || (!result.qualifications.is_empty()
+            && crate::selection::byte_concatenation_input::capacity(source, row).is_none())
         || !result.projected_qualifications.is_empty()
         || !source
             .structural

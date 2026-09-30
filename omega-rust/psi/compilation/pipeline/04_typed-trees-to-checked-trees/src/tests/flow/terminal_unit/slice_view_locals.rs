@@ -216,6 +216,7 @@ fn literal_view_locals_compose_with_primitive_storage_and_scalar_completion() {
             checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
                 result,
                 bytes,
+                ..
             } => Some((
                 result.statement_index,
                 result.binding_ordinal,

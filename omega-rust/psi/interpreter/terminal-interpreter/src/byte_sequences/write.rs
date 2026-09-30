@@ -1,6 +1,8 @@
-//! Fixed-extent byte mutation through an existing exact mutable field loan.
+//! Fixed-extent byte mutation through an exact mutable loan or fresh owned result.
 
-use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, ValueId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralPlaceKind, ValueId,
+};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
 };
@@ -12,6 +14,7 @@ use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::TerminalScalarValue;
 
 pub(crate) enum MutableByteSequenceStorage {
+    Owned(PlaceId),
     Field(StructuralByteSequenceRuntimeField),
     Array {
         backing: crate::values::StructuralRuntimePlace,
@@ -30,6 +33,15 @@ impl TerminalExecution {
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
+        if machine.structural_places.iter().any(|declaration| {
+            declaration.id == place
+                && matches!(
+                    declaration.kind,
+                    StructuralPlaceKind::OperationResult { .. }
+                )
+        }) {
+            return self.owned_byte_sequence_storage(place);
+        }
         let parameter = machine
             .structural_parameters
             .iter()
@@ -120,6 +132,88 @@ impl TerminalExecution {
         Ok((MutableByteSequenceStorage::Field(field.clone()), length))
     }
 
+    fn owned_byte_sequence_storage(
+        &self,
+        place: PlaceId,
+    ) -> Result<(MutableByteSequenceStorage, u64), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let machine = self
+            .program
+            .machines
+            .get(&self.current_machine)
+            .ok_or_else(invalid)?;
+        let declaration = machine
+            .structural_places
+            .iter()
+            .find(|declaration| declaration.id == place)
+            .ok_or_else(invalid)?;
+        let StructuralPlaceKind::OperationResult {
+            producer,
+            structural_type,
+        } = declaration.kind
+        else {
+            return Err(invalid());
+        };
+        let operation = machine
+            .blocks
+            .values()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == producer)
+            .ok_or_else(invalid)?;
+        let result = operation.result.structural().ok_or_else(invalid)?;
+        let value = self.structural_values.get(&place).ok_or_else(invalid)?;
+        if !matches!(
+            operation.kind,
+            OperationKind::EstablishByteSequenceConcatenation { .. }
+        ) || result.place != place
+            || result.structural_type != structural_type
+            || result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !result.claims.is_empty()
+            || value.structural_type != structural_type
+            || value.qualifications != result.qualifications
+            || !value.path.is_empty()
+            || self
+                .live_claims
+                .values()
+                .any(|claim| claim.place == Some(place))
+            || self
+                .live_affine_frontier
+                .iter()
+                .any(|entry| entry.place == place)
+            || terminal_semantics::byte_qualification_predicates_in(
+                self.program.catalogs.structural_domains.iter(),
+                structural_type,
+                &result.qualifications,
+            )
+            .is_none()
+        {
+            return Err(invalid());
+        }
+        let terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+        ) = self
+            .program
+            .structural_types
+            .get(&structural_type)
+            .ok_or_else(invalid)?
+            .shape
+        else {
+            return Err(invalid());
+        };
+        let bytes = self
+            .byte_sequence_values
+            .get(&place)
+            .ok_or_else(invalid)?
+            .immutable()?;
+        let length = u64::try_from(bytes.len()).map_err(|_| invalid())?;
+        if length > capacity {
+            return Err(invalid());
+        }
+        Ok((MutableByteSequenceStorage::Owned(place), length))
+    }
+
     pub(crate) fn byte_sequence_length(
         &self,
         source: PlaceId,
@@ -137,7 +231,7 @@ impl TerminalExecution {
     }
 
     /// Dispatch charges fuel before execution. Stage and check all operands and
-    /// the original field's live extent before detaching or mutating backing.
+    /// the destination's live extent before detaching or mutating backing.
     pub(crate) fn execute_byte_sequence_write(
         &mut self,
         operation: &Operation,
@@ -165,6 +259,16 @@ impl TerminalExecution {
         }
         let byte = u8::try_from(byte).map_err(|_| invalid())?;
         let (bytes, backing_index) = match storage {
+            MutableByteSequenceStorage::Owned(place) => {
+                // The payload may also back earlier field snapshots. Detach via
+                // replace_byte so mutation never changes those immutable values.
+                let Some(ByteSequenceBinding::Immutable(bytes)) =
+                    self.byte_sequence_values.get_mut(&place)
+                else {
+                    return Err(invalid());
+                };
+                (Some(bytes), byte_index)
+            }
             MutableByteSequenceStorage::Field(field) => (
                 self.structural_byte_sequence_fields.get_mut(&field),
                 byte_index,

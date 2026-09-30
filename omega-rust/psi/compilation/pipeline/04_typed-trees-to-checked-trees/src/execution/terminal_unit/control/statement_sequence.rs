@@ -44,7 +44,7 @@ use crate::execution::terminal_unit::types::{
 use checked_trees::CheckedUnitStructuralReturnPlan;
 
 mod assignments;
-mod bounded_byte_literal;
+pub(in crate::execution::terminal_unit) mod bounded_byte_literal;
 mod completion;
 mod local_data;
 mod statement_call;

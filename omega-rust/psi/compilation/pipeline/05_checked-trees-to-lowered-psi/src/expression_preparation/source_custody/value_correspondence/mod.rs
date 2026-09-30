@@ -604,16 +604,16 @@ impl Context<'_> {
             } => self
                 .byte_length(source, *parameter_position, path)
                 .unwrap_or(false),
-            // A view local's length is authored as `local.len` on the local's
-            // own bare name; it is observed whole, never through a path.
+            // Local lengths observe the exact authored collection, never a
+            // projected path. The established carrier separately determines
+            // whether this names a borrowed view or a bounded owner's live
+            // length; neither may substitute the owner's capacity.
             Scalar::StructuralParameterByteLength {
-                root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+                root:
+                    checked_trees::CheckedStorageRoot::ViewLocal { symbol }
+                    | checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
                 path,
             } => path.is_empty() && self.view_local_length(source, *symbol).unwrap_or(false),
-            Scalar::StructuralParameterByteLength {
-                root: checked_trees::CheckedStorageRoot::OwnedLocal { .. },
-                ..
-            } => false,
             Scalar::StructuralParameterField { .. } => matches!(
                 node,
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)

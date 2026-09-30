@@ -65,15 +65,53 @@ pub(crate) fn lookup_attachment_type_id(
         .transpose()
 }
 
+/// A semantic domain family instantiated on one exact structural carrier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct StructuralDomainBinding {
+    pub semantic_domain: language_semantics::SemanticDomainId,
+    pub carrier: StructuralTypeId,
+    pub domain: StructuralDomainId,
+}
+
+/// Diagnostic identity includes the authored carrier, never its allocation ID.
+/// Always qualify it so pruning another instantiation cannot rename this one.
+pub(crate) fn structural_domain_identity(family: &str, carrier_identity: &str) -> String {
+    format!("{family}@{carrier_identity}")
+}
+
 pub(crate) fn lookup_domain_id(
-    ids: &[(language_semantics::SemanticDomainId, StructuralDomainId)],
+    ids: &[StructuralDomainBinding],
     source: language_semantics::SemanticDomainId,
 ) -> Result<StructuralDomainId, LoweringError> {
-    ids.iter()
-        .find_map(|(candidate, id)| (*candidate == source).then_some(*id))
-        .ok_or(LoweringError::Unsupported(
-            "Unit closure references an unlowered structural domain",
-        ))
+    let mut matches = ids.iter().filter(|row| row.semantic_domain == source);
+    let first = matches.next().ok_or(LoweringError::Unsupported(
+        "Unit closure references an unlowered structural domain",
+    ))?;
+    if matches.next().is_some() {
+        return Err(LoweringError::Unsupported(
+            "Unit closure structural domain family requires an exact carrier",
+        ));
+    }
+    Ok(first.domain)
+}
+
+pub(crate) fn lookup_domain_id_for_carrier(
+    ids: &[StructuralDomainBinding],
+    source: language_semantics::SemanticDomainId,
+    carrier: StructuralTypeId,
+) -> Result<StructuralDomainId, LoweringError> {
+    let mut matches = ids
+        .iter()
+        .filter(|row| row.semantic_domain == source && row.carrier == carrier);
+    let first = matches.next().ok_or(LoweringError::Unsupported(
+        "Unit closure references an unlowered structural domain carrier",
+    ))?;
+    if matches.next().is_some() {
+        return Err(LoweringError::Unsupported(
+            "Unit closure repeats a structural domain carrier binding",
+        ));
+    }
+    Ok(first.domain)
 }
 
 pub(crate) fn lookup_service_id(
@@ -124,4 +162,42 @@ pub(crate) fn allocate_dense(next: &mut u64) -> Result<u64, LoweringError> {
         "terminal Unit identity count exceeds u64",
     ))?;
     Ok(current)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn domain_family_binding_requires_exact_carrier_when_instantiated_twice() {
+        let family = language_semantics::SemanticDomainId(1);
+        let bindings = [
+            StructuralDomainBinding {
+                semantic_domain: family,
+                carrier: structural_type_id(10),
+                domain: structural_domain_id(1),
+            },
+            StructuralDomainBinding {
+                semantic_domain: family,
+                carrier: structural_type_id(27),
+                domain: structural_domain_id(2),
+            },
+        ];
+        assert!(lookup_domain_id(&bindings, family).is_err());
+        assert_eq!(
+            lookup_domain_id(&bindings[..1], family).unwrap(),
+            structural_domain_id(1)
+        );
+        for binding in bindings {
+            assert_eq!(
+                lookup_domain_id_for_carrier(&bindings, family, binding.carrier).unwrap(),
+                binding.domain
+            );
+        }
+        assert!(lookup_domain_id_for_carrier(&bindings, family, structural_type_id(8)).is_err());
+        assert!(
+            lookup_domain_id_for_carrier(&[bindings[0], bindings[0]], family, bindings[0].carrier)
+                .is_err()
+        );
+    }
 }

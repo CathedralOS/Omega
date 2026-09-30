@@ -653,7 +653,6 @@ the complete product bar; focused successes below do not establish that baseline
   | --- | --- |
   | `rendering/bouncing_particles` | With std `Clock` at `82df922beeb` on macOS ARM64 it stops after 163 s at the private `proof_search_candidate_work` provision (16384) with Unit call obligation 2^63 + 9 unproved; at `9e546211a69` its package review exceeds `sample_native_gate.py`'s 2400 s timeout. `collections/entity_list`, formerly in this row, meets its oracle. |
   | std `Clock` on Linux hosts (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`) | Both linux `nanosleep` leaves stop target lowering with `MissingBoundarySettlement`: provider admission classifies an authored syscall leaf's mechanism but settles no native realization for it. Then linux_x86_64 can take the darwin leg's shape, a checked adapter over a std-private wait requirement, through the integer-only `poll` syscall (7); linux_arm64 has only `ppoll` and `nanosleep`, whose `timespec*` needs a pointer argument that syscall plans do not admit. |
-  | `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
   | `systems/wire_protocol` | **RECORD-LITERAL-ARRAY-FIELD** owns its operation. |
   | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`. |
@@ -3293,7 +3292,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   scalar-resource table has no rows for `proof_search_result_guarantee_work`
   (the resource `pass/filesystem/native_metadata_ino` exhausts on linux_x86_64,
   the only golden `incomplete` row) or `proof_obligation_identities`, and its
-  code 28 limit (4,096) disagrees with the reference compiler's 16,384. `omega
+  code 28 limit (4,096) disagrees with the reference compiler's 65,536. `omega
   run` still reports `Incomplete` as 200.
   Complete production-path exhaustion controls beyond the existing helper-budget
   tests, retaining independent certificate verification.
@@ -3616,6 +3615,16 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   on macOS ARM64 while completing the remaining joins below.
 
   Remaining joins:
+  - Retain the primitive `u8` child of a byte view through stage 04's
+    `types/shape_collector.rs::retain_transitive`. Stage 05's
+    `unit/attached_unit/catalog.rs` requires that child when building the
+    view catalog, but pruning currently treats byte views as childless.
+    On base `8c94d85412`, three `byte_sequence_write` library tests reject
+    with `Unit closure references a missing structural type`; the focused
+    `owned_byte_boundary_loan_replays_whole_local_and_shared_access` test
+    reaches the same missing dependency. Acceptance is complete lowering of
+    those programs without requiring an unrelated `u8` consumer to retain
+    the missing type.
   - Copy bounded, erased and structural fields of `[copy]` view elements under
     [ownership](wiki/spec/language/ownership.md). Stage 04's
     `values/scalar/computations/structural_values.rs::view_element_copy` admits

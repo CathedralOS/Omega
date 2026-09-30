@@ -1460,8 +1460,9 @@ pub(crate) fn validate_consumer(
             }
             continue;
         }
-        // A whole bounded byte owner local lends its carrier, qualifications
-        // included, exactly as a caller's bounded-owner parameter would.
+        // A whole bounded owner lends its own carrier or a shared live-byte
+        // view. Boundary joins stay confined to shared byte formals with Unit
+        // or scalar results; source capture and claim checks remain required.
         if whole_local_bounded_owner_loan(
             checked,
             caller,
@@ -1478,7 +1479,21 @@ pub(crate) fn validate_consumer(
                 ))?
                 .type_reference,
         )? {
-            if authored.boundary
+            let boundary_shared_view = authored.boundary
+                && parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                && signature
+                    .parameters
+                    .get(source_position as usize)
+                    .is_some_and(|formal| {
+                        shared_byte_view_referent(checked, formal.type_reference).is_some()
+                    })
+                && operation.call().is_some_and(|call| {
+                    matches!(
+                        call.result(),
+                        CheckedUnitCallResult::Unit | CheckedUnitCallResult::Scalar(_)
+                    )
+                });
+            if (authored.boundary && !boundary_shared_view)
                 || parameter.is_self
                 || parameter.fused_service_erasure.is_some()
                 || target_entry_claims
@@ -1487,7 +1502,7 @@ pub(crate) fn validate_consumer(
                 || claim_transfers
                     .iter()
                     .any(|transfer| transfer.argument_index as usize == index)
-                || !loan_free_ordinary_call(checked, operation)
+                || (!boundary_shared_view && !loan_free_ordinary_call(checked, operation))
             {
                 return unsupported("bounded owner loan changes the target custody");
             }
@@ -1710,8 +1725,8 @@ fn whole_local_array_loan(
 
 /// Reconstruct a whole bounded byte owner loan (`parse(&text)` with
 /// `text: [u8; 8] in Utf8`) independently of its argument plan: the operand
-/// is the authored local itself, the formal is a reference to a bounded
-/// owner of the same capacity and identity, every formal qualification is
+/// is the authored local itself, the formal names the same bounded carrier
+/// or its shared live-byte view, every formal qualification is
 /// declared on the local, and the captured call access equals the formal's.
 /// A bounded owner is never a raw fixed array: its live length is its own.
 #[allow(clippy::too_many_arguments)]
@@ -1774,19 +1789,20 @@ fn whole_local_bounded_owner_loan(
         }
         _ => None,
     };
+    let shared_view = shared_byte_view_referent(checked, formal).is_some();
     let mut declared =
         validation::structural_result_qualifications(&checked.typed, local.type_reference)
             .map_err(LoweringError::Unsupported)?;
     declared.sort_by_key(|domain| domain.0);
     declared.dedup();
-    if formal_capacity != Some(capacity)
+    if (!shared_view && formal_capacity != Some(capacity))
         || argument.access != expected_access
         || parameter.access != expected_access
         || (expected_access == CheckedStructuralAccess::MutableBorrow && !local.is_mutable)
         || parameter.multiplicity != Multiplicity::Unrestricted
-        || argument.type_identity != result.type_identity
+        || (!shared_view && argument.type_identity != result.type_identity)
         || parameter.type_identity != argument.type_identity
-        || checked.normalized_type_identity(referent).as_str() != result.type_identity
+        || checked.normalized_type_identity(referent).as_str() != argument.type_identity
         || !parameter
             .qualifications
             .iter()
@@ -1838,6 +1854,22 @@ fn whole_local_bounded_owner_loan(
     Ok(true)
 }
 
+fn shared_byte_view_referent(
+    checked: &CheckedTrees,
+    formal: checked_trees::types::TypeReferenceHandle,
+) -> Option<checked_trees::types::TypeReferenceHandle> {
+    let view = validation::slice_view_shell(&checked.typed, formal, &[])?;
+    let TypeReferenceNode::Slice { element_type } =
+        checked.type_reference_table.type_reference(view.slice)
+    else {
+        return None;
+    };
+    (view.access == language_core::ReferenceAccess::Shared
+        && checked.primitive_type_reference(*element_type)
+            == Some(checked_trees::types::PrimitiveType::U8))
+    .then_some(view.slice)
+}
+
 /// Check one structural argument against every producer the caller plans,
 /// in both directions: a construction, call result or local names this
 /// argument's result binding exactly when the authored operand is that
@@ -1856,6 +1888,14 @@ fn validate_operand_producers(
     expression: Option<checked_trees::expression::ExpressionHandle>,
     binding_ordinal: Option<u32>,
 ) -> Result<(), LoweringError> {
+    let shared_byte_formal = crate::emission::call_source_custody::authored::target_signature(
+        checked,
+        caller.machine,
+        authored.source_target,
+    )?
+    .parameters
+    .get(source_position as usize)
+    .is_some_and(|formal| shared_byte_view_referent(checked, formal.type_reference).is_some());
     // An operand-owned construction (including a copy) produces a fresh value;
     // the local it reads is storage, not that value's producer. Rejoin the
     // construction's exact authored occurrence below, rather than also joining
@@ -2090,6 +2130,18 @@ fn validate_operand_producers(
             }
             continue;
         }
+        // The authored formal determines whether a bare whole bounded owner
+        // lends shared rather than moves. Both operand checks below consume
+        // this same decision; the exact root, path and captured access remain
+        // independently checked before the result may be used.
+        let implicit_shared_owner = producer_coordinate.call_ordinal == 0
+            && shared_byte_formal
+            && argument.path.is_empty()
+            && matches!(statements.get(result.statement_index as usize),
+                Some(StatementNode::LocalData(local))
+                    if validation::bounded_byte_buffer_capacity(
+                        &checked.typed, local.type_reference,
+                    ).is_some());
         let names_result = if producer_coordinate.call_ordinal == 0 {
             let Some(StatementNode::LocalData(local)) =
                 statements.get(result.statement_index as usize)
@@ -2162,11 +2214,12 @@ fn validate_operand_producers(
                 Some(Ok((root, path, access))) if root == local.symbol => {
                     // A borrowed-view local can only ever be lent shared;
                     // its authored access names the view's only custody.
-                    let authored_access = access.unwrap_or(if view_carrier.is_some() {
-                        checked_trees::CheckedStructuralAccess::SharedBorrow
-                    } else {
-                        checked_trees::CheckedStructuralAccess::Owned
-                    });
+                    let authored_access =
+                        access.unwrap_or(if view_carrier.is_some() || implicit_shared_owner {
+                            checked_trees::CheckedStructuralAccess::SharedBorrow
+                        } else {
+                            checked_trees::CheckedStructuralAccess::Owned
+                        });
                     if path != argument.path || authored_access != argument.access {
                         return unsupported(
                             "Unit result projection disagrees with its authored path",
@@ -2260,7 +2313,7 @@ fn validate_operand_producers(
                 let authored_access = named_result_operand(checked, expression).1;
                 let authored_access =
                     if authored_access == checked_trees::CheckedStructuralAccess::Owned
-                        && matches!(
+                        && (implicit_shared_owner || matches!(
                             statements.get(result.statement_index as usize),
                             Some(StatementNode::LocalData(local))
                                 if crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
@@ -2268,7 +2321,7 @@ fn validate_operand_producers(
                                     local.type_reference,
                                 )
                                 .is_some()
-                        )
+                        ))
                     {
                         checked_trees::CheckedStructuralAccess::SharedBorrow
                     } else {

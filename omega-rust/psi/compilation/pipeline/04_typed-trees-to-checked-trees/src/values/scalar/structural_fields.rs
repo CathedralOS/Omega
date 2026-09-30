@@ -267,11 +267,28 @@ pub(super) fn structural_sequence_length(
     let Some((parameter_position, path, selected_type)) =
         structural_parameter_place(program, parameters, member.receiver)
     else {
-        // A view local's `.len` observes the extent its establishment stored,
-        // exactly as a whole view parameter's does.
-        let (symbol, _) = view_local_root(program, parameters, member.receiver)?;
+        // A local observes the live extent its establishment stored. A
+        // bounded owner is not a fixed-capacity length literal, and it does
+        // not become a borrowed view merely because this observation reads it.
+        let root = if let Some((symbol, _)) = view_local_root(program, parameters, member.receiver)
+        {
+            checked_trees::CheckedStorageRoot::ViewLocal { symbol }
+        } else {
+            let (symbol, declared_type) = owned_local_root(program, parameters, member.receiver)?;
+            if !matches!(
+                crate::execution::terminal_unit::types::byte_sequence_carrier(
+                    program,
+                    declared_type,
+                    &[],
+                ),
+                Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+            ) {
+                return None;
+            }
+            checked_trees::CheckedStorageRoot::OwnedLocal { symbol }
+        };
         return Some(CheckedScalarExpression::StructuralParameterByteLength {
-            root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+            root,
             path: Vec::new(),
         });
     };
@@ -504,13 +521,34 @@ pub(super) fn owned_local_root(
     else {
         return None;
     };
-    matches!(
+    let plain_array = matches!(
         program
             .type_reference_table
             .type_reference(local.type_reference),
         TypeReferenceNode::FixedArray { .. }
-    )
-    .then_some((path.symbol, local.type_reference))
+    );
+    // A qualified byte array owns live-length storage rather than a raw
+    // fixed array. Keep its original declared type: executable observation
+    // must select the byte carrier and its live bound, not its capacity.
+    // Only constraint shells peel here; a reference is never an owned local.
+    let mut carrier_type = local.type_reference;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(carrier_type)
+    {
+        carrier_type = *base_type;
+    }
+    let owned_bytes = matches!(
+        program.type_reference_table.type_reference(carrier_type),
+        TypeReferenceNode::FixedArray { .. }
+    ) && matches!(
+        crate::execution::terminal_unit::types::byte_sequence_carrier(
+            program,
+            local.type_reference,
+            &[],
+        ),
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+    );
+    (plain_array || owned_bytes).then_some((path.symbol, local.type_reference))
 }
 
 /// Empty spelling resolution is builtin only when the exact operand types

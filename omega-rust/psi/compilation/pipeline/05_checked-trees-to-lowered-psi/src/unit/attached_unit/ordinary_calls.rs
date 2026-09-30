@@ -11,10 +11,9 @@ use super::parameters::{
 };
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, ClaimTransfer, LoweringError, Multiplicity,
-    Operation, OperationResult, PlaceId, SemanticDomainId, StructuralDomainId,
-    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration, allocate_dense,
-    argument_evaluation, lookup_claim_id, lookup_domain_id, lookup_type_id,
+    Operation, OperationResult, PlaceId, StructuralMultiplicity, StructuralOperationResult,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, UnitBody, ValueDeclaration,
+    allocate_dense, argument_evaluation, lookup_claim_id, lookup_type_id,
     lower_checked_crash_route_buckets, lower_structural_arguments,
     lower_structural_crash_route_buckets, lower_structural_path, place_id, primitive_locals,
     terminal_scalar_type, unsupported, validate_transfer_shape,
@@ -22,6 +21,7 @@ use super::{
 use crate::direct_calls::{DirectCall, DirectCallResult};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::runtime_requirements::substitute_runtime_requirement_scalar_values;
 
 pub(super) struct Target<'a> {
@@ -89,7 +89,7 @@ pub(super) fn prepare(
     type_ids: &[(String, StructuralTypeId)],
     structural_types: &[StructuralTypeDeclaration],
     call_byte_places: &[PlaceId],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    domain_ids: &[StructuralDomainBinding],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     calls: &mut CallEmissionContext<'_>,
     selector_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
@@ -352,7 +352,8 @@ pub(super) fn emit_structural(
     prepared: PreparedCall,
     callee: MachineId,
     type_ids: &[(String, StructuralTypeId)],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    domain_ids: &[StructuralDomainBinding],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
     // Graph evaluation attaches the source local and registers this value as
     // one operation; ordinary and nested operands register it here instead.
@@ -395,7 +396,7 @@ pub(super) fn emit_structural(
         qualifications: custody
             .result_qualifications
             .iter()
-            .map(|domain| lookup_domain_id(domain_ids, *domain))
+            .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, structural_type))
             .collect::<Result<Vec<_>, _>>()?,
         projected_qualifications: super::parameters::lower_projected_qualifications(
             validation::structural_result_projected_qualifications(
@@ -421,6 +422,8 @@ pub(super) fn emit_structural(
             .map_err(LoweringError::Unsupported)?
             .as_slice(),
             domain_ids,
+            structural_type,
+            structural_types,
         )?,
         claims: custody
             .returned_claim_transfers

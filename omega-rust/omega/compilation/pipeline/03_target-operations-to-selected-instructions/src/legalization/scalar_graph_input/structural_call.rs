@@ -136,7 +136,7 @@ pub(in crate::legalization) fn argument_at(
             custody,
         );
     }
-    if let Some(argument) = owned_owner_loan(
+    if let Some(argument) = owned_byte_loan(
         semantic,
         call_operation,
         caller,
@@ -345,12 +345,11 @@ pub(in crate::legalization) fn argument_at(
     })
 }
 
-/// A whole owned bounded byte local (an owned concatenation result) lends its
-/// `{length, bytes}` home to a shared bounded-owner formal: the callee reads
-/// the owner layout in place through the home's address. The establishing
-/// concatenation must dominate the call, and the formal's carrier and the
-/// ABI slot's referent shape must both be the owner's exact storage.
-fn owned_owner_loan(
+/// An owned concatenation lends either its owner carrier or a shared live-byte
+/// view. The exact establishment must dominate the call; the actual owned root
+/// remains distinct from the formal's descriptor presentation. Optimization-unit
+/// validation independently replays the formal's declared byte predicates.
+fn owned_byte_loan(
     semantic: &StructuralArgument,
     call_operation: semantic_vocabulary::OperationId,
     caller: &PsiOptimizationFunction,
@@ -359,12 +358,28 @@ fn owned_owner_loan(
     parameter_ordinal: usize,
     plan: &AbstractOperationPlan,
 ) -> Result<Option<TargetStructuralArgument>, LegalizationError> {
+    let shared_view = destination_parameter.access == StructuralAccess::SharedBorrow
+        && !destination_parameter.is_self
+        && destination_parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && destination_parameter.projected_qualifications.is_empty()
+        && plan.structural_types.iter().any(|declaration| {
+            declaration.id == destination_parameter.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        }
+                    )
+                )
+        });
     if !semantic.path.is_empty()
         || semantic.access != StructuralAccess::SharedBorrow
-        || !abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
-            destination_parameter,
-            &plan.structural_types,
-        )
+        || !(shared_view
+            || abstract_operations::control_flow::owner_loans::is_shared_bounded_owner_loan_in(
+                destination_parameter,
+                &plan.structural_types,
+            ))
     {
         return Ok(None);
     }
@@ -377,21 +392,12 @@ fn owned_owner_loan(
                 .map(|position| (block.id, position))
         })
     };
-    let Some((producer, result)) = caller
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .find_map(|node| match &node.operation {
-            AbstractOperation::EstablishByteSequenceConcatenation {
-                psi_operation,
-                result,
-                ..
-            } if result.place == semantic.place => Some((*psi_operation, result)),
-            _ => None,
-        })
+    let Some((producer, structural_type)) =
+        super::byte_views::owned_concatenation(caller, semantic.place)
     else {
         return Ok(None);
     };
+    let (exact_producer, result) = super::structural_case::source_result(caller, semantic.place)?;
     let before = site(&|operation| {
         matches!(operation, AbstractOperation::EstablishByteSequenceConcatenation {
             psi_operation, ..
@@ -399,14 +405,27 @@ fn owned_owner_loan(
     })
     .ok_or(LegalizationError::custody())?;
     let after = site(&|operation| {
-        matches!(operation, AbstractOperation::CallStructural { psi_operation, .. }
-            if *psi_operation == call_operation)
+        matches!(operation,
+            AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
+            | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
+            if *psi_operation == call_operation && structural_arguments.contains(semantic))
     })
     .ok_or(LegalizationError::custody())?;
-    if result.structural_type != destination_parameter.structural_type
+    if producer != exact_producer
+        || structural_type != result.structural_type
+        || (!shared_view && result.structural_type != destination_parameter.structural_type)
+        || !plan.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
         || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
         || !result.claims.is_empty()
         || (before.0 == after.0 && before.1 >= after.1)
         || (before.0 != after.0
@@ -415,7 +434,7 @@ fn owned_owner_loan(
         return Err(LegalizationError::custody());
     }
     let referent = crate::structural_inputs::structural_reference_input::shape(
-        result.structural_type,
+        destination_parameter.structural_type,
         &plan.structural_types,
     )
     .ok_or(LegalizationError::custody())?;
@@ -433,7 +452,7 @@ fn owned_owner_loan(
         access: semantic.access,
         path: Vec::new(),
         root_structural_type: result.structural_type,
-        structural_type: result.structural_type,
+        structural_type: destination_parameter.structural_type,
         shape,
         source_byte_offset: 0,
         fixed_array_length: None,

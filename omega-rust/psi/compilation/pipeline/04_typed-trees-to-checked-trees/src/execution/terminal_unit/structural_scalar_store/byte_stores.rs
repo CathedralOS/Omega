@@ -1,8 +1,9 @@
-//! Byte-sequence leaves: a whole borrowed byte view, or a bounded-owned byte
-//! field below an exclusive root. These leaves have their own Terminal
-//! operations (`ByteSequenceWrite`, `StructuralByteSequenceFieldStore`,
-//! `StructuralByteSequenceFieldByteStore`), but the destination and the `u8`
-//! value are resolved by the same owners as every other store.
+//! Byte-sequence leaves: a whole borrowed byte view, an established mutable
+//! bounded byte local, or a bounded-owned field below an exclusive root. These
+//! leaves have their own Terminal operations (`ByteSequenceWrite`,
+//! `StructuralByteSequenceFieldStore`, `StructuralByteSequenceFieldByteStore`),
+//! but the destination and the `u8` value are resolved by the same owners as
+//! every other store.
 use super::super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitEffectOperationPlan, ExpressionNode,
     Multiplicity, TypeReferenceNode, TypedTrees,
@@ -10,11 +11,14 @@ use super::super::{
 use super::destination::{Destination, Root};
 use super::value::{self, AssignmentSource};
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::types::{byte_sequence_carrier, terminal_field_identity};
+use crate::execution::terminal_unit::types::{
+    byte_sequence_carrier, structural_access_for_type_reference, terminal_field_identity,
+};
 
-/// `view[index] = byte` through a whole mutable borrowed byte view. Replacing
-/// a byte observes the view's current length, so the root needs an ordinary
-/// unrestricted, unqualified mutable borrow rather than write-only authority.
+/// `view[index] = byte` through a whole mutable borrowed view or owned local.
+/// Replacing a byte observes the current length, so a borrowed root needs an
+/// ordinary unrestricted, unqualified mutable borrow rather than write-only
+/// authority. An owned root retains its exact mutable local establishment.
 pub(super) fn view_write(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -59,25 +63,41 @@ pub(super) fn view_write(
             },
         ));
     }
-    let Root::Parameter { plan, parameter } = destination.root else {
-        return None;
-    };
-    if plan.is_self
-        || plan.access != CheckedStructuralAccess::MutableBorrow
-        || plan.multiplicity != Multiplicity::Unrestricted
-        || !plan.qualifications.is_empty()
-        || plan.fused_service_erasure.is_some()
-        || !byte_sequence_carrier(program, parameter.type_reference, &[])
-            .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
-    {
-        return None;
+    match destination.root {
+        Root::Parameter { plan, parameter } => {
+            if plan.is_self
+                || plan.access != CheckedStructuralAccess::MutableBorrow
+                || plan.multiplicity != Multiplicity::Unrestricted
+                || !plan.qualifications.is_empty()
+                || plan.fused_service_erasure.is_some()
+                || !byte_sequence_carrier(program, parameter.type_reference, &[])
+                    .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
+            {
+                return None;
+            }
+        }
+        Root::Local { symbol } => {
+            // Destination resolution independently rejoined the earlier literal
+            // establishment. Keep its declared carrier and mutation authority;
+            // an immutable bounded owner or an unrelated view is not writable.
+            let (_, local) = program.state_local_declaration(state, symbol)?;
+            if !local.is_mutable
+                || program.type_multiplicity(local.type_reference) != Multiplicity::Unrestricted
+                || structural_access_for_type_reference(program, local.type_reference)
+                    != Some(CheckedStructuralAccess::Owned)
+                || !matches!(
+                    byte_sequence_carrier(program, local.type_reference, &[]),
+                    Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+                )
+            {
+                return None;
+            }
+        }
     }
     Some(CheckedUnitEffectOperationPlan::ByteSequenceWrite(
         checked_trees::CheckedByteSequenceWritePlan {
             statement_index,
-            destination: checked_trees::CheckedStoreRoot::Parameter {
-                position: plan.position,
-            },
+            destination: destination.root.destination(),
             index: value::runtime_index(facts, state, statement_index, index)?,
             value: value::byte_value(
                 program,

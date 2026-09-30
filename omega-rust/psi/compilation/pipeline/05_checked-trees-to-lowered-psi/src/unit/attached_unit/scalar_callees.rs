@@ -14,11 +14,12 @@ use super::operation_frame::BoundaryParameters;
 use super::{
     CallEmissionContext, CheckedBoundaryMachinePlan, CheckedScalarCallee, CheckedTrees,
     ClosureOccurrences, LoweringError, MachineId, PreparedScalarCallee, SemanticDomainId,
-    ServiceReachSummary, StructuralDomainId, StructuralTypeId, TERMINAL_MACHINE_IDENTITY_STRIDE,
+    ServiceReachSummary, StructuralTypeId, TERMINAL_MACHINE_IDENTITY_STRIDE,
     checked_unit_boundary_identity, collect_installation_machine_contract_services,
     collect_service_summary, contract_id, lookup_machine_id, lower_declared_service_reach,
     lower_installation_machine_service_ceiling, lower_unit_parameters, unsupported,
 };
+use crate::terminal_identities::StructuralDomainBinding;
 use terminal_psi::{
     ObligationEvidence, ScalarBlockInvariant, ScalarFloatRange, ScalarIntegerRange,
 };
@@ -173,7 +174,7 @@ pub(super) fn prepare<'checked>(
     checked: &'checked CheckedTrees,
     callees: Vec<CheckedScalarCallee<'checked>>,
     type_ids: &[(String, StructuralTypeId)],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    domain_ids: &[StructuralDomainBinding],
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<PreparedScalarCallees<'checked>, LoweringError> {
@@ -184,6 +185,7 @@ pub(super) fn prepare<'checked>(
                 lower_unit_parameters(
                     callee.structural_parameters(),
                     type_ids,
+                    structural_types,
                     domain_ids,
                     next_place,
                 )?
@@ -242,7 +244,7 @@ pub(super) struct EmissionCatalog<'a> {
     pub(super) boundary_parameters: &'a [BoundaryParameters],
     pub(super) structural_types: &'a [StructuralTypeDeclaration],
     pub(super) type_ids: &'a [(String, StructuralTypeId)],
-    pub(super) domain_ids: &'a [(SemanticDomainId, StructuralDomainId)],
+    pub(super) domain_ids: &'a [StructuralDomainBinding],
     pub(super) service_ids: &'a [(ServiceReachId, ServiceId)],
     /// Roster index of the first scalar callee; each callee's identity range
     /// follows from its own index.
@@ -337,6 +339,7 @@ pub(super) fn emit(
                 lower_unit_parameters(
                     &plan.structural_parameters,
                     catalog.type_ids,
+                    catalog.structural_types,
                     catalog.domain_ids,
                     next_place,
                 )?,

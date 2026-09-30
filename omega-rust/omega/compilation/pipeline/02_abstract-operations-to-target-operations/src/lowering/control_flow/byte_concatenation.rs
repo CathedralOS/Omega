@@ -36,7 +36,6 @@ pub(super) fn lower(
     };
     if result.multiplicity != StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.qualification_establishments.is_empty()
         || !types

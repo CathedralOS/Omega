@@ -403,6 +403,7 @@ pub(crate) fn emit(
 pub(crate) fn emit_owned_literal(
     bytes: &[u8],
     structural_type: StructuralTypeId,
+    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     structural_types: &[StructuralTypeDeclaration],
     literal_places: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
@@ -438,7 +439,7 @@ pub(crate) fn emit_owned_literal(
     };
     let (literal, _) = emission.literal(bytes)?;
     let (empty, _) = emission.literal(&[])?;
-    emission.concatenate(literal, empty, structural_type)
+    emission.concatenate(literal, empty, structural_type, qualifications)
 }
 
 /// The operation, place and value counters one byte materialization emits
@@ -511,6 +512,7 @@ impl ByteEmission<'_> {
         left: ByteSequenceOperand,
         right: ByteSequenceOperand,
         structural_type: StructuralTypeId,
+        qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     ) -> Result<
         (
             StructuralPlaceDeclaration,
@@ -531,7 +533,7 @@ impl ByteEmission<'_> {
             place: source,
             structural_type,
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-            qualifications: Vec::new(),
+            qualifications,
             projected_qualifications: Vec::new(),
             qualification_establishments: Vec::new(),
             claims: Vec::new(),
@@ -580,7 +582,9 @@ impl ValueEmitter<'_> {
                 "owned byte carrier absent from shared catalog",
             ))?
             .id;
-        let (declaration, result) = self.emission.concatenate(left, right, structural_type)?;
+        let (declaration, result) =
+            self.emission
+                .concatenate(left, right, structural_type, Vec::new())?;
         self.emission.places.push(declaration);
         let length = self.emission.length(OperationKind::ByteSequenceLength {
             source: result.place,

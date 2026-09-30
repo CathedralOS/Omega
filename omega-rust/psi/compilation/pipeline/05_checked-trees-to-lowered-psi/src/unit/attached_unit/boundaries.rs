@@ -11,15 +11,15 @@ use super::operation_frame::BoundaryParameters;
 use super::{
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
     CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedTrees, LoweringError,
-    Multiplicity, SemanticDomainId, ServiceReachSummary, StructuralDomainId,
-    StructuralDomainRequirement, StructuralMultiplicity, StructuralTypeId, UnitPlans,
-    boundary_machine_id, checked_unit_boundary_identity, checked_unit_target_reach_matches,
-    dense_identity, lookup_domain_id, lookup_type_id, lower_boundary_content_guarantees,
-    lower_boundary_crash_routes, lower_boundary_parameter_order,
+    Multiplicity, ServiceReachSummary, StructuralDomainRequirement, StructuralMultiplicity,
+    StructuralTypeId, UnitPlans, boundary_machine_id, checked_unit_boundary_identity,
+    checked_unit_target_reach_matches, dense_identity, lookup_type_id,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_parameter_order,
     lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_unit_parameters,
     terminal_scalar_type, unique_unit_boundary, unsupported,
 };
 use crate::terminal_identities::value_id;
+use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::attached_unit::catalog::lower_program_local_root_introductions;
 use crate::unit::{Proposition, ScalarType, ValueDeclaration};
 
@@ -30,7 +30,8 @@ pub(super) fn lower_declarations(
     checked: &CheckedTrees,
     boundaries: &[(&CheckedBoundaryMachinePlan, String)],
     type_ids: &[(String, StructuralTypeId)],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    domain_ids: &[StructuralDomainBinding],
     service_ids: &[(ServiceReachId, ServiceId)],
     next_place: &mut u64,
 ) -> Result<(Vec<BoundaryMachineDeclaration>, Vec<BoundaryParameters>), LoweringError> {
@@ -41,6 +42,7 @@ pub(super) fn lower_declarations(
         let parameters = lower_unit_parameters(
             &plan.structural_parameters,
             type_ids,
+            structural_types,
             domain_ids,
             next_place,
         )?;
@@ -49,7 +51,7 @@ pub(super) fn lower_declarations(
             .iter()
             .map(|parameter| terminal_scalar_type(parameter.primitive_type))
             .collect::<Result<Vec<_>, _>>()?;
-        let requires = lower_requirements(plan, parameters.len(), domain_ids)?;
+        let requires = lower_requirements(plan, &parameters, domain_ids)?;
         let scalar_requires = lower_scalar_requires(plan, &scalar_parameters)?;
         let requirement_count = scalar_requires.len();
         let id = boundary_machine_id(dense_identity(index)?);
@@ -195,24 +197,25 @@ fn lower_scalar_requires(
 /// structural parameters, in canonical order and without repetition.
 fn lower_requirements(
     plan: &CheckedBoundaryMachinePlan,
-    parameter_count: usize,
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    parameters: &[terminal_psi::StructuralParameterDeclaration],
+    domain_ids: &[StructuralDomainBinding],
 ) -> Result<Vec<StructuralDomainRequirement>, LoweringError> {
     let mut requires = plan
         .domain_requirements
         .iter()
         .map(|requirement| {
-            if usize::try_from(requirement.argument_index)
-                .ok()
-                .is_none_or(|index| index >= parameter_count)
-            {
-                return Err(LoweringError::Unsupported(
+            let parameter = parameters.get(requirement.argument_index as usize).ok_or(
+                LoweringError::Unsupported(
                     "boundary structural requirement has an invalid argument index",
-                ));
-            }
+                ),
+            )?;
             Ok(StructuralDomainRequirement {
                 argument_index: requirement.argument_index,
-                domain: lookup_domain_id(domain_ids, requirement.domain)?,
+                domain: lookup_domain_id_for_carrier(
+                    domain_ids,
+                    requirement.domain,
+                    parameter.structural_type,
+                )?,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -228,7 +231,7 @@ fn lower_requirements(
 pub(super) fn lower_boundary_result(
     result: &CheckedBoundaryMachineResultPlan,
     type_ids: &[(String, StructuralTypeId)],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    domain_ids: &[StructuralDomainBinding],
 ) -> Result<BoundaryMachineResult, LoweringError> {
     Ok(match result {
         CheckedBoundaryMachineResultPlan::Unit => BoundaryMachineResult::Unit,
@@ -248,7 +251,13 @@ pub(super) fn lower_boundary_result(
             },
             qualifications: qualifications
                 .iter()
-                .map(|domain| lookup_domain_id(domain_ids, *domain))
+                .map(|domain| {
+                    lookup_domain_id_for_carrier(
+                        domain_ids,
+                        *domain,
+                        lookup_type_id(type_ids, type_identity)?,
+                    )
+                })
                 .collect::<Result<Vec<_>, _>>()?,
         }),
     })

@@ -10,12 +10,13 @@ use super::super::super::{
     OperationKind, PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration,
     StructuralPlaceKind, StructuralTypeShape, TerminalMachineResult, ValueDeclaration,
     allocate_dense, direct_expression_contains_short_circuit, emit_direct_expression,
-    lookup_domain_id, lookup_type_id, obligation_id, place_id, terminal_scalar_type, unsupported,
+    lookup_type_id, obligation_id, place_id, terminal_scalar_type, unsupported,
     validate_direct_parameter_types, value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::{CheckedControlResultPlan, data::DataMember, expression::ExpressionNode};
 
 pub(super) fn signature_matches(
@@ -647,12 +648,20 @@ pub(super) fn result(
             qualifications: result
                 .qualifications
                 .iter()
-                .map(|domain| lookup_domain_id(&catalogs.domain_ids, *domain))
+                .map(|domain| {
+                    lookup_domain_id_for_carrier(
+                        &catalogs.domain_ids,
+                        *domain,
+                        lookup_type_id(&catalogs.type_ids, &result.type_identity)?,
+                    )
+                })
                 .collect::<Result<Vec<_>, _>>()?,
             projected_qualifications:
                 crate::unit::attached_unit::parameters::lower_projected_qualifications(
                     &result.projected_qualifications,
                     &catalogs.domain_ids,
+                    lookup_type_id(&catalogs.type_ids, &result.type_identity)?,
+                    &catalogs.structural_types,
                 )?,
         },
     ))

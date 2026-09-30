@@ -204,10 +204,19 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 checked_trees::CheckedStorageRoot::ViewLocal { symbol } => {
                     view_local_observation(view_locals, symbol, path)?
                 }
-                checked_trees::CheckedStorageRoot::OwnedLocal { .. } => {
-                    return unsupported(
-                        "an owned local's extent is declared, not an observed view length",
-                    );
+                checked_trees::CheckedStorageRoot::OwnedLocal { symbol } => {
+                    let source = owned_local_observation(structural_locals, symbol)?;
+                    let local = crate::expression_preparation::bindings::view_locals::resolve(
+                        view_locals,
+                        symbol,
+                    )?;
+                    if !path.is_empty()
+                        || local.place != source
+                        || local.carrier != ViewCarrier::Bytes
+                    {
+                        return unsupported("owned byte length lost its established carrier");
+                    }
+                    (source, ViewCarrier::Bytes)
                 }
             };
             Ok(match carrier {
@@ -571,10 +580,9 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 });
             }
             if let checked_trees::CheckedStorageRoot::OwnedLocal { symbol } = *root {
-                // An owned local's declared extent is on its place, so an
-                // element read needs no length observation — the verifier
-                // resolves `index < extent` from the type like a parameter's
-                // fixed-array field.
+                // A raw array uses its declared extent. A bounded byte owner
+                // instead observes its live length, which may be less than
+                // capacity; the established carrier below selects the rule.
                 if !path.is_empty() || !element_path.is_empty() {
                     return unsupported("an owned local element read takes no projection path");
                 }
@@ -589,6 +597,26 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     view_locals,
                     structural_locals,
                 )?;
+                if view_locals.iter().any(|local| local.symbol == symbol) {
+                    let local = crate::expression_preparation::bindings::view_locals::resolve(
+                        view_locals,
+                        symbol,
+                    )?;
+                    if local.place != source
+                        || local.carrier != ViewCarrier::Bytes
+                        || *primitive_type != PrimitiveType::U8
+                    {
+                        return unsupported("owned byte read lost its established carrier");
+                    }
+                    // A bounded owner has a capacity and a live length. Read
+                    // through the ordinary byte operation so the obligation
+                    // uses that current length, never the fixed-array capacity.
+                    return Ok(LoweredDirectExpression::ByteSequenceRead {
+                        source,
+                        index: Box::new(exact_u64_index(index)?),
+                        scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
+                    });
+                }
                 return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
                     source,
                     path: Vec::new(),

@@ -164,6 +164,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             let mut block_parameters = lower_unit_parameters(
                 &state.structural_parameters,
                 &catalogs.type_ids,
+                &catalogs.structural_types,
                 &catalogs.domain_ids,
                 &mut catalogs.next_place,
             )?;

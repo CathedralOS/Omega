@@ -31,10 +31,27 @@ pub fn byte_parameter_predicates_in<'domain>(
     if !parameter.projected_qualifications.is_empty() {
         return None;
     }
+    byte_qualification_predicates_in(
+        domains,
+        parameter.structural_type,
+        &parameter.qualifications,
+    )
+}
+
+/// Interpret an exact primitive qualification roster without manufacturing a
+/// parameter. The caller retains its own result or parameter custody checks.
+pub fn byte_qualification_predicates_in<'domain>(
+    domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
+    carrier: semantic_vocabulary::StructuralTypeId,
+    qualifications: &[semantic_vocabulary::StructuralDomainId],
+) -> Option<ByteSequencePredicateSet> {
+    if qualifications.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return None;
+    }
     let mut predicates = ByteSequencePredicateSet::EMPTY;
-    for identity in &parameter.qualifications {
+    for identity in qualifications {
         let domain = domains.clone().find(|domain| domain.id == *identity)?;
-        if domain.carrier != parameter.structural_type
+        if domain.carrier != carrier
             || domain.content_projection.is_some()
             || !domain.establishment_routes.is_empty()
         {
@@ -45,9 +62,165 @@ pub fn byte_parameter_predicates_in<'domain>(
     Some(predicates)
 }
 
-/// Reconstruct a whole source's value predicates. Owned concatenations are
-/// immutable materializations; their inputs' declaration invariants must hold
-/// at construction, not at the later destination mutation.
+/// The declared primitive predicates of an exact established owned byte result.
+/// Initializer octets are not persistent declarations: mutation may discard
+/// incidental ASCII or no-NUL facts while preserving these qualifications.
+pub fn byte_owned_result_predicates(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> Option<ByteSequencePredicateSet> {
+    let place = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == source)?;
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = place.kind
+    else {
+        return None;
+    };
+    let operation = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == producer)?;
+    let result = operation.result.structural()?;
+    if !matches!(
+        operation.kind,
+        OperationKind::EstablishByteSequenceConcatenation { .. }
+    ) || result.place != source
+        || result.structural_type != structural_type
+        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !result.claims.is_empty()
+        || !module.structural_types.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
+    {
+        return None;
+    }
+    byte_qualification_predicates_in(
+        module.structural_domains.iter(),
+        structural_type,
+        &result.qualifications,
+    )
+}
+
+/// Predicates at one concatenation's establishment, before subsequent writes
+/// to its fresh result. Operand observations remain independently validated.
+pub fn byte_sequence_concatenation_predicates(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Option<ByteSequencePredicateSet> {
+    let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } = &operation.kind
+    else {
+        return None;
+    };
+    let mut resolve = |source| byte_sequence_source_predicates(module, machine, source);
+    Some(
+        concatenation_operand_predicates(module, machine, left, &mut resolve)?.concatenation(
+            concatenation_operand_predicates(module, machine, right, &mut resolve)?,
+        ),
+    )
+}
+
+fn concatenation_operand_predicates(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operand: &terminal_psi::control_flow::ByteSequenceOperand,
+    resolve_whole: &mut impl FnMut(PlaceId) -> Option<ByteSequencePredicateSet>,
+) -> Option<ByteSequencePredicateSet> {
+    match operand {
+        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+            resolve_whole(*source)
+        }
+        terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. } => {
+            let parameter = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == source.place)?;
+            if source.access != StructuralAccess::SharedBorrow
+                || !matches!(
+                    parameter.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+            {
+                return None;
+            }
+            let declaration = crate::runtime_structural_path_tip(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                &source.path,
+            )?;
+            let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                return None;
+            };
+            let field = fields
+                .iter()
+                .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
+            field.field_type.byte_sequence_carrier()?;
+            Some(field.field_type.byte_predicates())
+        }
+    }
+}
+
+/// A timeless query cannot retain initializer-specific byte classes after a
+/// possible mutation. Call access matters even when another machine performs
+/// the write; this classification grants no call or mutation authority.
+fn may_change_owned_source(operation: &terminal_psi::Operation, source: PlaceId) -> bool {
+    match &operation.kind {
+        OperationKind::ByteSequenceWrite { destination, .. }
+        | OperationKind::ByteSequenceStore { destination, .. }
+        | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
+        | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
+        | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
+        | OperationKind::StoreStructuralField { destination, .. } => *destination == source,
+        OperationKind::MoveStructuralField { source: moved, .. } => *moved == source,
+        OperationKind::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralScalar {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::CallStructuralWithScalarArguments {
+            structural_arguments,
+            ..
+        }
+        | OperationKind::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments.iter().any(|argument| {
+            argument.place == source
+                && matches!(
+                    argument.access,
+                    StructuralAccess::MutableBorrow
+                        | StructuralAccess::WriteOnlyBorrow
+                        | StructuralAccess::Owned
+                )
+        }),
+        _ => false,
+    }
+}
+
+/// Reconstruct predicates valid at every use of a whole source. An untouched
+/// concatenation retains its inputs' establishment predicates; a potentially
+/// mutated result retains only its declared primitive qualifications.
 pub fn byte_sequence_source_predicates(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -120,45 +293,24 @@ pub fn byte_sequence_source_predicates(
                 else {
                     return None;
                 };
-                let mut operand_predicates =
-                    |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
-                        terminal_psi::control_flow::ByteSequenceOperand::Whole {
-                            source, ..
-                        } => source_predicates(module, machine, *source, fuel, memo),
-                        terminal_psi::control_flow::ByteSequenceOperand::Field {
-                            source,
-                            field,
-                            ..
-                        } => {
-                            let parameter = machine
-                                .structural_parameters
-                                .iter()
-                                .find(|parameter| parameter.place == source.place)?;
-                            if source.access != StructuralAccess::SharedBorrow
-                                || !matches!(
-                                    parameter.access,
-                                    StructuralAccess::SharedBorrow
-                                        | StructuralAccess::MutableBorrow
-                                )
-                            {
-                                return None;
-                            }
-                            let declaration = crate::runtime_structural_path_tip(
-                                module.structural_types.iter(),
-                                parameter.structural_type,
-                                &source.path,
-                            )?;
-                            let StructuralTypeShape::Record { fields } = &declaration.shape else {
-                                return None;
-                            };
-                            let field = fields.iter().find(|candidate| {
-                                candidate.id == *field && !candidate.relevance.is_erased()
-                            })?;
-                            field.field_type.byte_sequence_carrier()?;
-                            Some(field.field_type.byte_predicates())
-                        }
-                    };
-                Some(operand_predicates(left)?.concatenation(operand_predicates(right)?))
+                if machine
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .any(|candidate| may_change_owned_source(candidate, source))
+                {
+                    return byte_owned_result_predicates(module, machine, source);
+                }
+                let mut resolve = |source| source_predicates(module, machine, source, fuel, memo);
+                Some(
+                    concatenation_operand_predicates(module, machine, left, &mut resolve)?
+                        .concatenation(concatenation_operand_predicates(
+                            module,
+                            machine,
+                            right,
+                            &mut resolve,
+                        )?),
+                )
             }
             _ => None,
         })();
@@ -254,6 +406,46 @@ mod tests {
     use super::*;
     use semantic_vocabulary::{DomainSemanticId, StructuralDomainId, StructuralTypeId};
     use terminal_psi::{StructuralDomainDeclaration, StructuralEstablishmentRoute};
+
+    #[test]
+    fn owned_source_predicate_invalidation_tracks_call_access_and_exact_root() {
+        let source = PlaceId::new(1).unwrap();
+        for access in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+            StructuralAccess::Owned,
+        ] {
+            let operation = terminal_psi::Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: semantic_vocabulary::OperationId::new(1).unwrap(),
+                result: terminal_psi::OperationResult::Unit,
+                kind: OperationKind::CallUnit {
+                    callee: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: vec![terminal_psi::StructuralArgument {
+                        place: source,
+                        path: Vec::new(),
+                        access,
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            };
+            assert_eq!(
+                may_change_owned_source(&operation, source),
+                access != StructuralAccess::SharedBorrow
+            );
+            assert!(!may_change_owned_source(
+                &operation,
+                PlaceId::new(2).unwrap()
+            ));
+        }
+    }
 
     #[test]
     fn literal_membership_replays_octets_carrier_and_nonrouted_definition() {

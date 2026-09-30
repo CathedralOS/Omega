@@ -627,7 +627,8 @@ fn the_decline_ledger_keeps_each_capacitys_first_declined_demand() {
         declines.unproved_obligation_error(unmet),
         LoweringError::OperationProofUnavailable(unmet),
     );
-    declines.record_demand(ProofSearchCapacity::ScalarInvariantCandidateWork, 16_390);
+    let requested = ProofSearchCapacity::ScalarInvariantCandidateWork.limit() + 6;
+    declines.record_demand(ProofSearchCapacity::ScalarInvariantCandidateWork, requested);
     declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
     declines.record(ProofSearchCapacity::ScalarInvariantRosterRounds);
     let refusal = declines.unproved_obligation_error(unmet);
@@ -635,7 +636,7 @@ fn the_decline_ledger_keeps_each_capacitys_first_declined_demand() {
         refusal,
         LoweringError::ProofSearchCapacityExhausted {
             capacity: ProofSearchCapacity::ScalarInvariantCandidateWork,
-            requested: 16_390,
+            requested,
             obligation: unmet,
         },
     );

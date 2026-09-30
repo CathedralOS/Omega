@@ -496,9 +496,10 @@ fn authored_indexed_primitive_read(
     else {
         return Ok(None);
     };
-    // A bounded byte field's element, or an element of a loaned bounded owner,
-    // is a bounds-checked byte read whose only storage read is its selector,
-    // not a projected primitive leaf.
+    // Bounded fields and borrowed owners retain selector-only reads. A whole
+    // owned local instead retains its exact binding and literal index, just
+    // like other owned collections; its encoding qualification does not erase
+    // that source identity. Bounds still use the separately proved live length.
     if let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression)
         && validation::declared_place_type_raw(
             &checked.typed,
@@ -512,6 +513,11 @@ fn authored_indexed_primitive_read(
             })
         })
         .is_some()
+        && !matches!(
+            checked.expression_table.expression(indexed.collection),
+            ExpressionNode::Name(name)
+                if fixed_carrier_local(checked, state, scope, name.symbol).is_some()
+        )
     {
         return Ok(None);
     }
@@ -810,13 +816,20 @@ fn fixed_carrier_local(
     if locals.next().is_some() {
         return None;
     }
-    matches!(
-        checked
-            .type_reference_table
-            .type_reference(local.type_reference),
-        checked_trees::types::TypeReferenceNode::FixedArray { .. }
-    )
-    .then_some(local.symbol)
+    // Qualifications retain the owned carrier. A reference does not: borrowed
+    // collections must keep the selector-only read custody above.
+    let mut reference = local.type_reference;
+    loop {
+        match checked.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
+            checked_trees::types::TypeReferenceNode::FixedArray { .. } => {
+                return Some(local.symbol);
+            }
+            _ => return None,
+        }
+    }
 }
 
 /// A local binding declared as a borrowed slice view of either access

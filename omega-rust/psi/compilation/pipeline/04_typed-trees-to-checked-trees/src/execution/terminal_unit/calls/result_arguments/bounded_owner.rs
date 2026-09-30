@@ -8,11 +8,12 @@
 //! live length the construction set, and cannot resize or replace it. The
 //! loan retains the local, so no custody moves and no claim transfers.
 //!
-//! The lane requires the same carrier on both sides (bounded owner, equal
-//! capacity), every domain the formal names already declared on the local,
-//! the authored `&`/`&mut` spelling of exactly the whole local, and the
-//! exact captured borrow access. Terminal re-derives the predicates from the
-//! local's establishment and checks the presentation independently.
+//! A shared byte-view formal may also observe the owner's live extent, using
+//! the ordinary whole-local argument or an explicit shared borrow. Other
+//! accesses require the same bounded carrier and explicit borrow spelling.
+//! Every formal domain must already be declared on the local, and each route
+//! retains the exact captured access. Terminal checks the current predicates
+//! and presentation independently; lending never changes the owner's invariants.
 use super::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralResultBindingPlan,
@@ -55,34 +56,52 @@ pub(super) fn loan(
     else {
         return None;
     };
-    // The formal is a loan of the same owner: `&[u8; N] in D` names the
-    // owner's carrier, with the reference supplying only the access.
-    if byte_sequence_carrier(program, parameter.type_reference, &[])
-        != Some(CheckedByteSequenceCarrier::BoundedOwned { capacity })
-    {
+    let access = structural_access_for_type_reference(program, parameter.type_reference)?;
+    let formal_carrier = byte_sequence_carrier(program, parameter.type_reference, &[])?;
+    let shared_view = access == CheckedStructuralAccess::SharedBorrow
+        && matches!(
+            formal_carrier,
+            CheckedByteSequenceCarrier::BorrowedView { .. }
+        )
+        && structural_access_for_type_reference(program, local.type_reference)
+            == Some(CheckedStructuralAccess::Owned)
+        && super::super::boundary_admission::boundary_argument_presentation_is_admitted(
+            program,
+            local.type_reference,
+            parameter.type_reference,
+            target_identity,
+            &[],
+        );
+    // Exclusive access cannot erase a qualified owner's invariants by turning
+    // it into a bare mutable byte view. Its existing same-carrier loan remains.
+    if !shared_view && formal_carrier != (CheckedByteSequenceCarrier::BoundedOwned { capacity }) {
         return None;
     }
-    let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     let expected_borrow = match access {
         CheckedStructuralAccess::SharedBorrow => language_semantics::ReferenceAccess::Shared,
         CheckedStructuralAccess::MutableBorrow => language_semantics::ReferenceAccess::Mutable,
         CheckedStructuralAccess::WriteOnlyBorrow => language_semantics::ReferenceAccess::WriteOnly,
         CheckedStructuralAccess::Owned => return None,
     };
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
-        return None;
+    let value_expression = match program.expression_table.expression(expression) {
+        ExpressionNode::Borrow(borrow) if borrow.access == expected_borrow => borrow.target,
+        ExpressionNode::Name(_) if shared_view => expression,
+        _ => return None,
     };
-    if borrow.access != expected_borrow
-        || !program.expression_table.expression_is_valid(borrow.target)
+    if !program
+        .expression_table
+        .expression_is_valid(value_expression)
         || local.symbol != symbol
-        || !names_whole_local(program, call, borrow.target, symbol)
+        || !names_whole_local(program, call, value_expression, symbol)
         || result.multiplicity != program.type_multiplicity(local.type_reference)
         || !matches!(
             result.multiplicity,
             Multiplicity::Unrestricted | Multiplicity::Affine
         )
         || usize::try_from(result.statement_index).ok()? >= call.statement_index
-        || result.type_identity != target_identity
+        || (!shared_view && result.type_identity != target_identity)
+        || byte_sequence_type_identity(program, parameter.type_reference, &[], &[])?
+            != target_identity
         || byte_sequence_type_identity(program, local.type_reference, &[], &[])?
             != result.type_identity
     {

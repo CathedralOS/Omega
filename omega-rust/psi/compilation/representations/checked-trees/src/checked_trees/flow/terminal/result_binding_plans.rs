@@ -92,9 +92,9 @@ pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
     pub value: crate::CheckedStoreValue,
 }
 
-/// Exact authored operands of a write through a whole mutable byte view. The
-/// stored byte is refused as a `Computation`, and the root as a `Local`,
-/// exactly as a byte replacement's.
+/// Exact authored operands of a write through a whole mutable borrowed byte
+/// parameter or an exactly established mutable bounded-owned local. The stored
+/// byte is refused as a `Computation`, exactly as a byte replacement's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedByteSequenceWritePlan {
     pub statement_index: u32,

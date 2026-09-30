@@ -7,6 +7,7 @@ use super::super::{
 };
 use super::{CheckedTrees, LoweringError, catalogs};
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::terminal_identities::lookup_domain_id_for_carrier;
 use checked_trees::CheckedUnitCallResult;
 
 pub(super) fn evaluate(
@@ -188,7 +189,7 @@ fn establish(
     }
     let qualifications = parameter_qualifications
         .iter()
-        .map(|domain| super::super::lookup_domain_id(&catalogs.domain_ids, *domain))
+        .map(|domain| lookup_domain_id_for_carrier(&catalogs.domain_ids, *domain, structural_type))
         .collect::<Result<Vec<_>, _>>()?;
     let destination = place_id(allocate_dense(&mut catalogs.next_place)?);
     // The temporary roster also holds constructor and join places; only its

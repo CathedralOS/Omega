@@ -102,8 +102,9 @@ pub(super) fn argument(
             || !declaration.projected_qualifications.is_empty()
             || projected_type != declaration.structural_type
             || result.multiplicity == StructuralMultiplicity::Linear
-            || !result.qualifications.is_empty()
+            || (!result.qualifications.is_empty() && !owner_loan)
             || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
             || !result.claims.is_empty()
             || crate::lowering::structural_layout::structural_parameter_shape(
                 projected_shape,
@@ -447,6 +448,19 @@ pub(super) fn byte_argument(
             &mut active,
         )?
         .ok_or_else(unsupported);
+    }
+    if let Some(home) = live.structural_homes.get(&argument.place)
+        && let Some(view) = crate::lowering::unit::roster_arguments::owned_byte_view_argument(
+            argument,
+            declaration,
+            destination.shape,
+            &destination.placement,
+            function,
+            home,
+            types,
+        )
+    {
+        return Ok(view);
     }
     // A home that is no whole plain array (a mutable view's affine custody
     // home, for one) keeps the descriptor routes below.

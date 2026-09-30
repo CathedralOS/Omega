@@ -455,16 +455,27 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
             let ProofFact::Membership(membership) = program.proof_facts.get(fact) else {
                 continue;
             };
+            // Authorization also admits mutable output parameters, but this
+            // plan carries result qualifications only. Until that separate
+            // output effect is represented, decline rather than moving its
+            // membership onto the unrelated returned value or dropping it.
+            if !program
+                .expression_table
+                .names_reserved_result(membership.value)
+            {
+                return None;
+            }
             let Some(domain) = crate::facts::qualification_evidence::domain_definition(
                 program,
                 membership.domain_symbol,
             ) else {
                 continue;
             };
-            authorized.push(domain.semantic_id);
+            authorized.push((domain.semantic_id, domain.symbol));
         }
     }
-    authorized.sort_by_key(|domain| domain.0);
+    authorized
+        .sort_by_key(|(domain, symbol)| (domain.0, symbol.arena_index(), symbol.generation()));
     authorized.dedup();
     if authorized.is_empty() {
         return Some(result);
@@ -477,8 +488,8 @@ pub(in crate::execution::terminal_unit) fn fold_authorized_result_domains(
     else {
         return None;
     };
-    for domain in authorized {
-        shapes.add_domain(domain, result_type, binders)?;
+    for (domain, selected_symbol) in authorized {
+        shapes.add_selected_domain(domain, selected_symbol, result_type, binders)?;
         if !qualifications.contains(&domain) {
             qualifications.push(domain);
         }
@@ -648,4 +659,132 @@ pub(super) fn type_domain_carrier(
         return None;
     };
     Some(*carrier)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn authorized_output_membership_cannot_qualify_the_returned_carrier() {
+        let checked = crate::tests::front_end::checked_program(
+            r#"
+            pub domain [u8; 8]::Utf8 requires valid_utf8(self);
+            pub domain [u8; 7]::Issued
+                requires valid_utf8(self)
+                established by Input::read;
+            pub boundary trait Input {
+                machine read(output: &mut [u8; 7]) -> [u8; 8] in Utf8
+                    ensures output in Issued;
+            }
+        "#,
+        );
+        let input = checked.traits().first().expect("boundary trait");
+        let signature = &checked.trait_machine_signatures(input)[0];
+        assert!(signature_contracts_are_exact_parameter_qualifications(
+            &checked.typed,
+            input.symbol,
+            signature,
+        ));
+        // Build the declared result independently of boundary publication:
+        // an unused requirement has no call-target plan, which is unrelated
+        // to whether this authorized output contract can qualify its result.
+        let mut shapes = ShapeCollector::new(&checked.typed);
+        let declared = CheckedBoundaryMachineResultPlan::Structural {
+            type_identity: shapes
+                .add_type(signature.return_type, &[], &[])
+                .expect("declared result carrier"),
+            multiplicity: checked.type_multiplicity(signature.return_type),
+            qualifications: parameter_qualifications(
+                &checked.typed,
+                &mut shapes,
+                signature.return_type,
+                &[],
+            )
+            .expect("declared result qualification"),
+        };
+        assert!(
+            fold_authorized_result_domains(
+                &checked.typed,
+                &mut shapes,
+                input.symbol,
+                signature,
+                signature.return_type,
+                &[],
+                declared,
+            )
+            .is_none(),
+            "an authorized output effect is not a returned-value guarantee"
+        );
+    }
+
+    #[test]
+    fn authorized_result_domain_keeps_an_independent_declared_qualification() {
+        let checked = crate::tests::front_end::checked_program(
+            r#"
+            pub domain [u8; 8]::Utf8 requires valid_utf8(self);
+            pub domain [u8; 8]::Issued
+                requires valid_utf8(self)
+                established by Input::read;
+            pub boundary trait Input {
+                machine read() -> [u8; 8] in Utf8
+                    ensures result in Issued;
+            }
+            machine consume() reaches Input {
+                let bytes: [u8; 8] in Utf8 = Input::read();
+            }
+        "#,
+        );
+        let input = checked.traits().first().expect("boundary trait");
+        let signature = &checked.trait_machine_signatures(input)[0];
+        let plans = &checked.facts.flow.terminal_unit_effects;
+        let boundary = plans
+            .boundary_for_machine(signature.symbol)
+            .expect("the invoked boundary result keeps both domains in its plan");
+        let CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } = &boundary.result
+        else {
+            panic!("bounded byte result: {:?}", boundary.result);
+        };
+        assert_eq!(qualifications.len(), 2);
+        for definition in checked.domain_definitions() {
+            assert!(qualifications.contains(&definition.semantic_id));
+            let domain = plans
+                .structural_domains
+                .iter()
+                .find(|domain| domain.domain == definition.semantic_id)
+                .expect("each qualification retains its exact source declaration");
+            assert_eq!(domain.establishment_routes, definition.establishment_routes);
+            assert_eq!(
+                domain.byte_predicate,
+                typed_trees::byte_predicates::domain_byte_predicate(
+                    &checked.typed,
+                    definition.symbol
+                )
+            );
+        }
+        let issued = checked
+            .domain_definitions()
+            .iter()
+            .find(|definition| !definition.establishment_routes.is_empty())
+            .expect("authorized domain");
+        let utf8 = checked
+            .domain_definitions()
+            .iter()
+            .find(|definition| definition.establishment_routes.is_empty())
+            .expect("declared byte predicate");
+        let mut shapes = ShapeCollector::new(&checked.typed);
+        for foreign_symbol in [utf8.symbol, SymbolHandle::invalid()] {
+            assert!(
+                shapes
+                    .add_selected_domain(
+                        issued.semantic_id,
+                        foreign_symbol,
+                        signature.return_type,
+                        &[],
+                    )
+                    .is_none(),
+                "another declaration cannot supply the contract's authorization"
+            );
+        }
+    }
 }

@@ -27,7 +27,16 @@ fn machine_named(checked: &CheckedTrees, name: &str) -> symbols::SymbolHandle {
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == name)
-        .unwrap_or_else(|| panic!("missing machine `{name}`"))
+        .unwrap_or_else(|| {
+            panic!(
+                "missing machine `{name}`; available machines: {:?}",
+                checked
+                    .machines()
+                    .iter()
+                    .map(|machine| machine.name.as_str())
+                    .collect::<Vec<_>>()
+            )
+        })
         .symbol
 }
 
@@ -182,4 +191,122 @@ fn a_bounded_owner_membership_restatement_is_no_runtime_requirement() {
             .map(|requirements| requirements.len()),
         Some(0)
     );
+}
+
+const OWNED_BOUNDARY_SOURCE: &str = r#"
+    boundary trait Output { machine write(bytes: &[u8]) reaches Output; }
+    data Root {}
+    machine Root::emit() reaches Output {
+        let mut text: [u8; 8] in Utf8 = "abc";
+        text[1] = 65;
+        Output::write(text);
+    }
+"#;
+
+#[test]
+fn a_mutated_bounded_owner_lends_its_live_bytes_to_a_shared_boundary_view() {
+    for source in [
+        OWNED_BOUNDARY_SOURCE.to_owned(),
+        OWNED_BOUNDARY_SOURCE.replace("write(text)", "write(&text)"),
+    ] {
+        let checked = checked(&source);
+        let machine = machine_named(&checked, "Root::emit");
+        let plans = &checked.facts.flow.terminal_unit_effects;
+        let plan = plans.for_machine(machine).unwrap_or_else(|| {
+            panic!(
+                "the established owner supplies an exact shared byte view: {:#?}\nsource:\n{source}",
+                plans.omission_for_machine(machine)
+            )
+        });
+        let literal = plan
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                    result,
+                    qualifications,
+                    ..
+                } => Some((result, qualifications)),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(literal.1.len(), 1, "the owner keeps its declared invariant");
+        let argument = plan
+            .operations
+            .iter()
+            .filter_map(|operation| operation.call())
+            .filter(|call| call.is_boundary())
+            .flat_map(|call| &call.structural_arguments)
+            .next()
+            .expect("boundary structural argument");
+        assert_eq!(
+            argument.source_structural_result_binding_ordinal(),
+            Some(literal.0.binding_ordinal)
+        );
+        assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
+        assert!(argument.path.is_empty());
+        assert_ne!(
+            argument.type_identity, literal.0.type_identity,
+            "view presentation does not change the owner's carrier"
+        );
+    }
+}
+
+#[test]
+fn a_bounded_owner_shared_view_requires_its_exact_captured_read_access() {
+    let checked = checked(OWNED_BOUNDARY_SOURCE);
+    let machine = machine_named(&checked, "Root::emit");
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plan = plans.for_machine(machine).unwrap_or_else(|| {
+        panic!(
+            "owner boundary plan: {:#?}",
+            plans.omission_for_machine(machine)
+        )
+    });
+    let borrow_state = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+        .unwrap();
+    let call = checked
+        .facts
+        .borrow
+        .calls
+        .span_or_empty(borrow_state.calls)
+        .iter()
+        .find(|call| call.statement_index == 2)
+        .unwrap();
+    let accesses = call.accesses;
+    assert!(
+        !checked
+            .facts
+            .borrow
+            .argument_accesses
+            .span_or_empty(accesses)
+            .is_empty()
+    );
+    for kind in [
+        checked_trees::BorrowAccessKind::Mutable,
+        checked_trees::BorrowAccessKind::WriteOnly,
+    ] {
+        let mut facts = checked.facts.clone();
+        for access in facts.borrow.argument_accesses.span_mut(accesses).unwrap() {
+            access.kind = kind.clone();
+        }
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+            &checked.typed,
+            &facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &facts.flow.terminal_structural_scalar_returns,
+            },
+        );
+        assert!(
+            rebuilt.for_machine(machine).is_none(),
+            "a different captured access cannot authorize this shared presentation"
+        );
+    }
 }

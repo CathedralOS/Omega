@@ -159,8 +159,8 @@ fn byte_view_write_refuses_a_computation_value() {
     );
 }
 
-/// A byte view has no local-rooted lowering: replay refuses a byte-view write
-/// whose shared store root names a local instead of its borrowed parameter.
+/// An invalid local cannot replace an authored borrowed parameter, even though
+/// exact mutable bounded-owned local destinations now have a lowering.
 #[test]
 fn byte_view_write_refuses_a_local_root() {
     let mut checked = crate::front_end::checked_program(PUT);
@@ -185,10 +185,142 @@ fn byte_view_write_refuses_a_local_root() {
     assert!(
         matches!(
             error,
-            LoweringError::Unsupported("byte-view write has no parameter root")
+            LoweringError::Unsupported("byte write local differs from its authored collection")
         ),
         "{error:?}"
     );
+}
+
+#[test]
+fn owned_byte_write_retains_utf8_without_freezing_incidental_no_nul() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        machine store() {
+            transition { _ -> render() }
+            state render() {
+                let mut line: [u8; 8] in Utf8 = "ab";
+                line[0] = 0;
+                line[1] = 65;
+            }
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("store"))
+        .expect("an ASCII byte, including NUL, preserves the declared Utf8 domain");
+    let writes = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::ByteSequenceWrite { .. }
+            )
+        })
+        .count();
+    assert_eq!(writes, 2);
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent replay preserves the actual declared invariant");
+    let mut changed = checked.clone();
+    let qualifications = changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter_mut()
+        .flat_map(|plan| &mut plan.states)
+        .flat_map(|state| &mut state.operations)
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                qualifications, ..
+            } => Some(qualifications),
+            _ => None,
+        })
+        .expect("owned literal declaration");
+    qualifications.clear();
+    assert!(matches!(
+        lower_machine(&changed, TerminalMachineSelection::Name("store")),
+        Err(LoweringError::Unsupported(
+            "literal local changed its authored qualifications"
+        ))
+    ));
+}
+
+#[test]
+fn owned_byte_write_guard_observes_live_length_after_mutation() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        machine store() {
+            transition { _ -> render() }
+            state render() {
+                let original: [u8; 8] in Utf8 = "ab";
+                let mut line: [u8; 8] in Utf8 = "ab";
+                line[0] = 0;
+                transition line.len == 2 && line[0] == 0 && original[0] == 97 {
+                    true -> good()
+                    false -> bad()
+                }
+            }
+            state good() {}
+            state bad() {}
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("store"))
+        .expect("a bounded owner's guard observes its live length after mutation");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("owned length guard replay");
+}
+
+#[test]
+fn owned_byte_write_reads_dynamic_index_from_another_qualified_local() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        domain [u8; 10]::Utf8 requires valid_utf8(self);
+        machine store(index: u64) {
+            transition { _ -> render(index) }
+            state render(index: u64) {
+                let digits: [u8; 10] in Utf8 = "0123456789";
+                let mut line: [u8; 8] in Utf8 = "ab";
+                let position: u64 = index % 10;
+                line[1] = digits[position];
+            }
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("store"))
+        .expect("a checked byte-table observation feeds the qualified owned store");
+    assert!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::ByteSequenceRead { .. }
+            ))
+    );
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("live bound and byte class replay");
 }
 
 /// `put` writes through a bare `&mut [u8]`, so it may store bytes that break a

@@ -9,6 +9,238 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceNode;
 
 #[test]
+fn named_state_owned_byte_guard_observes_live_length_after_indexed_writes() {
+    let typed = typed_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        machine verify() {
+            transition { _ -> render() }
+            state render() {
+                let original: [u8; 8] in Utf8 = "ab";
+                let mut line: [u8; 8] in Utf8 = "ab";
+                line[0] = 0;
+                line[1] = 65;
+                transition line.len == 2 && line[0] == 0 && line[1] == 65
+                    && original[0] == 97 && original[1] == 98 {
+                    true -> finish(70)
+                    _ -> finish(71)
+                }
+            }
+            state finish(code: u64) {}
+        }
+    "#,
+    );
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "verify")
+        .unwrap();
+    let state = checked
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.name.as_str() == "render")
+        .unwrap();
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let typed_trees::statement::StatementNode::LocalData(local) = &statements[1] else {
+        unreachable!()
+    };
+    let (ordinal, guard) = statements
+        .iter()
+        .enumerate()
+        .find_map(|(ordinal, statement)| {
+            let typed_trees::statement::StatementNode::Transition(transition) = statement else {
+                return None;
+            };
+            let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
+                return None;
+            };
+            Some((ordinal, guard))
+        })
+        .unwrap();
+    assert!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(
+                state.symbol,
+                u32::try_from(ordinal).unwrap(),
+                checked_trees::CheckedScalarExpressionRole::Guard,
+            )
+            .is_some()
+            || checked
+                .facts
+                .values
+                .scalar_computations
+                .root_at(
+                    state.symbol,
+                    u32::try_from(ordinal).unwrap(),
+                    checked_trees::CheckedScalarExpressionRole::Guard,
+                )
+                .is_some(),
+        "the entire authored guard retains its scalar observation plan"
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine.symbol)
+            .is_some(),
+        "the observed guard composes with the two indexed writes"
+    );
+    let mut length = guard;
+    while let ExpressionNode::Binary(binary) = checked.expression_table.expression(length) {
+        length = binary.left;
+    }
+    let parameters = checked.state_parameters(state);
+    assert!(
+        matches!(super::structural_sequence_length(&checked, parameters, length),
+        Some(checked_trees::CheckedScalarExpression::StructuralParameterByteLength {
+            root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol }, path,
+        }) if symbol == local.symbol && path.is_empty())
+    );
+
+    let TypeReferenceNode::Constrained { base_type, .. } = checked
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        unreachable!()
+    };
+    let mut raw = checked.typed.clone();
+    let typed_trees::statement::StatementNode::LocalData(raw_local) =
+        &mut raw.statement_table.statements_mut(state.statement_nodes)[1]
+    else {
+        unreachable!()
+    };
+    raw_local.type_reference = *base_type;
+    assert!(
+        super::structural_sequence_length(&raw, parameters, length).is_none(),
+        "raw fixed capacity must not be treated as a stored live byte extent"
+    );
+    let mut foreign_member = checked.typed.clone();
+    let ExpressionNode::Member(member) = foreign_member.expression_table.expression_mut(length)
+    else {
+        panic!("leftmost guard operand is line.len");
+    };
+    member.member_symbol = local.symbol;
+    assert!(
+        super::structural_sequence_length(&foreign_member, parameters, length).is_none(),
+        "a resolved foreign member cannot impersonate the builtin length observer"
+    );
+}
+
+#[test]
+fn named_state_owned_byte_index_read_retains_qualified_local_identity() {
+    let typed = typed_program(
+        "domain [u8; 10]::Utf8 requires valid_utf8(self);
+         domain [u8; 4]::Utf8 requires valid_utf8(self);
+         machine render(index: u64) {
+             transition { _ -> write(index) }
+             state write(index: u64) {
+                 let digits: [u8; 10] in Utf8 = \"0123456789\";
+                 let mut line: [u8; 4] in Utf8 = \"abcd\";
+                 let selected: u64 = index % 10;
+                 line[1] = digits[selected];
+             }
+         }",
+    );
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "render")
+        .unwrap();
+    let state = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.name.as_str() == "write")
+        .unwrap();
+    let (ordinal, assignment) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+        .find_map(|(ordinal, statement)| match statement {
+            typed_trees::statement::StatementNode::Assignment(assignment) => {
+                Some((ordinal, assignment))
+            }
+            _ => None,
+        })
+        .unwrap();
+    let (binding, value) = checked
+        .facts
+        .values
+        .scalar_expressions
+        .bound_expression_at(
+            state.symbol,
+            u32::try_from(ordinal).unwrap(),
+            checked_trees::CheckedScalarExpressionRole::AssignmentValue,
+        )
+        .expect("an indexed qualified byte local retains the ordinary assignment value");
+    assert_eq!(binding.expression, assignment.value);
+    let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+        root: checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
+        primitive_type,
+        path,
+        ..
+    } = value
+    else {
+        panic!("exact owned indexed source: {value:?}");
+    };
+    assert_eq!(*primitive_type, typed_trees::types::PrimitiveType::U8);
+    assert!(path.is_empty());
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(assignment.value)
+    else {
+        panic!("indexed source");
+    };
+    let (root, declared) =
+        super::owned_local_root(program, program.state_parameters(state), indexed.collection)
+            .expect("whole owned byte local");
+    assert_eq!(root, *symbol);
+    assert!(
+        matches!(
+            program.type_reference_table.type_reference(declared),
+            TypeReferenceNode::Constrained { .. }
+        ),
+        "retaining the declared qualification keeps live-length carrier selection possible"
+    );
+    let mut borrowed = program.clone();
+    let borrowed_type = borrowed
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            lifetime: None,
+            referee: declared,
+        });
+    let local = borrowed
+        .statement_table
+        .statements_mut(state.statement_nodes)
+        .iter_mut()
+        .find_map(|statement| match statement {
+            typed_trees::statement::StatementNode::LocalData(local) if local.symbol == root => {
+                Some(local)
+            }
+            _ => None,
+        })
+        .unwrap();
+    local.type_reference = borrowed_type;
+    assert!(
+        super::owned_local_root(
+            &borrowed,
+            program.state_parameters(state),
+            indexed.collection
+        )
+        .is_none(),
+        "the same qualified referent behind a borrowed shell is not owned storage"
+    );
+}
+
+#[test]
 fn closed_generic_getters_retain_scalar_bindings_after_setters() {
     let typed = crate::tests::front_end::typed_program_with_generic_data_result(
         "data Cell<T> { value: T; touched: i32 in Wrapping; }

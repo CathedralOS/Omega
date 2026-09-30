@@ -24,6 +24,7 @@ use crate::expression_preparation::bindings::ScalarBindings;
 use crate::expression_preparation::bindings::structural_fields::{
     EstablishedCasePayload, NestedEstablishedCasePayload,
 };
+use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::ScalarType;
 
@@ -559,9 +560,10 @@ impl StateGraphEmission<'_, '_> {
                                 .qualifications
                                 .iter()
                                 .map(|domain| {
-                                    crate::terminal_identities::lookup_domain_id(
+                                    lookup_domain_id_for_carrier(
                                         &self.catalogs.domain_ids,
                                         *domain,
+                                        structural_type,
                                     )
                                 })
                                 .collect::<Result<Vec<_>, _>>()?;

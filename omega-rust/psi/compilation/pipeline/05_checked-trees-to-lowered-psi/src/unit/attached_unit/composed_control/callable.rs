@@ -5,11 +5,12 @@ use super::super::super::{
 };
 use super::super::operation_frame::BoundaryParameters;
 use super::super::{
-    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, SemanticDomainId, StructuralDomainId,
-    StructuralTypeId, TerminalMachine, ValueDeclaration, lookup_machine_id,
+    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, StructuralTypeId, TerminalMachine,
+    ValueDeclaration, lookup_machine_id,
 };
 use super::{CheckedTrees, LoweringError, catalogs, scalar_calls, state_graph};
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
+use crate::terminal_identities::StructuralDomainBinding;
 use crate::unit::attached_unit::signatures::{self, MachineSignature};
 use std::borrow::Cow;
 
@@ -37,7 +38,7 @@ pub(in crate::unit::attached_unit) struct SharedCatalog<'a> {
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub type_ids: &'a [(String, StructuralTypeId)],
     pub structural_domains: &'a [StructuralDomainDeclaration],
-    pub domain_ids: &'a [(SemanticDomainId, StructuralDomainId)],
+    pub domain_ids: &'a [StructuralDomainBinding],
     pub services: &'a [ServiceDeclaration],
     pub service_ids: &'a [(ServiceReachId, ServiceId)],
     pub root_service_reach: &'a terminal_psi::TerminalRootServiceReach,

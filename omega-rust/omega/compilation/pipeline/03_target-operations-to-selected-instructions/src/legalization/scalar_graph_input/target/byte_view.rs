@@ -41,7 +41,7 @@ impl Checker<'_> {
                 place,
                 structural_type,
             } => {
-                access == terminal_psi::StructuralAccess::SharedBorrow
+                matches!(access, terminal_psi::StructuralAccess::SharedBorrow | terminal_psi::StructuralAccess::MutableBorrow)
                     && *place == source
                     && super::super::byte_views::owned_concatenation(self.optimized, source)
                         == Some((*psi_operation, *structural_type))

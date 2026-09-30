@@ -265,6 +265,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             crate::unit::attached_unit::lower_unit_parameters(
                 &state.structural_parameters,
                 &structural_type_ids,
+                structural_types,
                 &[],
                 next_place,
             )?

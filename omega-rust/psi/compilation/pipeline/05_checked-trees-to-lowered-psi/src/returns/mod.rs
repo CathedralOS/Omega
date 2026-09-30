@@ -24,14 +24,13 @@ use checked_trees::{
     ClosedScalarContractValue,
 };
 use language_semantics::{
-    CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,
-    ServiceReachSummary,
+    CarryPolicy, Multiplicity, PermissionClaimIdentity, ServiceReachId, ServiceReachSummary,
 };
 use lowered_psi::{LoweredPsi, LoweredSourceCallOccurrence};
 use semantic_vocabulary::{
     BoundaryMachineId, ContractId, DomainSemanticId, IeeeFloatFormat, IntegerSign, MachineId,
-    PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralDomainId,
-    StructuralPlaceKind, StructuralTypeId,
+    PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId, StructuralCaseId, StructuralPlaceKind,
+    StructuralTypeId,
 };
 use terminal_psi::{
     Block, BoundaryMachineDeclaration, BoundaryMachineResult, ByteSequenceCarrier,
@@ -80,9 +79,9 @@ use crate::returns::structural_types::{
 };
 use crate::terminal_identities::{
     TERMINAL_MACHINE_IDENTITY_STRIDE, allocate_dense, block_id, boundary_machine_id, claim_id,
-    contract_id, dense_identity, edge_id, lookup_claim_id, lookup_domain_id, lookup_machine_id,
-    lookup_service_id, lookup_type_id, machine_id, obligation_id, operation_id, place_id,
-    service_id, structural_domain_id, structural_field_id, structural_type_id, value_id,
+    contract_id, dense_identity, edge_id, lookup_claim_id, lookup_machine_id, lookup_service_id,
+    lookup_type_id, machine_id, obligation_id, operation_id, place_id, service_id,
+    structural_domain_id, structural_field_id, structural_type_id, value_id,
 };
 use crate::unit::attached_unit::{
     checked_unit_boundary_identity, checked_unit_target_reach_matches,

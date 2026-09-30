@@ -202,6 +202,8 @@ pub(super) fn validate_borrowed_argument(
     // fixed array it has no projected carrier identity, so the field's own
     // record geometry supplies the offset and the callee's type supplies the
     // view identity.
+    let owned_byte_view =
+        crate::selection::byte_concatenation_input::shared_view_argument(source, semantic, target);
     let byte_field = signature
         .parameters
         .iter()
@@ -213,7 +215,8 @@ pub(super) fn validate_borrowed_argument(
                 target.structural_type,
                 &signature.structural_types,
             )
-        });
+        })
+        .or(owned_byte_view.map(|capacity| (0, capacity)));
     let byte_owner = signature
         .parameters
         .iter()
@@ -472,6 +475,15 @@ pub(super) fn validate_borrowed_argument(
         return None;
     }
     match &target.source {
+        target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation }
+            if owned_byte_view.is_some() =>
+        {
+            // The byte classifier rejoined the exact concatenation producer;
+            // the pointer emitter independently requires its live local home.
+            if *psi_operation == operation {
+                return None;
+            }
+        }
         target_operations::TargetStructuralArgumentSource::StructuralHome { psi_operation } => {
             let (producer, _) = aggregate_home?;
             let home_view = local_loan.is_some() && (byte_view.is_some() || element_view.is_some());

@@ -530,6 +530,14 @@ pub(super) fn append_operation(
             axioms.push(equation.clone());
         }
         if let Some(bounds) =
+            crate::validation::byte_sequence::read::class_bounds(module, machine, operation)
+        {
+            // Append only after the read's own bound obligation. Declared
+            // invariants or unchanged initializer predicates classify this
+            // SSA byte; the read cannot use its result to justify its index.
+            axioms.extend(bounds);
+        }
+        if let Some(bounds) =
             crate::validation::structural::byte_sequence_fields::literal_field_read_bounds(
                 module, machine, operation,
             )
