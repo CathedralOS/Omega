@@ -2158,7 +2158,7 @@ run/borrows/reference_result_call_binding checked 2443ms @2d8ed253669f
 run/borrows/runtime_index_bounded_borrow checked 2876ms @2d8ed253669f
 run/borrows/shared_field_borrow checked 2583ms @2d8ed253669f
 run/borrows/shared_indexed_read checked 2944ms @2d8ed253669f
-run/borrows/shared_local_borrow checked 2885ms @2d8ed253669f
+run/borrows/shared_local_borrow checked 1108ms @18d68e27ec16+wt
 run/borrows/shared_recast_borrow checked 1879ms @2d8ed253669f
 run/borrows/shared_record_loan_member_read checked 3057ms @2d8ed253669f
 run/borrows/shared_runtime_index_borrow checked 3050ms @2d8ed253669f

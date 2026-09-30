@@ -97,7 +97,7 @@ pub(super) fn validate(
                 Some("record")
             } else if !closed_sum && is_arm_pattern_marker(statement) {
                 Some("arm")
-            } else if is_loan_marker(checked, machine, source, statement, index) {
+            } else if is_loan_marker(checked, machine, state, statement, index) {
                 Some("loan")
             } else if is_exclusive_loan_marker(checked, machine, source, statement, index) {
                 Some("xloan")
@@ -941,7 +941,7 @@ fn is_record_pattern_marker(statement: &StatementNode) -> bool {
 fn is_loan_marker(
     checked: &CheckedTrees,
     _machine: symbols::SymbolHandle,
-    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
     statement: &StatementNode,
     index: usize,
 ) -> bool {
@@ -958,19 +958,14 @@ fn is_loan_marker(
     };
     // An element borrow minted through a view — `let cell: &Cell = &cells[i]` —
     // plans a real establishment whose result custody the graph accounts; it
-    // is no carrier-only marker. The same exclusion the call-spelled arm makes
-    // through `root_for_expression`.
-    if checked
-        .facts
-        .values
-        .structural_values
-        .root_for_expression(
-            source.symbol,
-            u32::try_from(index).unwrap_or(u32::MAX),
-            local.initial_value,
-        )
-        .is_some()
-    {
+    // is no carrier-only marker. A borrow can also register a structural root
+    // for observation without planning an operation (`let seen: &u32 = &v`),
+    // so the test is the planned result, not the registered root.
+    if state.operations.iter().any(|operation| {
+        operation
+            .structural_result_binding()
+            .is_some_and(|result| result.statement_index as usize == index)
+    }) {
         return false;
     }
     match borrow.access {
