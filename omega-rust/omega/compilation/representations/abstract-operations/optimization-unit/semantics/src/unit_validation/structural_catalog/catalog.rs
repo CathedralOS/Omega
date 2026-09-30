@@ -242,6 +242,9 @@ pub(super) fn index_structural_domains<'unit>(
     let mut domains = BTreeMap::new();
     let mut names = BTreeSet::new();
     let mut semantic_domains = BTreeSet::new();
+    // Only primitive byte families may span carriers. Nominal/content domains
+    // retain their unique semantic identity; capacity does not rename byte facts.
+    let mut family_byte_predicates = BTreeMap::new();
     for declaration in unit.structural_domains.iter() {
         if domains.insert(declaration.id, declaration).is_some() {
             return Err(OptimizationUnitValidationError::DuplicateStructuralDomain(
@@ -250,7 +253,12 @@ pub(super) fn index_structural_domains<'unit>(
         }
         if declaration.identity.is_empty()
             || !names.insert(declaration.identity.as_str())
-            || !semantic_domains.insert(declaration.semantic_domain)
+            || !semantic_domains.insert((declaration.semantic_domain, declaration.carrier))
+            || family_byte_predicates
+                .insert(declaration.semantic_domain, declaration.byte_predicate)
+                .is_some_and(|previous| {
+                    previous.is_none() || previous != declaration.byte_predicate
+                })
         {
             return Err(
                 OptimizationUnitValidationError::InvalidStructuralDomainIdentity(declaration.id),

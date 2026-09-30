@@ -139,7 +139,14 @@ fn validate_structural_field_range_authority(
     use terminal_psi::{RecordFieldValue, StructuralTypeShape};
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
         match &node.operation {
-            O::StructuralByteSequenceFieldByteStore {
+            O::ByteSequenceWrite {
+                psi_operation,
+                index,
+                length,
+                obligation,
+                ..
+            }
+            | O::StructuralByteSequenceFieldByteStore {
                 psi_operation,
                 index,
                 length,
@@ -184,6 +191,25 @@ fn validate_structural_field_range_authority(
                     goal = terminal_semantics::indexed_byte_store_goal(goal, *value, predicates)
                         .map_err(|_| invalid.clone())?;
                 }
+                if let O::ByteSequenceWrite {
+                    destination, value, ..
+                } = &node.operation
+                {
+                    let predicates = if function.structural_places.iter().any(|place| {
+                        place.id == *destination
+                            && matches!(
+                                place.kind,
+                                semantic_vocabulary::StructuralPlaceKind::OperationResult { .. }
+                            )
+                    }) {
+                        function_structure::owned_byte_predicates(unit, function, *destination)
+                            .ok_or(invalid.clone())?
+                    } else {
+                        terminal_psi::ByteSequencePredicateSet::EMPTY
+                    };
+                    goal = terminal_semantics::indexed_byte_store_goal(goal, *value, predicates)
+                        .map_err(|_| invalid.clone())?;
+                }
                 let proposition = terminal_codec::canonical_proposition_order_key(&goal)
                     .map_err(|_| invalid.clone())?;
                 if unit
@@ -214,6 +240,13 @@ fn validate_structural_field_range_authority(
                     IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition,
                 };
                 let invalid = OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch;
+                if !function_structure::concatenation_preserves_predicates(
+                    unit,
+                    function,
+                    &node.operation,
+                ) {
+                    return Err(invalid);
+                }
                 let Some(terminal_psi::StructuralTypeDeclaration {
                     shape:
                         StructuralTypeShape::ByteSequence(

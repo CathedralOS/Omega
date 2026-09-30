@@ -38,6 +38,19 @@ pub(in crate::lowering) fn lower_structural_argument(
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
+    if let Some(home) = local_homes.get(&argument.place)
+        && let Some(view) = owned_byte_view_argument(
+            argument,
+            callee_parameter,
+            shape,
+            destination,
+            function,
+            home,
+            structural_types,
+        )
+    {
+        return Ok(view);
+    }
     // Whole-root domain preconditions bind by exact roster equality: the
     // callee parameter's declared qualifications must equal the roster the
     // caller's source place carries — a caller structural parameter's own
@@ -534,13 +547,6 @@ pub(in crate::lowering) fn lower_structural_argument(
     })
 }
 
-/// A whole owned local array lent by borrow presents the same fixed backing an
-/// incoming borrowed parameter would. Terminal verification admits exactly this
-/// loan for an unrestricted, unqualified, claim-free operation result named with
-/// an empty path; the presented declaration carries the argument's own access
-/// for window geometry while the home itself stays owned by this activation.
-/// `Ok(None)` means the home is not lendable through this parameter's view.
-#[allow(clippy::too_many_arguments)]
 /// The producer of a whole owned bounded byte local (an owned concatenation
 /// home) lent shared to a bounded owner formal of the same carrier.
 fn owned_owner_home(
@@ -560,8 +566,8 @@ fn owned_owner_home(
     (result.place == argument.place
         && result.structural_type == callee_parameter.structural_type
         && result.multiplicity == StructuralMultiplicity::Unrestricted
-        && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
         && result.claims.is_empty()
         && function.operations.iter().any(|operation| {
             matches!(operation,
@@ -572,6 +578,91 @@ fn owned_owner_home(
     .then_some(producer)
 }
 
+/// A shared view borrows the concatenation home's current bytes, not its
+/// capacity. Retain the owned root and producer so selection can construct a
+/// descriptor from its live length word and independently replay that choice.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::lowering) fn owned_byte_view_argument(
+    argument: &terminal_psi::StructuralArgument,
+    callee_parameter: &terminal_psi::StructuralParameterDeclaration,
+    shape: ValueShape,
+    destination: &ValuePlacement,
+    function: &AbstractFunction,
+    home: &TargetStructuralHomeRequirement,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> Option<TargetStructuralArgument> {
+    let (producer, result) = home.operation_result()?;
+    if !argument.path.is_empty()
+        || argument.access != StructuralAccess::SharedBorrow
+        || callee_parameter.access != StructuralAccess::SharedBorrow
+        || callee_parameter.is_self
+        || callee_parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        || !callee_parameter.projected_qualifications.is_empty()
+        || shape != ValueShape::borrowed_reference(16, 8)
+        || destination.shape != shape
+        || result.place != argument.place
+        || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !result.claims.is_empty()
+        || !structural_types
+            .get(&result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+            })
+        || !structural_types
+            .get(&callee_parameter.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                        }
+                    )
+                )
+            })
+        || !function.operations.iter().any(|operation| {
+            matches!(operation,
+                abstract_operations::AbstractOperation::EstablishByteSequenceConcatenation {
+                    psi_operation, result: established, ..
+                } if *psi_operation == producer && established == result)
+        })
+    {
+        return None;
+    }
+    // Formal byte predicates were independently discharged by optimization-unit
+    // validation against this exact result's retained declaration invariants.
+    Some(TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: Vec::new(),
+        root_structural_type: result.structural_type,
+        structural_type: callee_parameter.structural_type,
+        shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        indices: Vec::new(),
+        source: TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: producer,
+        },
+        destination: destination.clone(),
+    })
+}
+
+/// A whole owned local array lent by borrow presents the same fixed backing an
+/// incoming borrowed parameter would. Terminal verification admits exactly this
+/// loan for an unrestricted, unqualified, claim-free operation result named with
+/// an empty path; the presented declaration carries the argument's own access
+/// for window geometry while the home itself stays owned by this activation.
+/// `Ok(None)` means the home is not lendable through this parameter's view.
+#[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn local_array_loan(
     argument: &terminal_psi::StructuralArgument,
     callee_parameter: &terminal_psi::StructuralParameterDeclaration,

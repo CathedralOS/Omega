@@ -23,7 +23,8 @@ mod byte_field_freshness;
 mod byte_predicates;
 mod byte_views;
 pub(crate) use byte_predicates::{
-    byte_field_predicates, replacement_preserves_predicates, whole_source_predicates,
+    byte_field_predicates, concatenation_preserves_predicates, owned_byte_predicates,
+    replacement_preserves_predicates, whole_source_predicates,
 };
 pub(crate) use byte_views::byte_field_store_capacity;
 mod control_flow;

@@ -11,6 +11,7 @@ use super::super::{
     TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
+use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_literal;
 use crate::execution::terminal_unit::types::terminal_field_identity;
 
 /// The storage roots one planner lane can write through.
@@ -152,7 +153,7 @@ pub(super) fn resolve<'a>(
                 // without any parameter loan: emission resolves its live home
                 // place through the structural-local roster, so admission here
                 // only pins a unique earlier declaration of plain owned
-                // contents and a non-indexed destination.
+                // contents or an exactly established mutable byte owner.
                 return borrowed_view_local_root(
                     program,
                     facts,
@@ -260,6 +261,13 @@ fn owned_local_root<'a>(
     selectors: Option<super::selectors::TargetSelectors>,
 ) -> Option<Destination<'a>> {
     let (local_ordinal, local) = program.state_local_declaration(state, root_symbol)?;
+    // Bounded byte owners keep their declared predicates and live extent;
+    // they are not plain fixed arrays. Only an explicitly mutable whole local
+    // with an admitted literal establishment supplies this indexed write root.
+    let bounded_byte_local = local.is_mutable
+        && place.segments.is_empty()
+        && dynamic_index.is_some()
+        && bounded_byte_literal::literal_octets(program, local).is_some();
     // A declared-zeroed local has no initializer but owns its zeroed shape:
     // the declaration established the affine root, so the store resolves its
     // live home place the same way an initialized owned local does. `mut`
@@ -275,7 +283,7 @@ fn owned_local_root<'a>(
         )
         && validation::zeroed_structural_parts(program, local.type_reference);
     if local_ordinal >= ordinal
-        || dynamic_index.is_some()
+        || (dynamic_index.is_some() && !bounded_byte_local)
         || !(program
             .expression_table
             .expression_is_valid(local.initial_value)
@@ -283,10 +291,11 @@ fn owned_local_root<'a>(
         || program
             .primitive_type_reference(local.type_reference)
             .is_some()
-        || !validation::has_plain_owned_contents_with_numeric_constraints(
-            program,
-            local.type_reference,
-        )
+        || (!bounded_byte_local
+            && !validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                local.type_reference,
+            ))
     {
         return None;
     }

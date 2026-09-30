@@ -10,13 +10,14 @@ use super::ordinary_calls;
 use super::parameters::{lower_unit_parameters, lower_unit_scalar_parameter_types};
 use crate::lowering_error::LoweringError;
 use crate::lowering_error::unsupported;
+use crate::terminal_identities::StructuralDomainBinding;
 use crate::terminal_identities::allocate_dense;
 use crate::terminal_identities::value_id;
 use crate::unit::runtime_requirements::lower_structural_runtime_requirement;
 use checked_trees::CheckedTrees;
-use language_semantics::SemanticDomainId;
+
 use semantic_vocabulary::Proposition;
-use semantic_vocabulary::StructuralDomainId;
+
 use semantic_vocabulary::StructuralTypeId;
 use symbols::SymbolHandle;
 use terminal_psi::StructuralParameterDeclaration;
@@ -74,7 +75,7 @@ pub(super) fn lower(
     checked: &CheckedTrees,
     bodies: &[AdmittedBody<'_>],
     type_ids: &[(String, StructuralTypeId)],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    domain_ids: &[StructuralDomainBinding],
     structural_types: &[StructuralTypeDeclaration],
     requirements_owner: RuntimeRequirementOwner,
     next_place: &mut u64,
@@ -97,8 +98,13 @@ pub(super) fn lower(
                 "Unit body qualification is not represented by an exact structural parameter precondition",
             );
         }
-        let parameters =
-            lower_unit_parameters(plan.structural_parameters, type_ids, domain_ids, next_place)?;
+        let parameters = lower_unit_parameters(
+            plan.structural_parameters,
+            type_ids,
+            structural_types,
+            domain_ids,
+            next_place,
+        )?;
         let scalar_parameters = lower_unit_scalar_parameter_types(plan.scalar_parameters)?
             .into_iter()
             .map(|scalar_type| {

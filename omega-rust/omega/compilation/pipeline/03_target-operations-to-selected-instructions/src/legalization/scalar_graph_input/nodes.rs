@@ -459,8 +459,8 @@ pub(super) fn validate(
                 || !node.definitions.is_empty()
                 || output.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                 || !output.claims.is_empty()
-                || !output.qualifications.is_empty()
                 || !output.projected_qualifications.is_empty()
+                || !output.qualification_establishments.is_empty()
                 || [left, right].iter().any(|operand| {
                     value_type(optimized, operand.length()) != Some(ScalarType::Integer(u64_type()))
                 })
@@ -575,7 +575,8 @@ pub(super) fn validate(
         {
             if result.is_some()
                 || !node.definitions.is_empty()
-                || super::byte_views::mutable_parameter(optimized, *destination).is_none()
+                || (super::byte_views::mutable_parameter(optimized, *destination).is_none()
+                    && super::byte_views::owned_concatenation(optimized, *destination).is_none())
                 || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *value) != Some(ScalarType::Integer(u8_type()))

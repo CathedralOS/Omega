@@ -17,22 +17,25 @@
 //! same judgment a bounded field store from a literal makes; Terminal replays
 //! the predicates from the octets rather than trusting this plan.
 //!
-//! Boundary: stage 05 still emits only borrowed-view literal establishments
-//! and refuses this carrier, so the local does not yet reach native code.
+//! Mutability does not change establishment: a later indexed write retains
+//! this exact local as its destination and proves the declared predicates
+//! again. Initial octets do not become immutable value facts after a write.
 use super::{CheckedStructuralAccess, ExpressionNode, Multiplicity, TypedTrees};
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference,
 };
 use checked_trees::CheckedByteSequenceCarrier;
 
-/// The literal octets an immutable owned bounded byte local is constructed
+/// The literal octets an owned bounded byte local is constructed
 /// from, or `None` when the local is not that shape. The caller owns the
 /// binding ordinal and publishes the ordinary literal establishment.
-pub(super) fn literal_octets(
+pub(in crate::execution::terminal_unit) fn literal_octets(
     program: &TypedTrees,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<Vec<u8>> {
-    if local.is_mutable
+    if !program
+        .expression_table
+        .expression_is_valid(local.initial_value)
         || program.type_multiplicity(local.type_reference) != Multiplicity::Unrestricted
         || structural_access_for_type_reference(program, local.type_reference)
             != Some(CheckedStructuralAccess::Owned)

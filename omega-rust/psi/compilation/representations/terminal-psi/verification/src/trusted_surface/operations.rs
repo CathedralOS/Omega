@@ -488,15 +488,20 @@ static OP_ESTABLISH_SCALAR_ARRAY: TrustedSurfaceEntry = entry(
 );
 static OP_ESTABLISH_BYTE_SEQUENCE_CONCATENATION: TrustedSurfaceEntry = entry(
     "operation:establish-byte-sequence-concatenation",
-    "two readable byte sources with exact dominating live-length observations and a checked capacity obligation",
-    "fresh owned bytes in operand order; a later length observation equals the exact sum, not capacity",
-    &["fact:byte-extent-length", "formation:operation-validation"],
+    "two readable byte sources with exact dominating live-length observations and an independent capacity obligation; the claim-free unrestricted bounded-owned result's exact primitive byte qualifications must follow from the inputs",
+    "fresh independent owned bytes in operand order with the validated declared qualifications; a later length observation equals the exact sum, not capacity; indexed writes preserve the declaration rather than freezing incidental initializer predicates",
+    &[
+        "fact:byte-extent-length",
+        "formation:operation-validation",
+        "formation:byte-sequence-operations",
+    ],
     &[
         VOCAB,
         TS_ROWS,
         OP_FACTS,
         VAL_OPS,
         "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/byte_sequence_concatenation.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/byte_sequence_predicates.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/concatenation.rs",
     ],
 );
@@ -525,20 +530,34 @@ static OP_BYTE_SEQUENCE_LENGTH: TrustedSurfaceEntry = entry(
 );
 static OP_BYTE_SEQUENCE_WRITE: TrustedSurfaceEntry = entry(
     "operation:byte-sequence-write",
-    "a validated in-bounds byte-sequence write",
-    "the write observation; propositions observing the destination extent are invalidated",
+    "a byte-sequence write through an exact unqualified mutable view or an established claim-free unrestricted bounded-owned result, with a current same-source length; a UTF-8 owner not declared ASCII-only must have all-ASCII backing on every path from its establishment",
+    "the independent index < length goal includes the exact owner's declared byte-class legs: value <= 127 for ASCII-only or UTF-8, and 1 <= value for no-NUL; the write preserves live length and declared predicates, discards incidental initializer predicates, and invalidates propositions observing the destination extent",
     &[
         "fact:structural-effect-observation",
         "invalidation:byte-sequence-write",
         "formation:operation-validation",
+        "formation:byte-sequence-operations",
     ],
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_BYTES_WRITE],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_BYTES_WRITE,
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/byte_sequence_predicates.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields/freshness.rs",
+    ],
 );
 static OP_BYTE_SEQUENCE_READ: TrustedSurfaceEntry = entry(
     "operation:byte-sequence-read",
-    "a validated in-bounds byte-sequence read",
-    "the read observation's local equation where the schema declares one",
-    EFFECT_DEPS,
+    "a validated byte-sequence read with a current same-source length and its independent indexing obligation",
+    "the read's immutable u8 snapshot receives only the reconstructed no-NUL or ASCII class bounds its source supports; UTF-8 alone supplies no ASCII fact",
+    &[
+        "fact:structural-effect-observation",
+        "fact:byte-read-class",
+        "formation:operation-validation",
+    ],
     &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_BYTES_READ],
 );
 static OP_BYTE_SEQUENCE_SUBSLICE: TrustedSurfaceEntry = entry(

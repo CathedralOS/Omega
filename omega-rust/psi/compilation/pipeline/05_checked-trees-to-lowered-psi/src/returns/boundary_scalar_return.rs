@@ -2,19 +2,22 @@
 use super::{
     BoundaryMachineDeclaration, BoundaryMachineResult, CheckedBoundaryMachinePlan,
     CheckedBoundaryScalarReturnMachinePlan, CheckedTrees, DomainSemanticId, LoweredPsi,
-    LoweringError, ProofBundle, SemanticDomainId, ServiceDeclaration, ServiceId, ServiceReachId,
-    ServiceReachSummary, StructuralDomainDeclaration, StructuralDomainId,
-    StructuralDomainRequirement, StructuralTypeId, TerminalModule, boundary_machine_id,
-    checked_unit_boundary_identity, collect_installation_machine_contract_services,
-    collect_published_contract_services, collect_service_summary, content_conservation,
-    contract_id, dense_identity, finalize_operation_proofs, lookup_domain_id, lookup_service_id,
-    lookup_type_id, lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    LoweringError, ProofBundle, ServiceDeclaration, ServiceId, ServiceReachId, ServiceReachSummary,
+    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralTypeId, TerminalModule,
+    boundary_machine_id, checked_unit_boundary_identity,
+    collect_installation_machine_contract_services, collect_published_contract_services,
+    collect_service_summary, content_conservation, contract_id, dense_identity,
+    finalize_operation_proofs, lookup_service_id, lookup_type_id,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes,
     lower_published_service_ceiling, lower_root_service_reach, lower_structural_type_plans,
     lower_unit_parameters, machine_id, service_id, structural_domain_id, terminal_scalar_type,
     unsupported,
 };
 use crate::producer_result::SourceMappedLowered;
 use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScalarCalls;
+use crate::terminal_identities::{
+    StructuralDomainBinding, lookup_domain_id_for_carrier, structural_domain_identity,
+};
 use crate::unit::attached_unit::argument_evaluation;
 
 mod emission;
@@ -67,12 +70,14 @@ pub(crate) fn lower_boundary_scalar_return_machine(
     let parameters = lower_unit_parameters(
         &plan.structural_parameters,
         &type_ids,
+        &structural_types,
         &domain_ids,
         &mut next_place,
     )?;
     let boundary_parameters = lower_unit_parameters(
         &boundary.structural_parameters,
         &type_ids,
+        &structural_types,
         &domain_ids,
         &mut next_place,
     )?;
@@ -87,7 +92,16 @@ pub(crate) fn lower_boundary_scalar_return_machine(
         .map(|requirement| {
             Ok(StructuralDomainRequirement {
                 argument_index: requirement.argument_index,
-                domain: lookup_domain_id(&domain_ids, requirement.domain)?,
+                domain: lookup_domain_id_for_carrier(
+                    &domain_ids,
+                    requirement.domain,
+                    boundary_parameters
+                        .get(requirement.argument_index as usize)
+                        .ok_or(LoweringError::Unsupported(
+                            "boundary structural requirement has an invalid argument index",
+                        ))?
+                        .structural_type,
+                )?,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
@@ -198,52 +212,68 @@ fn lower_boundary_scalar_domains(
 ) -> Result<
     (
         Vec<StructuralDomainDeclaration>,
-        Vec<(SemanticDomainId, StructuralDomainId)>,
+        Vec<StructuralDomainBinding>,
     ),
     LoweringError,
 > {
     let mut selected = machine
         .structural_parameters
         .iter()
-        .flat_map(|parameter| parameter.qualifications.iter().copied())
-        .chain(
-            boundary
-                .structural_parameters
+        .chain(boundary.structural_parameters.iter())
+        .flat_map(|parameter| {
+            parameter
+                .qualifications
                 .iter()
-                .flat_map(|parameter| parameter.qualifications.iter().copied()),
-        )
-        .chain(
-            boundary
-                .domain_requirements
-                .iter()
-                .map(|requirement| requirement.domain),
-        )
+                .map(|domain| (*domain, parameter.type_identity.as_str()))
+        })
         .collect::<Vec<_>>();
-    selected.sort_by_key(|domain| domain.0);
+    for requirement in &boundary.domain_requirements {
+        let parameter = boundary
+            .structural_parameters
+            .get(requirement.argument_index as usize)
+            .ok_or(LoweringError::Unsupported(
+                "boundary domain requirement has no structural parameter",
+            ))?;
+        selected.push((requirement.domain, parameter.type_identity.as_str()));
+    }
+    selected.sort_by_key(|(domain, carrier)| (domain.0, *carrier));
     selected.dedup();
     let mut selected_plans = selected
         .iter()
-        .map(|domain| {
-            plans
+        .map(|(domain, carrier)| {
+            let mut matches = plans
                 .structural_domains
                 .iter()
-                .find(|plan| plan.domain == *domain)
-                .ok_or(LoweringError::Unsupported(
-                    "result-bearing boundary references a missing structural domain",
-                ))
+                .filter(|plan| plan.domain == *domain && plan.carrier_type_identity == *carrier);
+            let selected = matches.next().ok_or(LoweringError::Unsupported(
+                "result-bearing boundary references a missing structural domain",
+            ))?;
+            if matches.next().is_some() {
+                return unsupported("result-bearing boundary repeats a structural domain carrier");
+            }
+            Ok(selected)
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
-    selected_plans.sort_by(|left, right| left.identity.cmp(&right.identity));
-    if selected_plans
-        .windows(2)
-        .any(|pair| pair[0].identity == pair[1].identity)
-    {
+    selected_plans.sort_by(|left, right| {
+        (&left.identity, &left.carrier_type_identity)
+            .cmp(&(&right.identity, &right.carrier_type_identity))
+    });
+    if selected_plans.windows(2).any(|pair| {
+        pair[0].identity == pair[1].identity
+            && pair[0].carrier_type_identity == pair[1].carrier_type_identity
+    }) {
         return unsupported("result-bearing boundary has duplicate structural domains");
     }
     let domain_ids = selected_plans
         .iter()
         .enumerate()
-        .map(|(index, plan)| Ok((plan.domain, structural_domain_id(dense_identity(index)?))))
+        .map(|(index, plan)| {
+            Ok(StructuralDomainBinding {
+                semantic_domain: plan.domain,
+                carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                domain: structural_domain_id(dense_identity(index)?),
+            })
+        })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let declarations = selected_plans
         .into_iter()
@@ -251,10 +281,14 @@ fn lower_boundary_scalar_domains(
             Ok(StructuralDomainDeclaration {
                 byte_predicate: plan.byte_predicate,
                 establishment_routes: Vec::new(),
-                id: lookup_domain_id(&domain_ids, plan.domain)?,
+                id: lookup_domain_id_for_carrier(
+                    &domain_ids,
+                    plan.domain,
+                    lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                )?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
-                identity: plan.identity.clone(),
+                identity: structural_domain_identity(&plan.identity, &plan.carrier_type_identity),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
                 content_projection: content_conservation::lower_structural_content_projection(
                     checked,

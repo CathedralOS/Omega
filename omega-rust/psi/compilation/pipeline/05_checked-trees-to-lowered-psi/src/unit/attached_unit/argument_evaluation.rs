@@ -186,6 +186,16 @@ impl Evaluation {
         let declaration = types.next().ok_or(LoweringError::Unsupported(
             "structural result type was not declared",
         ))?;
+        // Byte construction proves primitive declaration predicates from its
+        // actual operands. It does not mint nominal CallEnsures authority, so
+        // those qualifications have no call-establishment rows. Independent
+        // Terminal reconstruction checks the exact result roster and bytes.
+        let constructed_bytes = operations.iter().any(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishByteSequenceConcatenation { .. }
+            ) && operation.result.structural() == Some(&produced)
+        });
         if types.next().is_some()
             || declaration.identity != result.type_identity
             || produced.multiplicity != multiplicity
@@ -193,6 +203,7 @@ impl Evaluation {
             // establishment rows minted (e.g. a boundary's declared result
             // domains replayed through CallEnsures evidence).
             || (multiplicity != StructuralMultiplicity::Linear
+                && !constructed_bytes
                 && produced.qualifications.iter().any(|domain| {
                     !produced
                         .qualification_establishments

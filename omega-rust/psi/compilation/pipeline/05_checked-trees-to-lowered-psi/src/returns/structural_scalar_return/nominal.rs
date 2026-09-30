@@ -326,8 +326,13 @@ pub(super) fn lower_nominal_structural_scalar_return_machine(
         .map(|declaration| (declaration.identity.clone(), declaration.id))
         .collect::<Vec<_>>();
     let mut next_place = 1_u64;
-    let structural_parameters =
-        lower_unit_parameters(&plan.structural_parameters, &type_ids, &[], &mut next_place)?;
+    let structural_parameters = lower_unit_parameters(
+        &plan.structural_parameters,
+        &type_ids,
+        &lowered.semantic_module.structural_types,
+        &[],
+        &mut next_place,
+    )?;
     let structural_parameter_indexes = plan
         .structural_parameters
         .iter()

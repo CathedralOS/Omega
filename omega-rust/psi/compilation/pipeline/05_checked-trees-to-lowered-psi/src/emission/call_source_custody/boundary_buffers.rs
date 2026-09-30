@@ -12,6 +12,9 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn validate(
     checked: &CheckedTrees,
     caller_state: SymbolHandle,
@@ -98,11 +101,38 @@ pub(super) fn validate(
             }
             _ => (target, None),
         };
-        let backing_type =
-            validation::declared_place_type_raw(&checked.typed, machine, Some(state), backing)
-                .and_then(|reference| {
-                    validation::unwrapped_type_reference(&checked.typed, reference)
-                });
+        let declared_backing =
+            validation::declared_place_type_raw(&checked.typed, machine, Some(state), backing);
+        // A qualified bounded owner has a live extent, despite spelling its
+        // source carrier as an array. It is not a plain fixed backing or a
+        // reference alias. Result-use replay still joins its binding ordinal
+        // to the exact establishment; here replay the authored whole-place
+        // loan and its captured shared access.
+        if shared
+            && !fixed_window
+            && range.is_none()
+            && declared_backing.is_some_and(|reference| {
+                validation::bounded_byte_buffer_capacity(&checked.typed, reference).is_some()
+            })
+            && matches!(
+                argument.source,
+                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. }
+            )
+        {
+            validate_owned_byte_loan(
+                checked,
+                machine.symbol,
+                state,
+                coordinate,
+                call.source_target,
+                backing,
+                access,
+                argument,
+            )?;
+            continue;
+        }
+        let backing_type = declared_backing
+            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference));
         // Existing shared literals and live view descriptors have their own
         // source-custody rules. This owner additionally replays fixed backing
         // and its call window, including the selected range operation.
@@ -250,6 +280,68 @@ pub(super) fn validate(
         {
             return unsupported("boundary byte loan differs from its authored backing");
         }
+    }
+    Ok(())
+}
+
+fn validate_owned_byte_loan(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: &checked_trees::state::State,
+    coordinate: CheckedUnitCallCoordinate,
+    target: SymbolHandle,
+    expression: checked_trees::expression::ExpressionHandle,
+    access: language_core::ReferenceAccess,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+) -> Result<(), LoweringError> {
+    let ExpressionNode::Name(name) = checked.expression_table.expression(expression) else {
+        return unsupported("owned byte loan lost its whole local source");
+    };
+    let (ordinal, local) =
+        checked
+            .state_local_declaration(state, name.symbol)
+            .ok_or(LoweringError::Unsupported(
+                "owned byte loan lost its local declaration",
+            ))?;
+    if !name.symbol.is_valid()
+        || ordinal >= coordinate.statement_index as usize
+        || !local.initial_value.is_valid()
+        || validation::bounded_byte_buffer_capacity(&checked.typed, local.type_reference).is_none()
+        || access != language_core::ReferenceAccess::Shared
+        || argument.access != CheckedStructuralAccess::SharedBorrow
+        || !argument.path.is_empty()
+    {
+        return unsupported("owned byte loan changes its declaration, access, or path");
+    }
+    let captured = crate::expression_preparation::source_custody::borrow_occurrences::call(
+        checked,
+        machine,
+        state.symbol,
+        coordinate,
+        target,
+    )?;
+    let borrow = &checked.facts.borrow;
+    let accesses =
+        borrow
+            .argument_accesses
+            .span(captured.accesses)
+            .ok_or(LoweringError::Unsupported(
+                "owned byte loan has a stale access roster",
+            ))?;
+    let mut occurrences = accesses
+        .iter()
+        .filter(|row| row.root_symbol == local.symbol)
+        .peekable();
+    if occurrences.peek().is_none()
+        || occurrences.any(|row| {
+            row.kind != checked_trees::BorrowAccessKind::Read
+                || borrow
+                    .access_segments
+                    .span(row.segments)
+                    .is_none_or(|path| !path.is_empty())
+        })
+    {
+        return unsupported("owned byte loan differs from its captured shared place");
     }
     Ok(())
 }

@@ -9,10 +9,10 @@ use super::super::{
 };
 use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, ClaimTransfer, LoweringError, Multiplicity, PlaceId,
-    ScalarType, SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    ValueDeclaration, allocate_dense, lookup_claim_id, lookup_domain_id, lookup_service_id,
-    lookup_type_id, place_id, require_valid_service_row, terminal_scalar_type, unsupported,
+    ScalarType, ServiceReachSummary, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, ValueDeclaration, allocate_dense,
+    lookup_claim_id, lookup_service_id, lookup_type_id, place_id, require_valid_service_row,
+    terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -23,6 +23,7 @@ use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
 use crate::expression_preparation::bindings::structural_paths::{
     lower_argument_path, lower_structural_path, terminal_access,
 };
+use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use semantic_vocabulary::ValueId;
 mod service_forward;
 mod source_path;
@@ -325,7 +326,8 @@ pub(crate) fn lower_unit_scalar_parameter_types(
 pub(crate) fn lower_unit_parameters(
     parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     type_ids: &[(String, StructuralTypeId)],
-    domain_ids: &[(language_semantics::SemanticDomainId, StructuralDomainId)],
+    structural_types: &[StructuralTypeDeclaration],
+    domain_ids: &[StructuralDomainBinding],
     next_place: &mut u64,
 ) -> Result<Vec<StructuralParameterDeclaration>, LoweringError> {
     let mut positions = BTreeSet::new();
@@ -341,7 +343,13 @@ pub(crate) fn lower_unit_parameters(
             let mut qualifications = parameter
                 .qualifications
                 .iter()
-                .map(|domain| lookup_domain_id(domain_ids, *domain))
+                .map(|domain| {
+                    lookup_domain_id_for_carrier(
+                        domain_ids,
+                        *domain,
+                        lookup_type_id(type_ids, &parameter.type_identity)?,
+                    )
+                })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             qualifications.sort();
             qualifications.dedup();
@@ -377,6 +385,8 @@ pub(crate) fn lower_unit_parameters(
                 projected_qualifications: lower_projected_qualifications(
                     &parameter.projected_qualifications,
                     domain_ids,
+                    lookup_type_id(type_ids, &parameter.type_identity)?,
+                    structural_types,
                 )?,
             })
         })
@@ -534,7 +544,7 @@ pub(crate) struct StructuralResultCustody<'a> {
         u32,
         crate::emission::operation_emission::buffer::StructuralBinding,
     )],
-    pub domains: &'a [(SemanticDomainId, StructuralDomainId)],
+    pub domains: &'a [StructuralDomainBinding],
     pub claims: &'a [(PermissionClaimIdentity, ClaimId)],
     pub target_entry_claims: &'a [CheckedUnitEntryClaimPlan],
 }
@@ -699,7 +709,9 @@ pub(crate) fn validate_transfer_shape(
                 let qualifications = target
                     .qualifications
                     .iter()
-                    .map(|domain| lookup_domain_id(custody.domains, *domain))
+                    .map(|domain| {
+                        lookup_domain_id_for_carrier(custody.domains, *domain, structural_type)
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 let claims = transfers
                     .iter()
@@ -714,6 +726,8 @@ pub(crate) fn validate_transfer_shape(
                 let projected_qualifications = lower_projected_qualifications(
                     &target.projected_qualifications,
                     custody.domains,
+                    structural_type,
+                    structural_types,
                 )?;
                 // A completed whole result carries the exact target claim set,
                 // with source identities rebased but relative paths unchanged.
@@ -848,10 +862,10 @@ pub(crate) fn validate_transfer_shape(
                 type_ids,
                 structural_types,
             );
-            // A whole bounded byte owner lends its carrier to a formal of the
-            // same carrier. Result-use validation joined the formal's domains
-            // to the local's declaration; Terminal replays the byte predicates
-            // from the owner's own establishment rather than this plan.
+            // A whole bounded byte owner lends either its owner carrier or a
+            // shared view of its live bytes. The place still names the owned
+            // result; no descriptor is fabricated as source storage. Terminal
+            // replays the formal's predicates against that result's invariants.
             let bounded_owner_borrow = argument.path.is_empty()
                 && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                 && target.projected_qualifications.is_empty()
@@ -863,6 +877,18 @@ pub(crate) fn validate_transfer_shape(
                             StructuralTypeShape::ByteSequence(
                                 ByteSequenceCarrier::BoundedOwned { .. }
                             )
+                        )
+                });
+            let target_type = lookup_type_id(type_ids, &target.type_identity)?;
+            let bounded_view_borrow = bounded_owner_borrow
+                && target.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                && structural_types.iter().any(|declaration| {
+                    declaration.id == target_type
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                                access: None | Some(StructuralAccess::SharedBorrow),
+                            })
                         )
                 });
             // A live result binding lends one of its record's scalar leaves
@@ -909,7 +935,8 @@ pub(crate) fn validate_transfer_shape(
                 || argument.type_identity != target.type_identity
                 || (argument.path.is_empty()
                     && structural_type != lookup_type_id(type_ids, &argument.type_identity)?
-                    && !array_borrow)
+                    && !array_borrow
+                    && !bounded_view_borrow)
                 || (!record_borrow
                     && !reference_borrow
                     && !scalar_leaf_borrow
@@ -1495,16 +1522,28 @@ fn structural_result_source<'results>(
 
 pub(crate) fn lower_projected_qualifications(
     rows: &[checked_trees::CheckedStructuralPathQualification],
-    domain_ids: &[(language_semantics::SemanticDomainId, StructuralDomainId)],
+    domain_ids: &[StructuralDomainBinding],
+    root: StructuralTypeId,
+    structural_types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<terminal_psi::StructuralPathQualification>, LoweringError> {
     rows.iter()
         .map(|row| {
             if row.path.is_empty() {
                 return unsupported("projected qualification has an empty path");
             }
+            let path = lower_structural_path(&row.path)?;
+            let carrier = terminal_semantics::runtime_structural_path_tip(
+                structural_types.iter(),
+                root,
+                &path,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "projected qualification has no exact structural carrier",
+            ))?
+            .id;
             Ok(terminal_psi::StructuralPathQualification {
-                path: lower_structural_path(&row.path)?,
-                domain: lookup_domain_id(domain_ids, row.domain)?,
+                path,
+                domain: lookup_domain_id_for_carrier(domain_ids, row.domain, carrier)?,
             })
         })
         .collect()
@@ -1621,4 +1660,63 @@ fn record_field_type(
         current = child;
     }
     Some(current)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{StructuralDomainBinding, lower_projected_qualifications};
+    use crate::terminal_identities::{structural_domain_id, structural_type_id};
+
+    #[test]
+    fn projected_domain_binding_resolves_the_exact_leaf_carrier() {
+        let family = language_semantics::SemanticDomainId(1);
+        let mut types = Vec::new();
+        let mut bindings = Vec::new();
+        for (ordinal, capacity) in [(1, 10), (2, 27)] {
+            let carrier = structural_type_id(capacity);
+            types.push(terminal_psi::StructuralTypeDeclaration {
+                id: carrier,
+                identity: format!("bytes-{capacity}"),
+                shape: terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                ),
+            });
+            types.push(terminal_psi::StructuralTypeDeclaration {
+                id: structural_type_id(100 + ordinal),
+                identity: format!("array-{ordinal}"),
+                shape: terminal_psi::StructuralTypeShape::FixedArray {
+                    element: carrier,
+                    length: 1,
+                },
+            });
+            bindings.push(StructuralDomainBinding {
+                semantic_domain: family,
+                carrier,
+                domain: structural_domain_id(ordinal),
+            });
+        }
+        let mut rows = [checked_trees::CheckedStructuralPathQualification {
+            path: vec![checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+                0,
+            )],
+            domain: family,
+        }];
+        for ordinal in [1, 2] {
+            let lowered = lower_projected_qualifications(
+                &rows,
+                &bindings,
+                structural_type_id(100 + ordinal),
+                &types,
+            )
+            .unwrap();
+            assert_eq!(lowered[0].domain, structural_domain_id(ordinal));
+        }
+        rows[0].path = vec![checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(
+            1,
+        )];
+        assert!(
+            lower_projected_qualifications(&rows, &bindings, structural_type_id(101), &types,)
+                .is_err()
+        );
+    }
 }

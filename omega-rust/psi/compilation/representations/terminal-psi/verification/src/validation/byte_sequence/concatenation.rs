@@ -39,7 +39,6 @@ pub(in crate::validation) fn owned_result(
                 result.place == place
                     && result.structural_type == structural_type
                     && result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.qualification_establishments.is_empty()
                     && result.claims.is_empty()
@@ -70,6 +69,14 @@ pub(in crate::validation) fn validate(
                     )
                 )
         })
+    {
+        return Err(invalid());
+    }
+    let required = terminal_semantics::byte_owned_result_predicates(module, machine, result.place)
+        .ok_or_else(invalid)?;
+    if !required.is_empty()
+        && !terminal_semantics::byte_sequence_concatenation_predicates(module, machine, operation)
+            .is_some_and(|predicates| predicates.implies(required))
     {
         return Err(invalid());
     }

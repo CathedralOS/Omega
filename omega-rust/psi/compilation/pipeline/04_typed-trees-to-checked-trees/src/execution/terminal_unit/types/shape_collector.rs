@@ -31,23 +31,85 @@ impl<'program> ShapeCollector<'program> {
         carrier: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
     ) -> Option<()> {
+        let mut reference = carrier;
+        let mut has_domain_constraints = false;
+        let mut selected_symbol = None;
+        loop {
+            match self.program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    for constraint in self.program.type_reference_table.constraints(*constraints) {
+                        let TypeConstraintNode::Domain(constraint) = constraint else {
+                            continue;
+                        };
+                        has_domain_constraints = true;
+                        if constraint.semantic_id == domain
+                            && selected_symbol.replace(constraint.symbol).is_some()
+                        {
+                            return None;
+                        }
+                    }
+                    reference = *base_type;
+                }
+                _ => break,
+            }
+        }
+        let definition = if !has_domain_constraints {
+            // Legacy unqualified carriers carry only the semantic family.
+            self.program
+                .domain_definitions()
+                .iter()
+                .find(|definition| definition.semantic_id == domain)
+        } else {
+            // Qualified byte carriers preserve the actual declaration selected
+            // by typing. Another capacity in the same family is not its proof
+            // theory, even when both declarations happen to classify bytes.
+            let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol?)?;
+            if definition.semantic_id != domain {
+                return None;
+            }
+            Some(definition)
+        };
+        self.add_domain_definition(domain, carrier, binders, definition)
+    }
+
+    /// A contract may establish a domain independently of the qualifications
+    /// already declared on its result carrier. Keep the declaration selected
+    /// by that contract's authorization instead of searching those unrelated
+    /// qualifications for it. Registration describes its theory, not evidence
+    /// that the result satisfies it; the calling contract owns that judgment.
+    pub(in crate::execution::terminal_unit) fn add_selected_domain(
+        &mut self,
+        domain: SemanticDomainId,
+        selected_symbol: SymbolHandle,
+        carrier: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<()> {
+        let definition = typed_trees::domain::domain_by_symbol(self.program, selected_symbol)?;
+        if definition.semantic_id != domain {
+            return None;
+        }
+        self.add_domain_definition(domain, carrier, binders, Some(definition))
+    }
+
+    fn add_domain_definition(
+        &mut self,
+        domain: SemanticDomainId,
+        carrier: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+        definition: Option<&typed_trees::domain::DomainDefinition>,
+    ) -> Option<()> {
         let carrier_type_identity = self.add_type(carrier, binders, &[])?;
         let identity = self.program.semantic_domains.name(domain)?.to_owned();
-        let establishment_routes = self
-            .program
-            .domain_definitions()
-            .iter()
-            .find(|definition| definition.semantic_id == domain)
+        let establishment_routes = definition
             .map(|definition| definition.establishment_routes.clone())
             .unwrap_or_default();
-        let byte_predicate = self
-            .program
-            .domain_definitions()
-            .iter()
-            .find(|definition| definition.semantic_id == domain)
-            .and_then(|definition| {
-                typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol)
-            });
+        let byte_predicate = definition.and_then(|definition| {
+            typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol)
+        });
         let plan = CheckedUnitStructuralDomainPlan {
             byte_predicate,
             domain,
@@ -55,13 +117,15 @@ impl<'program> ShapeCollector<'program> {
             carrier_type_identity,
             establishment_routes,
         };
-        if let Some(existing) = self
-            .domains
-            .iter()
-            .find(|existing| existing.domain == domain)
-        {
+        if let Some(existing) = self.domains.iter().find(|existing| {
+            existing.domain == domain
+                && existing.carrier_type_identity == plan.carrier_type_identity
+        }) {
             return (existing == &plan).then_some(());
         }
+        // A semantic domain names a family, not one storage carrier. Separate
+        // bounded capacities retain that family under distinct exact carriers;
+        // conflicting descriptions of the same pair still reject above.
         self.domains.push(plan);
         Some(())
     }

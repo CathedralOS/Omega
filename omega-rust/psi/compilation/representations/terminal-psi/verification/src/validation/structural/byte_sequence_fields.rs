@@ -11,6 +11,7 @@ pub(crate) use freshness::field_content_length_is_current;
 pub(crate) use freshness::literal_field_read_bounds;
 pub(crate) use freshness::replacement_length_equation;
 pub(crate) use freshness::view_length_is_current;
+pub(crate) use freshness::{owned_content_is_ascii, owned_content_is_current};
 
 pub(in crate::validation) fn validate(
     module: &TerminalModule,
@@ -251,7 +252,9 @@ pub(crate) fn byte_store_goal(
     bound: semantic_vocabulary::Proposition,
 ) -> Result<semantic_vocabulary::Proposition, ModuleError> {
     let OperationKind::StructuralByteSequenceFieldByteStore { value, .. } = &operation.kind else {
-        return Ok(bound);
+        return crate::validation::byte_sequence::write::byte_store_goal(
+            module, machine, operation, bound,
+        );
     };
     let predicates = stored_field_predicates(module, machine, operation).ok_or(
         ModuleError::InvalidStructuralByteSequenceFieldAccess(operation.id),

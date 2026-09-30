@@ -278,16 +278,40 @@ pub(super) fn lower(
             .parameters
             .iter()
             .any(|parameter| parameter.place == *destination)
-            || live.block_views.contains(destination))
+            || live.block_views.contains(destination)
+            || live.structural_homes.contains_key(destination))
+        || super::references::check_root_access(live, *destination)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let (destination, view) = crate::lowering::scalar::byte_views::mutable_parameter_view(
-        function,
-        structural_types,
-        &prepared.parameters,
-        *destination,
-    )?;
+    let view = if live.structural_homes.contains_key(destination) {
+        let (producer, structural_type) = live
+            .views
+            .get(destination)
+            .copied()
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        if !function.operations.iter().any(|operation| {
+            matches!(operation,
+            AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, result, .. }
+                if *psi_operation == producer && result.place == *destination
+                    && result.structural_type == structural_type)
+        }) {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        target_operations::TargetByteView::Owned {
+            psi_operation: producer,
+            place: *destination,
+            structural_type,
+        }
+    } else {
+        crate::lowering::scalar::byte_views::mutable_parameter_view(
+            function,
+            structural_types,
+            &prepared.parameters,
+            *destination,
+        )?
+        .1
+    };
     let index_value = *live
         .integers
         .get(index)
@@ -309,7 +333,7 @@ pub(super) fn lower(
     }
     operations.push(TargetUnitOperation::ByteSequenceWrite {
         psi_operation: *psi_operation,
-        destination,
+        destination: *destination,
         view,
         index: index_value.into_target_source(*index),
         value: byte_value.into_target_source(*value),

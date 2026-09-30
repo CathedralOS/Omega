@@ -19,6 +19,7 @@ use super::{
     consume_value_places, is_record_pattern_marker, retain_selected_sources,
     scalar_computation_local_at, structural_operands,
 };
+use crate::execution::terminal_unit::types::parameter_qualifications;
 
 /// The sequence state a `let` statement reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {
@@ -161,8 +162,15 @@ pub(super) fn plan(
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
-        operations
-            .push(CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes });
+        let qualifications =
+            parameter_qualifications(program, shapes, local.type_reference, binders)?;
+        operations.push(
+            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                result,
+                bytes,
+                qualifications,
+            },
+        );
         return Some(LocalPlan::Planned);
     }
     // A bounded owner (`[u8; 8] in Utf8`) constructed from a literal copies
@@ -178,8 +186,15 @@ pub(super) fn plan(
         *structural_count = structural_count.checked_add(1)?;
         structural_results.push((result.clone(), facts::PlaceRoot::Symbol(local.symbol)));
         structural_local_symbols.push(local.symbol);
-        operations
-            .push(CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes });
+        let qualifications =
+            parameter_qualifications(program, shapes, local.type_reference, binders)?;
+        operations.push(
+            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                result,
+                bytes,
+                qualifications,
+            },
+        );
         return Some(LocalPlan::Planned);
     }
     // An atomic carrier's result placeholder plans nothing: it

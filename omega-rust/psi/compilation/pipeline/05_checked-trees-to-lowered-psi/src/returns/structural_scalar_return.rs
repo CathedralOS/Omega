@@ -207,8 +207,13 @@ pub(crate) fn lower_trait_operator_scalar_return_machine(
         return unsupported("trait operator result disagrees with its realization");
     }
     let mut next_place = 1_u64;
-    let structural_parameters =
-        lower_unit_parameters(&plan.structural_parameters, &type_ids, &[], &mut next_place)?;
+    let structural_parameters = lower_unit_parameters(
+        &plan.structural_parameters,
+        &type_ids,
+        &lowered.semantic_module.structural_types,
+        &[],
+        &mut next_place,
+    )?;
     let callee = lowered
         .semantic_module
         .machines
@@ -558,8 +563,13 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         .ok_or(LoweringError::Unsupported(
             "structural place namespace overflows",
         ))?;
-    let structural_parameters =
-        lower_unit_parameters(&plan.structural_parameters, &type_ids, &[], &mut next_place)?;
+    let structural_parameters = lower_unit_parameters(
+        &plan.structural_parameters,
+        &type_ids,
+        &structural_types,
+        &[],
+        &mut next_place,
+    )?;
     // Expressions observe byte views through the authored source position;
     // pair each with its emitted place so `source.len` resolves exactly.
     let structural_namespace = plan

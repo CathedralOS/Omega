@@ -1,4 +1,4 @@
-//! Fixed-extent writes through an exact unrestricted mutable view parameter.
+//! Fixed-extent writes through an exact mutable view or established owned result.
 
 use crate::validation::{
     ModuleError, OperationKind, OperationResult, PlaceId, StructuralAccess, StructuralMultiplicity,
@@ -11,6 +11,27 @@ pub(in crate::validation) fn validate_destination(
     destination: PlaceId,
 ) -> Result<(), ModuleError> {
     let invalid = || ModuleError::InvalidByteSequenceWrite(operation.id);
+    if super::concatenation::owned_result(machine, destination).is_some() {
+        if terminal_semantics::byte_owned_result_predicates(module, machine, destination).is_none()
+            || machine
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == destination)
+            || machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == destination)
+            || !crate::validation::structural::byte_sequence_fields::owned_content_is_current(
+                module,
+                machine,
+                operation.id,
+                destination,
+            )
+        {
+            return Err(invalid());
+        }
+        return Ok(());
+    }
     let parameter = machine
         .structural_parameters
         .iter()
@@ -69,6 +90,26 @@ pub(in crate::validation) fn validate(
         return Err(ModuleError::InvalidByteSequenceWrite(operation.id));
     };
     validate_destination(module, machine, operation, destination)?;
+    if let Some(predicates) =
+        terminal_semantics::byte_owned_result_predicates(module, machine, destination)
+    {
+        use terminal_psi::ByteSequencePredicate;
+        if predicates
+            .predicates()
+            .any(|predicate| predicate == ByteSequencePredicate::ValidUtf8)
+            && !predicates
+                .predicates()
+                .any(|predicate| predicate == ByteSequencePredicate::AsciiOnly)
+            && !crate::validation::structural::byte_sequence_fields::owned_content_is_ascii(
+                module,
+                machine,
+                operation.id,
+                destination,
+            )
+        {
+            return Err(ModuleError::InvalidByteSequenceWrite(operation.id));
+        }
+    }
     let producer = machine.blocks.iter().flat_map(|block| &block.operations)
         .find(|candidate| candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(candidate.kind, OperationKind::ByteSequenceLength { source } if source == destination))
@@ -101,4 +142,28 @@ pub(in crate::validation) fn validate(
         return Err(ModuleError::InvalidByteSequenceWrite(operation.id));
     }
     Ok(())
+}
+
+/// Whole owned writes preserve the declaration's primitive byte predicates;
+/// borrowed views retain their existing bound-only obligation.
+pub(crate) fn byte_store_goal(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    bound: semantic_vocabulary::Proposition,
+) -> Result<semantic_vocabulary::Proposition, ModuleError> {
+    let OperationKind::ByteSequenceWrite {
+        destination, value, ..
+    } = operation.kind
+    else {
+        return Ok(bound);
+    };
+    validate_destination(module, machine, operation, destination)?;
+    let predicates = terminal_semantics::byte_owned_result_predicates(module, machine, destination)
+        .unwrap_or(terminal_psi::ByteSequencePredicateSet::EMPTY);
+    terminal_semantics::indexed_byte_store_goal(bound, value, predicates).map_err(|error| {
+        ModuleError::OperationSemanticSchema(
+            terminal_semantics::OperationSemanticError::InvalidProposition(error),
+        )
+    })
 }

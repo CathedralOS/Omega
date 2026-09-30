@@ -19,6 +19,133 @@ fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics:
     checked_program_result(source)
 }
 
+const MUTABLE_BOUNDED_LOCAL: &str = r#"
+    domain [u8; 8]::Utf8 requires valid_utf8(self);
+    machine store(index: u64) requires index < 3 {
+        let mut text: [u8; 8] in Utf8 = "abc";
+        text[index] = 65;
+    }
+"#;
+
+fn local_byte_stores(
+    checked: &checked_trees::CheckedTrees,
+) -> Option<Vec<checked_trees::CheckedUnitEffectOperationPlan>> {
+    let program = &checked.typed;
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "store")?;
+    let state = program.machine_states(machine).first()?;
+    let mut shapes = ShapeCollector::new(program);
+    let (structural, scalar) =
+        super::super::super::free_structural_scalar_signature(program, &mut shapes, state, &[])?;
+    build_structural_scalar_field_store_sequence(
+        program,
+        &checked.facts,
+        machine,
+        state,
+        &structural,
+        &scalar,
+        0,
+        None,
+    )
+}
+
+#[test]
+fn mutable_bounded_byte_local_retains_its_exact_store_root() {
+    let checked =
+        checked(MUTABLE_BOUNDED_LOCAL).unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "store")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let typed_trees::statement::StatementNode::LocalData(local) =
+        &checked.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("the literal establishes the first local")
+    };
+    assert!(local.is_mutable);
+    assert!(matches!(
+        crate::execution::terminal_unit::types::byte_sequence_carrier(
+            &checked,
+            local.type_reference,
+            &[]
+        ),
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 8 })
+    ));
+    let stores = local_byte_stores(&checked).expect("mutable bounded local plans an indexed write");
+    let [checked_trees::CheckedUnitEffectOperationPlan::ByteSequenceWrite(store)] =
+        stores.as_slice()
+    else {
+        panic!("one whole-byte local write: {stores:?}")
+    };
+    assert_eq!(store.statement_index, 1);
+    assert_eq!(
+        store.destination,
+        checked_trees::CheckedStoreRoot::Local {
+            symbol: local.symbol
+        }
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine.symbol)
+        .expect("literal establishment and write compose in one Unit plan");
+    assert!(plan.operations.iter().any(|operation| matches!(operation,
+        checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes, qualifications }
+            if result.statement_index == 0 && bytes == b"abc" && qualifications.len() == 1)));
+}
+
+#[test]
+fn bounded_byte_store_rejects_forged_local_mutability_and_initializer() {
+    let checked =
+        checked(MUTABLE_BOUNDED_LOCAL).unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "store")
+        .unwrap();
+    let statements = checked.machine_states(machine)[0].statement_nodes;
+    let typed_trees::statement::StatementNode::LocalData(original) =
+        &checked.statement_table.statements(statements)[0]
+    else {
+        unreachable!()
+    };
+    let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } = checked
+        .type_reference_table
+        .type_reference(original.type_reference)
+    else {
+        panic!("the bounded byte carrier retains its declared domain")
+    };
+    for mutation in 0..3 {
+        let mut forged = checked.clone();
+        let typed_trees::statement::StatementNode::LocalData(local) =
+            &mut forged.typed.statement_table.statements_mut(statements)[0]
+        else {
+            unreachable!()
+        };
+        match mutation {
+            0 => local.is_mutable = false,
+            1 => local.initial_value = Default::default(),
+            _ => local.type_reference = *base_type,
+        }
+        // Removing the qualification can select the preexisting fixed-array
+        // store lane. It must never retain the bounded byte owner's authority.
+        assert!(
+            local_byte_stores(&forged).is_none_or(|stores| stores.iter().all(
+                |operation| !matches!(
+                    operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                )
+            )),
+            "mutation {mutation} must not retain the bounded byte write plan"
+        );
+    }
+}
+
 /// The checker, not this lane, answers the missing-premise spellings: without
 /// `requires`, `target[0]` cannot prove its bound on an unknown slice length,
 /// and a shared `&[u8]` view is not mutable at all. Both fences stay upstream

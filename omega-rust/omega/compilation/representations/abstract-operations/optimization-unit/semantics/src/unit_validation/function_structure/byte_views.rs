@@ -249,8 +249,10 @@ pub(super) fn validate_source(
                     && result.place == source
                     && result.structural_type == *structural_type
                     && result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && result.qualifications.is_empty()
+                    && (result.qualifications.is_empty()
+                        || matches!(node.operation, AbstractOperation::EstablishByteSequenceConcatenation { .. }))
                     && result.projected_qualifications.is_empty()
+                    && result.qualification_establishments.is_empty()
                     && result.claims.is_empty() =>
                 {
                     Some(result.structural_type)
@@ -343,7 +345,12 @@ pub(super) fn validate_source(
             Some(
                 StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::BlockParameter { .. }
             )
-        );
+        )
+        || matches!(source_kind, Some(StructuralPlaceKind::OperationResult { .. }))
+            && function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
+                matches!(&node.operation, AbstractOperation::EstablishByteSequenceConcatenation { result, .. }
+                    if result.place == source)
+            });
     if !valid || !exact_length || !valid_result || !writable {
         return Err(
             if matches!(operation, AbstractOperation::ByteSequenceSubslice { .. }) {

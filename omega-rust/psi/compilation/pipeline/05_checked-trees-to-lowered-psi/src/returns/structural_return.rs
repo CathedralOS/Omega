@@ -4,15 +4,17 @@ use super::{
     BTreeMap, Block, CarryPolicy, CheckedStructuralReturnMachinePlan, CheckedTrees,
     DomainSemanticId, EntryClaim, LoweredPsi, LoweringError, MachineContract, Multiplicity,
     Operation, OperationKind, PermissionClaimIdentity, ProofBundle, RESULT_STRUCTURAL_PLACE_ID,
-    SemanticDomainId, StructuralDomainDeclaration, StructuralDomainId, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeId,
-    StructuralTypeShape, TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
-    allocate_dense, block_id, claim_id, content_conservation, contract_id, dense_identity, edge_id,
-    lookup_domain_id, lookup_type_id, lower_content_identity_reshuffles,
-    lower_structural_type_plans, lower_unit_parameters, machine_id, operation_id, place_id,
-    structural_domain_id, unsupported,
+    StructuralDomainDeclaration, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralResultDeclaration, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, allocate_dense, block_id,
+    claim_id, content_conservation, contract_id, dense_identity, edge_id, lookup_type_id,
+    lower_content_identity_reshuffles, lower_structural_type_plans, lower_unit_parameters,
+    machine_id, operation_id, place_id, structural_domain_id, unsupported,
 };
 use crate::terminal_identities::lookup_attachment_type_id;
+use crate::terminal_identities::{
+    StructuralDomainBinding, lookup_domain_id_for_carrier, structural_domain_identity,
+};
 pub(crate) fn lower_structural_return_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralReturnMachinePlan,
@@ -85,6 +87,7 @@ pub(crate) fn lower_structural_return_machine(
     let parameters = lower_unit_parameters(
         &plan.structural_parameters,
         &type_ids,
+        &structural_types,
         &domain_ids,
         &mut next_place,
     )?;
@@ -100,7 +103,13 @@ pub(crate) fn lower_structural_return_machine(
         .result
         .qualifications
         .iter()
-        .map(|domain| lookup_domain_id(&domain_ids, *domain))
+        .map(|domain| {
+            lookup_domain_id_for_carrier(
+                &domain_ids,
+                *domain,
+                lookup_type_id(&type_ids, &plan.result.type_identity)?,
+            )
+        })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     result_qualifications.sort();
     result_qualifications.dedup();
@@ -299,26 +308,36 @@ fn lower_structural_domain_plans(
 ) -> Result<
     (
         Vec<StructuralDomainDeclaration>,
-        Vec<(SemanticDomainId, StructuralDomainId)>,
+        Vec<StructuralDomainBinding>,
     ),
     LoweringError,
 > {
     let mut ordered = plans.iter().collect::<Vec<_>>();
     ordered.sort_by(|left, right| {
-        (&left.identity, left.domain.0).cmp(&(&right.identity, right.domain.0))
+        (&left.identity, &left.carrier_type_identity, left.domain.0).cmp(&(
+            &right.identity,
+            &right.carrier_type_identity,
+            right.domain.0,
+        ))
     });
     if ordered.iter().any(|plan| {
         !plan.domain.is_valid() || plan.identity.is_empty() || plan.carrier_type_identity.is_empty()
-    }) || ordered
-        .windows(2)
-        .any(|pair| pair[0].domain == pair[1].domain || pair[0].identity == pair[1].identity)
-    {
+    }) || ordered.windows(2).any(|pair| {
+        pair[0].carrier_type_identity == pair[1].carrier_type_identity
+            && (pair[0].domain == pair[1].domain || pair[0].identity == pair[1].identity)
+    }) {
         return unsupported("structural result domains are invalid or noncanonical");
     }
     let domain_ids = ordered
         .iter()
         .enumerate()
-        .map(|(index, plan)| Ok((plan.domain, structural_domain_id(dense_identity(index)?))))
+        .map(|(index, plan)| {
+            Ok(StructuralDomainBinding {
+                semantic_domain: plan.domain,
+                carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                domain: structural_domain_id(dense_identity(index)?),
+            })
+        })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let declarations = ordered
         .into_iter()
@@ -326,10 +345,14 @@ fn lower_structural_domain_plans(
             Ok(StructuralDomainDeclaration {
                 byte_predicate: plan.byte_predicate,
                 establishment_routes: Vec::new(),
-                id: lookup_domain_id(&domain_ids, plan.domain)?,
+                id: lookup_domain_id_for_carrier(
+                    &domain_ids,
+                    plan.domain,
+                    lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                )?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
-                identity: plan.identity.clone(),
+                identity: structural_domain_identity(&plan.identity, &plan.carrier_type_identity),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
                 content_projection: content_conservation::lower_structural_content_projection(
                     checked,

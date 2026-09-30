@@ -71,10 +71,11 @@ impl ProofSearchCapacity {
     pub const fn limit(self) -> u64 {
         match self {
             Self::ScalarInvariantRosterRounds => 128,
-            // Nested-loop byte stores exhaust 4096 candidate transports even
-            // after duplicate arrival proposals are removed. This provisions
+            // The elapsed-timer composition presents over 11,000 axiom rows
+            // before per-header transports and repeated discovery rounds;
+            // 16,384 exhausts with its clamp-result bound still unmet. This provisions
             // discovery only; every retained predicate still needs evidence.
-            Self::ScalarInvariantCandidateWork => 16_384,
+            Self::ScalarInvariantCandidateWork => 65_536,
             Self::CyclicGuaranteeCandidateWork => 4096,
             Self::ScalarResultGuaranteeWork => 4096,
             Self::TerminalObligationIdentities => u64::MAX,

@@ -231,7 +231,7 @@ pub enum TargetUnitOperation {
     /// Scalar origins and the exact same-view length proof remain independent.
     ByteSequenceWrite {
         psi_operation: OperationId,
-        destination: StructuralParameterDeclaration,
+        destination: semantic_vocabulary::PlaceId,
         view: crate::TargetByteView,
         index: TargetUnitScalarArgumentSource,
         value: TargetUnitScalarArgumentSource,

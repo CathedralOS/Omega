@@ -20,6 +20,9 @@ mod predicates;
 #[path = "structural_byte_sequence_store/whole_owner.rs"]
 mod whole_owner;
 
+#[path = "structural_byte_sequence_store/owned_writes.rs"]
+mod owned_writes;
+
 fn id<T: PsiSemanticId>(raw: u64) -> T {
     T::new(raw).unwrap()
 }

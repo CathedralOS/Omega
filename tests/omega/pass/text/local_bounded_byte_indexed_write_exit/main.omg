@@ -1,0 +1,24 @@
+// Live length remains two, not capacity eight. NUL is legal UTF-8; mutation
+// must affect only this owned home, not the sibling's identical literal.
+domain [u8; 8]::Utf8 requires valid_utf8(self);
+use omega_language_std::console;
+
+machine main() reaches Console {
+    transition { _ -> render() }
+
+    state render() {
+        let original: [u8; 8] in Utf8 = "ab";
+        let mut line: [u8; 8] in Utf8 = "ab";
+        line[0] = 0;
+        line[1] = 65;
+        transition line.len == 2 && line[0] == 0 && line[1] == 65
+            && original[0] == 97 && original[1] == 98 {
+            true -> finish(70)
+            _ -> finish(71)
+        }
+    }
+
+    state finish(code: i32) {
+        Console::exit_process(code);
+    }
+}

@@ -24,15 +24,15 @@ use super::{
     MachineId, Multiplicity, Operation, OperationKind, OperationResult, PlaceId, ProofBundle,
     ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
     ProviderSignature, ProviderSignatureParameter, ScalarQualificationCatalog, ScalarType,
-    SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement,
-    StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
-    StructuralPlaceKind, StructuralTypeId, StructuralTypeShape, TERMINAL_MACHINE_IDENTITY_STRIDE,
-    TERMINAL_UNIT_CALL_OBLIGATION_BASE, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, boundary_machine_id,
-    content_conservation, contract_id, dense_identity, direct_expression_contains_short_circuit,
-    edge_id, emit_direct_expression, lookup_claim_id, lookup_domain_id, lookup_machine_id,
-    lookup_service_id, lookup_type_id, lower_boundary_content_guarantees,
-    lower_boundary_crash_routes, lower_checked_crash_route_buckets, lower_placed_view_input,
+    SemanticDomainId, ServiceReachSummary, StructuralDomainRequirement, StructuralMultiplicity,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, TERMINAL_MACHINE_IDENTITY_STRIDE, TERMINAL_UNIT_CALL_OBLIGATION_BASE,
+    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+    VocabularyMarker, allocate_dense, boundary_machine_id, content_conservation, contract_id,
+    dense_identity, direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
+    lookup_claim_id, lookup_domain_id, lookup_machine_id, lookup_service_id, lookup_type_id,
+    lower_boundary_content_guarantees, lower_boundary_crash_routes,
+    lower_checked_crash_route_buckets, lower_placed_view_input,
     lower_structural_crash_route_buckets, machine_id, obligation_id, place_id,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
@@ -51,6 +51,7 @@ mod call_catalog;
 mod call_closure;
 pub(crate) mod catalog;
 mod claims;
+mod domain_replay;
 mod providers;
 mod scalar_callees;
 pub(crate) mod shared_closure;
@@ -368,6 +369,7 @@ pub(crate) fn lower_unit_closure(
         checked,
         &boundaries,
         &type_ids,
+        &structural_types,
         &domain_ids,
         &service_ids,
         &mut next_place,

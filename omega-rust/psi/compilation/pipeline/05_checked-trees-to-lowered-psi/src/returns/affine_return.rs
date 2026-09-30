@@ -147,6 +147,7 @@ pub(crate) fn lower_claim_free_affine_return_machines(
         let structural_parameters = lower_unit_parameters(
             std::slice::from_ref(&realization.structural_parameter),
             type_ids,
+            structural_types,
             &[],
             &mut next_place,
         )?;

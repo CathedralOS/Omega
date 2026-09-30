@@ -37,6 +37,20 @@ pub(in crate::validation) fn validate_structural_argument(
         result_projection,
         reference_result_call,
     } = *shape;
+    let boundary_byte_view_call = source_policy
+        == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
+        && matches!(call_kind, Some(OperationKind::BoundaryCall { .. }))
+        && module.structural_types.iter().any(|row| {
+            row.id == expected.structural_type
+                && matches!(
+                    row.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(StructuralAccess::SharedBorrow)
+                        }
+                    )
+                )
+        });
     if argument.path.contains(&StructuralPathSegment::Referent) {
         if matches!(call_kind, Some(OperationKind::BoundaryCall { .. })) {
             return Err(crate::validation::references::invalid(
@@ -275,16 +289,17 @@ pub(in crate::validation) fn validate_structural_argument(
                             result.qualifications.as_slice(), result.projected_qualifications.as_slice()))
                     }
                     StructuralPlaceKind::OperationResult { .. }
-                        if ordinary_call
-                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                        if ((ordinary_call
+                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)
+                            || boundary_byte_view_call)
                             && argument.path.is_empty()
                             && argument.access == StructuralAccess::SharedBorrow
                             && crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place).is_some() =>
                     {
                         // An owned bounded byte local is a concatenation's
-                        // immutable materialization. It lends its whole
-                        // carrier shared; its byte predicates are replayed
-                        // from its operands below, never from a roster.
+                        // established backing. It lends its live bytes shared;
+                        // current predicates replay below without changing the
+                        // source's owned carrier or reviving initializer facts.
                         let result = crate::validation::byte_sequence::concatenation::owned_result(caller, argument.place)
                             .expect("exact owned byte result checked above");
                         Some((result.structural_type, StructuralMultiplicity::Unrestricted,
@@ -566,8 +581,8 @@ pub(in crate::validation) fn validate_structural_argument(
                 )
                 .is_some()
         });
-    let bounded_owner_presentation = ordinary_call
-        && (caller.structural_parameters.iter().any(|actual| {
+    let bounded_owner_presentation = (ordinary_call
+        && caller.structural_parameters.iter().any(|actual| {
             terminal_semantics::bounded_byte_owner_capacity(module, actual, argument, expected)
                 .is_some()
                 && !caller
@@ -578,7 +593,9 @@ pub(in crate::validation) fn validate_structural_argument(
                     .content_entry_claims
                     .iter()
                     .any(|claim| claim.input.root == argument.place)
-        }) || owned_bounded_owner_presentation(module, caller, argument, expected));
+        }))
+        || ((ordinary_call || boundary_byte_view_call)
+            && owned_bounded_owner_presentation(module, caller, argument, expected));
     // A whole owner cannot bypass its predicate-preserving loan contract by
     // falling through to raw type equality for an unprojected argument.
     if ordinary_call
@@ -749,10 +766,9 @@ pub(in crate::validation) fn validate_structural_argument(
     Ok(())
 }
 
-/// A whole owned bounded byte local lent shared to a bounded-owner formal.
-/// The local is an immutable concatenation result of the formal's exact
-/// carrier; every byte predicate the formal requires is replayed from the
-/// local's own operands, so a shared loan presents no unproven membership.
+/// A whole established byte local lends either its exact bounded carrier or a
+/// shared byte view. The source keeps its owned identity and live extent;
+/// current predicates, not stale initializer octets, supply formal membership.
 fn owned_bounded_owner_presentation(
     module: &TerminalModule,
     caller: &TerminalMachine,
@@ -765,6 +781,16 @@ fn owned_bounded_owner_presentation(
         || expected.multiplicity != StructuralMultiplicity::Unrestricted
         || expected.is_self
         || !expected.projected_qualifications.is_empty()
+        || caller
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == argument.place)
+        || caller
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == argument.place)
+        || terminal_semantics::byte_owned_result_predicates(module, caller, argument.place)
+            .is_none()
     {
         return false;
     }
@@ -773,20 +799,24 @@ fn owned_bounded_owner_presentation(
     else {
         return false;
     };
-    let bounded_owner = module.structural_types.iter().any(|row| {
+    let admitted_carrier = module.structural_types.iter().any(|row| {
         row.id == expected.structural_type
-            && matches!(
-                row.shape,
+            && match row.shape {
                 crate::validation::StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                )
-            )
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                ) => result.structural_type == expected.structural_type,
+                crate::validation::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                    },
+                ) => true,
+                _ => false,
+            }
     });
     let Some(required) = terminal_semantics::byte_parameter_predicates(module, expected) else {
         return false;
     };
-    bounded_owner
-        && result.structural_type == expected.structural_type
+    admitted_carrier
         && terminal_semantics::byte_sequence_source_predicates(module, caller, argument.place)
             .is_some_and(|established| established.implies(required))
 }

@@ -82,3 +82,39 @@ pub(in crate::validation) fn is_current_length(
         source,
     )
 }
+
+/// Classify this immutable scalar snapshot, not the source's future contents.
+/// The read still owes its independent indexing proof. UTF-8 alone supplies no
+/// per-byte bound: a valid multi-byte encoding may contain bytes above 127.
+pub(crate) fn class_bounds(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Option<Vec<semantic_vocabulary::Proposition>> {
+    use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
+    use terminal_psi::ByteSequencePredicate;
+
+    let OperationKind::ByteSequenceRead { source, length, .. } = operation.kind else {
+        return None;
+    };
+    validate(module, machine, operation, source, length).ok()?;
+    let result = operation.result.scalar_ref()?;
+    let ScalarType::Integer(integer) = result.scalar_type else {
+        return None;
+    };
+    let predicates = terminal_semantics::byte_sequence_source_predicates(module, machine, source)?;
+    let declares = |predicate| predicates.predicates().any(|present| present == predicate);
+    let value = ScalarTerm::value(result.id, result.scalar_type);
+    let literal = |byte| ScalarTerm::Integer {
+        scalar_type: integer,
+        value: IntegerValue::Unsigned(byte),
+    };
+    let mut bounds = Vec::new();
+    if declares(ByteSequencePredicate::NoNul) {
+        bounds.push(Proposition::LessOrEqual(literal(1), value.clone()));
+    }
+    if declares(ByteSequencePredicate::AsciiOnly) {
+        bounds.push(Proposition::LessOrEqual(value, literal(127)));
+    }
+    Some(bounds)
+}

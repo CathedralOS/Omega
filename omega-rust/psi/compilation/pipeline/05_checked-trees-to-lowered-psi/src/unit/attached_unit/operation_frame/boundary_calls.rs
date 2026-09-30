@@ -15,12 +15,13 @@ use super::super::parameters::{
 };
 use super::calls::CallInputs;
 use super::{BoundaryParameters, OperationFrame, StructuralResults};
+use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::unit::{
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, ClaimId, CompletionReceipt,
     LoweringError, Multiplicity, Operation, OperationKind, OperationResult, StructuralMultiplicity,
     StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration,
-    allocate_dense, lookup_claim_id, lookup_domain_id, lookup_type_id, place_id,
-    terminal_scalar_type, unsupported, value_id,
+    allocate_dense, lookup_claim_id, lookup_type_id, place_id, terminal_scalar_type, unsupported,
+    value_id,
 };
 
 /// The operands every boundary call shape lowers identically.
@@ -192,7 +193,9 @@ impl OperationFrame<'_, '_> {
             },
             qualifications: qualifications
                 .iter()
-                .map(|domain| lookup_domain_id(self.callees.domain_ids, *domain))
+                .map(|domain| {
+                    lookup_domain_id_for_carrier(self.callees.domain_ids, *domain, structural_type)
+                })
                 .collect::<Result<Vec<_>, _>>()?,
             projected_qualifications: Vec::new(),
             claims: result_claims,

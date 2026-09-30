@@ -243,7 +243,7 @@ unit, charged before execution.
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source (borrowed view or established owned concatenation), exact dominating source-length observation, and capacity obligation. |
 | `ByteSequenceStore` | Whole bounded-owned destination parameter, whole immutable source, exact dominating source-length observation, and capacity obligation. The destination's primitive byte qualifications remain required after replacement. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
-| `ByteSequenceWrite` | Whole mutable borrowed view, exact runtime `u64` index, `u8` value, current same-view length observation, and index obligation. It needs no synthetic record or field identity. |
+| `ByteSequenceWrite` | Whole mutable borrowed view or established bounded-owned byte local, exact runtime `u64` index, `u8` value, current same-place length observation, and index/predicate obligation. It needs no synthetic record or field identity. |
 
 These are non-observing Unit operations. Their names describe effects: a mutable
 borrow may perform a non-observing store without first discarding read authority.
@@ -326,9 +326,10 @@ frames so a completed write remains visible to the caller.
 result with a `BoundedOwned` byte carrier. Each operand retains its exact live
 length and either a readable whole byte source or a readable bounded byte field
 identified by root, complete carrier path, and final field. A whole owner may be
-read through shared or mutable access; literals and completed owned results
-remain immutable. A field operand needs shared read authority; write-only access
-cannot supply its contents. Its length
+read through shared or mutable access. Literals remain immutable; a completed
+owned result has independent activation-local backing, with indexed mutation
+governed below. A field operand needs shared read authority; write-only access
+cannot supply its contents. A field operand's length
 observation dominates concatenation, and no overlapping content mutation may
 intervene, including length-preserving writes or mutation on a backedge.
 
@@ -337,11 +338,21 @@ lengths is at most the result declaration's capacity. The result's live length i
 that sum, never its capacity. Both sources are read before the independent result
 is published; replacing an aliasing destination afterward cannot change either
 operand. Each execution establishes fresh activation-owned backing. The admitted
-result is unrestricted, unqualified and claim-free, remains immutable, and enters
+result is unrestricted and claim-free and enters
 ordinary structural result availability checks. Length reads, byte reads and
 whole-owner or whole-field replacement may consume this exact owned result
 without inventing a borrowed view or granting mutable access. Its backing follows
 activation lifetime and needs no affine disposal frontier entry.
+
+A mutable bounded-owned local may use that materialization as its home. Its
+result retains the declaration's primitive byte qualifications, independently
+proved from the inputs at establishment. Indexed writes preserve those declared
+predicates and live length. They do not freeze incidental predicates of the
+initializer: a UTF-8 local initialized with ASCII text may receive a NUL byte
+unless its declaration also requires no NUL. Queries about a written owner's
+contents must not reuse the initializer's stronger predicates as timeless facts.
+The UTF-8 ASCII-preservation check below also applies to a whole owned local,
+starting at its exact establishment instead of a whole-field replacement.
 
 Concatenation costs one logical operation unit, charged before execution. Neither
 capacity nor owned custody establishes `Utf8`. Primitive byte predicates replay

@@ -816,8 +816,9 @@ fn byte_literal_local_replay_rejects_changed_payload_source_type_and_ordinal() {
             plan.operations
                 .insert(index + 1, plan.operations[index].clone());
         } else {
-            let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, bytes } =
-                &mut plan.operations[index]
+            let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                result, bytes, ..
+            } = &mut plan.operations[index]
             else {
                 unreachable!()
             };

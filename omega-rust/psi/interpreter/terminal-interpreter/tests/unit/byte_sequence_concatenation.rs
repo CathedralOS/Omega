@@ -197,6 +197,44 @@ fn module(left: &[u8], right: &[u8], alias: bool) -> TerminalModule {
 }
 
 fn proof(module: &TerminalModule) -> ProofBundle {
+    fn prove(
+        goal: &Proposition,
+        context: &PropositionContext,
+        equalities: &[ProofNode],
+    ) -> ProofNode {
+        if let Proposition::Conjunction(children) = goal {
+            return ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::ConjunctionIntroduction(
+                    children
+                        .iter()
+                        .map(|child| prove(child, context, equalities))
+                        .collect(),
+                ),
+            };
+        }
+        let closed = proof_admission::check_value_equality_denotation(
+            context,
+            goal,
+            equalities.iter().map(|node| &node.conclusion),
+        )
+        .unwrap();
+        let judgment = if closed == Proposition::Truth {
+            proof_admission::PrimitiveJudgment::Truth
+        } else {
+            proof_admission::PrimitiveJudgment::ClosedIntegerRelation
+        };
+        ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(ProofNode {
+                    conclusion: closed,
+                    rule: ProofRule::Primitive(judgment),
+                }),
+                equalities: equalities.to_vec(),
+            },
+        }
+    }
     let questions = terminal_verifier::reconstruct_terminal_obligations(module).unwrap();
     let context = PropositionContext::from_value_types(
         module
@@ -222,32 +260,12 @@ fn proof(module: &TerminalModule) -> ProofBundle {
                     rule: ProofRule::SemanticAxiom { index },
                 })
                 .collect::<Vec<_>>();
-            let closed = proof_admission::check_value_equality_denotation(
-                &context,
-                &site.obligation.proposition,
-                equalities.iter().map(|node| &node.conclusion),
-            )
-            .unwrap();
-            let judgment = if closed == Proposition::Truth {
-                proof_admission::PrimitiveJudgment::Truth
-            } else {
-                proof_admission::PrimitiveJudgment::ClosedIntegerRelation
-            };
             ObligationEvidence {
                 obligation: site.obligation.id,
                 route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
                     identity: EvidenceIdentity::new(site.obligation.id.get()).unwrap(),
                     proof_system_marker: ProofSystemMarker::CURRENT,
-                    proof: ProofNode {
-                        conclusion: site.obligation.proposition.clone(),
-                        rule: ProofRule::ValueEqualityTransport {
-                            premise: Box::new(ProofNode {
-                                conclusion: closed,
-                                rule: ProofRule::Primitive(judgment),
-                            }),
-                            equalities,
-                        },
-                    },
+                    proof: prove(&site.obligation.proposition, &context, &equalities),
                 }),
             }
         })
@@ -330,4 +348,220 @@ fn owned_byte_concatenation_rejects_unestablished_or_mismatched_length_sources()
         .operations
         .swap(4, 5);
     assert!(terminal_verifier::validate_module_representation(&before_establishment).is_err());
+}
+
+fn owned_write_module(qualified: bool) -> TerminalModule {
+    let mut module = module(b"abc", b"", false);
+    if qualified {
+        module
+            .structural_domains
+            .push(terminal_psi::StructuralDomainDeclaration {
+                id: semantic_vocabulary::StructuralDomainId::new(1).unwrap(),
+                semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
+                identity: "test::Utf8".into(),
+                carrier: structural_type_id(2),
+                byte_predicate: Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
+                content_projection: None,
+                establishment_routes: Vec::new(),
+            });
+    }
+    let StructuralTypeShape::Record { fields } = &mut module.structural_types[2].shape else {
+        unreachable!()
+    };
+    for ordinal in [2, 3] {
+        fields.push(StructuralFieldDeclaration {
+            id: StructuralFieldId::new(ordinal).unwrap(),
+            identity: format!("snapshot{ordinal}"),
+            relevance: Default::default(),
+            field_type: StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                capacity: 32,
+            }),
+        });
+    }
+    let operations = &mut module.machines[0].blocks[0].operations;
+    if qualified {
+        let OperationResult::Structural(result) = &mut operations[4].result else {
+            unreachable!()
+        };
+        result
+            .qualifications
+            .push(semantic_vocabulary::StructuralDomainId::new(1).unwrap());
+    }
+    let final_store = operations.pop().unwrap();
+    for (ordinal, source, length, field) in [(10, 3, 6, 2), (11, 1, 3, 3)] {
+        // Qualified whole-field source transport remains a separate runtime
+        // capability; observe the qualified owner's write directly below.
+        if qualified && source == 3 {
+            continue;
+        }
+        operations.push(operation(
+            ordinal,
+            OperationKind::StructuralByteSequenceFieldStore {
+                destination: place_id(5),
+                path: Vec::new(),
+                field: StructuralFieldId::new(field).unwrap(),
+                source: place_id(source),
+                length: value_id(length),
+                obligation: obligation_id(ordinal),
+            },
+            OperationResult::Unit,
+        ));
+    }
+    for (ordinal, bits, integer) in [(12, 64, 1), (13, 8, if qualified { 0 } else { 255 })] {
+        operations.push(operation(
+            ordinal,
+            OperationKind::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Unsigned(integer),
+            },
+            OperationResult::Scalar(ValueDeclaration {
+                id: value_id(ordinal),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, bits).unwrap(),
+                ),
+                qualifications: Default::default(),
+            }),
+        ));
+    }
+    operations.push(operation(
+        14,
+        OperationKind::ByteSequenceWrite {
+            destination: place_id(3),
+            index: value_id(12),
+            value: value_id(13),
+            length: value_id(6),
+            obligation: obligation_id(14),
+        },
+        OperationResult::Unit,
+    ));
+    if !qualified {
+        operations.push(final_store);
+    }
+    operations.push(operation(
+        15,
+        OperationKind::ByteSequenceRead {
+            source: place_id(3),
+            index: value_id(12),
+            length: value_id(6),
+            obligation: obligation_id(15),
+        },
+        OperationResult::Scalar(super::byte_sequence_read::scalar(15, 8)),
+    ));
+    module.machines[0].result =
+        terminal_psi::TerminalMachineResult::Scalar(super::byte_sequence_read::scalar(16, 8));
+    module.machines[0].blocks[0].terminator = Terminator::Return {
+        edge: edge_id(1),
+        value: value_id(15),
+        cleanup_actions: Vec::new(),
+    };
+    module
+}
+
+#[test]
+fn owned_byte_write_preserves_literal_and_earlier_field_snapshot_through_fuel_stops() {
+    for qualified in [false, true] {
+        let module = owned_write_module(qualified);
+        let proof = proof(&module);
+        verify_module(&module, &proof, &AdmissionProfile::default()).unwrap();
+        let semantic = encode_module(&module).unwrap();
+        let encoded_proof = encode_proof_section(&module, &proof).unwrap();
+        let input = [TerminalStructuralValue {
+            opaque_identity: 999,
+            structural_type: structural_type_id(3),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }];
+        let mut execution = TerminalExecution::start_artifact(
+            &semantic,
+            &encoded_proof,
+            &AdmissionProfile::default(),
+            &[],
+            TerminalStructuralInputs {
+                arguments: &input,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let mut meter = TerminalFuelMeter::with_allowance(0);
+        loop {
+            match execution
+                .resume(&mut meter, &mut AcceptTerminalEffects)
+                .unwrap()
+            {
+                TerminalExecutionStatus::SponsorExhausted(_) => meter.replenish(1).unwrap(),
+                TerminalExecutionStatus::Complete(result) => {
+                    assert_eq!(
+                        result,
+                        super::TerminalExecutionResult::Scalar(
+                            super::TerminalScalarValue::Integer {
+                                scalar_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                                value: semantic_vocabulary::IntegerValue::Unsigned(if qualified {
+                                    0
+                                } else {
+                                    255
+                                }),
+                            },
+                        )
+                    );
+                    break;
+                }
+                other => panic!("unexpected status {other:?}"),
+            }
+        }
+        if !qualified {
+            assert_eq!(
+                execution
+                    .structural_byte_sequence_field(999, &[], StructuralFieldId::new(1).unwrap(),)
+                    .unwrap(),
+                &[b'a', 255, b'c']
+            );
+        }
+        for ordinal in [2, 3] {
+            if qualified && ordinal == 2 {
+                continue;
+            }
+            assert_eq!(
+                execution
+                    .structural_byte_sequence_field(
+                        999,
+                        &[],
+                        StructuralFieldId::new(ordinal).unwrap(),
+                    )
+                    .unwrap(),
+                b"abc"
+            );
+        }
+    }
+}
+
+#[test]
+fn owned_byte_write_rejects_literal_root_and_out_of_live_extent() {
+    let mut literal = owned_write_module(false);
+    let operation = literal.machines[0].blocks[0]
+        .operations
+        .iter_mut()
+        .find(|operation| operation.id == operation_id(14))
+        .unwrap();
+    let OperationKind::ByteSequenceWrite {
+        destination,
+        length,
+        ..
+    } = &mut operation.kind
+    else {
+        unreachable!()
+    };
+    *destination = place_id(1);
+    *length = value_id(3);
+    assert!(terminal_verifier::validate_module_representation(&literal).is_err());
+
+    let mut outside = owned_write_module(false);
+    outside.machines[0].blocks[0]
+        .operations
+        .iter_mut()
+        .find(|operation| operation.id == operation_id(12))
+        .unwrap()
+        .kind = OperationKind::IntegerConstant {
+        value: semantic_vocabulary::IntegerValue::Unsigned(3),
+    };
+    let invalid_proof = proof(&outside);
+    assert!(verify_module(&outside, &invalid_proof, &AdmissionProfile::default()).is_err());
 }

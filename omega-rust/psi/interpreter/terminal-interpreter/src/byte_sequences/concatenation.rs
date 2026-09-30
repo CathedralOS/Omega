@@ -41,7 +41,7 @@ impl TerminalExecution {
         let value = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
             structural_type: result.structural_type,
-            qualifications: Vec::new(),
+            qualifications: result.qualifications.clone(),
             path: Vec::new(),
         };
         self.byte_sequence_values.insert(

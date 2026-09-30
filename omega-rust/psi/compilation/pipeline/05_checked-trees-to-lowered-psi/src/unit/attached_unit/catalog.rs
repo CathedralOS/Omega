@@ -15,9 +15,12 @@ use super::bodies::UnitPlans;
 use super::{
     CheckedBoundaryMachinePlan, CheckedTrees, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitProviderCandidate, LoweringError, SemanticDomainId,
-    ServiceReachSummary, StructuralDomainId, StructuralTypeId, StructuralTypeShape, UnitBody,
-    allocate_dense, content_conservation, dense_identity, lookup_domain_id, lookup_service_id,
-    lookup_type_id, terminal_scalar_type, unique_unit_boundary, unsupported,
+    ServiceReachSummary, StructuralTypeId, StructuralTypeShape, UnitBody, allocate_dense,
+    content_conservation, dense_identity, lookup_domain_id, lookup_service_id, lookup_type_id,
+    terminal_scalar_type, unique_unit_boundary, unsupported,
+};
+use crate::terminal_identities::{
+    StructuralDomainBinding, lookup_domain_id_for_carrier, structural_domain_identity,
 };
 use checked_trees::{CheckedBoundaryMachineResultPlan, CheckedUnitStructuralTypePlan};
 
@@ -104,7 +107,7 @@ pub(super) fn lower_program_local_root_introductions(
     plan: &CheckedBoundaryMachinePlan,
     requirement_identity: &str,
     parameters: &[StructuralParameterDeclaration],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    domain_ids: &[StructuralDomainBinding],
 ) -> Result<Vec<ProgramLocalRootIntroductionSchema>, LoweringError> {
     let mut output = Vec::new();
     for requirement in &plan.domain_requirements {
@@ -148,24 +151,29 @@ pub(super) fn lower_program_local_root_introductions(
         if projection.report_fingerprint == 0 {
             return unsupported("program-local root projection has a null identity");
         }
-        let qualification = lookup_domain_id(domain_ids, requirement.domain)?;
-        let qualification_identity = checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .structural_domains
-            .iter()
-            .find(|candidate| candidate.domain == requirement.domain)
-            .map(|candidate| candidate.identity.as_str())
-            .ok_or(LoweringError::Unsupported(
-                "program-local root qualification has no normalized identity",
-            ))?;
         let carrier = parameters
             .get(requirement.argument_index as usize)
             .ok_or(LoweringError::Unsupported(
                 "program-local root terminal parameter is out of range",
             ))?
             .structural_type;
+        let qualification = lookup_domain_id_for_carrier(domain_ids, requirement.domain, carrier)?;
+        let qualification_identity = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_domains
+            .iter()
+            .find(|candidate| {
+                candidate.domain == requirement.domain
+                    && candidate.carrier_type_identity == parameter.type_identity
+            })
+            .map(|candidate| {
+                structural_domain_identity(&candidate.identity, &candidate.carrier_type_identity)
+            })
+            .ok_or(LoweringError::Unsupported(
+                "program-local root qualification has no normalized identity",
+            ))?;
         let owner_projection = content_conservation::lower_structural_content_projection(
             checked,
             requirement.domain,
@@ -187,7 +195,7 @@ pub(super) fn lower_program_local_root_introductions(
         schema.compatibility_report_identity =
             program_local_root_introduction_compatibility_report_identity(
                 requirement_identity,
-                qualification_identity,
+                &qualification_identity,
                 &parameter.type_identity,
                 &schema,
             );
@@ -771,7 +779,7 @@ pub(super) fn lower_unit_structural_domains_including(
 ) -> Result<
     (
         Vec<StructuralDomainDeclaration>,
-        Vec<(SemanticDomainId, StructuralDomainId)>,
+        Vec<StructuralDomainBinding>,
     ),
     LoweringError,
 > {
@@ -794,6 +802,13 @@ pub(super) fn lower_unit_structural_domains_including(
                 )
             })
             .chain(body.qualifications())
+            .chain(body.operations().flat_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                    qualifications,
+                    ..
+                } => qualifications.as_slice(),
+                _ => &[],
+            }))
         {
             if !selected.contains(domain) {
                 selected.push(*domain);
@@ -831,73 +846,86 @@ pub(super) fn lower_unit_structural_domains_including(
             }
         }
     }
-    let mut selected_plans = selected
-        .into_iter()
-        .map(|domain| {
-            let mut matches = plans
-                .structural_domains()
-                .iter()
-                .filter(|plan| plan.domain == domain);
-            let unit = matches.next();
-            let mut wrappers = checked
+    let mut selected_plans: Vec<&checked_trees::CheckedUnitStructuralDomainPlan> = Vec::new();
+    for domain in selected {
+        let mut found = false;
+        let wrappers = if additional_domains.contains(&domain) {
+            checked
                 .facts
                 .flow
                 .terminal_boundary_scalar_returns
                 .structural_domains
-                .iter()
-                .filter(|plan| additional_domains.contains(&domain) && plan.domain == domain);
-            let wrapper = wrappers.next();
-            if matches.next().is_some() || wrappers.next().is_some() {
-                return unsupported("Unit closure has duplicate structural domain ownership");
+                .as_slice()
+        } else {
+            &[]
+        };
+        for catalog in [plans.structural_domains(), wrappers] {
+            let mut carriers = Vec::new();
+            for plan in catalog.iter().filter(|plan| {
+                plan.domain == domain
+                    && type_ids
+                        .iter()
+                        .any(|(identity, _)| *identity == plan.carrier_type_identity)
+            }) {
+                found = true;
+                if carriers.contains(&plan.carrier_type_identity.as_str()) {
+                    return unsupported("Unit closure has duplicate structural domain ownership");
+                }
+                carriers.push(plan.carrier_type_identity.as_str());
+                if !domain.is_valid()
+                    || plan.identity.is_empty()
+                    || plan.carrier_type_identity.is_empty()
+                {
+                    return Err(LoweringError::Unsupported(
+                        "Unit structural domain is duplicate, null, or incomplete",
+                    ));
+                }
+                if let Some(existing) = selected_plans.iter().find(|existing| {
+                    existing.domain == domain
+                        && existing.carrier_type_identity == plan.carrier_type_identity
+                }) {
+                    if *existing != plan {
+                        return unsupported(
+                            "Unit and boundary-wrapper structural domains disagree",
+                        );
+                    }
+                    continue;
+                }
+                selected_plans.push(plan);
             }
-            if let (Some(unit), Some(wrapper)) = (unit, wrapper)
-                && unit != wrapper
-            {
-                return unsupported("Unit and boundary-wrapper structural domains disagree");
-            }
-            let plan = unit.or(wrapper).ok_or(LoweringError::Unsupported(
-                "Unit closure references a missing structural domain",
-            ))?;
-            if !domain.is_valid()
-                || plan.identity.is_empty()
-                || plan.carrier_type_identity.is_empty()
-            {
-                return Err(LoweringError::Unsupported(
-                    "Unit structural domain is duplicate, null, or incomplete",
-                ));
-            }
-            Ok(plan)
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    selected_plans.sort_by(|left, right| left.identity.cmp(&right.identity));
-    if selected_plans
-        .windows(2)
-        .any(|pair| pair[0].identity == pair[1].identity)
-    {
+        }
+        if !found {
+            return unsupported("Unit closure references a missing structural domain carrier");
+        }
+    }
+    // Semantic family and exact storage carrier are independent identities.
+    // Keep every reachable instantiation; never select one capacity by source
+    // declaration order or let it authorize another capacity's membership.
+    selected_plans.sort_by(|left, right| {
+        (&left.identity, &left.carrier_type_identity)
+            .cmp(&(&right.identity, &right.carrier_type_identity))
+    });
+    if selected_plans.windows(2).any(|pair| {
+        pair[0].identity == pair[1].identity
+            && pair[0].carrier_type_identity == pair[1].carrier_type_identity
+    }) {
         return unsupported("Unit structural domains have duplicate canonical identities");
     }
     let domain_ids = selected_plans
         .iter()
         .enumerate()
-        .map(|(index, plan)| Ok((plan.domain, structural_domain_id(dense_identity(index)?))))
+        .map(|(index, plan)| {
+            Ok(StructuralDomainBinding {
+                semantic_domain: plan.domain,
+                carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                domain: structural_domain_id(dense_identity(index)?),
+            })
+        })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let declarations = selected_plans
         .into_iter()
         .map(|plan| {
-            let expected_predicate = checked
-                .typed
-                .domain_definitions()
-                .iter()
-                .find(|definition| definition.semantic_id == plan.domain)
-                .and_then(|definition| {
-                    checked_trees::byte_predicates::domain_byte_predicate(
-                        &checked.typed,
-                        definition.symbol,
-                    )
-                });
-            if plan.byte_predicate != expected_predicate {
-                return unsupported("byte domain definition differs from checked source");
-            }
+            super::domain_replay::validate(checked, plan)?;
             let content_projection = content_conservation::lower_structural_content_projection(
                 checked,
                 plan.domain,
@@ -908,10 +936,14 @@ pub(super) fn lower_unit_structural_domains_including(
             Ok(StructuralDomainDeclaration {
                 byte_predicate: plan.byte_predicate,
                 establishment_routes,
-                id: lookup_domain_id(&domain_ids, plan.domain)?,
+                id: lookup_domain_id_for_carrier(
+                    &domain_ids,
+                    plan.domain,
+                    lookup_type_id(type_ids, &plan.carrier_type_identity)?,
+                )?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
                     .ok_or(LoweringError::InvalidContentDomainIdentity)?,
-                identity: plan.identity.clone(),
+                identity: structural_domain_identity(&plan.identity, &plan.carrier_type_identity),
                 carrier: lookup_type_id(type_ids, &plan.carrier_type_identity)?,
                 content_projection,
             })
@@ -1024,7 +1056,7 @@ pub(super) fn call_result_qualification_establishments(
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     boundary_callee: symbols::SymbolHandle,
     result_domains: &[SemanticDomainId],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    domain_ids: &[StructuralDomainBinding],
 ) -> Result<Vec<terminal_psi::ResultQualificationEstablishment>, LoweringError> {
     let caller_machine = checked
         .machines()

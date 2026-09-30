@@ -218,3 +218,101 @@ fn structural_domain_roster_is_canonical_unique_and_carrier_closed() {
         ))
     );
 }
+
+#[test]
+fn byte_domain_family_retains_exact_carrier_and_predicate() {
+    let types = [8, 10]
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, capacity)| {
+            structural_type(
+                480 + ordinal as u64,
+                terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                ),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut first = structural_domain(1, 11, types[0].id);
+    first.byte_predicate = Some(terminal_psi::ByteSequencePredicate::ValidUtf8);
+    let mut second = structural_domain(2, 11, types[1].id);
+    second.byte_predicate = first.byte_predicate;
+    let mut candidate = structural_catalog_unit(types);
+    candidate.structural_domains = vec![first.clone(), second.clone()].into();
+    refresh_identity(&mut candidate);
+    validate_psi_optimization_unit(&candidate)
+        .expect("one normalized byte family may qualify distinct exact capacities");
+
+    let (_, domains) =
+        crate::unit_validation::structural_catalog::index_structural_catalogs(&candidate)
+            .expect("the domain catalog is valid");
+    assert!(
+        crate::unit_validation::structural_catalog::structural_qualifications_match(
+            first.carrier,
+            &[first.id],
+            &domains,
+        )
+    );
+    assert!(
+        !crate::unit_validation::structural_catalog::structural_qualifications_match(
+            first.carrier,
+            &[second.id],
+            &domains,
+        )
+    );
+
+    let mut invalid_members = Vec::new();
+    let mut duplicate_pair = second.clone();
+    duplicate_pair.carrier = first.carrier;
+    invalid_members.push(duplicate_pair);
+    let mut duplicate_identity = second.clone();
+    duplicate_identity.identity = first.identity.clone();
+    invalid_members.push(duplicate_identity);
+    for predicate in [None, Some(terminal_psi::ByteSequencePredicate::AsciiOnly)] {
+        let mut conflicting_family = second.clone();
+        conflicting_family.byte_predicate = predicate;
+        invalid_members.push(conflicting_family);
+    }
+    for member in invalid_members {
+        let mut invalid = candidate.clone();
+        invalid.structural_domains = vec![first.clone(), member].into();
+        refresh_identity(&mut invalid);
+        assert_eq!(
+            validate_psi_optimization_unit(&invalid),
+            Err(OptimizationUnitValidationError::InvalidStructuralDomainIdentity(second.id))
+        );
+    }
+    let mut duplicate_id = second;
+    duplicate_id.id = first.id;
+    candidate.structural_domains = vec![first.clone(), duplicate_id].into();
+    refresh_identity(&mut candidate);
+    assert_eq!(
+        validate_psi_optimization_unit(&candidate),
+        Err(OptimizationUnitValidationError::DuplicateStructuralDomain(
+            first.id
+        ))
+    );
+}
+
+#[test]
+fn non_byte_domain_family_cannot_span_nominal_carriers() {
+    let types = vec![
+        structural_type(
+            490,
+            terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
+        ),
+        structural_type(
+            491,
+            terminal_psi::StructuralTypeShape::Record { fields: Vec::new() },
+        ),
+    ];
+    let first = structural_domain(1, 11, types[0].id);
+    let second = structural_domain(2, 11, types[1].id);
+    let mut candidate = structural_catalog_unit(types);
+    candidate.structural_domains = vec![first, second.clone()].into();
+    refresh_identity(&mut candidate);
+    assert_eq!(
+        validate_psi_optimization_unit(&candidate),
+        Err(OptimizationUnitValidationError::InvalidStructuralDomainIdentity(second.id))
+    );
+}

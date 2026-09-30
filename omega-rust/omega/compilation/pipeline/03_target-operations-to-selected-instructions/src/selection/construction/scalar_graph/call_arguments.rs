@@ -159,7 +159,11 @@ fn argument_pointer(
                     )
                 })
         })
-    };
+    }
+    .or_else(|| {
+        crate::selection::byte_concatenation_input::shared_view_argument(source, semantic, target)
+            .map(|capacity| (0, capacity))
+    });
     let pointer = if matches!(
         target.source,
         target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }

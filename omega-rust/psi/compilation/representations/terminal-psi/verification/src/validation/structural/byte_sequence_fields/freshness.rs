@@ -107,6 +107,10 @@ fn changes_length(
     operation: &terminal_psi::Operation,
 ) -> bool {
     match &operation.kind {
+        OperationKind::EstablishByteSequenceConcatenation { .. } => operation
+            .result
+            .structural()
+            .is_some_and(|result| result.place == root),
         OperationKind::ByteSequenceStore { destination, .. } => *destination == root,
         OperationKind::StructuralByteSequenceFieldStore {
             destination,
@@ -322,6 +326,59 @@ pub(crate) fn field_content_is_ascii(
             }
             _ => changes_length(module, machine, *root, &exact_path, candidate),
         },
+    )
+}
+
+/// A mutable owned result remains the exact activation-local establishment.
+/// A byte write preserves extent; an overlapping replacement or call does not
+/// supply authority to keep using a former establishment's metadata.
+pub(crate) fn owned_content_is_current(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    use_site: OperationId,
+    root: PlaceId,
+) -> bool {
+    established_on_every_path(
+        machine,
+        use_site,
+        |candidate| {
+            matches!(
+                candidate.kind,
+                OperationKind::EstablishByteSequenceConcatenation { .. }
+            ) && candidate
+                .result
+                .structural()
+                .is_some_and(|result| result.place == root)
+        },
+        |candidate| changes_length(module, machine, root, &[], candidate),
+    )
+}
+
+/// UTF-8 mutation needs an all-ASCII backing at this occurrence, not merely an
+/// ASCII replacement byte. The exact concatenation supplies that fact; every
+/// intervening write to this UTF-8 owner proves its own ASCII value separately.
+pub(crate) fn owned_content_is_ascii(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    use_site: OperationId,
+    root: PlaceId,
+) -> bool {
+    let mut ascii = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    ascii.insert(terminal_psi::ByteSequencePredicate::AsciiOnly);
+    established_on_every_path(
+        machine,
+        use_site,
+        |candidate| {
+            candidate
+                .result
+                .structural()
+                .is_some_and(|result| result.place == root)
+                && terminal_semantics::byte_sequence_concatenation_predicates(
+                    module, machine, candidate,
+                )
+                .is_some_and(|predicates| predicates.implies(ascii))
+        },
+        |candidate| changes_length(module, machine, root, &[], candidate),
     )
 }
 

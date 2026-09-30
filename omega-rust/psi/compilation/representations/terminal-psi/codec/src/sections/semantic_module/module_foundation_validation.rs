@@ -918,12 +918,61 @@ fn validate_structural_arguments(
         if shared_byte_field_loan {
             continue;
         }
+        // The descriptor is a call presentation, not a replacement storage
+        // declaration. Both wire entrances independently validate the module
+        // after this shape check, including live borrow and result custody.
+        if owned_byte_view_presentation(module, machine, argument, expected) {
+            continue;
+        }
         let actual_type = validate_structural_path(module, actual_type, &argument.path)?;
         if actual_type != expected.structural_type {
             return malformed("structural argument has the wrong concrete type");
         }
     }
     Ok(())
+}
+
+fn owned_byte_view_presentation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    argument: &StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+) -> bool {
+    if !argument.path.is_empty()
+        || argument.access != terminal_psi::StructuralAccess::SharedBorrow
+        || expected.access != terminal_psi::StructuralAccess::SharedBorrow
+        || expected.is_self
+        || expected.multiplicity != StructuralMultiplicity::Unrestricted
+        || !expected.projected_qualifications.is_empty()
+        || machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == argument.place)
+        || machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == argument.place)
+        || terminal_semantics::byte_owned_result_predicates(module, machine, argument.place)
+            .is_none()
+        || !module.structural_types.iter().any(|declaration| {
+            declaration.id == expected.structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        }
+                    )
+                )
+        })
+    {
+        return false;
+    }
+    let Some(required) = terminal_semantics::byte_parameter_predicates(module, expected) else {
+        return false;
+    };
+    terminal_semantics::byte_sequence_source_predicates(module, machine, argument.place)
+        .is_some_and(|available| available.implies(required))
 }
 
 fn structural_place_type(

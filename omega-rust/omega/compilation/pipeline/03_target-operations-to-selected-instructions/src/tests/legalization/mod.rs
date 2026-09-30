@@ -11,6 +11,7 @@ mod element_views;
 mod ieee_literal_sources;
 mod leaf_copy;
 mod normalized_foreign;
+mod owned_byte_write;
 mod ownership_frontier_facts;
 mod plain_unit;
 mod primitive_stores;

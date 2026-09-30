@@ -314,7 +314,21 @@ pub(crate) fn structural_arguments_match(
                 )
             },
         );
-        let bounded_owner_presentation = projection != StructuralProjectionPolicy::Boundary
+        let owned_byte_view_presentation =
+            types
+                .get(&parameter.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow)
+                            }
+                        )
+                    )
+                })
+                && owned_bounded_owner_loan(caller, argument, parameter, &source, types, domains);
+        let bounded_owner_presentation = ((projection != StructuralProjectionPolicy::Boundary
             && (caller.structural_parameters.iter().any(|actual| {
                 terminal_semantics::bounded_byte_owner_capacity_in(
                     types.values().copied(),
@@ -326,7 +340,8 @@ pub(crate) fn structural_arguments_match(
                 .is_some()
             }) || owned_bounded_owner_loan(
                 caller, argument, parameter, &source, types, domains,
-            ))
+            )))
+            || owned_byte_view_presentation)
             && !caller
                 .entry_claim_declarations
                 .iter()
@@ -565,9 +580,9 @@ fn is_material_write_only_type(
     true
 }
 
-/// A whole owned bounded byte local (an immutable concatenation result) lent
-/// shared to a formal of the same bounded owner carrier. Every byte predicate
-/// the formal requires is replayed from the local's own operands in the
+/// A whole owned bounded byte local (a concatenation result) lent
+/// shared to the same bounded owner carrier or a shared byte view. Every byte predicate
+/// the formal requires is replayed from the local's current invariants in the
 /// current graph, mirroring Terminal's call rule for the same presentation.
 fn owned_bounded_owner_loan(
     caller: &PsiOptimizationFunction,
@@ -585,10 +600,12 @@ fn owned_bounded_owner_loan(
         || !parameter.projected_qualifications.is_empty()
         || source.access != terminal_psi::StructuralAccess::Owned
         || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
-        || source.structural_type != parameter.structural_type
-        || !source.is_unqualified()
+        || !source.projected_qualifications.is_empty()
+        || !source.operation_result.is_some_and(|result| {
+            result.claims.is_empty() && result.qualification_establishments.is_empty()
+        })
         || !types
-            .get(&parameter.structural_type)
+            .get(&source.structural_type)
             .is_some_and(|declaration| {
                 matches!(
                     declaration.shape,
@@ -597,6 +614,19 @@ fn owned_bounded_owner_loan(
                     )
                 )
             })
+        || !(source.structural_type == parameter.structural_type
+            || types
+                .get(&parameter.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow)
+                            }
+                        )
+                    )
+                }))
         || !caller
             .blocks
             .iter()
@@ -613,13 +643,14 @@ fn owned_bounded_owner_loan(
     else {
         return false;
     };
-    crate::unit_validation::function_structure::whole_source_predicates(
-        types.values().copied(),
-        domains.values().copied(),
-        caller,
-        argument.place,
-    )
-    .is_some_and(|available| available.implies(required))
+    required.is_empty()
+        || crate::unit_validation::function_structure::whole_source_predicates(
+            types.values().copied(),
+            domains.values().copied(),
+            caller,
+            argument.place,
+        )
+        .is_some_and(|available| available.implies(required))
 }
 
 pub(crate) fn structural_source_contract(

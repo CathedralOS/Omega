@@ -30,7 +30,8 @@ pub(super) fn write(
         replay.resolve(index).ok_or_else(|| replay.invalid())?;
     let (_, value_register, _, value_type) =
         replay.resolve(value).ok_or_else(|| replay.invalid())?;
-    if crate::selection::established_view_input::view_type(function, destination).is_none()
+    if (crate::selection::established_view_input::view_type(function, destination).is_none()
+        && crate::selection::byte_concatenation_input::owned_type(function, destination).is_none())
         || row.result.is_some()
         || index_type
             != ScalarType::Integer(

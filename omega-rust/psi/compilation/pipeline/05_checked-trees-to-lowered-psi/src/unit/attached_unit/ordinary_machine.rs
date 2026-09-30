@@ -32,15 +32,15 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::scalar_graph::scalar_call_closure::callee::PreparedScalarCallee;
+use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::{
     Block, CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, ClaimId,
     LoweringError, MachineContract, Multiplicity, Operation, OperationKind,
-    PermissionClaimIdentity, PlaceId, SemanticDomainId, StructuralDomainId, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, TerminalMachine,
-    TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense, content_conservation,
-    contract_id, dense_identity, edge_id, lookup_domain_id, lookup_type_id,
-    lower_checked_crash_route_buckets, lower_structural_crash_route_buckets, place_id,
-    terminal_scalar_type, unsupported, value_id,
+    PermissionClaimIdentity, PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeId, TerminalMachine, TerminalMachineResult, Terminator,
+    ValueDeclaration, allocate_dense, content_conservation, contract_id, dense_identity, edge_id,
+    lookup_type_id, lower_checked_crash_route_buckets, lower_structural_crash_route_buckets,
+    place_id, terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::{
     MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration, StructuralTypeDeclaration,
@@ -58,7 +58,7 @@ use lowered_psi::{
 #[derive(Clone, Copy)]
 pub(super) struct ClosureCatalog<'a> {
     pub(super) type_ids: &'a [(String, StructuralTypeId)],
-    pub(super) domain_ids: &'a [(SemanticDomainId, StructuralDomainId)],
+    pub(super) domain_ids: &'a [StructuralDomainBinding],
     pub(super) service_ids: &'a [(ServiceReachId, ServiceId)],
     pub(super) boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
     pub(super) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
@@ -97,7 +97,7 @@ pub(super) struct MachineEmission<'a> {
     next_claim: u64,
     structural_types: &'a mut Vec<StructuralTypeDeclaration>,
     type_ids: &'a [(String, StructuralTypeId)],
-    domain_ids: &'a [(SemanticDomainId, StructuralDomainId)],
+    domain_ids: &'a [StructuralDomainBinding],
     service_ids: &'a [(ServiceReachId, ServiceId)],
     lowered_boundary_parameters: &'a [super::operation_frame::BoundaryParameters],
     machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
@@ -942,7 +942,7 @@ fn establish_call_literals(
     plans: UnitPlans<'_>,
     lowered_boundary_parameters: &[super::operation_frame::BoundaryParameters],
     type_ids: &[(String, StructuralTypeId)],
-    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
+    domain_ids: &[StructuralDomainBinding],
     next_place: &mut u64,
     next_operation: u64,
 ) -> Result<(Vec<StructuralPlaceDeclaration>, OperationBuffer), LoweringError> {
@@ -992,7 +992,7 @@ fn establish_call_literals(
                         ))?
                         .qualifications
                         .iter()
-                        .map(|domain| lookup_domain_id(domain_ids, *domain))
+                        .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, lookup_type_id(type_ids, &argument.type_identity)?))
                         .collect::<Result<Vec<_>, _>>()?
                 }
                 None => {
@@ -1007,7 +1007,7 @@ fn establish_call_literals(
                     ))?
                     .qualifications
                     .iter()
-                    .map(|domain| lookup_domain_id(domain_ids, *domain))
+                    .map(|domain| lookup_domain_id_for_carrier(domain_ids, *domain, lookup_type_id(type_ids, &argument.type_identity)?))
                     .collect::<Result<Vec<_>, _>>()?
                 }
             };

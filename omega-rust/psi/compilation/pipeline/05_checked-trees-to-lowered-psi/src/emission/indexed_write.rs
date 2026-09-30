@@ -55,6 +55,12 @@ pub(crate) enum IndexedWriteTarget<'a> {
     /// The byte view names its `&mut` parameter by authored position, which
     /// `emit` resolves in the frame's authored parameter roster.
     ByteView(&'a CheckedByteSequenceWritePlan),
+    /// An established bounded owner, resolved in the frame's local namespace.
+    OwnedBytes {
+        write: &'a CheckedByteSequenceWritePlan,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
     /// The byte field names its root parameter by authored position, which
     /// `emit` resolves in the same roster.
     ByteField(&'a CheckedStructuralByteSequenceFieldByteStorePlan),
@@ -251,32 +257,44 @@ pub(crate) fn validate_assignment(
     };
     match leaf {
         IndexedWriteLeaf::ByteView(write) => {
-            // A byte view has no local-rooted lowering.
-            let Some(position) = write.destination.parameter_position() else {
-                return unsupported("byte-view write has no parameter root");
-            };
-            let parameter = checked
-                .state_parameters(state)
-                .get(position as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "byte-view write has no authored parameter",
-                ))?;
-            let source = collection()?;
-            if owner.symbol != machine
-                || source.root != parameter.symbol
-                || !source.path.is_empty()
-                || !builtin_coordinates()
-                || !matches!(
-                    checked
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                    checked_trees::types::TypeReferenceNode::Reference {
-                        access: language_core::ReferenceAccess::Mutable,
-                        ..
-                    }
-                )
-            {
-                return unsupported("byte-view write changed its authored mutable destination");
+            if let CheckedStoreRoot::Local { symbol } = write.destination {
+                validate_owned_byte_local(
+                    checked,
+                    state_symbol,
+                    write.statement_index,
+                    symbol,
+                    indexed.collection,
+                )?;
+                if owner.symbol != machine || !builtin_coordinates() {
+                    return unsupported("byte-view write changed its authored mutable destination");
+                }
+            } else {
+                let Some(position) = write.destination.parameter_position() else {
+                    return unsupported("byte-view write has no parameter root");
+                };
+                let parameter = checked
+                    .state_parameters(state)
+                    .get(position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "byte-view write has no authored parameter",
+                    ))?;
+                let source = collection()?;
+                if owner.symbol != machine
+                    || source.root != parameter.symbol
+                    || !source.path.is_empty()
+                    || !builtin_coordinates()
+                    || !matches!(
+                        checked
+                            .type_reference_table
+                            .type_reference(parameter.type_reference),
+                        checked_trees::types::TypeReferenceNode::Reference {
+                            access: language_core::ReferenceAccess::Mutable,
+                            ..
+                        }
+                    )
+                {
+                    return unsupported("byte-view write changed its authored mutable destination");
+                }
             }
         }
         IndexedWriteLeaf::ByteField(_) => {
@@ -460,6 +478,57 @@ pub(crate) fn validate_assignment(
     Ok(())
 }
 
+/// Owned mutation must rejoin an earlier mutable declaration of this exact
+/// bounded byte carrier. A plan cannot replace a parameter with an arbitrary
+/// local symbol, or gain mutation authority from an immutable literal view.
+fn validate_owned_byte_local(
+    checked: &CheckedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: u32,
+    symbol: SymbolHandle,
+    collection: checked_trees::expression::ExpressionHandle,
+) -> Result<(), LoweringError> {
+    let (_, state) = source_custody::authored_state(checked, state_symbol)?;
+    let ExpressionNode::Name(name) = checked.expression_table.expression(collection) else {
+        return unsupported("byte write local differs from its authored collection");
+    };
+    if !symbol.is_valid()
+        || name.symbol != symbol
+        || name.head_symbol != symbol
+        || checked
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+    {
+        return unsupported("byte write local differs from its authored collection");
+    }
+    let mut declarations = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+        .filter_map(|(ordinal, statement)| match statement {
+            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
+                Some((ordinal, local))
+            }
+            _ => None,
+        });
+    let Some((ordinal, local)) = declarations.next() else {
+        return unsupported("byte write names an unknown owned local");
+    };
+    if declarations.next().is_some()
+        || ordinal >= statement_index as usize
+        || !local.is_mutable
+        || checked.type_multiplicity(local.type_reference)
+            != language_semantics::Multiplicity::Unrestricted
+        || validation::bounded_byte_buffer_capacity(&checked.typed, local.type_reference).is_none()
+    {
+        return unsupported("byte write local lost its authored owned custody");
+    }
+    Ok(())
+}
+
 /// A mutable-view local's authored establishment: the statement binding its
 /// symbol must still carry a `&mut` declared type, the same rejoin a
 /// `&mut`-borrowed destination parameter gets through its authored parameter.
@@ -520,6 +589,7 @@ impl<'a> IndexedWriteTarget<'a> {
     pub(crate) fn leaf(self) -> IndexedWriteLeaf<'a> {
         match self {
             Self::ByteView(write) => IndexedWriteLeaf::ByteView(write),
+            Self::OwnedBytes { write, .. } => IndexedWriteLeaf::ByteView(write),
             Self::ByteField(store) => IndexedWriteLeaf::ByteField(store),
             Self::ElementView { write, .. } => IndexedWriteLeaf::ElementView(write),
         }
@@ -542,6 +612,28 @@ impl<'a> IndexedWriteTarget<'a> {
         operands: &'static str,
     ) -> Result<Destination, LoweringError> {
         match self {
+            Self::OwnedBytes {
+                place,
+                structural_type,
+                ..
+            } => {
+                if !structural_types.iter().any(|declaration| {
+                    declaration.id == structural_type
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                }) {
+                    return unsupported("byte write local is not a bounded owner");
+                }
+                Ok(Destination {
+                    place,
+                    value_type: terminal_scalar_type(PrimitiveType::U8)?,
+                    shape: DestinationShape::ByteView,
+                })
+            }
             Self::ByteView(write) => {
                 let Some(position) = write.destination.parameter_position() else {
                     return unsupported("byte-view write destination has no parameter root");

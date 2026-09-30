@@ -416,6 +416,26 @@ static FACT_BYTE_FIELD_LITERAL_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceE
     soundness: TRUSTED,
 };
 
+static FACT_BYTE_READ_CLASS: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:byte-read-class",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "a validated whole ByteSequenceRead with an exact u8 result, available source and current same-source length; primitive source predicates replay from exact literal octets, parameter declarations or concatenation inputs, while a potentially mutated owned result retains only its declared predicates",
+    conclusion: "the immutable read result is at least 1 for no-NUL and at most 127 for ASCII-only; UTF-8 alone supplies no byte-class bound; these facts enter only after the read's independent index obligation and describe the scalar snapshot, not later source contents",
+    dependencies: &[
+        "fact:semantic-axiom-roster",
+        "fact:structural-effect-observation",
+        "formation:byte-sequence-operations",
+    ],
+    implementation: &[
+        OPERATION_FACTS,
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/byte_sequence/read.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/byte_sequence_predicates.rs",
+        "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs",
+    ],
+    soundness: TRUSTED,
+};
+
 static FACT_ELEMENT_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:element-extent-length",
     family: LedgerFamily::ReconstructedFactKind,
@@ -764,6 +784,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_STRUCTURAL_CASE_ESTABLISHMENT,
     FACT_BYTE_EXTENT_LENGTH,
     FACT_BYTE_FIELD_LITERAL_READ_RANGE,
+    FACT_BYTE_READ_CLASS,
     FACT_ELEMENT_EXTENT_LENGTH,
     FACT_STRUCTURAL_EFFECT_OBSERVATION,
     FACT_INTEGER_FIELD_READ_RANGE,

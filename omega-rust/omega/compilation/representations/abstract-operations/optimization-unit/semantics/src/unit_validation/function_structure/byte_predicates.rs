@@ -36,6 +36,44 @@ pub(super) fn validate_indexed_byte_stores(
     ascii.insert(ByteSequencePredicate::AsciiOnly);
     for (block_position, block) in function.blocks.iter().enumerate() {
         for (node_position, node) in block.nodes.iter().enumerate() {
+            if let Operation::ByteSequenceWrite { destination, .. } = &node.operation {
+                if let Some(predicates) = owned_byte_predicates(unit, function, *destination) {
+                    let splits_scalars = predicates
+                        .predicates()
+                        .any(|predicate| predicate == ByteSequencePredicate::ValidUtf8)
+                        && !predicates.implies(ascii);
+                    if splits_scalars
+                        && !super::byte_field_freshness::established_on_every_path(
+                            function,
+                            predecessors,
+                            (block_position, node_position),
+                            |_, operation| {
+                                matches!(operation,
+                            Operation::EstablishByteSequenceConcatenation { result, .. }
+                                if result.place == *destination
+                                    && concatenation_predicates(unit, function, operation)
+                                        .is_some_and(|initial| initial.implies(ascii)))
+                            },
+                            |operation| {
+                                super::byte_field_freshness::changes_length(
+                                    function,
+                                    types,
+                                    *destination,
+                                    &[],
+                                    operation,
+                                )
+                            },
+                        )
+                    {
+                        return Err(OptimizationUnitValidationError::InvalidByteSequenceWrite {
+                            machine: function.machine,
+                            block: block.id,
+                            node: u32::try_from(node_position).unwrap_or(u32::MAX),
+                        });
+                    }
+                }
+                continue;
+            }
             let Operation::StructuralByteSequenceFieldByteStore {
                 destination,
                 path,
@@ -119,6 +157,106 @@ pub(super) fn validate_indexed_byte_stores(
         }
     }
     Ok(())
+}
+
+/// Declared invariants of the exact completed owner; initial byte properties
+/// are separate, since indexed writes can invalidate incidental predicates.
+pub(crate) fn owned_byte_predicates(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Option<ByteSequencePredicateSet> {
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|row| row.id == place)?;
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = declaration.kind
+    else {
+        return None;
+    };
+    let result = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            Operation::EstablishByteSequenceConcatenation {
+                psi_operation,
+                result,
+                ..
+            } if *psi_operation == producer
+                && result.place == place
+                && result.structural_type == structural_type =>
+            {
+                Some(result)
+            }
+            _ => None,
+        })?;
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.claims.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.qualification_establishments.is_empty()
+        || !unit.structural_types.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
+    {
+        return None;
+    }
+    terminal_semantics::byte_qualification_predicates_in(
+        unit.structural_domains.iter(),
+        structural_type,
+        &result.qualifications,
+    )
+}
+
+fn concatenation_predicates(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    operation: &Operation,
+) -> Option<ByteSequencePredicateSet> {
+    let Operation::EstablishByteSequenceConcatenation { left, right, .. } = operation else {
+        return None;
+    };
+    let operand = |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
+        terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
+            whole_source_predicates(
+                unit.structural_types.iter(),
+                unit.structural_domains.iter(),
+                function,
+                *source,
+            )
+        }
+        terminal_psi::control_flow::ByteSequenceOperand::Field { source, field, .. }
+            if source.access == StructuralAccess::SharedBorrow =>
+        {
+            byte_field_predicates(unit, function, source.place, &source.path, *field)
+        }
+        _ => None,
+    };
+    Some(operand(left)?.concatenation(operand(right)?))
+}
+
+pub(crate) fn concatenation_preserves_predicates(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    operation: &Operation,
+) -> bool {
+    let Operation::EstablishByteSequenceConcatenation { result, .. } = operation else {
+        return false;
+    };
+    owned_byte_predicates(unit, function, result.place).is_some_and(|required| {
+        required.is_empty()
+            || concatenation_predicates(unit, function, operation)
+                .is_some_and(|initial| initial.implies(required))
+    })
 }
 
 pub(crate) fn replacement_preserves_predicates(
@@ -334,6 +472,19 @@ where
             if result.place != source || result.structural_type != structural_type {
                 return None;
             }
+            let declared = terminal_semantics::byte_qualification_predicates_in(
+                catalogs.domains.clone(),
+                structural_type,
+                &result.qualifications,
+            )?;
+            if function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .any(|node| may_change_owned_source(&node.operation, source))
+            {
+                return Some(declared);
+            }
             let mut operand =
                 |operand: &terminal_psi::control_flow::ByteSequenceOperand| match operand {
                     terminal_psi::control_flow::ByteSequenceOperand::Whole { source, .. } => {
@@ -359,6 +510,37 @@ where
             Some(operand(left)?.concatenation(operand(right)?))
         }
         _ => None,
+    }
+}
+
+/// Initializer predicates are not invariants across calls or local writes.
+/// Match Terminal's timeless source query; this grants no mutation authority.
+fn may_change_owned_source(operation: &Operation, source: PlaceId) -> bool {
+    match operation {
+        Operation::ByteSequenceWrite { destination, .. }
+        | Operation::ByteSequenceStore { destination, .. }
+        | Operation::StructuralByteSequenceFieldStore { destination, .. }
+        | Operation::StructuralByteSequenceFieldByteStore { destination, .. } => {
+            *destination == source
+        }
+        Operation::WriteOnlyPrimitiveStore { destination, .. } => destination.place == source,
+        Operation::StructuralScalarFieldStore { destination, .. } => destination.place() == source,
+        Operation::StoreStructuralField { destination, .. } => destination.place() == source,
+        Operation::MoveStructuralField { source: moved, .. } => moved.place() == source,
+        Operation::CallStructural {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => true,
+        Operation::CallStructural {
+            structural_arguments,
+            ..
+        }
+        | Operation::BoundaryCall {
+            structural_arguments,
+            ..
+        } => structural_arguments.iter().any(|argument| {
+            argument.place == source && argument.access != StructuralAccess::SharedBorrow
+        }),
+        _ => false,
     }
 }
 
