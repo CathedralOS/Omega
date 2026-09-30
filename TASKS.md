@@ -5303,8 +5303,22 @@ justified skips; **RC-RELEASE-RECORD-AND-CLOSURE** joins the same-commit evidenc
 These are independent host runs of shared gates; capability repairs retain
 their existing owners.
 
+- **ELF-LOADER-CONFIGURATION.** Wire [build-owned loader selection](wiki/spec/build/configuration.md#elf-executable-loader-selection)
+  through normalized output configuration, native requests, and package artifact
+  review. Reuse `NormalizedElfInterpreterPlan` and `normalize_elf_interpreter_plan`;
+  replace direct-only request construction where a dynamic executable is selected.
+  Carry the explicit per-output/target override or target-environment default to
+  emission, without host probing. Acceptance: a real Linux shared-library call
+  executes with its declared loader; override/default selection survives the
+  package path; missing configuration, relative paths and embedded NUL reject;
+  cross-target emission does not inspect the host loader; static output has no
+  `PT_INTERP`. `providers/external_boundary_requirement_via_exit` imports
+  `msvcrt.dll` and is not a Linux execution witness. Supply a target-appropriate
+  external binding rather than treating an emitted DLL dependency as Linux success.
+
 - **RC-NATIVE-MATRIX-LINUX-X86-64.** Close the shared gates with actual ELF
-  x86-64 execution, including dynamic imports. Retain `image-elf`'s corrected
+  x86-64 execution, including dynamic imports (**ELF-LOADER-CONFIGURATION**).
+  Retain `image-elf`'s corrected
   `GeneralRelocationEntrySize = 9` and entry-size row beside
   `DT_RELA`/`DT_RELASZ`; encoder/replay coverage does not establish execution.
   **SAMPLE-CORPUS** owns sample failures and

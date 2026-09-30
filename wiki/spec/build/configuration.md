@@ -56,6 +56,35 @@ Build flags. Project role, roots, dependencies, outputs, image intent, and
 provider selection remain build facts. Target-qualified bindings select facts;
 they do not redefine target policy.
 
+## ELF executable loader selection
+
+The `elf-interpreter-declaration-surface` decision uses ordinary build-owned
+output configuration, not new language syntax or a deployment framework.
+For a dynamically linked Linux ELF executable, `build.omg` may select the
+exact interpreter pathname per output and target. An explicit selection
+overrides a default declared by the selected target/toolchain environment.
+An architecture alone does not imply glibc, musl, or a loader pathname.
+
+Retain the effective path and target in normalized output configuration and
+the corresponding artifact/review inputs, including when a declared default
+supplies the path. The backend validates a nonempty absolute target pathname
+without embedded NUL bytes and emits it in `PT_INTERP`. Do not probe the build
+host, require that path to exist on the build host, or silently choose its
+loader during cross-compilation. If a dynamic executable requires an
+interpreter and neither an explicit selection nor a declared default supplies
+one, reject with a missing-output-configuration diagnostic.
+
+A statically linked executable needs no interpreter pathname and emits no
+`PT_INTERP`; Linux output does not inherently require dynamic linking. A
+loader path alone neither requests dynamic linking nor makes foreign imports
+compatible. The selected runtime and imported libraries must still match the
+target deployment.
+
+This path describes what the executable asks its runtime environment to load.
+It does not authenticate the file installed at that path or grant installation
+or execution authority. Those remain subject to
+[receiver admission](permissions.md#artifact-production-versus-receiver-admission).
+
 ## Proof-carrying output
 
 Normalized Build retains two independent, false-by-default PCC requests: Psi
