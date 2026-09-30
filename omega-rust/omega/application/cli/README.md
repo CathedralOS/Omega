@@ -82,6 +82,17 @@ and checks every target's bodies either way
 today an absent `--target` checks target-neutrally and realizes the host, and
 the board's pipeline route items close that gap.
 
+The compile command's exit status is the
+[compiler request](../../../../wiki/spec/build/compiler_request.md#validation-and-failures)
+halt value: 0 when the requested product is complete, 1 for a rejection, and 2
+(`Incomplete`) when compilation stopped at a named private provision — such as
+a proof-search capacity — without a verdict on the source. Several targets exit
+2 only when every refused target is incomplete; any rejection exits 1.
+Argument errors also exit 2 today, before any compilation starts. `omega run`
+keeps its own statuses: the program's exit status, 200 when compilation or
+launch fails (including `Incomplete`), and 201 when `--both` interpretation
+diverges or fails to compile.
+
 Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;
 normal invocations do not collect optional timing measurements.
