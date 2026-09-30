@@ -14,7 +14,13 @@ fn recursive_accumulator_arrival_uses_remaining_work_budget() {
     "#;
     accepts(source);
     rejects_requirement(&source.replace("acc + n)", "acc + n + 1)"));
-    rejects_requirement(&source.replace("triangle(100, 0)", "triangle(100, 1)"));
+    let diagnostics =
+        checked_program_result(&source.replace("triangle(100, 0)", "triangle(100, 1)"))
+            .expect_err("the closed arrival exceeds the remaining-work budget");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.message.contains("violates required fact")
+            && diagnostic.message.contains("structurally false")
+    }));
     rejects_requirement(&source.replace(", 2 * acc + n * (n + 1) <= 10100", ""));
 }
 
