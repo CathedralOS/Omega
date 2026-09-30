@@ -873,29 +873,32 @@ the complete product bar; focused successes below do not establish that baseline
   without application changes. The application command remains `omega run
   --target linux_x86_64 --keep samples/apps/squalr/squalr-tests/main.omg`.
   Temporary call-argument cleanup now composes with ordinary caller results.
-  The unchanged application command on base `0508a5426a27` next refuses
+  The unchanged application command on `4c26ea27e805` refuses
   `SqualrEngine::init`, statement 1, at `statement sequence: assignment:
   structural call result field store`. A diagnostic probe isolates stage 04's
   `control/call_results.rs` result-shape classification: `EnginePrivilegedState`
   nests task slots whose held payload carries `Binding<WaitWake>`. Empty slots
   need no fabricated binding, but transporting the aggregate must preserve
-  routed authority and must not grant plain no-code disposal. Unpublished
-  routed-result checkpoint `f0da848a3ef` gets past this assignment but its
-  isolated native regression exposes a representation dependency:
-  stage 05's `unit/attached_unit/catalog.rs` maps an opaque Binding field to
-  runtime-relevant `Erased`, rejected by Terminal as
-  `InvalidErasedStructuralField`. Preserve this independent rejection; do not
-  fabricate a provider or erase runtime custody. With ordinary scalar-return
-  and owned case-payload edge cleanup, integration probe `615c83402e65`
-  reaches `DataTypeRefSet::push`, state 1, then refuses `unsupported tail:
-  expression followed by statements`; the unchanged application still does
-  not emit. The independent case-cleanup regression
-  `tests/omega/pass/borrows/runtime_affine_local_case_return_exit/main.omg`
-  changes from native rejection on `450a998607fb` to native/interpreter exit 42
-  on macOS ARM64. Its 38 focused cleanup/state-graph tests retain exact guard,
-  disposal and transfer checks. The Binding prototype remains unpublished;
-  continue its custody representation and ordinary statement sequencing
-  without rewriting the application. Complete
+  routed authority and must not grant plain no-code disposal. The restored
+  native reproduction from unpublished `9cc10a72110e` still rejects at the
+  result-field store on this base. Revalidate the routed-owned classifier and
+  ordinary result consumers from `9cc10a72110e` / `f0da848a3ef` against the
+  current Binding representation; their old `InvalidErasedStructuralField`
+  diagnostic is not evidence of the current next failure. Coordinate the shared
+  `checking/src/value_custody/storage_contents.rs` with
+  `DUNGEON-OWNED-COPY-CONTENTS` before editing it.
+
+  Value-returning states now keep non-final expression calls in their ordinary
+  statement sequence: only the final expression is a return. On macOS ARM64,
+  `python3 tools/corpus_gate.py --native --filter
+  calls/scalar_return_after_unit_call_exit` changes from an omitted
+  `update_projected` body (`expression followed by statements`) to native
+  **42**, exercising ordinary and indexed receiver calls followed by stores
+  and scalar returns. Sixteen state-graph checks pass and four affine/loan
+  misuse controls retain their expected rejections. This changes no verifier
+  or ownership rule and does not close the earlier application failure.
+  Restore owned-result transport, then rerun the unchanged application to
+  identify its next dependency. Complete
   the documented native acceptance on Linux x86-64 after emission succeeds;
   cross-target compilation on macOS does not establish execution.
   Live reads still alias captured-current
