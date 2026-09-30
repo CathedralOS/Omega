@@ -82,41 +82,41 @@ machine Main::main(&mut self) reaches Console {
 
     let ok_and_sizes: bool = self.verdict == WireVerdict::Sound && self.written == 13 && self.read == 13;
     transition ok_and_sizes {
-        true -> check_fields(decoded)
-        false -> bad_sizes()
+        true -> check_fields(&mut self, decoded)
+        false -> bad_sizes(&mut self)
     }
 
-    state check_fields(decoded: SensorPacketValue) {
+    state check_fields(main: &mut Main, decoded: SensorPacketValue) {
         let fields_ok: bool = decoded.header.room_id == 300
             && decoded.samples.length == 2
             && decoded.samples.items[0] == 150
             && decoded.samples.items[1] == 0 - 2
             && decoded.depth == 0 - 64;
         transition fields_ok {
-            true -> good()
-            false -> bad_fields()
+            true -> good(main)
+            false -> bad_fields(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: 13 bytes round-tripped with every field intact (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: 13 bytes round-tripped with every field intact (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad_sizes(&mut self) {
-        self.console.write_line("FAIL: encode/decode sizes were not both 13 bytes (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_sizes(main: &mut Main) {
+        main.console.write_line("FAIL: encode/decode sizes were not both 13 bytes (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state bad_fields(&mut self) {
-        self.console.write_line("FAIL: a decoded field did not match the original packet (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_fields(main: &mut Main) {
+        main.console.write_line("FAIL: a decoded field did not match the original packet (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 }
 
