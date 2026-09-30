@@ -130,6 +130,11 @@ impl ValidatedElfResolvedProcedureLinkage {
         &self.contents.source_text_bytes
     }
 
+    /// Retained `.data` after image-local relocation at the load layout.
+    pub fn source_data_bytes(&self) -> &[u8] {
+        &self.contents.source_data_bytes
+    }
+
     pub fn procedure_linkage_bytes(&self) -> &[u8] {
         &self.contents.procedure_linkage_bytes
     }

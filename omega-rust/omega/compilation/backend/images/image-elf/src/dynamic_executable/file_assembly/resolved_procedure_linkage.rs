@@ -1,17 +1,21 @@
-//! Exact application of dynamic ELF procedure-linkage and source-call fixups.
+//! Exact application of dynamic ELF source relocations and procedure-linkage
+//! fixups.
 //!
 //! This rung consumes the exact dynamic file-envelope owner, copies the
-//! retained source `.text`, `.plt`, `.got.plt`, and `.rela.plt` templates, and
-//! applies every indexed procedure fixup from the already-validated absolute
-//! load layout. A separate replay checks every application, target, encoding,
-//! mutable mask, unchanged byte, range, and alignment against the complete
-//! upstream custody chain.
+//! retained source `.text` and `.data` and the `.plt`, `.got.plt`, and
+//! `.rela.plt` templates, patches every image-local source relocation (one
+//! whose symbol the image defines) at the already-validated absolute load
+//! layout, and then applies every indexed procedure fixup. A separate replay
+//! re-derives the image-local relocated memory and checks every application,
+//! target, encoding, mutable mask, unchanged byte, range, and alignment
+//! against it and the complete upstream custody chain.
 //!
 //! These resolved byte regions remain fragments. This layer does not place
 //! them into one file, mutate the retained `FinalImage`,
 //! publish bytes, or grant loader or runnable-image authority.
 //!
 //! This file owns the linkage constants and the fixup entry point.
+//! `image_local_relocations.rs` patches the image's own relocations,
 //! `linkage_fixups.rs` carries applied fixups, the validated linkage and
 //! its error, `candidates.rs` derives and validates candidates,
 //! `storage_fields.rs` reads and writes storage fields,
@@ -20,6 +24,7 @@
 
 mod candidates;
 mod compatibility_fingerprint;
+mod image_local_relocations;
 mod linkage_fixups;
 mod storage_fields;
 #[cfg(test)]
@@ -51,7 +56,8 @@ const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
-/// Apply every exact indexed procedure/source fixup into copied fragments.
+/// Patch every image-local source relocation, then apply every exact indexed
+/// procedure/source fixup into copied fragments.
 ///
 /// Success remains non-runnable and does not mutate the retained final image.
 pub fn apply_elf_procedure_linkage_fixups(

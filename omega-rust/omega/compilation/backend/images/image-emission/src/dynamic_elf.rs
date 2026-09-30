@@ -331,7 +331,11 @@ fn derive_output(
         entry_shim,
         &output,
     )?;
+    // The writer relocates `.text` and `.data` at its own load layout; the
+    // terminal validation above has already bound both final byte sets to the
+    // encoded object through their relocation envelopes and callback targets.
     replayed_image.memory.text = output.final_text_bytes.clone();
+    replayed_image.memory.data = output.final_data_bytes.clone();
     if replayed_image != *admitted.image()
         || symbol_digest != final_image_symbol_digest(admitted.image())
     {

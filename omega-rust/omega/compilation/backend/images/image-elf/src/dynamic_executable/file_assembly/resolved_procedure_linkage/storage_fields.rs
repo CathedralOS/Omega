@@ -3,6 +3,7 @@
 use crate::dynamic_executable::checked::require;
 use crate::dynamic_executable::file_assembly::dynamic_file_envelope::ValidatedElfDynamicFileEnvelope;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::candidates::ElfResolvedProcedureLinkageContents;
+use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::image_local_relocations::ElfImageLocalRelocatedMemory;
 use crate::dynamic_executable::file_assembly::resolved_procedure_linkage::{
     AARCH64_PLT_HEADER_SIZE, ELF64_GOT_WORD_SIZE, ElfAppliedProcedureLinkageKind,
     ElfAppliedProcedureLinkageStorage, ElfAppliedProcedureLinkageTarget, GOT_PLT_HEADER_WORDS,
@@ -294,15 +295,16 @@ fn checked_add_signed(base: u64, delta: i128, context: &'static str) -> Result<u
     Ok(value as u64)
 }
 
-pub(crate) fn upstream_storage_bytes(
-    envelope: &ValidatedElfDynamicFileEnvelope,
+/// The exact bytes one storage holds before any procedure fixup: the indexed
+/// linkage templates, or the image-locally relocated source `.text`.
+pub(crate) fn upstream_storage_bytes<'a>(
+    envelope: &'a ValidatedElfDynamicFileEnvelope,
+    relocated: &'a ElfImageLocalRelocatedMemory,
     storage: ElfAppliedProcedureLinkageStorage,
-) -> Result<&[u8], Diagnostic> {
+) -> Result<&'a [u8], Diagnostic> {
     let payloads = indexed_payloads(envelope);
     match storage {
-        ElfAppliedProcedureLinkageStorage::SourceText => {
-            Ok(&load_layout(envelope).retained_image().memory.text)
-        }
+        ElfAppliedProcedureLinkageStorage::SourceText => Ok(&relocated.text),
         ElfAppliedProcedureLinkageStorage::ProcedureLinkage => {
             indexed_row_bytes(payloads, 8, ElfDynamicRosterSectionKind::ProcedureLinkage)
         }
