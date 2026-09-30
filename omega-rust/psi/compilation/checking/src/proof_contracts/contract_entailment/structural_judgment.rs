@@ -1169,7 +1169,8 @@ impl<'program> StructuralJudge<'program> {
             ExpressionNode::Member(member) => {
                 if let ExpressionNode::Call(call) =
                     program.expression_table.expression(member.receiver)
-                    && !call.receiver.is_valid()
+                    && (!call.receiver.is_valid()
+                        || super::structural_terms::static_call_receiver(program, call))
                     && call.evidence_arguments.is_empty()
                     && call.static_requirement_dispatch.is_none()
                 {
@@ -1291,7 +1292,8 @@ impl<'program> StructuralJudge<'program> {
             }
             ExpressionNode::Call(call) => {
                 if self.runtime_body_values
-                    || call.receiver.is_valid()
+                    || (call.receiver.is_valid()
+                        && !super::structural_terms::static_call_receiver(program, call))
                     || !call.evidence_arguments.is_empty()
                     || call.static_requirement_dispatch.is_some()
                 {

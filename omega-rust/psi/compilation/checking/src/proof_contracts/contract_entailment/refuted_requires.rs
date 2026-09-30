@@ -222,8 +222,14 @@ pub(super) fn instantiated_fact_judgment(
                 return StructuralJudgment::Unknown;
             };
             let equality = judge.judge_equation(
-                judge.resolve(StructuralJudge::substitute_term(&left, map)),
-                judge.resolve(StructuralJudge::substitute_term(&right, map)),
+                super::structural_terms::unfold_constant_applications(
+                    program,
+                    judge.resolve(StructuralJudge::substitute_term(&left, map)),
+                ),
+                super::structural_terms::unfold_constant_applications(
+                    program,
+                    judge.resolve(StructuralJudge::substitute_term(&right, map)),
+                ),
                 0,
             );
             if binary.operator == BinaryOperator::Equal {

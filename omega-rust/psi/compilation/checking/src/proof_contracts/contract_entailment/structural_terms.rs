@@ -278,7 +278,7 @@ pub(super) fn structural_term_in_scope(
         ),
         ExpressionNode::Integer(value) => value.value_bignum().map(StructuralTerm::Integer),
         ExpressionNode::Call(call) => {
-            if !call.receiver.is_valid()
+            if (!call.receiver.is_valid() || static_call_receiver(program, call))
                 && call.evidence_arguments.is_empty()
                 && call.static_requirement_dispatch.is_none()
             {
@@ -311,7 +311,7 @@ pub(super) fn structural_term_in_scope(
         }),
         ExpressionNode::Member(member) => {
             if let ExpressionNode::Call(call) = program.expression_table.expression(member.receiver)
-                && !call.receiver.is_valid()
+                && (!call.receiver.is_valid() || static_call_receiver(program, call))
                 && call.evidence_arguments.is_empty()
                 && call.static_requirement_dispatch.is_none()
             {
@@ -344,15 +344,57 @@ pub(super) fn structural_term_in_scope(
                     });
                 }
             }
-            Some(StructuralTerm::Opaque(
-                program.expression_table.display_name(expression),
-            ))
+            // A field read off a value receiver: when the receiver termifies
+            // to a closed constructor (a struct literal, an immutable local
+            // tracing to one, or a nested projection already resolved), the
+            // field term is recoverable by name. Symbolic receivers keep the
+            // whole-expression opaque name as before.
+            match structural_term_in_scope(program, scope, member.receiver) {
+                Some(StructuralTerm::Constructor { fields, .. }) => fields
+                    .into_iter()
+                    .find(|(name, _)| name == member.member.as_str())
+                    .map(|(_, term)| term)
+                    .or_else(|| {
+                        Some(StructuralTerm::Opaque(
+                            program.expression_table.display_name(expression),
+                        ))
+                    }),
+                _ => Some(StructuralTerm::Opaque(
+                    program.expression_table.display_name(expression),
+                )),
+            }
         }
         ExpressionNode::ZeroValue(type_reference) => {
             zero_value_structural_term(program, *type_reference)
         }
         _ => None,
     }
+}
+
+/// Whether a call's receiver position carries a namespace path rather than a
+/// value: `Point::zero()` spells its `Point` prefix as a receiver Name whose
+/// symbol resolves to a type, module, or machine root — never a local,
+/// parameter, or borrow. A namespace receiver contributes no runtime
+/// argument, so the call termifies exactly like a receiverless application.
+pub(super) fn static_call_receiver(
+    program: &TypedTrees,
+    call: &typed_trees::expression::TableCallExpression,
+) -> bool {
+    call.receiver.is_valid()
+        && matches!(
+            program.expression_table.expression(call.receiver),
+            ExpressionNode::Name(path)
+                if matches!(
+                    program.symbols.get(path.symbol).kind,
+                    symbols::SymbolKind::BuiltinType
+                        | symbols::SymbolKind::Data
+                        | symbols::SymbolKind::Domain
+                        | symbols::SymbolKind::Machine
+                        | symbols::SymbolKind::Module
+                        | symbols::SymbolKind::Trait
+                        | symbols::SymbolKind::ConformanceParameter
+                )
+        )
 }
 
 fn call_projection_field_symbol(
