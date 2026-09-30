@@ -715,6 +715,58 @@ pub(super) fn validate_bindings(
             }
             continue;
         }
+        if matches!(
+            transfer.source,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver
+        ) {
+            // A source state that never declared `self` forwards the
+            // machine's ambient receiver: the target's `self` binds the
+            // machine's entry receiver under the same access narrowing a
+            // carried parameter would take.
+            let Some(receiver) = plan.states[0]
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.is_self)
+            else {
+                return unsupported("Unit graph machine receiver is missing");
+            };
+            if !target.is_self
+                || transfer.target_parameter_index as usize != position
+                || !super::parameters::receiver_transfer_matches(receiver, target)
+            {
+                return unsupported("Unit graph machine receiver custody drifted");
+            }
+            continue;
+        }
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
+            bytes,
+        } = &transfer.source
+        {
+            // A literal argument has no custody root: the edge establishes
+            // the authored octets into immutable storage the borrowed
+            // byte-view target reads. The authored operand must be the
+            // string literal those bytes came from, and the target a whole
+            // shared view of the literal's type identity.
+            let argument_position = explicit_argument_position(target.position);
+            let expression = arguments
+                .get(argument_position)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph literal argument missing",
+                ))?;
+            let ExpressionNode::String(actual) = checked.expression_table.expression(*expression)
+            else {
+                return unsupported("Unit graph literal argument lost its bytes");
+            };
+            if transfer.target_parameter_index as usize != position
+                || actual.as_ref() != bytes.as_slice()
+                || target.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                || target.multiplicity != Multiplicity::Unrestricted
+                || target.is_self
+            {
+                return unsupported("Unit graph literal argument custody drifted");
+            }
+            continue;
+        }
         let source_index = match transfer.source {
             checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
                 ..
@@ -738,6 +790,14 @@ pub(super) fn validate_bindings(
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");
+            }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
+                ..
+            } => {
+                return unsupported("Unit graph literal argument was not independently rejoined");
+            }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
+                return unsupported("Unit graph machine receiver was not independently rejoined");
             }
         };
         let source = state
@@ -784,6 +844,14 @@ pub(super) fn validate_bindings(
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");
+            }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ByteSequenceLiteral {
+                ..
+            } => {
+                return unsupported("Unit graph literal argument was not independently rejoined");
+            }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::MachineReceiver => {
+                return unsupported("Unit graph machine receiver was not independently rejoined");
             }
         }
     }
