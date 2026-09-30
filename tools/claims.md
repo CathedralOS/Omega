@@ -44,6 +44,14 @@ also be a comma-joined list (`--path a/b,c/d`); empty segments are rejected.
 Paths are normalized to repository-relative form (Windows-style separators
 accepted). The default lease is 8 hours; `--lease-minutes` accepts 15..1440.
 
+Task-list files are shared, never exclusively owned. Claim an individual item
+with `--board` and `--item`, not the board with `--path`. The helper rejects
+paths named `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`, including
+nested boards. Existing board-file paths confer no fence, and audits require
+no path claim for board edits. Other paths and individual items in those
+claims remain protected. Keep edits scoped to the relevant items and reconcile
+concurrent board changes during landing; no board-file reservation is needed.
+
 A claimed path that is a directory — or that does not exist and has no file
 extension — is a directory fence: it blocks every path under it for every
 other claimant. Directory fences therefore require `--board` with an item

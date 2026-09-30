@@ -48,6 +48,15 @@ class PathTests(unittest.TestCase):
         self.assertFalse(module.paths_overlap("a/b,a/c", "a/d"))
         self.assertFalse(module.paths_overlap("a/b,a/c", "a/bc"))
 
+    def test_task_boards_never_overlap_claimed_paths(self):
+        module = load_claims()
+        for board in (*module.BOARDS, "samples/app/TASKS.md", "./tasks.md"):
+            with self.subTest(board=board):
+                self.assertFalse(module.paths_overlap(board, board))
+                self.assertFalse(module.paths_overlap("samples", board))
+                self.assertFalse(module.paths_overlap(board, "samples"))
+        self.assertTrue(module.paths_overlap("TASKS.md,src/x", "src/x/file.rs"))
+
     def test_normalize_path_rejects_absolute_and_parent_escape(self):
         module = load_claims()
         self.assertEqual(module.normalize_path("src\\windows\\style"), "src/windows/style")
@@ -179,6 +188,31 @@ class ClaimsTests(unittest.TestCase):
         self.run_claims(self.a, "release", "--ticket", claimed["ticket"])
         self.claim(self.b, item="ALPHA-ITEM", owner="B")
         self.assertEqual(len(self.run_claims(self.a, "status")["claims"]), 2)
+
+    def test_task_board_path_claims_are_rejected_even_with_overlap(self):
+        for board in ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md",
+                      "./TASKS.md", "samples\\app\\TASKS.md", "tasks.md",
+                      "src/x,TASKS.md"):
+            with self.subTest(board=board):
+                error = self.claim(self.a, "ALPHA-ITEM", "A", "--path", board,
+                                   "--allow-overlap", expected=1)
+                self.assertIn("is shared and cannot be claimed", error)
+        self.assertEqual(self.run_claims(self.a, "status")["state"], "available")
+
+    def test_legacy_board_claim_does_not_block_edits_or_other_items(self):
+        self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")
+        record = self.remote_record()
+        record["claims"][0]["paths"] = ["TASKS.md,src/x"]
+        self.rewrite_record(record)
+        (self.b / "TASKS.md").write_text(BOARD + "\nBoard update.\n", encoding="utf-8")
+        report = self.run_claims(self.b, "audit", "--worktree", str(self.b),
+                                 "--owner", "B")
+        self.assertEqual(report["changed"], ["TASKS.md"])
+        self.assertEqual(report["uncovered"], [])
+        self.assertEqual(report["violations"], [])
+        self.claim(self.b, "BETA-ITEM", "B")
+        self.claim(self.b, "ALPHA-ITEM", "B", expected=2)
+        self.claim(self.b, "GAMMA-ITEM", "B", "--path", "src/x/file.rs", expected=2)
 
     def test_claim_splits_comma_joined_path_values(self):
         self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x,src/y",
