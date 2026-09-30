@@ -7,6 +7,7 @@ use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, OperationId, P
 use terminal_psi::{OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator};
 
 use crate::validation::exact_payloadless_case_return_exits;
+use crate::verification::substitution::SharedRoster;
 use crate::{ModuleError, ValidatedInterpretableTerminalModule, validate_module};
 
 mod crash_field_origins;
@@ -473,10 +474,10 @@ fn reconstruct_machine_semantics_with_crash_facts(
     // snapshot. These hypotheses follow the same invalidation and all-path
     // intersection as operation-derived observations.
     let base_axioms = entry_storage_observations(machine);
-    let mut incoming = BTreeMap::<_, Vec<Vec<Proposition>>>::new();
-    incoming.insert(machine.entry, vec![base_axioms]);
-    let mut exits = Vec::<Vec<Proposition>>::new();
-    let mut outcome_exits = BTreeMap::<OutcomeSpecificGuard, Vec<Vec<Proposition>>>::new();
+    let mut incoming = BTreeMap::<_, Vec<SharedRoster>>::new();
+    incoming.insert(machine.entry, vec![SharedRoster::whole(base_axioms)]);
+    let mut exits = Vec::<SharedRoster>::new();
+    let mut outcome_exits = BTreeMap::<OutcomeSpecificGuard, Vec<SharedRoster>>::new();
     let mut operation_obligations = Vec::new();
     let mut crash_sites = Vec::new();
     let mut edge_axioms = BTreeMap::new();

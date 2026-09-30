@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::super::substitution::{
-    FactIndex, proposition_mentions_substituted_value, substitute_proposition_places,
-    substitute_proposition_values,
+    AxiomRoster, AxiomRosterMut, FactIndex, proposition_mentions_substituted_value,
+    substitute_proposition_places, substitute_proposition_values,
 };
 
 mod conditions;
@@ -25,8 +25,8 @@ pub(super) use transport::RewrittenSuccessorFact;
 /// certified emissions for `fact:successor-path-transport` and leaves rejected
 /// certificates under the binding row's license. Production callers discard
 /// the classification; only tests read it back.
-pub(super) fn bind_successor_axioms(
-    axioms: &mut Vec<Proposition>,
+pub(super) fn bind_successor_axioms<M: AxiomRosterMut>(
+    axioms: &mut M,
     target_block: &terminal_psi::Block,
     arguments: &[ValueId],
     value_term: &impl Fn(ValueId) -> ScalarTerm,
@@ -41,7 +41,7 @@ pub(super) fn bind_successor_axioms(
         .collect::<BTreeMap<_, _>>();
     // Facts established before this edge's own pushes live below this
     // position; iterating positions reads them without cloning the roster.
-    let established_count = axioms.len();
+    let established_count = axioms.roster_len();
     // Fingerprint the roster once: every duplicate check and equality
     // citation below is a bucket lookup instead of a roster scan.
     let mut fact_index = FactIndex::new(axioms);
@@ -76,10 +76,11 @@ pub(super) fn bind_successor_axioms(
             })
             .collect::<Vec<_>>();
         for index in 0..established_count {
-            if !proposition_mentions_substituted_value(&axioms[index], &substitutions) {
+            if !proposition_mentions_substituted_value(axioms.roster_fact(index), &substitutions) {
                 continue;
             }
-            let rewritten = substitute_proposition_values(&axioms[index], &substitutions);
+            let rewritten =
+                substitute_proposition_values(axioms.roster_fact(index), &substitutions);
             if fact_index.has_fact(axioms, &rewritten) {
                 continue;
             }
@@ -90,8 +91,8 @@ pub(super) fn bind_successor_axioms(
                 &equality_indices,
                 &rewritten,
             );
-            fact_index.record(axioms.len(), &rewritten);
-            axioms.push(rewritten.clone());
+            fact_index.record(axioms.roster_len(), &rewritten);
+            axioms.push_fact(rewritten.clone());
             rewritten_facts.push(RewrittenSuccessorFact {
                 proposition: rewritten,
                 certified,
@@ -106,8 +107,8 @@ pub(super) fn bind_successor_axioms(
 /// row is the licensed premise these emissions ride on; no fixed-shape
 /// transport certificate covers a place rewrite yet, so every emission is
 /// reported uncertified under the binding row's license.
-pub(super) fn bind_successor_structural_axioms(
-    axioms: &mut Vec<Proposition>,
+pub(super) fn bind_successor_structural_axioms<M: AxiomRosterMut>(
+    axioms: &mut M,
     target_block: &terminal_psi::Block,
     structural_arguments: &[terminal_psi::StructuralArgument],
     rewrite_path_facts: bool,
@@ -128,14 +129,16 @@ pub(super) fn bind_successor_structural_axioms(
     if substitutions.is_empty() {
         return Vec::new();
     }
-    let established_count = axioms.len();
+    let established_count = axioms.roster_len();
     let mut fact_index = FactIndex::new(axioms);
     let mut rewritten_facts = Vec::new();
     for index in 0..established_count {
-        let rewritten = substitute_proposition_places(&axioms[index], &substitutions);
-        if rewritten != axioms[index] && fact_index.position_of(axioms, &rewritten).is_none() {
-            fact_index.record(axioms.len(), &rewritten);
-            axioms.push(rewritten.clone());
+        let rewritten = substitute_proposition_places(axioms.roster_fact(index), &substitutions);
+        if rewritten != *axioms.roster_fact(index)
+            && fact_index.position_of(axioms, &rewritten).is_none()
+        {
+            fact_index.record(axioms.roster_len(), &rewritten);
+            axioms.push_fact(rewritten.clone());
             rewritten_facts.push(RewrittenSuccessorFact {
                 proposition: rewritten,
                 certified: false,
@@ -153,8 +156,8 @@ pub(super) fn bind_successor_structural_axioms(
 /// discharged by the same fixed-shape transport certificate
 /// `bind_successor_axioms` uses; the returned classification marks whether the
 /// certificate checker accepted that rewrite.
-pub(super) fn append_successor_fact(
-    axioms: &mut Vec<Proposition>,
+pub(super) fn append_successor_fact<M: AxiomRosterMut>(
+    axioms: &mut M,
     proposition: &Proposition,
     target_block: &terminal_psi::Block,
     arguments: &[ValueId],
@@ -200,8 +203,8 @@ pub(super) fn append_successor_fact(
         proposition: rewritten.clone(),
         certified,
     };
-    fact_index.record(axioms.len(), &rewritten);
-    axioms.push(rewritten);
+    fact_index.record(axioms.roster_len(), &rewritten);
+    axioms.push_fact(rewritten);
     vec![fact]
 }
 
@@ -221,13 +224,16 @@ struct CitedRoster {
 
 impl CitedRoster {
     /// `None` when a cited index is outside the roster.
-    fn new(axioms: &[Proposition], cited: impl IntoIterator<Item = usize>) -> Option<Self> {
+    fn new(
+        axioms: &(impl AxiomRoster + ?Sized),
+        cited: impl IntoIterator<Item = usize>,
+    ) -> Option<Self> {
         let mut indices = cited.into_iter().collect::<Vec<_>>();
         indices.sort_unstable();
         indices.dedup();
         let rows = indices
             .iter()
-            .map(|&index| axioms.get(index).cloned())
+            .map(|&index| (index < axioms.roster_len()).then(|| axioms.roster_fact(index).clone()))
             .collect::<Option<Vec<_>>>()?;
         let positions = indices
             .into_iter()
@@ -247,8 +253,8 @@ impl CitedRoster {
     }
 }
 
-fn append_discrete_fact(
-    propositions: &mut Vec<Proposition>,
+fn append_discrete_fact<M: AxiomRosterMut>(
+    propositions: &mut M,
     fact_index: &mut FactIndex,
     proposition: &Proposition,
 ) {

@@ -182,7 +182,7 @@ pub(super) fn reconstruct(
         for (target, paths) in successors.into_iter().rev() {
             for path in paths.into_iter().rev() {
                 budget.retain(path.len(), machine.id)?;
-                pending.push((target, path));
+                pending.push((target, path.to_vec()));
             }
         }
     }

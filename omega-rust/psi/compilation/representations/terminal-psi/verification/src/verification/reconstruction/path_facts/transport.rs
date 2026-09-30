@@ -49,7 +49,7 @@ pub(in super::super) struct RewrittenSuccessorFact {
 /// rows (see [`super::CitedRoster`]).
 pub(in super::super) fn successor_rewrite_certified(
     context: &PropositionContext,
-    axioms: &[Proposition],
+    axioms: &(impl crate::verification::substitution::AxiomRoster + ?Sized),
     source_index: usize,
     equality_indices: &[usize],
     rewritten: &Proposition,
