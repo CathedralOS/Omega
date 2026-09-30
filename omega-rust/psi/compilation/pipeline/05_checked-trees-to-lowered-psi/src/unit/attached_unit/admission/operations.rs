@@ -91,6 +91,7 @@ pub(super) fn validate<'a>(
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)

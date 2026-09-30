@@ -403,6 +403,9 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                // A representation view store writes through a loaned view;
+                // it names no callee.
+                | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                 // An atomic event names no callee.
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                 // The paired call carries the callee dependency; cleanup only

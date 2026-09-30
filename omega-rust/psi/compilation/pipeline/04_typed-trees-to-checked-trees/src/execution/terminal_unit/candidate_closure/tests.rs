@@ -264,6 +264,7 @@ fn retain_available_reference(
                         | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
                         | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                         | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                        | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                         | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
                         | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                         | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }

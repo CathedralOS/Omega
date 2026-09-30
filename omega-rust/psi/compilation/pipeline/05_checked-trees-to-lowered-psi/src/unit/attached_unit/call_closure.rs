@@ -656,6 +656,36 @@ pub(super) fn validate_unit_operation_sequence(
                     call_ordinal: 0,
                 }
             }
+            // A store through a recast loan local consuming its own
+            // statement's scalar call result shares that call's coordinate,
+            // like the byte and element writes above; the produced result
+            // carries the view's declared carrier.
+            CheckedUnitEffectOperationPlan::RepresentationViewStore(write)
+                if matches!(
+                    write.value,
+                    checked_trees::CheckedStoreValue::ScalarResult { .. }
+                ) =>
+            {
+                if !preceding_scalar_call(&machine.operations, operation_index).is_some_and(
+                    |(coordinate, result)| {
+                        coordinate.statement_index == write.statement_index
+                            && coordinate.call_ordinal == 0
+                            && result.statement_index == write.statement_index
+                            && result.primitive_type == write.view
+                    },
+                ) {
+                    return unsupported(
+                        "representation view store call result has no immediately preceding scalar call",
+                    );
+                }
+                continue;
+            }
+            CheckedUnitEffectOperationPlan::RepresentationViewStore(write) => {
+                checked_trees::CheckedUnitCallCoordinate {
+                    statement_index: write.statement_index,
+                    call_ordinal: 0,
+                }
+            }
             CheckedUnitEffectOperationPlan::Complete { .. } => {
                 return unsupported("Unit machine contains a nonfinal Unit return");
             }

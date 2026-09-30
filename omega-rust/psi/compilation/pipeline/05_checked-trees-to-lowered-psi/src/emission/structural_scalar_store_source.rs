@@ -119,6 +119,33 @@ pub(crate) fn validate(
         } else if !element_writes.is_empty() {
             return unsupported("element-view assignment has duplicate store custody");
         }
+        let view_stores = statement_stores
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::RepresentationViewStore(write) => Some(write),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if let [write] = view_stores.as_slice() {
+            if has_other_store(&statement_stores, |operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
+                )
+            }) {
+                return unsupported("representation view assignment has conflicting store custody");
+            }
+            crate::emission::representation_view_store::validate_assignment(
+                checked,
+                plan.machine,
+                plan.state,
+                assignment,
+                write,
+            )?;
+            continue;
+        } else if !view_stores.is_empty() {
+            return unsupported("representation view assignment has duplicate store custody");
+        }
         let indexed_stores = statement_stores
             .iter()
             .filter_map(|operation| match operation {
@@ -435,9 +462,7 @@ fn replacement_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u
         CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
             Some(coordinate.statement_index)
         }
-        _ => operation
-            .call()
-            .map(|call| call.coordinate.statement_index),
+        _ => operation.call().map(|call| call.coordinate.statement_index),
     }
 }
 

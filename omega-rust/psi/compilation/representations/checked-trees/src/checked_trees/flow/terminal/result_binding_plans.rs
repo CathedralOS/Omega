@@ -118,3 +118,24 @@ pub struct CheckedElementViewWritePlan {
     pub element: PrimitiveType,
     pub value: crate::CheckedStoreValue,
 }
+
+/// Exact authored operands of a scalar store through a representation view:
+/// `view = v` where `view` is an immutable `&mut`/`&write` local bound by
+/// `&mut place as &mut T`. `destination` and `path` rejoin the view's
+/// loaned place so `path` ends at the leaf the view re-covers — a whole
+/// primitive field for a same-width view, or one `u8` element selected by
+/// `FixedIndex`/`RuntimeIndex` below a bounded byte field for a wider one.
+/// `element` is that leaf's declared primitive and `view` the referee's
+/// declared primitive. One authored statement mints one row: lowering
+/// expands a view wider than its leaf into one primitive store per
+/// little-endian footprint byte, each byte's index and value re-proving
+/// their own obligations against the carrier's extent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedRepresentationViewStorePlan {
+    pub statement_index: u32,
+    pub destination: crate::CheckedStoreRoot,
+    pub path: Vec<CheckedUnitStructuralPathSegment>,
+    pub element: PrimitiveType,
+    pub view: PrimitiveType,
+    pub value: crate::CheckedStoreValue,
+}

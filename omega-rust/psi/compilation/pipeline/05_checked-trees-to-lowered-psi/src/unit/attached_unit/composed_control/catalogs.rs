@@ -96,6 +96,7 @@ fn lower_composed_services(
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_) => continue,
                 _ => return unsupported("composed Unit control contains a non-call operation"),
             }

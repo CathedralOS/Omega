@@ -247,6 +247,10 @@ pub enum CheckedUnitEffectOperationPlan {
     /// `view[index] = element`. The live-length observation composes with
     /// the write exactly as the byte-view write's does.
     ElementViewWrite(CheckedElementViewWritePlan),
+    /// Replace one primitive leaf re-covered by a `&mut`/`&write`
+    /// representation view — one row for the authored `view = v`, however
+    /// many footprint bytes the view spans at lowering.
+    RepresentationViewStore(crate::CheckedRepresentationViewStorePlan),
     /// Move one whole structural field out of exclusive borrowed storage into
     /// a fresh owned binding, opening a repair window the body must close.
     /// The source is a parameter-rooted exact field chain; the result binding
@@ -336,6 +340,7 @@ impl CheckedUnitEffectOperationPlan {
             Self::StructuralByteSequenceFieldByteStore(store) => Some(store.statement_index),
             Self::ByteSequenceWrite(write) => Some(write.statement_index),
             Self::ElementViewWrite(write) => Some(write.statement_index),
+            Self::RepresentationViewStore(store) => Some(store.statement_index),
             _ => None,
         }
     }

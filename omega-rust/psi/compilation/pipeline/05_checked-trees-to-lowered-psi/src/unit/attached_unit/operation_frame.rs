@@ -483,6 +483,7 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
@@ -520,6 +521,9 @@ impl OperationFrame<'_, '_> {
                 path,
                 value,
             } => self.write_only_primitive_store(*statement_index, destination, path, value),
+            CheckedUnitEffectOperationPlan::RepresentationViewStore(write) => {
+                self.representation_view_store(write)
+            }
             CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
                 self.structural_byte_sequence_field_store(store)
             }
@@ -890,6 +894,34 @@ impl OperationFrame<'_, '_> {
             self.operations,
         )?;
         self.push_unit(kind);
+        Ok(())
+    }
+
+    /// A store through a recast loan local emits the value once, then one
+    /// primitive store per emitted footprint byte — or one whole store for
+    /// a same-width leaf — in the dense scalar namespace the indexed-write
+    /// family uses.
+    fn representation_view_store(
+        &mut self,
+        write: &checked_trees::CheckedRepresentationViewStorePlan,
+    ) -> Result<(), LoweringError> {
+        for kind in crate::emission::representation_view_store::emit(
+            write,
+            self.checked,
+            self.machine,
+            self.state,
+            &mut *self.evaluation,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+            self.structural_types.declarations(),
+        )? {
+            self.push_unit(kind);
+        }
         Ok(())
     }
 
