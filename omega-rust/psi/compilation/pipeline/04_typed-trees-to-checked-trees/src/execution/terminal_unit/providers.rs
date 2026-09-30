@@ -9,7 +9,9 @@ use super::{
 };
 use crate::execution::terminal_unit::types::ShapeCollector;
 
-use crate::execution::terminal_unit::calls::provider_attachment_receiver_matches;
+use crate::execution::terminal_unit::calls::{
+    parameter_binding_receiver_source, provider_attachment_receiver_matches,
+};
 
 pub(super) fn checked_provider_attachment_requirements(
     program: &TypedTrees,
@@ -55,25 +57,26 @@ pub(super) fn checked_provider_attachment_requirements(
         .collect::<Vec<_>>();
     // A routed receiver carries ordinary structural arguments beside the
     // attached provider field, so non-self parameters are no longer blanket
-    // rejections. The roster below still names `self.<field>` receivers only,
-    // so a parameter must not be a second provider surface: neither a fused
-    // `Service` receipt nor a carrier whose own shape holds a provider-backed
-    // field can cross here as an unspecialized argument.
+    // rejections. Unresolved provider fields still need an attachment route,
+    // and whole routed-Service parameters retain their separate custody fence.
+    // An ordinary parameter of the exact attachment carrier may use its Fused
+    // fields; each occurrence must retain that same attachment-field requirement.
+    // An unrelated provider-bearing carrier is not another attachment surface.
     if provider_fields
         .iter()
         .any(|(field, _)| field.identity.starts_with('#'))
-        || structural_parameters
-            .iter()
-            .any(|parameter| !parameter.is_self && parameter_is_provider_carrier(shapes, parameter))
+        || structural_parameters.iter().any(|parameter| {
+            !parameter.is_self
+                && parameter_is_provider_carrier(shapes, parameter, attachment_type_identity)
+        })
     {
         return None;
     }
 
-    let attached_name = machine.attached_data.as_ref()?;
     let attached = program
         .data_definitions()
         .iter()
-        .find(|data| data.name == *attached_name)?;
+        .find(|data| data.symbol == machine.attached_data_symbol)?;
     // Every provider-backed field claims the boundary calls it answers: a
     // `self.<field>` receiver names its field, and the field's requirement
     // picks the trait whose signatures own each call's target. An entry may
@@ -150,6 +153,13 @@ pub(super) fn checked_provider_attachment_requirements(
         let [call] = matching_calls.as_slice() else {
             return None;
         };
+        let call_site = crate::semantic::calls::find_call_site(
+            program,
+            machine.symbol,
+            state.symbol,
+            call.statement_index,
+            call.call_ordinal,
+        );
         let candidates = providers
             .iter()
             .filter(|(_, _, _, provider_requirements)| {
@@ -189,13 +199,7 @@ pub(super) fn checked_provider_attachment_requirements(
             }
             return None;
         }
-        let call_site = crate::semantic::calls::find_call_site(
-            program,
-            machine.symbol,
-            state.symbol,
-            call.statement_index,
-            call.call_ordinal,
-        )?;
+        let call_site = call_site?;
         // The `self.<field>` receiver names the provider a call answers to:
         // a call claims exactly the field it routes through, not a
         // same-boundary sibling.
@@ -205,17 +209,52 @@ pub(super) fn checked_provider_attachment_requirements(
             );
         let mut claimed = false;
         for (field, provider_type_identity, provider, _) in candidates {
-            if receiver_field.as_ref().map(|name| name.as_str()) != Some(field.identity.as_str())
-                || !provider_attachment_receiver_matches(
+            let attached_receiver = receiver_field.as_ref().map(|name| name.as_str())
+                == Some(field.identity.as_str())
+                && provider_attachment_receiver_matches(
                     program,
                     machine,
                     &call_site,
                     provider.symbol,
-                )
-            {
+                );
+            // Provider roots bind attachment type + exact used field + boundary,
+            // not the spelling `self`. The ordinary parameter must have that
+            // same nominal carrier and project exactly its declared direct field.
+            let parameter_receiver = parameter_binding_receiver_source(
+                program, state, call.statement_index, &call_site, provider.symbol,
+            ).is_some_and(|(source, place)| {
+                let Some(reference) = validation::unwrapped_type_reference(program, source.type_reference) else {
+                    return false;
+                };
+                if program.normalized_type_identity(reference).as_str() != attachment_type_identity
+                    || program.closed_data_definition(reference).is_none_or(|owner| owner.symbol != attached.symbol)
+                {
+                    return false;
+                }
+                // Ordinary per-state plans supply their retained roster here.
+                // Composed collection has no roster; its already-planned call
+                // independently checked the same source parameter position.
+                if !structural_parameters.is_empty() && !structural_parameters.iter().any(|parameter| {
+                    !parameter.is_self && parameter.type_identity == attachment_type_identity
+                        && program.state_parameters(state).get(parameter.position as usize)
+                            .is_some_and(|parameter| parameter.symbol == source.symbol)
+                }) {
+                    return false;
+                }
+                let [facts::PlaceSegment::Field { symbol }] = place.segments.as_slice() else {
+                    return false;
+                };
+                program.data_members(attached).iter().any(|member| matches!(member,
+                    DataMember::Field(source_field) if source_field.symbol == *symbol
+                        && source_field.name.as_str() == field.identity && !source_field.relevance.is_erased()))
+            });
+            if !attached_receiver && !parameter_receiver {
                 continue;
             }
-            if !boundary.is_some_and(|planned| planned.target.machine == call.target_symbol) {
+            if !boundary.is_some_and(|planned| {
+                planned.target.machine == call.target_symbol
+                    && planned.target.state == call.target_symbol
+            }) {
                 return None;
             }
             requirements.push(CheckedProviderAttachmentRequirementPlan {
@@ -263,30 +302,32 @@ fn attachment_record_fields<'a>(
     }
 }
 
-/// Whether one ordinary argument is itself a provider surface. A fused
-/// `Service` receipt parameter is a provider carrier outright, and a carrier
-/// whose own shape holds a provider-backed field smuggles an unspecialized
-/// provider through the argument lane: the requirement roster names the
-/// attached `self.<field>` receiver only.
+/// Whether an ordinary argument needs a provider route this roster cannot
+/// describe. Whole routed-Service parameters keep their distinct receipt fence;
+/// ordinary records of the exact attachment type may contain authorized Fused
+/// fields, but unrelated carriers and unresolved provider fields remain fenced.
 fn parameter_is_provider_carrier(
     shapes: &ShapeCollector<'_>,
     parameter: &CheckedUnitStructuralParameterPlan,
+    attachment_type_identity: &str,
 ) -> bool {
     parameter.fused_service_erasure.is_some()
-        || type_carries_provider(
+        || type_carries_unsupported_provider(
             shapes,
             parameter.type_identity.as_str(),
+            parameter.type_identity == attachment_type_identity,
             &mut BTreeSet::new(),
         )
 }
 
-/// Whether the shape named by `type_identity` holds a provider-backed field,
+/// Whether the shape holds a provider field unavailable through this attachment,
 /// following structural field and element references so a provider buried
 /// inside a nested carrier still counts. Erased fields own no runtime carrier,
 /// so their types are not followed.
-fn type_carries_provider<'a>(
+fn type_carries_unsupported_provider<'a>(
     shapes: &'a ShapeCollector<'_>,
     type_identity: &'a str,
+    allow_fused: bool,
     visited: &mut BTreeSet<&'a str>,
 ) -> bool {
     if !visited.insert(type_identity) {
@@ -300,13 +341,18 @@ fn type_carries_provider<'a>(
         ..
     } = &plan.shape
     {
-        return type_carries_provider(shapes, element_type_identity, visited);
+        return type_carries_unsupported_provider(
+            shapes,
+            element_type_identity,
+            allow_fused,
+            visited,
+        );
     }
     shape_fields(&plan.shape).any(|field| match &field.field_type {
-        CheckedUnitStructuralFieldType::ProviderBacked { .. }
-        | CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => true,
+        CheckedUnitStructuralFieldType::ProviderBacked { .. } => true,
+        CheckedUnitStructuralFieldType::FusedServiceBacked { .. } => !allow_fused,
         CheckedUnitStructuralFieldType::Structural { type_identity } => {
-            type_carries_provider(shapes, type_identity, visited)
+            type_carries_unsupported_provider(shapes, type_identity, allow_fused, visited)
         }
         _ => false,
     })

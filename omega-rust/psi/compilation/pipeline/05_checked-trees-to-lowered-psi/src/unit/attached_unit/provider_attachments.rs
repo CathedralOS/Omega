@@ -1,4 +1,10 @@
 //! Checked provider requirements projected into Terminal attachment roots.
+//!
+//! Roots witness exact field-to-requirement specialization, not lexical self
+//! storage. Calls through an ordinary context retain the same field root only
+//! after source replay joins that parameter's nominal carrier and Fused receipt.
+//! Per-occurrence replay precedes complete-set validation; matching boundary
+//! names cannot justify a sibling field or a different context type.
 
 use super::super::{
     BoundaryMachineId, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypePlan,
@@ -9,6 +15,8 @@ use super::{
     StructuralTypeShape, allocate_dense, place_id, unsupported,
 };
 mod source;
+#[cfg(test)]
+mod tests;
 pub(super) use source::validate_call_source;
 
 pub(super) fn validate_provider_attachment_requirements(

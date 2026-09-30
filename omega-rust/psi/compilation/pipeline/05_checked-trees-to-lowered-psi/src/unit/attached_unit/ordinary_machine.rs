@@ -198,18 +198,6 @@ pub(super) fn emit(
         &plan.entry_claims,
         claim_bindings,
     )?;
-    // Attachment admission classifies the complete boundary roster by each
-    // requirement's authored owner, independently of the operation's shape.
-    let called_boundaries = plan
-        .operations
-        .iter()
-        .filter_map(|operation| {
-            operation
-                .call()
-                .filter(|call| call.is_boundary())
-                .map(|call| call.target.machine)
-        })
-        .collect::<Vec<_>>();
     let provider_boundaries = lowered_boundary_parameters
         .iter()
         .map(|boundary| (boundary.source, boundary.id))
@@ -220,6 +208,23 @@ pub(super) fn emit(
         .map(|identity| lookup_type_id(type_ids, identity))
         .transpose()?;
     let provider_places = if let Some(attachment) = attachment {
+        // Replay each occurrence before deduplicating boundary identities:
+        // ordinary contexts must retain their exact attachment-field roots.
+        let mut called_boundaries = Vec::new();
+        for operation in &plan.operations {
+            if let Some(call) = operation.call()
+                && super::provider_attachments::validate_call_source(
+                    checked,
+                    plan.machine,
+                    plan.state,
+                    operation,
+                    &plan.structural_parameters,
+                    &plan.provider_attachment_requirements,
+                )?
+            {
+                called_boundaries.push(call.target.machine);
+            }
+        }
         let checked_attachment = plans
             .structural_types()
             .find(|declaration| {

@@ -9,13 +9,13 @@ use crate::execution::terminal_unit::types::{
     base_type_identity_with_substitutions, byte_sequence_carrier, substituted_formal_type,
 };
 use crate::execution::terminal_unit::{
-    DataMember, Multiplicity, PrimitiveType, SymbolHandle, TypeReferenceNode, TypedTrees,
-    is_reference,
+    DataMember, Multiplicity, PrimitiveType, StateParameter, SymbolHandle, TypeReferenceNode,
+    TypedTrees, is_reference,
 };
 
 /// A Fused binding projected from an ordinary parameter retains its exact
-/// requirement and compiler-issued erasure authorization. It is not a dynamic
-/// provider attachment, and carrier qualification does not supply a receiver.
+/// requirement and compiler-issued erasure authorization. This proves the call
+/// receiver; attachment-field requirements remain a separate roster obligation.
 pub(super) fn parameter_binding_receiver_matches(
     program: &TypedTrees,
     state: &typed_trees::state::State,
@@ -24,6 +24,31 @@ pub(super) fn parameter_binding_receiver_matches(
     call_site: &crate::semantic::calls::CallSite<'_>,
     requirement: SymbolHandle,
 ) -> bool {
+    let Some((source, _)) =
+        parameter_binding_receiver_source(program, state, statement_index, call_site, requirement)
+    else {
+        return false;
+    };
+    parameters.iter().any(|parameter| {
+        !parameter.is_self
+            && program
+                .state_parameters(state)
+                .get(parameter.position as usize)
+                .is_some_and(|candidate| candidate.symbol == source.symbol)
+    })
+}
+
+/// Resolve the ordinary source parameter whose projected Binding has an exact
+/// Fused authorization. This identifies a receiver, not a call admission: the
+/// call planner separately requires its structural parameter, and attachment
+/// collection uses this only for an already-planned matching boundary call.
+pub(crate) fn parameter_binding_receiver_source<'program>(
+    program: &'program TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    call_site: &crate::semantic::calls::CallSite<'_>,
+    requirement: SymbolHandle,
+) -> Option<(&'program StateParameter, crate::flow::CanonicalPlace)> {
     let place = match call_site {
         crate::semantic::calls::CallSite::Expression { call, .. } => {
             crate::flow::canonical_place_from_expression_in_state(
@@ -42,33 +67,25 @@ pub(super) fn parameter_binding_receiver_matches(
         }
         crate::semantic::calls::CallSite::TransitionNamed { .. } => None,
     };
-    let Some(place) = place else {
-        return false;
-    };
+    let place = place?;
     let facts::PlaceRoot::Symbol(root) = place.root else {
-        return false;
+        return None;
     };
-    if place.segments.is_empty()
-        || !parameters.iter().any(|parameter| {
-            !parameter.is_self
-                && program
-                    .state_parameters(state)
-                    .get(parameter.position as usize)
-                    .is_some_and(|source| source.symbol == root && !source.relevance.is_erased())
-        })
-    {
-        return false;
+    if place.segments.is_empty() {
+        return None;
     }
-    let Some((reference, _)) = super::argument_paths::projected_argument_path(
+    let source = program.state_parameters(state).iter().find(|parameter| {
+        parameter.symbol == root && !parameter.is_self && !parameter.relevance.is_erased()
+    })?;
+    let (reference, _) = super::argument_paths::projected_argument_path(
         program,
         state.symbol,
         statement_index,
         &place,
-    ) else {
-        return false;
-    };
-    typed_trees::service::exact_bound_service_requirement(program, reference) == Some(requirement)
-        && program.fused_service_erasure(requirement).is_some()
+    )?;
+    (typed_trees::service::exact_bound_service_requirement(program, reference) == Some(requirement)
+        && program.fused_service_erasure(requirement).is_some())
+    .then_some((source, place))
 }
 
 /// `substitutions` carries the call edge's admitted specialization: a
