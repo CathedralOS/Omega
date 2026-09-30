@@ -28,7 +28,8 @@ installation; a successful checked comparison alone does not close this sample.
 ## What it tests
 
 - f64 arithmetic in free machine bodies (parameter arithmetic)
-- f64 field read/write in guard comparisons
-- Chained machine calls storing results in a field
+- Static entry and explicit context arguments between states
+- Conversion results held in locals and passed only to the next tolerance check
+- Local input buffers allocated only by the terminal states that use them
 - Multi-step f64 computation (`shifted * 0.555...` for F→C)
 - Guard ladder pattern for float value verification
