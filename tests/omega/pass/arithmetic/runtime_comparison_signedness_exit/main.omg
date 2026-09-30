@@ -1,7 +1,7 @@
 // Regression guard for COMPARISON-operator signedness across integer widths. A
 // signed compare used for unsigned operands (or vice versa) silently flips the
 // branch once a value crosses the type's signed/unsigned boundary -- a severe,
-// ubiquitous miscompile class. Each state sets a runtime operand pair (so the
+// ubiquitous miscompile class. Each state receives a runtime operand pair (so the
 // compare is real, not folded) and branches on the signedness-sensitive case;
 // the wrong arm exits 71. Reaching the end exits 70. The differential oracle also
 // checks native==interpreter.
@@ -14,51 +14,41 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    u: u32 in Wrapping;
-    u2: u32 in Wrapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    // u32 0x80000000 < 1 is FALSE unsigned (TRUE if misread as signed -5...).
-    self.u = 2147483648;
-    self.u2 = 1;
-    transition self.u < self.u2 { true -> bad() _ -> check_u_gt() }
+machine Main::main(context: &mut Main) reaches Console {
+    transition { _ -> check_u_lt(context, 2147483648, 1) }
 
-    state check_u_gt(&mut self) {
+    state check_u_lt(context: &mut Main, left: u32 in Wrapping, right: u32 in Wrapping) {
+        // u32 0x80000000 < 1 is FALSE unsigned (TRUE if misread as -2147483648).
+        transition left < right { true -> bad(context) _ -> check_u_gt(context, 4294967295, 0) }
+    }
+
+    state check_u_gt(context: &mut Main, left: u32 in Wrapping, right: u32 in Wrapping) {
         // u32 0xFFFFFFFF > 0 is TRUE unsigned (FALSE if misread as -1 < 0).
-        self.u = 4294967295;
-        self.u2 = 0;
-        transition self.u > self.u2 { true -> check_i32_neg() _ -> bad() }
+        transition left > right { true -> check_i32_neg(context, -5, 3) _ -> bad(context) }
     }
-    state check_i32_neg(&mut self) {
+    state check_i32_neg(context: &mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
         // i32 -5 < 3 is TRUE signed.
-        let mut s: i32 in Wrapping = -5;
-        let mut s2: i32 in Wrapping = 3;
-        transition s < s2 { true -> check_u8() _ -> bad() }
+        transition left < right { true -> check_u8(context, 200, 5) _ -> bad(context) }
     }
-    state check_u8(&mut self) {
+    state check_u8(context: &mut Main, left: u8 in Wrapping, right: u8 in Wrapping) {
         // u8 200 > 5 is TRUE unsigned (200 would be -56 signed).
-        let mut b8: u8 in Wrapping = 200;
-        let mut b8b: u8 in Wrapping = 5;
-        transition b8 > b8b { true -> check_u16() _ -> bad() }
+        transition left > right { true -> check_u16(context, 40000, 5) _ -> bad(context) }
     }
-    state check_u16(&mut self) {
+    state check_u16(context: &mut Main, left: u16 in Wrapping, right: u16 in Wrapping) {
         // u16 40000 > 5 is TRUE unsigned (40000 > i16::MAX).
-        let mut w16: u16 in Wrapping = 40000;
-        let mut w16b: u16 in Wrapping = 5;
-        transition w16 > w16b { true -> check_i64() _ -> bad() }
+        transition left > right { true -> check_i64(context, -5000000000, 3) _ -> bad(context) }
     }
-    state check_i64(&mut self) {
+    state check_i64(context: &mut Main, left: i64 in Wrapping, right: i64 in Wrapping) {
         // i64 -5_000_000_000 < 3 is TRUE signed (needs full 64-bit).
-        let mut big: i64 in Wrapping = -5000000000;
-        let mut big2: i64 in Wrapping = 3;
-        transition big < big2 { true -> good() _ -> bad() }
+        transition left < right { true -> good(context) _ -> bad(context) }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(context: &mut Main) {
+        context.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state bad(context: &mut Main) {
+        context.console.exit_process(71);
     }
 }

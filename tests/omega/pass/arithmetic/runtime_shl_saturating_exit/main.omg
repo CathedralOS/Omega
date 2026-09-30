@@ -5,60 +5,61 @@
 // Exit 71 is a wrong result; 72 is the original unsigned wrapping result.
 use omega_language_std::console;
 use omega::language::core::binding;
-data Main
-where
-    b <= 7,
-    signed_count <= 7,
-{
-    console: Binding<Console>;
-    a: u8 in Saturating;
-    b: u8;
-    r: u8 in Saturating;
-    signed_value: i8 in Saturating;
-    signed_count: u64;
-    signed_result: i8 in Saturating;
-}
-machine Main::main(&mut self) reaches Console {
-    self.a = 17;
-    self.b = 4;
-    self.r = self.a << self.b;
-    transition self.r == 255 { true -> clamped() _ -> chk16() }
-    state chk16(&mut self) {
-        transition self.r == 16 { true -> wrapped() _ -> bad() }
+data Main { console: Binding<Console>; }
+machine Main::main(context: &mut Main) reaches Console {
+    let value: u8 in Saturating = 17;
+    let count: u8 = 4;
+    let result: u8 in Saturating = value << count;
+    transition result == 255 {
+        true -> clamped(context)
+        _ -> check_wrapping(context, result as u8)
     }
-    state clamped(&mut self) {
+    state check_wrapping(context: &mut Main, result: u8) {
+        transition result == 16 { true -> wrapped(context) _ -> bad(context) }
+    }
+    state clamped(context: &mut Main) {
         // The largest count must not turn a signed scale factor negative.
-        self.signed_value = 1;
-        self.signed_count = 7;
-        self.signed_result = self.signed_value << self.signed_count;
-        transition self.signed_result == 127 { true -> positive_expression() _ -> bad() }
+        let value: i8 in Saturating = 1;
+        let count: u64 = 7;
+        let result: i8 in Saturating = value << count;
+        transition result == 127 {
+            true -> positive_expression(context, value, count)
+            _ -> bad(context)
+        }
     }
-    state positive_expression(&mut self) {
+    state positive_expression(context: &mut Main, value: i8 in Saturating, count: u64)
+    requires count <= 7;
+    {
         // Clamp at the operation, without a destination's landing policy.
-        transition (self.signed_value << self.signed_count) == 127 { true -> negative() _ -> bad() }
+        transition (value << count) == 127 { true -> negative(context, count) _ -> bad(context) }
     }
-    state negative(&mut self) {
-        self.signed_value = -1;
-        self.signed_result = self.signed_value << self.signed_count;
-        transition self.signed_result == -128 { true -> right_shift() _ -> bad() }
+    state negative(context: &mut Main, count: u64)
+    requires count <= 7;
+    {
+        let value: i8 in Saturating = -1;
+        let result: i8 in Saturating = value << count;
+        transition result == -128 { true -> right_shift(context, count) _ -> bad(context) }
     }
-    state right_shift(&mut self) {
-        self.signed_value = -128;
-        self.signed_result = self.signed_value >> self.signed_count;
-        transition self.signed_result == -1 { true -> zero_count() _ -> bad() }
+    state right_shift(context: &mut Main, count: u64)
+    requires count <= 7;
+    {
+        let value: i8 in Saturating = -128;
+        let result: i8 in Saturating = value >> count;
+        transition result == -1 { true -> zero_count(context) _ -> bad(context) }
     }
-    state zero_count(&mut self) {
-        self.signed_count = 0;
-        self.signed_result = self.signed_value << self.signed_count;
-        transition self.signed_result == -128 { true -> zero_value() _ -> bad() }
+    state zero_count(context: &mut Main) {
+        let value: i8 in Saturating = -128;
+        let count: u64 = 0;
+        let result: i8 in Saturating = value << count;
+        transition result == -128 { true -> zero_value(context) _ -> bad(context) }
     }
-    state zero_value(&mut self) {
-        self.signed_value = 0;
-        self.signed_count = 7;
-        self.signed_result = self.signed_value << self.signed_count;
-        transition self.signed_result == 0 { true -> done() _ -> bad() }
+    state zero_value(context: &mut Main) {
+        let value: i8 in Saturating = 0;
+        let count: u64 = 7;
+        let result: i8 in Saturating = value << count;
+        transition result == 0 { true -> done(context) _ -> bad(context) }
     }
-    state done(&mut self) { self.console.exit_process(70); }
-    state wrapped(&mut self) { self.console.exit_process(72); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state done(context: &mut Main) { context.console.exit_process(70); }
+    state wrapped(context: &mut Main) { context.console.exit_process(72); }
+    state bad(context: &mut Main) { context.console.exit_process(71); }
 }

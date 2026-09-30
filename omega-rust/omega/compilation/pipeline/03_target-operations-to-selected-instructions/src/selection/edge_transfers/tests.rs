@@ -15,6 +15,97 @@ use semantic_vocabulary::{BlockId, EdgeId, IntegerType, MachineId};
 use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 
 #[test]
+fn address_transports_preserve_empty_referents_without_dropping_pointer_custody() {
+    use selected_instructions::{SelectedAddressBase, SelectedStructuralTransport};
+
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let environment = register_environment::baseline_target_register_environment(native)
+            .expect("supported target");
+        let constraints = SelectedSelectionConstraints {
+            keys: environment.selected_keys(),
+            fixed_inputs: Vec::new(),
+        };
+        for byte_count in [8, 0] {
+            for local_base in [false, true] {
+                let mut original = super::descriptor_tests::swapped_function(
+                    &constraints,
+                    environment.constraints(),
+                );
+                for slot in &mut original.local_storage_slots {
+                    slot.byte_size = 8;
+                }
+                for access in &mut original.memory_accesses {
+                    access.byte_count = 8;
+                }
+                let SelectedTerminator::Jump { successor, .. } = &mut original.blocks[0].terminator
+                else {
+                    panic!("test source has one jump");
+                };
+                for (position, binding) in successor.structural_bindings.iter_mut().enumerate() {
+                    let SelectedStructuralTransport::Descriptor {
+                        argument,
+                        destination,
+                    } = binding.transport
+                    else {
+                        panic!("test source supplies descriptor addresses");
+                    };
+                    binding.transport = SelectedStructuralTransport::Address {
+                        base: if local_base {
+                            SelectedAddressBase::Local(
+                                original.local_storage_slots[1 - position].id,
+                            )
+                        } else {
+                            SelectedAddressBase::Register(argument)
+                        },
+                        byte_offset: 0,
+                        byte_count,
+                        destination,
+                    };
+                }
+                let mut prepared = original.clone();
+                prepare(0, &mut prepared, &constraints, environment.constraints())
+                    .expect("forming a pointer does not read the referent");
+                assert_eq!(
+                    project(0, &prepared, &constraints).unwrap_or_else(|error| {
+                        panic!("address replay: {native:?}, span {byte_count}, local {local_base}: {error:?}")
+                    }),
+                    original,
+                    "{native:?}, span {byte_count}, local {local_base}"
+                );
+
+                // A zero-byte referent never excuses a missing pointer slot,
+                // omitted transport instruction, or forged access accounting.
+                for mutation in 0..3 {
+                    let mut changed = prepared.clone();
+                    match mutation {
+                        0 => changed.local_storage_slots[0].byte_size = 0,
+                        1 => {
+                            changed.blocks[1].instructions.pop();
+                        }
+                        _ => {
+                            changed
+                                .memory_accesses
+                                .last_mut()
+                                .expect("pointer store")
+                                .byte_count = 0
+                        }
+                    }
+                    assert!(
+                        project(0, &changed, &constraints).is_err(),
+                        "mutation {mutation}, span {byte_count}, {native:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn shared_conditional_fallthrough_bridges_project_to_exact_original_edges() {
     for native in [
         target::NativeTarget::linux_x64(),
