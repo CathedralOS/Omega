@@ -3,6 +3,7 @@
 // modules; target-only contracts remain separate until that target requests
 // them explicitly.
 use calling;
+use clock;
 use console;
 use filesystem;
 use format_lineage;

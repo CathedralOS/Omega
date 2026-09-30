@@ -553,6 +553,7 @@ pass/host/runtime_gui_foreground_window_exit rejected 443ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments` (state 0, statement 13)
 pass/host/runtime_gui_window_lifecycle_exit rejected 520ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: boundary arguments` (state 0, statement 13)
+pass/host/std_clock_sleep_exit built 1894ms exit:70 @27fbba584bed+wt
 pass/inline_asm/asm_aarch64_system_registers_compile rejected 220ms
 	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at call operation: target state, statement 0)") })
 pass/inline_asm/asm_block_jmp_state built 301ms
@@ -947,9 +948,8 @@ pass/time/runtime_checked_time_arith_exit built 940ms exit:70
 pass/time/runtime_duration_core_exit built 14314ms exit:70 @fb2178def922
 pass/time/runtime_fs_mtime_system_time_interop_exit rejected 807ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: call result: result type` (state 0)
-pass/time/runtime_time_elapsed_since_exit rejected 698ms
-	selected ProgramEntry Binding field `Main::clock` requires a selected Fused provider for boundary `Clock`
-	selected ProgramEntry Binding field `Main::time::host` requires a selected Fused provider for boundary `TimeHost`
+pass/time/runtime_time_elapsed_since_exit rejected 804ms @27fbba584bed+wt
+	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Time::now`), which was itself omitted at local construction at `call operation: boundary receiver`
 pass/time/runtime_time_host_native_darwin_exit rejected 459ms
 	selected ProgramEntry Binding field `Main::host` requires a selected Fused provider for boundary `TimeHost`
 pass/time/runtime_time_host_virtual_exit checked 413ms

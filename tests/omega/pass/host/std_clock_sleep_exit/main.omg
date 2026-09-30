@@ -1,0 +1,18 @@
+// The canonical std `Clock::sleep` blocks its caller and then returns: the
+// program sleeps 200 milliseconds through the selected std Clock provider and
+// then exits 70. Reaching the exit proves the hosted sleep returned; the
+// process's wall time must cover the requested 200 milliseconds.
+// Expected exit: 70.
+use omega_language_std::console;
+use omega_language_std::clock;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    clock: Binding<Clock>;
+}
+
+machine Main::main(context: &mut Main) reaches Console + Clock {
+    context.clock.sleep(200);
+    context.console.exit_process(70);
+}
