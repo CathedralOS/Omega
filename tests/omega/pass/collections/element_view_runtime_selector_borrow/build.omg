@@ -1,0 +1,5 @@
+machine build(builder: &mut Build) {
+    builder.application("element_view_runtime_selector_borrow");
+    builder.depend(Source::Path { location: "/home/ubuntu/omega-pin/source/library/std" });
+    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+}

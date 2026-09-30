@@ -30,6 +30,20 @@ pub(crate) enum ProjectionStep {
     RuntimeIndexParameter {
         position: u32,
     },
+    /// A runtime element whose selector is a program-point read of one
+    /// integer field below a structural entry parameter — `bag.at` in
+    /// `cells[bag.at]`. The checked coordinate names the parameter's authored
+    /// position and field path; the evaluator resolves that observation
+    /// against the state's field bindings and emits the read itself.
+    RuntimeIndexStructuralField(checked_trees::CheckedStructuralParameterField),
+    /// A runtime element whose selector is an immutable scalar local of the
+    /// calling state — `let at: u64 = ...` in `cells[at]` — at the dense
+    /// namespace position the checker minted, the same coordinate
+    /// `CheckedScalarExpression::Local` uses. The scalar source frame reads
+    /// it directly.
+    RuntimeIndexLocal {
+        position: u32,
+    },
 }
 
 /// The steps as a static Terminal path, for routes that evaluate no selector.
@@ -41,7 +55,9 @@ pub(crate) fn static_segments(
         .map(|step| match step {
             ProjectionStep::Static(segment) => Ok(segment),
             ProjectionStep::AssignmentIndex { .. }
-            | ProjectionStep::RuntimeIndexParameter { .. } => {
+            | ProjectionStep::RuntimeIndexParameter { .. }
+            | ProjectionStep::RuntimeIndexStructuralField(_)
+            | ProjectionStep::RuntimeIndexLocal { .. } => {
                 unsupported("this route evaluates no assignment runtime element")
             }
         })
@@ -89,17 +105,47 @@ pub(crate) fn evaluate_selectors(
                     calls,
                 )?
             }
-            ProjectionStep::RuntimeIndexParameter { position } => {
-                // A parameter selector is already a scalar source value of
-                // the calling state: the dense source prefix holds it, in
-                // the same order the checker numbers `RuntimeIndex`
-                // positions.
+            ProjectionStep::RuntimeIndexParameter { position }
+            | ProjectionStep::RuntimeIndexLocal { position } => {
+                // A parameter or immutable-local selector is already a scalar
+                // source value of the calling state: the dense source frame
+                // holds it, in the same order the checker numbers
+                // `RuntimeIndex` positions.
                 let Some(index) = values.get(*position as usize) else {
                     return unsupported(
                         "store runtime index position exceeds the scalar source frame",
                     );
                 };
                 index.clone()
+            }
+            ProjectionStep::RuntimeIndexStructuralField(field) => {
+                // A field selector is a program-point read of that parameter
+                // member — `bag.at` — resolved against the state's field
+                // bindings and emitted before the stored value, exactly as a
+                // scalar observation on the same field lowers.
+                let (source, path, leaf, scalar_type) =
+                    crate::expression_preparation::bindings::structural_fields::resolve_typed(
+                        &evaluation.structural_fields,
+                        field.parameter_position,
+                        &field.path,
+                    )?;
+                let index =
+                    crate::emission::operation_emission::expressions::emit_direct_expression(
+                        &crate::emission::operation_emission::expressions::LoweredDirectExpression::StructuralField {
+                            source,
+                            path,
+                            field: leaf,
+                            scalar_type,
+                        },
+                        values,
+                        next_value,
+                        operations,
+                    );
+                ValueDeclaration {
+                    id: index,
+                    scalar_type,
+                    qualifications: Default::default(),
+                }
             }
             _ => continue,
         };
@@ -128,14 +174,14 @@ pub(crate) fn complete_path(
         .map(|step| match step {
             ProjectionStep::Static(segment) => Ok(segment),
             ProjectionStep::AssignmentIndex { .. }
-            | ProjectionStep::RuntimeIndexParameter { .. } => {
-                Ok(StructuralPathSegment::RuntimeIndex {
-                    index: indexes.next().ok_or(LoweringError::Unsupported(
-                        "store path lost an evaluated runtime element",
-                    ))?,
-                    obligation: calls.allocate_requirement()?,
-                })
-            }
+            | ProjectionStep::RuntimeIndexParameter { .. }
+            | ProjectionStep::RuntimeIndexStructuralField(_)
+            | ProjectionStep::RuntimeIndexLocal { .. } => Ok(StructuralPathSegment::RuntimeIndex {
+                index: indexes.next().ok_or(LoweringError::Unsupported(
+                    "store path lost an evaluated runtime element",
+                ))?,
+                obligation: calls.allocate_requirement()?,
+            }),
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     if indexes.next().is_some() {

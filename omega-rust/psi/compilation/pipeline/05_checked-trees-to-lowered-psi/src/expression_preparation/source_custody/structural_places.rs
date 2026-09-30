@@ -216,12 +216,15 @@ pub(crate) fn constant_local_index(
 /// Re-derive the `RuntimeIndex` coordinate the checker minted for a
 /// non-literal index segment. A bare immutable integer parameter names its
 /// dense scalar position — the coordinate `CheckedScalarExpression` indexes.
-/// Any other selector is a pure field chain below an entry parameter
-/// (`self.count`): the `StructuralField` coordinate names the parameter's
-/// authored position plus the field path and requires an integer leaf. A
-/// spelling that matches neither never reached the checked plan, so failing
-/// here keeps the replay honest rather than inventing a coordinate.
-fn runtime_index_selector(
+/// A bare immutable integer local names the `Local` coordinate — the dense
+/// position after the scalar parameters, counted across the state's earlier
+/// immutable primitive bindings. Any other selector is a pure field chain
+/// below an entry parameter (`self.count`): the `StructuralField`
+/// coordinate names the parameter's authored position plus the field path
+/// and requires an integer leaf. A spelling that matches none of these
+/// never reached the checked plan, so failing here keeps the replay honest
+/// rather than inventing a coordinate.
+pub(crate) fn runtime_index_selector(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
     authored: &checked_trees::state::State,
@@ -262,6 +265,51 @@ fn runtime_index_selector(
                 .map_err(|_| {
                     LoweringError::Unsupported("runtime index selector position exceeds u32")
                 });
+        }
+        // A bare immutable integer local is a `Local` coordinate: the
+        // dense position `CheckedScalarExpression::Local` mints — scalar
+        // parameters plus each earlier immutable primitive binding in
+        // statement order. A reseatable binding names storage, not a
+        // bound operand, so it never selects here.
+        if name.symbol.is_valid() && name.head_symbol == name.symbol && members.len() == 1 {
+            let statements = checked.statement_table.statements(authored.statement_nodes);
+            if let Some(ordinal) = statements.iter().position(|statement| match statement {
+                StatementNode::LocalData(local) => {
+                    local.symbol == name.symbol
+                        && !local.is_mutable
+                        && checked
+                            .primitive_type_reference(local.type_reference)
+                            .is_some()
+                }
+                _ => false,
+            }) {
+                let earlier_bindings = statements[..ordinal]
+                    .iter()
+                    .filter(|statement| match statement {
+                        StatementNode::LocalData(local) => {
+                            !local.is_mutable
+                                && checked
+                                    .primitive_type_reference(local.type_reference)
+                                    .is_some()
+                        }
+                        _ => false,
+                    })
+                    .count();
+                let scalar_parameters = parameters
+                    .iter()
+                    .filter(|parameter| {
+                        !parameter.relevance.is_erased()
+                            && checked
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_some()
+                    })
+                    .count();
+                return u32::try_from(scalar_parameters + earlier_bindings)
+                    .map(|position| checked_trees::CheckedRuntimeIndex::Local { position })
+                    .map_err(|_| {
+                        LoweringError::Unsupported("runtime index selector position exceeds u32")
+                    });
+            }
         }
     }
     field_selector(checked, machine, authored, expression)

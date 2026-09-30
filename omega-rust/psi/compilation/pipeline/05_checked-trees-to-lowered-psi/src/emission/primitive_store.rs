@@ -952,19 +952,35 @@ fn walk_path(
                 Walked::Declared(*element)
             }
             (
-                CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
-                ),
+                CheckedUnitStructuralPathSegment::RuntimeIndex(runtime),
                 StructuralTypeShape::FixedArray { element, .. },
-            ) if !result.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) => {
-                result.push(ProjectionStep::AssignmentIndex { depth: *depth });
+            ) => {
+                let step = match runtime {
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth } => {
+                        ProjectionStep::AssignmentIndex { depth: *depth }
+                    }
+                    checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+                        ProjectionStep::RuntimeIndexParameter {
+                            position: *position,
+                        }
+                    }
+                    checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                        ProjectionStep::RuntimeIndexStructuralField(field.clone())
+                    }
+                    checked_trees::CheckedRuntimeIndex::Local { position } => {
+                        ProjectionStep::RuntimeIndexLocal {
+                            position: *position,
+                        }
+                    }
+                };
+                if !result.contains(&step) {
+                    result.push(step);
+                }
                 Walked::Declared(*element)
             }
             (
                 segment @ (CheckedUnitStructuralPathSegment::FixedIndex(_)
-                | CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { .. },
-                )),
+                | CheckedUnitStructuralPathSegment::RuntimeIndex(_)),
                 StructuralTypeShape::ByteSequence(carrier),
             ) => {
                 match segment {
@@ -979,10 +995,25 @@ fn walk_path(
                         }
                         result.push(ProjectionStep::Static(Segment::FixedIndex(*index)));
                     }
-                    CheckedUnitStructuralPathSegment::RuntimeIndex(
-                        checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
-                    ) => {
-                        let step = ProjectionStep::AssignmentIndex { depth: *depth };
+                    CheckedUnitStructuralPathSegment::RuntimeIndex(runtime) => {
+                        let step = match runtime {
+                            checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth } => {
+                                ProjectionStep::AssignmentIndex { depth: *depth }
+                            }
+                            checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+                                ProjectionStep::RuntimeIndexParameter {
+                                    position: *position,
+                                }
+                            }
+                            checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                                ProjectionStep::RuntimeIndexStructuralField(field.clone())
+                            }
+                            checked_trees::CheckedRuntimeIndex::Local { position } => {
+                                ProjectionStep::RuntimeIndexLocal {
+                                    position: *position,
+                                }
+                            }
+                        };
                         if !result.contains(&step) {
                             result.push(step);
                         }

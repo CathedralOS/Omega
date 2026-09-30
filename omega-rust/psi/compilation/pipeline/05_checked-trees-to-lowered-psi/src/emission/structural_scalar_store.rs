@@ -372,6 +372,18 @@ pub(crate) fn lower_structural_field_steps<'a>(
                             position: *position,
                         });
                     }
+                    // A member-read selector — `cells[bag.at]` — evaluates
+                    // the field observation at the store's program point.
+                    checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                        steps.push(ProjectionStep::RuntimeIndexStructuralField(field.clone()));
+                    }
+                    // An immutable local selector reads the established
+                    // scalar value directly.
+                    checked_trees::CheckedRuntimeIndex::Local { position } => {
+                        steps.push(ProjectionStep::RuntimeIndexLocal {
+                            position: *position,
+                        });
+                    }
                     _ => {
                         return unsupported("structural scalar store carrier path is unsupported");
                     }
