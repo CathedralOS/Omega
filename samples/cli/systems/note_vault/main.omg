@@ -143,7 +143,7 @@ machine Main::main(context: &mut Main) reaches Console {
         let mut scratch: [u8; 64];
         let next_passed: i32 in Wrapping = passed + 1;
         // 10. Snapshot the compacted vault.
-        let io_result: IoResult = context.fs.copy("omega_vault/notes/current/vault.txt", "omega_vault/notes/current/vault.bak", &mut scratch, 64);
+        let io_result: IoResult = Filesystem::copy(&mut context.fs, "omega_vault/notes/current/vault.txt", "omega_vault/notes/current/vault.bak", &mut scratch, 64);
         transition io_result { IoResult::Ok { count } -> backup_ck(context, next_passed, count) _ -> done(context, next_passed) }
     }
     state backup_ck(context: &mut Main, passed: i32 in Wrapping, count: u64) {

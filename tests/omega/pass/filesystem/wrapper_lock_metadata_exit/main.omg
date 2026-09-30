@@ -47,7 +47,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> un1() _ -> bad(74) }
     }
     state un1(&mut self) {
-        self.unit_result = self.fs.unlock(File { fd: self.file_fd });
+        self.unit_result = Filesystem::unlock(&mut self.fs, File { fd: self.file_fd });
         transition self.unit_result { UnitResult::Ok -> locksh() _ -> bad(75) }
     }
     state locksh(&mut self) {
@@ -55,7 +55,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> un2() _ -> bad(76) }
     }
     state un2(&mut self) {
-        self.unit_result = self.fs.unlock(File { fd: self.file_fd });
+        self.unit_result = Filesystem::unlock(&mut self.fs, File { fd: self.file_fd });
         transition self.unit_result { UnitResult::Ok -> tryx() _ -> bad(77) }
     }
     state tryx(&mut self) {
@@ -63,7 +63,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.try_result { TryLockResult::Acquired -> un3() _ -> bad(78) }
     }
     state un3(&mut self) {
-        self.unit_result = self.fs.unlock(File { fd: self.file_fd });
+        self.unit_result = Filesystem::unlock(&mut self.fs, File { fd: self.file_fd });
         transition self.unit_result { UnitResult::Ok -> trysh() _ -> bad(79) }
     }
     state trysh(&mut self) {
@@ -71,7 +71,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.try_result { TryLockResult::Acquired -> un4() _ -> bad(80) }
     }
     state un4(&mut self) {
-        self.unit_result = self.fs.unlock(File { fd: self.file_fd });
+        self.unit_result = Filesystem::unlock(&mut self.fs, File { fd: self.file_fd });
         self.close_rc = self.fs.close(File { fd: self.file_fd });
         self.unit_result = self.fs.remove("omega_lock_probe.txt");
         transition self.unit_result { UnitResult::Ok -> good() _ -> bad(81) }

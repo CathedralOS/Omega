@@ -860,15 +860,15 @@ invokes
     state failed(filesystem: &mut Filesystem) -> TryLockResult { let kind: ErrorKind = Filesystem::last_error(filesystem); TryLockResult::Error { kind: kind } }
 }
 
-pub macos_x86_64 machine Filesystem::unlock(&mut self, file: File) -> UnitResult
+pub macos_x86_64 machine Filesystem::unlock(filesystem: &mut Filesystem, file: File) -> UnitResult
 reaches
     FilesystemHost
 invokes
     FilesystemHost;
 {
-    self.file_fd = file.fd;
-    let rc: i32 = self.host.lock_file(self.file_fd, 8);
-    transition rc == 0 { true -> ok() _ -> err() }
+    filesystem.file_fd = file.fd;
+    let rc: i32 = filesystem.host.lock_file(filesystem.file_fd, 8);
+    transition rc == 0 { true -> ok() _ -> err(filesystem) }
     state ok() -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { let kind: ErrorKind = Filesystem::last_error(&mut self); UnitResult::Error { kind: kind } }
+    state err(filesystem: &mut Filesystem) -> UnitResult { let kind: ErrorKind = Filesystem::last_error(filesystem); UnitResult::Error { kind: kind } }
 }
