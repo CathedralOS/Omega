@@ -18,8 +18,8 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Fused service carriers have nonconstructible semantics distinct
-        // from empty records; prior vocabularies cannot represent that boundary.
-        113
+        // Post-call float policies preserve raw arithmetic identity while
+        // adding explicit saturation and nonfinite-result trap semantics.
+        114
     }
 }
