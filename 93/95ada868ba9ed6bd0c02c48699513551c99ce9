@@ -1,0 +1,4 @@
+owner: z6
+provenance: cargo check -p omega -p validation exit 0; nextest validation --lib 589/589; 220-fixture sweep 2 green / 0 regressions / 0 fail-greens
+ticket: 6f3ef81d59e44968a5aeb85f258546b1
+published_utc: 2026-09-30T16:18:47.850023+00:00
