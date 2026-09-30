@@ -37,26 +37,26 @@ data FixedVecI32x4 {
 // Empty the vector and ESTABLISH the has-room fact for the next push. The
 // strict `<` ensures is justified by this concrete capacity (4 > 0); the
 // generic core `clear` only guarantees `length == 0`.
-machine FixedVecI32x4::clear(&mut self)
+machine FixedVecI32x4::clear(fixed_vec_i32x4: &mut FixedVecI32x4)
 ensures
     self.length < self.items.len
 {
-    self.length = 0;
+    fixed_vec_i32x4.length = 0;
 }
 
-machine FixedVecI32x4::push(&mut self, value: i32 in Wrapping)
+machine FixedVecI32x4::push(fixed_vec_i32x4: &mut FixedVecI32x4, value: i32 in Wrapping)
 requires
     self.length < self.items.len
 ensures
     self.length > 0;
     self.length - 1 < self.items.len
 {
-    let slots: &mut [i32] = self.items.as_mut_slice();
-    let index: u64 in Wrapping = self.length;
+    let slots: &mut [i32] = fixed_vec_i32x4.items.as_mut_slice();
+    let index: u64 in Wrapping = fixed_vec_i32x4.length;
     let raw_value: i32 = value as i32;
     let n: u64 in Wrapping = slots.len;
     slots[index] = raw_value;
-    self.length = self.length + 1;
+    fixed_vec_i32x4.length = fixed_vec_i32x4.length + 1;
 }
 
 // The conventional read-into-local-then-return spelling: the popped value is
@@ -64,15 +64,15 @@ ensures
 // (This shape used to be mis-lowered natively -- the trailing local had no
 // frame slot, so the result write silently dropped; pinned by
 // calls/runtime_trailing_local_return_exit.)
-machine FixedVecI32x4::pop(&mut self) -> i32
+machine FixedVecI32x4::pop(fixed_vec_i32x4: &mut FixedVecI32x4) -> i32
 requires
     self.length > 0;
     self.length - 1 < self.items.len
 {
-    let slots: &[i32] = self.items.as_slice();
-    let index: u64 in Wrapping = self.length - 1;
+    let slots: &[i32] = fixed_vec_i32x4.items.as_slice();
+    let index: u64 in Wrapping = fixed_vec_i32x4.length - 1;
     let value: i32 in Wrapping = slots[index] as i32 in Wrapping;
-    self.length = index;
+    fixed_vec_i32x4.length = index;
     let raw_value: i32 = value as i32;
     raw_value
 }
@@ -92,57 +92,57 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.vec.clear();
-    self.vec.push(7);
+    FixedVecI32x4::clear(&mut self.vec);
+    FixedVecI32x4::push(&mut self.vec, 7);
     let first: i32 in Wrapping = FixedVecI32x4::get(&self.vec, 0);
-    let popped: i32 in Wrapping = self.vec.pop();
-    self.vec.clear();
-    self.vec.push(9);
+    let popped: i32 in Wrapping = FixedVecI32x4::pop(&mut self.vec);
+    FixedVecI32x4::clear(&mut self.vec);
+    FixedVecI32x4::push(&mut self.vec, 9);
     let second: i32 in Wrapping = FixedVecI32x4::get(&self.vec, 0);
 
     transition first == 7 {
-        true -> check_popped(popped, second)
-        false -> bad_first()
+        true -> check_popped(&mut self, popped, second)
+        false -> bad_first(&mut self)
     }
 
-    state check_popped(popped: i32 in Wrapping, second: i32 in Wrapping) {
+    state check_popped(main: &mut Main, popped: i32 in Wrapping, second: i32 in Wrapping) {
         transition popped == 7 {
-            true -> check_second(second)
-            false -> bad_popped()
+            true -> check_second(main, second)
+            false -> bad_popped(main)
         }
     }
 
-    state check_second(second: i32 in Wrapping) {
+    state check_second(main: &mut Main, second: i32 in Wrapping) {
         transition second == 9 {
-            true -> check_length()
-            false -> bad_second()
+            true -> check_length(main)
+            false -> bad_second(main)
         }
     }
 
-    state check_length(&mut self) {
-        transition self.vec.length == 1 {
-            true -> good()
-            false -> bad_length()
+    state check_length(main: &mut Main) {
+        transition main.vec.length == 1 {
+            true -> good(main)
+            false -> bad_length(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
     }
 
-    state bad_first(&mut self) {
-        self.console.exit_process(71);
+    state bad_first(main: &mut Main) {
+        main.console.exit_process(71);
     }
 
-    state bad_popped(&mut self) {
-        self.console.exit_process(72);
+    state bad_popped(main: &mut Main) {
+        main.console.exit_process(72);
     }
 
-    state bad_second(&mut self) {
-        self.console.exit_process(73);
+    state bad_second(main: &mut Main) {
+        main.console.exit_process(73);
     }
 
-    state bad_length(&mut self) {
-        self.console.exit_process(74);
+    state bad_length(main: &mut Main) {
+        main.console.exit_process(74);
     }
 }
