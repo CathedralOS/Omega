@@ -35,13 +35,13 @@ machine Main::main(context: &mut Main) reaches Console {
     let passed: i32 in Wrapping = 0;
     // 1. The vault lives in a DEEP directory (create_dir_all's dispatched
     // mkall walkers).
-    let unit_result: UnitResult = context.fs.create_dir_all("omega_vault/notes/current");
+    let unit_result: UnitResult = Filesystem::create_dir_all(&mut context.fs, "omega_vault/notes/current");
     transition unit_result { UnitResult::Ok -> vault_file(context, passed) _ -> done(context, passed) }
 
     state vault_file(context: &mut Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 2. Exclusive create: the vault file must not already exist.
-        let open_result: OpenResult = context.fs.create_new("omega_vault/notes/current/vault.txt");
+        let open_result: OpenResult = Filesystem::create_new(&mut context.fs, "omega_vault/notes/current/vault.txt");
         transition open_result { OpenResult::Ok { file } -> header(context, next_passed, file) _ -> done(context, next_passed) }
     }
 
@@ -56,7 +56,7 @@ machine Main::main(context: &mut Main) reaches Console {
     state note1(context: &mut Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 3. First note appends at EOF.
-        let open_result: OpenResult = context.fs.append("omega_vault/notes/current/vault.txt");
+        let open_result: OpenResult = Filesystem::append(&mut context.fs, "omega_vault/notes/current/vault.txt");
         transition open_result { OpenResult::Ok { file } -> note1_write(context, next_passed, file) _ -> done(context, next_passed) }
     }
     state note1_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
@@ -68,7 +68,7 @@ machine Main::main(context: &mut Main) reaches Console {
     state note2(context: &mut Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 4. Second note.
-        let open_result: OpenResult = context.fs.append("omega_vault/notes/current/vault.txt");
+        let open_result: OpenResult = Filesystem::append(&mut context.fs, "omega_vault/notes/current/vault.txt");
         transition open_result { OpenResult::Ok { file } -> note2_write(context, next_passed, file) _ -> done(context, next_passed) }
     }
     state note2_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
@@ -80,7 +80,7 @@ machine Main::main(context: &mut Main) reaches Console {
     state audit(context: &mut Main, passed: i32 in Wrapping) {
         let next_passed: i32 in Wrapping = passed + 1;
         // 5. The vault's length is the three lines: 9 + 12 + 11 = 32.
-        let meta_result: MetadataResult = context.fs.metadata_path("omega_vault/notes/current/vault.txt");
+        let meta_result: MetadataResult = Filesystem::metadata_path(&mut context.fs, "omega_vault/notes/current/vault.txt");
         transition meta_result { MetadataResult::Ok { meta } -> audit_len(context, next_passed, meta) _ -> done(context, next_passed) }
     }
     state audit_len(context: &mut Main, passed: i32 in Wrapping, meta: Metadata) {
@@ -111,7 +111,7 @@ machine Main::main(context: &mut Main) reaches Console {
         let mut back: [u8; 64];
         let next_passed: i32 in Wrapping = passed + 1;
         // 8. Read back and spot-check first ('v') and last ('\n' = 10) bytes.
-        let io_result: IoResult = context.fs.read_all("omega_vault/notes/current/vault.txt", &mut back, 64);
+        let io_result: IoResult = Filesystem::read_all(&mut context.fs, "omega_vault/notes/current/vault.txt", &mut back, 64);
         transition io_result { IoResult::Ok { count } -> readback_ck(context, next_passed, count, back[0]) _ -> done(context, next_passed) }
     }
     state readback_ck(context: &mut Main, passed: i32 in Wrapping, count: u64, head: u8) {
@@ -132,7 +132,7 @@ machine Main::main(context: &mut Main) reaches Console {
     state compact_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
         let io_result: IoResult = context.fs.write(file, "vault v1\n");
         let close_rc: i32 = context.fs.close(file);
-        let meta_result: MetadataResult = context.fs.metadata_path("omega_vault/notes/current/vault.txt");
+        let meta_result: MetadataResult = Filesystem::metadata_path(&mut context.fs, "omega_vault/notes/current/vault.txt");
         transition meta_result { MetadataResult::Ok { meta } -> compact_ck(context, passed, meta) _ -> done(context, passed) }
     }
     state compact_ck(context: &mut Main, passed: i32 in Wrapping, meta: Metadata) {
@@ -173,7 +173,7 @@ machine Main::main(context: &mut Main) reaches Console {
         transition unit_result { UnitResult::Ok -> ck_gone(context, next_passed) _ -> done(context, next_passed) }
     }
     state ck_gone(context: &mut Main, passed: i32 in Wrapping) {
-        let present: bool = context.fs.exists("omega_vault");
+        let present: bool = Filesystem::exists(&mut context.fs, "omega_vault");
         transition present { true -> done(context, passed) _ -> finish(context, passed) }
     }
     state finish(context: &mut Main, passed: i32 in Wrapping) {

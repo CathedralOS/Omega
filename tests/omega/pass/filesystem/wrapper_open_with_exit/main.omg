@@ -69,7 +69,7 @@ machine Main::main(&mut self) reaches Console {
         self.file_fd = file.fd;
         self.io_result = self.fs.write(File { fd: self.file_fd }, "wxyz");
         self.close_rc = self.fs.close(File { fd: self.file_fd });
-        self.meta_result = self.fs.metadata_path("omega_ow_probe.txt");
+        self.meta_result = Filesystem::metadata_path(&mut self.fs, "omega_ow_probe.txt");
         transition self.meta_result { MetadataResult::Ok { meta } -> ck3(meta) _ -> bad(75) }
     }
     state ck3(&mut self, meta: Metadata) {
