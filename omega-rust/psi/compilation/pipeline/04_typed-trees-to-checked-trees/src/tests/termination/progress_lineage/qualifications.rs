@@ -34,6 +34,9 @@ fn reject(source: &str, target: &str) {
 
 #[test]
 fn an_owned_argument_keeps_its_qualification_snapshot_before_later_writes() {
+    // The owned argument is a copy taken at its own evaluation, so a later
+    // operand may write the source. An affine `Context` would instead move
+    // into `selected` and leave nothing for `&mut context` to lend.
     let fixture = source(
         r#"
         machine change(context: &mut Context) -> u64 {
@@ -47,7 +50,9 @@ fn an_owned_argument_keeps_its_qualification_snapshot_before_later_writes() {
             state done(selected: Context, ignored: u64) -> u64 { owned(selected) }
         }
     "#,
-    );
+    )
+    .replace("pub data SchedulerHandle {}", "pub data SchedulerHandle [copy] {}")
+    .replace("pub data Context {", "pub data Context [copy] {");
     checked(&fixture);
     reject(
         &fixture.replace(
