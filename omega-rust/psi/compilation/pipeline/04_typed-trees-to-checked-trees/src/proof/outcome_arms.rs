@@ -348,6 +348,18 @@ pub(crate) fn exact_outcome_case_test(
                     matches!(member, typed_trees::data::DataMember::Variant(variant) if variant.symbol == path.symbol)
                 })
             }) => Some(path.symbol),
+            // A payload-free case spelled as a value (`subject == T::Case`) is
+            // the same exact-outcome test: the construction resolves its case
+            // symbol and owns no fields to compare.
+            ExpressionNode::StructLiteral(literal)
+                if literal.case_symbol.is_some()
+                    && program
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .is_empty() =>
+            {
+                literal.case_symbol
+            }
             _ => None,
         }
         };

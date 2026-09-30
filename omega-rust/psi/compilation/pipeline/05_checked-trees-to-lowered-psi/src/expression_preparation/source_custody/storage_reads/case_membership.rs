@@ -28,15 +28,86 @@ pub(crate) fn authored(
         return Ok(None);
     }
     let (machine, _) = authored_state(checked, state.symbol)?;
-    if !validation::has_exact_case_membership_meaning(
-        &checked.typed,
-        machine,
-        Some(state),
-        expression,
-        binary,
-    ) {
-        return Ok(None);
-    }
+    let selected = match checked.expression_table.expression(binary.right) {
+        ExpressionNode::Name(selected) => {
+            if !validation::has_exact_case_membership_meaning(
+                &checked.typed,
+                machine,
+                Some(state),
+                expression,
+                binary,
+            ) {
+                return Ok(None);
+            }
+            selected.symbol
+        }
+        // A payload-free case spelled as a value (`subject == T::Case`)
+        // arrives as a construction rather than a name: builtin equality on
+        // the union's operands is already the same tag observation. The
+        // subject's declared carrier must be the construction's union and
+        // the variant must own no payload.
+        ExpressionNode::StructLiteral(literal)
+            if literal.case_symbol.is_some()
+                && checked
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .is_empty() =>
+        {
+            if !validation::has_builtin_binary_expression_meaning(
+                &checked.typed,
+                machine,
+                Some(state),
+                expression,
+            ) {
+                return Ok(None);
+            }
+            let Some(case_symbol) = literal.case_symbol else {
+                return Ok(None);
+            };
+            let Some(subject_type) = validation::declared_place_type_raw(
+                &checked.typed,
+                machine,
+                Some(state),
+                binary.left,
+            ) else {
+                return Ok(None);
+            };
+            let mut reference = subject_type;
+            let owner = loop {
+                use checked_trees::types::TypeReferenceNode;
+                match checked.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Reference { referee, .. }
+                    | TypeReferenceNode::Constrained {
+                        base_type: referee, ..
+                    } => reference = *referee,
+                    TypeReferenceNode::Named { symbol, .. }
+                    | TypeReferenceNode::Generic {
+                        base_symbol: symbol, ..
+                    } => break *symbol,
+                    _ => return Ok(None),
+                }
+            };
+            if owner != literal.type_symbol {
+                return Ok(None);
+            }
+            let Some(owner_data) = checked
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == literal.type_symbol)
+            else {
+                return Ok(None);
+            };
+            if !checked.data_members(owner_data).iter().any(|member| {
+                matches!(member, checked_trees::data::DataMember::Variant(variant)
+                    if variant.symbol == case_symbol
+                        && checked.data_payload_fields(variant).is_empty())
+            }) {
+                return Ok(None);
+            }
+            case_symbol
+        }
+        _ => return Ok(None),
+    };
     let mut subject = match checked.expression_table.expression(binary.left) {
         ExpressionNode::Borrow(borrow) => borrow.target,
         _ => binary.left,
@@ -218,15 +289,12 @@ pub(crate) fn authored(
         }
         receiver.symbol
     };
-    let ExpressionNode::Name(selected) = checked.expression_table.expression(binary.right) else {
-        return Ok(None);
-    };
     let case = checked
         .data_definitions()
         .iter()
         .flat_map(|data| checked.data_members(data))
         .find_map(|member| match member {
-            checked_trees::data::DataMember::Variant(case) if case.symbol == selected.symbol => {
+            checked_trees::data::DataMember::Variant(case) if case.symbol == selected => {
                 Some(case)
             }
             _ => None,
