@@ -134,13 +134,9 @@ fn same_spelling_foreign_parameter_cannot_supply_a_rank() {
         .iter()
         .filter(|machine| machine.name.as_str().contains("scan_"))
         .map(|machine| {
-            let entry = &program.machine_states(machine)[0];
-            program
-                .state_parameters(entry)
-                .iter()
-                .find(|parameter| !parameter.is_self)
-                .expect("ranked parameter")
-                .symbol
+            super::super::RankProjection::resolve(&program, machine)
+                .expect("resolved rank")
+                .parameter
         })
         .collect::<Vec<_>>();
     assert_eq!(roots.len(), 2);
