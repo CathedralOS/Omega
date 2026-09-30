@@ -33,6 +33,7 @@ mod calls;
 pub(crate) use calls::lower_inline_call;
 pub(crate) mod cases;
 pub(crate) mod comparisons;
+pub(crate) mod copies;
 mod dispatch;
 pub(crate) mod fields;
 pub(crate) mod literals;
@@ -70,6 +71,7 @@ pub(crate) struct Expansion<'a> {
     arrays: Vec<arrays::Slot>,
     subslices: Vec<subslices::Slot>,
     literals: Vec<literals::Slot>,
+    copies: Vec<copies::Slot>,
     cases: Vec<cases::Slot>,
     fields: &'a [fields::Binding],
     /// Selection-local computations already carried in the current input prefix.
@@ -94,6 +96,7 @@ impl<'a> Expansion<'a> {
             arrays: Vec::new(),
             subslices: Vec::new(),
             literals: Vec::new(),
+            copies: Vec::new(),
             cases: Vec::new(),
             fields: &[],
             completed: Vec::new(),
@@ -142,6 +145,11 @@ impl<'a> Expansion<'a> {
 
     pub(crate) fn with_literals(mut self, literals: &[literals::Slot]) -> Self {
         self.literals = literals.to_vec();
+        self
+    }
+
+    pub(crate) fn with_copies(mut self, copies: &[copies::Slot]) -> Self {
+        self.copies = copies.to_vec();
         self
     }
 

@@ -595,6 +595,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     }
     for place in crate::scalar_graph::scalar_computations::arrays::declarations(&all_operations)
         .chain(crate::scalar_graph::scalar_computations::cases::declarations(&all_operations))
+        .chain(crate::scalar_graph::scalar_computations::copies::declarations(&all_operations))
         .chain(
             crate::scalar_graph::scalar_graph_lowering::structural_values::declarations(
                 &all_operations,

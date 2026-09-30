@@ -314,6 +314,12 @@ pub(super) fn emit(
         structural_types,
         &mut next_place,
     )?;
+    evaluation.copies = crate::scalar_graph::scalar_computations::copies::prepare(
+        checked,
+        plan.machine,
+        structural_types,
+        &mut next_place,
+    )?;
     evaluation.arrays = crate::scalar_graph::scalar_computations::arrays::prepare(
         checked,
         plan.machine,
@@ -817,6 +823,10 @@ pub(super) fn emit(
         .chain(structural_value_temporaries)
         .chain(computed_array_places)
         .collect::<Vec<_>>();
+    crate::scalar_graph::scalar_computations::copies::retain_declarations(
+        evaluation.blocks.iter().flat_map(|block| &block.operations),
+        &mut structural_places,
+    )?;
     // Argument-time view producers interleave with reserved call results.
     // Declaration order is canonical identity order, not execution order.
     // The computation scan also encounters subslices whose ordinary call

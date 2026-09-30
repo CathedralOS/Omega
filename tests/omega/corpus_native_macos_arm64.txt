@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 10, "jobs": null, "load1_end": 7.55, "load1_start": 8.03, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 14, "jobs": null, "load1_end": 8.2, "load1_start": 7.12, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -828,6 +828,7 @@ pass/structural/case_payload_record_member_read built 1215ms @fb2178def922
 pass/structural/element_store built 523ms exit:0
 pass/structural/local_record_receivers checked 201ms
 pass/structural/runtime_provider_payload_array_exit built 818ms exit:42 @bbd0a9fdb8d4+wt
+pass/structural/runtime_structural_operand_snapshot_exit built 1204ms exit:42 @14f449e5e62b
 pass/structural/sum_attachment_receiver_compile checked 184ms
 pass/targets/aarch64_hfa_entry_argument checked 898ms
 pass/targets/efi_vtable_call checked 224ms

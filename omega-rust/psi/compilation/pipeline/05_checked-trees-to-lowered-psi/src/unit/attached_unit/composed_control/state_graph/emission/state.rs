@@ -62,6 +62,12 @@ impl StateGraphEmission<'_, '_> {
                 &self.catalogs.structural_types,
                 &mut self.catalogs.next_place,
             )?,
+            copies: crate::scalar_graph::scalar_computations::copies::prepare(
+                checked,
+                plan.machine,
+                &self.catalogs.structural_types,
+                &mut self.catalogs.next_place,
+            )?,
             arrays: crate::scalar_graph::scalar_computations::arrays::prepare(
                 checked,
                 plan.machine,

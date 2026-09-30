@@ -110,7 +110,22 @@ pub(crate) fn rejoin(
                     (None, BorrowAccessKind::Read)
                 }
                 ExpressionNode::Call(call) => {
-                    if call.receiver.is_valid() {
+                    // A resolved static qualifier names the callee's owner;
+                    // it is not storage observed while evaluating the call.
+                    // Unknown selections keep the receiver on the replay path.
+                    let no_runtime_receiver = checked
+                        .machine_holding_state(call.target_symbol)
+                        .and_then(|owner| {
+                            checked
+                                .machine_states(owner)
+                                .iter()
+                                .find(|state| state.symbol == call.target_symbol)
+                                .map(|state| {
+                                    checked.call_has_no_runtime_receiver(call, owner, state)
+                                })
+                        })
+                        .unwrap_or(false);
+                    if call.receiver.is_valid() && !no_runtime_receiver {
                         children.push(call.receiver);
                     }
                     let arguments = table.expression_handles(call.arguments);

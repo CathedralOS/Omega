@@ -499,6 +499,10 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
     );
     structural_places.append(&mut catalogs.temporary_places);
     structural_places.extend(catalogs.result_places.drain(result_places_start..));
+    crate::scalar_graph::scalar_computations::copies::retain_declarations(
+        blocks.iter().flat_map(|block| &block.operations),
+        &mut structural_places,
+    )?;
     // The computation scan also encounters subslices whose ordinary call
     // or edge already owns a declaration. Reuse only that exact declaration;
     // a reused identity with different provenance remains an error.

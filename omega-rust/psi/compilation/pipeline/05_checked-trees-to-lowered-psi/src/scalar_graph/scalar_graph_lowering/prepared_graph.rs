@@ -141,6 +141,12 @@ pub(crate) struct LoweredScalarBranchState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarEffect {
+    /// Snapshot one unrestricted whole operand at its authored evaluation point.
+    CopyStructuralValue {
+        source: PlaceId,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
     StoreScalarField {
         destination: PlaceId,
         path: Vec<StructuralPathSegment>,

@@ -44,7 +44,26 @@ pub(super) fn collect_read_accesses(
             collect_read_accesses(collection, binary.right);
         }
         ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
+            // Static qualification selects a declaration, not a runtime place.
+            // Keep real receivers and every actual in evaluation order; the
+            // resolved target determines whether a qualifier is only lexical.
+            let no_runtime_receiver = collection
+                .program
+                .machine_holding_state(call.target_symbol)
+                .and_then(|owner| {
+                    collection
+                        .program
+                        .machine_states(owner)
+                        .iter()
+                        .find(|state| state.symbol == call.target_symbol)
+                        .map(|state| {
+                            collection
+                                .program
+                                .call_has_no_runtime_receiver(call, owner, state)
+                        })
+                })
+                .unwrap_or(false);
+            if call.receiver.is_valid() && !no_runtime_receiver {
                 collect_read_accesses(collection, call.receiver);
             }
 

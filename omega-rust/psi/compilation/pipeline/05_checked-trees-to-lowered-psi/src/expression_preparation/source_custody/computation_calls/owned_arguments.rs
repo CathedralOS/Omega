@@ -174,17 +174,17 @@ fn validate_copy_local(
         "computed owned copy argument has no authored local",
         "computed owned copy local changed its declaration, order, or type",
     )?;
-    if local.is_mutable
-        || [local.type_reference, target_type].iter().any(|reference| {
-            !checked
-                .type_reference_table
-                .contains_type_reference(*reference)
-                || checked.primitive_type_reference(*reference).is_some()
-                || !validation::has_plain_owned_contents(checked, *reference)
-                || checked.type_multiplicity(*reference) != Multiplicity::Unrestricted
-        })
-        || checked.normalized_type_identity(local.type_reference)
-            != checked.normalized_type_identity(target_type)
+    // Mutability does not confer copy authority. Exact unrestricted contents
+    // and the authored read below do; emission snapshots them at operand time.
+    if [local.type_reference, target_type].iter().any(|reference| {
+        !checked
+            .type_reference_table
+            .contains_type_reference(*reference)
+            || checked.primitive_type_reference(*reference).is_some()
+            || !validation::has_plain_owned_contents(checked, *reference)
+            || checked.type_multiplicity(*reference) != Multiplicity::Unrestricted
+    }) || checked.normalized_type_identity(local.type_reference)
+        != checked.normalized_type_identity(target_type)
         || checked.normalized_type_identity(target_type).into_string() != argument.type_identity
     {
         return unsupported("computed owned copy local changed its declaration, order, or type");

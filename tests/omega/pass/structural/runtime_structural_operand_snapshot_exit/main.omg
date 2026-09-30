@@ -1,0 +1,25 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Settings [copy] { count: i32; }
+data Main { console: Binding<Console>; }
+
+machine Settings::default() -> Settings { Settings { count: 17 } }
+machine Settings::stamp(settings: &mut Settings, count: i32) -> i32 {
+    settings.count = count;
+    count
+}
+machine Settings::observe(settings: Settings, later: i32) -> i32 { settings.count }
+
+machine Main::main(&mut self) reaches Console {
+    let mut settings: Settings = Settings::default();
+    // The first argument is a value, not an alias held until invocation.
+    let before: i32 = Settings::observe(settings, Settings::stamp(&mut settings, 25));
+    let after: i32 = Settings::observe(settings, 0);
+    transition before == 17 && after == 25 && settings.count == 25 {
+        true -> success()
+        false -> failure()
+    }
+    state success(&mut self) { self.console.exit_process(42); }
+    state failure(&mut self) { self.console.exit_process(1); }
+}

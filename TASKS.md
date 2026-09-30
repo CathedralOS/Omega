@@ -869,21 +869,24 @@ the complete product bar; focused successes below do not establish that baseline
   samples/apps/squalr/squalr-tests` now accepts all 17 packages after explicit
   review of the local-source and execution-host changes. The retained local
   lockfile records that acceptance; the application checkpoints remain unpublished.
-  With the array-shape repair atop `bbd0a9fdb8d`, `omega run --target
-  linux_x86_64 --keep samples/apps/squalr/squalr-tests/main.omg` gets past
-  `Main::main`'s attached data shape without application changes. Stage 04's
-  `execution/terminal_unit/types/shape_collector.rs` retains the provider-bearing
-  `TrackableTaskManager.tasks` element shape through arrays instead of requiring
-  copyability or trivial disposal. Generic members resolve their actual type
-  before choosing reference, provider, or scalar storage. The native
-  `structural/runtime_provider_payload_array_exit` retains nested arrays and
-  exits 42; 65 focused checks preserve reference shells, cleanup, duplicate-move
-  rejection and array-operation limits.
-  The current application refusal is `CommandDriver::run`, state 0, statement 7:
+  The published array-shape repair gets past `Main::main`'s attached data shape
+  without application changes. The application command remains `omega run
+  --target linux_x86_64 --keep samples/apps/squalr/squalr-tests/main.omg`.
+  At `d06f18813f6`, it refuses `CommandDriver::run`, state 0, statement 7:
   `call operation: structural arguments: caller structural result`, at the
-  `set_scan_settings(settings)` handoff after updating alignment. Trace
-  `execution/terminal_unit/calls/structural_arguments.rs` and coordinate any
-  `calls/result_arguments/` changes with STATIC-MACHINE-MIGRATION. Complete
+  `set_scan_settings(settings)` handoff after updating alignment. Unit-call
+  copy classification is checkpointed separately on `repair-unit-copy`
+  (`d8682c61dde`), not published: the independent consumer in stage 05's
+  `unit/attached_unit/structural_calls/result_uses.rs::validate_operand_producers`
+  still confuses fresh copied storage with the original constructor result.
+  Coordinate that exact producer/operand join with STATIC-MACHINE-MIGRATION;
+  preserve source identity and transfer checks. Scalar-call operands now use
+  ordinary ordered copy operations, so later argument effects cannot change an
+  earlier value argument. `structural/runtime_structural_operand_snapshot_exit`
+  observes 17 before a later argument writes 25 and exits 42 on macOS ARM64
+  (`14f449e5e62b`, including the integrated static-call repair);
+  the affine double-transfer control still rejects. This does not close the
+  Unit-call handoff or the application. Complete
   the documented native acceptance on Linux x86-64 after emission succeeds;
   cross-target compilation on macOS does not establish execution.
   Selected record payloads now reuse stage 05's ordinary canonical field-path
