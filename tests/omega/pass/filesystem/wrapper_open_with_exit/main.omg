@@ -33,7 +33,7 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     // Leg 1: write+create on an absent path.
     let opts_wc: OpenOptions = OpenOptions { write: true, create: true };
-    self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_wc);
+    self.open_result = Filesystem::open_with(&mut self.fs, "omega_ow_probe.txt", opts_wc);
     transition self.open_result { OpenResult::Ok { file } -> writeit(file) _ -> bad(71) }
     state writeit(&mut self, file: File) {
         self.file_fd = file.fd;
@@ -47,7 +47,7 @@ machine Main::main(&mut self) reaches Console {
     // Leg 2: read-only open reads the bytes back.
     state leg2(&mut self) {
         let opts_r: OpenOptions = OpenOptions { read: true };
-        self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_r);
+        self.open_result = Filesystem::open_with(&mut self.fs, "omega_ow_probe.txt", opts_r);
         transition self.open_result { OpenResult::Ok { file } -> readit(file) _ -> bad(73) }
     }
     state readit(&mut self, file: File) {
@@ -62,7 +62,7 @@ machine Main::main(&mut self) reaches Console {
     // Leg 3: write+truncate empties, then write 4 -> len 4.
     state leg3(&mut self) {
         let opts_wt: OpenOptions = OpenOptions { write: true, truncate: true };
-        self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_wt);
+        self.open_result = Filesystem::open_with(&mut self.fs, "omega_ow_probe.txt", opts_wt);
         transition self.open_result { OpenResult::Ok { file } -> trunced(file) _ -> bad(75) }
     }
     state trunced(&mut self, file: File) {
@@ -78,7 +78,7 @@ machine Main::main(&mut self) reaches Console {
     // Leg 4: append -> len grows to 7, tail is the appended bytes.
     state leg4(&mut self) {
         let opts_a: OpenOptions = OpenOptions { write: true, append: true };
-        self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_a);
+        self.open_result = Filesystem::open_with(&mut self.fs, "omega_ow_probe.txt", opts_a);
         transition self.open_result { OpenResult::Ok { file } -> appended(file) _ -> bad(76) }
     }
     state appended(&mut self, file: File) {
@@ -101,7 +101,7 @@ machine Main::main(&mut self) reaches Console {
     // Leg 5: create_new on the EXISTING path must be AlreadyExists.
     state leg5(&mut self) {
         let opts_cn: OpenOptions = OpenOptions { write: true, create_new: true };
-        let created: OpenResult = self.fs.open_with("omega_ow_probe.txt", opts_cn);
+        let created: OpenResult = Filesystem::open_with(&mut self.fs, "omega_ow_probe.txt", opts_cn);
         transition created {
             OpenResult::Error { kind } -> ck5(kind)
             _ -> bad(77)
@@ -116,7 +116,7 @@ machine Main::main(&mut self) reaches Console {
     // Leg 6: plain read of an ABSENT path (no create bits) must be NotFound.
     state leg6(&mut self) {
         let opts_r2: OpenOptions = OpenOptions { read: true };
-        let missing: OpenResult = self.fs.open_with("omega_ow_absent.txt", opts_r2);
+        let missing: OpenResult = Filesystem::open_with(&mut self.fs, "omega_ow_absent.txt", opts_r2);
         transition missing {
             OpenResult::Error { kind } -> ck6(kind)
             _ -> bad(78)

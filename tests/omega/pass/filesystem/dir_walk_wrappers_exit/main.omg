@@ -40,7 +40,7 @@ machine Main::main(&mut self) reaches Console {
         transition self.unit_result { UnitResult::Ok -> count() _ -> bad(72) }
     }
     state count(&mut self) {
-        self.io_result = self.fs.read_dir_count("omega_walk_a/b/c");
+        self.io_result = Filesystem::read_dir_count(&mut self.fs, "omega_walk_a/b/c");
         transition self.io_result { IoResult::Ok { count } -> ckcount(count) _ -> bad(73) }
     }
     state ckcount(&mut self, count: u64) {

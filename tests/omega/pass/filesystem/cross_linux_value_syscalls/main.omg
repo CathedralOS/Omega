@@ -67,7 +67,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
     }
     state classify_missing(&mut self) {
         let options: OpenOptions = OpenOptions { read: true };
-        let result: OpenResult = self.semantic_fs.open_with("/omega_definitely_absent_linux", options);
+        let result: OpenResult = Filesystem::open_with(&mut self.semantic_fs, "/omega_definitely_absent_linux", options);
         transition result {
             OpenResult::Error { kind } -> check_missing(kind)
             _ -> fail_error_kind()
@@ -97,7 +97,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
         transition kind { ErrorKind::NotFound -> read_missing_directory() _ -> fail_error_kind() }
     }
     state read_missing_directory(&mut self) {
-        let result: DirEntryResult = self.semantic_fs.read_dir_nth("/omega_definitely_absent_linux", 0);
+        let result: DirEntryResult = Filesystem::read_dir_nth(&mut self.semantic_fs, "/omega_definitely_absent_linux", 0);
         transition result {
             DirEntryResult::Error { kind } -> check_directory_missing(kind)
             _ -> fail_error_kind()
