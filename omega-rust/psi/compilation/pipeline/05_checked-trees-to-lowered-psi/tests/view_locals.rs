@@ -228,6 +228,212 @@ fn a_field_range_local_measures_across_a_state_graph() {
         .expect("a state-graph field range verifies against the array's extent");
 }
 
+const BYTE_FIELD_RANGE: &str = r#"
+    boundary trait Output { machine count(value: u64) reaches Output; }
+    data Root { input: [u8; 256]; alternate: [u8; 256]; }
+    machine Root::enter(&mut self) reaches Output {
+        transition { _ -> dispatch(3) }
+        state dispatch(&mut self, count: u64) requires count <= 256 {
+            let command: &[u8] = self.input[0..count];
+            Output::count(command.len);
+        }
+    }
+"#;
+
+#[test]
+fn a_byte_field_range_local_measures_in_a_named_state() {
+    let lowered = lower(BYTE_FIELD_RANGE).expect("a byte field range uses its exact array backing");
+    assert_eq!(subslices_of_established_views(&lowered), 1);
+    assert_eq!(
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .filter(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishElementView { .. }
+            ))
+            .count(),
+        1,
+        "one whole field view precedes the byte subslice"
+    );
+    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
+        .expect("reload byte field module");
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .expect("reload byte field proof");
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("the byte range retains the array extent and its dynamic endpoint proof");
+}
+
+#[test]
+fn byte_field_range_replay_rejects_changed_source_access_and_endpoint() {
+    use checked_trees::{
+        CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
+        CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    };
+    let original = crate::front_end::checked_program(BYTE_FIELD_RANGE);
+    for fault in 0..3 {
+        let mut changed = original.clone();
+        let operation = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.states)
+            .flat_map(|state| &mut state.operations)
+            .find(|operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                )
+            })
+            .expect("the named state retains the byte range binding");
+        let CheckedUnitEffectOperationPlan::EstablishViewSubslice { source, .. } = operation else {
+            unreachable!()
+        };
+        match fault {
+            0 => {
+                source.path = vec![CheckedUnitStructuralPathSegment::Field(
+                    "alternate".to_owned(),
+                )]
+            }
+            1 => source.access = CheckedStructuralAccess::MutableBorrow,
+            2 => {
+                let CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { end, .. } =
+                    &mut source.source
+                else {
+                    panic!("the retained range must remain a byte range")
+                };
+                *end = None;
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
+            "byte field replay must reject fault {fault}"
+        );
+    }
+    let written = BYTE_FIELD_RANGE.replace(
+        "Output::count(command.len);",
+        "self.input[0] = 7; Output::count(command.len);",
+    );
+    assert!(
+        crate::front_end::checked_program_result(&written).is_err(),
+        "a write must not cross the live shared byte-field loan"
+    );
+    let wrong_element = BYTE_FIELD_RANGE.replace("input: [u8; 256]", "input: [u16; 256]");
+    // The checked surface currently accepts this spelling, but cannot retain
+    // an exact byte-field establishment plan for the mismatched element.
+    assert!(
+        lower(&wrong_element).is_err(),
+        "a byte field view cannot reinterpret another element type"
+    );
+}
+
+#[test]
+fn a_byte_field_view_cannot_read_a_write_only_root() {
+    // A direct entry has no incoming edge whose access mismatch could reject
+    // the mutation before the byte establishment's own custody is checked.
+    let source = r#"
+        boundary trait Output { machine byte(value: u8) reaches Output; }
+        data Root { input: [u8; 256]; }
+        machine Root::enter(&mut self) reaches Output {
+            let command: &[u8] = self.input[0..3];
+            Output::byte(command[0]);
+        }
+    "#;
+    let overrun = source.replace("0..3", "0..257");
+    assert!(
+        crate::front_end::checked_program_result(&overrun).is_err(),
+        "a byte field range beyond fixed backing must not check"
+    );
+    let mut lowered = lower(source).expect("the readable field view lowers");
+    let machine = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::EstablishElementView { .. }
+                    )
+                })
+        })
+        .unwrap();
+    let root = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            if let terminal_psi::OperationKind::EstablishElementView { source, .. } =
+                &operation.kind
+            {
+                Some(source.place)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let parameter = machine
+        .structural_parameters
+        .iter_mut()
+        .find(|parameter| parameter.place == root)
+        .expect("the established field retains its exact parameter root");
+    parameter.access = terminal_psi::StructuralAccess::WriteOnlyBorrow;
+    assert!(
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default()
+        )
+        .is_err(),
+        "shared argument spelling cannot grant a write-only root read access"
+    );
+}
+
+#[test]
+fn a_byte_field_range_proof_is_bound_to_its_backing_extent() {
+    let mut lowered = lower(BYTE_FIELD_RANGE).expect("the dynamic byte range lowers");
+    let backing = lowered
+        .semantic_module
+        .structural_types
+        .iter_mut()
+        .find(|declaration| {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::FixedArray { length: 256, .. }
+            )
+        })
+        .expect("the exact fixed backing remains represented");
+    let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = &mut backing.shape else {
+        unreachable!()
+    };
+    *length = 0;
+    assert!(
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default()
+        )
+        .is_err(),
+        "the original bound proof must not authorize a different backing extent"
+    );
+}
+
 /// Controls for the field range: an end past the array's extent cannot be
 /// proved, and writing the array while the narrowed view is live breaks its
 /// shared loan. Checking rejects both before lowering.

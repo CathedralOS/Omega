@@ -2200,7 +2200,7 @@ impl OperationFrame<'_, '_> {
         )
     }
 
-    /// Establish a whole element view of the fixed-array field `source.path`
+    /// Establish a whole collection view of the fixed-array field `source.path`
     /// below structural parameter `index`, as the source a field range
     /// narrows. The view reads the array through a shared loan, so any
     /// readable root lends it; the temporary is private to this binding.
@@ -2217,8 +2217,7 @@ impl OperationFrame<'_, '_> {
             .ok_or(LoweringError::Unsupported(
                 "view subslice field owner parameter is absent",
             ))?;
-        if family != ViewFamily::Elements
-            || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+        if source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
             || !matches!(
                 parameter.access,
                 terminal_psi::StructuralAccess::SharedBorrow
@@ -2228,7 +2227,7 @@ impl OperationFrame<'_, '_> {
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
-            return unsupported("view subslice field owner cannot lend a shared element view");
+            return unsupported("view subslice field owner cannot lend a shared collection view");
         }
         let (_, authored) = crate::expression_preparation::source_custody::authored_state(
             self.checked,
@@ -2243,21 +2242,46 @@ impl OperationFrame<'_, '_> {
             ))?
             .symbol;
         let structural_type = lookup_type_id(self.type_ids, type_identity)?;
-        let element = self
-            .structural_types
-            .declarations()
+        let path = lower_structural_path(&source.path)?;
+        let declarations = self.structural_types.declarations();
+        let collection = terminal_semantics::runtime_structural_path_tip(
+            declarations.iter(),
+            parameter.structural_type,
+            &path,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "view subslice field lost its exact collection",
+        ))?;
+        let terminal_psi::StructuralTypeShape::FixedArray { element, .. } = collection.shape else {
+            return unsupported("view subslice field is not fixed-array backing");
+        };
+        let view = declarations
             .iter()
-            .find_map(|declaration| match declaration.shape {
-                terminal_psi::StructuralTypeShape::ElementView { element }
-                    if declaration.id == structural_type =>
-                {
-                    Some(element)
-                }
-                _ => None,
-            })
+            .find(|declaration| declaration.id == structural_type)
             .ok_or(LoweringError::Unsupported(
-                "view subslice field range lost its element view type",
+                "view subslice field range lost its view type",
             ))?;
+        // Both descriptor families use the existing collection-view operation.
+        // A byte view may borrow only this array's exact u8 element, never
+        // reinterpret another primitive's bytes or erase element identity.
+        let matches_family = match (family, &view.shape) {
+            (
+                ViewFamily::Elements,
+                terminal_psi::StructuralTypeShape::ElementView { element: expected },
+            ) => *expected == element,
+            (ViewFamily::Bytes, shape) if shape.is_borrowed_byte_view() => {
+                let byte_scalar = terminal_scalar_type(checked_trees::types::PrimitiveType::U8)?;
+                declarations.iter().any(|declaration| {
+                    declaration.id == element
+                        && declaration.shape
+                            == terminal_psi::StructuralTypeShape::PrimitiveScalar(byte_scalar)
+                })
+            }
+            _ => false,
+        };
+        if !matches_family {
+            return unsupported("view subslice field element disagrees with its view family");
+        }
         let whole = place_id(allocate_dense(self.next_place)?);
         let producer = self.operations.allocate();
         self.operations.push(Operation {
@@ -2277,7 +2301,7 @@ impl OperationFrame<'_, '_> {
                 destination: whole,
                 source: terminal_psi::StructuralArgument {
                     place: self.evaluation.current_structural_place(parameter.place),
-                    path: lower_structural_path(&source.path)?,
+                    path,
                     access: terminal_psi::StructuralAccess::SharedBorrow,
                 },
                 element,

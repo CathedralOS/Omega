@@ -84,7 +84,7 @@ fn source_root_type(
 }
 
 /// The declared element count of the fixed collection an establishment names.
-fn establishment_collection_length(
+pub(super) fn establishment_collection_length(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,

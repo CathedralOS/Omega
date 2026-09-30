@@ -116,6 +116,22 @@ pub(super) fn length_equation(
     else {
         return Ok(None);
     };
+    // The shared collection-view producer also establishes byte descriptors
+    // over exact u8 arrays. Validation checks that element/result pairing,
+    // backing path and dominance; recover only this producer's fixed extent.
+    // This does not assign a capacity to caller-supplied byte views or discharge
+    // either of the later subslice's endpoint obligations by assertion.
+    if let StructuralEffectObservation::ElementViewEstablished { .. } = producer_observation
+        && let Some(length) =
+            super::element_extent::establishment_collection_length(module, machine, operation)
+    {
+        return terminal_semantics::element_establishment_length_equation(
+            observation,
+            &producer_observation,
+            length,
+        )
+        .map_err(ModuleError::OperationSemanticSchema);
+    }
     subslice_length_equation(observation, &producer_observation)
         .map_err(ModuleError::OperationSemanticSchema)
 }

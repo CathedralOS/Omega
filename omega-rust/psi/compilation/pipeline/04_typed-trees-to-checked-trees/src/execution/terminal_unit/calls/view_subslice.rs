@@ -19,7 +19,7 @@
 //! no established view to narrow, so the range names the field instead: its
 //! root is the structural parameter that owns the storage and its argument
 //! `path` is the record-field projection to the array. Lowering first
-//! establishes a whole element view over that field under a shared loan and
+//! establishes a whole view over that field under a shared loan and
 //! then narrows it through the same subslice operation, so the field's
 //! extent, the endpoints' bounds and the narrowed length all come from the
 //! ordinary view vocabulary rather than a field-specific range. Only a view
@@ -359,7 +359,6 @@ pub(in crate::execution) fn shape(
             state,
             parameters,
             target,
-            kind,
             indexed.collection,
             statement_index,
         )?;
@@ -429,9 +428,10 @@ pub(in crate::execution) fn shape(
 /// The structural parameter and record-field path of a fixed-array field a
 /// range views whole: `collection` is a place below a readable structural
 /// parameter of the state (`self` included), every step is a record field,
-/// and the array's elements are the target view's elements. Byte views have
-/// no Terminal establishment over fixed byte storage, so only element views
-/// take this form.
+/// and the array's elements are the target view's elements. The existing
+/// collection-view establishment also lends exact `u8` arrays as byte views;
+/// it does not reinterpret other element types or copy the backing. Both
+/// families retain the local's exact checked loan and endpoint evidence.
 #[allow(clippy::too_many_arguments)]
 fn field_collection(
     program: &TypedTrees,
@@ -439,14 +439,10 @@ fn field_collection(
     state: &typed_trees::state::State,
     parameters: &[CheckedUnitStructuralParameterPlan],
     target: TypeReferenceHandle,
-    kind: ViewKind,
     collection: ExpressionHandle,
     statement_index: usize,
 ) -> Option<(CheckedStorageRoot, Vec<CheckedUnitStructuralPathSegment>)> {
-    if kind != ViewKind::Elements {
-        return None;
-    }
-    let element = borrowed_slice_view_element(program, target, &[])?;
+    let element = validation::slice_view_shell(program, target, &[])?.element;
     let mut place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
