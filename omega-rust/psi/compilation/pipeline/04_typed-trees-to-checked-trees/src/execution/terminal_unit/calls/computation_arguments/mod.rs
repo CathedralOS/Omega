@@ -590,6 +590,11 @@ pub(crate) fn borrowed_nominal_argument(
     // from the same loan spelled `self`. A scalar root stays with the primitive
     // scalar/local source plans below. A borrow projected into a payload
     // keeps requiring its own channel.
+    // Bounded-owned byte fields are existing storage too. Their declared
+    // predicates remain on the collected field; borrowing the enclosing
+    // record neither constructs bytes nor changes those invariants. Admit
+    // that carrier explicitly, without granting byte-view fields a new loan
+    // route or broadening any owned construction/copy classifier.
     let borrowed_field = |field: &CheckedUnitStructuralFieldPlan| {
         !field.relevance.is_erased()
             && matches!(
@@ -599,6 +604,13 @@ pub(crate) fn borrowed_nominal_argument(
                     | CheckedUnitStructuralFieldType::Structural { .. }
                     | CheckedUnitStructuralFieldType::ProviderBacked { .. }
                     | CheckedUnitStructuralFieldType::FusedServiceBacked { .. }
+                    | CheckedUnitStructuralFieldType::ByteSequence(
+                        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                    | CheckedUnitStructuralFieldType::PredicateByteSequence {
+                        carrier: checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
+                        ..
+                    }
             )
     };
     let structural_root = shapes.types.get(&identity).is_some_and(|shape| {
@@ -640,7 +652,10 @@ pub(crate) fn borrowed_nominal_argument(
             // closure only through a field `borrowed_field` already admits.
             CheckedUnitStructuralTypeShape::FixedArray { .. }
             | CheckedUnitStructuralTypeShape::FusedServiceBinding
-            | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => true,
+            | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+            | CheckedUnitStructuralTypeShape::ByteSequence(
+                checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
+            ) => true,
             _ => false,
         });
     // A whole primitive referent observes the same existing storage when the

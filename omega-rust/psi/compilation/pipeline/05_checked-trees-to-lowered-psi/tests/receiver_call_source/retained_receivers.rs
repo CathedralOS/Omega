@@ -112,6 +112,75 @@ fn statement_call_receiver_rejoins_its_authored_place() {
     }
 }
 
+#[test]
+fn computed_guard_receiver_replays_nested_byte_fields_and_exact_loan() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 16]::Text requires valid_utf8(self);
+        data Cell [copy] { case Empty; case Room; }
+        data Label { text: [u8; 16] in Text; }
+        data Navigation { destination: Cell; label: Label; }
+        data Main { navigation: Navigation; spare: Navigation; }
+        machine Navigation::permits(&mut self, destination: Cell) -> bool {
+            transition { destination == Cell::Empty -> false _ -> true }
+        }
+        machine Main::run(&mut self) {
+            transition { _ -> attempt() }
+            state attempt(&mut self) {
+                let destination: Cell = self.navigation.destination;
+                transition self.navigation.permits(destination) {
+                    true -> allowed()
+                    false -> denied()
+                }
+            }
+            state allowed(&mut self) { }
+            state denied(&mut self) { }
+        }
+        "#,
+    );
+    let lowered = lower(&checked, "Main::run")
+        .expect("the guard borrows the complete byte-bearing receiver in place");
+    verify(&lowered);
+    let receiver_handle = checked
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .find_map(|(_, node)| match node.kind {
+            checked_trees::CheckedScalarComputationKind::Call {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments.start()),
+            _ => None,
+        })
+        .expect("computed receiver call");
+    for mutation in ["path", "access"] {
+        let mut changed = checked.clone();
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(receiver) = changed
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .get_mut(receiver_handle)
+        else {
+            panic!("receiver remains an exact place");
+        };
+        match mutation {
+            "path" => {
+                receiver.path = vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+                    "spare".to_owned(),
+                )];
+            }
+            _ => receiver.access = CheckedStructuralAccess::SharedBorrow,
+        }
+        assert!(
+            lower(&changed, "Main::run").is_err(),
+            "{mutation} substitution cannot borrow another receiver or access"
+        );
+    }
+}
+
 const FUSED_SOURCE: &str = r#"
     data Main { bias: u64; }
     machine Main::ping(&mut self, n: u64)

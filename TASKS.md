@@ -1237,16 +1237,17 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `08a1a2de2b`
-  over `e5fbee57b9` on macOS ARM64,
-  the actual command exits 200 before emission: `Game::run_game_loop`
-  state 17 (`attempt_move`) stops at
-  `state graph: terminator: conditional successors: guard expression` for
-  `transition self.dungeon.can_travel_to(destination)`, where `destination`
-  is a local `CellId` read from `self.dungeon.navigation.destination`.
-  Trace the scalar call/guard join in stage 04 `terminal_unit/state_graph/terminator.rs`
-  and retain its exact receiver and local-case argument through independent
-  source replay. Borrowed bindings, copied `Level` operands, boundary-result
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `d16b2241bb`
+  plus the bounded-byte receiver guard repair over `e5fbee57b9` on macOS ARM64,
+  the actual command exits 200 before emission: `Game::initialize` reaches
+  unavailable `Dungeon::initialize`, whose local construction stops at
+  `call operation: structural arguments: source symbol`.
+  Trace that call's argument source through stage 04's structural call planner
+  and independent stage 05 replay. The state-17 projected mutable receiver guard
+  now plans without removing its nested byte predicates or copied enum argument;
+  its lowering/verifier regression and sibling-path/access substitutions pass,
+  as do all 11 producer computation-argument controls. Borrowed bindings,
+  copied `Level` operands, boundary-result
   dispatch, byte-field views, view literal guards, and owned UTF-8 field
   arguments now pass their earlier planning gates. The rebased copy/view
   selection passes 55 controls, including independent rejection of stripped byte
