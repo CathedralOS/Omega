@@ -155,7 +155,7 @@ fn case_constructor_parts(
     // `[erased]` -- cleanup-owned contents admit them because they never
     // produce runtime storage (storage_contents.rs).
     let contents = if erased_member_owner {
-        crate::has_case_construction_contents(program, reference)
+        crate::has_structural_construction_contents(program, reference)
     } else {
         crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
     };

@@ -12,6 +12,45 @@ fn input(program: &TypedTrees) -> TypeReferenceHandle {
 }
 
 #[test]
+fn structural_construction_shares_interval_members_without_erasing_other_obligations() {
+    let program = crate::front_end::typed_program(
+        "domain i32::Ten requires 0 <= self && self <= 10;
+         domain i32::NonZero requires self != 0;
+         data Gauge { level: i32 in Ten; }
+         data Nested { gauge: Gauge; }
+         data Choice { case Unset; case Set(level: i32 in Ten); }
+         data Predicate { level: i32 in NonZero; }
+         data Loan { level: &mut i32; }
+         machine inspect(gauge: Gauge, nested: Nested, choice: Choice,
+                         predicate: Predicate, loan: Loan) {}",
+    );
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "inspect")
+        .unwrap();
+    let parameters = program.state_parameters(&program.machine_states(machine)[0]);
+    for parameter in &parameters[..3] {
+        assert!(super::has_structural_construction_contents(
+            &program,
+            parameter.type_reference
+        ));
+        // Establishing bounded members does not grant the less constrained
+        // no-code transfer contract to callers that do not retain those proofs.
+        assert!(!super::has_cleanup_owned_contents(
+            &program,
+            parameter.type_reference
+        ));
+    }
+    for parameter in &parameters[3..] {
+        assert!(!super::has_structural_construction_contents(
+            &program,
+            parameter.type_reference
+        ));
+    }
+}
+
+#[test]
 fn arithmetic_policy_preserves_aggregate_contents_and_loan_exclusions() {
     let program = crate::front_end::typed_program(
         "machine inspect(value: [[u32; 2]; 3] in Wrapping, loan: &mut u32) {}",

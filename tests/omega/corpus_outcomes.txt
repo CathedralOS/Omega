@@ -515,6 +515,8 @@ fail/domains/nested_field_domain_write_unestablished rejected 806ms expected @2d
 fail/domains/nonboolean_member_predicate rejected 274ms expected @2d8ed253669f
 	domain `Player::Odd` proof fact `self.health` must have type `bool`
 	domain `Holder::Invalid` proof fact `self.slot.value` must have type `bool`
+fail/domains/record_interval_member_out_of_range rejected 66ms expected @aff5e029f28c+wt
+	construction of `Gauge` field `level`: value 11 is outside its declared range `0..=10`
 fail/domains/refinement_chain_routed_provenance_forge rejected 720ms expected @2d8ed253669f
 	cannot prove default-domain field requirement for return from Token::forge at statement 0: Token requires Token::Issued::Fresh
 fail/domains/result_domain_overload_duplicate_predicate rejected 266ms expected @2d8ed253669f
@@ -1475,8 +1477,7 @@ pass/domains/explicit_domain_erasure checked 288ms @2d8ed253669f
 pass/domains/local_alias_domain_transfer checked 279ms @2d8ed253669f
 pass/domains/match_domain_patterns checked 305ms @2d8ed253669f
 pass/domains/module_domain_narrow_import_spelling checked 319ms @2d8ed253669f
-pass/domains/record_interval_domain_member_exit rejected 8051ms @8a4d4e552420+wt
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 0)
+pass/domains/record_interval_domain_member_exit checked 835ms @aff5e029f28c+wt
 pass/domains/refinement_chain_predicates checked 310ms @2d8ed253669f
 pass/domains/refinement_chain_routed_provenance checked 314ms @2d8ed253669f
 pass/domains/runtime_result_domain_machine_overload_exit rejected 1241ms @2d8ed253669f

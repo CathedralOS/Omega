@@ -4,11 +4,8 @@
 // member's range obligation, and the bounded carrier holds the membership.
 // It is stored directly, then through a local. Exit 70 = both read back;
 // 71 = a wrong value.
-//
-// Today the direct store stops at `structural field store: record literal
-// source`, and the local-mediated one at `statement sequence: local data:
-// structural call binding`: only the case constructor classifies an
-// interval-domained member as constructible contents.
+// Records and cases share the construction contents rule, including the
+// bounded carrier and its independently checked member range obligation.
 use omega_language_std::console;
 use omega::language::core::binding;
 
