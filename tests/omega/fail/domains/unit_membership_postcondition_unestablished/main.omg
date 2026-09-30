@@ -1,0 +1,23 @@
+// A Unit machine's membership postcondition is an obligation, not evidence.
+// `spoil` stores caller bytes that nothing proves valid UTF-8, so its
+// `ensures self.raw in Utf8` cannot be established at the exit and the
+// program rejects. Post-state publication passing over membership clauses
+// relies on this checker judgment.
+domain [u8; 5]::Utf8
+requires
+    valid_utf8(self);
+
+data Main {
+    raw: [u8; 5];
+}
+
+machine Main::spoil(&mut self, bytes: [u8; 5])
+ensures
+    self.raw in Utf8
+{
+    self.raw = bytes;
+}
+
+machine Main::main(&mut self) {
+    self.spoil("Alpha");
+}

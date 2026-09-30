@@ -342,6 +342,7 @@ pass/domains/runtime_result_domain_machine_overload_exit rejected 455ms
 pass/domains/semantic_cast_guard_chain_mint checked 193ms
 pass/domains/slice_domain_validator built 546ms
 pass/domains/transparent_alias_expansion checked 205ms
+pass/domains/unit_membership_postcondition_exit built 5301ms exit:70 @45c8d6b8b1ce+wt
 pass/domains/user_authored_predicate_machine checked 185ms
 pass/domains/utf8_equals_literal_exit rejected 454ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::classify`), which was itself omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)

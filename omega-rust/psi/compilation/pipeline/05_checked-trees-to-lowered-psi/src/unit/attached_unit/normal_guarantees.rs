@@ -122,10 +122,59 @@ mod tests {
         .unwrap();
     }
 
-    fn verify_post_state(clear_body: &str) {
+    const UTF8_NAME: &str = "domain [u8; 5]::Utf8 requires valid_utf8(self);";
+
+    /// A Unit post-state membership (`ensures self.name in Utf8`) has no
+    /// Terminal proposition; skipping it must still publish the bound beside
+    /// it, which is what discharges `accept`'s requirement at the call.
+    #[test]
+    fn unit_field_membership_keeps_the_bound_its_caller_needs() {
+        verify_post_state_with(
+            UTF8_NAME,
+            "name: [u8; 5] in Utf8;",
+            "ensures self.name in Utf8",
+            "self.name = \"Alpha\"; self.length = 0;",
+        );
+    }
+
+    #[test]
+    fn unit_field_membership_alone_publishes_no_guarantee() {
         let checked = crate::front_end::checked_program(&format!(
-            "data Buffer {{ items: [i32; 4]; length: u64 in Wrapping; }}
+            "{UTF8_NAME}
+             data Record {{ name: [u8; 5] in Utf8; }}
+             machine Record::set(&mut self) ensures self.name in Utf8 {{ self.name = \"Alpha\"; }}
+             machine Record::run(&mut self) {{ self.set(); }}",
+        ));
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Record::run"))
+            .expect("a membership postcondition does not block its Unit call");
+        assert!(
+            lowered
+                .semantic_module
+                .machines
+                .iter()
+                .all(|machine| machine.contract.ensures.is_empty()),
+            "membership has no Terminal proposition to publish"
+        );
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .unwrap();
+    }
+
+    fn verify_post_state(clear_body: &str) {
+        verify_post_state_with("", "", "", clear_body);
+    }
+
+    /// Lower `Buffer::run`, whose `clear` call must publish the bound its
+    /// `accept` call requires, then show that guarantee binds the exact write.
+    fn verify_post_state_with(prelude: &str, fields: &str, clear_contract: &str, clear_body: &str) {
+        let checked = crate::front_end::checked_program(&format!(
+            "{prelude}
+             data Buffer {{ {fields} items: [i32; 4]; length: u64 in Wrapping; }}
              machine Buffer::clear(&mut self)
+             {clear_contract}
              ensures self.length < self.items.len {{ {clear_body} }}
              machine Buffer::accept(&mut self) requires self.length < self.items.len {{ self.length = 1; }}
              machine Buffer::run(&mut self) {{ self.clear(); self.accept(); }}",
