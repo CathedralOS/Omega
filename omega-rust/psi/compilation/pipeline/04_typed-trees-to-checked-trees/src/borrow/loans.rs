@@ -540,20 +540,31 @@ fn whole_place_recast_borrow_place(
     else {
         return None;
     };
+    let indexed_source_is_literal = match program.expression_table.expression(cast.value) {
+        checked_trees::expression::ExpressionNode::Indexed(indexed) => matches!(
+            program.expression_table.expression(indexed.index),
+            checked_trees::expression::ExpressionNode::Integer(_)
+        ),
+        _ => false,
+    };
     if !cast.form.is_recast()
+        || indexed_source_is_literal
         || !matches!(
             program.expression_table.expression(cast.value),
             checked_trees::expression::ExpressionNode::Name(_)
                 | checked_trees::expression::ExpressionNode::Member(_)
+                | checked_trees::expression::ExpressionNode::Indexed(_)
         )
     {
         return None;
     }
 
     // Whole name/member recasts retain exactly the source place's provenance
-    // and lifetime. Indexed byte-region recasts are intentionally excluded:
-    // their validated target footprint may cover more than one source element,
-    // so an element-only loan would understate overlap.
+    // and lifetime. A runtime-indexed recast source retains the collection
+    // place with the `Index` segment the access place already derives: that
+    // segment conservatively selects any element, so it cannot understate the
+    // recast target's footprint the way an element-only loan would. Literal
+    // indices keep the exact footprint from `literal_indexed_recast_borrow_place`.
     borrow_access_place(
         program,
         state_symbol,
