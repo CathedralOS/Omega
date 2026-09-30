@@ -1833,7 +1833,7 @@ fn replays_loan_event(
         Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
         PermissionEventSource, PermissionProvenance,
     };
-    if event.multiplicity != Multiplicity::Unrestricted || event.obligation_live {
+    if event.obligation_live {
         return false;
     }
     let borrow = &checked.facts.borrow;
@@ -1875,12 +1875,14 @@ fn replays_loan_event(
             return false;
         }
         matches!(
-            (event.access, &loan.kind),
+            (event.access, event.multiplicity, &loan.kind),
             (
                 PermissionAccess::Shared,
+                Multiplicity::Unrestricted,
                 checked_trees::BorrowAccessKind::Read
             ) | (
                 PermissionAccess::Exclusive,
+                Multiplicity::Affine,
                 checked_trees::BorrowAccessKind::Mutable
                     | checked_trees::BorrowAccessKind::WriteOnly,
             )

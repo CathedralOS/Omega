@@ -179,6 +179,8 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             program,
             reassigned_place,
             statement_index,
+            statement,
+            build.call_frames,
         );
 
         while let Some(loan) = borrow_loans.get(loan_index) {

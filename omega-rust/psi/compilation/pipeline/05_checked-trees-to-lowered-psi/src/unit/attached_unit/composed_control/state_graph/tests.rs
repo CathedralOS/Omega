@@ -9,6 +9,80 @@ mod displaced_field_replacement;
 mod qualified_invocation;
 
 #[test]
+fn local_field_loan_preserves_owned_home_custody() {
+    use language_semantics::{PermissionAccess, PermissionEventKind};
+    let checked = crate::front_end::checked_program(
+        "data Root {}
+         data Storage { raw: u8; }
+         machine Root::route(context: &mut Root) {
+             let mut storage: Storage;
+             storage.raw = 1;
+             let seen: &mut u8 = &mut storage.raw;
+             seen = 0;
+             transition storage.raw == 0 {
+                 true -> good(context)
+                 _ -> bad(context)
+             }
+             state good(context: &mut Root) {}
+             state bad(context: &mut Root) {}
+         }",
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| plan.states.len() == 3)
+        .expect("local loan graph");
+    admission::admit(&checked, plan).expect("loan access is not owned-home disposition");
+    let permissions = &checked.facts.flow.ownership.permissions;
+    let (establishment, original) = permissions
+        .iter()
+        .find(|(_, event)| {
+            event.machine_symbol == plan.machine
+                && event.state_symbol == plan.states[0].state
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Owned
+        })
+        .expect("owned establishment");
+    let (loan, _) = permissions
+        .iter()
+        .find(|(_, event)| {
+            event.machine_symbol == plan.machine
+                && event.state_symbol == plan.states[0].state
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Exclusive
+        })
+        .expect("exclusive loan establishment");
+    for corruption in 0..6 {
+        let mut changed = checked.clone();
+        let permissions = &mut changed.facts.flow.ownership.permissions;
+        match corruption {
+            0 => permissions.get_mut(establishment).access = PermissionAccess::Shared,
+            1 => {
+                permissions.insert(original.clone());
+            }
+            2 => permissions.get_mut(establishment).obligation_live = true,
+            3 => {
+                permissions.get_mut(loan).multiplicity =
+                    language_semantics::Multiplicity::Unrestricted
+            }
+            4 => permissions.get_mut(loan).access = PermissionAccess::Shared,
+            5 => {
+                permissions.get_mut(loan).provenance =
+                    language_semantics::PermissionProvenance::Unknown
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            admission::admit(&changed, plan).is_err(),
+            "ownership and exact loan custody must reject tampering: {corruption}"
+        );
+    }
+}
+
+#[test]
 fn unreachable_alternatives_do_not_replace_the_selected_edge() {
     let checked = crate::front_end::checked_program(
         "data Root { count: u32 in Wrapping; }

@@ -62,6 +62,8 @@ pub(crate) fn filter_reassigned_borrow_loans(
     program: &typed_trees::TypedTrees,
     reassigned_place: Option<CanonicalPlace>,
     statement_index: usize,
+    statement: &typed_trees::statement::StatementNode,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> arena::HandleSpan<FlowConstraintRef> {
     let Some(place) = reassigned_place else {
         return source;
@@ -70,6 +72,38 @@ pub(crate) fn filter_reassigned_borrow_loans(
         facts::PlaceRoot::Symbol(symbol) => (symbol, place.segments),
         _ => return source,
     };
+
+    // A bare reference local may be assigned through rather than replaced.
+    // Retire its carried loan only when the ordinary assignment classification
+    // establishes a binding replacement; writing the pointee keeps the loan.
+    if reassigned_segments.is_empty()
+        && let Some((machine, state)) = crate::semantic::calls::find_state_with_machine(
+            program,
+            program.symbols.get(reassigned_symbol).parent,
+        )
+        && let Some((_, local)) = program.state_local_declaration(state, reassigned_symbol)
+    {
+        let mut reference = local.type_reference;
+        while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(reference)
+        {
+            reference = *base_type;
+        }
+        if matches!(
+            program.type_reference_table.type_reference(reference),
+            typed_trees::types::TypeReferenceNode::Reference { .. }
+        ) {
+            let mut owned_frames = None;
+            let replacement =
+                crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)
+                    .and_then(|frames| {
+                        frames.assignment_replaces_local_reference_binding(machine, statement)
+                    });
+            if replacement != Some(true) {
+                return source;
+            }
+        }
+    }
 
     reference_spans::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
         match constraint_ref.kind {
