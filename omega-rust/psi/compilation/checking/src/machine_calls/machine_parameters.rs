@@ -268,6 +268,23 @@ pub fn validate_static_machine_selections_with_facts(
     }
 }
 
+/// The machine selections among a call's `<>` arguments, in authored order.
+/// The `n`th selection binds the callee's `n`th `machine` binder; type and
+/// const arguments occupy no machine ordinal. Every consumer that joins a
+/// binder to its argument (admission here, native callback destinations in
+/// receiver-call validation) shares this one ordinal space.
+pub(crate) fn machine_selection_arguments<'call>(
+    program: &TypedTrees,
+    arguments: &'call [StaticMachineArgument],
+) -> impl Iterator<Item = &'call StaticMachineArgument> {
+    arguments.iter().filter(|argument| {
+        matches!(
+            program.symbols.get(argument.symbol).kind,
+            SymbolKind::State | SymbolKind::MachineParameter
+        )
+    })
+}
+
 fn validate_call_selection(
     program: &TypedTrees,
     index: &MachineStateIndex,
@@ -374,15 +391,7 @@ fn validate_call_selection(
         return;
     }
 
-    let machine_arguments = arguments
-        .iter()
-        .filter(|argument| {
-            matches!(
-                program.symbols.get(argument.symbol).kind,
-                SymbolKind::State | SymbolKind::MachineParameter
-            )
-        })
-        .collect::<Vec<_>>();
+    let machine_arguments = machine_selection_arguments(program, arguments).collect::<Vec<_>>();
     if machine_arguments.len() != requirements.len() {
         diagnostics.push(Diagnostic::error(format!(
             "generic call `{target_name}` requires {} static machine argument(s), got {}",

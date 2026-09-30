@@ -64,6 +64,7 @@ pub(crate) use recursion::{
 };
 use result_use::validate_result_use;
 pub(crate) use write_frames::CallFrameCaches;
+use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
 pub(crate) use write_frames::named_state_transition_subgraph_is_acyclic;
 pub use write_frames::{

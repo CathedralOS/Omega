@@ -5,6 +5,7 @@
 //! declaration the call invokes, never a waiver of the caller's
 //! obligations.
 
+mod callback_registrar_calls;
 mod namespace_calls;
 
 fn rejects(source: &str, fragment: &str) {
