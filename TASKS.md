@@ -2312,21 +2312,24 @@ extend that route through ordinary checked Build execution and retained outputs.
 
 - **SAME-NAME-REQUIREMENT-CALL-TARGETS.** (new-scope) Remaining: replace
   name-matched attachment lookups where a same-name-module customer reaches
-  them: stage 04 `execution/terminal_unit/calls/signatures.rs`,
-  `operators/receiver.rs`, `lookup/calls.rs`, `facts/carry.rs`,
-  `borrow/roots.rs`, `checks/contracts/evaluator/collections.rs`,
+  them: stage 04 `execution/terminal_unit/calls/signatures.rs`
+  (`structural_signature_with_partial_affine`), `operators/receiver.rs`,
+  the contained-target filter in `facts/carry.rs`,
+  `checks/contracts/evaluator/collections.rs`,
   `monomorphization/body_cloning.rs`; stage 05
   `returns/boundary_scalar_return/source_custody.rs`. Use the retained
   attachment identity, including closed applications, rather than a global
   record-name match. Extend a runtime customer through the affected storage,
   borrow, or return path before replacing its lookup.
 
-  `pass/providers/same_name_requirement{,_right}_dispatch_exit` now exits 70
-  natively and interpreted on macOS ARM64: statement and value calls in entry
-  and named states select each module's own `Sink`. The repaired boundary was
-  the late dynamic resolver overwriting an already exact projected target,
-  not stage 02. These controls do not close the attachment sites above.
-  Preserve rejection of forged targets from a different requirement.
+  `pass/providers/same_name_requirement{,_right}_dispatch_exit` and
+  `pass/modules/same_name_requirement_field_calls_exit` exit 70 natively and
+  interpreted on macOS ARM64. The modules fixture's `self.sink.emit(..)`
+  statements reached `borrow/roots.rs`, `lookup/calls.rs`, the owned-receiver
+  multiplicity in `calls/signatures.rs` and the topology fields in
+  `facts/carry.rs`, which now select by attachment symbol; instrumenting the
+  sites above showed no current customer reaching them. Preserve rejection of
+  forged targets from a different requirement.
 
 - **BUILD-SNAPSHOT-OUTPUTS.** Finish coherent capture and host acceptance under the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)

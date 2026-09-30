@@ -422,11 +422,9 @@ fn attached_data_field_type_reference(
     machine: &typed_trees::machine::Machine,
     receiver_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let attached_data = machine.attached_data.as_ref()?;
-    let data = program
-        .data_definitions()
-        .iter()
-        .find(|data| data.name == *attached_data)?;
+    // The machine's exact attachment: a same-spelled record in another
+    // module holds different field symbols, so `receiver_symbol` would miss.
+    let data = program.attached_data_definition(machine)?;
 
     program.data_members(data).iter().find_map(|member| {
         let typed_trees::data::DataMember::Field(field) = member else {
@@ -452,3 +450,6 @@ fn resolve_state_symbol_in_machine(
         .map(|state| state.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }
+
+#[cfg(test)]
+mod tests;

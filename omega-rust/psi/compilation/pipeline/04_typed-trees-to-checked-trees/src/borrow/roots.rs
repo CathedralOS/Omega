@@ -100,15 +100,10 @@ pub(super) fn attached_data_fields<'program>(
     program: &'program typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> impl Iterator<Item = &'program typed_trees::data::DataField> {
-    machine
-        .attached_data
-        .as_ref()
-        .and_then(|attached_data| {
-            program
-                .data_definitions()
-                .iter()
-                .find(|definition| definition.name == *attached_data)
-        })
+    // The machine's exact attachment: a same-spelled record in another
+    // module would lend its field symbols to this machine's roots.
+    program
+        .attached_data_definition(machine)
         .into_iter()
         .flat_map(|definition| program.data_members(definition).iter())
         .filter_map(|member| match member {
@@ -167,3 +162,6 @@ pub(super) fn estimated_borrow_root_capacity(program: &typed_trees::TypedTrees) 
         })
         .sum()
 }
+
+#[cfg(test)]
+mod tests;

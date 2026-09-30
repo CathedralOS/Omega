@@ -188,6 +188,34 @@ pub(crate) fn typed_program_with_core_service(source: &str) -> TypedTrees {
     )
 }
 
+/// [`typed_program_from_source_map`] over `core/binding.omg` (registered as a
+/// Toolchain source) followed by each `(path, text)` user source in order.
+/// Fixtures that declare the same spellings in two modules (`module left;`,
+/// `module right;`) use it to pin lookups that must follow resolved symbols
+/// rather than the first same-spelled declaration.
+pub(crate) fn typed_modules_with_core_service(modules: &[(&str, &str)]) -> TypedTrees {
+    let mut sources = SourceMap::default();
+    let mut texts = vec![(
+        sources
+            .add_with_metadata(
+                PathBuf::from("source/library/core/binding.omg"),
+                CORE_SERVICE_OMG.to_owned(),
+                PathBuf::from("source/library/core"),
+                None,
+                SourceOrigin::Toolchain,
+            )
+            .source_id,
+        CORE_SERVICE_OMG,
+    )];
+    for (path, text) in modules {
+        let source_id = sources
+            .add(PathBuf::from(*path), (*text).to_owned())
+            .source_id;
+        texts.push((source_id, *text));
+    }
+    typed_program_from_source_map(sources, &texts)
+}
+
 /// [`typed_program`], then check the typed trees in the settled mode
 /// (`lower_typed_trees(.., &CheckingRequest::settled())`).
 pub(crate) fn checked_program(source: &str) -> CheckedTrees {
