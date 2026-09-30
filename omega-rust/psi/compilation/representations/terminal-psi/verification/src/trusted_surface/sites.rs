@@ -734,7 +734,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural_effect/element_extent.rs",
-        sha256: Some("f5808933bb053be03c85858131f182808e9c8395e17e2fa32eb5c2c81e5fa765"),
+        sha256: Some("898b407d8b8a09492089f220eda3e6c3fb624b84399ddfc04f1a5d3d778dd2d6"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -924,7 +924,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/establishment.rs",
-        sha256: Some("fcbde818ca8186c22e075083388974e4318b9a7362ee295f6b50df6ed69cabaa"),
+        sha256: Some("4bbe49d4672f4fc81eadabe7bf4437527ee4b18be915c0843b4041e77575315e"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1249,7 +1249,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/record.rs",
-        sha256: Some("8737b191ff874765db91d6b38f26cdb361cf0649f901217ba6cd1ed0127a3a05"),
+        sha256: Some("2bba63e8b77d7bb9d8c145ac906e4a0eeece00e1c3b4026e009a8a3f96061c70"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1509,12 +1509,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/byte_extent.rs",
-        sha256: Some("9bad8ff6f81a2ed7f2a6e9e5c093088d629735b25f6940dc730b56ba6f150074"),
+        sha256: Some("ec7cac976664cbf77c5dceb0ec1b5a23051f894a2d1737d7a756d766d2265f5c"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs",
-        sha256: Some("7cffe94f75f0af7e01a4816751b54d86ac7b1db98d3d40aff6e3ac680c56efbb"),
+        sha256: Some("18f2966e1cd84d8a3238e319057af190d8b7a8c0b984fad98c629fe50e9bb261"),
         inventory_machinery: false,
     },
     ImplementationSite {
