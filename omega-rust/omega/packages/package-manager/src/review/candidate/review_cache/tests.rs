@@ -3,8 +3,8 @@
 //! unchanged, so a failure here is a format change: bump `RECORD_VERSION` or
 //! the key domain rather than editing the pinned bytes.
 
+use super::record_codec::{decode_record, encode_record};
 use super::{CachedCompiledReview, CachedOccurrenceFacts, compiled_review_key};
-use super::{decode_record, encode_record};
 use crate::declarations::DependencyPurpose;
 use crate::review::candidate::semantic_bindings::SemanticBindingReviewCandidate;
 use effects::provider_plan::{
@@ -431,7 +431,7 @@ fn compiled_review_key_keeps_its_byte_layout() {
     expected.update([1]);
     framed(&mut expected, b"macos_arm64");
     framed(&mut expected, b"/review/sample/main.omg");
-    framed(&mut expected, super::stamp_string().as_bytes());
+    framed(&mut expected, super::key::stamp_string().as_bytes());
     expected.update(review_cache_inputs_digest(&inputs));
     expected.update(review_cache_snapshot_digest(&snapshot));
     let expected: [u8; 32] = expected.finalize().into();
