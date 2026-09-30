@@ -22,6 +22,13 @@ pub struct NativeApplicationMetadata {
     /// Identity bound into signing and application-package publication.
     pub identifier: Option<ApplicationIdentifier>,
     pub subsystem: u16,
+    /// The effective ELF loader of the realized target: the build's explicit
+    /// per-target selection, else the target environment's declared default
+    /// (wiki/spec/build/configuration.md#elf-executable-loader-selection).
+    /// `None` for targets without `PT_INTERP`. It never selects dynamic
+    /// linking: the image owner consumes it only when the emitted object
+    /// retains normalized ELF imports.
+    pub elf_interpreter: Option<crate::NormalizedElfInterpreterPlan>,
 }
 
 /// The authored application identifier: it supplies the GUI CodeDirectory

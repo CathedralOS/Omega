@@ -52,11 +52,18 @@ fn realize_image(
         &artifact,
         request,
     )?;
+    // Build output configuration supplies the loader; the emitted object's own
+    // normalized ELF imports decide whether the output links dynamically.
+    let image_request = request
+        .image_request
+        .clone()
+        .settle_elf_loader(&emitted.object, request.elf_interpreter)
+        .map_err(|error| vec![error.diagnostic().clone()])?;
     RequestedNativeArtifact::emit_admitted(
         request.admission.providers.target,
         artifact,
         emitted,
-        request.image_request.clone(),
+        image_request,
         request.admission.providers.selected_provider_plans,
         providers,
         boundary_application_coverage,

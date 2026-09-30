@@ -32,10 +32,11 @@ pub struct CompileReportSettlement {
 }
 
 impl CheckedCompilation {
-    /// Rejoin a realized direct image with this checked source's product
-    /// metadata. The production subject was sealed before lowering; the
-    /// artifact, manifest and source metadata still undergo their independent
-    /// checks. A dynamic ELF carrier cannot satisfy a direct-image request.
+    /// Rejoin a realized image with this checked source's product metadata.
+    /// The production subject was sealed before lowering; the artifact,
+    /// manifest and source metadata still undergo their independent checks.
+    /// A dynamically linked ELF output keeps its own report variant, so it
+    /// never satisfies direct-image custody.
     pub fn native_report(
         &self,
         root_path: PathBuf,
@@ -44,11 +45,8 @@ impl CheckedCompilation {
         production_subject: Option<crate::ProductionCompilationSubject>,
         profile: proof_admission::AdmissionProfile,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
-        let artifact = artifact.into_direct().map_err(|_| {
-            diagnostics("direct native production returned a different image carrier")
-        })?;
         let application = self.project_native_application_metadata();
-        let report = CompileReport::from_retained_native_artifact(
+        let report = CompileReport::from_requested_native_artifact(
             root_path,
             self.source_file_count(),
             artifact,

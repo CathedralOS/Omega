@@ -16,7 +16,10 @@ use crate::{
     RetainedNativeArtifact, RetainedTerminalArtifact, TerminalNativeRealizationProposal,
 };
 use artifacts::compile_timings::PhaseTiming;
-use native_artifact::{ExecutablePublicationReceipt, NativePackagePublicationReceipt};
+use native_artifact::{
+    DynamicElfNativeArtifact, DynamicElfPublicationReceipt, ExecutablePublicationReceipt,
+    NativePackagePublicationReceipt,
+};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,9 +95,37 @@ struct PublishedNativeProduct {
     application: NativeApplicationMetadata,
 }
 
+/// A validated dynamically linked ELF payload retained before output: an
+/// import-bearing Linux object emitted under the build's effective loader.
+/// It is the authority-distinct dynamic product, never direct-image,
+/// component or installation custody
+/// (wiki/spec/build/component_publication.md#products-and-authority).
+#[derive(Debug)]
+struct DynamicElfProduct {
+    artifact: DynamicElfNativeArtifact,
+    /// Exact subtractive release overlay applied after build selection and
+    /// before native realization. Ordinary requests retain `None`.
+    optimization_rollback: Option<OptimizationRollbackReceipt>,
+    application: NativeApplicationMetadata,
+}
+
+/// The flat-file receipt remaining after publication consumes a retained
+/// dynamic ELF payload. It grants no loader or execution authority.
+#[derive(Debug)]
+struct PublishedDynamicElfProduct {
+    executable: DynamicElfPublicationReceipt,
+    optimization_rollback: Option<OptimizationRollbackReceipt>,
+    application: NativeApplicationMetadata,
+}
+
 /// The product a compilation produced. Payload kinds carry their evidence
 /// directly; `NativeExecutable` is reachable only through
 /// `record_native_publication` consuming a `RetainedNativeArtifact`.
+///
+/// A dynamically linked ELF output shares the retained/published native
+/// kinds with direct images, because the product role is the same, while its
+/// payload and receipt stay separate variants so no direct-image custody
+/// check can accept dynamic bytes.
 #[derive(Debug)]
 enum CompileProduct {
     /// A completed check; no product files exist.
@@ -108,6 +139,10 @@ enum CompileProduct {
     RetainedNativeArtifact(NativeProduct),
     /// A native executable installed against an exact checked receipt.
     NativeExecutable(PublishedNativeProduct),
+    /// A validated dynamically linked ELF payload retained pre-publication.
+    RetainedDynamicElfArtifact(DynamicElfProduct),
+    /// A dynamically linked ELF file installed against its exact receipt.
+    DynamicElfExecutable(PublishedDynamicElfProduct),
     /// A non-executable object container written to output. Kept for the
     /// `checked` constructor's kind contract; no current route builds one.
     ObjectContainer,
@@ -119,8 +154,12 @@ impl CompileProduct {
             Self::CheckOnly => CompileOutputKind::CheckOnly,
             Self::BuildArtifacts => CompileOutputKind::BuildArtifacts,
             Self::TerminalArtifact(_) => CompileOutputKind::TerminalArtifact,
-            Self::RetainedNativeArtifact(_) => CompileOutputKind::RetainedNativeArtifact,
-            Self::NativeExecutable(_) => CompileOutputKind::NativeExecutable,
+            Self::RetainedNativeArtifact(_) | Self::RetainedDynamicElfArtifact(_) => {
+                CompileOutputKind::RetainedNativeArtifact
+            }
+            Self::NativeExecutable(_) | Self::DynamicElfExecutable(_) => {
+                CompileOutputKind::NativeExecutable
+            }
             Self::ObjectContainer => CompileOutputKind::ObjectContainer,
         }
     }
@@ -149,6 +188,12 @@ impl CompileProduct {
             Self::NativeExecutable(product) => {
                 wrote_output && product.has_consistent_custody(manifest)
             }
+            Self::RetainedDynamicElfArtifact(product) => {
+                !wrote_output && product.has_consistent_custody(manifest)
+            }
+            Self::DynamicElfExecutable(product) => {
+                wrote_output && product.has_consistent_custody(manifest)
+            }
             Self::ObjectContainer => wrote_output,
         }
     }
@@ -157,6 +202,37 @@ impl CompileProduct {
         match self {
             Self::RetainedNativeArtifact(product) => Some(&product.application),
             Self::NativeExecutable(product) => Some(&product.application),
+            Self::RetainedDynamicElfArtifact(product) => Some(&product.application),
+            Self::DynamicElfExecutable(product) => Some(&product.application),
+            _ => None,
+        }
+    }
+
+    /// Proof-product eligibility of this exact payload: the kind's rule, and
+    /// a dynamically linked ELF output has no native proof product because
+    /// the native sidecar certifies direct-image evidence only.
+    fn admit_proof_requests(
+        &self,
+        requests: package_compilation::build_execution::build_value::PccRequests,
+    ) -> Result<(), &'static str> {
+        self.kind().admit_proof_requests(requests)?;
+        match self {
+            Self::RetainedDynamicElfArtifact(_) | Self::DynamicElfExecutable(_)
+                if requests.native =>
+            {
+                Err("a dynamically linked ELF output cannot carry a native proof product")
+            }
+            _ => Ok(()),
+        }
+    }
+
+    const fn optimization_rollback(&self) -> Option<&OptimizationRollbackReceipt> {
+        match self {
+            Self::TerminalArtifact(product) => product.optimization_rollback.as_ref(),
+            Self::RetainedNativeArtifact(product) => product.optimization_rollback.as_ref(),
+            Self::NativeExecutable(product) => product.optimization_rollback.as_ref(),
+            Self::RetainedDynamicElfArtifact(product) => product.optimization_rollback.as_ref(),
+            Self::DynamicElfExecutable(product) => product.optimization_rollback.as_ref(),
             _ => None,
         }
     }
@@ -205,6 +281,29 @@ impl NativeProduct {
                 .as_ref()
                 .is_none_or(OptimizationRollbackReceipt::is_consistent)
             && manifest.is_none_or(|manifest| manifest.matches_native_artifact(&self.artifact))
+    }
+}
+
+impl DynamicElfProduct {
+    fn has_consistent_custody(&self, manifest: Option<&ProductionCompilationManifest>) -> bool {
+        self.artifact.validate().is_ok()
+            && self
+                .optimization_rollback
+                .as_ref()
+                .is_none_or(OptimizationRollbackReceipt::is_consistent)
+            && manifest.is_none_or(|manifest| manifest.matches_dynamic_elf_artifact(&self.artifact))
+    }
+}
+
+impl PublishedDynamicElfProduct {
+    /// The receipt replays its installation commitment, and an attached
+    /// manifest names the same dynamic artifact identity.
+    fn has_consistent_custody(&self, manifest: Option<&ProductionCompilationManifest>) -> bool {
+        self.executable.has_consistent_installation_identity()
+            && manifest.is_none_or(|manifest| {
+                matches!(manifest.artifact(), ProductionArtifactIdentity::DynamicElf(identity)
+                    if self.executable.dynamic_elf_artifact_identity() == identity.as_bytes())
+            })
     }
 }
 
@@ -340,7 +439,9 @@ impl CompileReport {
     pub fn take_build_outputs(&mut self) -> Option<crate::RetainedBuildOutputs> {
         if matches!(
             self.product,
-            CompileProduct::TerminalArtifact(_) | CompileProduct::RetainedNativeArtifact(_)
+            CompileProduct::TerminalArtifact(_)
+                | CompileProduct::RetainedNativeArtifact(_)
+                | CompileProduct::RetainedDynamicElfArtifact(_)
         ) && !self.wrote_output
         {
             self.build_outputs.take()
@@ -395,6 +496,37 @@ impl CompileReport {
         self.pcc_publications = proofs;
         if !self.has_consistent_executable_publication_custody() {
             return Err("published native report failed custody replay".into());
+        }
+        Ok(self)
+    }
+
+    /// Advance dynamic ELF custody only after its flat file installs against
+    /// the exact receipt. Psi proof pairs may accompany it; native proof
+    /// products are refused before installation by the publication owner.
+    pub(crate) fn record_dynamic_elf_publication(
+        mut self,
+        receipt: DynamicElfPublicationReceipt,
+        proofs: Vec<PccPublicationReceipt>,
+    ) -> Result<Self, String> {
+        let CompileProduct::RetainedDynamicElfArtifact(product) = self.product else {
+            return Err(
+                "dynamic ELF publication requires exactly one retained dynamic ELF artifact".into(),
+            );
+        };
+        if self.wrote_output {
+            return Err(
+                "dynamic ELF publication requires exactly one retained dynamic ELF artifact".into(),
+            );
+        }
+        self.product = CompileProduct::DynamicElfExecutable(PublishedDynamicElfProduct {
+            executable: receipt,
+            optimization_rollback: product.optimization_rollback,
+            application: product.application,
+        });
+        self.wrote_output = true;
+        self.pcc_publications = proofs;
+        if !self.has_consistent_executable_publication_custody() {
+            return Err("published dynamic ELF report failed custody replay".into());
         }
         Ok(self)
     }
@@ -505,16 +637,29 @@ impl CompileReport {
         if profile.native_target() != native_target {
             return Err("checked native receipt target profile disagrees with its native target");
         }
-        let artifact = self
-            .retained_native_artifact()
-            .ok_or("checked native receipt requires one retained native artifact")?;
-        if artifact.target() != native_target {
+        // Direct and dynamic ELF payloads each rejoin their own manifest
+        // identity; neither may stand in for the other.
+        let (artifact_target, manifest_matches) = match &self.product {
+            CompileProduct::RetainedNativeArtifact(product) => (
+                product.artifact.target(),
+                self.production_manifest()
+                    .is_none_or(|manifest| manifest.matches_native_artifact(&product.artifact)),
+            ),
+            CompileProduct::RetainedDynamicElfArtifact(product) => (
+                product.artifact.target(),
+                self.production_manifest().is_none_or(|manifest| {
+                    manifest.matches_dynamic_elf_artifact(&product.artifact)
+                }),
+            ),
+            _ => return Err("checked native receipt requires one retained native artifact"),
+        };
+        if artifact_target != native_target {
             return Err("checked native receipt retained artifact target disagrees with checking");
         }
         if let Some(manifest) = self.production_manifest()
             && (manifest.subject().target_profile() != profile
                 || manifest.subject().native_target() != native_target
-                || !manifest.matches_native_artifact(artifact))
+                || !manifest_matches)
         {
             return Err("checked native receipt production manifest disagrees with checking");
         }
@@ -556,6 +701,69 @@ impl CompileReport {
         Ok(report)
     }
 
+    /// Retain one dynamically linked ELF payload. Like
+    /// [`Self::from_retained_native_artifact`] it replays the artifact and any
+    /// production manifest; publication later installs it as a flat file.
+    pub fn from_retained_dynamic_elf_artifact(
+        root_path: PathBuf,
+        source_file_count: usize,
+        artifact: DynamicElfNativeArtifact,
+        optimization_rollback: Option<OptimizationRollbackReceipt>,
+        production_subject: Option<ProductionCompilationSubject>,
+    ) -> Result<Self, &'static str> {
+        artifact
+            .validate()
+            .map_err(|_| "compiler report received an invalid dynamic ELF artifact")?;
+        let production_manifest = production_subject
+            .map(|subject| ProductionCompilationManifest::for_dynamic_elf(subject, &artifact))
+            .transpose()?;
+        let mut report = Self::shell(
+            root_path,
+            source_file_count,
+            CompileProduct::RetainedDynamicElfArtifact(DynamicElfProduct {
+                artifact,
+                optimization_rollback,
+                application: NativeApplicationMetadata::default(),
+            }),
+        );
+        report.production_manifest = production_manifest;
+        if !report.has_consistent_executable_publication_custody() {
+            return Err("compiler report retained inconsistent dynamic ELF custody");
+        }
+        Ok(report)
+    }
+
+    /// Retain whichever image class native realization produced. The direct
+    /// and dynamic ELF payloads keep their separate report variants.
+    pub fn from_requested_native_artifact(
+        root_path: PathBuf,
+        source_file_count: usize,
+        artifact: native_artifact::RequestedNativeArtifact,
+        optimization_rollback: Option<OptimizationRollbackReceipt>,
+        production_subject: Option<ProductionCompilationSubject>,
+    ) -> Result<Self, &'static str> {
+        match artifact {
+            native_artifact::RequestedNativeArtifact::Direct(artifact) => {
+                Self::from_retained_native_artifact(
+                    root_path,
+                    source_file_count,
+                    artifact,
+                    optimization_rollback,
+                    production_subject,
+                )
+            }
+            native_artifact::RequestedNativeArtifact::DynamicElf(artifact) => {
+                Self::from_retained_dynamic_elf_artifact(
+                    root_path,
+                    source_file_count,
+                    artifact,
+                    optimization_rollback,
+                    production_subject,
+                )
+            }
+        }
+    }
+
     pub fn root_path(&self) -> &std::path::Path {
         &self.root_path
     }
@@ -575,15 +783,16 @@ impl CompileReport {
         }
     }
 
-    pub const fn optimization_rollback_receipt(&self) -> Option<&OptimizationRollbackReceipt> {
+    /// The retained dynamically linked ELF payload, before publication.
+    pub const fn retained_dynamic_elf_artifact(&self) -> Option<&DynamicElfNativeArtifact> {
         match &self.product {
-            CompileProduct::TerminalArtifact(product) => product.optimization_rollback.as_ref(),
-            CompileProduct::RetainedNativeArtifact(product) => {
-                product.optimization_rollback.as_ref()
-            }
-            CompileProduct::NativeExecutable(product) => product.optimization_rollback.as_ref(),
+            CompileProduct::RetainedDynamicElfArtifact(product) => Some(&product.artifact),
             _ => None,
         }
+    }
+
+    pub const fn optimization_rollback_receipt(&self) -> Option<&OptimizationRollbackReceipt> {
+        self.product.optimization_rollback()
     }
 
     pub const fn production_manifest(&self) -> Option<&ProductionCompilationManifest> {
@@ -640,7 +849,7 @@ impl CompileReport {
         pcc_requests: package_compilation::build_execution::build_value::PccRequests,
         terminal_admission_profile: proof_admission::AdmissionProfile,
     ) -> Result<Self, &'static str> {
-        self.output_kind().admit_proof_requests(pcc_requests)?;
+        self.product.admit_proof_requests(pcc_requests)?;
         if self.wrote_output
             && (self.pcc_requests != pcc_requests
                 || self.terminal_admission_profile != terminal_admission_profile)
@@ -663,10 +872,15 @@ impl CompileReport {
         mut self,
         application: NativeApplicationMetadata,
     ) -> Result<Self, &'static str> {
-        let CompileProduct::RetainedNativeArtifact(product) = &mut self.product else {
-            return Err("application publication metadata requires a retained native artifact");
-        };
-        product.application = application;
+        match &mut self.product {
+            CompileProduct::RetainedNativeArtifact(product) => product.application = application,
+            CompileProduct::RetainedDynamicElfArtifact(product) => {
+                product.application = application;
+            }
+            _ => {
+                return Err("application publication metadata requires a retained native artifact");
+            }
+        }
         self.has_consistent_executable_publication_custody()
             .then_some(self)
             .ok_or("application publication metadata left inconsistent report custody")
@@ -686,23 +900,17 @@ impl CompileReport {
     }
 
     /// The retained authored hosted intent.
-    pub const fn application_intent(&self) -> Option<target::HostedApplicationIntent> {
-        match &self.product {
-            CompileProduct::RetainedNativeArtifact(product) => product.application.intent,
-            CompileProduct::NativeExecutable(product) => product.application.intent,
-            _ => None,
-        }
+    pub fn application_intent(&self) -> Option<target::HostedApplicationIntent> {
+        self.product
+            .application()
+            .and_then(|application| application.intent)
     }
 
     /// The retained authored application identifier.
-    pub const fn application_identifier(&self) -> Option<&target::ApplicationIdentifier> {
-        match &self.product {
-            CompileProduct::RetainedNativeArtifact(product) => {
-                product.application.identifier.as_ref()
-            }
-            CompileProduct::NativeExecutable(product) => product.application.identifier.as_ref(),
-            _ => None,
-        }
+    pub fn application_identifier(&self) -> Option<&target::ApplicationIdentifier> {
+        self.product
+            .application()
+            .and_then(|application| application.identifier.as_ref())
     }
 
     /// The normalized Build's two independent optional proof-product
@@ -832,13 +1040,22 @@ impl CompileReport {
     /// package root is [`Self::checked_native_package_path`]. Object/check-only
     /// reports and any internally drifted receipt graph fail closed.
     pub fn checked_native_executable_path(&self) -> Option<&std::path::Path> {
-        if !matches!(self.product, CompileProduct::NativeExecutable(_))
-            || !self.has_consistent_executable_publication_custody()
-        {
+        if !self.has_consistent_executable_publication_custody() {
             return None;
         }
-        self.executable_publication()
-            .map(ExecutablePublicationReceipt::output_path)
+        match &self.product {
+            CompileProduct::NativeExecutable(product) => Some(product.executable.output_path()),
+            CompileProduct::DynamicElfExecutable(product) => Some(product.executable.output_path()),
+            _ => None,
+        }
+    }
+
+    /// The flat-file receipt of a published dynamically linked ELF output.
+    pub fn dynamic_elf_publication(&self) -> Option<&DynamicElfPublicationReceipt> {
+        match &self.product {
+            CompileProduct::DynamicElfExecutable(product) => Some(&product.executable),
+            _ => None,
+        }
     }
 
     /// Returns the installed `.app` package root only after independently
@@ -869,7 +1086,7 @@ impl CompileReport {
     /// retained/installation identity joins live beside their payloads.
     pub fn has_consistent_executable_publication_custody(&self) -> bool {
         if self
-            .output_kind()
+            .product
             .admit_proof_requests(self.pcc_requests)
             .is_err()
         {

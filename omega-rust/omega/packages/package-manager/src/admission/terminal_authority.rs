@@ -292,12 +292,9 @@ pub fn realize_accepted_native_report(
         },
     )
     .map_err(|(_, diagnostics)| diagnostics)?;
-    let native_artifact::RequestedNativeArtifact::Direct(artifact) = artifact else {
-        return Err(diagnostics(
-            "accepted Terminal realization requires direct image custody",
-        ));
-    };
-    let report = compiler::CompileReport::from_retained_native_artifact(
+    // The retained proposal's effective ELF loader already selected the image
+    // class; a dynamically linked output keeps its own report variant.
+    let report = compiler::CompileReport::from_requested_native_artifact(
         root_path,
         source_file_count,
         artifact,

@@ -167,6 +167,8 @@ fail/build/build_machine_wrong_arity rejected 4ms expected @2d8ed253669f
 	tests/omega/fail/build/build_machine_wrong_arity/build.omg: invalid project build declaration: package build machine must have exactly one parameter: `builder: &mut Build`
 fail/build/duplicate_program_entry_binding rejected 831ms expected @2d8ed253669f
 	root slot `windows_x86_64::ProgramEntry` is already bound to `Main::main`; it cannot also bind `Main::main`
+fail/build/elf_interpreter_relative_path rejected 1706ms expected @5ce9755c44a5+wt
+	`build` produced an invalid Build: Build.elf_interpreter.linux_x86_64 is invalid: ELF interpreter plan path is not absolute
 fail/build/hosted_program_entry_visible_parameter rejected 1019ms expected @2d8ed253669f
 	hosted `ProgramEntry` exposes no arrival parameters, but `launch` declares `argument`
 fail/build/package_local_calling_copy rejected 226ms expected @2d8ed253669f
@@ -1268,8 +1270,8 @@ pass/calls/value_call_transition_argument checked 1269ms @2d8ed253669f
 pass/capabilities/aarch64_hfa_import_compile checked 1316ms @2d8ed253669f
 pass/capabilities/acquires_through_helper_return checked 807ms @2d8ed253669f
 pass/capabilities/boundary_trait_multiple_effects checked 315ms @2d8ed253669f
-pass/capabilities/callback_direct_install_compile rejected 943ms @2d8ed253669f
-	import-bearing ELF image emission requires an exact normalized interpreter input
+pass/capabilities/callback_direct_install_compile rejected 5689ms @5ce9755c44a5+wt
+	final callback address does not resolve to its exact private function
 pass/capabilities/derives_through_helper checked 383ms @2d8ed253669f
 pass/capabilities/external_leaf_binding_forms checked 488ms @2d8ed253669f
 pass/capabilities/sysv_small_aggregate_import_compile rejected 659ms @2d8ed253669f
@@ -1846,8 +1848,7 @@ pass/providers/checked_boundary_requirement_dispatch_exit checked 2064ms @2d8ed2
 pass/providers/checked_fixed_operator_dispatch_exit checked 1244ms @2d8ed253669f
 pass/providers/checked_fixed_operator_physical_custody checked 910ms @2d8ed253669f
 pass/providers/component_owner_provider_override_compile checked 626ms @2d8ed253669f
-pass/providers/external_boundary_requirement_via_exit rejected 739ms @2d8ed253669f
-	import-bearing ELF image emission requires an exact normalized interpreter input
+pass/providers/external_boundary_requirement_via_exit checked 8941ms @5ce9755c44a5+wt
 pass/providers/external_leaf_dllimport_compile checked 808ms @2d8ed253669f
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 1238ms @2d8ed253669f
 pass/providers/provider_type_target_default_override checked 653ms @2d8ed253669f

@@ -38,6 +38,10 @@ pub struct NativeProductRequest {
 pub struct NativeRealizationRequest<'request> {
     pub admission: terminal_psi_to_abstract_operations::NativeAdmissionRequest<'request>,
     pub image_request: ExecutableImageEmissionRequest,
+    /// The retained proposal's effective ELF loader, settled against the
+    /// emitted object: it becomes `PT_INTERP` only when that object links
+    /// dynamically, and a static object ignores it.
+    pub elf_interpreter: Option<&'request target::NormalizedElfInterpreterPlan>,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
     /// Isolated bodies paired one-to-one with admitted callback arguments.
     /// Each body has its own Terminal artifact namespace.
