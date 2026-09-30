@@ -6,11 +6,13 @@ mod compilation_reuse;
 mod generated_bundles_and_source_roots;
 mod semantic_bindings_and_inputs;
 
+use crate::PackageSourceConsumptionCommitment;
 use crate::package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, PackageCompilationInputs,
-    PackageDependencyBinding, PackageGeneratedSource, PackageGeneratedSourceBundle,
-    PackageKeyIdentity, PackageSourceBinding, PackageSourceConsumptionCommitment, Path, PathBuf,
+    PackageDependencyBinding, PackageGeneratedSourceBundle, PackageKeyIdentity,
+    PackageSourceBinding, Path, PathBuf,
 };
+use build_output::PackageGeneratedSource;
 use std::fs;
 use std::sync::atomic::{AtomicU64, Ordering};
 
