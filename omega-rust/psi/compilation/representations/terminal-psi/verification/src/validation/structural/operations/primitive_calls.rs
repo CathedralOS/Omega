@@ -1,7 +1,7 @@
 //! Validation of primitive structural calls.
 
 use crate::validation::structural::operations::claim_transfers::{
-    validate_service_reach, validate_unit_call_claim_transfers,
+    is_record_loan, validate_service_reach, validate_unit_call_claim_transfers,
 };
 use crate::validation::structural::operations::crash_continuations::validate_unit_call_crash_continuations;
 use crate::validation::structural::operations::structural_arguments::{
@@ -126,6 +126,11 @@ pub(crate) fn validate_primitive_structural_call(
             actual: arguments.len(),
         });
     }
+    // A plain payload result holds no reference and no claim, so a loan
+    // presented to this call ends with it. A completed local record lending
+    // the exact subtree the formal names is one such loan, as at a Unit call:
+    // the local keeps its value, and source, liveness and overlap checks
+    // still run per argument below.
     let borrowed_projections = structural_arguments
         .iter()
         .zip(&callee.structural_parameters)
@@ -133,6 +138,7 @@ pub(crate) fn validate_primitive_structural_call(
             argument.path.is_empty()
                 || is_unrestricted_mutable_subloan(module, machine, expected, argument)
                 || is_unrestricted_shared_subloan(module, machine, expected, argument)
+                || is_record_loan(module, machine, expected, argument)
         });
     validate_structural_arguments(
         module,

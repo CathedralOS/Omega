@@ -295,3 +295,92 @@ fn owned_record_children_reuse_parameter_and_local_places() {
             matches!(&operation.kind, terminal_psi::OperationKind::EstablishRecord { fields } if fields.iter().any(|field| matches!(field.value, terminal_psi::RecordFieldValue::Structural(_))))));
     }
 }
+
+#[test]
+fn local_record_loans_into_record_result_calls_update_the_local_itself() {
+    // A plain record result holds no reference, so each `&mut` loan of the
+    // local, whole or by field path, ends with its call: the second call
+    // observes the first call's write, and the local reads back whole. The
+    // locals are literal-initialized because the Terminal interpreter does
+    // not yet execute a zero-established local.
+    let source = r#"
+        boundary trait Sink { machine record(value: u64); }
+        data Tally { hits: u64 in Wrapping; misses: u64 in Wrapping; }
+        data Outer { height: u64 in Wrapping; tally: Tally; }
+        data Report { total: u64 in Wrapping; }
+        machine Tally::record(tally: &mut Tally, by: u64 in Wrapping) -> Report {
+            tally.hits = tally.hits + by;
+            transition { _ -> (Report { total: tally.hits + tally.misses }) }
+        }
+        data Main {}
+        machine Main::main() reaches Sink {
+            let mut tally: Tally = Tally { hits: 0, misses: 0 };
+            let mut outer: Outer = Outer { height: 0, tally: Tally { hits: 0, misses: 0 } };
+            let first: Report = Tally::record(&mut tally, 30);
+            let second: Report = Tally::record(&mut tally, 40);
+            let third: Report = Tally::record(&mut outer.tally, 5);
+            Sink::record(first.total as u64);
+            Sink::record(second.total as u64);
+            Sink::record(third.total as u64);
+            Sink::record(tally.hits as u64);
+            Sink::record(outer.tally.hits as u64);
+        }
+    "#;
+    let checked = crate::front_end::checked_program(source);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("local record loans into record-result calls lower")
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    terminal_verifier::validate_module(&module).unwrap();
+    let mut execution = TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs::default(),
+    )
+    .unwrap();
+    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
+    let mut completed = false;
+    for _ in 0..256 {
+        match execution
+            .resume(&mut fuel, &mut AcceptTerminalEffects)
+            .unwrap()
+        {
+            TerminalExecutionStatus::SponsorExhausted(_) => fuel.replenish(1).unwrap(),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
+                completed = true;
+                break;
+            }
+            other => panic!("record-result loan execution: {other:?}"),
+        }
+    }
+    assert!(completed);
+    let observed = execution
+        .effects()
+        .iter()
+        .map(|effect| {
+            let terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. } = effect
+            else {
+                panic!("only Sink recording effects");
+            };
+            let [TerminalScalarValue::Integer { value, .. }] = arguments.as_slice() else {
+                panic!("one u64 recording argument");
+            };
+            *value
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        observed,
+        [30, 70, 5, 70, 5]
+            .into_iter()
+            .map(semantic_vocabulary::IntegerValue::Unsigned)
+            .collect::<Vec<_>>()
+    );
+}

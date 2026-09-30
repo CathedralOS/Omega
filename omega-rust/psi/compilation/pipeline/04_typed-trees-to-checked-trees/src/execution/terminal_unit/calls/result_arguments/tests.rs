@@ -540,3 +540,102 @@ fn domain_carrying_local_records_lend_whole_and_projected_loans() {
         "a projected local loan accepted a changed loan root"
     );
 }
+
+#[test]
+fn local_record_loans_reach_a_plain_record_result_call() {
+    // A plain record result holds no reference, so an exclusive loan of a
+    // local, whole or by field path, ends with the call: the structural
+    // result call keeps each local's own binding as the argument source.
+    let checked = checked_program(
+        r#"
+        data Tally { hits: i32 in Wrapping; misses: i32 in Wrapping; }
+        data Outer { height: i32 in Wrapping; tally: Tally; }
+        data Report { total: i32 in Wrapping; }
+        machine Tally::record(tally: &mut Tally, by: i32 in Wrapping) -> Report {
+            tally.hits = tally.hits + by;
+            transition { _ -> (Report { total: tally.hits + tally.misses }) }
+        }
+        machine run() {
+            let mut tally: Tally;
+            let mut outer: Outer;
+            let first: Report = Tally::record(&mut tally, 30);
+            let second: Report = Tally::record(&mut outer.tally, 40);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "local loans into a record result: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let calls = plan
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::Call(call) => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [whole, projected] = calls.as_slice() else {
+        panic!("two record-result calls: {calls:?}");
+    };
+    let mut sources = Vec::new();
+    for (call, path_length) in [(whole, 0), (projected, 1)] {
+        assert!(matches!(
+            call.result(),
+            CheckedUnitCallResult::Structural { .. }
+        ));
+        let [argument] = call.structural_arguments.as_slice() else {
+            panic!("one lent local: {:?}", call.structural_arguments);
+        };
+        assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+        assert_eq!(argument.path.len(), path_length);
+        sources.push(
+            argument
+                .source_structural_result_binding_ordinal()
+                .expect("the local's own binding lends"),
+        );
+    }
+    assert_ne!(sources[0], sources[1], "each call lends its own local");
+}
+
+#[test]
+fn a_view_result_keeps_its_local_loan_out_of_the_plain_result_lane() {
+    // A returned `&mut` view borrows the lent local itself: the call mints a
+    // result loan, so the lent storage stays borrowed past the call. The
+    // plain-result lane must not admit that `&mut` loan of a local.
+    let checked = checked_program(
+        r#"
+        data Cell { value: i32 in Wrapping; }
+        data Tally { cells: [Cell; 2]; hits: i32 in Wrapping; }
+        machine Tally::pick(tally: &mut Tally) -> &mut Cell {
+            transition { _ -> &mut tally.cells[1] }
+        }
+        machine run() {
+            let mut tally: Tally;
+            let cell: &mut Cell = Tally::pick(&mut tally);
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .is_none(),
+        "a view result retained a local loan through the plain-result lane"
+    );
+}
