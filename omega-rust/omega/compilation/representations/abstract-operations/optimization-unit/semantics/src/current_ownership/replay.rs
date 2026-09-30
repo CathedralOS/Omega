@@ -257,8 +257,17 @@ pub(super) fn validate_current_ownership_cfg(
                 })
                 .collect::<Vec<_>>();
             // Releasing a reference consumes its carrier place; the referent
-            // keeps its original home and is never disposed here.
-            if let O::ReleaseReference { source, .. } = &node.operation {
+            // keeps its original home and is never disposed here. Copyable
+            // carriers hold no owned-place slot — `release` already ended
+            // the live reference, and there is nothing left to consume.
+            if let O::ReleaseReference { source, .. } = &node.operation
+                && crate::unit_validation::operation_contracts::structural_source_contract(
+                    function, *source, false,
+                )
+                .is_some_and(|signature| {
+                    signature.multiplicity != StructuralMultiplicity::Unrestricted
+                })
+            {
                 consumed_places.push(*source);
             }
             pins.check_operation(
