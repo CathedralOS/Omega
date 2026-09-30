@@ -18,6 +18,7 @@ pub(crate) fn non_authoritative_resolved_linkage_compatibility_fingerprint(
             .to_le_bytes(),
     );
     hash.bytes(&contents.source_text_bytes);
+    hash.bytes(&contents.source_data_bytes);
     hash.bytes(&contents.procedure_linkage_bytes);
     hash.bytes(&contents.procedure_got_bytes);
     hash.bytes(&contents.procedure_relocation_bytes);

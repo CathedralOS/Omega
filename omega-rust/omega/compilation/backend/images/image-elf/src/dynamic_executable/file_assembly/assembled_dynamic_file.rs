@@ -3,8 +3,9 @@
 //! This rung consumes the resolved procedure-linkage owner and copies every
 //! retained file-backed fragment to its already-validated absolute offset. An
 //! explicit placement ledger and an independent byte replay cover the header
-//! prefix, source text/data, all twelve non-null section payloads, the section
-//! name table, the section-header table, and every zero-filled alignment gap.
+//! prefix, the relocated source text/data, all twelve non-null section
+//! payloads, the section name table, the section-header table, and every
+//! zero-filled alignment gap.
 //!
 //! The assembled bytes remain non-runnable custody. This layer does not mutate
 //! the retained `FinalImage`, publish bytes, or grant loader or
@@ -235,8 +236,9 @@ pub fn assemble_elf_dynamic_file(
 }
 
 /// Consume one independently replayed dynamic ELF assembly, apply its exact
-/// resolved source text to the retained `FinalImage`, and admit the complete
-/// final byte image. This grants no publication receipt or execution event.
+/// resolved source text and data to the retained `FinalImage`, and admit the
+/// complete final byte image. This grants no publication receipt or execution
+/// event.
 pub fn admit_elf_dynamic_executable(
     assembled: ValidatedElfAssembledDynamicFile,
 ) -> Result<ValidatedElfDynamicExecutable, Box<ElfDynamicExecutableAdmissionError>> {
@@ -244,6 +246,7 @@ pub fn admit_elf_dynamic_executable(
         .retained_image()
         .clone();
     expected_image.memory.text = assembled.resolved_linkage.source_text_bytes().to_vec();
+    expected_image.memory.data = assembled.resolved_linkage.source_data_bytes().to_vec();
     let output = match derive_executable_output(&assembled, &expected_image) {
         Ok(output) => output,
         Err(diagnostic) => {
@@ -426,6 +429,7 @@ fn validate_executable_output(
     require(
         image.target == load.target().native_target()
             && image.memory.text == assembled.resolved_linkage.source_text_bytes()
+            && image.memory.data == assembled.resolved_linkage.source_data_bytes()
             && output.bytes == assembled.contents.bytes
             && output.final_text_bytes == image.memory.text
             && output.file_name == "omega-program"
@@ -623,7 +627,7 @@ fn expected_fragments(
     fragments.push(Fragment {
         kind: ElfDynamicFileFragmentKind::SourceData,
         file_offset: load.image_memory().data_file_offset(),
-        bytes: &load.retained_image().memory.data,
+        bytes: resolved_linkage.source_data_bytes(),
     });
 
     for (index, (row, placed)) in indexed.rows.iter().zip(load.sections()).enumerate() {
