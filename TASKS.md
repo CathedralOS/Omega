@@ -5238,7 +5238,18 @@ but report the missing runtime leg explicitly; it does not close that host row.
     they do not establish Darwin coverage or every host boundary. Darwin
     imports/adapters must retain locator receipts, argument choreography
     (including clock identifiers/selectors), result transport and time
-    constants. `ProviderBinding::Import` exists and its receipt must commit
+    constants. For `time/runtime_time_elapsed_since_exit`, repair the
+    toolchain-settled path to select ordinary checked provider bodies for the
+    target's constant answers, following
+    [toolchain-selected implementations](wiki/spec/build/provider_selection.md#toolchain-selected-checked-implementations).
+    Author those bodies and satisfaction edges in reviewed toolchain/library
+    packages; retain their exact provenance through selection, package review,
+    and normal lowering. No `ProviderBinding::Constant`, constant side table,
+    or requirement-name folding exception. Verify the selected answers and
+    reject missing, mismatched, and duplicate selections; require the time
+    fixture's authored native result, with syscall marshalling/result transport
+    remaining real dependencies rather than claiming the constant fix completes
+    time support. `ProviderBinding::Import` exists and its receipt must commit
     to the exact locator; a syscall table cannot invent import authority.
     Use the ordinary authorized binding route. Current Objective-C fixtures
     already declare public domains and their reached services; remove those

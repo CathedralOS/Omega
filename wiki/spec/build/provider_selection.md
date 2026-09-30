@@ -72,6 +72,39 @@ forbidden behavior or insufficient evidence rejects the product. Dynamic
 replacement must preserve the exclusions through its installation envelope;
 selecting one benign provider now does not certify every later binding.
 
+## Toolchain-selected checked implementations
+
+The `toolchain-settled-constant-binding` decision distinguishes who selects an
+implementation from how that implementation executes. A toolchain-owned slot
+may select ordinary checked provider machines supplied by its reviewed packages,
+with explicit satisfaction edges and the same exact declaration, conformance,
+schema, target, and body provenance as other checked implementations. A slot's
+restriction on who may select or supply candidates does not restrict its
+implementations to syscalls, imports, or compiler intrinsics.
+
+A target-specific constant answer is an ordinary machine body, for example:
+
+```omega
+machine nanosecond_units() -> u64 {
+    1_000_000_000
+}
+```
+
+Its provider explicitly satisfies the relevant requirement and is selected for
+the appropriate target. Returning the literal uses ordinary checked-body
+lowering; removing the call is an ordinary optimization, not a prerequisite
+for a valid binding. Runtime-derived values still require their actual
+implementation: a process-stable clock frequency is not necessarily a
+compile-time constant.
+
+Do not add a constant-result provider kind, parallel constant table, intrinsic
+sentinel, or requirement-name folding exemption for this case. Retain the
+selected implementation through normal plan derivation, review, and lowering;
+toolchain provenance does not waive conformance or coverage checks. Missing
+support for selecting a checked body is an implementation gap, not permission
+to invent an implementation or omit its selected row. Existing slot ownership
+and authority restrictions remain unchanged.
+
 ## Derivation and retained evidence
 
 Candidate derivation follows explicit satisfaction edges and computes the complete
