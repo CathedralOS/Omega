@@ -16,7 +16,7 @@ use terminal_semantics::{
 use crate::ModuleError;
 use crate::control_graph::DominatorTree;
 
-use super::byte_extent::{descriptor_origins, operation_position};
+use super::byte_extent::{block_length_equation, descriptor_origins, operation_position};
 
 /// The structural type reached by a structural argument's path. Each `Field`
 /// step resolves inside a `Record`, each `Referent` step crosses a `Reference`
@@ -107,6 +107,46 @@ fn establishment_collection_length(
         })
 }
 
+/// Retain both the source's extent and equality with a previous observation.
+/// These facts are independent: a caller-supplied view may have only the
+/// observation, while a loop header may retain its fixed backing extent but
+/// drop predecessor path facts. Choosing one equation would make unrelated
+/// proofs depend on whether another length read happens to dominate the site.
+pub(super) fn append_length_equations(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    current: &Operation,
+    observation: &StructuralEffectObservation,
+    context: &super::super::machine_context::MachineReconstructionContext<'_>,
+    axioms: &mut Vec<Proposition>,
+) -> Result<(), ModuleError> {
+    if let Some(equation) = source_length_equation(module, machine, current, observation, context)?
+    {
+        crate::verification::substitution::push_unique_fact(axioms, equation);
+    }
+    let StructuralEffectObservation::ElementViewLengthRead { source, .. } = observation else {
+        return Ok(());
+    };
+    if let Some(StructuralPlaceKind::BlockParameter { block, position }) = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == *source)
+        .map(|place| place.kind)
+        && let Some(equation) = block_length_equation(
+            module,
+            machine,
+            current,
+            *source,
+            block,
+            position,
+            context.dominators(),
+        )
+    {
+        crate::verification::substitution::push_unique_fact(axioms, equation);
+    }
+    Ok(())
+}
+
 /// Relate an `ElementViewLength` result to the extent its exact producer
 /// established. Module validation has checked the producer/result join, source
 /// type and dominance, so the equation is introduced only at the later read.
@@ -114,8 +154,8 @@ fn establishment_collection_length(
 /// A block-parameter view has no producer of its own. It is related to the
 /// nearest dominating producer whose exact result every arrival transfers; see
 /// [`arrival_producer`] for why dominance keeps that producer's operands current
-/// at this read. Signature views carry runtime extents and supply no equation.
-pub(super) fn length_equation(
+/// at this read. A signature view's own observation names its runtime extent.
+fn source_length_equation(
     module: &TerminalModule,
     machine: &TerminalMachine,
     current: &Operation,

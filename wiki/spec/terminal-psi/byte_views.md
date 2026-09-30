@@ -122,10 +122,12 @@ binding name and establishes its destination name simultaneously; it does not
 duplicate exclusive access or change the underlying owner. Each source must be
 available on every arrival, including backedges. Ordinary calls reborrow and
 restore the caller's binding rather than consuming that name.
-For a mutable block parameter with exactly one incoming Jump/Conditional edge,
-a fresh length observation may be equated to the predecessor's exact observation
-of that supplied view. Both sides require unchanged extent along every path.
-Multiple arrivals establish no such equation or general parameter-extent axiom.
+For a borrowed block parameter, a fresh length observation may be equated to
+a dominating observation of the exact descriptor every incoming edge supplies.
+The backward replay follows intermediate bindings and rejects a different
+descriptor on any arrival. Mutable views additionally require unchanged extent
+through every intermediate name along every path. Multiple arrivals alone
+establish no equality or general parameter-extent axiom.
 An unranked Unit loop can instead measure its current mutable view afresh at
 the loop header, guard each write, and transfer the exact view and index to a
 single-arrival store block. Feedback resets incoming path facts; every iteration
@@ -171,6 +173,11 @@ A slice view over a non-byte element collection retains its element type and
 exact element extent. Its descriptor is a distinct vocabulary from the raw
 octet views above and supplies no byte-level access to the same backing.
 Element width is settled by the structural type, never measured from contents.
+
+Length observations share the all-arrival descriptor rule above. In particular,
+a caller-supplied element view needs no local establishment to preserve a
+guard's length observation through state transfers. Byte and element counts
+are never equated across the two view families.
 
 Each typed-slice operation requires the same custody shape as its byte-view
 counterpart, restated in elements: a length observation yields the element
