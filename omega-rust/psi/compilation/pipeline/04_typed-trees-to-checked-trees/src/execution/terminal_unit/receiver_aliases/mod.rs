@@ -126,51 +126,83 @@ fn formation(
     let mut roots = parameters.iter().filter(|parameter| {
         parameter.symbol == source_root || (parameter.is_self && source_root == machine.symbol)
     });
-    let root = roots.next()?;
-    if roots.next().is_some()
-        || root.is_const
-        || exclusive_access(program, root.type_reference)?.direct_reborrow_effect(&access)
-            != Some(checked_trees::CheckedReborrowAccessEffect::ExclusiveSuspension)
-    {
+    let parameter_root = roots.next();
+    if parameter_root.is_some() && roots.next().is_some() {
         return None;
     }
-    // Runtime self's reference names the machine/Self namespace. Its
-    // referent is the exact attachment, as in the ordinary Unit signature
-    // collector; no other parameter may borrow that substitution.
-    let root_type = if root.is_self {
-        let reference = validation::unwrapped_type_reference(program, root.type_reference)?;
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(reference)
-        else {
-            return None;
-        };
-        if *symbol != machine.symbol && *symbol != machine.attached_data_symbol {
-            return None;
+    // A root that is not a state parameter must be an owned local declared
+    // earlier in the same state: it loans its storage directly, so no
+    // enclosing borrow suspends and the parameter-only reborrow gate does
+    // not apply — the loan ledger below still proves the capture.
+    let (root_is_self, root_symbol, root_type) = match parameter_root {
+        Some(root) => {
+            if root.is_const
+                || exclusive_access(program, root.type_reference)?.direct_reborrow_effect(&access)
+                    != Some(checked_trees::CheckedReborrowAccessEffect::ExclusiveSuspension)
+            {
+                return None;
+            }
+            // Runtime self's reference names the machine/Self namespace. Its
+            // referent is the exact attachment, as in the ordinary Unit
+            // signature collector; no other parameter may borrow that
+            // substitution.
+            let root_type = if root.is_self {
+                let reference = validation::unwrapped_type_reference(program, root.type_reference)?;
+                let TypeReferenceNode::Named { symbol, .. } =
+                    program.type_reference_table.type_reference(reference)
+                else {
+                    return None;
+                };
+                if *symbol != machine.symbol && *symbol != machine.attached_data_symbol {
+                    return None;
+                }
+                if !machine.attached_data_symbol.is_valid()
+                    || !program
+                        .data_definitions()
+                        .iter()
+                        .any(|data| data.symbol == machine.attached_data_symbol)
+                {
+                    return None;
+                }
+                if place.segments.is_empty() {
+                    program
+                        .type_reference_table
+                        .find_named_type_reference(machine.attached_data_symbol)?
+                } else {
+                    // Projected self reaches its type through the exact
+                    // attachment field below; no separately authored root
+                    // type is required.
+                    root.type_reference
+                }
+            } else {
+                root.type_reference
+            };
+            (root.is_self, root.symbol, root_type)
         }
-        if !machine.attached_data_symbol.is_valid()
-            || !program
-                .data_definitions()
-                .iter()
-                .any(|data| data.symbol == machine.attached_data_symbol)
-        {
-            return None;
+        None => {
+            let (local_ordinal, root_local) =
+                program.state_local_declaration(state, source_root)?;
+            if local_ordinal >= statement_index {
+                return None;
+            }
+            (false, root_local.symbol, root_local.type_reference)
         }
-        if place.segments.is_empty() {
-            program
-                .type_reference_table
-                .find_named_type_reference(machine.attached_data_symbol)?
-        } else {
-            // Projected self reaches its type through the exact attachment
-            // field below; no separately authored root type is required.
-            root.type_reference
-        }
-    } else {
-        root.type_reference
     };
     let projected_type = if place.segments.is_empty() {
         root_type
     } else {
-        calls::projected_argument_path(program, state.symbol, statement_index, &place)?.0
+        // The borrowed-path projection admits a runtime `Index` segment whose
+        // selector the calling state retains — the capture's `self.buf[i]`
+        // keeps `index < extent` on its own obligation, so the alias carries
+        // the same checked segment the authored spelling would.
+        calls::projected_borrowed_path(
+            program,
+            machine.symbol,
+            state.symbol,
+            statement_index,
+            &place,
+        )?
+        .0
     };
     if base_type_identity(program, projected_type, &[])?
         != base_type_identity(program, local.type_reference, &[])?
@@ -184,7 +216,9 @@ fn formation(
     let mut candidates = facts.borrow.loans.iter().filter(|(handle, loan)| {
         facts.borrow.state_owns_loan(borrow_state, *handle) && loan.owner_symbol == local.symbol
     });
-    let (loan_handle, loan) = candidates.next()?;
+    let Some((loan_handle, loan)) = candidates.next() else {
+        return None;
+    };
     if candidates.next().is_some()
         || loan.statement_index != statement_index
         || loan.lineage != BorrowLoanLineage::DirectRoot
@@ -273,10 +307,10 @@ fn formation(
     Some((
         ReceiverAlias {
             owner: local.symbol,
-            root: if root.is_self {
+            root: if root_is_self {
                 machine.symbol
             } else {
-                root.symbol
+                root_symbol
             },
             segments: place.segments,
             kind: access,
@@ -301,11 +335,15 @@ pub(super) fn aliases(
 ) -> Option<Vec<ReceiverAlias>> {
     let statements = program.statement_table.statements(state.statement_nodes);
     let parameters = program.state_parameters(state);
-    let flow = state_flow(facts, machine.symbol, state.symbol)?;
+    let Some(flow) = state_flow(facts, machine.symbol, state.symbol) else {
+        return None;
+    };
     let mut borrow_states = facts.borrow.states.iter().filter(|(_, candidate)| {
         candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
     });
-    let (_, borrow_state) = borrow_states.next()?;
+    let Some((_, borrow_state)) = borrow_states.next() else {
+        return None;
+    };
     if borrow_states.next().is_some() {
         return None;
     }
@@ -316,7 +354,7 @@ pub(super) fn aliases(
         let StatementNode::LocalData(local) = statement else {
             continue;
         };
-        if let Some((alias, loan, parent)) = formation(
+        let formed = formation(
             program,
             facts,
             flow,
@@ -330,13 +368,16 @@ pub(super) fn aliases(
             &aliases,
             &loans,
             &parents,
-        ) {
+        );
+        if let Some((alias, loan, parent)) = formed {
             aliases.push(alias);
             loans.push(loan);
             parents.push(parent);
         }
     }
-    nested::closures(facts, flow, &loans, &parents)?;
+    if nested::closures(facts, flow, &loans, &parents).is_none() {
+        return None;
+    }
     Some(aliases)
 }
 

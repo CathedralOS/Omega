@@ -65,10 +65,13 @@ pub(super) fn formation_place(
                 current = member.receiver;
             }
             ExpressionNode::Indexed(indexed) => {
+                // A runtime selector keeps the same coordinate evidence the
+                // loan ledger already records: the bound discharges on the
+                // `index < extent` obligation, not on the segment's shape.
                 if !program.expression_table.expression_is_valid(indexed.index)
                     || !matches!(
                         crate::flow::index_place_segment(program, indexed.index),
-                        facts::PlaceSegment::FixedIndex { .. }
+                        facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
                     )
                 {
                     return None;
@@ -99,7 +102,10 @@ pub(super) fn formation_place(
         .all(|segment| {
             matches!(segment,
         facts::PlaceSegment::Field { symbol } if symbol.is_valid())
-                || matches!(segment, facts::PlaceSegment::FixedIndex { .. })
+                || matches!(
+                    segment,
+                    facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
+                )
         })
     {
         return None;

@@ -9,15 +9,19 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    size: u32;
 }
 
 machine Main::main(&mut self) reaches Console {
-    let v: u32 = 7;
+    let mut v: u32 = 7;
     let borrowed: &mut u32 = &mut v;
-    transition { _ -> done() }
+    borrowed = 9;
+    transition v == 9 { true -> done() _ -> bad() }
 
     state done(&mut self) {
-        self.console.exit_process(0);
+        self.console.exit_process(9);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
     }
 }
