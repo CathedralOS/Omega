@@ -884,7 +884,7 @@ pass/termination/rank_range_scratch_input_write checked 195ms
 pass/termination/rank_range_state_call checked 182ms
 pass/termination/rank_range_state_call_requires_bridge checked 179ms
 pass/termination/rank_range_state_cycle checked 179ms
-pass/termination/ranked_callee_projected_receiver_compile checked 178ms
+pass/termination/ranked_callee_projected_receiver_compile built 13283ms exit:70 @7c6892099245+wt
 pass/termination/remainder_actual_call_component checked 210ms
 pass/termination/remainder_literal_call_component checked 218ms
 pass/termination/runtime_named_state_remainder_endpoint_exit built 33533ms exit:0
