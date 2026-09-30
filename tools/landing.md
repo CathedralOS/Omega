@@ -160,7 +160,11 @@ python tools/landing.py publish --claim <claim> --base <base> --candidate <sha> 
 ```
 
 `OMEGA_PROVENANCE` supplies the same text when `--provenance` is absent, so a
-swarm launcher can set it once per session. The note is a separate push after
+swarm launcher can set it once per session. Use `key=value` words and always
+include `model=<name>` (for example `agent=devin model=swe-2-medium
+effort=high`); a publish without one still lands, prints a warning, and
+returns `provenance_warning`. Of 201 notes written in the first day, about 15
+named a model, so the owner label alone cannot answer "which model". The note is a separate push after
 publication: it never blocks or undoes a landing, and the result's
 `provenance` field reports `recorded` or why it was not. Notes commits use a
 fixed `omega-landing` committer, since a lander's private address would be

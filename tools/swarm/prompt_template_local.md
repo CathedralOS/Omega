@@ -95,6 +95,8 @@ reservation. `landing.py` requires full lowercase 40-character SHAs for
 between `enqueue` and `claim` — rebase onto the reserved base, not the
 base you enqueued with); an expired head leaves your commit intact —
 re-enqueue it after the queue clears.
+Give `publish` the model that produced the change: `--provenance "agent=<tool> model=<name> effort=<level>"`
+(or export `OMEGA_PROVENANCE` once). Commit messages carry no attribution; this note is the only record.
 
 ## Report
 
