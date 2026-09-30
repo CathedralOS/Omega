@@ -1,0 +1,48 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Buffer {
+    bytes: [u8; 16] in Trapping;
+    length: u64;
+}
+
+data Token [copy] {
+    start: u64;
+    case Empty;
+    case Full(value: u64);
+}
+
+data Workspace {
+    source: Buffer;
+    output: Buffer;
+    tokens: [Token; 2] in Trapping;
+    cursor: u64 in Trapping;
+}
+
+data Main { console: Binding<Console>; }
+
+machine Buffer::initialize(buffer: &mut Buffer, length: u64) {
+    buffer.length = length;
+}
+
+machine Workspace::initialize(workspace: &mut Workspace, length: u64) {
+    Buffer::initialize(&mut workspace.source, length);
+    Buffer::initialize(&mut workspace.output, length);
+    workspace.cursor = 0;
+}
+
+machine Main::main(context: &mut Main) reaches Console {
+    let mut workspace: Workspace;
+    Workspace::initialize(&mut workspace, 35);
+    transition { _ -> observe(context, &workspace) }
+
+    state observe(context: &mut Main, workspace: &Workspace) {
+        transition workspace.source.length == 35 && workspace.output.length == 35 {
+            true -> accepted(context)
+            _ -> rejected(context)
+        }
+    }
+
+    state accepted(context: &mut Main) { context.console.exit_process(70); }
+    state rejected(context: &mut Main) { context.console.exit_process(71); }
+}

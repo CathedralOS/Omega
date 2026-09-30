@@ -327,3 +327,46 @@ fn record_constructor_retains_exact_float_payload_bits() {
         );
     }
 }
+
+#[test]
+fn zeroed_mixed_fields_keep_common_and_payload_namespaces_separate() {
+    let mut module = record_module();
+    module.machines[0].parameters.clear();
+    module.machines[0].blocks[0].operations[0].kind = OperationKind::EstablishZeroedStructural {};
+    let common = StructuralFieldDeclaration {
+        id: StructuralFieldId::new(1).unwrap(),
+        identity: "count".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(unsigned(0).scalar_type()),
+    };
+    let mut payload = common.clone();
+    payload.identity = "payload".into();
+    module.structural_types[0].shape = StructuralTypeShape::Mixed {
+        fields: vec![common],
+        cases: vec![StructuralCaseDeclaration {
+            id: StructuralCaseId::new(1).unwrap(),
+            identity: "First".into(),
+            fields: vec![payload],
+        }],
+    };
+
+    let (execution, result) = run(&module, &[]);
+    assert_eq!(result, TerminalExecutionResult::Unit);
+    let cells = &execution.structural_scalar_fields;
+    assert_eq!(cells.len(), 2);
+    let parent = cells.keys().next().unwrap().parent.clone();
+    let field = StructuralFieldId::new(1).unwrap();
+    assert_eq!(
+        cells.get(&crate::values::StructuralScalarRuntimeField::member(
+            parent.clone(),
+            field
+        )),
+        Some(&unsigned(0)),
+    );
+    assert_eq!(
+        cells.get(&crate::values::StructuralScalarRuntimeField::case_payload(
+            parent, field
+        )),
+        Some(&unsigned(0)),
+    );
+}

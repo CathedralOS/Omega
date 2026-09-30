@@ -611,9 +611,10 @@ pub fn unwrapped_type_reference(
 /// when every field is an unrestricted integer, boolean, or address scalar:
 /// constrained or bounded carriers may exclude 0, floats spell their own
 /// terminal leaf, and nested composites have no case-aware leaf path.
-/// Bounded integers, mixed shapes, references, byte sequences, and erased
-/// members reject — matching the terminal-level `zeroed_structural_shape`
-/// admission rule.
+/// Common fields beside cases follow the ordinary record rule; the first
+/// case supplies the additional active payload. This is shape admission,
+/// not proof of a declaration's domain constraints, which source validation
+/// checks separately. Byte sequences and erased members remain unsupported.
 pub fn zeroed_structural_parts(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     let mut pending = vec![type_reference];
     while let Some(current) = pending.pop() {
@@ -653,13 +654,16 @@ pub fn zeroed_structural_parts(program: &TypedTrees, type_reference: TypeReferen
                     }
                     continue;
                 };
-                // Fields beside variants lower to the terminal Mixed shape,
-                // which has no zero spelling.
-                if members
-                    .iter()
-                    .any(|member| matches!(member, typed_trees::data::DataMember::Field(_)))
-                {
-                    return false;
+                // Common fields are present regardless of the selected case.
+                // They use the same recursive zero establishment as record
+                // fields, while only the first case contributes a payload.
+                for member in members {
+                    if let typed_trees::data::DataMember::Field(field) = member {
+                        if field.relevance.is_erased() {
+                            return false;
+                        }
+                        pending.push(field.type_reference);
+                    }
                 }
                 for field in program.data_payload_fields(first_case) {
                     if field.relevance.is_erased()

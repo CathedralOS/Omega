@@ -1,6 +1,45 @@
 use super::{TypedTrees, exact_attached_field, machine_attached_data};
 use symbols::SymbolHandle;
 
+fn zeroed_parameter(source: &str) -> bool {
+    let program = crate::front_end::typed_program(source);
+    let machine = &program.machines()[0];
+    let state = &program.machine_states(machine)[0];
+    super::zeroed_structural_parts(&program, program.state_parameters(state)[0].type_reference)
+}
+
+#[test]
+fn zeroed_mixed_array_retains_common_fields_and_first_case() {
+    assert!(zeroed_parameter(
+        "data Coordinates [copy] { start: u64; end: u64; }
+         data Token [copy] {
+             coordinates: Coordinates;
+             case Empty;
+             case Present(value: u64);
+         }
+         data Buffer { tokens: [Token; 2]; length: u64; }
+         machine inspect(buffer: Buffer) {}"
+    ));
+}
+
+#[test]
+fn zeroed_mixed_shape_does_not_establish_later_case_payloads() {
+    assert!(zeroed_parameter(
+        "data Payload { value: u64; }
+         data Token { position: u64; case Empty; case Present(payload: Payload); }
+         machine inspect(token: Token) {}"
+    ));
+}
+
+#[test]
+fn zeroed_mixed_shape_retains_first_case_payload_restrictions() {
+    assert!(!zeroed_parameter(
+        "data Payload { value: u64; }
+         data Token { position: u64; case Present(payload: Payload); case Empty; }
+         machine inspect(token: Token) {}"
+    ));
+}
+
 fn fixture() -> TypedTrees {
     let source = "data First<T [copy]> { value: T; }
         machine First::read<T [copy]>(&self) -> T { self.value }

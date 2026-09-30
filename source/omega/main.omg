@@ -8,62 +8,66 @@ use psi::parse::parser;
 
 data Main {
     console: Binding<Console>;
-    lexer: Lexer;
-    parser: Parser;
 }
 
-machine Main::main(&mut self) reaches Console {
-    Lexer::initialize(&mut self.lexer, 1);
-    transition { _ -> read() }
+machine Main::main(context: &mut Main)
+reaches Console
+crashes Trap
+blocks;
+{
+    let mut lexer: Lexer;
+    Lexer::initialize(&mut lexer, 1);
+    transition { _ -> read(context, &mut lexer) }
 
-    state read(&mut self) {
-        let input: ByteRead = block self.console.read_byte();
+    state read(context: &mut Main, lexer: &mut Lexer) {
+        let input: ByteRead = block context.console.read_byte();
         transition input {
-            ByteRead::Byte { value } -> retain(value)
-            _ -> tokenize()
+            ByteRead::Byte { value } -> retain(context, lexer, value)
+            _ -> tokenize(context, lexer)
         }
     }
 
-    state retain(&mut self, value: i32) {
-        Lexer::append_source_byte(&mut self.lexer, value as u8);
-        transition self.lexer.source.last_retained {
-            true -> read()
-            _ -> source_full()
+    state retain(context: &mut Main, lexer: &mut Lexer, value: i32) {
+        Lexer::append_source_byte(lexer, value as u8);
+        transition lexer.source.last_retained {
+            true -> read(context, lexer)
+            _ -> source_full(context)
         }
     }
 
-    state source_full(&mut self) {
-        self.console.exit_process(252);
+    state source_full(context: &mut Main) {
+        context.console.exit_process(252);
     }
 
-    state tokenize(&mut self) {
-        Lexer::tokenize(&mut self.lexer);
-        transition self.lexer.output.accepted {
-            true -> parse()
-            _ -> lex_rejected()
+    state tokenize(context: &mut Main, lexer: &mut Lexer) {
+        Lexer::tokenize(lexer);
+        transition lexer.output.accepted {
+            true -> parse(context, lexer)
+            _ -> lex_rejected(context)
         }
     }
 
-    state parse(&mut self) {
-        Parser::initialize(&mut self.parser, self.lexer.source.id,
-            self.lexer.source.length as u64 in Trapping
+    state parse(context: &mut Main, lexer: &Lexer) {
+        let mut parser: Parser;
+        Parser::initialize(&mut parser, lexer.source.id,
+            lexer.source.length as u64 in Trapping
         );
-        Parser::parse(&mut self.parser, &self.lexer.output);
-        transition self.parser.output.accepted {
-            true -> accepted()
-            _ -> parse_rejected()
+        Parser::parse(&mut parser, &lexer.output);
+        transition parser.output.accepted {
+            true -> accepted(context)
+            _ -> parse_rejected(context)
         }
     }
 
-    state accepted(&mut self) {
-        self.console.exit_process(0);
+    state accepted(context: &mut Main) {
+        context.console.exit_process(0);
     }
 
-    state parse_rejected(&mut self) {
-        self.console.exit_process(250);
+    state parse_rejected(context: &mut Main) {
+        context.console.exit_process(250);
     }
 
-    state lex_rejected(&mut self) {
-        self.console.exit_process(251);
+    state lex_rejected(context: &mut Main) {
+        context.console.exit_process(251);
     }
 }
