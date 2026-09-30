@@ -1,0 +1,4 @@
+owner: zergling-z6 / squalr-omega-swarm
+provenance: zergling-z6 / squalr-omega-swarm: bisect named 511b7f7417 first-bad; is_loan_marker now tests state.operations for a structural_result_binding at the statement index instead of the registered root
+ticket: 750fe5faa35a4a7bbd7edca3e2a35e2d
+published_utc: 2026-09-30T11:47:35.570431+00:00
