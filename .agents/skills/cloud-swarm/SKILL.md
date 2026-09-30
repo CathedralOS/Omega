@@ -8,6 +8,11 @@ description: Coordinate a cloud swarm wave — spawn sibling Devin sessions on b
 One session coordinates; sibling cloud sessions each run `advance` on one board
 item; the coordinator also works items serially as the last slot.
 
+For interrupted work and completion cleanup, use the shared
+[recovery procedure](../dot-swarm/references/recovery.md), adapting observations
+to the currently exposed Devin tools. It takes precedence over historical
+retry/recovery shortcuts below; it does not change this skill's invocation policy.
+
 ## The loop
 
 Never sit still. The wave fails when the coordinator waits on one thing:

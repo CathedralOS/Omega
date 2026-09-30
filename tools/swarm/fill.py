@@ -67,6 +67,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import coordination
 import worktree_status
+from recovery_state import atomic_json
 
 StatusError = coordination.CoordinationError
 
@@ -111,7 +112,7 @@ def save_ledger(repository, wave, ledger):
     path = ledger_path(repository, wave)
     path.parent.mkdir(parents=True, exist_ok=True)
     ledger["updated_utc"] = coordination.now()
-    path.write_text(json.dumps(ledger, indent=2, sort_keys=True) + "\n")
+    atomic_json(path, ledger)
     return path
 
 

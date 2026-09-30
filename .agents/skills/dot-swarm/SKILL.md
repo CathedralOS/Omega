@@ -44,6 +44,12 @@ testing policy rather than installing tools or building a release unnecessarily.
 Read [the verified diagnostic-wave record](references/verified-wave.md) for
 what has actually been exercised and what remains unverified.
 
+Before dispatch, after interruption, and at completion, follow
+[recover interrupted lanes](references/recovery.md): checkpoint exact work,
+reconcile uncertain outcomes, verify backups, and inventory owned resources.
+Use its executor-scoped build slot and next-action plan; disconnected is not
+dead, a local archive is not a confirmed backup, and cleanup is never implicit.
+
 ## Detect the runtime and budget
 
 Inspect available tools and current handles before starting. The native mapping
