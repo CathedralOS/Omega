@@ -16,8 +16,16 @@ normalized parameter signature and dispatch-bearing result-domain set.
 Calls retain the exact requirement symbol, including inherited requirements.
 Same-spelled inherited requirements are not one slot; ambiguous unqualified
 calls reject. An independent per-requirement satisfier does not form a whole
-dynamic conformance. Neither attached-machine names nor uniquely visible
+dynamic conformance. Neither carrier-qualified machine names nor uniquely visible
 machines supply missing rows.
+
+Requirements and realizations are static machines with explicit parameters,
+under the [ordinary machine contract](../language/machines.md#static-declarations-and-explicit-state).
+A call names the requirement and supplies its dynamic subject explicitly, for
+example `ImageFilter::apply(filter, image)`. The `filter` argument carries the
+selected conformance; the call introduces no implicit receiver argument and
+performs no ambient conformance search. The checked call retains the ordinary
+parameter position corresponding to that erased subject.
 
 A named-conformance coercion retains source data/place, target trait, exact
 conformance, and normalized rows. A bare place coercion cannot search visible
@@ -43,8 +51,12 @@ term may erase when its entire normalized value has neither a runtime instance
 nor runtime table slots. An empty table alone cannot erase a runtime instance
 with unknown size or cleanup obligations.
 
-A requirement belongs to the dynamic surface only when its receiver is `&self`
-or `&mut self` and `Self` occurs nowhere else (including nested runtime contracts).
+A requirement belongs to the dynamic surface only when exactly one explicit
+parameter borrows its subject as `&Self` or `&mut Self`, and `Self` occurs nowhere
+else (including nested runtime contracts). That parameter's ordinary position,
+access and lifetime identify the descriptor-backed argument; its name is not
+special. For example, `machine apply(filter: &mut Self, image: &mut Image)` is
+eligible on this axis, while a second `&Self` parameter or a `Self` result is not.
 Requirement-local generic parameters are ineligible except for the closed
 value families described below. After binding trait arguments and any exact
 family tuple, parameter/result representations must be concrete, returned borrow
@@ -188,7 +200,7 @@ does not imply mutable data or BSS support.
 ## Mutation-bearing realizations
 
 A realization's ordered stores are distinct from its return expression. Each
-store retains the exact receiver/path, primitive field, typed value, and source
+store retains the exact explicit subject/path, primitive field, typed value, and source
 order; subsequent reads retain their own identities. Lowering and replay
 reconstruct all field offsets from declarations. A subloan of an unrestricted
 mutable root remains unrestricted, not an invented linear entry claim.
@@ -210,7 +222,7 @@ The selected implementation may meet a suspension promise while exceeding a
 separate stack or work ceiling.
 
 An occurrence-specific, whole-artifact devirtualization may replace a nonescaping
-selection/call with its exact realization and original receiver. It must retain
+selection/call with its exact realization and original subject argument. It must retain
 the realized direct-call cost, not erase it because the target is known. General
 escaping descriptors still need their actual table and adapter. Private
 realization footprints compose into the enclosing root's evidence without

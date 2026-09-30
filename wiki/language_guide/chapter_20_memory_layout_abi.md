@@ -571,10 +571,10 @@ code-adjacent notes describe current lowering and custody limits.
 A recast borrows the same storage under another checked shape:
 
 ```omega
-let read: &u32 = &self.word as &u32;
-let write: &mut u32 = &mut self.float as &mut u32;
-let header: &mut Header = &mut self.bytes[offset] as &mut Header;
-let words: &mut [u16] = &mut self.bytes as &mut [u16];
+let read: &u32 = &storage.word as &u32;
+let write: &mut u32 = &mut storage.float as &mut u32;
+let header: &mut Header = &mut storage.bytes[offset] as &mut Header;
+let words: &mut [u16] = &mut storage.bytes as &mut [u16];
 ```
 
 These require compatible representations, not just equal byte counts. Shared

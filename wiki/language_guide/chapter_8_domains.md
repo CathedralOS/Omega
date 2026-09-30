@@ -125,11 +125,11 @@ domain Game::NewGame
 domain Game::Playing
     requires self.phase == GamePhase::Playing;
 
-machine Game::start_game(&mut self)
-    requires self in Game::NewGame
-    ensures self in Game::Playing
+machine Game::start_game(game: &mut Game)
+    requires game in Game::NewGame
+    ensures game in Game::Playing
 {
-    self.phase = GamePhase::Playing;
+    game.phase = GamePhase::Playing;
 }
 ```
 
@@ -167,7 +167,7 @@ and any public signature that names both must be able to name both.
 The `established by` clause does not execute its targets. A requirement route
 authorizes valid selected conformers through that requirement; an exact-machine
 route authorizes only that declaration's invocation. Normally the established
-subject is the result. A matching non-`self`
+subject is the result. A matching explicit
 parameter may instead be introduced when the requirement is invoked as an
 installed external root. Every predicate obligation is checked at the
 established subject once; later uses consume the resulting guarantee rather
@@ -556,17 +556,17 @@ Some operations naturally produce one of several semantic states.
 
 ```omega
 machine Game::apply_move(
-    &mut self,
+    game: &mut Game,
     pos: BoardPos
 ) -> MoveResult
-    requires self in Game::Playing
-    ensures self in Game::Playing | Game::Finished
+    requires game in Game::Playing
+    ensures game in Game::Playing | Game::Finished
 {
     // Schematic: the checked move implementation is omitted.
 }
 ```
 
-`self in Game::Playing | Game::Finished` means the compiler knows `self` is in
+`game in Game::Playing | Game::Finished` means the compiler knows `game` is in
 one of those domains after the machine, but not which one until control flow
 splits again.
 

@@ -181,11 +181,11 @@ data LoggingProxy {
 ComponentLogger:
     LoggingProxy satisfies Logger
 {
-    machine write(&self, text: &[u8])
+    machine write(proxy: &LoggingProxy, text: &[u8])
         reaches LoggingService
         suspends
     {
-        suspend self.service.write(text);
+        suspend proxy.service.write(text);
     }
 }
 ```
@@ -234,10 +234,10 @@ satisfies RangeSupplier::supply
 
 data App { memory: Binding<WritableMemory>; }
 
-machine App::claim_memory(&mut self, region: Range) -> Range in Writable
+machine App::claim_memory(app: &mut App, region: Range) -> Range in Writable
 reaches WritableMemory;
 {
-    self.memory.claim(region)
+    app.memory.claim(region)
 }
 ```
 
@@ -344,14 +344,14 @@ data App {
     console: Binding<Console>;
 }
 
-machine App::greet(&mut self)
+machine App::greet(app: &mut App)
 reaches Console;
 {
-    self.console.write_line("Hello");
+    app.console.write_line("Hello");
 }
 
-machine App::start(&mut self) {
-    self.greet();
+machine App::start(app: &mut App) {
+    App::greet(app);
 }
 ```
 
@@ -360,7 +360,7 @@ automatically publishes Console reach through `greet`. Provider selection and
 any required runtime authority remain separate obligations. This example uses
 an established service binding, not a requirement that every service be a runtime
 object.
-The same reach rule applies to receiver-free static boundary calls; provider
+The same reach rule applies to directly named boundary calls; provider
 selection is not creation of a global mutable Console object.
 
 The same propagation works through a named static callback:
@@ -409,10 +409,12 @@ There is no subtraction or masking of services.
 Installation-bound requirements have one restricted symbolic form:
 
 ```omega
-pub boundary requirement InterruptAcknowledgement::complete(self)
+pub boundary requirement InterruptAcknowledgement::complete(
+    acknowledgement: InterruptAcknowledgement
+)
 reaches <= MachineControl + PortIo
 requires
-    self in InterruptAcknowledgement::Pending;
+    acknowledgement in InterruptAcknowledgement::Pending;
 ```
 
 The selected provider's exact row must fit the bound and be resolved throughout

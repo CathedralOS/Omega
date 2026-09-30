@@ -19,7 +19,7 @@ A trait is a compile-time contract over available machines.
 
 ```omega
 trait Incrementable {
-    machine Self::increment(&mut self);
+    machine Self::increment(counter: &mut Self);
 }
 ```
 
@@ -35,17 +35,17 @@ data Counter {
 SaturatingIncrement:
     Counter satisfies Incrementable
 {
-    machine increment(&mut self) {
-        transition self.value < i32::Maximum {
-            true -> bump()
+    machine increment(counter: &mut Counter) {
+        transition counter.value < i32::Maximum {
+            true -> bump(counter)
             _ -> saturated()
         }
 
-        state bump(&mut self) {
-            self.value = self.value + 1;
+        state bump(counter: &mut Counter) {
+            counter.value = counter.value + 1;
         }
 
-        state saturated(&mut self) { }
+        state saturated() { }
     }
 }
 ```
@@ -57,9 +57,13 @@ guard proves that its addition fits `i32`.
 The implementation remains an ordinary machine. The enclosing conformance
 block gives the compiler and programmer one closed, reviewable unit that binds
 every requirement and law in the trait surface. At top level `machine` declares
-a free or attached machine; inside a trait it declares a requirement; inside a
-conformance block it declares the satisfier for that block's corresponding
+a free or carrier-qualified static machine; inside a trait it declares a
+requirement; inside a conformance block it declares the satisfier for that block's corresponding
 requirement. The lexically visible enclosure carries that distinction.
+
+`Self` denotes the conformance's subject type, not an implicit value parameter.
+Requirements and implementations name every argument explicitly. Qualifying a
+machine with that type contributes neither storage nor a hidden argument.
 
 <a id="satisfaction"></a>
 <a id="conformance-blocks"></a>
@@ -74,31 +78,31 @@ assembles one conformance by searching ambient machines.
 data Card { power: u32; cost: u32; }
 
 trait Ranked {
-    machine before(&self, other: &Self) -> bool;
-    machine rank_value(&self) -> u32;
+    machine before(card: &Self, other: &Self) -> bool;
+    machine rank_value(card: &Self) -> u32;
 }
 
 pub PowerOrder:
     Card satisfies Ranked
 {
-    machine before(&self, other: &Card) -> bool {
-        self.power < other.power
+    machine before(card: &Card, other: &Card) -> bool {
+        card.power < other.power
     }
 
-    machine rank_value(&self) -> u32 {
-        self.power
+    machine rank_value(card: &Card) -> u32 {
+        card.power
     }
 }
 
 CostOrder:
     Card satisfies Ranked
 {
-    machine before(&self, other: &Card) -> bool {
-        self.cost < other.cost
+    machine before(card: &Card, other: &Card) -> bool {
+        card.cost < other.cost
     }
 
-    machine rank_value(&self) -> u32 {
-        self.cost
+    machine rank_value(card: &Card) -> u32 {
+        card.cost
     }
 }
 ```
@@ -121,7 +125,7 @@ A generic conformance owns its binder telescope on its declared name:
 SequenceEncoding<Element, Message>:
     Vec<Element> satisfies WireEncodable<Message>
 {
-    machine to_wire(&self, out: &mut Message) {
+    machine to_wire(items: &Vec<Element>, out: &mut Message) {
         // ...
     }
 }
@@ -214,7 +218,8 @@ They cannot search ambient implementations; their meaning must already follow
 from the operand type, qualification, an explicit static selection, or a sealed
 language route.
 
-A trait may declare free-machine requirements:
+A trait requirement need not borrow its subject; it may take ordinary owned
+arguments too:
 
 ```omega
 trait Additive {
@@ -239,7 +244,7 @@ established by Issues::issue;
 ```
 
 A machine satisfying `Issues::issue` may establish `Reservation::Issued` at
-that requirement's exact qualified result. An exact qualified non-`self`
+that requirement's exact qualified result. An exact qualified explicit
 parameter is also an authorized subject, but is introduced only when the
 requirement is invoked as an installed external root; at an ordinary call it
 remains a caller precondition. It must also prove every predicate in the
@@ -264,10 +269,10 @@ post-signature metadata on the machine.
 
 ```omega
 machine Player::draw(
-    &self,
+    player: &Player,
     canvas: &mut Canvas
 ) satisfies Drawable::draw {
-    canvas.draw_sprite(self.sprite);
+    Canvas::draw_sprite(canvas, player.sprite);
 }
 ```
 
@@ -356,9 +361,9 @@ When a surface is reused, give it a name.
 
 ```omega
 trait CounterLike {
-    machine Self::increment(&mut self);
-    machine Self::reset(&mut self);
-    machine Self::snapshot(&self, out: &mut CounterSnapshot);
+    machine Self::increment(counter: &mut Self);
+    machine Self::reset(counter: &mut Self);
+    machine Self::snapshot(counter: &Self, out: &mut CounterSnapshot);
 }
 ```
 
@@ -383,17 +388,17 @@ Traits may bundle other traits.
 
 ```omega
 trait Resettable {
-    machine Self::reset(&mut self);
+    machine Self::reset(counter: &mut Self);
 }
 
 trait ObservableCounter {
-    machine Self::snapshot(&self, out: &mut CounterSnapshot);
+    machine Self::snapshot(counter: &Self, out: &mut CounterSnapshot);
 }
 
 trait ManagedCounter {
     requires Resettable;
     requires ObservableCounter;
-    machine Self::increment(&mut self);
+    machine Self::increment(counter: &mut Self);
 }
 ```
 
@@ -512,14 +517,21 @@ checking. `dyn` is the explicit form for runtime selection among conformances
 compiled into the same artifact:
 
 ```omega
+trait ImageFilter {
+    machine apply(filter: &mut Self, image: &mut Image);
+}
+
 machine App::run_filter(
-    &mut self,
     filter: &mut dyn ImageFilter,
     image: &mut Image
 ) {
-    filter.apply(image);
+    ImageFilter::apply(filter, image);
 }
 ```
+
+The explicit `filter` argument supplies both the borrowed instance and its
+selected conformance. `ImageFilter::apply` identifies the requirement; it does
+not select an implementation by name or insert a missing argument.
 
 ### Local dynamic values
 
@@ -555,8 +567,8 @@ table. It runs no user code and cannot fail.
 When a direct-place coercion remains local and its exact call is visible in the
 closed artifact, Omega may devirtualize it completely. The retained conformance
 row selects the realization and the coercion's retained source place supplies
-the concrete receiver; no descriptor or table needs to materialize for that
-call. This changes only lowering. A dynamic value that is passed onward,
+the concrete explicit subject argument; no descriptor or table needs to
+materialize for that call. This changes only lowering. A dynamic value that is passed onward,
 rebound, stored, joined with another selection, or otherwise escapes that
 closed use retains the two-word representation above.
 
@@ -594,12 +606,12 @@ may still have unknown size and cleanup.
 ### Dynamic surface
 
 Eligibility is per requirement, not all-or-nothing for a trait. For example,
-`machine clone(&self) -> Self` cannot return a concrete `Self` through an erased
-interface, but its presence does not hide an unrelated `write(&self, ...)`.
+`machine clone(value: &Self) -> Self` cannot return a concrete `Self` through an erased
+interface, but its presence does not hide an unrelated `write(value: &Self, ...)`.
 There is no `Self: Sized` workaround.
 
 The [dynamic surface contract](../spec/terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes)
-checks receiver access, generic parameters, concrete representations, returned
+checks explicit subject access, generic parameters, concrete representations, returned
 borrow lifetimes, and public operational contracts. One selected conformance
 supplies the entire eligible surface, so laws relating its members remain valid.
 
@@ -718,11 +730,11 @@ data LoggingProxy {
 ComponentLogger:
     LoggingProxy satisfies Logger
 {
-    machine write(&self, text: &[u8])
+    machine write(proxy: &LoggingProxy, text: &[u8])
         reaches LoggingService
         suspends
     {
-        suspend self.service.write(text);
+        suspend proxy.service.write(text);
     }
 }
 
@@ -788,15 +800,15 @@ Use explicit trait parameters to name that relationship.
 
 ```omega
 trait WireEncodable<Message> {
-    machine Self::to_wire(&self, out: &mut Message);
+    machine Self::to_wire(value: &Self, out: &mut Message);
 }
 
 PlayerWireEncoding:
     Player satisfies WireEncodable<PlayerMessage>
 {
-    machine to_wire(&self, out: &mut PlayerMessage) {
-        out.name = self.name;
-        out.health = self.health;
+    machine to_wire(player: &Player, out: &mut PlayerMessage) {
+        out.name = player.name;
+        out.health = player.health;
     }
 }
 ```
@@ -810,13 +822,13 @@ machine Network::send<
     Encoding: T satisfies WireEncodable<Message>,
     MessageShape: Message satisfies WireMessage
 >(
-    &mut self,
+    network: &mut Network,
     value: &T
 )
 {
-    let message: Message;
+    let mut message: Message;
     Encoding::to_wire(value, &mut message);
-    self.write_message(message);
+    Network::write_message(network, message);
 }
 ```
 
@@ -834,10 +846,10 @@ is the marker; Omega has no `default` keyword.
 
 ```omega
 trait ResettableCounter {
-    machine Self::set(&mut self, value: i32);
+    machine Self::set(counter: &mut Self, value: i32);
 
-    machine Self::reset(&mut self) {
-        self.set(0);
+    machine Self::reset(counter: &mut Self) {
+        Self::set(counter, 0);
     }
 }
 ```
@@ -848,7 +860,7 @@ instantiation should remain an ordinary generic library machine:
 
 ```omega
 trait SettableCounter {
-    machine Self::set(&mut self, value: i32);
+    machine Self::set(counter: &mut Self, value: i32);
 }
 
 data CounterDefaults { }
@@ -872,7 +884,7 @@ A closed set of core traits supports compiler synthesis. An empty named
 
 ```omega
 trait Equatable {
-    machine equals(&self, other: &Self) -> bool;
+    machine equals(value: &Self, other: &Self) -> bool;
 }
 
 data Point { x: i32; y: i32; }
