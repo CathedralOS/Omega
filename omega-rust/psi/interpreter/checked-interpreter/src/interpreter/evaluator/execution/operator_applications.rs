@@ -187,26 +187,26 @@ impl<'program> Evaluator<'program> {
         let Some(requirement) = self.requirement_application(target_symbol) else {
             return Ok(None);
         };
-        // The call and its checked named-use fact name one requirement. A fact
-        // naming another means the call was rewritten after checking.
+        // Spelled operators and named requirements share the checked selection
+        // projection. Looking only at legacy named/operator rows loses the
+        // policy after a token operation has bound its requirement machine.
+        // One source occurrence must retain one exact selection; neither a
+        // missing row nor conflicting rows authorize quiet-policy execution.
         let mut adapter = CheckedArithmeticPolicyAdapter::None;
         if application.is_valid() {
-            for named_use in facts
-                .named_uses()
-                .filter(|named_use| named_use.expression == application)
-            {
-                if named_use.selected_operator_symbol != requirement.symbol {
-                    return trap("operator application differs from its checked named selection");
-                }
-                adapter = named_use.policy_adapter;
+            let mut selections = facts
+                .resolved_expression_selections()
+                .filter(|(expression, _, _, _)| *expression == application);
+            let Some((_, _, selected, policy)) = selections.next() else {
+                return trap("operator application has no checked expression selection");
+            };
+            if selected != requirement.symbol {
+                return trap("operator application differs from its checked named selection");
             }
-            // A spelled operation bound to its requirement keeps the use fact
-            // of its authored token, with that use's policy adapter.
-            if let Some(spelled) = facts.expression_use(application)
-                && spelled.selected_operator_symbol == requirement.symbol
-            {
-                adapter = spelled.policy_adapter;
+            if selections.next().is_some() {
+                return trap("operator application has conflicting checked selections");
             }
+            adapter = policy;
         }
 
         let mut checked_bodies = Vec::new();

@@ -15,6 +15,67 @@ fn run(checked: &CheckedTrees) -> InterpretOutcome {
     )
 }
 
+fn float_policy_program(qualification: &str) -> CheckedTrees {
+    crate::front_end::checked_program(&format!(
+        "pub boundary machine * Float::multiply(left: f32, right: f32) -> f32;
+             pub data FloatNativeProvider {{}}
+             machine FloatNativeProvider::multiply32(left: f32, right: f32) -> f32
+                 satisfies Float::multiply via ForeignBinding::CompilerIntrinsic;
+             machine main() -> i32 {{
+                 let maximum: f32 {qualification} = 340282346638528859811704183484516925440.0f32;
+                 let two: f32 {qualification} = 2.0f32;
+                 let product: f32 = (maximum * two) as f32;
+                 transition product == maximum {{ true -> (70) false -> (71) }}
+             }}"
+    ))
+}
+
+#[test]
+fn requirement_call_preserves_its_checked_float_policy() {
+    for (qualification, expected) in [("in Saturating", 70), ("", 71)] {
+        let checked = float_policy_program(qualification);
+        let outcome = run(&checked);
+        assert_eq!(outcome.error, None, "{qualification}");
+        assert_eq!(outcome.exit_code, expected, "{qualification}");
+    }
+}
+
+#[test]
+fn requirement_call_traps_on_its_checked_overflow_policy() {
+    let outcome = run(&float_policy_program("in Trapping"));
+    assert_eq!(
+        outcome.error.as_deref(),
+        Some("float overflow in Trapping domain")
+    );
+}
+
+#[test]
+fn requirement_call_rejects_missing_or_ambiguous_selection() {
+    let checked = float_policy_program("in Saturating");
+    let selected = *checked
+        .facts
+        .operators
+        .named_requirement_uses()
+        .next()
+        .expect("a bound requirement retains its checked policy");
+    let mut missing = checked.clone();
+    missing.facts.operators.named_requirement_uses = Default::default();
+    assert_eq!(
+        run(&missing).error.as_deref(),
+        Some("operator application has no checked expression selection")
+    );
+    let mut duplicated = checked;
+    duplicated
+        .facts
+        .operators
+        .named_requirement_uses
+        .append(selected);
+    assert_eq!(
+        run(&duplicated).error.as_deref(),
+        Some("operator application has conflicting checked selections")
+    );
+}
+
 /// The `I32::from_f64` overload whose `i32` result is in `domain`.
 fn overload(checked: &CheckedTrees, domain: ArithmeticDomain) -> symbols::SymbolHandle {
     checked
