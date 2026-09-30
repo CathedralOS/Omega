@@ -1,4 +1,11 @@
 //! Contract composition for the three exact terminal call policies.
+//!
+//! Requires use the caller's pre-call facts. Before importing ensures, expire
+//! observations of the validated argument's writable subtree, using the same
+//! canonical path overlap as field stores. No knowledge of a callee's body or
+//! a producer-supplied write summary can preserve facts inside that subtree.
+//! Dynamic selectors widen to their containing subtree; unknown paths and
+//! reference-bearing transfers keep the existing conservative alias fences.
 
 use std::collections::BTreeMap;
 
@@ -842,7 +849,8 @@ fn push_unique(propositions: &mut Vec<Proposition>, proposition: Proposition) {
 }
 
 /// Requirements use the pre-call state; only guarantees may describe a
-/// mutable argument after completion. No callee write-frame summary is assumed.
+/// mutable argument after completion. The validated argument path bounds the
+/// callee's writable subtree without assuming a callee write-frame summary.
 fn invalidate_mutated_arguments(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -858,7 +866,29 @@ fn invalidate_mutated_arguments(
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             )
         })
-        .map(|argument| argument.place)
+        .map(|argument| {
+            // A dynamic element or byte window may write anywhere under its
+            // containing carrier, but cannot reach that carrier's siblings.
+            let prefix_end = argument
+                .path
+                .iter()
+                .position(|segment| {
+                    matches!(
+                        segment,
+                        terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+                            | terminal_psi::StructuralPathSegment::FixedByteRange { .. }
+                            | terminal_psi::StructuralPathSegment::Referent
+                    )
+                })
+                .unwrap_or(argument.path.len());
+            let path = crate::validation::canonical_field_path(
+                module,
+                machine,
+                argument.place,
+                &argument.path[..prefix_end],
+            );
+            (argument.place, path)
+        })
         .collect::<Vec<_>>();
     if arguments.iter().any(|argument| {
         crate::validation::argument_owns_references(module, machine, argument)
@@ -875,7 +905,12 @@ fn invalidate_mutated_arguments(
         // consumer uses the reconstructed loan frontier, retain no possibly
         // aliased storage observation for either a borrowed projection or an
         // owned carrier transfer. Immutable scalar snapshots remain unchanged.
-        written.extend(machine.structural_places.iter().map(|place| place.id));
+        written.extend(
+            machine
+                .structural_places
+                .iter()
+                .map(|place| (place.id, None)),
+        );
     }
     // An owned argument may be changed by its recipient too. Forget current
     // field observations without erasing separately versioned content evidence.
@@ -886,13 +921,16 @@ fn invalidate_mutated_arguments(
         .collect::<Vec<_>>();
     if !written.is_empty() || !consumed.is_empty() {
         super::field_snapshots::retain(axioms, capture_snapshots, |proposition| {
-            (written.is_empty()
-                || !crate::validation::proposition_observes_places(proposition, &written))
-                && (consumed.is_empty()
-                    || !crate::validation::proposition_observes_unversioned_places(
-                        proposition,
-                        &consumed,
-                    ))
+            !written.iter().any(|(root, path)| match path {
+                Some(path) => {
+                    crate::validation::proposition_observes_write(proposition, *root, path)
+                }
+                None => crate::validation::proposition_observes_places(proposition, &[*root]),
+            }) && (consumed.is_empty()
+                || !crate::validation::proposition_observes_unversioned_places(
+                    proposition,
+                    &consumed,
+                ))
         });
     }
 }
