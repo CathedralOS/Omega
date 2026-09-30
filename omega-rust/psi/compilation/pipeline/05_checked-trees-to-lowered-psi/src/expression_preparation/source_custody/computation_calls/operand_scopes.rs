@@ -106,6 +106,8 @@ pub(super) fn folded_match_scope(
 /// Retain its exact occurrence, without treating operand location as guard proof.
 pub(super) fn value(
     checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
     mut source: ExpressionHandle,
     value_source: ExpressionHandle,
 ) -> Result<ExpressionHandle, LoweringError> {
@@ -113,6 +115,34 @@ pub(super) fn value(
         return unsupported("pure computation escaped its authored operand scope");
     }
     while source != value_source {
+        if let ExpressionNode::Cast(cast) = checked.expression_table.expression(source) {
+            // Selecting an arithmetic policy keeps the operand's payload.
+            // Reconstruct that fact from source types instead of assuming
+            // every wrapper can disappear or treating it as a conditional.
+            let (owner, source_state) =
+                crate::expression_preparation::source_custody::authored_state(checked, state)?;
+            let operand_type = validation::expression_result_type_reference(
+                checked,
+                owner,
+                source_state,
+                cast.value,
+            )
+            .and_then(|reference| checked.primitive_type_reference(reference));
+            if owner.symbol != machine
+                || cast.form.is_recast()
+                || cast_requires_custody(checked, machine, state, cast)?
+                || !matches!(
+                    checked.type_reference_table.type_reference(cast.target_type),
+                    checked_trees::types::TypeReferenceNode::Named { .. }
+                )
+                || operand_type.is_none()
+                || operand_type != checked.primitive_type_reference(cast.target_type)
+            {
+                return unsupported("pure computation cast does not preserve its scalar payload");
+            }
+            source = cast.value;
+            continue;
+        }
         let selected = folded_match_scope(checked, source)?;
         if selected != source {
             source = selected;

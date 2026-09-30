@@ -998,6 +998,57 @@ impl Builder<'_, '_> {
         )
     }
 
+    /// A same-carrier policy cast selects later arithmetic, not an operation
+    /// on the saved payload. Forward every admitted operand through ordinary
+    /// computation building: field reads, locals and calls must not acquire
+    /// different cast semantics. The original call's checked policy remains
+    /// attached to that call. Semantic domains and carrier conversions retain
+    /// their separate proof and qualification custody.
+    fn policy_cast_value(
+        &mut self,
+        expression: ExpressionHandle,
+        expected_type: PrimitiveType,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let operand = self.policy_cast_operand(expression)?;
+        let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if self.program.primitive_type_reference(cast.target_type) != Some(expected_type) {
+            return None;
+        }
+        self.expression(operand, expected_type)
+    }
+
+    fn policy_cast_operand(&self, expression: ExpressionHandle) -> Option<ExpressionHandle> {
+        let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if cast.form.is_recast()
+            || !cast.semantic_domain.is_empty()
+            || !matches!(
+                self.program
+                    .type_reference_table
+                    .type_reference(cast.target_type),
+                TypeReferenceNode::Named { .. }
+            )
+        {
+            return None;
+        }
+        let target = self.program.primitive_type_reference(cast.target_type)?;
+        let operand_type = semantic_casts::result_type(self.program, self.state, cast.value)?;
+        ((cast.domain != ArithmeticDomain::Exact
+            || self
+                .program
+                .type_reference_table
+                .arithmetic_domain(operand_type)
+                != ArithmeticDomain::Exact)
+            && !semantic_casts::has_declared_domains(self.program, operand_type)
+            && self.program.primitive_type_reference(operand_type) == Some(target))
+        .then_some(cast.value)
+    }
+
     fn expression(
         &mut self,
         expression: ExpressionHandle,
@@ -1007,8 +1058,8 @@ impl Builder<'_, '_> {
             return (field.primitive_type == expected_type)
                 .then(|| self.structural_field(expression, field));
         }
-        if let Some(application) = self.policy_cast_boundary_call(expression, expected_type) {
-            return Some(application);
+        if let Some(operand) = self.policy_cast_value(expression, expected_type) {
+            return Some(operand);
         }
         if let ExpressionNode::Cast(cast) =
             self.program.expression_table.expression(expression).clone()

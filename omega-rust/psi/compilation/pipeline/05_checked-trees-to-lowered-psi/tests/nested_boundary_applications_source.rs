@@ -112,6 +112,71 @@ fn argument_root(
 }
 
 #[test]
+fn policy_only_casts_preserve_payload_custody() {
+    let checked = crate::front_end::checked_program(
+        "data Root { source: f64; selected: f64 in Trapping; }
+         machine Root::enter(&mut self, other: f32) {
+             self.selected = self.source as f64 in Trapping;
+             let erased: f64 = self.selected as f64;
+             self.source = erased;
+         }",
+    );
+    let lowered = lowered(&checked).expect("policy selection preserves field payload");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("policy selection independently verifies");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::enter")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let other_type = checked
+        .state_parameters(state)
+        .last()
+        .unwrap()
+        .type_reference;
+    let checked_trees::statement::StatementNode::Assignment(assignment) =
+        &checked.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("field store");
+    };
+    let source = assignment.value;
+    let mut changed_carrier = checked.clone();
+    let checked_trees::expression::ExpressionNode::Cast(cast) = changed_carrier
+        .typed
+        .expression_table
+        .expression_mut(source)
+    else {
+        panic!("policy cast");
+    };
+    cast.target_type = other_type;
+    assert!(
+        self::lowered(&changed_carrier).is_err(),
+        "a changed carrier cannot forward its payload"
+    );
+    let mut changed_domain = checked;
+    let mut semantic_domain = arena::HandleSpan::empty();
+    changed_domain.typed.expression_table.push_name_path_member(
+        &mut semantic_domain,
+        checked_trees::name::Identifier::generated("UnprovedDomain"),
+    );
+    let checked_trees::expression::ExpressionNode::Cast(cast) =
+        changed_domain.typed.expression_table.expression_mut(source)
+    else {
+        panic!("policy cast");
+    };
+    cast.semantic_domain = semantic_domain;
+    assert!(
+        self::lowered(&changed_domain).is_err(),
+        "a semantic qualification cannot use payload-only custody"
+    );
+}
+
+#[test]
 fn nested_applications_run_once_in_authored_order_with_exact_occurrences() {
     let checked = crate::front_end::checked_program(SOURCE);
     for (statement, argument) in [(0, 0), (1, 1), (2, 1)] {

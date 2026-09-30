@@ -32,7 +32,7 @@ impl Builder<'_, '_> {
     /// occurrence twice: once by the statement and once by the computation.
     /// A cast around the call belongs to the operand computation, including
     /// a same-carrier policy change: the statement's direct-call route does
-    /// not own that enclosing expression. See [`Self::policy_cast_boundary_call`].
+    /// not own that enclosing expression. See [`Self::policy_cast_value`].
     pub(super) fn statement_owns_boundary_call(
         &self,
         role: CheckedScalarExpressionRole,
@@ -93,64 +93,6 @@ impl Builder<'_, '_> {
                 .is_some_and(|(machine, _)| {
                     machine.supply_mode.is_boundary_declaration() && !machine.body_is_present
                 })
-    }
-
-    /// A same-carrier cast changes the arithmetic policy of a boundary
-    /// application's result, including explicit erasure to Exact. Policy
-    /// qualification changes later arithmetic, never the stored payload
-    /// ([exact coercion](../../../../../../../../wiki/spec/language/domains.md#exact-coercion-and-erasure)),
-    /// so the erasure adds no operation: the application node is the value
-    /// and its result feeds the consumer directly. Stage 05 rejoins the
-    /// application's occurrence through the cast, which carries no semantic
-    /// atom. Declared domains and carrier conversions keep their own route.
-    /// The original call still carries its selected arithmetic policy: the
-    /// cast cannot change which operation produced the saved payload.
-    pub(super) fn policy_cast_boundary_call(
-        &mut self,
-        expression: ExpressionHandle,
-        expected_type: PrimitiveType,
-    ) -> Option<CheckedScalarComputationHandle> {
-        let operand = self.policy_cast_operand(expression)?;
-        if self.program.primitive_type_reference(
-            match self.program.expression_table.expression(expression) {
-                ExpressionNode::Cast(cast) => cast.target_type,
-                _ => return None,
-            },
-        ) != Some(expected_type)
-        {
-            return None;
-        }
-        self.expression(operand, expected_type)
-    }
-
-    /// The operand of a policy-only cast over a bodyless boundary application.
-    /// Both sides must have the same primitive carrier and no declared domain.
-    pub(super) fn policy_cast_operand(
-        &self,
-        expression: ExpressionHandle,
-    ) -> Option<ExpressionHandle> {
-        let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
-        else {
-            return None;
-        };
-        if cast.form.is_recast()
-            || !cast.semantic_domain.is_empty()
-            || !self.is_bodyless_boundary_call(cast.value)
-        {
-            return None;
-        }
-        let target = self.program.primitive_type_reference(cast.target_type)?;
-        let operand_type =
-            super::semantic_casts::result_type(self.program, self.state, cast.value)?;
-        ((cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
-            || self
-                .program
-                .type_reference_table
-                .arithmetic_domain(operand_type)
-                != numerics::arithmetic::ArithmeticDomain::Exact)
-            && !super::semantic_casts::has_declared_domains(self.program, operand_type)
-            && policy_carrier(self.program, operand_type) == Some(target))
-        .then_some(cast.value)
     }
 
     /// A nested application of a bodyless `boundary machine` declaration.

@@ -282,8 +282,13 @@ pub(crate) fn validate_computation_calls(
                 );
             }
             CheckedScalarComputationKind::Value(value) => {
-                let authored_scope =
-                    operand_scopes::value(checked, authored_scope, node.value_source)?;
+                let authored_scope = operand_scopes::value(
+                    checked,
+                    machine,
+                    state,
+                    authored_scope,
+                    node.value_source,
+                )?;
                 for source in expression_membership(checked, authored_scope, true)? {
                     if let ExpressionNode::Cast(cast) = checked.expression_table.expression(source)
                         && operand_scopes::cast_requires_custody(checked, machine, state, cast)?

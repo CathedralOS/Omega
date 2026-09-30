@@ -20,6 +20,47 @@ const SOURCE: &str = "data Root { first: f64; second: f64; }
     }";
 
 #[test]
+fn policy_selection_preserves_existing_scalar_payloads() {
+    for policy in ["Saturating", "Trapping"] {
+        let checked = checked(&format!(
+            "data Root {{ source: f64; selected: f64 in {policy}; }}
+             machine Root::enter(&mut self) {{
+                 self.selected = self.source as f64 in {policy};
+                 let erased: f64 = self.selected as f64;
+                 self.source = erased;
+             }}"
+        ));
+        let symbol = machine_named(&checked, "Root::enter");
+        let machine = checked.machine_by_symbol(symbol).unwrap();
+        let state = &checked.machine_states(machine)[0];
+        let computations = &checked.facts.values.scalar_computations;
+        let root = computations
+            .root_at(
+                state.symbol,
+                0,
+                CheckedScalarExpressionRole::AssignmentValue,
+            )
+            .unwrap_or_else(|| panic!("{policy} selection retains the existing field payload"));
+        assert!(
+            matches!(
+                computations.nodes.get(root.root).kind,
+                CheckedScalarComputationKind::Value(_)
+            ),
+            "selecting future arithmetic policy does not execute another operation"
+        );
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .for_machine(symbol)
+                .is_some(),
+            "policy selection and erasure compose with ordinary stores"
+        );
+    }
+}
+
+#[test]
 fn policy_qualified_boundary_result_has_one_computation_owner() {
     for policy in ["Saturating", "Trapping"] {
         let checked = checked(&format!(
