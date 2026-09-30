@@ -52,7 +52,13 @@ pub(super) fn establish(
             .iter()
             .filter(|field| !field.relevance.is_erased())
             .collect(),
-        (StructuralTypeShape::Mixed { fields: common, cases }, Some(result_case)) => common
+        (
+            StructuralTypeShape::Mixed {
+                fields: common,
+                cases,
+            },
+            Some(result_case),
+        ) => common
             .iter()
             .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
             .chain(

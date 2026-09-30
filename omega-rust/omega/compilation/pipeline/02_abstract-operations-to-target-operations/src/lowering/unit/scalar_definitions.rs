@@ -1,6 +1,6 @@
 //! Scalar-definition lowering for attached Unit bodies.
 
-use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
+use super::known_integers::{KnownUnitInteger, insert_known_unit_integer};
 use crate::LoweringError;
 use abstract_operations::{AbstractOperation, AbstractParameter};
 use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId};

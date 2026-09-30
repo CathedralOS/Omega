@@ -1,5 +1,5 @@
 //! Ordinary control graphs; available definitions belong to dominating blocks.
-use super::unit::scalar_call::KnownUnitInteger;
+use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{

@@ -1,7 +1,7 @@
 //! Exact scalar sources retained by the dominating graph environment.
 use super::LiveDefinitions;
 use crate::LoweringError;
-use crate::lowering::unit::scalar_call::KnownUnitInteger;
+use crate::lowering::unit::known_integers::KnownUnitInteger;
 use abstract_operations::AbstractFunction;
 use semantic_vocabulary::{OperationId, ValueId};
 use std::collections::BTreeMap;

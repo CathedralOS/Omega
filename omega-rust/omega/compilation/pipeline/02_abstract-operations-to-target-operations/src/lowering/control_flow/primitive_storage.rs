@@ -137,7 +137,7 @@ pub(super) fn retain_result(
         shape: shape(result)?,
     };
     if matches!(result.scalar_type, ScalarType::Integer(_)) {
-        crate::lowering::unit::scalar_call::insert_known_unit_integer(
+        crate::lowering::unit::known_integers::insert_known_unit_integer(
             &mut live.integers,
             result.value,
             KnownUnitInteger::Home(home),

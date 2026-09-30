@@ -14,8 +14,8 @@ mod parameter;
 
 use super::super::scalar::scalar_shape;
 use super::super::structural_signature::StructuralCallSignature;
+use super::known_integers::{KnownUnitInteger, insert_known_unit_integer};
 use super::projected_argument;
-use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{
