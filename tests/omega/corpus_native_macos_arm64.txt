@@ -58,6 +58,7 @@ pass/borrows/borrow_domain_window_write_and_call checked 169ms
 pass/borrows/borrow_guarded_window_write_and_call checked 210ms
 pass/borrows/borrow_returned_window_write_and_call checked 181ms
 pass/borrows/borrow_stated_index_disequality_mut checked 163ms
+pass/borrows/mutable_record_loan_read_in_state_arms_exit built 1383ms exit:70 @a9f373809a48+wt
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
 pass/boundary/later_state_requirement_scalar_result_exit built 3738ms exit:70 @44d31b02f28e+wt
 pass/boundary/static_foreign_scalar_result_locals_exit built 4150ms exit:70 @44d31b02f28e+wt
@@ -153,6 +154,7 @@ pass/calls/runtime_value_call_terminal_exit rejected 1563ms
 pass/calls/serviceful_borrowed_scalar_exit built 933ms exit:70 stdout:match @f9a8ced78a89
 pass/calls/state_graph_callee_forwards_mut_parameter_exit built 3872ms exit:70 @0508a5426a27+wt
 pass/calls/statement_call_recursive_overload_compile checked 181ms
+pass/calls/static_context_forwarded_through_state_arms_exit built 1841ms exit:70 @a9f373809a48+wt
 pass/calls/static_context_forwarded_twice_exit built 828ms exit:70 @339c45cd5326
 pass/calls/static_state_context_field_window_exit built 6453ms exit:70 @29ae131e8c31+wt
 pass/calls/transition_arg_local_from_embedded_call_exit built 924ms exit:70 @3da828ba5434+wt
