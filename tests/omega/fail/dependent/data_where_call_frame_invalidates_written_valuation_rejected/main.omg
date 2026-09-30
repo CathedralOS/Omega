@@ -18,11 +18,11 @@ machine Main::main(&mut self) {
     transition { _ -> update() }
 
     state update(&mut self) {
-        self.replace_pair();
+        Main::replace_pair(&mut self);
         self.pair.left = 15;
     }
 }
 
-machine Main::replace_pair(&mut self) {
-    self.pair = Pair { left: 0, right: 5 };
+machine Main::replace_pair(main: &mut Main) {
+    main.pair = Pair { left: 0, right: 5 };
 }

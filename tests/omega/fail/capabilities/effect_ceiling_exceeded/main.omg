@@ -17,11 +17,11 @@ data Worker {
     disk: Binding<Disk>;
 }
 
-machine Worker::run(&mut self)
+machine Worker::run(worker: &mut Worker)
 reaches
     Console
 {
-    self.disk.write("x");
+    worker.disk.write("x");
 }
 
 data Main {
@@ -29,5 +29,5 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.worker.run();
+    Worker::run(&mut self.worker);
 }

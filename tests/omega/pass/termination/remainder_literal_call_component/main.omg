@@ -14,24 +14,24 @@ data Main { pad: u64; }
 machine Main::main()
 {}
 
-machine Main::walk(&mut self, remaining: u64, held: Limits)
+machine Main::walk(main: &mut Main, remaining: u64, held: Limits)
     requires 0 <= remaining && remaining <= 5
 requires held.spare <= 4;
 terminates by remaining in 0..(held.bound + 6);
 -> u64 {
     transition remaining > 0 {
-        true -> self.step(remaining, held)
+        true -> Main::step(main, remaining, held)
         false -> remaining
     }
 }
 
-machine Main::step(&mut self, pending: u64, limits: Limits)
+machine Main::step(main: &mut Main, pending: u64, limits: Limits)
     requires 0 <= pending && pending <= 5
 requires limits.spare <= 4;
 terminates by pending in 0..(limits.bound + 6);
 -> u64 {
     transition pending > 0 {
-        true -> self.walk(pending - 1, Limits {
+        true -> Main::walk(main, pending - 1, Limits {
             bound: limits.bound,
             spare: limits.bound % limits.step,
             step: limits.step

@@ -12,26 +12,26 @@ data Main {}
 
 machine Main::main(&mut self) -> u64 {
     transition {
-        _ -> self.scan_a(Progress { outer: 1, inner: 4 })
+        _ -> Main::scan_a(&mut self, Progress { outer: 1, inner: 4 })
     }
 }
 
-machine Main::scan_a(&mut self, progress: Progress)
+machine Main::scan_a(main: &mut Main, progress: Progress)
 terminates by progress -> Progress::Steps;
 -> u64
 {
     transition progress.inner > 0 {
-        true -> self.scan_b(progress)
+        true -> Main::scan_b(main, progress)
         false -> 0
     }
 }
 
-machine Main::scan_b(&mut self, progress: Progress)
+machine Main::scan_b(main: &mut Main, progress: Progress)
 terminates by progress -> Progress::Steps;
 -> u64
 {
     transition progress.inner > 0 {
-        true -> self.scan_a(Progress {
+        true -> Main::scan_a(main, Progress {
             outer: progress.outer,
             inner: progress.inner - 1,
         })

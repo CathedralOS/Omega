@@ -7,33 +7,33 @@ data Main {}
 
 machine Main::main(&mut self) -> u32
 {
-    transition { _ -> self.count(9, 1) }
+    transition { _ -> Main::count(&mut self, 9, 1) }
 }
 
-machine Main::count(&mut self, remaining: u32, stride: u32)
+machine Main::count(main: &mut Main, remaining: u32, stride: u32)
     requires 0 <= remaining && remaining <= 9 && 1 <= stride && stride <= 5
 terminates by remaining in 0..=9;
 -> u32 {
     transition remaining >= stride {
-        true -> pair(remaining, remaining - stride, stride)
+        true -> pair(main, remaining, remaining - stride, stride)
         false -> remaining
     }
-    state pair(left: u32, right: u32, step: u32)
+    state pair(main: &mut Main, left: u32, right: u32, step: u32)
         requires 0 <= left && left <= 9 && 0 <= right && right <= 9 && 1 <= step && step <= 5
     {
         transition left > 0 {
-            true -> self.step(right, step)
+            true -> Main::step(main, right, step)
             false -> right
         }
     }
 }
 
-machine Main::step(&mut self, n: u32, stride: u32)
+machine Main::step(main: &mut Main, n: u32, stride: u32)
     requires 0 <= n && n <= 9 && 1 <= stride && stride <= 5
 terminates by n in 0..=9;
 -> u32 {
     transition n >= stride {
-        true -> self.count(n - stride, stride)
+        true -> Main::count(main, n - stride, stride)
         false -> n
     }
 }

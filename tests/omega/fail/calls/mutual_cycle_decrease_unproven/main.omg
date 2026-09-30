@@ -4,26 +4,26 @@ use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
-    let r: u64 = self.ping(6);
+    let r: u64 = Main::ping(&mut self, 6);
     transition r == 0 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self) { self.console.exit_process(1); }
 }
-machine Main::ping(&mut self, n: u64)
+machine Main::ping(main: &mut Main, n: u64)
 terminates by n;
 -> u64
 {
     transition n == 0 {
         true -> (0)
-        _ -> self.pong(n)
+        _ -> Main::pong(main, n)
     }
 }
-machine Main::pong(&mut self, n: u64)
+machine Main::pong(main: &mut Main, n: u64)
 terminates by n;
 -> u64
 {
     transition n == 0 {
         true -> (0)
-        _ -> self.ping(n)
+        _ -> Main::ping(main, n)
     }
 }

@@ -6,35 +6,35 @@
 data Main {}
 
 machine Main::main(&mut self) -> u32 {
-    transition { _ -> self.count(5) }
+    transition { _ -> Main::count(&mut self, 5) }
 }
 
-machine Main::count(&mut self, remaining: u32)
+machine Main::count(main: &mut Main, remaining: u32)
 terminates by remaining in 0..=9;
 -> u32
 requires remaining <= 9
 {
     transition remaining > 0 {
-        true -> hold(remaining)
+        true -> hold(main, remaining)
         false -> remaining
     }
-    state hold(pending: u32)
+    state hold(main: &mut Main, pending: u32)
     requires pending <= 9
     {
         transition pending > 0 {
-            true -> self.step(pending)
+            true -> Main::step(main, pending)
             false -> pending
         }
     }
 }
 
-machine Main::step(&mut self, n: u32)
+machine Main::step(main: &mut Main, n: u32)
 terminates by n in 0..=9;
 -> u32
 requires n <= 9
 {
     transition n > 0 {
-        true -> self.count(n - 1)
+        true -> Main::count(main, n - 1)
         false -> n
     }
 }

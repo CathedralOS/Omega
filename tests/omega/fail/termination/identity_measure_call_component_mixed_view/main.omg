@@ -9,23 +9,23 @@ measure Countdown::Remaining(value: u32) -> u32 { value }
 data Main {}
 
 machine Main::main(&mut self) -> u32 {
-    transition { _ -> self.scan_a(5) }
+    transition { _ -> Main::scan_a(&mut self, 5) }
 }
 
-machine Main::scan_a(&mut self, remaining: u32 [0..=5])
+machine Main::scan_a(main: &mut Main, remaining: u32 [0..=5])
 terminates by remaining -> Countdown::Remaining in 0..=5;
 -> u32 {
     transition remaining > 0 {
-        true -> self.scan_b(remaining)
+        true -> Main::scan_b(main, remaining)
         false -> remaining
     }
 }
 
-machine Main::scan_b(&mut self, pending: u32 [0..=5])
+machine Main::scan_b(main: &mut Main, pending: u32 [0..=5])
 terminates by pending -> Nat::Descending in 0..=5;
 -> u32 {
     transition pending > 0 {
-        true -> self.scan_a(pending - 1)
+        true -> Main::scan_a(main, pending - 1)
         false -> pending
     }
 }

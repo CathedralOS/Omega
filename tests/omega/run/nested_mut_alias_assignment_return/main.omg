@@ -36,12 +36,12 @@ machine Random::range(
 }
 
 machine Random::chance(
-    &mut self,
+    random: &mut Random,
     state: &mut RandomState,
     numerator: u32,
     denominator: u32
     ) -> bool {
-    let roll: u32 = self.range(state, denominator);
+    let roll: u32 = random.range(state, denominator);
 
     roll < numerator
 }
@@ -51,35 +51,35 @@ data Generator {
     rng: Random;
 }
 
-machine Generator::run(&mut self) reaches Console {
+machine Generator::run(generator: &mut Generator) reaches Console {
     let random: RandomState;
     Random::seed(1, &mut random);
 
-    let carve: bool = self.should_carve(&mut random, 1);
+    let carve: bool = Generator::should_carve(generator, &mut random, 1);
 
     transition carve {
-        true -> yes()
-        false -> no()
+        true -> yes(generator)
+        false -> no(generator)
     }
     
 
 
-    state yes(&mut self) {
-        self.console.write_line("yes");
+    state yes(generator: &mut Generator) {
+        generator.console.write_line("yes");
     }
 
-    state no(&mut self) {
-        self.console.write_line("no");
+    state no(generator: &mut Generator) {
+        generator.console.write_line("no");
     }
 }
 
 machine Generator::should_carve(
-    &mut self,
+    generator: &mut Generator,
     random: &mut RandomState,
     depth: u32
     ) -> bool {
     let chance: u32 = 99;
-    let rolled: bool = self.rng.chance(random, chance, 100);
+    let rolled: bool = Random::chance(&mut generator.rng, random, chance, 100);
 
     rolled
 }
@@ -89,6 +89,6 @@ data Main {
 }
 
 machine Main::main(&mut self) -> i32 reaches Console {
-    self.generator.run();
+    Generator::run(&mut self.generator);
     0
 }

@@ -10,31 +10,31 @@
 // write is observed.
 data Cursor where remaining <= 8 { remaining: u64; }
 
-machine Cursor::step(&mut self, remaining: u64 [0..=8]) -> u64 [0..=8]
+machine Cursor::step(cursor: &mut Cursor, remaining: u64 [0..=8]) -> u64 [0..=8]
 terminates by remaining -> Nat::Descending;
 {
     transition remaining > 0 {
-        true -> self.step(remaining - 1)
-        false -> done()
+        true -> Cursor::step(cursor, remaining - 1)
+        false -> done(cursor)
     }
-    state done(&mut self) -> u64 [0..=8] {
-        self.remaining = 0;
+    state done(cursor: &mut Cursor) -> u64 [0..=8] {
+        cursor.remaining = 0;
         0
     }
 }
 
 data Engine { cursor: Cursor; }
 
-machine Engine::run(&mut self) -> u64 [0..=8] {
-    let start: u64 [0..=8] = self.cursor.remaining;
-    _ = self.cursor.step(start);
-    self.cursor.remaining
+machine Engine::run(engine: &mut Engine) -> u64 [0..=8] {
+    let start: u64 [0..=8] = engine.cursor.remaining;
+    _ = Cursor::step(&mut engine.cursor, start);
+    engine.cursor.remaining
 }
 
 data Main { engine: Engine; }
 
 machine Main::main(&mut self) -> i32 {
-    transition self.engine.run() == 0 {
+    transition Engine::run(&mut self.engine) == 0 {
         true -> 70
         false -> 71
     }

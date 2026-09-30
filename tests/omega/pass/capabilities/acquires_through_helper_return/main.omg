@@ -39,22 +39,22 @@ data Vault {
     desktop: Binding<Desktop>;
 }
 
-machine Vault::pick(&mut self) -> Folder
+machine Vault::pick(vault: &mut Vault) -> Folder
 reaches
     Desktop
 {
-    self.desktop.choose_folder("choose a backup folder")
+    vault.desktop.choose_folder("choose a backup folder")
 }
 
 data Backup {
     vault: Vault;
 }
 
-machine Backup::stage(&mut self) -> Folder
+machine Backup::stage(backup: &mut Backup) -> Folder
 reaches
     Desktop
 {
-    self.vault.pick()
+    Vault::pick(&mut backup.vault)
 }
 
 data Main {
@@ -62,5 +62,5 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let staged: Folder = self.backup.stage();
+    let staged: Folder = Backup::stage(&mut self.backup);
 }
