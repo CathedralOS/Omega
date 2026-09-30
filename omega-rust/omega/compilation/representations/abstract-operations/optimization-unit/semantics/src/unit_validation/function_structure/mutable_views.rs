@@ -117,9 +117,15 @@ pub(super) fn validate(
                     reached = true;
                     let mut carried = previous[&predecessor.id].clone();
                     for binding in &edge.structural_bindings {
+                        // A whole-root mutable borrow transfers the argument's
+                        // custody to the receiving loan. A subtree borrow
+                        // binds only the projected path, so the ambient root
+                        // stays carried; uses through the lent path while the
+                        // loan is live are not yet distinguished here.
                         if mutable.contains(&binding.argument.place)
                             && (descriptor_views.contains(&binding.argument.place)
-                                || binding.argument.access == StructuralAccess::MutableBorrow)
+                                || (binding.argument.access == StructuralAccess::MutableBorrow
+                                    && binding.argument.path.is_empty()))
                         {
                             carried.remove(&binding.argument.place);
                         }
