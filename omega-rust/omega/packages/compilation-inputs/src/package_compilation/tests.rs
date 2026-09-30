@@ -4,6 +4,7 @@
 mod captured_source_inputs;
 mod compilation_reuse;
 mod generated_bundles_and_source_roots;
+mod review_cache_digests;
 mod semantic_bindings_and_inputs;
 
 use crate::PackageSourceConsumptionCommitment;
