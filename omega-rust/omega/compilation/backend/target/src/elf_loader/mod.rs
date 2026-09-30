@@ -3,9 +3,55 @@
 //! This carrier seals only the exact `PT_INTERP` pathname bytes and Linux
 //! target profile. It does not construct an ELF image, choose dynamic-link
 //! tables, or grant loader/admission authority.
+//!
+//! Build output configuration selects the pathname per target
+//! (wiki/spec/build/configuration.md#elf-executable-loader-selection). When it
+//! selects none, [`declared_elf_interpreter_default`] supplies the loader the
+//! bundled Linux target environment declares. That default belongs to the
+//! toolchain's target environment, never to the architecture, and nothing here
+//! probes the build host's loader.
 
 use crate::TargetProfile;
 use std::fmt;
+
+/// Every deployment profile whose dynamically linked output carries a
+/// `PT_INTERP` pathname, in canonical target-profile identity order.
+pub const ELF_INTERPRETER_TARGET_PROFILES: [TargetProfile; 2] =
+    [TargetProfile::LinuxArm64, TargetProfile::LinuxX64];
+
+/// The loader pathname the bundled Linux target environment declares for a
+/// dynamically linked executable.
+///
+/// The toolchain's Linux target environment binds glibc's versioned exports
+/// (`libc.so.6` at `GLIBC_*` versions), so it declares the glibc psABI
+/// interpreter. A build deploying another C runtime (musl, a relocated loader)
+/// overrides this per target; it is a deployment default, not a fact derived
+/// from the architecture or read from the build host.
+const fn declared_elf_interpreter_default_path(target: TargetProfile) -> Option<&'static [u8]> {
+    match target {
+        TargetProfile::LinuxX64 => Some(b"/lib64/ld-linux-x86-64.so.2"),
+        TargetProfile::LinuxArm64 => Some(b"/lib/ld-linux-aarch64.so.1"),
+        TargetProfile::MacosArm64
+        | TargetProfile::MacosX64
+        | TargetProfile::WindowsX64
+        | TargetProfile::UefiX64
+        | TargetProfile::CrossPlatformCli
+        | TargetProfile::LocalUnchecked
+        | TargetProfile::AlphaBootstrap => None,
+    }
+}
+
+/// The normalized default loader of one target environment, or `None` when
+/// the environment declares none (every non-ELF profile). The declared bytes
+/// pass the same validation an explicit build selection does.
+pub fn declared_elf_interpreter_default(
+    target: TargetProfile,
+) -> Option<NormalizedElfInterpreterPlan> {
+    declared_elf_interpreter_default_path(target).map(|path| {
+        normalize_elf_interpreter_plan(path.to_vec(), target)
+            .expect("a declared target-environment loader is a valid interpreter plan")
+    })
+}
 
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -79,7 +125,7 @@ pub fn normalize_elf_interpreter_plan(
     interpreter_path: Vec<u8>,
     target: TargetProfile,
 ) -> Result<NormalizedElfInterpreterPlan, ElfInterpreterPlanValidationError> {
-    if !matches!(target, TargetProfile::LinuxArm64 | TargetProfile::LinuxX64) {
+    if !ELF_INTERPRETER_TARGET_PROFILES.contains(&target) {
         return Err(ElfInterpreterPlanValidationError::UnsupportedTarget { target });
     }
     if interpreter_path.is_empty() {
@@ -142,7 +188,8 @@ impl Fnv1a {
 #[cfg(test)]
 mod tests {
     use super::{
-        ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, TargetProfile,
+        ELF_INTERPRETER_TARGET_PROFILES, ElfInterpreterPlanValidationError,
+        NormalizedElfInterpreterPlan, TargetProfile, declared_elf_interpreter_default,
         normalize_elf_interpreter_plan,
     };
 
@@ -219,5 +266,39 @@ mod tests {
             normalize(b"/ab", TargetProfile::LinuxX64),
             "the exact input normalizes deterministically",
         );
+    }
+
+    #[test]
+    fn linux_target_environments_declare_glibc_loader_defaults() {
+        let x86_64 = declared_elf_interpreter_default(TargetProfile::LinuxX64)
+            .expect("the Linux x86-64 environment declares a loader");
+        assert_eq!(x86_64.target(), TargetProfile::LinuxX64);
+        assert_eq!(x86_64.interpreter_path(), b"/lib64/ld-linux-x86-64.so.2");
+        let arm64 = declared_elf_interpreter_default(TargetProfile::LinuxArm64)
+            .expect("the Linux ARM64 environment declares a loader");
+        assert_eq!(arm64.target(), TargetProfile::LinuxArm64);
+        assert_eq!(arm64.interpreter_path(), b"/lib/ld-linux-aarch64.so.1");
+    }
+
+    #[test]
+    fn only_elf_interpreter_profiles_declare_a_default() {
+        for target in [
+            TargetProfile::LinuxArm64,
+            TargetProfile::LinuxX64,
+            TargetProfile::MacosArm64,
+            TargetProfile::MacosX64,
+            TargetProfile::WindowsX64,
+            TargetProfile::UefiX64,
+            TargetProfile::CrossPlatformCli,
+            TargetProfile::LocalUnchecked,
+            TargetProfile::AlphaBootstrap,
+        ] {
+            assert_eq!(
+                declared_elf_interpreter_default(target).is_some(),
+                ELF_INTERPRETER_TARGET_PROFILES.contains(&target),
+                "{} declares a default exactly when it carries PT_INTERP",
+                target.target_name(),
+            );
+        }
     }
 }
