@@ -1684,7 +1684,14 @@ fn consume_result(
         .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
         && custody.reference_loan.is_valid()
     {
-        return (projected && access == CheckedStructuralAccess::MutableBorrow).then_some(());
+        // A borrowed result is consumed by a borrow of matching access:
+        // `&mut` results only by a projected `&mut` argument (a re-borrow —
+        // the whole exclusive loan cannot move), while a `&` result's loan
+        // is shareable, so a `&` argument admits the forward projected or
+        // whole. The forward names the shelled referent, not a copy.
+        return (access == CheckedStructuralAccess::SharedBorrow
+            || (projected && access == CheckedStructuralAccess::MutableBorrow))
+            .then_some(());
     }
     // Unrestricted whole-value arguments copy their payload. They retain
     // a live producer without acquiring an affine disposal obligation. A

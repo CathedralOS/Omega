@@ -1,0 +1,33 @@
+// Shared borrow of a record referent returned at a transition tail.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Node {
+    value: i32;
+    tag: i32;
+}
+
+data Main {
+    console: Binding<Console>;
+    node: Node;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.node = Node { value: 7, tag: 3 };
+    let seen: &Node = self.first();
+    transition seen.value == 7 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::first(&self) -> &Node {
+    transition {
+        _ -> &self.node
+    }
+}

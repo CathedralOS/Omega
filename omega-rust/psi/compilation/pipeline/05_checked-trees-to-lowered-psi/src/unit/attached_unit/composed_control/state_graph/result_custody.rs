@@ -308,9 +308,18 @@ pub(super) fn validate(
         &checked.typed,
         local.type_reference,
     );
+    // A shared record loan is the read-side member of the same family: the
+    // `&T` descriptor copies like `&u8`, but its named referent's custody is
+    // the loan ledger's, so the binding stamps Affine exactly as a `&mut`
+    // view does. Primitive shared referees keep their Unrestricted disposal.
+    let shared_borrowed = validation::reference_result_custody::shared_borrowed_parts(
+        &checked.typed,
+        local.type_reference,
+    )
+    .filter(|(referee, _)| checked.primitive_type_reference(*referee).is_none());
     // The `&mut` descriptor itself is copyable; the binding's exclusivity is
     // what the checked result stamps Affine.
-    let expected_multiplicity = if mutable_borrowed.is_some() {
+    let expected_multiplicity = if mutable_borrowed.is_some() || shared_borrowed.is_some() {
         Multiplicity::Affine
     } else {
         checked.type_multiplicity(local.type_reference)
@@ -336,9 +345,19 @@ pub(super) fn validate(
             checked,
             local.type_reference,
         )
+        && !(matches!(
+            checked.expression_table.expression(local.initial_value),
+            ExpressionNode::Call(_)
+        ) && matches!(
+            checked.type_reference_table.type_reference(referee),
+            checked_trees::types::TypeReferenceNode::Named { .. }
+        ))
     {
         // A shared-loaned local publishes its referent identity — the same
-        // peel the checker-side roster applies.
+        // peel the checker-side roster applies. A call result returning a
+        // record `&T` keeps the reference shell: its binding stamps the
+        // callee's `&T` return type identity, not the peeled referee's.
+        // View and primitive referees still peel to their own carrier.
         checked.normalized_type_identity(referee).into_string()
     } else {
         checked
@@ -371,10 +390,11 @@ pub(super) fn validate(
             unsupported("Unit graph copy local acquired ownership debt")
         };
     }
-    // A `&mut` view local's exclusivity is the loan ledger's -- its establish,
+    // A view local's exclusivity is the loan ledger's -- its establish,
     // transfer and weakening are the reference custody ops, not ownership
-    // events, so the ownership roster is exactly empty.
-    if mutable_borrowed.is_some() {
+    // events, so the ownership roster is exactly empty. A shared record loan
+    // carries the same accounting read-side.
+    if mutable_borrowed.is_some() || shared_borrowed.is_some() {
         return if events().next().is_none() {
             Ok(())
         } else {

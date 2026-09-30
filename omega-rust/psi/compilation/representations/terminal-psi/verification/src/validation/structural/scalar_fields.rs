@@ -358,6 +358,25 @@ pub(in crate::validation) fn validate_integer_structural_field(
         | OperationKind::EstablishMutableElementView { source, .. } => {
             has_readable_structural_access(source.access)
         }
+        // A call result spells the returned loan's access on its `Reference`
+        // type shell: `let seen: &Node = self.first()` binds the `&Node`
+        // referent through the call's result, and reads through it observe
+        // the referent's declared record the same way a borrow-carrier
+        // establishment does.
+        OperationKind::Call { .. }
+        | OperationKind::CallStructural { .. }
+        | OperationKind::CallStructuralWithScalarArguments { .. }
+        | OperationKind::BoundaryCall { .. } => module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == borrowed_result.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    &declaration.shape,
+                    StructuralTypeShape::Reference { access, .. }
+                        if has_readable_structural_access(*access)
+                )
+            }),
         _ => false,
     };
     let empty_result_custody = borrowed_result.qualifications.is_empty()
@@ -384,9 +403,19 @@ pub(in crate::validation) fn validate_integer_structural_field(
             operation,
         ));
     };
-    if observed_scalar_field(module, borrowed_result.structural_type, path, field)
-        != Some(result_type)
+    // A call result's `Reference` shell keeps the loan's access on the type;
+    // the observed record is its referent. Borrow-carrier establishments
+    // already stamp the peeled referent identity.
+    let observed_root = match module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == borrowed_result.structural_type)
+        .map(|declaration| &declaration.shape)
     {
+        Some(StructuralTypeShape::Reference { referent, .. }) => *referent,
+        _ => borrowed_result.structural_type,
+    };
+    if observed_scalar_field(module, observed_root, path, field) != Some(result_type) {
         return Err(invalid());
     }
     Ok(())

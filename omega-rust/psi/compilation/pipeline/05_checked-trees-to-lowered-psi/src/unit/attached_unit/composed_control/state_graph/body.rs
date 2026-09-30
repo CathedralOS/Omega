@@ -769,14 +769,17 @@ pub(super) fn validate(
                 ) => {}
             // A reference release rejoins either the statement at its expiry
             // boundary or, when the boundary's own operations have not yet
-            // been consumed, the statement the walk last attributed.
+            // been consumed, the statement the walk last attributed. The
+            // stamped boundary is authoritative: a loan whose last use sits
+            // inside the terminator itself weakens one step past the final
+            // authored statement, so any boundary at or past the last
+            // attributed ordinal rejoins.
             (
                 CheckedUnitEffectOperationPlan::ReleaseReference {
                     statement_index, ..
                 },
                 _,
-            ) if *statement_index as usize == ordinal
-                || *statement_index as usize == ordinal + 1 => {}
+            ) if *statement_index as usize >= ordinal => {}
             _ => {
                 return unsupported("Unit graph reordered a source effect");
             }
@@ -988,7 +991,17 @@ fn is_loan_marker(
             )
             .is_some_and(|(referee, _)| named_under_constraints(checked, referee))
         }
-        _ => false,
+        // A write-only loan local (`let r: &write Node = &write self.node;`)
+        // binds the same compile-time carrier an exclusive `&mut` loan does:
+        // the loan ledger holds its single WriteOnly loan and the binding
+        // plans no operation, so its statement is a marker too.
+        language_core::ReferenceAccess::WriteOnly => {
+            validation::reference_result_custody::write_only_borrowed_parts(
+                checked,
+                local.type_reference,
+            )
+            .is_some()
+        }
     }
 }
 
