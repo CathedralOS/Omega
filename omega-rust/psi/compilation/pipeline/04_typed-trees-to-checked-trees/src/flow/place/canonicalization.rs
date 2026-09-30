@@ -75,6 +75,12 @@ pub(crate) fn canonical_place_from_expression(
 
     match program.expression_table.expression(expression) {
         ExpressionNode::Borrow(inner) => canonical_place_from_expression(program, inner.target),
+        // A borrow recast re-views the operand's bytes at the same address:
+        // the recast place is the operand's place. Value casts compute a new
+        // rvalue and keep the expression root.
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            canonical_place_from_expression(program, cast.value)
+        }
         ExpressionNode::Name(path) => {
             let root_symbol = first_valid_name_path_symbol(path, &program.expression_table)?;
             let mut place = CanonicalPlace {

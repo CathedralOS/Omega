@@ -26,6 +26,15 @@ pub(crate) fn contextual_canonical_place_from_expression(
             statement_index,
             inner.target,
         ),
+        // A borrow recast denotes the operand's storage, not a fresh rvalue.
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            contextual_canonical_place_from_expression(
+                program,
+                state_symbol,
+                statement_index,
+                cast.value,
+            )
+        }
         ExpressionNode::Name(path) => {
             let root_symbol = resolve_contextual_name_path_root(
                 program,
