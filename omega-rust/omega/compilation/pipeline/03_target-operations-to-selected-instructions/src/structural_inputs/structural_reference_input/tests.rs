@@ -263,7 +263,10 @@ fn mixed_declarations_have_tag_prefixed_geometry_and_common_field_reads() {
     // Payload ids are a separate namespace: no common field 2 exists, and a
     // mismatched scalar type selects nothing.
     let absent = StructuralFieldId::new(2).unwrap();
-    assert_eq!(store(root, &into_mixed, absent, scalar, &declarations), None);
+    assert_eq!(
+        store(root, &into_mixed, absent, scalar, &declarations),
+        None
+    );
     assert_eq!(
         store(root, &into_mixed, flag, ScalarType::Boolean, &declarations),
         None

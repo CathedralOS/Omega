@@ -1161,6 +1161,12 @@ pub(super) fn validate_integer_structural_field(
                     | OperationKind::CallStructuralWithScalarArguments { .. }
                     | OperationKind::StructuralLeafCopy { .. }
                     | OperationKind::StructuralCaseLeafCopy { .. }
+                    // Element-view producers mint the same local result
+                    // place: the observed field lives inside the element
+                    // rung the indexed path selects.
+                    | OperationKind::EstablishElementView { .. }
+                    | OperationKind::EstablishMutableElementView { .. }
+                    | OperationKind::ElementViewSubslice { .. }
             )
         })
         .filter_map(|producer| producer.result.structural())

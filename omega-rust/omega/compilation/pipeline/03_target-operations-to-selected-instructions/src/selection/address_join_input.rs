@@ -72,8 +72,9 @@ pub(crate) fn transport(
     {
         return None;
     }
+    let root = root_type(source, argument.place, argument.access)?;
     let (referent, byte_offset) = crate::structural_inputs::structural_reference_input::project(
-        root_type(source, argument.place, argument.access)?,
+        root,
         &argument.path,
         &signature.structural_types,
     )?;
@@ -84,24 +85,40 @@ pub(crate) fn transport(
     if referent != parameter.structural_type {
         return None;
     }
-    let base =
-        if let Some((_, pointer)) = pointers.iter().find(|(place, _)| *place == argument.place) {
-            SelectedAddressBase::Register(*pointer)
-        } else {
-            let mut homes = local_slots.iter().filter(|slot| {
-                slot.id.structural_place() == Some(argument.place)
-                    && !matches!(slot.id, LocalStorageSlotId::StructuralBlockParameter { .. })
-            });
-            let home = homes.next()?;
-            if homes.next().is_some()
-                || byte_offset
-                    .checked_add(lent.byte_size)
-                    .is_none_or(|end| end > home.byte_size)
-            {
-                return None;
-            }
-            SelectedAddressBase::Local(home.id)
-        };
+    let view_base = matches!(
+        signature
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == root)
+            .map(|declaration| &declaration.shape),
+        Some(terminal_psi::StructuralTypeShape::ElementView { .. })
+    );
+    let base = if view_base {
+        // A view place's live pointer names its descriptor, never the viewed
+        // storage: the edge loads the descriptor's backing pointer itself.
+        SelectedAddressBase::ViewDescriptor(
+            pointers
+                .iter()
+                .find(|(place, _)| *place == argument.place)
+                .map(|(_, pointer)| *pointer)?,
+        )
+    } else if let Some((_, pointer)) = pointers.iter().find(|(place, _)| *place == argument.place) {
+        SelectedAddressBase::Register(*pointer)
+    } else {
+        let mut homes = local_slots.iter().filter(|slot| {
+            slot.id.structural_place() == Some(argument.place)
+                && !matches!(slot.id, LocalStorageSlotId::StructuralBlockParameter { .. })
+        });
+        let home = homes.next()?;
+        if homes.next().is_some()
+            || byte_offset
+                .checked_add(lent.byte_size)
+                .is_none_or(|end| end > home.byte_size)
+        {
+            return None;
+        }
+        SelectedAddressBase::Local(home.id)
+    };
     Some(SelectedStructuralTransport::Address {
         base,
         byte_offset,

@@ -161,7 +161,7 @@ fn has_readable_structural_access(access: StructuralAccess) -> bool {
 /// result at the place whose type is `ElementView` (directly, or through a
 /// `Reference` shell carrying the loan's access). That declaration is what
 /// a runtime index resolves against.
-fn element_view_source(
+pub(in crate::validation) fn element_view_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
     destination: PlaceId,
@@ -316,6 +316,21 @@ pub(in crate::validation) fn validate_integer_structural_field(
         }
         return Err(invalid());
     }
+    // A view local's read source: its establishment mints a structural
+    // result at the place, so the indexed path observes inside the referent
+    // `ElementView` the same way a store destination resolves there.
+    if let Some(view_type) = element_view_source(module, machine, source) {
+        if !matches!(result_type, ScalarType::Integer(_)) {
+            return Err(ModuleError::IntegerStructuralFieldRequiresIntegerResult(
+                operation,
+            ));
+        }
+        return if observed_scalar_field(module, view_type, path, field) == Some(result_type) {
+            Ok(())
+        } else {
+            Err(invalid())
+        };
+    }
     let parameter = readable_parameter_for(machine, source).ok_or_else(invalid)?;
     if !matches!(
         parameter.multiplicity,
@@ -352,6 +367,14 @@ pub(in crate::validation) fn validate_boolean_structural_field(
     if let Some(result) = crate::validation::record::completed_source(module, machine, source) {
         return if observed_scalar_field(module, result.structural_type, path, field)
             == Some(ScalarType::Boolean)
+        {
+            Ok(())
+        } else {
+            Err(invalid())
+        };
+    }
+    if let Some(view_type) = element_view_source(module, machine, source) {
+        return if observed_scalar_field(module, view_type, path, field) == Some(ScalarType::Boolean)
         {
             Ok(())
         } else {

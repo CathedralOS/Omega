@@ -132,6 +132,10 @@ fn address_join_argument(
             && source.qualifications.is_empty()
             && source.projected_qualifications.is_empty())
         .then_some(source.structural_type)
+    } else if let Some((_, structural_type)) = live.views.get(&argument.place) {
+        // An established view names the collection it lends: the projected
+        // path selects an element inside the view's own live extent.
+        Some(*structural_type)
     } else if live.address_joins.contains(&argument.place) {
         function
             .block_entries

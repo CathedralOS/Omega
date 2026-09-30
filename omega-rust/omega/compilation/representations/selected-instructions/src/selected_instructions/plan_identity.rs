@@ -542,6 +542,10 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                         bytes.push(1);
                         slot.encode_identity(bytes);
                     }
+                    crate::SelectedAddressBase::ViewDescriptor(register) => {
+                        bytes.push(2);
+                        bytes.extend_from_slice(&register.0.to_le_bytes());
+                    }
                 }
                 bytes.extend_from_slice(&byte_offset.to_le_bytes());
                 bytes.extend_from_slice(&byte_count.to_le_bytes());

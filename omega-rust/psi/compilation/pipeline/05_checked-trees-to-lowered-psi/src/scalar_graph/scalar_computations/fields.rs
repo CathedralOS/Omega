@@ -291,18 +291,34 @@ fn record_loan_subject(
                     ))?;
             }
             LoanedPathSegment::FixedIndex(index) => {
-                let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
-                    return unsupported("record loan's captured index left its array namespace");
+                let element = match &declaration.shape {
+                    StructuralTypeShape::FixedArray { element, length } => {
+                        if index >= *length {
+                            return unsupported("record loan's captured index is out of bounds");
+                        }
+                        tail = Some((index, *length));
+                        *element
+                    }
+                    // A `&[T]` view's declared shape is the view carrier
+                    // itself: the extent is the view's live length, so the
+                    // index names the element rung with no static bound —
+                    // and no byte-overlay prefix, whose bound check needs
+                    // the literal length only a fixed array carries.
+                    StructuralTypeShape::ElementView { element } => {
+                        tail = None;
+                        *element
+                    }
+                    _ => {
+                        return unsupported(
+                            "record loan's captured index left its array namespace",
+                        );
+                    }
                 };
-                if index >= *length {
-                    return unsupported("record loan's captured index is out of bounds");
-                }
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index));
                 carrier_path.push(terminal_psi::StructuralPathSegment::FixedIndex(index));
-                tail = Some((index, *length));
                 declaration = types
                     .iter()
-                    .find(|declaration| declaration.id == *element)
+                    .find(|declaration| declaration.id == element)
                     .ok_or(LoweringError::Unsupported(
                         "record loan's captured element type is absent",
                     ))?;

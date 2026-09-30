@@ -36,7 +36,7 @@ pub(super) fn validate(
     if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
         return unsupported("borrowed selection changed its planned access");
     }
-    let (checked_path, root) = walk_exact_place(checked, machine, authored, borrow.target)?;
+    let (checked_path, root) = walk_exact_place(checked, machine, authored, borrow.target, true)?;
     if checked_path != argument.path {
         return unsupported("borrowed selection path does not match its projected path");
     }
@@ -69,11 +69,17 @@ pub(super) fn validate(
             ))?;
     // The root carrier rule matches the referent rule: a shared borrow moves
     // nothing, so a `[linear]` root is an admissible place to observe through.
-    if !validation::has_linear_owned_contents(
-        &checked.typed,
-        validation::unwrapped_type_reference(&checked.typed, root_reference)
-            .unwrap_or(root_reference),
-    ) {
+    // A `Slice` root (a `&[T]` view local) carries the same way: the borrow's
+    // ledger records the view's own custody, and the indexed segment selects
+    // inside the referent rung.
+    let unwrapped_root = validation::unwrapped_type_reference(&checked.typed, root_reference)
+        .unwrap_or(root_reference);
+    if !validation::has_linear_owned_contents(&checked.typed, unwrapped_root)
+        && !matches!(
+            checked.type_reference_table.type_reference(unwrapped_root),
+            checked_trees::types::TypeReferenceNode::Slice { .. }
+        )
+    {
         return unsupported(
             "borrowed selection root is not a structural place the pipeline can carry",
         );
@@ -100,7 +106,7 @@ pub(super) fn validate_scalar_case_place(
     if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
         return unsupported("scalar case place changed its planned access");
     }
-    let (checked_path, root) = walk_exact_place(checked, machine, authored, expression)?;
+    let (checked_path, root) = walk_exact_place(checked, machine, authored, expression, false)?;
     if checked_path != argument.path || checked_path.is_empty() {
         return unsupported("scalar case place path does not match its projected path");
     }
@@ -146,7 +152,7 @@ pub(super) fn validate_copied_place(
     if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
         return unsupported("copied place changed its planned access");
     }
-    let (checked_path, root) = walk_exact_place(checked, machine, authored, expression)?;
+    let (checked_path, root) = walk_exact_place(checked, machine, authored, expression, false)?;
     // A bare whole-root name walks to the empty path — the copied leaf is
     // then the root's own declared `Unrestricted` type, which the leaf/type
     // agreement below already pins exactly.

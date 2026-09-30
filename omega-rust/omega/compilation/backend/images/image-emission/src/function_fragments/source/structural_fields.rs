@@ -678,16 +678,20 @@ pub(super) fn retained(
                 else {
                     return false;
                 };
-                let terminal_psi::StructuralTypeShape::FixedArray { element, length } =
-                    &declaration.shape
-                else {
-                    return false;
+                let element = match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
+                        if index >= length {
+                            return false;
+                        }
+                        *element
+                    }
+                    // A view's live extent is the bound: the literal names
+                    // the element rung with no static length.
+                    terminal_psi::StructuralTypeShape::ElementView { element } => *element,
+                    _ => return false,
                 };
-                if index >= length {
-                    return false;
-                }
                 runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
-                carrier = *element;
+                carrier = element;
             }
             _ => return false,
         }
@@ -833,6 +837,16 @@ fn read_access(
                 result,
                 ..
             }
+            | AbstractOperation::EstablishElementView {
+                psi_operation,
+                result,
+                ..
+            }
+            | AbstractOperation::ElementViewSubslice {
+                psi_operation,
+                result,
+                ..
+            }
             | AbstractOperation::CallStructural {
                 psi_operation,
                 result: AbstractStructuralCallResult::Structural { result, .. },
@@ -851,7 +865,7 @@ fn read_access(
                 .iter()
                 .flat_map(|block| &block.operations)
                 .any(|operation| {
-                    let home = match operation {
+                    let origin = match operation {
                         TargetUnitOperation::EstablishRecord { result_home, .. }
                         | TargetUnitOperation::EstablishZeroedStructural { result_home, .. }
                         | TargetUnitOperation::StructuralLeafCopy { result_home, .. }
@@ -862,16 +876,50 @@ fn read_access(
                                     ..
                                 },
                             ..
-                        } => result_home,
+                        } => result_home.operation_result(),
+                        TargetUnitOperation::EstablishElementView { view, .. }
+                        | TargetUnitOperation::ElementViewSubslice { view, .. } => match view {
+                            target_operations::TargetElementView::Established {
+                                psi_operation,
+                                place,
+                                structural_type,
+                                ..
+                            } if *psi_operation == producer
+                                && *place == result.place
+                                && *structural_type == result.structural_type =>
+                            {
+                                Some((producer, result))
+                            }
+                            _ => None,
+                        },
                         _ => return false,
                     };
-                    home.operation_result()
-                        .is_some_and(|(actual, declaration)| {
-                            actual == producer && declaration == result
-                        })
+                    origin.is_some_and(|(actual, declaration)| {
+                        actual == producer && declaration == result
+                    })
                 })
             || access
-                .replace((StructuralAccess::Owned, result.structural_type))
+                .replace((
+                    if result.multiplicity == StructuralMultiplicity::Unrestricted
+                        && target.graph.structural_types.iter().any(|declaration| {
+                            declaration.id == result.structural_type
+                                && matches!(
+                                    declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                                        | terminal_psi::StructuralTypeShape::ByteSequence(
+                                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                                        )
+                                )
+                        })
+                    {
+                        // An established shared view's descriptor is the loan
+                        // the place reads carry.
+                        StructuralAccess::SharedBorrow
+                    } else {
+                        StructuralAccess::Owned
+                    },
+                    result.structural_type,
+                ))
                 .is_some()
         {
             return None;

@@ -551,7 +551,8 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
                 base, destination, ..
             } => (
                 match base {
-                    selected_instructions::SelectedAddressBase::Register(argument) => {
+                    selected_instructions::SelectedAddressBase::Register(argument)
+                    | selected_instructions::SelectedAddressBase::ViewDescriptor(argument) => {
                         Some(argument)
                     }
                     selected_instructions::SelectedAddressBase::Local(_) => None,

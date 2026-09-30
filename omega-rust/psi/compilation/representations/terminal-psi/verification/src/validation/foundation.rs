@@ -871,6 +871,13 @@ pub(super) fn resolve_structural_path_in_types(
                 StructuralPathSegment::FixedIndex(index),
                 StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
+            // A view's extent is its own live length: a literal index names
+            // the element rung with no static bound to check — the same
+            // admission `resolve_runtime_projection` already makes.
+            (
+                StructuralPathSegment::FixedIndex(_),
+                StructuralTypeShape::ElementView { element },
+            ) => *element,
             // Qualification rosters name static storage; a runtime index
             // never selects a qualified subtree.
             _ => return None,

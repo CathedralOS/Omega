@@ -46,13 +46,23 @@ fn computed(base: SelectedAddressBase, byte_offset: u32) -> bool {
     matches!(base, SelectedAddressBase::Local(_)) || byte_offset != 0
 }
 
+/// The fresh registers (and instructions before the store) one base needs: a
+/// view descriptor always loads its backing pointer, then offsets like any
+/// register base.
+fn steps(base: SelectedAddressBase, byte_offset: u32) -> usize {
+    match base {
+        SelectedAddressBase::ViewDescriptor(_) => 1 + usize::from(byte_offset != 0),
+        _ => usize::from(computed(base, byte_offset)),
+    }
+}
+
 /// The bridge instructions and fresh registers the address transports need.
 pub(super) fn counts(bindings: &[SelectedStructuralBinding]) -> (usize, usize) {
     bindings
         .iter()
         .filter_map(|binding| address(binding.transport))
         .fold((0, 0), |(instructions, registers), (base, offset, _, _)| {
-            let extra = usize::from(computed(base, offset));
+            let extra = steps(base, offset);
             (instructions + 1 + extra, registers + extra)
         })
 }
@@ -79,7 +89,73 @@ pub(super) fn store(
         let Some((base, byte_offset, byte_count, destination)) = address(binding.transport) else {
             continue;
         };
-        let pointer = if computed(base, byte_offset) {
+        let mut pointer = None;
+        if let SelectedAddressBase::ViewDescriptor(descriptor) = base {
+            // The descriptor address is not the referent's: load the stored
+            // backing pointer the descriptor's first word holds.
+            let id = next_id(next_instruction)?;
+            let output = VirtualRegisterId(registers.len().try_into().map_err(|_| error())?);
+            let instruction = super::super::constraints::instruction(
+                id,
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                constraints.keys.load64.ok_or_else(error)?,
+                &[descriptor, output],
+                provenance(edge),
+                catalog,
+            )?;
+            registers.push(VirtualRegister {
+                id: output,
+                scalar_type: pointer_type(function_index)?,
+                class: instruction.operands.last().ok_or_else(error)?.class,
+                origin: VirtualRegisterOrigin::AbiTransport {
+                    instruction: id,
+                    place: binding.semantic.argument.place,
+                    byte_offset: 0,
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            });
+            memory.push(SelectedMemoryAccess {
+                instruction: id,
+                origin: SelectedMemoryAccessOrigin::Edge(edge),
+                place: binding.semantic.argument.place,
+                byte_offset: 0,
+                byte_count: 8,
+                role: SelectedMemoryAccessRole::ReadPlace,
+            });
+            instructions.push(instruction);
+            pointer = Some(output);
+        }
+        let pointer = if let Some(pointer) = pointer {
+            if byte_offset == 0 {
+                pointer
+            } else {
+                let id = next_id(next_instruction)?;
+                let output = VirtualRegisterId(registers.len().try_into().map_err(|_| error())?);
+                let instruction = super::super::constraints::instruction(
+                    id,
+                    SelectedInstructionKind::AddressOffset { byte_offset },
+                    constraints.keys.address_offset.ok_or_else(error)?,
+                    &[pointer, output],
+                    provenance(edge),
+                    catalog,
+                )?;
+                registers.push(VirtualRegister {
+                    id: output,
+                    scalar_type: pointer_type(function_index)?,
+                    class: instruction.operands.last().ok_or_else(error)?.class,
+                    origin: VirtualRegisterOrigin::AbiTransport {
+                        instruction: id,
+                        place: binding.semantic.argument.place,
+                        byte_offset,
+                    },
+                    definition_site: None,
+                    entry_fixed_view: None,
+                });
+                instructions.push(instruction);
+                output
+            }
+        } else if computed(base, byte_offset) {
             let id = next_id(next_instruction)?;
             let (kind, key, inputs) = match base {
                 SelectedAddressBase::Local(slot) => (
@@ -95,6 +171,7 @@ pub(super) fn store(
                     constraints.keys.address_offset.ok_or_else(error)?,
                     vec![register],
                 ),
+                SelectedAddressBase::ViewDescriptor(_) => return Err(error()),
             };
             let output = VirtualRegisterId(registers.len().try_into().map_err(|_| error())?);
             let mut operands = inputs;
@@ -202,6 +279,54 @@ pub(super) fn check(
         {
             return Err(error());
         }
+        // A view descriptor base consumes its backing-pointer load here,
+        // then flows on as the register that word arrived in.
+        let base = if let SelectedAddressBase::ViewDescriptor(descriptor) = base {
+            if descriptor.0 as usize >= original_register_count {
+                return Err(error());
+            }
+            let instruction = bridge.instructions.get(position).ok_or_else(error)?;
+            let register = prepared
+                .virtual_registers
+                .get(register_index)
+                .ok_or_else(error)?;
+            if instruction.id.0 as usize != instruction_start + position
+                || instruction.kind != (SelectedInstructionKind::Load64 { byte_offset: 0 })
+                || Some(instruction.constraint) != constraints.keys.load64
+                || instruction.provenance != expected_provenance
+                || instruction
+                    .operands
+                    .iter()
+                    .map(|operand| operand.virtual_register)
+                    .ne([descriptor, register.id])
+                || register.id.0 as usize != register_index
+                || register.scalar_type != pointer_type(function)?
+                || Some(register.class) != instruction.operands.last().map(|operand| operand.class)
+                || register.definition_site.is_some()
+                || register.entry_fixed_view.is_some()
+                || register.origin
+                    != (VirtualRegisterOrigin::AbiTransport {
+                        instruction: instruction.id,
+                        place: binding.semantic.argument.place,
+                        byte_offset: 0,
+                    })
+            {
+                return Err(error());
+            }
+            accesses.push(SelectedMemoryAccess {
+                instruction: instruction.id,
+                origin: SelectedMemoryAccessOrigin::Edge(continuation.psi_edge),
+                place: binding.semantic.argument.place,
+                byte_offset: 0,
+                byte_count: 8,
+                role: SelectedMemoryAccessRole::ReadPlace,
+            });
+            position += 1;
+            register_index += 1;
+            SelectedAddressBase::Register(register.id)
+        } else {
+            base
+        };
         let pointer = if computed(base, byte_offset) {
             let instruction = bridge.instructions.get(position).ok_or_else(error)?;
             let register = prepared
@@ -234,7 +359,9 @@ pub(super) fn check(
                     )
                 }
                 SelectedAddressBase::Register(input) => {
-                    if input.0 as usize >= original_register_count {
+                    // Bridge-fresh inputs (a descriptor's loaded backing
+                    // pointer) already minted below register_index are live.
+                    if input.0 as usize >= register_index {
                         return Err(error());
                     }
                     (
@@ -243,6 +370,7 @@ pub(super) fn check(
                         vec![input],
                     )
                 }
+                SelectedAddressBase::ViewDescriptor(_) => return Err(error()),
             };
             if instruction.id.0 as usize != instruction_start + position
                 || instruction.kind != kind
@@ -284,7 +412,7 @@ pub(super) fn check(
             let SelectedAddressBase::Register(register) = base else {
                 return Err(error());
             };
-            if register.0 as usize >= original_register_count {
+            if register.0 as usize >= register_index {
                 return Err(error());
             }
             register

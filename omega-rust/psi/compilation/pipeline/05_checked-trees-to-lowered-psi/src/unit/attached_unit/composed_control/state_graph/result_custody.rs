@@ -266,9 +266,10 @@ fn retired_in_body(
     Ok(retired)
 }
 
-/// A `&[T]` local: shared reference (through constraint shells) to a slice —
-/// the borrowed-view carrier the checked disposition roster spells peeled.
-fn is_borrowed_view_local(
+/// A shared-borrow local (`&[T]` view, `&Record` element borrow): shared
+/// reference — through constraint shells — to a structural carrier, whose
+/// identity the checked disposition roster spells peeled to the referee.
+fn is_borrowed_structural_local(
     checked: &CheckedTrees,
     mut reference: checked_trees::types::TypeReferenceHandle,
 ) -> bool {
@@ -286,7 +287,11 @@ fn is_borrowed_view_local(
                 borrowed = true;
                 reference = *referee;
             }
-            checked_trees::types::TypeReferenceNode::Slice { .. } => return borrowed,
+            // The checked roster peels a shared borrow to the carrier its
+            // referee spells: `[T]` for a view local, the record itself for
+            // a `&Record` element borrow.
+            checked_trees::types::TypeReferenceNode::Slice { .. }
+            | checked_trees::types::TypeReferenceNode::Named { .. } => return borrowed,
             _ => return false,
         }
     }
@@ -323,7 +328,7 @@ pub(super) fn validate(
             local.type_reference,
         ) {
         checked.normalized_type_identity(carrier).into_string()
-    } else if is_borrowed_view_local(checked, local.type_reference) {
+    } else if is_borrowed_structural_local(checked, local.type_reference) {
         validation::unwrapped_type_reference(&checked.typed, local.type_reference)
             .map(|unwrapped| checked.normalized_type_identity(unwrapped).into_string())
             .unwrap_or_else(|| {
@@ -336,9 +341,7 @@ pub(super) fn validate(
             .normalized_type_identity(local.type_reference)
             .into_string()
     };
-    if expected_multiplicity != result.multiplicity
-        || expected_identity != result.type_identity
-    {
+    if expected_multiplicity != result.multiplicity || expected_identity != result.type_identity {
         return unsupported("Unit graph local disposition type drifted");
     }
     let events = || {

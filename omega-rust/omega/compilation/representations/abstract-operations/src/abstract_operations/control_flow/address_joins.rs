@@ -119,6 +119,16 @@ pub fn referent_type<'a>(
                     .clone()
                     .filter(|declaration| declaration.id == *element),
             )?,
+            // A view's extent is its own live length: a literal index names
+            // the element rung with no static bound to check here.
+            (
+                StructuralPathSegment::FixedIndex(_),
+                StructuralTypeShape::ElementView { element },
+            ) => unique(
+                &mut declarations
+                    .clone()
+                    .filter(|declaration| declaration.id == *element),
+            )?,
             _ => return None,
         };
         current = next;

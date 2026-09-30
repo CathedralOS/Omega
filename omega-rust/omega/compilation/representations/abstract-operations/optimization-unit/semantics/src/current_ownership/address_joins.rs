@@ -36,6 +36,11 @@ use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
 #[derive(Default)]
 pub(super) struct AddressJoinPins {
     shared: BTreeMap<BlockId, BTreeSet<PlaceId>>,
+    // Roots pinned on each edge by the joins observable downstream of it.
+    // Block scope is conservative through the block's own operations; an
+    // edge runs after them, so a join whose last use the block already saw
+    // no longer pins its origin past that edge.
+    shared_edges: BTreeMap<(BlockId, BlockId), BTreeSet<PlaceId>>,
     exclusive: BTreeMap<BlockId, BTreeSet<PlaceId>>,
     origins: BTreeMap<PlaceId, BTreeSet<PlaceId>>,
 }
@@ -131,7 +136,86 @@ impl AddressJoinPins {
         }
         let dominators =
             crate::candidates::global_value_numbering::independent_reachable_dominators(function);
+        // A join is observable while one of its uses remains reachable.
+        // Reads go through the joined path's root, so every read of a place
+        // the join pins observes it — including reads the custody model
+        // would have rejected under a released owner.
+        let mut observers = BTreeMap::<PlaceId, Vec<PlaceId>>::new();
+        for join in joins.keys() {
+            observers.entry(*join).or_default().push(*join);
+            for root in origins.get(join).into_iter().flatten() {
+                observers.entry(*root).or_default().push(*join);
+            }
+        }
+        let mut join_uses = BTreeMap::<PlaceId, BTreeSet<BlockId>>::new();
+        for block in &function.blocks {
+            for node in &block.nodes {
+                let mut reads = match &node.operation {
+                    O::ReturnStructural { source, .. } => vec![*source],
+                    O::Return { .. } | O::ReturnUnit { .. } => Vec::new(),
+                    _ => crate::unit_validation::function_structure::operation_place_inputs(
+                        &node.operation,
+                    ),
+                };
+                reads.extend(
+                    node.successors
+                        .iter()
+                        .flat_map(|edge| &edge.structural_bindings)
+                        .map(|binding| binding.argument.place),
+                );
+                for place in reads {
+                    for join in observers.get(&place).into_iter().flatten() {
+                        join_uses.entry(*join).or_default().insert(block.id);
+                    }
+                }
+            }
+        }
+        loop {
+            let mut expanded = join_uses.clone();
+            for (join, arguments) in &origins {
+                let inherited = arguments
+                    .iter()
+                    .filter(|argument| joins.contains_key(argument))
+                    .flat_map(|argument| expanded.get(argument).cloned().unwrap_or_default())
+                    .collect::<Vec<_>>();
+                expanded.entry(*join).or_default().extend(inherited);
+            }
+            if expanded == join_uses {
+                break;
+            }
+            join_uses = expanded;
+        }
+        let successors = function
+            .blocks
+            .iter()
+            .map(|block| {
+                (
+                    block.id,
+                    block
+                        .nodes
+                        .last()
+                        .map(|node| node.successors.iter().map(|edge| edge.target).collect())
+                        .unwrap_or_default(),
+                )
+            })
+            .collect::<BTreeMap<BlockId, Vec<BlockId>>>();
+        let reaches = |from: BlockId, targets: &BTreeSet<BlockId>| -> bool {
+            let mut seen = BTreeSet::from([from]);
+            let mut frontier = vec![from];
+            while let Some(block) = frontier.pop() {
+                if targets.contains(&block) {
+                    return true;
+                }
+                for next in successors.get(&block).into_iter().flatten() {
+                    if seen.insert(*next) {
+                        frontier.push(*next);
+                    }
+                }
+            }
+            false
+        };
         let mut pins = BTreeMap::<BlockId, BTreeSet<PlaceId>>::new();
+        let mut edge_pins = BTreeMap::<(BlockId, BlockId), BTreeSet<PlaceId>>::new();
         for (join, owner) in &joins {
             let roots = origins
                 .get(join)
@@ -140,11 +224,43 @@ impl AddressJoinPins {
                 .filter(|root| !joins.contains_key(root))
                 .copied()
                 .collect::<Vec<_>>();
+            let uses = join_uses.get(join).cloned().unwrap_or_default();
+            let owner_dominators = dominators.get(owner).cloned().unwrap_or_default();
             for (block, dominating) in &dominators {
-                if block == owner || dominating.contains(owner) {
-                    pins.entry(*block)
-                        .or_default()
-                        .extend(roots.iter().copied());
+                let dominated = *block == *owner || dominating.contains(owner);
+                let before = !dominated && owner_dominators.contains(block);
+                if !dominated && !before {
+                    continue;
+                }
+                // A dominator of the join's block pins conservatively — the
+                // binding edge can live anywhere along it. A dominated block
+                // pins only while the join can still be observed there.
+                if !before && *block != *owner && !reaches(*block, &uses) {
+                    continue;
+                }
+                pins.entry(*block)
+                    .or_default()
+                    .extend(roots.iter().copied());
+            }
+            for (block, dominating) in &dominators {
+                let dominated = *block == *owner || dominating.contains(owner);
+                let before = !dominated && owner_dominators.contains(block);
+                if !dominated && !before {
+                    continue;
+                }
+                for edge in function
+                    .blocks
+                    .iter()
+                    .find(|candidate| candidate.id == *block)
+                    .into_iter()
+                    .flat_map(|candidate| candidate.nodes.iter().flat_map(|node| &node.successors))
+                {
+                    if reaches(edge.target, &uses) {
+                        edge_pins
+                            .entry((*block, edge.target))
+                            .or_default()
+                            .extend(roots.iter().copied());
+                    }
                 }
             }
         }
@@ -168,6 +284,7 @@ impl AddressJoinPins {
         if mutable_joins.is_empty() {
             return Self {
                 shared: pins,
+                shared_edges: edge_pins,
                 exclusive: BTreeMap::new(),
                 origins,
             };
@@ -225,7 +342,7 @@ impl AddressJoinPins {
             }
         }
         let mut exclusive = BTreeMap::<BlockId, BTreeSet<PlaceId>>::new();
-        for (join, owner) in mutable_joins {
+        for (join, owner) in mutable_joins.iter().copied() {
             let roots = origins
                 .get(&join)
                 .into_iter()
@@ -267,6 +384,7 @@ impl AddressJoinPins {
         }
         Self {
             shared: pins,
+            shared_edges: edge_pins,
             exclusive,
             origins: aliases,
         }
@@ -417,7 +535,7 @@ impl AddressJoinPins {
                 },
             );
         }
-        let Some(pinned) = self.shared.get(&block) else {
+        let Some(pinned) = self.shared_edges.get(&(block, edge.target)) else {
             return Ok(());
         };
         let disturbed = edge

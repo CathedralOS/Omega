@@ -415,13 +415,59 @@ pub(super) fn account(
         } else {
             0
         };
-        let total = usize::from(consumed || stored || copied_into_construction)
+        // A shared borrow binding (`let cell: &Cell = &cells[2]`) mints a
+        // permission carrier, not a view: its kind is `Reference` and its
+        // custody is the shared loan, which ends in the same `Consume`
+        // release row a view loan's does. The result is `Unrestricted` and
+        // never a disposal owner, so the release is counted only when no
+        // other arm already accounts the result — an edge that carries it,
+        // or a construction that copies it, is the sole owner there.
+        let reference_result = match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. }
+                if facts.values.structural_values.nodes.is_valid(*value) =>
+            {
+                matches!(
+                    facts.values.structural_values.nodes.get(*value).kind,
+                    checked_trees::CheckedStructuralValueKind::Reference { .. }
+                )
+            }
+            _ => false,
+        };
+        let accounted = usize::from(consumed || stored || copied_into_construction)
             + call_transfers
             + cleanup_discards
             + construction_transfers
             + reference_releases
             + reference_reborrows
             + view_releases;
+        let reference_loan_releases = if reference_result && accounted == 0 {
+            facts
+                .flow
+                .ownership
+                .permissions
+                .iter()
+                .filter(|(_, event)| {
+                    event.kind == PermissionEventKind::Consume
+                        && event.access == language_semantics::PermissionAccess::Shared
+                        && event.machine_symbol == machine.symbol
+                        && event.state_symbol == state.symbol
+                        && matches!(
+                            event.claim_identity,
+                            language_semantics::PermissionClaimIdentity::Established {
+                                machine_symbol: claim_machine,
+                                state_symbol: claim_state,
+                                source: PermissionEventSource::Statement { statement_index },
+                                ..
+                            } if claim_machine == machine.symbol
+                                && claim_state == state.symbol
+                                && statement_index == result.statement_index as usize
+                        )
+                })
+                .count()
+        } else {
+            0
+        };
+        let total = accounted + reference_loan_releases;
         if total != 1 {
             return None;
         }

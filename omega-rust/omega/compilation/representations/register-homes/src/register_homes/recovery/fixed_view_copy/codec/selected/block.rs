@@ -294,6 +294,10 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                         bytes.push(1);
                         slot.encode_identity(bytes);
                     }
+                    selected_instructions::SelectedAddressBase::ViewDescriptor(register) => {
+                        bytes.push(2);
+                        bytes.extend_from_slice(&register.0.to_le_bytes());
+                    }
                 }
                 bytes.extend_from_slice(&byte_offset.to_le_bytes());
                 bytes.extend_from_slice(&byte_count.to_le_bytes());
@@ -380,6 +384,9 @@ fn decode_successor(
                     )),
                     1 => selected_instructions::SelectedAddressBase::Local(
                         super::structural::decode_local_slot(cursor)?,
+                    ),
+                    2 => selected_instructions::SelectedAddressBase::ViewDescriptor(
+                        VirtualRegisterId(cursor.u32()?),
                     ),
                     _ => return Err(FixedViewCopyDecodeError::InvalidStructuralTransport),
                 };

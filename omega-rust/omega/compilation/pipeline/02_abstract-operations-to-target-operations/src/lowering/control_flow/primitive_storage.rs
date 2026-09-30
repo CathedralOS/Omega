@@ -274,6 +274,10 @@ pub(super) fn lower(
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
                 (home.structural_type(), StructuralAccess::Owned)
+            } else if let Some((_, structural_type)) = live.views.get(&place) {
+                // An established shared view lends the element read: the
+                // projected path selects inside the view's own live extent.
+                (*structural_type, StructuralAccess::SharedBorrow)
             } else {
                 let source = function
                     .structural_parameters
@@ -348,20 +352,32 @@ pub(super) fn lower(
                     semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
                         if position + 1 == carrier_end =>
                     {
-                        let StructuralTypeShape::FixedArray { element, length } = &types
+                        let element = match &types
                             .get(&carrier)
                             .ok_or_else(|| {
                                 LoweringError::unsupported_control_flow(function.machine)
                             })?
                             .shape
-                        else {
-                            return Err(LoweringError::unsupported_control_flow(function.machine));
+                        {
+                            StructuralTypeShape::FixedArray { element, length } => {
+                                if index >= length {
+                                    return Err(LoweringError::unsupported_control_flow(
+                                        function.machine,
+                                    ));
+                                }
+                                *element
+                            }
+                            // A view's live extent is the bound: the literal
+                            // names the element rung with no static length.
+                            StructuralTypeShape::ElementView { element } => *element,
+                            _ => {
+                                return Err(LoweringError::unsupported_control_flow(
+                                    function.machine,
+                                ));
+                            }
                         };
-                        if index >= length {
-                            return Err(LoweringError::unsupported_control_flow(function.machine));
-                        }
                         runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
-                        carrier = *element;
+                        carrier = element;
                     }
                     semantic_vocabulary::CanonicalStructuralPathSegment::Case(identity)
                         if position == carrier_end =>

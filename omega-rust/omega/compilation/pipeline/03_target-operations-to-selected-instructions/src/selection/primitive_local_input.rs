@@ -120,12 +120,31 @@ fn borrowed_parameter(
 }
 
 /// Exact field geometry is independent of whether its home came from an owned
-/// value ABI, an established local, or an original borrowed referent.
+/// value ABI, an established local, or an original borrowed referent. The
+/// flag reports a view-typed root: its place pointer names the descriptor and
+/// reads reach the viewed storage through the stored backing pointer.
 pub(super) fn read_geometry(
     source: &LegalizedScalarFunction,
     row: &legalized_operations::LegalizedScalarInstruction,
-) -> Option<(PlaceId, u32)> {
+) -> Option<(PlaceId, u32, bool)> {
     let scalar = row.result?.scalar_type;
+    let view_rooted = |signature: &legalized_operations::LegalizedStructuralContract,
+                       structural_type| {
+        signature
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .map(|declaration| &declaration.shape)
+            .is_some_and(|shape| {
+                matches!(
+                    shape,
+                    terminal_psi::StructuralTypeShape::ElementView { .. }
+                        | terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        )
+                )
+            })
+    };
     match &row.kind {
         // A projection through runtime elements returns its static offset;
         // the row's traversals must be exactly the path's runtime elements,
@@ -139,7 +158,7 @@ pub(super) fn read_geometry(
                 return None;
             }
             if local(source, *place).is_some() {
-                return indices.is_empty().then_some((*place, 0));
+                return indices.is_empty().then_some((*place, 0, false));
             }
             let signature = source.structural.as_ref()?;
             let structural_type = super::aggregate_result_input::home(source, *place)
@@ -157,7 +176,7 @@ pub(super) fn read_geometry(
             crate::structural_inputs::structural_reference_input::runtime_indices_match(
                 indices, &elements,
             )
-            .then_some((*place, offset))
+            .then_some((*place, offset, view_rooted(signature, structural_type)))
         }
         Instruction::StructuralScalarFieldRead {
             source: argument,
@@ -200,7 +219,7 @@ pub(super) fn read_geometry(
                 }
                 parameter.structural_type
             } else {
-                if argument.access != StructuralAccess::Owned || observes_byte_length {
+                if observes_byte_length {
                     return None;
                 }
                 let mut producers = source
@@ -208,14 +227,16 @@ pub(super) fn read_geometry(
                     .iter()
                     .flat_map(|block| &block.instructions)
                     .filter_map(|row| {
-                        // Explicit and zeroed construction, copies and call
-                        // results all publish owned homes. Reads retain the
-                        // exact producer/type custody regardless of how that
-                        // home's fields were initialized.
+                        // Explicit and zeroed construction, copies, view
+                        // establishments and call results all publish owned
+                        // homes. Reads retain the exact producer/type custody
+                        // regardless of how that home's fields were initialized.
                         let result = match &row.kind {
                             Instruction::EstablishRecord { result, .. }
                             | Instruction::EstablishZeroedStructural { result, .. }
-                            | Instruction::StructuralLeafCopy { result, .. } => result,
+                            | Instruction::StructuralLeafCopy { result, .. }
+                            | Instruction::EstablishElementView { result, .. }
+                            | Instruction::ElementViewSubslice { result, .. } => result,
                             Instruction::Call(call) => call.structural_result.as_ref()?,
                             _ => return None,
                         };
@@ -236,6 +257,31 @@ pub(super) fn read_geometry(
                                 }
                     })
                 {
+                    return None;
+                }
+                // A shared view's place reads carry the loan's shared access;
+                // every other result (and an exclusive view's own descriptor)
+                // reads Own it.
+                let expected_access = if matches!(
+                    signature
+                        .structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == result.structural_type)
+                        .map(|declaration| &declaration.shape),
+                    Some(
+                        StructuralTypeShape::ElementView { .. }
+                            | StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            )
+                    )
+                ) && result.multiplicity
+                    == StructuralMultiplicity::Unrestricted
+                {
+                    StructuralAccess::SharedBorrow
+                } else {
+                    StructuralAccess::Owned
+                };
+                if argument.access != expected_access {
                     return None;
                 }
                 result.structural_type
@@ -270,7 +316,11 @@ pub(super) fn read_geometry(
                     &signature.structural_types,
                 )?,
             };
-            Some((argument.place, offset))
+            Some((
+                argument.place,
+                offset,
+                view_rooted(signature, structural_type),
+            ))
         }
         _ => None,
     }

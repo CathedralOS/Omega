@@ -615,7 +615,13 @@ fn classify(function: &SelectedFunction, slot: LocalStorageSlotId) -> Option<Can
                             ..
                         } => slot_addresses.contains(&argument),
                         selected_instructions::SelectedStructuralTransport::Address {
-                            base: selected_instructions::SelectedAddressBase::Register(argument),
+                            base:
+                                selected_instructions::SelectedAddressBase::Register(
+                                    argument,
+                                )
+                                | selected_instructions::SelectedAddressBase::ViewDescriptor(
+                                    argument,
+                                ),
                             ..
                         } => slot_addresses.contains(&argument),
                         selected_instructions::SelectedStructuralTransport::Address {

@@ -215,7 +215,9 @@ fn edge_registers(
             SelectedStructuralTransport::WholeValue { argument, .. }
             | SelectedStructuralTransport::Descriptor { argument, .. }
             | SelectedStructuralTransport::Address {
-                base: selected_instructions::SelectedAddressBase::Register(argument),
+                base:
+                    selected_instructions::SelectedAddressBase::Register(argument)
+                    | selected_instructions::SelectedAddressBase::ViewDescriptor(argument),
                 ..
             } => {
                 reads.insert(argument);

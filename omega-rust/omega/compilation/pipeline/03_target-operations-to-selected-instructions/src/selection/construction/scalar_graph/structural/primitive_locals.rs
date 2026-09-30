@@ -96,16 +96,23 @@ pub(in crate::selection) fn read(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let (place, byte_offset) = crate::selection::primitive_local_input::read_geometry(source, row)
-        .ok_or_else(|| invalid())?;
+    let (place, byte_offset, view_rooted) =
+        crate::selection::primitive_local_input::read_geometry(source, row)
+            .ok_or_else(|| invalid())?;
     let definition = row.result.ok_or_else(|| invalid())?;
-    let pointer = builder
-        .transport
-        .pointers
-        .iter()
-        .find(|(stored, _)| *stored == place)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(|| invalid())?;
+    // A view place's own pointer names its descriptor; the read's address
+    // lives behind the descriptor's stored backing pointer.
+    let pointer = if view_rooted {
+        super::element_views::element_backing_pointer(builder, row, place)?
+    } else {
+        builder
+            .transport
+            .pointers
+            .iter()
+            .find(|(stored, _)| *stored == place)
+            .map(|(_, pointer)| *pointer)
+            .ok_or_else(|| invalid())?
+    };
     // A primitive leaf reached through runtime elements scales each selector
     // into the address first; every other read loads at its static offset.
     let indices: &[legalized_operations::LegalizedRuntimeIndexOperand] = match &row.kind {
