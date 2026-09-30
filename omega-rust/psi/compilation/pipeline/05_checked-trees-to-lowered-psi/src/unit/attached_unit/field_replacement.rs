@@ -18,6 +18,109 @@ use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, unsupported,
 };
 
+/// Rejoin already-bound replacement storage to the name the assignment reads.
+/// Parameters and locals have different registry coordinates, not different
+/// assignment semantics. A local's source must name its exact earlier producer;
+/// equal carrier types do not permit substituting another local or a displaced
+/// value. Both straight-line and graph bodies use this check before emission.
+pub(super) fn bound_value_type(
+    checked: &CheckedTrees,
+    source: &checked_trees::state::State,
+    statement: usize,
+    expression: checked_trees::expression::ExpressionHandle,
+    value: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    operations: &[CheckedUnitEffectOperationPlan],
+) -> Result<(String, Multiplicity), LoweringError> {
+    use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
+    let checked_trees::expression::ExpressionNode::Name(name) =
+        checked.expression_table.expression(expression)
+    else {
+        return unsupported("bound field replacement has no authored whole-value name");
+    };
+    if name.symbol != name.head_symbol
+        || !value.path.is_empty()
+        || value.access != checked_trees::CheckedStructuralAccess::Owned
+    {
+        return unsupported("bound field replacement is not a whole owned value");
+    }
+    if let CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } = value.source {
+        let parameter =
+            parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "bound field replacement names no structural parameter",
+                ))?;
+        let authored = checked
+            .state_parameters(source)
+            .get(parameter.position as usize)
+            .ok_or(LoweringError::Unsupported(
+                "bound field replacement parameter position is out of range",
+            ))?;
+        if authored.symbol != name.head_symbol
+            || value.type_identity != parameter.type_identity
+            || parameter.is_self
+            || parameter.access != checked_trees::CheckedStructuralAccess::Owned
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return unsupported("bound field replacement parameter is not the authored value");
+        }
+        return Ok((parameter.type_identity.clone(), parameter.multiplicity));
+    }
+    let (declaration, local) = checked
+        .state_local_declaration(source, name.head_symbol)
+        .ok_or(LoweringError::Unsupported(
+            "bound field replacement has no authored local",
+        ))?;
+    if declaration >= statement {
+        return unsupported("bound field replacement precedes its local establishment");
+    }
+    let mut producers = operations.iter().filter_map(|operation| {
+        // Operand establishments belong to their enclosing invocation, not
+        // to the local that receives that invocation's completed result.
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                operand_source: Some(_),
+                ..
+            }
+        ) || operation
+            .call()
+            .is_some_and(|call| call.coordinate.call_ordinal != 0)
+        {
+            return None;
+        }
+        operation
+            .structural_result_binding()
+            .filter(|result| result.statement_index as usize == declaration)
+    });
+    let result = producers.next().ok_or(LoweringError::Unsupported(
+        "bound field replacement local has no structural establishment",
+    ))?;
+    let exact_source = match value.source {
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+            symbol == local.symbol
+        }
+        CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+            binding_ordinal == result.binding_ordinal
+        }
+        _ => false,
+    };
+    let carrier = super::structural_carrier_type(checked, local.type_reference)?;
+    let identity = checked.normalized_type_identity(carrier).into_string();
+    let multiplicity = checked.type_multiplicity(local.type_reference);
+    if producers.next().is_some()
+        || !exact_source
+        || result.type_identity != identity
+        || result.multiplicity != multiplicity
+        || value.type_identity != identity
+    {
+        return unsupported("bound field replacement substituted its local or producer");
+    }
+    Ok((identity, multiplicity))
+}
+
 /// Whether this store (or its optional displacement) continues the same
 /// statement's producer. Hole state is independently reconstructed by the
 /// borrowed-window ledger; this checks value identity and operation order.

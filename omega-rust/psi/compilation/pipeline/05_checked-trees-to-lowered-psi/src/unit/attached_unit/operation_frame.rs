@@ -48,6 +48,9 @@
 //! borrowed-window move or repair must name a machine-parameter root the
 //! sequence still holds (Terminal verification anchors windows on machine
 //! parameters only), and a repair value must be a whole owned result binding.
+//! A completed result can occupy an operation result or a continuation's block
+//! parameter. The latter rejoins the registered binding's exact place and type;
+//! its source construction need not manufacture another operation result.
 //! What the routes still admit differently is decided before emission, by
 //! each route's admission, not by a narrower copy of the emitter.
 
@@ -321,13 +324,36 @@ impl StructuralResults<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "borrowed-window repair binding is absent",
                         ))?;
-                let StructuralPlaceKind::OperationResult {
-                    structural_type, ..
-                } = declaration.kind
-                else {
-                    return unsupported(
-                        "borrowed-window repair binding is not an operation result",
-                    );
+                let structural_type = match declaration.kind {
+                    StructuralPlaceKind::OperationResult {
+                        structural_type, ..
+                    } => structural_type,
+                    StructuralPlaceKind::BlockParameter { .. } => {
+                        // A construction or selection can finish at a join,
+                        // not at its last operation. That completed binding
+                        // already owns the join's type and custody; rejoin it
+                        // to the exact declared place rather than requiring a
+                        // second operation to manufacture the same value.
+                        let mut bindings = operations
+                            .structural_values
+                            .iter()
+                            .filter(|(ordinal, _)| *ordinal == binding_ordinal);
+                        let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                            "borrowed-window repair join has no completed binding",
+                        ))?;
+                        let result = binding.operation_result()?;
+                        if bindings.next().is_some() || result.place != declaration.id {
+                            return unsupported(
+                                "borrowed-window repair join substituted its completed place",
+                            );
+                        }
+                        result.structural_type
+                    }
+                    _ => {
+                        return unsupported(
+                            "borrowed-window repair binding is not a completed value",
+                        );
+                    }
                 };
                 Ok(BorrowedWindowRepairValue {
                     place: declaration.id,
@@ -2064,4 +2090,63 @@ impl LocalStoreRoot {
         unproduced: "structural case field store local root has no produced place",
         lost_custody: None,
     };
+}
+
+#[cfg(test)]
+mod completed_storage_tests {
+    use super::{
+        OperationBuffer, StructuralBinding, StructuralPlaceDeclaration, StructuralPlaceKind,
+        StructuralResults, place_id,
+    };
+
+    #[test]
+    fn joined_repair_requires_one_exact_completed_binding() {
+        let place = place_id(1);
+        let structural_type = crate::terminal_identities::structural_type_id(1);
+        let declaration = StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::BlockParameter {
+                block: crate::terminal_identities::block_id(1),
+                position: 0,
+            },
+        };
+        let mut declarations = vec![(declaration, false)];
+        let results = StructuralResults::Dense(&mut declarations);
+        let mut operations = OperationBuffer::new(0);
+        assert!(results.repair_value(0, &operations).is_err());
+        operations.structural_values.push((
+            0,
+            StructuralBinding::OperationResult(terminal_psi::StructuralOperationResult {
+                place,
+                structural_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }),
+        ));
+        let repair = results
+            .repair_value(0, &operations)
+            .expect("completed join");
+        assert_eq!(repair.place, place);
+        assert_eq!(repair.structural_type, structural_type);
+        operations
+            .structural_values
+            .push(operations.structural_values[0].clone());
+        assert!(
+            results.repair_value(0, &operations).is_err(),
+            "duplicate binding"
+        );
+        operations.structural_values.pop();
+        let StructuralBinding::OperationResult(result) = &mut operations.structural_values[0].1
+        else {
+            panic!("owned binding")
+        };
+        result.place = place_id(2);
+        assert!(
+            results.repair_value(0, &operations).is_err(),
+            "substituted place"
+        );
+    }
 }
