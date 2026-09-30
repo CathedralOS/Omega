@@ -37,7 +37,9 @@ machine Random::range(
     &mut self,
     state: &mut RandomState,
     exclusive_max: u32
-    ) -> u32 {
+    ) -> u32
+requires 1 <= exclusive_max
+{
     let raw: u32 = self.next_u32(state);
 
     transition {
@@ -50,7 +52,9 @@ machine Random::chance(
     state: &mut RandomState,
     numerator: u32,
     denominator: u32
-    ) -> bool {
+    ) -> bool
+requires 1 <= denominator
+{
     let roll: u32 = self.range(state, denominator);
 
     transition {

@@ -1251,8 +1251,8 @@ pass/calls/runtime_param_receiver_second_instance_exit checked 1272ms @2d8ed2536
 pass/calls/runtime_qualified_tail_recursion_exit checked 1273ms @2d8ed253669f
 pass/calls/runtime_reference_returned_slice_element_write_exit rejected 769ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::fill`), which was itself omitted at an unavailable callee (`Main::pick`), which was itself omitted at local construction at `result ownership`
-pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit rejected 759ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::run`), which was itself omitted at an unavailable callee (`Dungeon::initialize`), which was itself omitted at an unavailable callee (`MazeBuilder::build`), which was itself omitted at local construction at `state graph: terminator: jump successor: result-local transfer` (state 0, statement 2)
+pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit rejected 1460ms @e3fc7ed76894+wt
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(SourceCustodyMismatch { site: Location { file: "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/target/control_flow.rs", line: 430, column: 24 } }))
 pass/calls/runtime_same_type_second_receiver_mutation_exit checked 1311ms @2d8ed253669f
 pass/calls/runtime_shared_ref_param_member_exit checked 1314ms @2d8ed253669f
 pass/calls/runtime_static_entry_context_exit checked 495ms @2d8ed253669f
