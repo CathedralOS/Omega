@@ -251,3 +251,51 @@ fn guarded_tail_call_rejects_a_stale_arm_occurrence() {
         );
     }
 }
+
+/// An arm call's subslice operand replays at the invocation's call-argument
+/// site, and a callee that keeps its borrowed receiver receives the caller's.
+#[test]
+fn guarded_tail_call_passes_a_subslice_beside_its_receiver() {
+    let checked = checked(
+        r#"
+        data Root { k: u64; stored: i32; }
+        machine Root::verify(&mut self, prefix: &[u8]) {
+            transition prefix.len == 5 {
+                true -> good()
+                false -> bad()
+            }
+            state good(&mut self) { self.stored = 70; }
+            state bad(&mut self) { self.stored = 71; }
+        }
+        machine Root::check(&mut self, path: &[u8]) {
+            transition self.k < path.len {
+                true -> self.verify(path[0..self.k])
+                false -> rejected()
+            }
+            state rejected(&mut self) { self.stored = 0; }
+        }
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "Root::check"))
+        .expect("the subslice arm call plans");
+    let CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+        return_arm: checked_trees::CheckedConditionalReturnArm::Call(operation),
+        ..
+    } = &plan.states[0].terminator
+    else {
+        panic!("a call arm beside a jump: {:?}", plan.states[0].terminator);
+    };
+    let call = operation.call().expect("an ordinary call");
+    assert_eq!(call.structural_arguments.len(), 2, "receiver and subslice");
+    assert!(call.structural_arguments.iter().any(|argument| matches!(
+        argument.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            end: Some(_),
+            ..
+        }
+    )));
+}

@@ -1515,34 +1515,40 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Euro must decode successfully; overlong, surrogate, out-of-range and truncated
   UTF-8 must fail. Clearing an omission phase alone does not close the task.
 
-- **TRANSITION-TAIL-CALL-TO-MACHINE.** Complete terminal machine calls in
-  attached Unit transition arms, including `transition { _ -> self.finish() }`.
+- **TRANSITION-TAIL-CALL-TO-MACHINE.** Finish the customers of terminal machine
+  calls in attached Unit transition arms.
   [State contracts](wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
   define an ordinary invocation whose normal result completes the caller;
-  an internal state target remains a jump. Preserve selected-arm-only execution,
-  once-only operands, result/return contracts, cleanup, crash and suspension
-  behavior, live backing and loans, and recursive calls without accumulated frames.
+  an internal state target remains a jump.
 
-  Stage 04 `execution/terminal_unit/state_graph/mod.rs` excludes transition
-  calls from the ordinary operation window; its successor builder resolves
-  internal states. `state_graph/terminator.rs` already handles non-Unit value
-  arms, and `tests/flow/terminal_unit/outer_calls.rs` checks nested structural
-  calls in those arms. Extend the missing call-and-completion route with exact
-  occurrence accounting; do not bypass call-count or write-frame checks.
-  `structural_scalar_store/frame.rs` now replays the complete state frame, so
-  the old alternating omission labels are reproduction clues, not the cause.
+  Unit completion runs from any state: an unconditional arm is the state's
+  last sequenced call, and a guarded arm's call is its own
+  `CheckedConditionalReturnArm::Call` in the arm's completion block
+  (`state_graph/terminal_calls.rs`). `pass/calls/transition_tail_call_to_machine`,
+  `calls/conditional_arm_tail_call_to_machine_exit` and
+  `calls/guarded_arm_tail_call_to_state_machine_exit` exit 70 natively and on
+  the interpreter on macOS ARM64; `collections/runtime_frame_indexed_param_read_exit`
+  still exits 1. Value-result tail calls, arm calls whose guard or operands
+  make calls, and claim-transferring arm calls remain declined there.
 
-  Acceptance: promote `pass/calls/transition_tail_call_to_machine` with its
-  Build entry and exit-0 oracle. Materialize its comment-only controls: with
-  and without a preceding store, no arguments and ordinary arguments, an
-  internal-state jump, and an ordinary call followed by a jump. Run the three
-  actual customers through checked, interpreted and native corpus legs:
-  `collections/runtime_frame_indexed_param_read_exit` exits 1;
-  `slices/domained_runtime_end_subslice_exit` exits 70 with its Path-qualified
-  runtime-end slice; `termination/runtime_shrinking_slice_recursion_exit` exits
-  70 from 10+20+15+25. The recursive case must snapshot the subslice and head
-  read before overwriting argument slots. Preserve the fixed-array argument;
-  a no-array control separates this gap from boundary ABI transport.
+  Acceptance: `slices/domained_runtime_end_subslice_exit` exits 70 with its
+  Path-qualified runtime-end slice. It stops at `call operation: structural
+  arguments: parameter path`: `calls/view_subslice.rs::shape` refuses a
+  qualified (`in Path`) source parameter. Past that, a composed state's call
+  has no subslice argument staging (`composed_control/literal_arguments.rs`;
+  the unqualified shape stops at "byte-sequence argument place is absent").
+  `slices/runtime_bounded_fixed_array_subslice_arg_exit` (exit 3) shares the
+  phase through its field range `self.arr[lo..hi]`, which `admit_replayed`
+  admits only at a local binding.
+  `termination/runtime_shrinking_slice_recursion_exit` exits 70 from
+  10+20+15+25 (the interpreter already does): its element-view
+  `Slice::Length` rank is emitted as `ByteSequenceLength`
+  (`InvalidByteSequenceLengthSource`), and the Terminal ranked-cycle validator
+  (`verification/src/control_cycles/validation.rs::observed_view`, trusted
+  surface) admits only byte-length rank observations. The recursive case must
+  still snapshot the subslice and head read before overwriting argument slots.
+  `termination/runtime_receiver_byte_slice_recursion_exit` is its byte-view
+  control and exits 70.
   `wire/runtime_wire_decode_byte_slice_exit` stays with
   **RECORD-LITERAL-ARRAY-FIELD** and **REFERENCE-LOCAL-BINDING-ROUTES**;
   `wire/runtime_wire_utf8_edge_verdicts_exit` stays with
