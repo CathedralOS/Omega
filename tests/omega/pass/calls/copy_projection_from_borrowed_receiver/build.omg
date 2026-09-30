@@ -1,9 +1,5 @@
-// Promoted build root.
-// watcher compiles only `main.omg`, but the authored bindings are retained
-// so promotion to `pass/calls/` needs no new wiring. A program-entry root is
-// load-bearing here -- the omission this fixture pins is invisible to the
-// corpus runner's targetless Check route and appears only once an entry is
-// established.
+// Bind the authored entry on every hosted target. The exit oracle checks the
+// copied value and unchanged borrowed source through actual native execution.
 machine build(builder: &mut Build) {
     builder.application("copy_projection_from_borrowed_receiver");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });

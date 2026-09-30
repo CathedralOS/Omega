@@ -556,6 +556,157 @@ fn consumer_machine(access: StructuralAccess) -> TerminalMachine {
     }
 }
 
+/// Rebind the original pair, then lend its first field at an ordinary call.
+/// The block name retains the incoming authority and the call keeps its path.
+fn block_field_call_module(
+    source_access: StructuralAccess,
+    call_access: StructuralAccess,
+) -> TerminalModule {
+    let mut module = pair_module(StructuralMultiplicity::Unrestricted);
+    module.machines[0].structural_parameters[0].access = source_access;
+    *argument(&mut module) = StructuralArgument {
+        place: id(ROOT),
+        path: Vec::new(),
+        access: source_access,
+    };
+    let parameter = view_parameter(&mut module);
+    parameter.structural_type = id(PAIR_TYPE);
+    parameter.access = source_access;
+    let mut source = loan_argument(VIEW, &["first"]);
+    source.access = call_access;
+    module.machines[0].blocks[1].operations = vec![Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(904),
+        result: OperationResult::Unit,
+        kind: OperationKind::CallUnit {
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            callee: id(CALLEE),
+            arguments: Vec::new(),
+            structural_arguments: vec![source],
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        },
+    }];
+    let mut consumer = consumer_machine(call_access);
+    consumer.structural_parameters[0].structural_type = id(PAYLOAD_TYPE);
+    consumer.blocks[0].operations = vec![read_flag(905, CALLEE_ROOT, FLAG_VALUE)];
+    module.machines.push(consumer);
+    module
+}
+
+#[test]
+fn borrowed_block_parameters_lend_static_fields_at_calls() {
+    for (source_access, call_access) in [
+        (
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::SharedBorrow,
+        ),
+        (
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::SharedBorrow,
+        ),
+        (
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::MutableBorrow,
+        ),
+    ] {
+        let module = block_field_call_module(source_access, call_access);
+        verify_module(
+            &module,
+            &ProofBundle::default(),
+            &AdmissionProfile::default(),
+        )
+        .unwrap_or_else(|error| panic!("{source_access:?} to {call_access:?}: {error}"));
+    }
+}
+
+#[test]
+fn block_field_calls_reject_substituted_projected_type() {
+    let mut module = block_field_call_module(
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow,
+    );
+    module.machines[1].structural_parameters[0].structural_type = id(PAIR_TYPE);
+    module.machines[1].blocks[0].operations.clear();
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::StructuralArgumentTypeMismatch { operation, argument_index: 0, .. })
+            if operation == id(904)
+    ));
+}
+
+#[test]
+fn block_field_calls_reject_shared_to_mutable_escalation() {
+    let module = block_field_call_module(
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    );
+    assert!(validate_module(&module).is_err());
+}
+
+#[test]
+fn block_field_calls_reject_invalid_parameter_position() {
+    let mut module = block_field_call_module(
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow,
+    );
+    module.machines[0].structural_places[1].kind = StructuralPlaceKind::BlockParameter {
+        block: id(JOIN_BLOCK),
+        position: 1,
+    };
+    assert!(validate_module(&module).is_err());
+}
+
+#[test]
+fn block_field_calls_reject_unavailable_parameter() {
+    let mut module = block_field_call_module(
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow,
+    );
+    // A valid declaration is not availability: the entry block cannot use
+    // the name its successor will bind later.
+    let operations = std::mem::take(&mut module.machines[0].blocks[1].operations);
+    module.machines[0].blocks[0].operations = operations;
+    assert!(validate_module(&module).is_err());
+}
+
+#[test]
+fn block_field_calls_reject_overlapping_exclusive_arguments() {
+    let mut module = block_field_call_module(
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow,
+    );
+    let consumer = &mut module.machines[1];
+    let mut parameter = consumer.structural_parameters[0].clone();
+    parameter.place = id(CALLEE_ROOT + 1);
+    parameter.position = 1;
+    consumer.structural_places.push(StructuralPlaceDeclaration {
+        id: parameter.place,
+        kind: StructuralPlaceKind::Parameter {
+            position: 1,
+            is_self: false,
+        },
+    });
+    consumer.structural_parameters.push(parameter);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[1].operations[0].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.push(structural_arguments[0].clone());
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::OverlappingExclusiveStructuralArguments {
+            operation, first_argument: 0, second_argument: 1,
+        }) if operation == id(904)
+    ));
+}
+
 #[test]
 fn joined_shared_view_stays_read_only() {
     // Storing through the joined view fails its access check: a shared loan

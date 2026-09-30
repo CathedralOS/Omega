@@ -1,5 +1,5 @@
-// Copy-projection call argument: `Target::initialize(&mut self.target, // self.holder.source.id, ...)` reads a `[copy]` record out of a nested field
-// of a borrowed receiver and passes it to a by-value parameter. The callee
+// Target::initialize reads a [copy] record out of a nested field of an
+// explicitly borrowed context and passes it to a by-value parameter. The callee
 // must observe the copied value and the caller's source must be left
 // unchanged — a copy projection duplicates the place, it does not move it.
 use omega_language_std::console;
@@ -15,35 +15,35 @@ machine Target::initialize(target: &mut Target, id: SourceId, length: u64 in Tra
 }
 
 data Main { console: Binding<Console>; holder: Holder; target: Target; }
-machine Main::main(&mut self) reaches Console {
-    transition { _ -> parse() }
-    state parse(&mut self) {
-        self.holder.source.id.value = 7;
-        self.holder.source.length = 3;
-        Target::initialize(&mut self.target, self.holder.source.id,
-            self.holder.source.length as u64 in Trapping
+machine Main::main(main: &mut Main) reaches Console {
+    transition { _ -> parse(main) }
+    state parse(main: &mut Main) {
+        main.holder.source.id.value = 7;
+        main.holder.source.length = 3;
+        Target::initialize(&mut main.target, main.holder.source.id,
+            main.holder.source.length as u64 in Trapping
         );
-        transition { _ -> done() }
+        transition { _ -> done(main) }
     }
-    state done(&mut self) {
-        transition self.target.seen == 7 {
-            true -> source_ok()
-            _ -> bad_seen()
+    state done(main: &mut Main) {
+        transition main.target.seen == 7 {
+            true -> source_ok(main)
+            _ -> bad_seen(main)
         }
     }
-    state source_ok(&mut self) {
-        transition self.holder.source.id.value == 7 {
-            true -> pass()
-            _ -> bad_source()
+    state source_ok(main: &mut Main) {
+        transition main.holder.source.id.value == 7 {
+            true -> pass(main)
+            _ -> bad_source(main)
         }
     }
-    state pass(&mut self) {
-        self.console.exit_process(70);
+    state pass(main: &mut Main) {
+        main.console.exit_process(70);
     }
-    state bad_seen(&mut self) {
-        self.console.exit_process(71);
+    state bad_seen(main: &mut Main) {
+        main.console.exit_process(71);
     }
-    state bad_source(&mut self) {
-        self.console.exit_process(72);
+    state bad_source(main: &mut Main) {
+        main.console.exit_process(72);
     }
 }
