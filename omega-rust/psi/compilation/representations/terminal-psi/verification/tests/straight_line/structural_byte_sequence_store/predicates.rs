@@ -13,6 +13,94 @@ fn restrict_field(module: &mut TerminalModule, predicate: ByteSequencePredicate)
     };
 }
 
+fn owned_record_destination() -> (TerminalModule, ProofBundle) {
+    let (mut module, proof) = fixture(StructuralAccess::MutableBorrow);
+    restrict_field(&mut module, ByteSequencePredicate::ValidUtf8);
+    let machine = &mut module.machines[0];
+    machine.structural_parameters.clear();
+    machine.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+        producer: id(5),
+        structural_type: id(1),
+    };
+    machine.blocks[0].operations.insert(
+        0,
+        Operation {
+            id: id(5),
+            static_reach_binding: None,
+            suspension_crossing: None,
+            kind: OperationKind::EstablishZeroedStructural {},
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place: id(1),
+                structural_type: id(1),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            }),
+        },
+    );
+    (module, proof)
+}
+
+#[test]
+fn owned_record_byte_field_replacement_retains_predicates_and_capacity() {
+    let (module, proof) = owned_record_destination();
+    verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("existing owned home retains exact field predicates and capacity proof");
+}
+
+#[test]
+fn owned_record_byte_field_replacement_rejects_unestablished_or_forged_storage() {
+    let (valid, _) = owned_record_destination();
+    for corruption in 0..5 {
+        let mut module = valid.clone();
+        match corruption {
+            0 => module.machines[0].blocks[0].operations.rotate_left(1),
+            1 => {
+                let OperationKind::EstablishByteSequenceLiteral { bytes, .. } =
+                    &mut module.machines[0].blocks[0].operations[2].kind
+                else {
+                    panic!("literal source")
+                };
+                bytes[0] = 255;
+            }
+            2 => {
+                let OperationResult::Structural(result) =
+                    &mut module.machines[0].blocks[0].operations[0].result
+                else {
+                    panic!("owned destination")
+                };
+                result.multiplicity = StructuralMultiplicity::Affine;
+            }
+            3 => {
+                module.machines[0].structural_places[0].kind =
+                    StructuralPlaceKind::OperationResult {
+                        producer: id(99),
+                        structural_type: id(1),
+                    };
+            }
+            4 => {
+                let StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape
+                else {
+                    panic!("record destination")
+                };
+                fields[0].field_type = StructuralFieldType::PredicateByteSequence {
+                    carrier: ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    },
+                    predicates: fields[0].field_type.byte_predicates(),
+                };
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            validate_module(&module).is_err(),
+            "corruption {corruption} accepted"
+        );
+    }
+}
+
 #[test]
 fn ascii_preserving_writes_expire_literal_ranges_but_not_captured_reads() {
     for before_read in [true, false] {

@@ -1,0 +1,37 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8 requires valid_utf8(self);
+data Leaf [copy] { name: [u8; 8] in Utf8; value: u64 in Wrapping; }
+data Destination [copy] { first: Leaf; second: Leaf; guard: u64; }
+data Builder { generated: u64 in Wrapping; }
+data Main { console: Binding<Console>; builder: Builder; destination: Destination; }
+
+machine Builder::make(&mut self) -> Leaf {
+    self.generated = self.generated + 1;
+    let leaf: Leaf;
+    leaf.name = "bat";
+    leaf.value = self.generated;
+    transition { _ -> leaf }
+}
+
+machine Builder::install(&mut self, destination: &mut Destination) {
+    destination.first = self.make();
+    destination.second = self.make();
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.destination.guard = 9;
+    self.builder.install(&mut self.destination);
+    transition self.destination.first.name == "bat"
+        && self.destination.first.name.len == 3
+        && self.destination.first.value == 1
+        && self.destination.second.name == "bat"
+        && self.destination.second.value == 2
+        && self.destination.guard == 9
+        && self.builder.generated == 2 {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

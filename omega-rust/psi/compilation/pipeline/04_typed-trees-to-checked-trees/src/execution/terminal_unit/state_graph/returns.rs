@@ -53,6 +53,8 @@ pub(in crate::execution::terminal_unit) fn signature(
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
     let qualifications = parameter_qualifications(program, shapes, reference, &[])?;
+    let represented_copy = multiplicity == Multiplicity::Unrestricted
+        && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
     let owned_bytes = multiplicity == Multiplicity::Unrestricted
         && validation::bounded_byte_buffer_capacity(program, reference).is_some()
         && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
@@ -70,6 +72,7 @@ pub(in crate::execution::terminal_unit) fn signature(
             && !owned_bytes
             && (!qualifications.is_empty()
                 || (!view_result
+                    && !represented_copy
                     && !validation::has_plain_owned_contents_with_numeric_constraints(
                         program, reference,
                     )
@@ -114,6 +117,13 @@ pub(in crate::execution::terminal_unit) fn signature(
                     CheckedUnitStructuralFieldType::Scalar(_)
                         | CheckedUnitStructuralFieldType::BoundedInteger(_)
                         | CheckedUnitStructuralFieldType::Structural { .. }
+                        | CheckedUnitStructuralFieldType::ByteSequence(
+                            CheckedByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                        | CheckedUnitStructuralFieldType::PredicateByteSequence {
+                            carrier: CheckedByteSequenceCarrier::BoundedOwned { .. },
+                            ..
+                        }
                         | CheckedUnitStructuralFieldType::ByteSequence(
                             CheckedByteSequenceCarrier::BorrowedView {
                                 access: Some(CheckedStructuralAccess::SharedBorrow),

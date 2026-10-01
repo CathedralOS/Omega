@@ -37,7 +37,23 @@ pub(crate) fn validate_primitive_structural_call(
                     )
                 )
         });
+    // A completed copy record may contain bounded byte fields with retained
+    // predicates. Transport uses its exact result signature; it does not
+    // extend the separate record-constructor operand vocabulary.
+    let owned_record = result.multiplicity == StructuralMultiplicity::Unrestricted
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::Record { .. }
+                )
+        })
+        && crate::validation::structural::result_contracts::has_plain_owned_shape(
+            module,
+            result.structural_type,
+        );
     let primitive_payload = owned_bytes
+        || owned_record
         || crate::validation::scalar::case::plain_type(module, result.structural_type)
         || crate::validation::record::plain_type(module, result.structural_type)
         || (result.multiplicity == StructuralMultiplicity::Unrestricted

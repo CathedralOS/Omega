@@ -80,6 +80,41 @@ pub(crate) fn byte_field_store_capacity(
             *destination,
             path,
         )?
+    } else if matches!(
+        operation,
+        AbstractOperation::StructuralByteSequenceFieldStore { .. }
+    ) && function.structural_places.iter().any(|place| {
+        place.id == *destination
+            && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
+    }) {
+        let owned =
+            super::super::operation_contracts::structural_source_contract(
+                function,
+                *destination,
+                false,
+            )?;
+        if owned.access != StructuralAccess::Owned
+            || owned.multiplicity != StructuralMultiplicity::Unrestricted
+            || !owned.is_unqualified()
+            || owned.has_result_evidence()
+            || !matches!(
+                structural_types.get(&owned.structural_type)?.shape,
+                StructuralTypeShape::Record { .. }
+            )
+            || function
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == *destination)
+            || function
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == *destination)
+        {
+            return None;
+        }
+        // The existing whole-unit availability walk still requires the exact
+        // producer to dominate this write. Shape resolution grants no storage.
+        (owned.structural_type, path.as_slice())
     } else {
         let parameter = function
             .structural_parameters

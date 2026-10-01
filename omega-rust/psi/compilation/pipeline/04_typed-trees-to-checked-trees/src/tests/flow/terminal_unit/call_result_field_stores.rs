@@ -48,3 +48,60 @@ fn enum_result_stores_into_the_receiver_field() {
         "enum call result stores whole into the field: {operations:#?}"
     );
 }
+
+#[test]
+fn qualified_copy_record_completions_keep_distinct_ordered_field_sources() {
+    let operations = operations(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        data Leaf [copy] { name: [u8; 8] in Utf8; value: u64 in Wrapping; }
+        data Destination [copy] { first: Leaf; second: Leaf; }
+        data Builder { generated: u64 in Wrapping; }
+        machine Builder::make(&mut self) -> Leaf {
+            self.generated = self.generated + 1;
+            let leaf: Leaf;
+            leaf.name = "bat";
+            leaf.value = self.generated;
+            transition { _ -> leaf }
+        }
+        machine Builder::main(&mut self, destination: &mut Destination) {
+            destination.first = self.make();
+            destination.second = self.make();
+        }
+        "#,
+    );
+    let calls = operations
+        .iter()
+        .enumerate()
+        .filter_map(|(position, operation)| {
+            Some((position, operation.call()?.structural_result()?))
+        })
+        .collect::<Vec<_>>();
+    let stores = operations
+        .iter()
+        .enumerate()
+        .filter_map(|(position, operation)| match operation {
+            CheckedUnitEffectOperationPlan::StoreStructuralField {
+                destination, value, ..
+            } => Some((position, destination, value)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(stores.len(), 2);
+    assert_ne!(calls[0].1.binding_ordinal, calls[1].1.binding_ordinal);
+    assert_ne!(stores[0].1.path, stores[1].1.path);
+    assert!(stores[0].0 < calls[1].0);
+    for ((call_position, result), (store_position, _, value)) in calls.iter().zip(&stores) {
+        assert!(call_position < store_position);
+        assert_eq!(
+            result.multiplicity,
+            language_semantics::Multiplicity::Unrestricted
+        );
+        assert_eq!(value.type_identity, result.type_identity);
+        assert_eq!(
+            value.source_structural_result_binding_ordinal(),
+            Some(result.binding_ordinal),
+        );
+    }
+}

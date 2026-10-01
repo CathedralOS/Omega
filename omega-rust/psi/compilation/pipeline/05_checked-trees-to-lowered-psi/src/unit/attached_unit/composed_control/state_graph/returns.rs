@@ -144,7 +144,6 @@ pub(super) fn signature_matches(
                 // Their admission instead requires exact entry/call/return claims.
                 && (result.multiplicity == Multiplicity::Linear
                     || (result.multiplicity == Multiplicity::Unrestricted
-                        && validation::bounded_byte_buffer_capacity(&checked.typed, source.return_type).is_some()
                         && validation::has_plain_owned_contents_with_represented_constraints(&checked.typed, source.return_type))
                     || validation::has_plain_owned_contents_with_numeric_constraints(
                     &checked.typed,

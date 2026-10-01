@@ -851,9 +851,27 @@ impl OperationFrame<'_, '_> {
             checked_trees::CheckedStoreRoot::Local { symbol } => {
                 let (place, structural_type) =
                     self.local_store_root(symbol, &LocalStoreRoot::BYTE_FIELD_STORE)?;
-                StoreRoot::Reference {
-                    place,
-                    structural_type,
+                if self
+                    .structural_types
+                    .declarations()
+                    .iter()
+                    .any(|declaration| {
+                        declaration.id == structural_type
+                            && matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::Record { .. }
+                            )
+                    })
+                {
+                    StoreRoot::Owned {
+                        place,
+                        structural_type,
+                    }
+                } else {
+                    StoreRoot::Reference {
+                        place,
+                        structural_type,
+                    }
                 }
             }
         };
@@ -2524,8 +2542,8 @@ impl LocalStoreRoot {
     const BYTE_FIELD_STORE: Self = Self {
         admits_mutable_borrow: true,
         unknown_local: "byte-field store names an unknown structural local",
-        not_whole_home: "byte-field store local is not a whole produced reference",
-        unproduced: "byte-field store local has no produced reference",
+        not_whole_home: "byte-field store local is not a whole produced home",
+        unproduced: "byte-field store local has no produced home",
         lost_custody: Some("byte-field store local lost exclusive custody"),
     };
     const OWNED_BYTE_WRITE: Self = Self {

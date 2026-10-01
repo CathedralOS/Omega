@@ -51,6 +51,9 @@ pub(super) fn home_available(
                         | TargetUnitOperation::EstablishReference {
                             result_home: home, ..
                         }
+                        | TargetUnitOperation::StructuralLeafCopy {
+                            result_home: home, ..
+                        }
                         | TargetUnitOperation::Call {
                             result:
                                 target_operations::TargetCallResult::Structural {

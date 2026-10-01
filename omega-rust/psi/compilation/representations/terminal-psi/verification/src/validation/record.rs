@@ -356,7 +356,7 @@ pub(super) fn completed_source<'a>(
                             && super::structural::operations::validate_establish_zeroed_structural(
                                 module, machine, operation,
                             ).is_ok())
-                        // A verified copy preserves the exact owned subtree,
+                        // A verified copy or ordinary call preserves the exact owned subtree,
                         // including bounded byte fields' live extent and
                         // predicates. This admits completed snapshots, not
                         // new byte-field constructors or borrowed carriers.
@@ -365,6 +365,8 @@ pub(super) fn completed_source<'a>(
                                 operation.kind,
                                 OperationKind::StructuralLeafCopy { .. }
                                     | OperationKind::StructuralCaseLeafCopy { .. }
+                                    | OperationKind::CallStructural { .. }
+                                    | OperationKind::CallStructuralWithScalarArguments { .. }
                             )
                             && super::structural::result_contracts::has_plain_owned_shape(
                                 module,
@@ -431,9 +433,19 @@ pub(super) fn validate_uses(
         | OperationKind::BooleanStructuralField { source, .. } => validate(*source)?,
         OperationKind::WriteOnlyPrimitiveStore { destination, .. }
         | OperationKind::StructuralScalarFieldStore { destination, .. }
+        | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
         | OperationKind::AtomicAccess {
             place: destination, ..
         } => validate(*destination)?,
+        OperationKind::StoreStructuralField {
+            destination, value, ..
+        } => {
+            // Copy results carry no disposal debt, but restoring a field still
+            // requires their producing operation to dominate this store.
+            validate(*destination)?;
+            validate(value.place)?;
+            copy_payload(value.place)?;
+        }
         OperationKind::CallUnit {
             structural_arguments,
             ..

@@ -1264,6 +1264,7 @@ pass/calls/nested_self_call_argument_exit checked 1287ms @2d8ed253669f
 pass/calls/nested_value_call_arg_compile checked 1255ms @2d8ed253669f
 pass/calls/ordered_field_selector_calls_exit checked 1986ms @2d8ed253669f
 pass/calls/owned_state_parameter_call_exit checked 1250ms @2d8ed253669f
+pass/calls/qualified_record_call_result_field_exit checked 902ms @e687de1f01bf
 pass/calls/requires_carrier_ceiling_vacuous checked 3103ms @527c7c316c6f+wt
 pass/calls/requires_operand_flip_discharge checked 3157ms @527c7c316c6f+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit checked 1355ms @2d8ed253669f

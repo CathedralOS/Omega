@@ -73,7 +73,15 @@ pub(super) fn replace(
                 length,
                 obligation,
                 Some((
-                    writable_field(function, structural_types, live, *destination, path, *field)?,
+                    writable_field(
+                        function,
+                        structural_types,
+                        live,
+                        *destination,
+                        path,
+                        *field,
+                        live.structural_homes.get(destination),
+                    )?,
                     *field,
                 )),
             ),
@@ -129,43 +137,87 @@ fn writable_field(
     destination: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
+    owned_home: Option<&target_operations::TargetStructuralHomeRequirement>,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
-    let (parameter, path) = if let Some(parameter) = function
-        .structural_parameters
-        .iter()
-        .find(|parameter| parameter.place == destination)
-    {
-        (parameter.clone(), path.to_vec())
-    } else {
-        let resolved = super::references::writable_referent_destination(
-            function,
-            live,
-            structural_types,
+    let (root, root_type, access, path) = if let Some(home) = owned_home.filter(|home| {
+        structural_types
+            .get(&home.structural_type())
+            .is_some_and(|declaration| {
+                matches!(declaration.shape, StructuralTypeShape::Record { .. })
+            })
+    }) {
+        let (_, result) = home
+            .operation_result()
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        if result.place != destination
+            || result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !result.claims.is_empty()
+            || !structural_types
+                .get(&result.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(declaration.shape, StructuralTypeShape::Record { .. })
+                })
+        {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        // The live home is the actual dominating result, not a borrowed
+        // parameter invented from its type. Selection addresses this home.
+        (
             destination,
+            result.structural_type,
+            StructuralAccess::Owned,
+            path.to_vec(),
+        )
+    } else {
+        let (parameter, path) = if let Some(parameter) = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == destination)
+        {
+            (parameter.clone(), path.to_vec())
+        } else {
+            let resolved = super::references::writable_referent_destination(
+                function,
+                live,
+                structural_types,
+                destination,
+                path,
+            )
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            (resolved.parameter, resolved.path)
+        };
+        if !matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        ) || parameter.multiplicity == StructuralMultiplicity::Linear
+            || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
+        {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+        (
+            parameter.place,
+            parameter.structural_type,
+            parameter.access,
             path,
         )
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        (resolved.parameter, resolved.path)
     };
-    if !matches!(
-        parameter.access,
-        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
-    ) || parameter.multiplicity == StructuralMultiplicity::Linear
-        || !parameter.qualifications.is_empty()
-        || !parameter.projected_qualifications.is_empty()
-        || !terminal_psi::is_bounded_structural_scalar_store_path(&path)
+    if !terminal_psi::is_bounded_structural_scalar_store_path(&path)
         || function
             .entry_claims
             .iter()
-            .any(|claim| claim.input == parameter.place)
+            .any(|claim| claim.input == root)
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let carrier = if path.is_empty() {
-        parameter.structural_type
+        root_type
     } else {
         crate::lowering::structural_layout::resolve_structural_projection_path(
-            parameter.structural_type,
+            root_type,
             &path,
             structural_types,
             &mut BTreeMap::new(),
@@ -194,8 +246,8 @@ fn writable_field(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(terminal_psi::StructuralArgument {
-        place: parameter.place,
-        access: parameter.access,
+        place: root,
+        access,
         path,
     })
 }
@@ -221,8 +273,15 @@ pub(super) fn replace_byte(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let destination_argument =
-        writable_field(function, structural_types, live, *destination, path, *field)?;
+    let destination_argument = writable_field(
+        function,
+        structural_types,
+        live,
+        *destination,
+        path,
+        *field,
+        None,
+    )?;
     // Current-IR validation proves all-path freshness. Retain that same exact
     // field observation and dominating scalar definitions in target custody.
     if !function.operations.iter().any(|operation| matches!(operation,

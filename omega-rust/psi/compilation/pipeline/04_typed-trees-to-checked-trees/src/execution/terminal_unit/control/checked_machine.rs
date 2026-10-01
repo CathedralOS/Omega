@@ -193,6 +193,12 @@ pub(crate) fn build_checked_machine_residual_parts(
             program,
             state.return_type,
         )
+        && !(crate::checks::type_multiplicity(program, state.return_type)
+            == language_semantics::Multiplicity::Unrestricted
+            && validation::has_plain_owned_contents_with_represented_constraints(
+                program,
+                state.return_type,
+            ))
         && program
             .primitive_type_reference(state.return_type)
             .is_none()
