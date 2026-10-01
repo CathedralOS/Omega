@@ -1225,26 +1225,27 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `e0052d8c2f`
+  `RoomLookup`, `MazeBuilder` or game-state field validity. At `4e0c009cd9`
   on macOS ARM64, the closed-stdin command exits 200 before emission:
   `Game::run_game_loop` → `GameView::render_room` →
   `RoomFormatter::write_room_info` → `RoomLookup::find_room` stops at
-  `state graph: terminator: guarded jump successors: roster` (state 1).
-  The indexed enum equality initializer now lowers with exact operand/case
-  replay and a dominating slice-length observation. The next missing edge is
-  the ordinary Unit completion in `find_room_at`'s three-arm tail: found room,
-  recursive search, or `_ -> {}`. Stage 04
-  `execution/terminal_scalar/mod.rs::checked_branch_destination` drops an
-  ordinary Terminal destination from the shared guarded roster; composed
-  `terminal_unit/state_graph/terminator.rs` and stage 05
-  `unit/attached_unit/composed_control/state_graph/admission.rs` also need
-  the existing Unit return arm joined to its exact source ordinal and cleanup.
-  Preserve scalar-result rejection, branch order, return discards and ordinary
-  ownership/proof checks; no new IR or weakened bounds are needed. Six enum
-  producer/replay tests, five case-observation controls and 13 primitive-local
-  integration tests pass. The enum equality, computed case-subject and composed
-  case-store native fixtures each execute with authored exit 70 after rebasing.
-  This dependency evidence does not close the dungeon acceptance above.
+  `structural field store: record literal source` (state 2, statement 15),
+  the nested `out_room.event.enemy = room.event.enemy` assignment in
+  `apply_room`. Stage 04 `execution/terminal_unit/structural_scalar_store/mod.rs`
+  routes a plain-record field destination through `record_literal_stores`,
+  which accepts a literal but not this copied record projection. Earlier,
+  `values/scalar/computations/structural_values.rs::is_copied_place_operand`
+  excludes owned roots for nonempty copy paths, preventing the ordinary
+  copied-value registration. Admit readable owned projections under the same
+  unrestricted-leaf/source replay checks, then use existing structural copy
+  and field replacement custody instead of requiring
+  a rewritten sample or decomposing fields by source spelling. Guarded Unit
+  completion and selected-edge indexed record arguments now compose through
+  existing plans, with exact source/selector replay, ordinary cleanup and
+  verified runtime bounds. Seven focused native fixtures execute their authored
+  exits; three composite-argument tests, ten leaf-copy selection tests and the
+  Unit-return cleanup/mutation test pass. Preserve whole-view descriptor copying
+  separately from projected element reads of its backing storage.
   Preserve the established local byte-copy, write-frame, stale-view,
   consumed/partial-owner and suspended-root controls. These dependency results
   do not close the dungeon application acceptance.
