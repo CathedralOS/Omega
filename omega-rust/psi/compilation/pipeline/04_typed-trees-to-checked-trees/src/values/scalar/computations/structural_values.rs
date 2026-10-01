@@ -753,8 +753,20 @@ impl Builder<'_, '_> {
         values: &mut CheckedStructuralValuePlans,
         pure: &CheckedScalarExpressionPlans,
     ) -> Option<CheckedStructuralValueHandle> {
-        let kind = if validation::reference_result_custody::parts(self.program, expected).is_some()
-        {
+        let kind = if matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::String(_)
+        ) {
+            let argument = crate::execution::terminal_unit::calls::byte_sequence_literal_argument(
+                self.program,
+                expected,
+                expression,
+            )?;
+            if argument.access != checked_trees::CheckedStructuralAccess::Owned {
+                return None;
+            }
+            CheckedStructuralValueKind::Place(argument)
+        } else if validation::reference_result_custody::parts(self.program, expected).is_some() {
             let state = crate::lookup::machine_by_symbol(self.program, self.machine).and_then(
                 |machine| {
                     self.program

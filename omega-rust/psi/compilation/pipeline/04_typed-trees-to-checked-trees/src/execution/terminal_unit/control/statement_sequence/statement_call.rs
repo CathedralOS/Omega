@@ -165,10 +165,7 @@ pub(super) fn plan(
                 });
                 continue;
             }
-            structural_operands::Operand::Value {
-                root,
-                parameter_position,
-            } => {
+            structural_operands::Operand::Value { root, source } => {
                 // The checker retained this inline case construction as a
                 // structural value; establish it as a state-local operand
                 // before the consuming call, mirroring the local-binding
@@ -209,12 +206,7 @@ pub(super) fn plan(
                     result,
                     value: root.root,
                     calls,
-                    operand_source: Some(
-                        checked_trees::CheckedArrayConstructionSource::CallArgument {
-                            call_ordinal: u32::try_from(call.call_ordinal).ok()?,
-                            parameter_position,
-                        },
-                    ),
+                    operand_source: Some(source),
                     discard_result_on_return: multiplicity == Multiplicity::Affine,
                 });
                 continue;

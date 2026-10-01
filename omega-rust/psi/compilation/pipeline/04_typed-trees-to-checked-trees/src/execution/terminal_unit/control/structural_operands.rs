@@ -1,5 +1,7 @@
 //! Direct structural operands execute before their enclosing call, retaining
 //! captured preorder coordinates rather than renumbering by execution order.
+//! Recursive collection retains each value's consuming call and formal slot;
+//! flattening evaluation order must not relabel a nested operand as an outer one.
 use super::super::{
     CheckedStructuralResultPlan, CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
 };
@@ -30,7 +32,7 @@ pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     /// an anonymous call result carries.
     Value {
         root: &'facts checked_trees::CheckedStructuralValueRoot,
-        parameter_position: u32,
+        source: checked_trees::CheckedArrayConstructionSource,
     },
 }
 
@@ -215,6 +217,18 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
                         field.value
                     {
+                        if let checked_trees::CheckedStructuralValueKind::Place(argument) = &plans.nodes.get(value).kind
+                            && matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. })
+                        {
+                            // Byte fields embed their geometry in the record;
+                            // a fresh child additionally needs its own carrier
+                            // and qualification theory before record assembly.
+                            let binders = machine_binders(program, machine);
+                            if shapes.add_type(field.type_reference, &binders, &[])? != argument.type_identity {
+                                return None;
+                            }
+                            parameter_qualifications(program, shapes, field.type_reference, &binders)?;
+                        }
                         pending.push(value);
                     }
                 }
@@ -450,10 +464,7 @@ fn collect<'a>(
             }) {
                 return None;
             }
-            output.push(Operand::Value {
-                root,
-                parameter_position: u32::try_from(*position).ok()?,
-            });
+            output.push(Operand::Value { root, source });
             continue;
         }
         let place = crate::flow::canonical_place_from_expression_in_state(

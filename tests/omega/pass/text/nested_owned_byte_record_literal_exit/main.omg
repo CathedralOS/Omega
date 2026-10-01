@@ -1,0 +1,36 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 8]::Utf8 requires valid_utf8(self);
+data Direction [copy] { case North; case South; }
+data Label [copy] { text: [u8; 8] in Utf8; sibling: u64; }
+data Entry [copy] { label: Label; direction: Direction; sibling: u64; }
+data Main { console: Binding<Console>; entry: Entry; }
+
+machine empty_entry() -> Entry {
+    Entry { label: Label { text: "", sibling: 29 }, direction: Direction::North, sibling: 31 }
+}
+
+machine named_entry() -> Entry {
+    Entry { label: Label { text: "Gate", sibling: 37 }, direction: Direction::South, sibling: 41 }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.entry = empty_entry();
+    let empty_matches: bool = self.entry.label.text == ""
+        && self.entry.label.text.len == 0
+        && self.entry.label.sibling == 29
+        && self.entry.direction == Direction::North
+        && self.entry.sibling == 31;
+    self.entry = named_entry();
+    transition empty_matches
+        && self.entry.label.text == "Gate"
+        && self.entry.label.text.len == 4
+        && self.entry.label.sibling == 37
+        && self.entry.direction == Direction::South
+        && self.entry.sibling == 41 {
+        true -> finish(70)
+        false -> finish(1)
+    }
+    state finish(&mut self, code: i32) { self.console.exit_process(code); }
+}

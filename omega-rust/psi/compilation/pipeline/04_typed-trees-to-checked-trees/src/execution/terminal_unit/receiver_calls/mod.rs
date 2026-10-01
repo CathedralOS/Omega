@@ -3,6 +3,9 @@
 //! Attachment specialization can erase borrowed self. A retained callee self
 //! instead requires the caller's actual loan, including through forwarding
 //! methods whose own provisional plan erased self.
+//! Local receivers are joined to their exact initializer producer. Operand
+//! copies and nested calls can produce other values in that same statement;
+//! sharing a statement or a type does not make those values the local's result.
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::types::{ShapeCollector, base_type_identity, state_flow};
 
@@ -260,13 +263,8 @@ fn reconcile_operands(
             let results = prior
                 .iter()
                 .chain(operations.iter())
-                .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
-                        Some(result.clone())
-                    }
-                    CheckedUnitEffectOperationPlan::Call(call) => call.structural_result().cloned(),
-                    _ => None,
-                })
+                .filter_map(|operation| local_initializer_result(program, facts, state, operation))
+                .cloned()
                 .collect::<Vec<_>>();
             for operation in operations {
                 // Only ordinary calls retain a receiver operand.
@@ -381,6 +379,52 @@ fn reconcile_operands(
             })
         })
     });
+}
+
+fn local_initializer_result<'operation>(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: SymbolHandle,
+    operation: &'operation CheckedUnitEffectOperationPlan,
+) -> Option<&'operation CheckedUnitStructuralResultBindingPlan> {
+    let result = match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => result,
+        CheckedUnitEffectOperationPlan::Call(call) => call.structural_result()?,
+        _ => return None,
+    };
+    let source = crate::semantic::calls::find_state(program, state)?;
+    let StatementNode::LocalData(local) = program
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(result.statement_index as usize)?
+    else {
+        return None;
+    };
+    // Retain the producer's authored identity, not its position among values
+    // sequenced for this statement. In particular a copied call operand can
+    // even have the same type as the local being initialized.
+    let is_initializer = match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            value,
+            operand_source,
+            ..
+        } => {
+            operand_source.is_none()
+                && facts
+                    .values
+                    .structural_values
+                    .root_for_expression(state, result.statement_index, local.initial_value)
+                    .is_some_and(|root| root.root == *value)
+        }
+        CheckedUnitEffectOperationPlan::Call(call) => {
+            call.source_site().flatten()
+                == Some(checked_trees::NominalMachineUseSite::Expression(
+                    local.initial_value,
+                ))
+        }
+        _ => false,
+    };
+    is_initializer.then_some(result)
 }
 
 #[allow(clippy::too_many_arguments)]

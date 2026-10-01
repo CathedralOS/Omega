@@ -60,13 +60,61 @@ pub(super) fn authored_occurrences(
     let mut dispatch_subject = ExpressionHandle::invalid();
     let (statement_root, outer_expression) = match statement {
         StatementNode::Call(call) => {
-            validate_static_receiver(
-                checked,
-                machine.symbol,
-                call.target_symbol,
-                call.receiver_symbol,
-                !call.receiver.is_empty(),
-            )?;
+            let signature = target_signature(checked, machine.symbol, call.target_symbol)?;
+            if !signature.boundary
+                && signature
+                    .parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self)
+            {
+                // A statement receiver is a retained name path, so it contains
+                // no expressions to schedule. Rejoin its captured occurrence;
+                // ordinary call replay owns the receiver's storage and loan.
+                let control = &checked.facts.flow.control;
+                let mut states = control
+                    .states
+                    .iter()
+                    .map(|(_, state)| state)
+                    .filter(|state| {
+                        state.machine_symbol == machine.symbol && state.state_symbol == caller_state
+                    });
+                let captured_state = states.next().ok_or(LoweringError::Unsupported(
+                    "nested receiver call has no captured state",
+                ))?;
+                if states.next().is_some() {
+                    return unsupported("nested receiver call has ambiguous captured states");
+                }
+                let mut occurrences = control
+                    .calls
+                    .span(captured_state.calls)
+                    .ok_or(LoweringError::Unsupported(
+                        "nested receiver call has an invalid occurrence span",
+                    ))?
+                    .iter()
+                    .filter(|occurrence| {
+                        occurrence.statement_index == statement_index as usize
+                            && occurrence.call_ordinal == 0
+                    });
+                let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
+                    "nested receiver call has no captured occurrence",
+                ))?;
+                if occurrences.next().is_some()
+                    || occurrence.authored_expression.is_valid()
+                    || occurrence.target_symbol != call.target_symbol
+                    || occurrence.has_receiver != !call.receiver.is_empty()
+                    || occurrence.receiver_symbol != call.receiver_symbol
+                {
+                    return unsupported("nested receiver call changed its captured occurrence");
+                }
+            } else {
+                validate_static_receiver(
+                    checked,
+                    machine.symbol,
+                    call.target_symbol,
+                    call.receiver_symbol,
+                    !call.receiver.is_empty(),
+                )?;
+            }
             if !call.machine_arguments.is_empty()
                 || !call.evidence_arguments.is_empty()
                 || call.static_requirement_dispatch.is_some()
@@ -279,7 +327,32 @@ pub(super) fn authored_occurrences(
                         "nested boundary result is not a direct plain-owned affine operand",
                     );
                 }
-                if outer || signature.boundary {
+                if outer
+                    && !signature.boundary
+                    && signature
+                        .parameters
+                        .iter()
+                        .any(|parameter| parameter.is_self)
+                {
+                    // The enclosing call can itself borrow a receiver. This
+                    // walk establishes authored evaluation order; the ordinary
+                    // call replay still checks its exact receiver place and
+                    // loan. Do not turn a runtime receiver into a static-call
+                    // requirement merely because one argument contains a call.
+                    crate::emission::call_source_custody::occurrences::validate(
+                        checked,
+                        machine.symbol,
+                        caller_state,
+                        checked_trees::CheckedUnitCallCoordinate {
+                            statement_index,
+                            call_ordinal: next_ordinal,
+                        },
+                        expression,
+                    )?;
+                    if call.receiver.is_valid() {
+                        children.push((call.receiver, true));
+                    }
+                } else if outer || signature.boundary {
                     let receiver = if call.receiver.is_valid() {
                         if !table.expression_is_valid(call.receiver) {
                             return unsupported("nested call has a stale receiver");

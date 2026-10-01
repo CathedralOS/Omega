@@ -272,7 +272,7 @@ impl emission::Emission<'_, '_, '_> {
                                     );
                                 }
                             };
-                        let place = self.record_field_value(value)?;
+                        let place = self.record_field_value(value, field.type_reference)?;
                         self.structural_type = parent_type;
                         self.multiplicity = parent_multiplicity;
                         terminal_psi::RecordFieldValue::Structural(StructuralArgument {

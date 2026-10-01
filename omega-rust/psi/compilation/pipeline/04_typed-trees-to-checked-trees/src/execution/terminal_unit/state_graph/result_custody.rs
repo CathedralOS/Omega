@@ -189,6 +189,92 @@ pub(super) fn account(
                                     )
                             })
                 });
+        // A mutable view's result owner is its one checked loan release. A
+        // selected edge may additionally transfer that view or return a
+        // reference reborrowed through it, but those mutually exclusive uses
+        // validate the edge partition rather than adding another owner beside
+        // the release. Resolve the source once so every control family applies
+        // the same exact-root and descendant-path test.
+        let view_source = match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. }
+                if facts.values.structural_values.nodes.is_valid(*value) =>
+            {
+                match &facts.values.structural_values.nodes.get(*value).kind {
+                    checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
+                    | checked_trees::CheckedStructuralValueKind::MutableSliceView { source } => {
+                        Some(source)
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        let parameter_symbol = |parameter_index: u32| {
+            let parameter = structural_parameters.get(parameter_index as usize)?;
+            let authored = program
+                .state_parameters(state)
+                .get(parameter.position as usize)?;
+            (authored.is_self)
+                .then_some(machine.symbol)
+                .or(Some(authored.symbol))
+        };
+        let same_view_root = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| {
+            let Some(view_source) = view_source else {
+                return false;
+            };
+            match (&argument.source, &view_source.source) {
+                (
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                ) => parameter_symbol(*parameter_index) == Some(*symbol),
+                (
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
+                ) => Some(*symbol) == parameter_symbol(*parameter_index),
+                _ => argument.source == view_source.source,
+            }
+        };
+        let exact_view_reborrow = |source: &checked_trees::CheckedUnitStructuralArgumentPlan| {
+            let Some(view_source) = view_source else {
+                return false;
+            };
+            same_view_root(source)
+                && matches!(
+                    (view_source.access, source.access),
+                    (
+                        CheckedStructuralAccess::MutableBorrow,
+                        CheckedStructuralAccess::MutableBorrow
+                            | CheckedStructuralAccess::SharedBorrow,
+                    ) | (
+                        CheckedStructuralAccess::SharedBorrow,
+                        CheckedStructuralAccess::SharedBorrow,
+                    )
+                )
+                && source.path.starts_with(&view_source.path)
+                && (source.path.len() > view_source.path.len()
+                    || source.type_identity == view_source.type_identity)
+        };
+        // Closed-case return establishments are retained among the state's
+        // operation dependencies as well as in the terminator roster. Count
+        // their one exact reborrow here so an unrestricted shared view does
+        // not also claim a synthetic dominance owner. A partition containing
+        // only successor transfers has no such reborrow and keeps the
+        // unrestricted value's ordinary dominance disposition instead.
+        let reference_reborrows = if view_source.is_some() {
+            operations[producer_index + 1..]
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
+                            if exact_view_reborrow(source)
+                    )
+                })
+                .count()
+        } else {
+            0
+        };
+        let mut closed_sum_all_reference_returns = false;
         let consumed = match terminator {
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
                 result.multiplicity == Multiplicity::Unrestricted
@@ -261,21 +347,64 @@ pub(super) fn account(
                 {
                     case_successors.iter().all(|edge| !transferred(edge))
                 } else {
-                    // Like a ConditionalReturn's arm: a `(expression)` case
-                    // edge consumes its producers through the establishment
-                    // operands the arm carries.
-                    case_successors.iter().all(|edge| transferred(edge))
-                        || cases.iter().any(|case| {
+                    // Every reachable case must own this result on its own
+                    // edge. Looking only at successor cases makes an
+                    // all-return roster vacuously transferred; accepting any
+                    // one returning arm lets a mixed roster hide an uncovered
+                    // sibling. Reference returns use the same exact view root
+                    // and a descendant path. Their one loan release remains
+                    // the semantic owner counted below, so this complete
+                    // roster validates the partition without booking a second
+                    // consumption beside that release.
+                    let complete_partition = !cases.is_empty()
+                        && cases.iter().all(|case| match &case.outcome {
+                            checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(
+                                successor,
+                            ) => transferred(successor),
+                            checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
+                                checked_trees::CheckedConditionalReturnArm::Structural(returned),
+                            ) => match (view_source, returned) {
+                                (
+                                    Some(_),
+                                    CheckedUnitEffectOperationPlan::EstablishReference {
+                                        source,
+                                        ..
+                                    },
+                                ) => exact_view_reborrow(source),
+                                (None, operation) => {
+                                    operation.with_value_calls().skip(1).any(|operation| {
+                                        terminator_call_consumes_result(
+                                            operation,
+                                            result.binding_ordinal,
+                                        )
+                                    })
+                                }
+                                _ => false,
+                            },
+                            _ => false,
+                        });
+                    if view_source.is_some() {
+                        if !complete_partition {
+                            return None;
+                        }
+                        closed_sum_all_reference_returns = cases.iter().all(|case| {
                             matches!(
                                 &case.outcome,
                                 checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
-                                    checked_trees::CheckedConditionalReturnArm::Structural(operation),
-                                ) if operation.with_value_calls().skip(1).any(|operation| {
-                                    terminator_call_consumes_result(operation, result.binding_ordinal)
-                                })
+                                    checked_trees::CheckedConditionalReturnArm::Structural(
+                                        CheckedUnitEffectOperationPlan::EstablishReference {
+                                            source,
+                                            ..
+                                        },
+                                    ),
+                                ) if exact_view_reborrow(source)
                             )
-                        })
-                        || permits_disposal(&case_successors)
+                        });
+                        result.multiplicity == Multiplicity::Unrestricted
+                            && reference_reborrows == 0
+                    } else {
+                        complete_partition || permits_disposal(&case_successors)
+                    }
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => {
@@ -388,75 +517,6 @@ pub(super) fn account(
                 .count(),
             _ => 0,
         };
-        // A view result's custody is its loan as well: a later reference
-        // establishment reborrows through that view's lent place into the
-        // loan it records, which is the same owner a loaned call result
-        // meets at its release. The reborrow names the lent place's root —
-        // reborrowing `slots[2]` plans `self.cells[2]`, not the view local —
-        // so the admitted shape is an establishment whose source shares the
-        // view's root and extends its lent path. Only view-kind results
-        // reborrow; a concrete local borrowed by an ordinary reference
-        // establishment stays live past the loan.
-        let view_source = match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. }
-                if facts.values.structural_values.nodes.is_valid(*value) =>
-            {
-                match &facts.values.structural_values.nodes.get(*value).kind {
-                    checked_trees::CheckedStructuralValueKind::BorrowedSliceView { source }
-                    | checked_trees::CheckedStructuralValueKind::MutableSliceView { source } => {
-                        Some(source)
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        };
-        let reference_reborrows = if let Some(view_source) = view_source {
-            // The view's lent root and the reborrow's source spell the same
-            // root differently: a receiver local mints `StructuralLocal` in
-            // the view classifier but `Parameter` at the reference
-            // establishment. Compare both roots through the state's dense
-            // structural parameter list.
-            // `self` loans publish the machine symbol as their root while
-            // the reference establishment names the receiver by its dense
-            // parameter index: they meet at the `is_self` authored position.
-            let parameter_symbol = |parameter_index: u32| {
-                let parameter = structural_parameters.get(parameter_index as usize)?;
-                let authored = program
-                    .state_parameters(state)
-                    .get(parameter.position as usize)?;
-                (authored.is_self)
-                    .then_some(machine.symbol)
-                    .or(Some(authored.symbol))
-            };
-            let same_root = |argument: &checked_trees::CheckedUnitStructuralArgumentPlan| match (
-                &argument.source,
-                &view_source.source,
-            ) {
-                (
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
-                ) => parameter_symbol(*parameter_index) == Some(*symbol),
-                (
-                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
-                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
-                ) => Some(*symbol) == parameter_symbol(*parameter_index),
-                _ => argument.source == view_source.source,
-            };
-            operations[producer_index + 1..]
-                .iter()
-                .filter(|operation| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
-                            if same_root(source)
-                                && source.path.starts_with(&view_source.path)
-                    )
-                })
-                .count()
-        } else {
-            0
-        };
         // A view result's custody is also its loan's release: the loan
         // minted at the establishment ends in exactly one Consume row —
         // on the selected edge that carries it when control moves, or at
@@ -504,10 +564,11 @@ pub(super) fn account(
         // On an all-return guarded state the same one release therefore
         // restores the carrier's physical discard row; it is not a second
         // source-custody disposition in `total` below.
-        let guarded_view_disposal = matches!(
+        let returning_view_disposal = (matches!(
             terminator,
             CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
-        ) && view_releases == 1;
+        ) || closed_sum_all_reference_returns)
+            && view_releases == 1;
         // A byte replacement copies the completed live prefix and length;
         // it neither moves an affine owner nor invents a disposal receipt.
         // The store's source replay separately rejoins the exact call.
@@ -550,7 +611,7 @@ pub(super) fn account(
         if total != 1 {
             return None;
         }
-        if guarded_view_disposal {
+        if returning_view_disposal {
             guarded_discards.push(producer_index);
         }
     }

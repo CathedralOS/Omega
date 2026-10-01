@@ -885,6 +885,11 @@ pub(super) fn lower_unit_structural_domains_including(
     }
     for symbol in closure {
         let body = UnitBody::find(plans, *symbol)?;
+        for operation in body.operations() {
+            crate::expression_preparation::source_custody::structural::byte_literals::collect_operation_requirements(
+                checked, *symbol, operation, &mut selected,
+            )?;
+        }
         for domain in body
             .structural_parameters()
             .flat_map(|parameter| {
@@ -898,8 +903,7 @@ pub(super) fn lower_unit_structural_domains_including(
             .chain(body.qualifications())
             .chain(body.operations().flat_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::EstablishByteSequence {
-                    qualifications,
-                    ..
+                    qualifications, ..
                 } => qualifications.as_slice(),
                 _ => &[],
             }))
