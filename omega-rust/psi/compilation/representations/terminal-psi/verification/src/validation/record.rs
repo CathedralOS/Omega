@@ -385,6 +385,30 @@ pub(super) fn completed_source<'a>(
     machine: &'a TerminalMachine,
     place: PlaceId,
 ) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    completed_source_where(module, machine, place, plain_type)
+}
+
+/// The `completed_source` producer set under the constructible-type gate: a
+/// record carrying borrowed-view members is no plain payload but a locally
+/// constructed record still answers member reads — reading a scalar member
+/// moves no view custody. Only scalar-field observation calls this; transfer
+/// and claim paths keep the plain gate.
+pub(super) fn constructed_source<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    completed_source_where(module, machine, place, |module, root| {
+        constructible_type(module, root)
+    })
+}
+
+fn completed_source_where<'a>(
+    module: &TerminalModule,
+    machine: &'a TerminalMachine,
+    place: PlaceId,
+    payload: impl Fn(&TerminalModule, StructuralTypeId) -> bool,
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
     machine
         .blocks
         .iter()
@@ -412,7 +436,7 @@ pub(super) fn completed_source<'a>(
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
-                    && (plain_type(module, result.structural_type)
+                    && (payload(module, result.structural_type)
                         // Zero establishment also owns bounded byte fields
                         // whose declared predicates admit an empty live range.
                         // Rejoin that constructor's checked contract instead

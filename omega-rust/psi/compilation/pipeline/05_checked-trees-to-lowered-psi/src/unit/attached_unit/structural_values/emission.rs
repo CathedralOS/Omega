@@ -1402,10 +1402,14 @@ impl Emission<'_, '_, '_> {
         loan: LoanAccess,
         continuation: Option<&ValueContinuation>,
     ) -> Result<PlaceId, LoweringError> {
-        let continuation = continuation.ok_or(LoweringError::Unsupported(match loan {
-            LoanAccess::Shared => "borrowed element view requires a structural continuation",
-            LoanAccess::Mutable => "mutable element view requires a structural continuation",
-        }))?;
+        // A nested position — a record/case field value — names no selection
+        // block parameter to join. The view establishes directly as a fresh
+        // operation result, exactly as a top-level view binding does; the
+        // caller already repointed `structural_type` and `multiplicity` at the
+        // field's declared custody.
+        let Some(continuation) = continuation else {
+            return self.direct_element_view(source, loan);
+        };
         let place =
             self.establish_element_view(source, loan, StructuralMultiplicity::Unrestricted)?;
         self.complete_loan(

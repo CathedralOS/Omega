@@ -15,8 +15,8 @@ use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
-    RecordFieldValue, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
-    StructuralTypeShape,
+    ByteSequenceCarrier, RecordFieldValue, StructuralAccess, StructuralFieldType,
+    StructuralMultiplicity, StructuralTypeShape,
 };
 
 /// A plain record result is governed by its signature and custody, independent
@@ -187,6 +187,7 @@ pub(crate) fn record_establishment_matches(
                     result,
                     std::slice::from_ref(declaration),
                     std::slice::from_ref(field),
+                    types,
                 )
             }
         })
@@ -204,6 +205,7 @@ pub(crate) fn field_initializers_match(
     result: &terminal_psi::StructuralOperationResult,
     declarations: &[terminal_psi::StructuralFieldDeclaration],
     fields: &[terminal_psi::RecordFieldInitializer],
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     if declarations.len() != fields.len() {
         return false;
@@ -231,6 +233,43 @@ pub(crate) fn field_initializers_match(
                         && source.is_unqualified()
                         && !source_has_claims(function, argument.place)
                         && argument.place != result.place
+                        && matches!(
+                            source.multiplicity,
+                            StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                        )
+                        && (result.multiplicity != StructuralMultiplicity::Unrestricted
+                            || source.multiplicity == StructuralMultiplicity::Unrestricted)
+                }
+                (
+                    StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { access }),
+                    RecordFieldValue::Structural(argument),
+                ) => {
+                    // A borrowed-view member stores its descriptor with the
+                    // field's declared access: the source spells the loan's
+                    // own access, never `Owned` backing custody — the record
+                    // relocates the descriptor, the backing stays borrowed.
+                    let Some(source) = structural_source_contract(function, argument.place, false)
+                    else {
+                        return false;
+                    };
+                    argument.access == StructuralAccess::Owned
+                        && argument.path.is_empty()
+                        && *access == Some(source.access)
+                        && source.is_unqualified()
+                        && !source_has_claims(function, argument.place)
+                        && argument.place != result.place
+                        && types
+                            .get(&source.structural_type)
+                            .is_some_and(|declaration| {
+                                matches!(
+                                    declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                                            access: None,
+                                        },
+                                    )
+                                )
+                            })
                         && matches!(
                             source.multiplicity,
                             StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
@@ -380,6 +419,12 @@ fn record_type(
                     if references
                         && crate::unit_validation::references::referent(types, child).is_some() => {
                 }
+                // A borrowed view is a relocated descriptor, not owned leaf
+                // storage: records carrying one stay plain but may be locally
+                // constructed, where the binding roster checks the loan source.
+                StructuralFieldType::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                ) if references => {}
                 // Primitive arrays retain owned scalar storage as record fields.
                 // Replay the complete element chain, including below zero extents.
                 StructuralFieldType::Structural(child)
