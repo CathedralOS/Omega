@@ -67,6 +67,7 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
         {
             return proof.clone();
         }
+        super::super::search_context::spend(1)?;
         let proof = (self.ordinary)(goal, assumptions);
         self.proved
             .entry(assumptions.to_vec())
@@ -89,6 +90,7 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
             return None;
         }
         case_analysis::prove(goal, assumptions, self.semantic_axioms, |branch| {
+            super::super::search_context::spend(1)?;
             self.remaining = self.remaining.checked_sub(1)?;
             self.ordinary_proof(goal, branch)
                 .or_else(|| self.ordinary_cases(goal, branch, depth + 1))
@@ -104,6 +106,7 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
         if depth >= 64 {
             return None;
         }
+        super::super::search_context::spend(1)?;
         self.remaining = self.remaining.checked_sub(1)?;
         let _frame = ScopeFrame::enter(assumptions, self.semantic_axioms);
         if let Some(proof) = self.ordinary_proof(goal, assumptions) {
@@ -129,6 +132,7 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
             if conclusion.as_ref() != goal || self.active.contains(fact.proposition) {
                 continue;
             }
+            super::super::search_context::spend(1)?;
             self.remaining = self.remaining.checked_sub(1)?;
             if let Some(premise) = self.ordinary_proof(premise, assumptions) {
                 return Some(ProofNode {
@@ -210,6 +214,7 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
             if self.active.contains(fact.proposition) || assumptions.contains(conclusion) {
                 continue;
             }
+            super::super::search_context::spend(1)?;
             self.remaining = self.remaining.checked_sub(1)?;
             self.active.push(fact.proposition.clone());
             let premise = self.goal(premise, assumptions, depth + 1);

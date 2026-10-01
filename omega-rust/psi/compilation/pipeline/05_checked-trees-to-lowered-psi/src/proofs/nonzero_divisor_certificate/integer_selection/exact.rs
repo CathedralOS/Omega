@@ -204,21 +204,22 @@ impl Session {
     }
 
     /// Memo of `integer_contradiction::prove` under the session's fixed
-    /// scope: the derived contradiction depends on `(context, assumptions,
-    /// semantic_axioms)` alone — its `DefinitionIndex` argument is itself a
-    /// pure memo — so every goal `prove_contradiction` visits under this
-    /// scope shares one derivation instead of re-running the legs for each.
-    /// The returned proof still cites this scope's facts for the kernel to
-    /// replay.
+    /// scope and search generation. Its wrapping endpoint derivations spend
+    /// invocation fuel, so a prior search's proof cannot bypass that charge
+    /// and an exhausted refusal cannot poison a later search. Goals within
+    /// one search share the derivation; the kernel still replays its facts.
     pub(super) fn contradiction(
         &self,
         derive: impl FnOnce() -> Option<ProofNode>,
     ) -> Option<ProofNode> {
-        if let Some(derived) = &*self.roster.contradiction.borrow() {
+        let generation = search_context::generation();
+        if let Some((previous_generation, derived)) = &*self.roster.contradiction.borrow()
+            && *previous_generation == generation
+        {
             return derived.clone();
         }
         let derived = derive();
-        *self.roster.contradiction.borrow_mut() = Some(derived.clone());
+        *self.roster.contradiction.borrow_mut() = Some((generation, derived.clone()));
         derived
     }
 }
@@ -331,10 +332,10 @@ struct Roster {
     /// proof still cites this roster's equations and the kernel still replays
     /// every step on admission.
     results: RefCell<BTreeMap<Proposition, Option<ProofNode>>>,
-    /// The derived integer contradiction for this scope, or `None` once
-    /// derived — `integer_contradiction::prove` is a pure function of this
-    /// roster's scope, so `Session::contradiction` computes it at most once.
-    contradiction: RefCell<Option<Option<ProofNode>>>,
+    /// The search generation and its derived contradiction, including an
+    /// exhausted refusal. Fact indexes stay reusable across searches; this
+    /// fuel-sensitive derivation belongs to one invocation.
+    contradiction: RefCell<Option<(u64, Option<ProofNode>)>>,
 }
 
 impl Roster {
@@ -1320,6 +1321,52 @@ mod tests {
         assert!(
             roster.transport(&term(1)).is_none(),
             "cycle equations still reach kernel rejection"
+        );
+    }
+
+    #[test]
+    fn contradiction_refusals_are_reused_only_within_one_search() {
+        use crate::lowering_error::ProofSearchCapacity;
+        use crate::proofs::nonzero_divisor_certificate::search_context::{SearchContext, spend};
+        use std::cell::Cell;
+
+        let context = context();
+        let session = super::session(&context, &[], &[]);
+        let attempts = Cell::new(0);
+        {
+            let _search = SearchContext::enter(&context);
+            assert!(spend(ProofSearchCapacity::IntegerCertificateSearchWork.limit()).is_some());
+            assert!(
+                session
+                    .contradiction(|| {
+                        attempts.set(attempts.get() + 1);
+                        spend(1)?;
+                        unreachable!("the search has spent its allowance")
+                    })
+                    .is_none()
+            );
+            assert!(
+                session
+                    .contradiction(|| panic!("same-search memo is reused"))
+                    .is_none()
+            );
+        }
+        {
+            let _search = SearchContext::enter(&context);
+            assert!(
+                session
+                    .contradiction(|| {
+                        attempts.set(attempts.get() + 1);
+                        assert!(spend(1).is_some());
+                        None
+                    })
+                    .is_none()
+            );
+        }
+        assert_eq!(
+            attempts.get(),
+            2,
+            "a new search retries the exhausted derivation"
         );
     }
 

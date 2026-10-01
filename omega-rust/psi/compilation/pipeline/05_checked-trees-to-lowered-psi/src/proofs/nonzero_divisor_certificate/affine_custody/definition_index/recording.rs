@@ -275,6 +275,7 @@ const MAXIMUM_SCOPE_PROOFS: usize = 32;
 /// One `PROOFS` entry: the scope's context token, the scope token it was
 /// last matched under, the scope content, and its store.
 struct ScopeProofsEntry {
+    search: u64,
     context: usize,
     scope: u64,
     assumptions: Vec<Proposition>,
@@ -316,7 +317,9 @@ fn shared_tables(
 
 /// The most-recently-used produced-goal store for `(context, assumptions,
 /// semantic_axioms)`, building it on first sight. Matching is always by full
-/// content: a memoized proof cites this scope's facts by position, and a
+/// content within this top-level search. Exhausted attempts must not become
+/// cached refusals for another search, nor may warm proofs change its fuel.
+/// A memoized proof cites this scope's facts by position, and a
 /// content-equal scope replays it unchanged.
 fn shared_proofs(
     context: &PropositionContext,
@@ -325,13 +328,15 @@ fn shared_proofs(
 ) -> Rc<RefCell<ScopeProofs>> {
     let token = search_context::token(context);
     let scope = scope_identity::token(assumptions, semantic_axioms);
+    let search = search_context::generation();
     PROOFS.with(|cell| {
         let mut proofs = cell.borrow_mut();
         let index = match proofs.iter().rposition(|entry| {
             // Equal tokens imply equal content; content still decides
             // when the tokens differ, so the matched entry is exactly
             // the one full-content matching finds.
-            entry.context == token
+            entry.search == search
+                && entry.context == token
                 && (entry.scope == scope
                     || (entry.semantic_axioms == semantic_axioms
                         && entry.assumptions == assumptions))
@@ -339,6 +344,7 @@ fn shared_proofs(
             Some(index) => index,
             None => {
                 proofs.push(ScopeProofsEntry {
+                    search,
                     context: token,
                     scope,
                     assumptions: assumptions.to_vec(),

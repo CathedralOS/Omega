@@ -64,6 +64,7 @@ pub(crate) fn produce_checked_canonical_integer_proof(
         semantic_axioms,
         machine_parameter_values,
     );
+    search.report("canonical", proof.is_some());
     declines.extend(search.take_declines());
     proof
 }
@@ -94,6 +95,7 @@ pub(crate) fn produce_relaxed_integer_proof(
         semantic_axioms,
         machine_parameter_values,
     );
+    search.report("relaxed", proof.is_some());
     declines.extend(search.take_declines());
     let proof = proof?;
     accept_certificate_with_machine_parameters(
