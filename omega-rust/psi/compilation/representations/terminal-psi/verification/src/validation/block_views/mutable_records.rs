@@ -123,7 +123,11 @@ pub(crate) fn aliases(
         let source = match &operation.kind {
             OperationKind::EstablishElementView { source, .. }
             | OperationKind::EstablishMutableElementView { source, .. } => source.place,
-            OperationKind::ElementViewSubslice { source, .. } => *source,
+            // Narrowing a byte view retains its backing loan just as an
+            // element subslice does. A different descriptor place must not
+            // hide overlap with the mutable backing on a successor edge.
+            OperationKind::ElementViewSubslice { source, .. }
+            | OperationKind::ByteSequenceSubslice { source, .. } => *source,
             _ => continue,
         };
         if let Some(result) = operation.result.structural() {
@@ -196,6 +200,14 @@ fn usable_source(
     {
         return false;
     }
+    // A descriptor established from the currently live name may observe its
+    // own reborrow. Sharing only an older ancestor is insufficient: after a
+    // state handoff, a dominating descriptor must not read through the new
+    // exclusive name. Authenticate an actual available descriptor result,
+    // rather than giving arbitrary shared parameters the same permission.
+    let live_descriptor = available.contains(&source)
+        && (super::super::byte_sequence::subslice::borrowed_result(machine, source).is_some()
+            || super::super::element_view::subslice::borrowed_result(machine, source).is_some());
     !machine
         .blocks
         .iter()
@@ -205,6 +217,10 @@ fn usable_source(
                 && parameter_type(module, parameter)
                 && available.contains(&parameter.place)
                 && same_storage(aliases, source, parameter.place)
+                && !(live_descriptor
+                    && aliases.get(&source).is_some_and(|origins| {
+                        origins.iter().any(|(root, _)| *root == parameter.place)
+                    }))
         })
 }
 
@@ -297,7 +313,10 @@ pub(crate) fn validate_operation(
         }
         OperationKind::ElementViewLength { source }
         | OperationKind::ElementViewRead { source, .. }
-        | OperationKind::ElementViewSubslice { source, .. } => validate(*source)?,
+        | OperationKind::ElementViewSubslice { source, .. }
+        | OperationKind::ByteSequenceLength { source }
+        | OperationKind::ByteSequenceRead { source, .. }
+        | OperationKind::ByteSequenceSubslice { source, .. } => validate(*source)?,
         _ => {}
     }
     Ok(())
