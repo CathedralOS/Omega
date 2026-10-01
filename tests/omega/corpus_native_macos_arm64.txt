@@ -388,8 +388,7 @@ pass/data/runtime_mixed_case_common_fields_exit built 10399ms exit:70 @8a4d4e552
 pass/data/runtime_mixed_case_payload_dispatch_exit built 1710ms exit:70 @48008365d839
 pass/data/runtime_mixed_shape_exit built 2406ms exit:70 @fb2178def922
 pass/data/runtime_proof_only_data_declared_exit built 534ms exit:70
-pass/data/runtime_record_field_value_pattern_exit rejected 1063ms @48008365d839
-	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
+pass/data/runtime_record_field_value_pattern_exit built 923ms exit:70 @3f4da4527c2d+wt
 pass/dependent/boundary_equality_recast_witness_compile checked 190ms
 pass/dependent/boundary_requires_caller_field_extent_compile checked 190ms
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 209ms

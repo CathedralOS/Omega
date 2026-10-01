@@ -110,6 +110,46 @@ pub(super) fn append(
     Ok(())
 }
 
+/// An owned leaf copy of a record is an exact copy of the source leaf when it
+/// completes: each scalar leaf of the result equals the source's leaf at the
+/// copied canonical path, IEEE leaves as bit-identity equations. Re-execution
+/// creates fresh storage, so prior observations of the result place retire
+/// first. A borrowed reference result is a carrier rooted at the source, and a
+/// copy through a runtime-selected element names no canonical source leaf;
+/// neither publishes an equation. Later writes to either root retire the
+/// equations through ordinary write invalidation.
+pub(super) fn append_leaf_copy(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    source: semantic_vocabulary::PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    axioms: &mut Vec<Proposition>,
+) {
+    let Some(result) = operation.result.structural() else {
+        return;
+    };
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted {
+        return;
+    }
+    axioms.retain(|proposition| {
+        !crate::validation::proposition_observes_places(proposition, &[result.place])
+    });
+    let Some(source_path) = crate::validation::canonical_field_path(module, machine, source, path)
+    else {
+        return;
+    };
+    append_child_fields(
+        module,
+        result.structural_type,
+        result.place,
+        Vec::new(),
+        source,
+        source_path,
+        axioms,
+    );
+}
+
 // Whole child transfer preserves observations through exact declaration paths.
 // The prior child equations remain usable until the atomic operation completes.
 pub(super) fn append_child_fields(

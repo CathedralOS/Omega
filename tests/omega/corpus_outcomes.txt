@@ -1493,8 +1493,7 @@ pass/data/runtime_mixed_case_common_fields_exit checked 1291ms @2d8ed253669f
 pass/data/runtime_mixed_case_payload_dispatch_exit checked 1537ms @ca8c127c90c5
 pass/data/runtime_mixed_shape_exit checked 2078ms @ca8c127c90c5
 pass/data/runtime_proof_only_data_declared_exit checked 1252ms @2d8ed253669f
-pass/data/runtime_record_field_value_pattern_exit rejected 773ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 3)
+pass/data/runtime_record_field_value_pattern_exit checked 1016ms @3f4da4527c2d+wt
 pass/dependent/boundary_equality_recast_witness_compile checked 332ms @2d8ed253669f
 pass/dependent/boundary_requires_caller_field_extent_compile checked 298ms @2d8ed253669f
 pass/dependent/call_requires_saved_local_arithmetic_bound_compile checked 292ms @2d8ed253669f

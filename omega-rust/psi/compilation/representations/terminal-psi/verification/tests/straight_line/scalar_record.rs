@@ -288,6 +288,128 @@ fn runtime_scalar_record_reconstructs_field_equations_from_ssa_initializers() {
     );
 }
 
+/// Copy the established record at place 1 whole into place 2, read the
+/// copy's Boolean field and return it under an ensures clause, optionally
+/// writing the source's integer field between the copy and the read.
+fn copied_record_module(write_source_after_copy: bool) -> TerminalModule {
+    let mut module = module();
+    let structural_type = StructuralTypeId::new(1).unwrap();
+    let copy = PlaceId::new(2).unwrap();
+    let copier = OperationId::new(3).unwrap();
+    let machine = &mut module.machines[0];
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: copy,
+        kind: StructuralPlaceKind::OperationResult {
+            producer: copier,
+            structural_type,
+        },
+    });
+    machine.blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: copier,
+        result: OperationResult::Structural(StructuralOperationResult {
+            qualification_establishments: Vec::new(),
+            place: copy,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: Default::default(),
+            projected_qualifications: Default::default(),
+            claims: Vec::new(),
+        }),
+        kind: OperationKind::StructuralLeafCopy {
+            source: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+        },
+    });
+    if write_source_after_copy {
+        machine.blocks[0].operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(4).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+                field: StructuralFieldId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+                range_obligation: None,
+            },
+        });
+    }
+    let mut copied_read = read();
+    let OperationKind::BooleanStructuralField { source, .. } = &mut copied_read.kind else {
+        unreachable!();
+    };
+    *source = copy;
+    machine.blocks[0].operations.push(copied_read);
+    let result = ValueId::new(4).unwrap();
+    machine.result = TerminalMachineResult::Scalar(ValueDeclaration {
+        id: result,
+        scalar_type: ScalarType::Boolean,
+        qualifications: Default::default(),
+    });
+    machine.blocks[0].terminator = Terminator::Return {
+        edge: EdgeId::new(900).unwrap(),
+        value: ValueId::new(3).unwrap(),
+        cleanup_actions: Vec::new(),
+    };
+    machine.contract.ensures.push(ContractClause {
+        obligation: ObligationId::new(1).unwrap(),
+        proposition: Proposition::Equal(
+            ScalarTerm::value(result, ScalarType::Boolean),
+            ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean),
+        ),
+    });
+    module
+}
+
+fn leaf_copy_equation(field: u64, scalar_type: ScalarType) -> Proposition {
+    let term = |place: u64| {
+        let place = PlaceId::new(place).unwrap();
+        let field = StructuralFieldId::new(field).unwrap();
+        match scalar_type {
+            ScalarType::Boolean => ScalarTerm::boolean_field(place, field),
+            ScalarType::Integer(integer) => ScalarTerm::integer_field_path(
+                place,
+                vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                    field,
+                )],
+                integer,
+            ),
+            ScalarType::IeeeFloat(_) => unreachable!(),
+        }
+    };
+    Proposition::Equal(term(2), term(1))
+}
+
+#[test]
+fn owned_record_leaf_copy_equates_each_scalar_leaf_with_its_source() {
+    let module = copied_record_module(false);
+    validate_module(&module).expect("whole owned record copy validates");
+    let reconstructed =
+        reconstruct_terminal_obligations(&module).expect("copy facts reconstruct independently");
+    let axioms = &reconstructed.obligations()[0].semantic_axioms;
+    let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    assert!(axioms.contains(&leaf_copy_equation(1, integer)));
+    assert!(axioms.contains(&leaf_copy_equation(2, ScalarType::Boolean)));
+}
+
+#[test]
+fn source_write_after_leaf_copy_retires_only_the_written_leaf_equation() {
+    let module = copied_record_module(true);
+    validate_module(&module).expect("source write after an owned copy validates");
+    let reconstructed =
+        reconstruct_terminal_obligations(&module).expect("copy facts reconstruct independently");
+    let axioms = &reconstructed.obligations()[0].semantic_axioms;
+    let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    assert!(
+        !axioms.contains(&leaf_copy_equation(1, integer)),
+        "the written source leaf no longer equals the copy"
+    );
+    assert!(axioms.contains(&leaf_copy_equation(2, ScalarType::Boolean)));
+}
+
 #[test]
 fn runtime_scalar_record_can_return_with_exact_multiplicity() {
     for multiplicity in [

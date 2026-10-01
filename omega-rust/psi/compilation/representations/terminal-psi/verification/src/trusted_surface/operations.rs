@@ -234,9 +234,19 @@ static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
 static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-leaf-copy",
     "a readable live whole root and validated field/index path to an Unrestricted leaf, or to a leaf a SharedBorrow reference result loans",
-    "no proposition facts: an Unrestricted result is a fresh owned exact copy and the source stays fully intact; a SharedBorrow result is an affine reference carrier rooted at the source, a shared loan until released",
-    NO_FACT_DEPS,
-    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
+    "an Unrestricted result is a fresh owned exact copy and the source stays fully intact: prior observations of the result place retire, and when the source path is a canonical static field/index path each scalar leaf of a copied record equals the source's leaf at that path (IEEE leaves as exact-format bit-identity equations, never IEEE equality); ordinary write invalidation retires an equation when either root's leaf is written; a runtime-selected source path publishes no equation; a SharedBorrow result is an affine reference carrier rooted at the source, a shared loan until released, and publishes no equation",
+    &[
+        "fact:semantic-axiom-roster",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        OP_FACTS,
+        OP_FACTS_RECORD,
+        VAL_OPS,
+        VAL_LEAF_COPY,
+    ],
 );
 static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-case-leaf-copy",
