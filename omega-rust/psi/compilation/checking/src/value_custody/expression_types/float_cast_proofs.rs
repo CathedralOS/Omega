@@ -1,3 +1,10 @@
+//! Exact float conversions prove representability after truncation toward zero.
+//!
+//! Expression typing and arithmetic-flow validation use the same integer-bound
+//! query. Testing the unrounded source instead would reject fractional values
+//! just below a signed minimum or unsigned zero even though their converted
+//! integers fit. Source interval discovery still owns finite/range evidence.
+
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{
@@ -6,6 +13,55 @@ use typed_trees::types::{
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn exact_float_cast_tests_truncated_integer_bounds() {
+        use typed_trees::expression::ExpressionNode;
+        use typed_trees::types::PrimitiveType;
+
+        for (source, target, accepted) in [
+            ("-128.75f64", PrimitiveType::I8, true),
+            ("-129.0f64", PrimitiveType::I8, false),
+            ("127.75f64", PrimitiveType::I8, true),
+            ("128.0f64", PrimitiveType::I8, false),
+            ("127.999999f32", PrimitiveType::I8, false),
+            ("-0.75f64", PrimitiveType::U8, true),
+            ("-1.0f64", PrimitiveType::U8, false),
+            ("255.75f64", PrimitiveType::U8, true),
+            ("256.0f64", PrimitiveType::U8, false),
+            ("-9223372036854775808.0f64", PrimitiveType::I64, true),
+            ("9223372036854775808.0f64", PrimitiveType::I64, false),
+            ("18446744073709551616.0f64", PrimitiveType::U64, false),
+        ] {
+            let program = crate::front_end::typed_program(&format!(
+                "machine convert() -> {} {{ ({source}) as {} }}",
+                target.name(),
+                target.name(),
+            ));
+            let machine = &program.machines()[0];
+            let state = &program.machine_states(machine)[0];
+            let operand = program
+                .expression_table
+                .iter_expressions()
+                .find_map(|(_, node)| match node {
+                    ExpressionNode::Cast(cast) => Some(cast.value),
+                    _ => None,
+                })
+                .expect("cast operand");
+            assert_eq!(
+                super::float_to_integer_cast_is_proven(
+                    &program,
+                    machine,
+                    Some(state),
+                    operand,
+                    target,
+                ),
+                accepted,
+                "{source} to {}",
+                target.name(),
+            );
+        }
+    }
+
     #[test]
     fn false_float_comparison_does_not_prove_a_complementary_bound() {
         let program = crate::front_end::typed_program(
@@ -49,13 +105,11 @@ pub(super) fn float_to_integer_cast_is_proven(
     let Some(interval) = float_expression_interval(program, machine, state, value) else {
         return false;
     };
-    let bits = target.scalar_byte_size().unwrap_or(8) * 8;
-    if target.is_signed_integer() {
-        let limit = 2.0_f64.powi(bits as i32 - 1);
-        interval.minimum >= -limit && interval.maximum < limit
-    } else {
-        interval.minimum >= 0.0 && interval.maximum < 2.0_f64.powi(bits as i32)
-    }
+    crate::proof_contracts::arithmetic_domains::float_interval_fits_integer(
+        interval.minimum.trunc(),
+        interval.maximum.trunc(),
+        target,
+    )
 }
 
 fn float_expression_interval(
@@ -66,7 +120,7 @@ fn float_expression_interval(
 ) -> Option<FloatProofInterval> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Float(literal) => {
-            let value = literal.value();
+            let value = literal.landed_f64();
             value.is_finite().then_some(FloatProofInterval {
                 minimum: value,
                 maximum: value,

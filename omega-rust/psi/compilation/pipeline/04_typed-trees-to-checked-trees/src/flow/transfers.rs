@@ -346,13 +346,11 @@ pub(super) fn propagate_statement_transfers(
     }
 
     if stable_value_target
-        && (matches!(
-            program.expression_table.expression(source_expression),
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_)
-        ) || (matches!(
-            program.expression_table.expression(source_expression),
-            ExpressionNode::Call(_)
-        ) && semantic.places.get(target_place).segments.is_empty()))
+        && (crate::values::is_assignment_literal(program, source_expression)
+            || (matches!(
+                program.expression_table.expression(source_expression),
+                ExpressionNode::Call(_)
+            ) && semantic.places.get(target_place).segments.is_empty()))
     {
         // A call is retained only as the exact source occurrence of this
         // completed assignment. It is not evaluated here. Consumers need its

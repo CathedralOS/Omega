@@ -121,17 +121,7 @@ pub(crate) fn literal_at_place<'a>(
     let mut retained = None;
     for payload in payloads_at_place(program, semantic, contexts, subject) {
         let value = match payload {
-            FactPayload::AssignedValue { value }
-                if program.expression_table.expression_is_valid(value)
-                    && matches!(
-                        program.expression_table.expression(value),
-                        ExpressionNode::Integer(_)
-                            | ExpressionNode::Boolean(_)
-                            | ExpressionNode::String(_)
-                    ) =>
-            {
-                value
-            }
+            FactPayload::AssignedValue { value } if is_assignment_literal(program, value) => value,
             _ => return None,
         };
         if retained.is_some_and(|previous| previous != value) {
@@ -282,17 +272,27 @@ fn has_completed_call_snapshot(
     })
 }
 
+/// Literal payloads are immutable authored values, including the exact landed
+/// float bits. Keeping their handles does not re-evaluate a source expression.
+/// Copies and state-edge joins use this same admission as direct assignments.
+pub(crate) fn is_assignment_literal(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    program.expression_table.expression_is_valid(expression)
+        && matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Integer(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::String(_)
+        )
+}
+
 pub(crate) fn literal_assignment_payload(
     program: &TypedTrees,
     subject: &CanonicalPlace,
 ) -> Option<FactPayload> {
     if let PlaceRoot::Expression(expression) = subject.root
         && subject.segments.is_empty()
-        && program.expression_table.expression_is_valid(expression)
-        && matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_)
-        )
+        && is_assignment_literal(program, expression)
     {
         Some(FactPayload::AssignedValue { value: expression })
     } else {

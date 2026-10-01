@@ -674,6 +674,9 @@ pub(super) fn capture(
                                 }),
                             )
                         }
+                        _ if crate::values::is_assignment_literal(program, value) => {
+                            (value, Vec::new(), None)
+                        }
                         _ => continue,
                     }
                 }

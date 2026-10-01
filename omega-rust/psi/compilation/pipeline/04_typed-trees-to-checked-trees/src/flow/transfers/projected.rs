@@ -154,13 +154,7 @@ pub(super) fn append_copied_field_predicates(
             // retained as provenance at its root place and can never name a
             // copied field's value.
             FactPayload::AssignedValue { value }
-                if program.expression_table.expression_is_valid(value)
-                    && matches!(
-                        program.expression_table.expression(value),
-                        ExpressionNode::Integer(_)
-                            | ExpressionNode::Boolean(_)
-                            | ExpressionNode::String(_)
-                    ) =>
+                if crate::values::is_assignment_literal(program, value) =>
             {
                 fact.payload
             }

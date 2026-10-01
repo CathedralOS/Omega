@@ -1,0 +1,14 @@
+use omega::language::core::float_operations;
+use omega_language_std::console;
+
+// Exact conversion checks the truncated result, not the fractional source.
+machine main() reaches Console {
+    let signed_lower: i32 = (-2147483648.5f64) as i32;
+    let unsigned_lower: u32 = (-0.5f64) as u32;
+    transition signed_lower == -2147483648 && unsigned_lower == 0u32 {
+        true -> good()
+        false -> bad()
+    }
+    state good() { Console::exit_process(70); }
+    state bad() { Console::exit_process(71); }
+}
