@@ -483,7 +483,7 @@ impl TerminalExecution {
         }
         boundary_arguments.validate_writeback()?;
         if let TerminalEffectResult::Structural(value) = &returned {
-            self.local_structural_identities.reserve_host(value)?;
+            boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }
         results::commit_boundary_result(
             &mut self.values,

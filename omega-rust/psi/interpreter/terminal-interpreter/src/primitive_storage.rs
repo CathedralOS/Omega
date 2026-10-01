@@ -24,7 +24,7 @@ enum PrimitiveStorage {
     /// only ever backs whole primitive referents and locals.
     ScalarField(StructuralScalarRuntimeField),
     ArrayElement {
-        array: StructuralRuntimePlace,
+        array: crate::structural_inputs::byte_arrays::storage::ArrayStorage,
         index: usize,
     },
     OwnedArrayElement {
@@ -160,11 +160,10 @@ impl TerminalExecution {
                 *array_type,
             )
             .ok_or_else(invalid)?;
-            let bytes = self.structural_byte_arrays.get(array).ok_or_else(invalid)?;
             if value.structural_type != structural_type
                 || scalar_type != ScalarType::Integer(byte_type)
                 || *index >= *length
-                || bytes.len() as u128 != u128::from(extent)
+                || self.stored_byte_array_length(array)? as u128 != u128::from(extent)
             {
                 return Err(invalid());
             }
@@ -337,7 +336,13 @@ impl TerminalExecution {
                 {
                     return Err(invalid());
                 }
-                return Ok((PrimitiveStorage::ArrayElement { array, index }, scalar_type));
+                return Ok((
+                    PrimitiveStorage::ArrayElement {
+                        array: array.into(),
+                        index,
+                    },
+                    scalar_type,
+                ));
             }
         }
         // Other overlaps cannot silently fall back to independent storage.
@@ -571,16 +576,12 @@ impl TerminalExecution {
                 let ScalarType::Integer(integer) = scalar_type else {
                     return Err(TerminalInterpretError::VerifiedOperationMalformed);
                 };
-                self.structural_byte_arrays
-                    .get(&array)
-                    .and_then(|bytes| bytes.get(index))
-                    .map(|byte| TerminalScalarValue::Integer {
+                self.stored_byte_array_read(&array, index).map(|byte| {
+                    TerminalScalarValue::Integer {
                         scalar_type: integer,
-                        value: IntegerValue::Unsigned(u128::from(*byte)),
-                    })
-                    .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
-                        source,
-                    ))
+                        value: IntegerValue::Unsigned(u128::from(byte)),
+                    }
+                })
             }
         }?;
         if result.scalar_type != scalar_type
@@ -648,10 +649,7 @@ impl TerminalExecution {
                 };
                 let byte = u8::try_from(value)
                     .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
-                self.structural_byte_arrays
-                    .get_mut(&array)
-                    .and_then(|bytes| bytes.replace_byte(index, byte))
-                    .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+                self.stored_byte_array_write(&array, index, byte)?;
             }
         }
         Ok(())

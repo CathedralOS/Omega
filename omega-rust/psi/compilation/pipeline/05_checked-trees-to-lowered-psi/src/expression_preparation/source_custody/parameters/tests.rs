@@ -9,6 +9,135 @@ use checked_trees::{
 use language_semantics::{Multiplicity, SemanticDomainId};
 
 #[test]
+fn borrowed_byte_array_parameter_replays_exact_formal_view() {
+    use checked_trees::CheckedByteSequenceCarrier;
+    use checked_trees::types::TypeReferenceNode;
+
+    for access in ["&", "&mut"] {
+        let mut checked = crate::front_end::checked_program(&format!(
+            "machine inspect(values: {access} [u8; 2]) {{}}"
+        ));
+        let machine = &checked.machines()[0];
+        let state = &checked.machine_states(machine)[0];
+        let parameter = checked.state_parameters(state)[0].clone();
+        let retained = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine.symbol)
+            .expect("byte array signature")
+            .structural_parameters[0]
+            .clone();
+        checked.facts.flow.terminal_scalar_graphs.structural_types = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_types
+            .clone();
+        validate_structural_parameter(&checked, &parameter, 0, &retained)
+            .expect("exact fixed byte formal presentation");
+        assert_eq!(
+            retained.type_identity,
+            checked
+                .normalized_type_identity(parameter.type_reference)
+                .into_string()
+        );
+
+        for mutation in 0..7 {
+            let mut changed = retained.clone();
+            match mutation {
+                0 => {
+                    let TypeReferenceNode::Reference { referee, .. } = checked
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    else {
+                        panic!("reference formal");
+                    };
+                    changed.type_identity =
+                        checked.normalized_type_identity(*referee).into_string();
+                }
+                1 => changed.access = CheckedStructuralAccess::WriteOnlyBorrow,
+                2 => {
+                    changed.access = if retained.access == CheckedStructuralAccess::SharedBorrow {
+                        CheckedStructuralAccess::MutableBorrow
+                    } else {
+                        CheckedStructuralAccess::SharedBorrow
+                    }
+                }
+                3 => changed.position = 1,
+                4 => changed.multiplicity = Multiplicity::Affine,
+                5 => changed.qualifications.push(SemanticDomainId::NULL),
+                _ => changed
+                    .projected_qualifications
+                    .push(CheckedStructuralPathQualification {
+                        path: Vec::new(),
+                        domain: SemanticDomainId::NULL,
+                    }),
+            }
+            assert!(
+                validate_structural_parameter(&checked, &parameter, 0, &changed).is_err(),
+                "formal mutation {mutation}, {access}"
+            );
+        }
+        for shape in [
+            CheckedUnitStructuralTypeShape::ByteSequence(CheckedByteSequenceCarrier::BoundedView {
+                access: None,
+                capacity: 3,
+            }),
+            CheckedUnitStructuralTypeShape::ByteSequence(CheckedByteSequenceCarrier::BoundedView {
+                access: Some(retained.access),
+                capacity: 2,
+            }),
+            CheckedUnitStructuralTypeShape::ByteSequence(
+                CheckedByteSequenceCarrier::BorrowedView { access: None },
+            ),
+            CheckedUnitStructuralTypeShape::ByteSequence(
+                CheckedByteSequenceCarrier::BoundedOwned { capacity: 2 },
+            ),
+            CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity: "u8".into(),
+                length: 2,
+            },
+        ] {
+            let mut changed = checked.clone();
+            changed
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .structural_types
+                .iter_mut()
+                .find(|entry| entry.identity == retained.type_identity)
+                .expect("view shape")
+                .shape = shape;
+            assert!(
+                validate_structural_parameter(&changed, &parameter, 0, &retained).is_err(),
+                "view substitution must reject, {access}"
+            );
+        }
+        let mut changed = checked.clone();
+        let duplicate = changed
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_types
+            .iter()
+            .find(|entry| entry.identity == retained.type_identity)
+            .unwrap()
+            .clone();
+        changed
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_types
+            .push(duplicate);
+        assert!(
+            validate_structural_parameter(&changed, &parameter, 0, &retained).is_err(),
+            "duplicate view must reject, {access}"
+        );
+    }
+}
+
+#[test]
 fn borrowed_array_parameter_reconstructs_its_element_type_and_length() {
     for access in ["&", "&mut"] {
         let mut checked = crate::front_end::checked_program(&format!(

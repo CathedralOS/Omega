@@ -216,22 +216,66 @@ fn validate_structural_parameter(
         }
     };
     let referee_node = checked.type_reference_table.type_reference(*referee);
-    if matches!(referee_node, TypeReferenceNode::Slice { .. }) {
-        // A `&[T]` view referee carries the slice's normalized identity; its
-        // element joins the checked catalog as a borrowed view, not the
-        // primitive-reference referent shape checked below.
-        let TypeReferenceNode::Slice { element_type } = referee_node else {
-            return unsupported("scalar graph slice referee changed shape");
-        };
+    // Reconstruct the formal's view presentation from source, independently
+    // of the retained catalog. Slices peel their reference identity; a fixed
+    // byte view retains it and records the declared extent in its carrier.
+    let view = match referee_node {
+        TypeReferenceNode::Slice { element_type } => {
+            let byte_element = checked.primitive_type_reference(*element_type)
+                == Some(checked_trees::types::PrimitiveType::U8);
+            let shape = if byte_element {
+                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                    checked_trees::CheckedByteSequenceCarrier::BorrowedView { access: None },
+                )
+            } else {
+                checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                    element_type_identity: checked
+                        .normalized_type_identity(*element_type)
+                        .into_string(),
+                }
+            };
+            Some((*referee, shape, (!byte_element).then_some(*element_type)))
+        }
+        TypeReferenceNode::FixedArray {
+            element_type,
+            length: checked_trees::types::FixedArrayLength::Literal(length),
+        } if checked.primitive_type_reference(*element_type)
+            == Some(checked_trees::types::PrimitiveType::U8)
+            && matches!(
+                access,
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | checked_trees::CheckedStructuralAccess::MutableBorrow
+            ) =>
+        {
+            if !retained.projected_qualifications.is_empty() {
+                return unsupported("scalar graph fixed view has unsupported source custody");
+            }
+            Some((
+                parameter.type_reference,
+                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                    checked_trees::CheckedByteSequenceCarrier::BoundedView {
+                        access: None,
+                        capacity: u64::try_from(*length).map_err(|_| {
+                            LoweringError::Unsupported("scalar graph fixed view extent exceeds u64")
+                        })?,
+                    },
+                ),
+                None,
+            ))
+        }
+        _ => None,
+    };
+    if let Some((presentation, expected_shape, element)) = view {
         if retained.is_self
             || retained.position as usize != position
             || retained.access != access
             || retained.multiplicity != Multiplicity::Unrestricted
             || !retained.qualifications.is_empty()
             || retained.fused_service_erasure.is_some()
-            || retained.type_identity != checked.normalized_type_identity(*referee).into_string()
+            || retained.type_identity
+                != checked.normalized_type_identity(presentation).into_string()
         {
-            return unsupported("scalar graph slice parameter differs from its authored signature");
+            return unsupported("scalar graph view parameter differs from its authored signature");
         }
         let mut shapes = checked
             .facts
@@ -241,40 +285,23 @@ fn validate_structural_parameter(
             .iter()
             .filter(|shape| shape.identity == retained.type_identity);
         let shape = shapes.next().ok_or(LoweringError::Unsupported(
-            "scalar graph slice view shape is absent",
+            "scalar graph view shape is absent",
         ))?;
-        if shapes.next().is_some() {
-            return unsupported("scalar graph slice view shape differs from its source");
+        if shapes.next().is_some() || shape.shape != expected_shape {
+            return unsupported("scalar graph view shape differs from its source");
         }
-        // A byte view is the same borrowed view under the carrier that names
-        // its element implicitly: `ByteSequence(BorrowedView)` has no element
-        // identity to join because the carrier already fixes `u8`. Checking
-        // the referee's own element instead keeps the element claim exact and
-        // leaves every other element type on the identity-joined route below.
-        if matches!(
-            &shape.shape,
-            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                checked_trees::CheckedByteSequenceCarrier::BorrowedView { .. }
-            )
-        ) {
-            if checked.primitive_type_reference(*element_type)
-                != Some(checked_trees::types::PrimitiveType::U8)
-            {
-                return unsupported("scalar graph byte view element is not a byte");
-            }
-            return Ok(());
-        }
-        let checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
-            element_type_identity,
-        } = &shape.shape
-        else {
-            return unsupported("scalar graph slice view shape differs from its source");
-        };
         // Views retain the same element declaration as owned storage. Rebuild
         // its complete shape from source, including record fields and their
         // numeric restrictions; checking only primitive leaves excludes record
         // views, while trusting the retained identity alone permits substitution.
-        return owned_types::validate_referent_type(checked, *element_type, element_type_identity);
+        if let Some(element) = element {
+            owned_types::validate_referent_type(
+                checked,
+                element,
+                checked.normalized_type_identity(element).as_str(),
+            )?;
+        }
+        return Ok(());
     }
     if retained.is_self
         || retained.position as usize != position

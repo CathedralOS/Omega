@@ -7,6 +7,7 @@ use crate::custody::resolve_structural_arguments;
 use crate::effects::TerminalEffectRejection;
 use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
+use crate::structural_identities::LocalStructuralIdentities;
 use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalStructuralValue;
@@ -64,6 +65,7 @@ struct BoundaryByteBufferBinding {
 }
 
 pub(crate) struct BoundaryArguments {
+    local_identity_cursor: Option<u64>,
     pub(crate) values: Vec<TerminalStructuralValue>,
     pub(crate) bytes: Vec<Option<Vec<u8>>>,
     pub(crate) buffers: Vec<TerminalBoundaryByteBuffer>,
@@ -73,6 +75,14 @@ pub(crate) struct BoundaryArguments {
 }
 
 impl BoundaryArguments {
+    pub(crate) fn reserve_host_result(
+        &self,
+        identities: &mut LocalStructuralIdentities,
+        value: &TerminalStructuralValue,
+    ) -> Result<(), TerminalInterpretError> {
+        identities.reserve_host_at_cursor(value, self.local_identity_cursor)
+    }
+
     /// Provider bodies borrow the live array/field binding, not the staged external
     /// buffers. Nested boundary calls commit backing; provider return must not
     /// restore the pre-call snapshot.
@@ -132,6 +142,7 @@ impl BoundaryArguments {
             }
         }
         Ok(StructuralCallArguments {
+            local_identity_cursor: self.local_identity_cursor,
             values,
             byte_sequences,
             scalar_arrays: BTreeMap::new(),
@@ -160,6 +171,9 @@ impl BoundaryArguments {
     }
 
     pub(crate) fn commit(self, execution: &mut TerminalExecution) {
+        execution
+            .local_structural_identities
+            .commit_cursor(self.local_identity_cursor);
         for (buffer, binding) in self.buffers.into_iter().zip(self.bindings) {
             execution
                 .structural_byte_sequence_fields
@@ -214,6 +228,7 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let mut resolved = BoundaryArguments {
+            local_identity_cursor: self.local_structural_identities.cursor(),
             values: Vec::with_capacity(arguments.len()),
             bytes: Vec::with_capacity(arguments.len()),
             buffers: Vec::new(),
@@ -221,14 +236,18 @@ impl TerminalExecution {
             byte_sequences: Vec::with_capacity(arguments.len()),
             element_views: Vec::with_capacity(arguments.len()),
         };
+        let mut local_array_roots = BTreeMap::new();
         for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate()
         {
             // Reuse the ordinary call's exact initialized-array binding. It can
             // enter a checked provider and be forwarded again, but never enters
             // the external field-replacement staging/writeback protocol.
-            if let Some((referent, binding)) =
-                self.prepare_array_view_argument(parameter, argument)?
-            {
+            if let Some((referent, binding)) = self.prepare_array_view_argument_staged(
+                parameter,
+                argument,
+                &mut resolved.local_identity_cursor,
+                &mut local_array_roots,
+            )? {
                 resolved.values.push(referent);
                 resolved.byte_sequences.push(Some(binding));
                 resolved.element_views.push(None);

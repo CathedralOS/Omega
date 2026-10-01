@@ -6,8 +6,8 @@ use crate::errors::TerminalInterpretError;
 use crate::execution::TerminalExecution;
 use crate::scalar_array::TerminalScalarArrayValue;
 use crate::structural_inputs::byte_arrays;
+use crate::structural_inputs::byte_arrays::storage::ArrayStorage;
 use crate::values::StructuralByteSequenceRuntimeField;
-use crate::values::StructuralRuntimePlace;
 use crate::values::{TerminalScalarCaseValue, TerminalStructuralValue};
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::PlaceId;
@@ -23,7 +23,7 @@ use terminal_psi::StructuralTypeShape;
 pub(crate) enum ByteSequenceBinding {
     Immutable(ByteSequenceView),
     MutableArray {
-        array: StructuralRuntimePlace,
+        array: ArrayStorage,
         array_type: StructuralTypeId,
         offset: u64,
         length: u64,
@@ -74,8 +74,8 @@ impl ByteSequenceBinding {
                 ),
             };
             return if value == referent
-                && array.opaque_identity == referent.opaque_identity
-                && array.path == backing_path
+                && array.referent.opaque_identity == referent.opaque_identity
+                && array.referent.path == backing_path
                 && exact_window
                 && referent.qualifications.is_empty()
                 && byte_arrays::byte_array_length(structural_types, *array_type).is_some_and(
@@ -139,6 +139,7 @@ impl ByteSequenceBinding {
 }
 
 pub(crate) struct StructuralCallArguments {
+    pub(crate) local_identity_cursor: Option<u64>,
     pub(crate) values: BTreeMap<PlaceId, TerminalStructuralValue>,
     pub(crate) byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     pub(crate) scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
@@ -249,6 +250,7 @@ impl TerminalExecution {
         let element_views =
             self.bind_element_view_arguments(&opaque_parameters, &opaque_arguments, &values)?;
         Ok(StructuralCallArguments {
+            local_identity_cursor: self.local_structural_identities.cursor(),
             values: bind_structural_arguments(&opaque_parameters, &values)?,
             byte_sequences,
             scalar_arrays,

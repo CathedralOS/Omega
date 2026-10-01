@@ -892,16 +892,16 @@ pub(super) fn validate(
             ) if result.statement_index as usize == ordinal => {
                 super::super::super::view_ranges::binding_local(checked, state.state, operation)?;
             }
-            // A `let`-bound primitive array literal mints its storage at the
-            // declaration: the op replays like an owned establishment, and the
-            // shared checker rejoins every element operand to its source.
+            // The shared replay rejoins either the declaration or the exact
+            // call/formal that owns this array's elements. A call operand is
+            // part of that call's statement, not an additional body effect.
             (
                 CheckedUnitEffectOperationPlan::EstablishScalarArray {
                     source,
                     result,
                     elements,
                 },
-                StatementNode::LocalData(_),
+                _,
             ) if result.statement_index as usize == ordinal => {
                 super::super::super::scalar_arrays::validate(
                     checked,
@@ -1642,15 +1642,7 @@ fn exclusive_borrowed_whole_parameter(
 /// A structural construction authored as one of its statement's call
 /// arguments rather than bound to a local or returned.
 fn argument_construction(operation: &CheckedUnitEffectOperationPlan) -> bool {
-    matches!(
-        operation,
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            operand_source: Some(
-                checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
-            ),
-            ..
-        }
-    )
+    super::super::super::argument_schedule::argument_construction(operation).is_some()
 }
 
 /// Rejoin `place = value` where `value` is a whole owned structural value and

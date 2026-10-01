@@ -1968,26 +1968,29 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
 - **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
   fixed primitive arrays through boundary arguments and results under
-  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `d5c62aebf05`
-  on macOS ARM64, `python3 tools/corpus_gate.py --native --filter
-  providers/runtime_boundary_array_forwarding_exit,providers/runtime_boundary_primitive_array_argument_exit`
-  executes both programs with exit **70**. An ordinary helper forwards its
-  whole array parameter to the selected provider between two scalar arguments;
-  the provider reads all four bytes, and the caller observes the result and
-  unchanged source field. Psi05 `structural_calls/result_uses.rs` now rejoins
-  the exact parameter and owned custody at ordinary and boundary calls through
-  shared emission. Codec replay verifies; same-typed source substitution and
-  borrowed-access corruption reject. Field projections retain `StructuralLeafCopy`.
+  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `ec784d4d82e`
+  plus the array-call repair on macOS ARM64,
+  `python3 tools/corpus_gate.py --native --filter
+  providers/runtime_boundary_array_construction_exit,providers/runtime_boundary_array_forwarding_exit,providers/runtime_boundary_primitive_array_argument_exit,collections/runtime_whole_array_value_copy_exit`
+  executes all four programs with exit **70**. Literal and mutable local nested
+  arrays reach the selected provider between scalar arguments; the provider
+  reads every element, and the caller observes the result and unchanged source.
+  Ordinary and composed calls share the authored-position operand schedule:
+  copied arrays snapshot between earlier and later scalar argument mutations.
+  Psi04 retains exact call/formal construction custody; Psi05 independently
+  rejoins it and publishes initialized local storage without an immutable-only
+  fence. Terminal reload tests preserve argument order and nested projection
+  order; changed call/formal, contents, access, carrier, or missing construction
+  reject. Interpreter array loans address the original suspended-frame payload.
+  Field projections retain `StructuralLeafCopy`.
   The outer command `omega run --target macos_arm64
-  tests/omega/pass/providers/runtime_boundary_array_forwarding_exit/main.omg`
-  still stops before compilation at pending package-review decisions; those
+  tests/omega/pass/providers/runtime_boundary_array_construction_exit/main.omg`
+  still exits **200** before compilation at pending package-review decisions; those
   decisions were not accepted by this compiler repair.
 
-  Remaining: execute whole local and literal sources, nested arrays,
-  scalar/reference controls, and array results across trait and direct boundary
-  calls. Psi04 `values/scalar/array_constructions.rs` and
-  Psi05 `source_custody/array_sources.rs` exclude boundary literal construction;
-  direct calls also retain array gates in `calls/structural_arguments.rs`.
+  Remaining: complete direct-boundary argument routes, scalar/reference
+  controls, and array results across trait and direct boundary calls.
+  Direct calls retain array gates in `calls/structural_arguments.rs`.
   Result guards remain in `calls/{trait_boundary_call,call_operations}.rs`, and
   Stage 05's `scalar_array_source/call_results.rs` still deliberately rejects
   boundary array results, including empty/discarded ones. Native result

@@ -17,7 +17,7 @@ pub(crate) enum MutableByteSequenceStorage {
     Owned(PlaceId),
     Field(StructuralByteSequenceRuntimeField),
     Array {
-        backing: crate::values::StructuralRuntimePlace,
+        backing: crate::structural_inputs::byte_arrays::storage::ArrayStorage,
         offset: u64,
     },
 }
@@ -103,8 +103,7 @@ impl TerminalExecution {
                 *array_type,
             )
             .ok_or_else(invalid)?;
-            let bytes = self.structural_byte_arrays.get(array).ok_or_else(invalid)?;
-            if bytes.len() as u128 != u128::from(length) {
+            if self.stored_byte_array_length(array)? as u128 != u128::from(length) {
                 return Err(invalid());
             }
             return Ok((
@@ -273,10 +272,11 @@ impl TerminalExecution {
                 self.structural_byte_sequence_fields.get_mut(&field),
                 byte_index,
             ),
-            MutableByteSequenceStorage::Array { backing, offset } => (
-                self.structural_byte_arrays.get_mut(&backing),
-                offset.checked_add(byte_index).ok_or_else(invalid)?,
-            ),
+            MutableByteSequenceStorage::Array { backing, offset } => {
+                let index = usize::try_from(offset.checked_add(byte_index).ok_or_else(invalid)?)
+                    .map_err(|_| invalid())?;
+                return self.stored_byte_array_write(&backing, index, byte);
+            }
         };
         bytes
             .ok_or_else(invalid)?

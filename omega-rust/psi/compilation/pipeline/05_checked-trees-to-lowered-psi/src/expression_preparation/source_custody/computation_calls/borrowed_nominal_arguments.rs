@@ -1,4 +1,6 @@
-//! Borrowed nominal operands retain their declared owner and exact call occurrence.
+//! Borrowed aggregates retain their declared owner and exact call occurrence.
+//! Fixed arrays loan the same established storage as records; their formal
+//! shape retains the length and element type without a nominal declaration.
 //! Records may retain supported field projections; scalar sums are observed
 //! whole at their established home, including ordinary returned case values.
 //! The implicit receiver precedes explicit actuals but has no row in their
@@ -134,17 +136,9 @@ pub(super) fn validate(
                 }
                 // Lending exclusive receiver custody follows the ordinary
                 // receiver lane's mutable-local requirement.
-                TypeReferenceNode::Named { .. }
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
                     if *target_access == ReferenceAccess::Shared || local.is_mutable =>
                 {
-                    local.type_reference
-                }
-                TypeReferenceNode::FixedArray { .. }
-                    if !argument.path.is_empty()
-                        && (*target_access == ReferenceAccess::Shared || local.is_mutable) =>
-                {
-                    // The array owns storage; the exact projected nominal
-                    // endpoint is independently reconstructed below.
                     local.type_reference
                 }
                 _ => return unsupported("record operand widens source access"),
@@ -175,7 +169,7 @@ pub(super) fn validate(
                 {
                     *referee
                 }
-                TypeReferenceNode::Named { .. }
+                TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
                     if *target_access == ReferenceAccess::Shared
                         || source.is_mutable
                         || source.is_self =>
@@ -220,48 +214,71 @@ pub(super) fn validate(
             LoweringError::Unsupported("record projection lost its declared type"),
         )?
     };
-    let TypeReferenceNode::Named { symbol, .. } =
-        checked.type_reference_table.type_reference(reference)
-    else {
-        return unsupported("record operand lost its exact nominal source type");
-    };
-    let declaration = checked
-        .data_definitions()
-        .iter()
-        .find(|data| data.symbol == *symbol)
-        .ok_or(LoweringError::Unsupported(
-            "borrowed nominal operand has no declaration",
-        ))?;
-    let members = checked.data_members(declaration);
-    if members
-        .iter()
-        .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
-        && (checked.type_multiplicity(reference) == language_semantics::Multiplicity::Linear
-            || !members.iter().all(|member| {
-                let checked_trees::data::DataMember::Variant(case) = member else {
-                    return false;
-                };
-                checked.data_payload_fields(case).iter().all(|field| {
-                    !field.relevance.is_erased()
-                        && matches!(
-                            checked
-                                .type_reference_table
-                                .type_reference(field.type_reference),
-                            TypeReferenceNode::Named { .. }
-                        )
-                })
-            }))
-    {
-        return unsupported("borrowed case operand requires a non-erased nominal sum");
+    match checked.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::FixedArray { .. } => {}
+        TypeReferenceNode::Named { symbol, .. } => {
+            let declaration = checked
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == *symbol)
+                .ok_or(LoweringError::Unsupported(
+                    "borrowed nominal operand has no declaration",
+                ))?;
+            let members = checked.data_members(declaration);
+            if members
+                .iter()
+                .any(|member| matches!(member, checked_trees::data::DataMember::Variant(_)))
+                && (checked.type_multiplicity(reference)
+                    == language_semantics::Multiplicity::Linear
+                    || !members.iter().all(|member| {
+                        let checked_trees::data::DataMember::Variant(case) = member else {
+                            return false;
+                        };
+                        checked.data_payload_fields(case).iter().all(|field| {
+                            !field.relevance.is_erased()
+                                && matches!(
+                                    checked
+                                        .type_reference_table
+                                        .type_reference(field.type_reference),
+                                    TypeReferenceNode::Named { .. }
+                                )
+                        })
+                    }))
+            {
+                return unsupported("borrowed case operand requires a non-erased nominal sum");
+            }
+        }
+        _ => return unsupported("borrowed operand lost its exact aggregate source type"),
     }
     // Both explicit context arguments and receivers loan existing storage.
-    // Neither copies the referent or establishes its provider fields. Rejoin
-    // its exact declaration here; the formal signature owns shape/erasure
-    // replay, and the occurrence checks below own the caller's loan authority.
-    if checked.normalized_type_identity(reference).as_str() != argument.type_identity {
+    // Neither copies the referent or establishes its provider fields. Fixed
+    // byte-array references present a bounded byte view over the same backing;
+    // its carrier retains the reference identity. Reconstruct that presentation
+    // from the exact authored formal, not the producer's requested identity.
+    // The source/formal referee equality and occurrence checks below still own
+    // the storage identity and loan authority; signature replay owns its shape.
+    let presentation = if !target.is_self
+        && matches!(
+            checked.type_reference_table.type_reference(*referee),
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: checked_trees::types::FixedArrayLength::Literal(_),
+            } if checked.primitive_type_reference(*element_type)
+                == Some(checked_trees::types::PrimitiveType::U8)
+        ) {
+        target.type_reference
+    } else {
+        reference
+    };
+    if checked.normalized_type_identity(presentation).as_str() != argument.type_identity {
         return unsupported("record operand changed its declared referent type");
     }
     if target.is_self {
+        let TypeReferenceNode::Named { symbol, .. } =
+            checked.type_reference_table.type_reference(reference)
+        else {
+            return unsupported("record receiver lost its nominal source type");
+        };
         let ArgumentOccurrence::Receiver {
             parameters,
             access_positions,

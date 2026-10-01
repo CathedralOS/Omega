@@ -89,7 +89,12 @@ pub(crate) fn call_array_constructions_in(
         if target_symbol != call.target_symbol {
             continue;
         }
-        let Some(target) = crate::semantic::calls::find_state(program, target_symbol) else {
+        let Some(parameters) =
+            crate::semantic::calls::call_target_parameters(program, target_symbol)
+        else {
+            continue;
+        };
+        let Some(return_type) = crate::flow::call_target_return_type(program, target_symbol) else {
             continue;
         };
         // A scalar computation owns its nested structural operands. Giving
@@ -106,27 +111,21 @@ pub(crate) fn call_array_constructions_in(
             Some(StatementNode::LocalData(local)) => {
                 call.authored_expression == local.initial_value
             }
+            // A whole boundary application is the store's result operation;
+            // ordinary scalar-returning calls belong to its computation instead.
+            Some(StatementNode::Assignment(assignment)) => {
+                super::call_lowering::call_is_boundary(program, target_symbol)
+                    && call.authored_expression == assignment.value
+            }
             Some(StatementNode::Expression(expression)) => call.authored_expression == *expression,
             _ => false,
         };
-        if !direct_root
-            && program
-                .primitive_type_reference(target.return_type)
-                .is_some()
-        {
+        if !direct_root && program.primitive_type_reference(return_type).is_some() {
             continue;
         }
-        // The state's retained parent names its owning machine; the
-        // whole-program owner walk was the same lookup at program scale.
-        let Some((owner, _)) =
-            crate::semantic::calls::find_state_with_machine(program, target.symbol)
-        else {
-            continue;
-        };
-        if owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-            continue;
-        }
-        let parameters = program.state_parameters(target);
+        // Construction belongs to the caller, independent of the callee's
+        // implementation. The common signature lookup retains the original
+        // requirement's formals; it never selects or fabricates a provider.
         let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
         let explicit_self = arguments.len()
             > parameters

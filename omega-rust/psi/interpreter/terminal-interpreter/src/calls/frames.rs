@@ -218,7 +218,12 @@ impl TerminalExecution {
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
-        self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
+        let mut identity_cursor = prepared_arguments.local_identity_cursor;
+        let record_payload = self.stage_owned_record_arguments(
+            &callee.structural_parameters,
+            &mut structural_values,
+            &mut identity_cursor,
+        )?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
             &callee.structural_parameters,
@@ -284,6 +289,9 @@ impl TerminalExecution {
         self.values = values;
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
+        self.local_structural_identities
+            .commit_cursor(identity_cursor);
+        self.structural_scalar_fields.extend(record_payload);
         self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.element_view_values = prepared_arguments.element_views;
         self.scalar_case_values = prepared_arguments.scalar_cases;
@@ -322,7 +330,12 @@ impl TerminalExecution {
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
-        self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
+        let mut identity_cursor = prepared_arguments.local_identity_cursor;
+        let record_payload = self.stage_owned_record_arguments(
+            &callee.structural_parameters,
+            &mut structural_values,
+            &mut identity_cursor,
+        )?;
         let byte_sequence_values = prepared_arguments.byte_sequences;
         let callee_affine_frontier = scalar_case_arguments::bind_call_affine_frontier(
             &callee.structural_parameters,
@@ -388,6 +401,9 @@ impl TerminalExecution {
         self.values = values;
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
+        self.local_structural_identities
+            .commit_cursor(identity_cursor);
+        self.structural_scalar_fields.extend(record_payload);
         self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.element_view_values = prepared_arguments.element_views;
         self.scalar_case_values = prepared_arguments.scalar_cases;
@@ -513,7 +529,12 @@ impl TerminalExecution {
         }
         let values = bind_arguments(&callee.parameters, scalar_arguments)?;
         let mut structural_values = prepared_arguments.values;
-        self.copy_owned_record_arguments(&callee.structural_parameters, &mut structural_values)?;
+        let mut identity_cursor = prepared_arguments.local_identity_cursor;
+        let record_payload = self.stage_owned_record_arguments(
+            &callee.structural_parameters,
+            &mut structural_values,
+            &mut identity_cursor,
+        )?;
         let expected_reference_backings = self.bind_reference_return_backings(
             &callee.structural_parameters,
             callee_result,
@@ -611,6 +632,9 @@ impl TerminalExecution {
         self.values = values;
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
+        self.local_structural_identities
+            .commit_cursor(identity_cursor);
+        self.structural_scalar_fields.extend(record_payload);
         self.scalar_array_values = prepared_arguments.scalar_arrays;
         self.element_view_values = prepared_arguments.element_views;
         self.scalar_case_values = prepared_arguments.scalar_cases;

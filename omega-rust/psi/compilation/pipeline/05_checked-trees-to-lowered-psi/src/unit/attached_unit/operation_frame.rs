@@ -18,11 +18,12 @@
 //! take a bare `&mut u64` and helpers that take the context advance the same
 //! identity space.
 //!
-//! Operand evaluation stays with each route, because the routes schedule it
-//! differently: the ordinary machine stages nested argument groups ahead of
-//! their call (`argument_schedule`), and a composed state evaluates each
-//! call's operands and literals just before it (`literal_arguments`). Both
-//! hand the completed operands to `emit_call` as `CallInputs`; everything from
+//! Operand evaluation stays with each route's value and storage environment,
+//! but both consume `argument_schedule` to interleave nested structural
+//! producers with scalar operands at their authored positions. A composed
+//! state's `literal_arguments` materializes literals and consumes any already
+//! staged operands without evaluating them again. Both hand the completed
+//! operands to `emit_call` as `CallInputs`; everything from
 //! there on (target lookup, transfer validation, claim custody, requirement
 //! obligations, crash substitution, result publication) is one code path.
 //!

@@ -15,6 +15,14 @@ use crate::terminal_identities::lookup_domain_id_for_carrier;
 use crate::unit::attached_unit::byte_subslices;
 use checked_trees::CheckedUnitCallResult;
 
+/// Completed operands from the shared authored-position schedule. Their slots
+/// have already followed any control splits; evaluating them again at the call
+/// would repeat side effects and move reads across structural snapshots.
+pub(super) struct StagedArguments<'a> {
+    pub scalars: &'a [ValueDeclaration],
+    pub ranges: &'a [(usize, PlaceId)],
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn evaluate(
     checked: &CheckedTrees,
@@ -22,6 +30,7 @@ pub(super) fn evaluate(
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     parameters: &[StructuralParameterDeclaration],
     operation: &CheckedUnitEffectOperationPlan,
+    staged: Option<StagedArguments<'_>>,
     catalogs: &mut catalogs::ComposedCatalogs,
     evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
     values: &mut Vec<ValueDeclaration>,
@@ -36,6 +45,9 @@ pub(super) fn evaluate(
     if !arguments.iter().any(|argument| {
         argument.byte_sequence_literal().is_some() || byte_subslices::range(argument).is_some()
     }) {
+        if let Some(staged) = staged {
+            return Ok((Some(staged.scalars.to_vec()), Vec::new()));
+        }
         let mut calls = catalogs.scalar_calls.emission_context();
         let values = evaluation.arguments(
             checked, machine, state, operation, values, next_value, next_block, next_edge,
@@ -134,22 +146,37 @@ pub(super) fn evaluate(
                     operations,
                 )?);
             } else if byte_subslices::range(argument).is_some() {
-                byte_places.push(stage_range(
-                    checked,
-                    state_plan,
-                    parameters,
-                    operation,
-                    structural_ordinal,
-                    source_value_count,
-                    catalogs,
-                    evaluation,
-                    values,
-                    next_value,
-                    operations,
-                )?);
+                let place = if let Some(staged) = &staged {
+                    staged
+                        .ranges
+                        .iter()
+                        .find_map(|(ordinal, place)| {
+                            (*ordinal == structural_ordinal).then_some(*place)
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "scheduled call lost its staged range operand",
+                        ))?
+                } else {
+                    stage_range(
+                        checked,
+                        state_plan,
+                        parameters,
+                        operation,
+                        structural_ordinal,
+                        source_value_count,
+                        catalogs,
+                        evaluation,
+                        values,
+                        next_value,
+                        operations,
+                    )?
+                };
+                byte_places.push(place);
             }
             structural_ordinal += 1;
-        } else if scalar_positions.get(scalar_slots.len()) == Some(&argument_position) {
+        } else if staged.is_none()
+            && scalar_positions.get(scalar_slots.len()) == Some(&argument_position)
+        {
             let mut calls = catalogs.scalar_calls.emission_context();
             let value = evaluation.argument_at(
                 checked,
@@ -172,6 +199,12 @@ pub(super) fn evaluate(
         // Existing custody may erase an unused receiver or a compile-only
         // structural parameter. Do not renumber the remaining formal positions.
     }
+    if let Some(staged) = staged {
+        if staged.scalars.len() != scalar_count {
+            return unsupported("scheduled call lost its completed scalar operands");
+        }
+        return Ok((Some(staged.scalars.to_vec()), byte_places));
+    }
     // A later operand can split control and rebind earlier private slots. Read
     // the completed values only after every operand, then retire those slots.
     let scalars = scalar_slots
@@ -190,7 +223,7 @@ pub(super) fn evaluate(
 /// position. The endpoints read the namespace the call's authored operands
 /// read, before any of this call's own operands evaluated.
 #[allow(clippy::too_many_arguments)]
-fn stage_range(
+pub(super) fn stage_range(
     checked: &CheckedTrees,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     parameters: &[StructuralParameterDeclaration],

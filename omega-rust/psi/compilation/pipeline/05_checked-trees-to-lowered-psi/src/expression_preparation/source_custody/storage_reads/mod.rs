@@ -661,12 +661,9 @@ fn authored_read_path(
                 _ => unsupported("indexed primitive read has an unsupported projection"),
             })
             .collect::<Result<Vec<_>, _>>()?;
-        // Place-custody paths keep traversal order, and so do retained paths
-        // for selectors reached through member positions (`x.cells[i].value`
-        // keeps `[cells, FixedIndex(i), value]`) and every parameter-rooted
-        // literal path (`grid[1][2]` keeps `[FixedIndex(1), FixedIndex(2)]`).
-        // Only a selector on a bare local fixed carrier retains after the
-        // members it reads into: `local[i].f` rejoins `[Field(f), FixedIndex(i)]`.
+        // Keep root-to-leaf traversal order for every storage owner. Moving
+        // a local's first index behind its fields or later indices changes
+        // which element is read (`grid[1][0]` is not `grid[0][1]`).
         // A view-typed local roots its element reads at the view its
         // establishment published (`CheckedStorageRoot::ViewLocal`), whose
         // retained form is selector-only on either access family: a view is
@@ -675,14 +672,6 @@ fn authored_read_path(
         // store-destination custody resolves here.
         if view_typed_local(checked, state, scope, source.root) {
             return Ok(None);
-        }
-        let mut path = path;
-        if matches!(path.first(), Some(Segment::FixedIndex(_)))
-            && path.len() > 1
-            && fixed_carrier_local(checked, state, scope, source.root).is_some()
-        {
-            let selector = path.remove(0);
-            path.push(selector);
         }
         return Ok(Some((source.root, path)));
     }
@@ -1540,9 +1529,9 @@ fn collect_scalar_storage_reads(
                 && let Some(index) = literal.value_u64()
             {
                 let mut projection = read_path.clone();
-                projection.extend(element_path.iter().cloned());
                 projection
                     .push(checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index));
+                projection.extend(element_path.iter().cloned());
                 reads.push((
                     path.clone(),
                     symbol,

@@ -24,6 +24,46 @@ machine enter(left: Flags, marker: bool, right: Flags, other: bool) -> bool {
 "#;
 
 #[test]
+fn structural_local_operand_admission_is_independent_of_machine_completion() {
+    for (result, completion) in [("", ""), ("-> u8", "0u8"), ("-> [u8; 2]", "retained")] {
+        let program = crate::front_end::typed_program(&format!(
+            "machine marker(value: u8) -> u8 {{ value }}
+             machine keep(before: u8, values: [u8; 2], after: u8) -> [u8; 2] {{ values }}
+             machine selected() {result} {{
+                 let values: [u8; 2] = [7u8, 9u8];
+                 let retained: [u8; 2] = keep(marker(3u8), values, marker(4u8));
+                 {completion}
+             }}"
+        ));
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "selected")
+            .unwrap();
+        let state = &program.machine_states(machine)[0];
+        let StatementNode::LocalData(local) =
+            &program.statement_table.statements(state.statement_nodes)[1]
+        else {
+            panic!("retained structural local");
+        };
+        assert!(result_initializer_call_is_supported(
+            &program,
+            machine,
+            local.initial_value
+        ));
+        let mut diagnostics = Vec::new();
+        report_nested_call_in_local_initializer(
+            &program,
+            machine,
+            "entry",
+            local.initial_value,
+            &mut diagnostics,
+        );
+        assert!(diagnostics.is_empty(), "{result}: {diagnostics:#?}");
+    }
+}
+
+#[test]
 fn linear_result_initializers_share_operand_admission_without_losing_fences() {
     use typed_trees::types::{DomainConstraint, TypeConstraintNode, TypeReferenceNode};
 
