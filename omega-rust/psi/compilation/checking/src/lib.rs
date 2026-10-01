@@ -229,8 +229,8 @@ pub use value_custody::placed_views::{
 pub use value_custody::places::declared_place_type_raw;
 pub use value_custody::places::{unwrapped_type_reference, zeroed_structural_parts};
 pub use value_custody::recasts::{
-    ValidatedLiteralIndexedRecastFootprint, validate_literal_indexed_recast_footprint,
-    validate_runtime_indexed_recast_source,
+    RecastScalarProjection, ValidatedLiteralIndexedRecastFootprint, recast_scalar_projection,
+    validate_literal_indexed_recast_footprint, validate_runtime_indexed_recast_source,
 };
 pub use value_custody::type_references::normalize_open_index_expressions;
 pub use value_custody::type_references::{

@@ -134,20 +134,6 @@ pub(crate) enum LoweredDirectExpression {
         field: StructuralFieldId,
         scalar_type: ScalarType,
     },
-    /// A bounded-leaf field of a record overlaid on a byte carrier
-    /// (`buf[0]` read as `Desc`, then `.tag`): `path` is the static prefix
-    /// ending in the literal `FixedIndex` where the byte region starts and
-    /// `element` is the record structural type the region hosts. The read
-    /// hoists a `StructuralLeafCopy` at that path materializing the record
-    /// on a fresh place — the verifier admits the byte-carrier overlay there
-    /// — and the canonical field read on that place supplies the range.
-    ByteCarrierFieldRead {
-        source: PlaceId,
-        path: Vec<terminal_psi::StructuralPathSegment>,
-        element: StructuralTypeId,
-        field: StructuralFieldId,
-        scalar_type: ScalarType,
-    },
     ElementViewLength {
         source: PlaceId,
         scalar_type: ScalarType,
@@ -262,7 +248,6 @@ impl LoweredDirectExpression {
             | Self::ByteSequenceFieldRead { scalar_type, .. }
             | Self::IndexedPrimitiveRead { scalar_type, .. }
             | Self::IndexedElementFieldRead { scalar_type, .. }
-            | Self::ByteCarrierFieldRead { scalar_type, .. }
             | Self::ElementViewLength { scalar_type, .. }
             | Self::ElementViewRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }
@@ -707,55 +692,6 @@ pub(crate) fn emit_direct_expression(
                 _ => OperationKind::IntegerStructuralField {
                     source: place,
                     path: carrier.clone(),
-                    field: *field,
-                },
-            };
-            emit_scalar_leaf(kind, *scalar_type, next_value_identity, operations)
-        }
-        LoweredDirectExpression::ByteCarrierFieldRead {
-            source,
-            path,
-            element,
-            field,
-            scalar_type,
-        } => {
-            // Same hoisting convention as `IndexedElementFieldRead`, minus
-            // the runtime selector: the copy's place borrows the reserved
-            // high namespace so it cannot collide with the dense place
-            // counter the machine frames own.
-            let operation = operations.allocate();
-            let place = place_id(
-                TERMINAL_HOISTED_ELEMENT_PLACE_BASE
-                    .checked_add(operation.get())
-                    .expect("hoisted element places admit a reserved namespace"),
-            );
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id: operation,
-                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
-                    qualification_establishments: Vec::new(),
-                    place,
-                    structural_type: *element,
-                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    claims: Vec::new(),
-                }),
-                kind: OperationKind::StructuralLeafCopy {
-                    source: *source,
-                    path: path.clone(),
-                },
-            });
-            let kind = match scalar_type {
-                ScalarType::Boolean => OperationKind::BooleanStructuralField {
-                    source: place,
-                    path: Vec::new(),
-                    field: *field,
-                },
-                _ => OperationKind::IntegerStructuralField {
-                    source: place,
-                    path: Vec::new(),
                     field: *field,
                 },
             };

@@ -181,6 +181,19 @@ the complete product bar; focused successes below do not establish that baseline
     policy and observation through replay and execution; coordinate
     **OPERATOR-BOUNDARY-CALLS** / **FLOAT-PROVIDERS** for executable arithmetic.
 
+    Byte-backed record writes must resolve the recast loan's captured backing,
+    not an invented owned local. On macOS ARM64, the `c864ec75728`-based repair
+    of normalized record reads moves the unchanged
+    `layouts/runtime_plan_laid_integer_at_proved_write_exit` to
+    `structural scalar store names an unknown structural local` in
+    `unit/attached_unit/operation_frame.rs::local_store_root` for
+    `view.value.value = self.source`. Retain normalized nested offsets and
+    stored-width/sign decoding on reads; writes must preserve exact backing,
+    exclusive custody and the concrete fit proof. Coordinate the current
+    operation-frame/store owners. Acceptance remains
+    `python3 tools/corpus_gate.py --native --filter layouts/runtime_plan_laid_integer_at_proved_write_exit`
+    producing the authored success exit 72; read replay alone is not closure.
+
   - **Computed calls and state transfers.** A structural call supplied directly
     as a state argument, such as `vending_machine`'s
     `report(context, Main::make_change(100, 55), 17)`, is an ordinary

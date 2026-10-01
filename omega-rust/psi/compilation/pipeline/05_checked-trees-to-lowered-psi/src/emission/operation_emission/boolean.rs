@@ -55,14 +55,6 @@ pub(crate) enum LoweredBooleanReturnExpression {
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: StructuralFieldId,
     },
-    /// The Boolean sibling of `LoweredDirectExpression::ByteCarrierFieldRead`:
-    /// a leaf of a record overlaid on a byte carrier.
-    ByteCarrierFieldRead {
-        source: PlaceId,
-        path: Vec<terminal_psi::StructuralPathSegment>,
-        element: semantic_vocabulary::StructuralTypeId,
-        field: StructuralFieldId,
-    },
     Not {
         operand: Box<LoweredBooleanReturnExpression>,
     },
@@ -215,23 +207,6 @@ pub(crate) fn emit_boolean_expression(
             });
             id
         }
-        LoweredBooleanReturnExpression::ByteCarrierFieldRead {
-            source,
-            path,
-            element,
-            field,
-        } => emit_direct_expression(
-            &LoweredDirectExpression::ByteCarrierFieldRead {
-                source: *source,
-                path: path.clone(),
-                element: *element,
-                field: *field,
-                scalar_type: ScalarType::Boolean,
-            },
-            parameters,
-            next_value_identity,
-            operations,
-        ),
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => {
             unreachable!("shared Boolean members resolve before terminal operation emission")
         }

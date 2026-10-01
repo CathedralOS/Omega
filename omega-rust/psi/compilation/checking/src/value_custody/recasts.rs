@@ -62,6 +62,7 @@ mod raw_byte_region;
 mod recast_judgments;
 mod record_eligibility;
 mod record_representation;
+pub use record_representation::{RecastScalarProjection, recast_scalar_projection};
 mod representation_types;
 mod scalar_representation;
 

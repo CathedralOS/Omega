@@ -10,6 +10,10 @@
 //! byte-region re-view, whose individual reads re-prove the entire observed
 //! field's bounds. It does not project a record field below a `u8` element or
 //! establish a copied record to stand in for the borrowed storage.
+//! Literal and runtime byte coordinates use the same read path. Recast
+//! normalization supplies nested field offsets and physical integer widths;
+//! an `IntegerAt` read decodes that width before widening to its semantic
+//! carrier. Recomputing a flat scalar layout here loses both relationships.
 use super::super::{
     PrimitiveType, StructuralFieldId, StructuralFieldType, StructuralTypeDeclaration,
     StructuralTypeId, StructuralTypeShape, terminal_scalar_type,
@@ -73,8 +77,13 @@ pub(crate) struct Binding {
 
 #[derive(Clone)]
 struct ByteOverlayField {
-    record: StructuralTypeId,
     offset: u64,
+    stored_type: ScalarType,
+}
+
+struct ByteOverlaySource {
+    referee: typed_trees::types::TypeReferenceHandle,
+    remaining_bytes: Option<u64>,
 }
 
 /// One authored segment of a shared loan's captured place: a declared record
@@ -158,7 +167,7 @@ struct RecordLoanSubject {
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     terminal: StructuralTypeId,
-    byte_overlay: Option<StructuralTypeId>,
+    byte_overlay: Option<ByteOverlaySource>,
     /// The checked coordinate of the loan's non-literal index, when the
     /// captured path selects an element by runtime value.
     runtime_index: Option<checked_trees::CheckedRuntimeIndex>,
@@ -254,7 +263,7 @@ fn record_loan_subject(
             *segment = LoanedPathSegment::FixedIndex(index);
         }
     }
-    let parameters = checked.state_parameters(&source_state);
+    let parameters = checked.state_parameters(source_state);
     // A `self`-rooted capture names the machine's own declared symbol rather
     // than a parameter spelling; it resolves to the `is_self` parameter, the
     // same join the shared borrow rosters make. A local-rooted capture keeps
@@ -467,12 +476,10 @@ fn record_loan_subject(
             }
         }
     }
-    // `&self.buf[0] as &T` loans a record referee whose leaves sit on the
-    // byte array's elements. When the walk ends on a `u8` element and the
-    // referee declares a record whose fixed scalar layout fits the elements
-    // remaining at that index, the loan's terminal is that record
-    // declaration overlaying the region — the `u8` element the canonical
-    // path walked to is the carrier, not the type the member read names.
+    // The u8 element is the backing coordinate, not the record namespace.
+    // Resolve fields under the referee, then rejoin their recast geometry.
+    // Static footprint checks and per-byte Terminal obligations below keep
+    // this namespace selection from granting access outside the region.
     let mut terminal = declaration.id;
     let mut byte_overlay = None;
     // The referee's authored type names the machine itself under the same
@@ -487,34 +494,7 @@ fn record_loan_subject(
         ),
         _ => checked.normalized_type_identity(*referee).into_string(),
     };
-    if let Some((index, length)) = tail
-        && matches!(
-            &declaration.shape,
-            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
-                    && integer.bits() == 8
-        )
-    {
-        if let Some(overlay) = types.iter().find(|candidate| {
-            candidate.identity == referee_identity
-                && matches!(candidate.shape, StructuralTypeShape::Record { .. })
-        }) && let Some(layout) =
-            terminal_semantics::byte_carrier_scalar_layout(types.iter(), overlay.id)
-            && index
-                .checked_add(layout.size)
-                .is_some_and(|end| end <= length)
-        {
-            terminal = overlay.id;
-            byte_overlay = Some(overlay.id);
-        }
-    }
-    // `&buf[i] as &T` through a runtime selector names the same overlay: the
-    // admission obligations prove `i + layout.size <= length`, so there is
-    // no literal index to replay — the arm keys on the walked `u8` element
-    // and the referee's record identity alone.
-    if byte_overlay.is_none()
-        && tail.is_none()
-        && runtime_index.is_some()
+    if (tail.is_some() || runtime_index.is_some())
         && matches!(
             &declaration.shape,
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
@@ -525,10 +505,12 @@ fn record_loan_subject(
             candidate.identity == referee_identity
                 && matches!(candidate.shape, StructuralTypeShape::Record { .. })
         })
-        && terminal_semantics::byte_carrier_scalar_layout(types.iter(), overlay.id).is_some()
     {
         terminal = overlay.id;
-        byte_overlay = Some(overlay.id);
+        byte_overlay = Some(ByteOverlaySource {
+            referee: *referee,
+            remaining_bytes: tail.and_then(|(index, length)| length.checked_sub(index)),
+        });
     }
     // Segments below the runtime index walk inside the selected element;
     // they leave both path vocabularies so the emitted read can splice the
@@ -746,22 +728,32 @@ pub(crate) fn prepare(
                 ));
             }
             let byte_overlay = byte_overlay
-                .map(|record| {
-                    let layout =
-                        terminal_semantics::byte_carrier_scalar_layout(types.iter(), record)
-                            .ok_or(LoweringError::Unsupported(
-                                "record byte overlay lost its scalar layout",
-                            ))?;
-                    let leaf = layout
-                        .leaves
-                        .iter()
-                        .find(|leaf| leaf.field == retained.id && leaf.scalar_type == scalar_type)
-                        .ok_or(LoweringError::Unsupported(
-                            "record byte overlay changed its field identity or carrier",
-                        ))?;
+                .map(|overlay| {
+                    let projection = validation::recast_scalar_projection(
+                        &checked.typed,
+                        overlay.referee,
+                        &source.path,
+                        source.field,
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "record byte overlay lost its checked projection geometry",
+                    ))?;
+                    if terminal_scalar_type(projection.primitive)? != scalar_type
+                        || overlay.remaining_bytes.is_some_and(|remaining| {
+                            u64::try_from(projection.footprint)
+                                .map_or(true, |footprint| footprint > remaining)
+                        })
+                    {
+                        return unsupported("record byte overlay changed its carrier or footprint");
+                    }
                     Ok::<_, LoweringError>(ByteOverlayField {
-                        record,
-                        offset: leaf.offset,
+                        offset: u64::try_from(projection.offset).map_err(|_| {
+                            LoweringError::Unsupported("record byte overlay offset exceeds u64")
+                        })?,
+                        stored_type: projection
+                            .stored_integer
+                            .map(ScalarType::Integer)
+                            .unwrap_or(scalar_type),
                     })
                 })
                 .transpose()?;
@@ -953,11 +945,12 @@ pub(super) fn observation(
             if binding.view_container {
                 return unsupported("record byte overlay requires fixed-array backing");
             }
-            return runtime_byte_overlay_read(
+            return byte_overlay_read(
                 source,
                 &binding.carrier_path,
                 index,
                 overlay.offset,
+                overlay.stored_type,
                 scalar_type,
             );
         }
@@ -1002,26 +995,22 @@ pub(super) fn observation(
         });
     }
     if let Some(overlay) = &binding.byte_overlay {
-        // A byte-carrier read mints the record on a hoisted place — the
-        // canonical `StructuralField` arm below cannot spell it, since the
-        // captured path ends on the `u8` element the region starts at.
-        return Ok(match scalar_type {
-            ScalarType::Boolean => LoweredDirectExpression::Boolean {
-                expression: Box::new(LoweredBooleanReturnExpression::ByteCarrierFieldRead {
-                    source,
-                    path: binding.carrier_path.clone(),
-                    element: overlay.record,
-                    field: binding.field,
-                }),
+        let Some((terminal_psi::StructuralPathSegment::FixedIndex(index), prefix)) =
+            binding.carrier_path.split_last()
+        else {
+            return unsupported("record byte overlay has no captured byte coordinate");
+        };
+        return byte_overlay_read(
+            source,
+            prefix,
+            LoweredDirectExpression::IntegerLiteral {
+                value: semantic_vocabulary::IntegerValue::Unsigned(u128::from(*index)),
+                scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
             },
-            _ => LoweredDirectExpression::ByteCarrierFieldRead {
-                source,
-                path: binding.carrier_path.clone(),
-                element: overlay.record,
-                field: binding.field,
-                scalar_type,
-            },
-        });
+            overlay.offset,
+            overlay.stored_type,
+            scalar_type,
+        );
     }
     Ok(match scalar_type {
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
@@ -1048,11 +1037,12 @@ pub(super) fn observation(
 /// Observe just the selected field's bytes at its exact layout offset. The
 /// ordinary region re-view owns the byte assembly and each runtime-index proof;
 /// the source recast's footprint judgment cannot discharge those obligations.
-fn runtime_byte_overlay_read(
+fn byte_overlay_read(
     source: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     index: LoweredDirectExpression,
     offset: u64,
+    stored_type: ScalarType,
     scalar_type: ScalarType,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     let index_type = index.scalar_type();
@@ -1078,14 +1068,95 @@ fn runtime_byte_overlay_read(
         element_path: Vec::new(),
         scalar_type: byte_type,
     };
-    if scalar_type == byte_type {
-        return Ok(first_byte);
+    let stored = if stored_type == byte_type {
+        first_byte
+    } else {
+        crate::expression_preparation::representation_view::replay(first_byte, stored_type)?
+    };
+    if stored_type == scalar_type {
+        return Ok(stored);
     }
-    crate::expression_preparation::representation_view::replay(first_byte, scalar_type)
+    match (stored_type, scalar_type) {
+        (ScalarType::Integer(source_type), ScalarType::Integer(target_type))
+            if source_type.can_widen_to(target_type) =>
+        {
+            Ok(LoweredDirectExpression::IntegerWiden {
+                scalar_type,
+                operand: Box::new(stored),
+            })
+        }
+        _ => unsupported("record byte overlay cannot decode its stored integer carrier"),
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn nested_byte_overlay_keeps_repeated_field_occurrences_distinct() {
+        let checked = crate::front_end::checked_program(
+            "data Cell { value: u16; }
+             data Pair { first: Cell; second: Cell; }
+             data Main { bytes: [u8; 4]; first: u16; second: u16; }
+             machine Main::main(&mut self) {
+                 let view: &Pair = &self.bytes[0] as &Pair;
+                 self.first = view.first.value;
+                 self.second = view.second.value;
+             }",
+        );
+        let lowered = crate::lower_machine(
+            &checked,
+            crate::TerminalMachineSelection::Name("Main::main"),
+        )
+        .expect("nested byte-backed fields keep the selected occurrence's offset");
+        let mut module = terminal_codec::decode_module(
+            &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
+        )
+        .unwrap();
+        terminal_verifier::verify_module(
+            &module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("all four byte observations replay independently");
+        assert_eq!(
+            module
+                .machines
+                .iter()
+                .flat_map(|machine| &machine.blocks)
+                .flat_map(|block| &block.operations)
+                .filter(|operation| matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::PrimitiveScalarRead { .. }
+                ))
+                .count(),
+            4,
+        );
+        let captured_offset = module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                terminal_psi::OperationKind::IntegerConstant { value }
+                    if *value == semantic_vocabulary::IntegerValue::Unsigned(2) =>
+                {
+                    Some(value)
+                }
+                _ => None,
+            })
+            .expect("the second occurrence has a two-byte offset");
+        *captured_offset = semantic_vocabulary::IntegerValue::Unsigned(4);
+        assert!(
+            terminal_verifier::verify_module(
+                &module,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .is_err(),
+            "substituting an out-of-bounds offset cannot reuse the byte proofs"
+        );
+    }
+
     const RECORD_BYTE_LOAN: &str = r#"
         data Desc { tag: u8; small: u16; count: u32; }
         data Main { buf: [u8; 24]; result: u32; offset: u32 [0..=16]; }

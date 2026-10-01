@@ -383,7 +383,6 @@ fn substitute_boolean(
         | Boolean::Constant { .. }
         | Boolean::Parameter { .. }
         | Boolean::Local { .. }
-        | Boolean::ByteCarrierFieldRead { .. }
         | Boolean::UnresolvedStructuralParameterField { .. }) => expression,
     }
 }
@@ -542,7 +541,6 @@ pub(crate) fn substitute_direct(
         | Direct::ByteSequenceLength { .. }
         | Direct::ElementViewLength { .. }
         | Direct::ByteSequenceFieldLength { .. }
-        | Direct::ByteCarrierFieldRead { .. }
         | Direct::Parameter { .. }
         | Direct::ErasedParameter { .. }
         | Direct::Local { .. }
@@ -585,7 +583,6 @@ fn case_reads<'e>(
         | Boolean::Constant { .. }
         | Boolean::Parameter { .. }
         | Boolean::Local { .. }
-        | Boolean::ByteCarrierFieldRead { .. }
         | Boolean::UnresolvedStructuralParameterField { .. } => {}
     }
 }
@@ -685,7 +682,6 @@ fn collect_direct_case_reads<'e>(
         Direct::ByteSequenceLength { .. }
         | Direct::ByteSequenceFieldLength { .. }
         | Direct::ElementViewLength { .. }
-        | Direct::ByteCarrierFieldRead { .. }
         | Direct::Parameter { .. }
         | Direct::ErasedParameter { .. }
         | Direct::Local { .. }
