@@ -1,4 +1,9 @@
 //! Exact semantic shape, value backing, and ABI custody for aggregates.
+//!
+//! A bounded byte owner returns its live length word and inline backing through
+//! the aggregate ABI, not a borrowed pointer/length descriptor. Its primitive
+//! predicate roster changes no layout, but must still match the declared normal
+//! result exactly; equal byte widths cannot substitute semantic custody.
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
 };
@@ -278,6 +283,12 @@ pub(super) fn call_result<'a>(
                 &source.structural.as_ref()?.structural_types,
             )?
         }
+        terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+        ) => crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+            result.structural_type,
+            &source.structural.as_ref()?.structural_types,
+        )?,
         _ => return None,
     };
     let placement = call.result_placement.as_ref()?;
@@ -399,6 +410,23 @@ pub(super) fn owned_argument_placement(placement: &calling_conventions::ValuePla
     inline_argument_fragments(placement) || indirect_argument(placement).is_some()
 }
 
+pub(super) fn bounded_owned_byte_type(
+    source: &LegalizedScalarFunction,
+    structural_type: semantic_vocabulary::StructuralTypeId,
+) -> bool {
+    source.structural.as_ref().is_some_and(|signature| {
+        signature.structural_types.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
+    })
+}
+
 pub(super) fn indirect_argument(
     placement: &calling_conventions::ValuePlacement,
 ) -> Option<(calling_conventions::IndirectPointerLocation, u32)> {
@@ -495,6 +523,23 @@ pub(super) fn returned<'a>(
                 LegalizedScalarInstructionKind::EstablishReference { result, shape, .. } => {
                     (result, *shape)
                 }
+                LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
+                    result,
+                    ..
+                } => {
+                    if super::byte_concatenation_input::owned_type(source, result.place)
+                        != Some(result.structural_type)
+                    {
+                        return None;
+                    }
+                    (
+                        result,
+                        crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
+                            result.structural_type,
+                            &source.structural.as_ref()?.structural_types,
+                        )?,
+                    )
+                }
                 LegalizedScalarInstructionKind::Call(call) => (
                     call.structural_result.as_ref()?,
                     call.result_placement.as_ref()?.shape,
@@ -548,9 +593,26 @@ pub(super) fn returned<'a>(
             return None;
         }
     };
+    let bounded_owned_bytes = matches!(
+        owner,
+        legalized_operations::LegalizedStructuralCaseSource::OperationResult { result, .. }
+            if bounded_owned_byte_type(source, result.structural_type)
+    );
+    let exact_qualified_owned_bytes = matches!(
+        owner,
+        legalized_operations::LegalizedStructuralCaseSource::OperationResult { result, .. }
+            if result.structural_type == declared.structural_type
+                && result.multiplicity == declared.multiplicity
+                && result.qualifications == declared.qualifications
+                && result.projected_qualifications == declared.projected_qualifications
+                && result.qualification_establishments.is_empty()
+                && result.claims.is_empty()
+                && bounded_owned_byte_type(source, result.structural_type)
+    );
     if structural_type != declared.structural_type
         || multiplicity != declared.multiplicity
-        || !declared.qualifications.is_empty()
+        || ((bounded_owned_bytes || !declared.qualifications.is_empty())
+            && !exact_qualified_owned_bytes)
         || !declared.projected_qualifications.is_empty()
         || declared.multiplicity == terminal_psi::StructuralMultiplicity::Linear
     {

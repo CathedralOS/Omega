@@ -624,6 +624,10 @@ fn close_return_structural(
             .expect("control validation requires a structural source declaration");
     let plain_owned_block_return =
         super::super::block_views::plain_owned_return_source(module, machine, *source);
+    let bounded_owned_byte_return =
+        super::super::structural::result_contracts::bounded_owned_byte_return_source(
+            module, machine, *source, result,
+        );
     let exact_unrestricted_parameter_return = source_signature.multiplicity
         == StructuralMultiplicity::Unrestricted
         && super::super::structural::result_contracts::has_empty_qualification_rosters(
@@ -659,6 +663,7 @@ fn close_return_structural(
     // by retaining a fictitious affine obligation across joins.
     if frontier.owned_places.remove(source).is_none()
         && !exact_unrestricted_parameter_return
+        && !bounded_owned_byte_return
         && !shared_view_parameter_return
         && !super::super::scalar::array::plain_return_source(module, machine, *source)
         && !(source_signature.multiplicity == StructuralMultiplicity::Unrestricted
@@ -775,6 +780,7 @@ fn close_return_structural(
         );
     if (returned_claims.is_empty()
         && !reference_return
+        && !bounded_owned_byte_return
         && !shared_view_parameter_return
         && !exact_payloadless_claim_free_return
         && !exact_affine_parameter_return

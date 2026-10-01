@@ -396,7 +396,7 @@ fn owned_byte_loan(
         })
     };
     let Some((producer, structural_type)) =
-        super::byte_views::owned_concatenation(caller, semantic.place)
+        super::byte_views::owned_byte_result(caller, semantic.place, &plan.structural_types)
     else {
         return Ok(None);
     };

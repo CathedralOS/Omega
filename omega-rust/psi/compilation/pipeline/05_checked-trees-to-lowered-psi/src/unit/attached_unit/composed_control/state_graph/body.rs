@@ -62,7 +62,8 @@ pub(super) fn validate(
         ) && state.operations.last().is_some_and(|operation| {
             let result = match operation {
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => Some(result),
+                | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. } => Some(result),
                 // Any call with a structural result, ordinary or boundary.
                 CheckedUnitEffectOperationPlan::Call(call) => call.structural_result(),
                 _ => None,
@@ -828,7 +829,7 @@ pub(super) fn validate(
             }
             (
                 CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. },
-                StatementNode::LocalData(_),
+                StatementNode::LocalData(_) | StatementNode::Expression(_) | StatementNode::Transition(_),
             ) if result.statement_index as usize == ordinal => {
                 super::super::super::literal_locals::validate(checked, state.state, operation)?;
             }
@@ -1305,12 +1306,20 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
 }
 
 /// The statement an operation may continue rather than consume: a call's
-/// continuation cleanup, a store of its own statement's scalar call result,
+/// continuation cleanup, a store of its own statement's call result,
 /// the member stores of a whole-record replacement, the element stores of a
 /// whole array-literal replacement, and the move-out/store pair of a
 /// displaced borrowed field.
 fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
     match operation {
+        CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
+            if matches!(
+                store.value.nodes.get(store.value.root),
+                checked_trees::CheckedByteSequenceValue::CallResult { .. }
+            ) =>
+        {
+            Some(store.statement_index)
+        }
         CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
             Some(coordinate.statement_index)
         }
@@ -1541,6 +1550,38 @@ fn validate_displaced_field_replacement(
         .take_while(|operation| argument_construction(operation))
         .count();
     let roster = &roster[operand_count..];
+    // An unrestricted byte owner replaces length and live payload together;
+    // it has no displaced affine value or move-out window. Its two effects
+    // still belong to exactly one authored assignment and one completed call.
+    if let [
+        CheckedUnitEffectOperationPlan::Call(call),
+        CheckedUnitEffectOperationPlan::ByteSequenceStore(store),
+    ] = roster
+        && let Some(result) = call.structural_result()
+        && let checked_trees::CheckedByteSequenceValue::CallResult {
+            state: producer_state,
+            statement_index,
+            binding_ordinal,
+            ..
+        } = store.value.nodes.get(store.value.root)
+        && *producer_state == state.state
+        && *statement_index as usize == ordinal
+        && store.statement_index == *statement_index
+        && call.coordinate.statement_index == *statement_index
+        && call.coordinate.call_ordinal == 0
+        && result.statement_index == *statement_index
+        && result.binding_ordinal == *binding_ordinal
+        && result.multiplicity == language_semantics::Multiplicity::Unrestricted
+        && call.discard_result_on_return() == Some(false)
+    {
+        return crate::emission::structural_byte_sequence_store::validate_assignment(
+            checked,
+            machine,
+            state.state,
+            assignment,
+            store,
+        );
+    }
     let (moved, place, destination, value, cleanup, produced) = match roster {
         [
             producer,

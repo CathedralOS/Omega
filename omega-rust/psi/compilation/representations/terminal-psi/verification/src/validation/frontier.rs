@@ -568,6 +568,7 @@ fn validate_owned_reads(
             // materialization with no affine frontier entry; byte-view use
             // validation requires it to dominate every loan of it.
             && super::byte_sequence::concatenation::owned_result(machine, *place).is_none()
+            && terminal_semantics::byte_owned_call_result(module, machine, *place).is_none()
             && super::primitive_storage::local_result(machine, *place).is_none()
             // These reads have independent exact-root and dominance checks.
             // Unrestricted homes need no affine entry; affine homes still

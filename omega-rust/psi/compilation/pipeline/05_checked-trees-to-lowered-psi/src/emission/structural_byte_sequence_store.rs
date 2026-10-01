@@ -124,6 +124,52 @@ fn validate_value(
         {
             Ok(())
         }
+        (
+            ByteValue::CallResult {
+                state,
+                statement_index: occurrence,
+                capacity,
+                ..
+            },
+            ExpressionNode::Call(_),
+        ) => {
+            if *state != state_symbol || *occurrence as usize != statement_index {
+                return unsupported("byte result names a different authored call occurrence");
+            }
+            let coordinate = checked_trees::CheckedUnitCallCoordinate {
+                statement_index: *occurrence,
+                call_ordinal: 0,
+            };
+            let authored = super::call_source_custody::authored::locate_source(
+                checked,
+                state_symbol,
+                coordinate,
+            )?;
+            let target = super::call_source_custody::authored::target_signature(
+                checked,
+                machine,
+                authored.source_target,
+            )?;
+            if checked.type_multiplicity(target.return_type)
+                != language_semantics::Multiplicity::Unrestricted
+                || validation::bounded_byte_buffer_capacity(&checked.typed, target.return_type)
+                    .and_then(|declared| u64::try_from(declared).ok())
+                    != Some(*capacity)
+                || !validation::has_plain_owned_contents_with_represented_constraints(
+                    &checked.typed,
+                    target.return_type,
+                )
+            {
+                return unsupported("byte result differs from its owned authored signature");
+            }
+            super::call_source_custody::occurrences::validate(
+                checked,
+                machine,
+                state_symbol,
+                coordinate,
+                expression,
+            )
+        }
         (ByteValue::Concatenation { left, right, .. }, ExpressionNode::Binary(binary))
             if binary.operator == BinaryOperator::Add
                 && checked
@@ -975,6 +1021,66 @@ impl ValueEmitter<'_> {
         }
         match self.plan.nodes.get(node) {
             ByteValue::Literal(bytes) => self.emission.literal(bytes),
+            ByteValue::CallResult {
+                state,
+                statement_index,
+                binding_ordinal,
+                capacity,
+            } => {
+                // Join the binding to the already-emitted exact source call.
+                // A same-shaped earlier result is not the assigned value.
+                let mut bindings = self
+                    .emission
+                    .operations
+                    .structural_values
+                    .iter()
+                    .filter(|(ordinal, _)| ordinal == binding_ordinal);
+                let (_, binding) = bindings.next().ok_or(LoweringError::Unsupported(
+                    "byte call result has no completed binding",
+                ))?;
+                if bindings.next().is_some() {
+                    return unsupported("byte call result binding is ambiguous");
+                }
+                let produced = binding.operation_result()?;
+                let mut occurrences =
+                    self.emission
+                        .operations
+                        .source_calls
+                        .iter()
+                        .filter(|occurrence| {
+                            occurrence.source_state == *state
+                                && occurrence.statement_index == *statement_index as usize
+                                && occurrence.call_ordinal == 0
+                        });
+                let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
+                    "byte call result has no completed authored occurrence",
+                ))?;
+                if occurrences.next().is_some()
+                    || !self.emission.operations.operations.iter().any(|operation| {
+                        operation.id == occurrence.terminal_operation
+                            && operation.result.structural() == Some(produced)
+                    })
+                    || produced.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || !produced.projected_qualifications.is_empty()
+                    || !produced.claims.is_empty()
+                    || !self.emission.structural_types.iter().any(|declaration| {
+                        declaration.id == produced.structural_type
+                            && declaration.shape
+                                == StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                                        capacity: *capacity,
+                                    },
+                                )
+                    })
+                {
+                    return unsupported("byte call result lost exact completed owned custody");
+                }
+                let source = produced.place;
+                let length = self
+                    .emission
+                    .length(OperationKind::ByteSequenceLength { source })?;
+                Ok((ByteSequenceOperand::Whole { source, length }, *capacity))
+            }
             ByteValue::Whole { root, capacity } => {
                 let (source, structural_type) = match *root {
                     checked_trees::CheckedStoreRoot::Parameter { position } => {

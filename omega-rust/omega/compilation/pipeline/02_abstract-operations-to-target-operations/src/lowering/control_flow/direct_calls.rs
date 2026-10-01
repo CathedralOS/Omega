@@ -322,6 +322,14 @@ fn land_result(
             {
                 return Err(unsupported());
             }
+            if bounded_owned_byte_result(result.structural_type, types)
+                && live
+                    .views
+                    .insert(result.place, (call.psi_operation, result.structural_type))
+                    .is_some()
+            {
+                return Err(unsupported());
+            }
             TargetCallResult::Structural {
                 result: result.clone(),
                 callee_result: callee_result.clone(),
@@ -593,8 +601,12 @@ fn structural_result_contract(
     let result_home = super::aggregate_results::home(call.psi_operation, result, types)?;
     if callee_result.structural_type != result.structural_type
         || callee_result.multiplicity != result.multiplicity
-        || !callee_result.qualifications.is_empty()
+        || callee_result.qualifications != result.qualifications
+        || callee_result.projected_qualifications != result.projected_qualifications
         || !callee_result.projected_qualifications.is_empty()
+        || (!callee_result.qualifications.is_empty()
+            && !bounded_owned_byte_result(result.structural_type, types))
+        || !result.qualification_establishments.is_empty()
         || !callee_function.entry_claims.is_empty()
         || !call.claim_transfers.is_empty()
         || !returned_claim_transfers.is_empty()
@@ -609,6 +621,20 @@ fn structural_result_contract(
         prepare_function_signature(callee_function, target, types)?,
         result_home,
     ))
+}
+
+fn bounded_owned_byte_result(
+    structural_type: StructuralTypeId,
+    types: &StructuralTypeLookup<'_>,
+) -> bool {
+    types.get(&structural_type).is_some_and(|declaration| {
+        matches!(
+            declaration.shape,
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+            )
+        )
+    })
 }
 
 /// A roster-route Unit call takes a Unit callee with fixed-native scalar

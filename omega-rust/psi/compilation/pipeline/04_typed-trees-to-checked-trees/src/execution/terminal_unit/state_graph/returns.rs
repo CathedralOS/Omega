@@ -53,6 +53,9 @@ pub(in crate::execution::terminal_unit) fn signature(
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
     let qualifications = parameter_qualifications(program, shapes, reference, &[])?;
+    let owned_bytes = multiplicity == Multiplicity::Unrestricted
+        && validation::bounded_byte_buffer_capacity(program, reference).is_some()
+        && validation::has_plain_owned_contents_with_represented_constraints(program, reference);
     // Borrowed slice views are the reference family's other custody kind: a
     // `&[T]` result borrows its carrier's storage rather than owning fresh
     // contents, so the owned-contents and nominal-drop gates do not apply.
@@ -64,6 +67,7 @@ pub(in crate::execution::terminal_unit) fn signature(
     if (is_reference(program, reference) && !view_result)
         || type_graph_requires_nominal_drop(program, reference)
         || (multiplicity != Multiplicity::Linear
+            && !owned_bytes
             && (!qualifications.is_empty()
                 || (!view_result
                     && !validation::has_plain_owned_contents_with_numeric_constraints(
@@ -122,6 +126,7 @@ pub(in crate::execution::terminal_unit) fn signature(
     // result borrows the referent rather than establishing field custody — the
     // owned-contents field-kind check does not apply to it.
     let valid = view_result
+        || owned_bytes
         || match &shapes.types.get(&type_identity)?.shape {
             CheckedUnitStructuralTypeShape::Record { fields } => valid_fields(fields),
             CheckedUnitStructuralTypeShape::Sum { cases } => {
@@ -421,6 +426,11 @@ pub(super) fn return_value_operation(
     CheckedUnitEffectOperationPlan,
     Vec<CheckedUnitEffectOperationPlan>,
 )> {
+    if let Some(operation) =
+        literal_result_operation(program, shapes, state, count, statement_ordinal, expression)
+    {
+        return Some((operation, Vec::new()));
+    }
     if crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {
         return view_result_operation(
             program,
@@ -503,6 +513,39 @@ pub(super) fn return_value_operation(
         },
         operand_calls,
     ))
+}
+
+/// Materialize exact authored literal octets into fresh bounded ownership.
+/// The result ordinal shares the ordinary producer roster; only the selected
+/// return arm executes this operation.
+pub(super) fn literal_result_operation(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    state: &typed_trees::state::State,
+    count: &mut usize,
+    statement_ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let bytes = control::statement_sequence::bounded_byte_literal::expression_octets(
+        program,
+        state.return_type,
+        expression,
+    )?;
+    let result = CheckedUnitStructuralResultBindingPlan {
+        statement_index: statement_ordinal,
+        binding_ordinal: u32::try_from(*count).ok()?,
+        type_identity: shapes.add_type(state.return_type, &[], &[])?,
+        multiplicity: Multiplicity::Unrestricted,
+    };
+    let qualifications = parameter_qualifications(program, shapes, state.return_type, &[])?;
+    *count = count.checked_add(1)?;
+    Some(
+        CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+            result,
+            bytes,
+            qualifications,
+        },
+    )
 }
 
 /// The `EstablishReference` producer for one authored `(place[a..b])` return

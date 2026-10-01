@@ -377,7 +377,7 @@ pub(crate) fn plain_record_shape(
     shape(structural_type, declarations)
 }
 
-/// Whole owned records, arrays, and sums share payload geometry. This checks
+/// Whole owned records, arrays, sums, and bounded bytes share payload geometry. This checks
 /// carrier contents, not authority to construct, borrow or dispose the value.
 /// Established inline byte fields travel with their capacity and length word;
 /// their predicates remain in the exact type checked by the caller. Geometry
@@ -396,6 +396,9 @@ pub(crate) fn owned_aggregate_shape(
                     | StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::Sum { .. }
                     | StructuralTypeShape::Mixed { .. }
+                    | StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
             )
         })?;
     plain_aggregate(structural_type, declarations, &mut Vec::new()).then_some(())?;

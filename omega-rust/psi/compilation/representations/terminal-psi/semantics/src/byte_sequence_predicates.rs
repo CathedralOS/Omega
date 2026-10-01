@@ -137,6 +137,66 @@ pub fn byte_qualification_predicates_in<'domain>(
     Some(predicates)
 }
 
+/// Authenticate the owned bytes imported by one ordinary normal completion.
+/// This query imports only the exact callee signature, never incidental facts
+/// about its initializer. Receiving validation separately checks the callee
+/// body, call obligations and producer dominance.
+pub fn byte_owned_call_result<'machine>(
+    module: &TerminalModule,
+    machine: &'machine TerminalMachine,
+    source: PlaceId,
+) -> Option<&'machine terminal_psi::StructuralOperationResult> {
+    let declaration = machine
+        .structural_places
+        .iter()
+        .find(|place| place.id == source)?;
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = declaration.kind
+    else {
+        return None;
+    };
+    let operation = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| operation.id == producer)?;
+    let callee = match operation.kind {
+        OperationKind::CallStructural { callee, .. }
+        | OperationKind::CallStructuralWithScalarArguments { callee, .. } => callee,
+        _ => return None,
+    };
+    let result = operation.result.structural()?;
+    let signature = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == callee)?
+        .result
+        .structural()?;
+    (result.place == source
+        && result.structural_type == structural_type
+        && signature.structural_type == structural_type
+        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+        && signature.multiplicity == result.multiplicity
+        && signature.qualifications == result.qualifications
+        && signature.projected_qualifications.is_empty()
+        && signature.reference_sources.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && result.claims.is_empty()
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        }))
+    .then_some(result)
+}
+
 /// The declared primitive predicates of an exact established owned byte result.
 /// Initializer octets are not persistent declarations: mutation may discard
 /// incidental ASCII or no-NUL facts while preserving these qualifications.
@@ -162,10 +222,11 @@ pub fn byte_owned_result_predicates(
         .flat_map(|block| &block.operations)
         .find(|operation| operation.id == producer)?;
     let result = operation.result.structural()?;
-    if !matches!(
+    if !(matches!(
         operation.kind,
         OperationKind::EstablishByteSequenceConcatenation { .. }
-    ) || result.place != source
+    ) || byte_owned_call_result(module, machine, source).is_some())
+        || result.place != source
         || result.structural_type != structural_type
         || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.projected_qualifications.is_empty()
@@ -557,6 +618,9 @@ pub fn byte_sequence_source_predicates(
                     .find(|operation| operation.id == producer)?;
                 if operation.result.structural()?.place != source {
                     return None;
+                }
+                if byte_owned_call_result(module, machine, source).is_some() {
+                    return byte_owned_result_predicates(module, machine, source);
                 }
                 let OperationKind::EstablishByteSequenceConcatenation { left, right, .. } =
                     &operation.kind

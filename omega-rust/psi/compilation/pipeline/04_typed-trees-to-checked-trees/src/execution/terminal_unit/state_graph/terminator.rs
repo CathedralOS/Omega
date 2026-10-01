@@ -126,6 +126,17 @@ pub(super) fn build(
                 trace.phase("state graph: terminator: return expression");
                 if let Some(result) = structural_result.cloned() {
                     CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
+                } else if let Some(operation) = returns::literal_result_operation(
+                    program,
+                    shapes,
+                    state,
+                    &mut returns::next_result_ordinal(operations)?,
+                    ordinal,
+                    *expression,
+                ) {
+                    let result = operation.structural_result_binding()?.clone().into();
+                    operations.push(operation);
+                    CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result }
                 } else {
                     CheckedComposedUnitControlTerminatorPlan::ReturnCase {
                         result: returns::constructor(program, facts, state, ordinal, *expression)?,

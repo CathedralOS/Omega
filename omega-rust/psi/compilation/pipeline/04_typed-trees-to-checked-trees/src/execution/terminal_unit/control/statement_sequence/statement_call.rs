@@ -265,17 +265,38 @@ pub(super) fn plan(
         // actual producer. Only an occupied destination has a displaced value.
         if !call_result_stores.is_empty() {
             let (store, displacement) = call_result_stores.split_last_mut()?;
-            let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } = store else {
-                return None;
-            };
-            let old_source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                binding_ordinal: result.binding_ordinal,
-            };
-            if value.source != old_source {
-                return None;
+            match store {
+                CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } => {
+                    let old_source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal: result.binding_ordinal,
+                    };
+                    if value.source != old_source {
+                        return None;
+                    }
+                    value.source = CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    };
+                }
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
+                    let checked_trees::CheckedByteSequenceValue::CallResult {
+                        binding_ordinal: source,
+                        state: source_state,
+                        statement_index: source_statement,
+                        ..
+                    } = store.value.nodes.get_mut(store.value.root)
+                    else {
+                        return None;
+                    };
+                    if *source != result.binding_ordinal
+                        || *source_state != state.symbol
+                        || *source_statement != statement_index
+                    {
+                        return None;
+                    }
+                    *source = binding_ordinal;
+                }
+                _ => return None,
             }
-            value.source =
-                CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal };
             match displacement {
                 [] if structural_store_bindings == 0 && displaced_discard.is_none() => {}
                 [

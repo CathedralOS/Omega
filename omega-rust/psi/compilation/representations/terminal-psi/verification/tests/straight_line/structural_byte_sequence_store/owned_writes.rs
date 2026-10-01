@@ -217,6 +217,230 @@ fn owned_byte_boundary_call() -> TerminalModule {
     module
 }
 
+fn owned_byte_return(predicate: Option<ByteSequencePredicate>) -> TerminalModule {
+    let mut module = owned_write(b"Gate", predicate);
+    let machine = &mut module.machines[0];
+    machine.blocks[0].operations.truncate(5);
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(4),
+        kind: StructuralPlaceKind::Result,
+    });
+    machine.result = terminal_psi::TerminalMachineResult::Structural(
+        terminal_psi::StructuralResultDeclaration {
+            reference_sources: Vec::new(),
+            place: id(4),
+            structural_type: id(2),
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            qualifications: predicate.map(|_| vec![id(1)]).unwrap_or_default(),
+            projected_qualifications: Vec::new(),
+        },
+    );
+    machine.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: id(1),
+        source: id(3),
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    module
+}
+
+#[test]
+fn owned_byte_return_retains_exact_backing_and_capacity_obligation() {
+    for predicate in [None, Some(ByteSequencePredicate::ValidUtf8)] {
+        let module = owned_byte_return(predicate);
+        validate_module(&module).expect("owned concatenation has exact claim-free result custody");
+        let obligations = reconstruct_operation_obligations(&module).unwrap();
+        assert_eq!(obligations.len(), 1);
+        assert_eq!(
+            obligations[0].obligation.proposition,
+            terminal_semantics::byte_sequence_concatenation_capacity_goal(
+                &module.machines[0].blocks[0].operations[4],
+                8,
+            )
+            .unwrap()
+        );
+        assert!(
+            verify_module(
+                &module,
+                &ProofBundle::default(),
+                &AdmissionProfile::default()
+            )
+            .is_err(),
+            "return admission cannot replace the capacity certificate"
+        );
+
+        let mut smaller = module.clone();
+        smaller.structural_types[1].shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 3 });
+        let smaller_obligations = reconstruct_operation_obligations(&smaller).unwrap();
+        assert_ne!(
+            obligations[0].obligation.proposition,
+            smaller_obligations[0].obligation.proposition
+        );
+    }
+}
+
+#[test]
+fn owned_byte_return_rejects_forged_source_and_qualification_custody() {
+    for corruption in 0..6 {
+        let mut module = owned_byte_return(Some(ByteSequencePredicate::ValidUtf8));
+        let machine = &mut module.machines[0];
+        match corruption {
+            0 => {
+                let Terminator::ReturnStructural { source, .. } = &mut machine.blocks[0].terminator
+                else {
+                    unreachable!()
+                };
+                *source = id(1);
+            }
+            1 => {
+                machine.structural_places[2].kind = StructuralPlaceKind::OperationResult {
+                    producer: id(4),
+                    structural_type: id(2),
+                }
+            }
+            2 => {
+                let OperationResult::Structural(result) =
+                    &mut machine.blocks[0].operations[4].result
+                else {
+                    unreachable!()
+                };
+                result.qualifications.clear();
+            }
+            3 => {
+                let terminal_psi::TerminalMachineResult::Structural(result) = &mut machine.result
+                else {
+                    unreachable!()
+                };
+                result.qualifications.clear();
+            }
+            4 => {
+                let OperationResult::Structural(result) =
+                    &mut machine.blocks[0].operations[4].result
+                else {
+                    unreachable!()
+                };
+                result.multiplicity = StructuralMultiplicity::Affine;
+            }
+            5 => {
+                machine.blocks[0].operations.remove(4);
+            }
+            _ => unreachable!(),
+        }
+        validate_module(&module).unwrap_err();
+    }
+}
+
+#[test]
+fn owned_byte_return_forwards_an_exact_ordinary_call_result() {
+    let mut module = owned_byte_return(Some(ByteSequencePredicate::ValidUtf8));
+    let mut caller = module.machines[0].clone();
+    caller.id = id(901);
+    caller.contract.id = id(901);
+    caller.entry = id(901);
+    caller.blocks[0].id = id(901);
+    caller
+        .structural_places
+        .retain(|place| place.id == id(3) || place.id == id(4));
+    caller.structural_places[0].id = id(13);
+    caller.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+        producer: id(15),
+        structural_type: id(2),
+    };
+    caller.structural_places[1].id = id(14);
+    let terminal_psi::TerminalMachineResult::Structural(signature) = &mut caller.result else {
+        unreachable!()
+    };
+    signature.place = id(14);
+    caller.blocks[0].terminator = Terminator::ReturnStructural {
+        edge: id(2),
+        source: id(13),
+        returned_claims: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let mut call = caller.blocks[0].operations[4].clone();
+    call.id = id(15);
+    let OperationResult::Structural(result) = &mut call.result else {
+        unreachable!()
+    };
+    result.place = id(13);
+    call.kind = OperationKind::CallStructural {
+        callee: module.machines[0].id,
+        structural_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+        returned_claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+        selected_evidence: Vec::new(),
+    };
+    caller.blocks[0].operations = vec![call];
+    caller.blocks[0].operations.push(operation(
+        16,
+        scalar(3, 64),
+        OperationKind::ByteSequenceLength { source: id(13) },
+    ));
+    caller.blocks[0].operations.push(operation(
+        17,
+        scalar(4, 64),
+        OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(0),
+        },
+    ));
+    caller.blocks[0].operations.push(operation(
+        18,
+        scalar(5, 8),
+        OperationKind::ByteSequenceRead {
+            source: id(13),
+            index: id(4),
+            length: id(3),
+            obligation: id(99),
+        },
+    ));
+    module.machines.push(caller);
+    validate_module(&module).expect("an ordinary call forwards its exact owned byte result");
+    let obligations = reconstruct_operation_obligations(&module).unwrap();
+    let read = obligations
+        .iter()
+        .find(|row| row.obligation.id == id(99))
+        .unwrap();
+    let length = ScalarTerm::value(id(3), ScalarType::Integer(integer()));
+    assert!(
+        read.semantic_axioms
+            .contains(&Proposition::LessOrEqual(length.clone(), count(8),))
+    );
+    assert!(
+        !read
+            .semantic_axioms
+            .contains(&Proposition::Equal(length, count(8)))
+    );
+    let predicates =
+        terminal_semantics::byte_sequence_source_predicates(&module, &module.machines[1], id(13))
+            .expect("the exact callee predicate roster follows the completed bytes");
+    assert!(
+        predicates
+            .predicates()
+            .any(|predicate| predicate == ByteSequencePredicate::ValidUtf8)
+    );
+    let mut premature = module.clone();
+    let mut length = premature.machines[1].blocks[0].operations.remove(1);
+    length.id = id(14);
+    premature.machines[1].blocks[0].operations.insert(0, length);
+    assert!(
+        matches!(
+            validate_module(&premature),
+            Err(terminal_verifier::ModuleError::ByteSequenceViewNotEstablished { .. })
+        ),
+        "an exact source declaration does not make the call result available early"
+    );
+    let OperationResult::Structural(result) =
+        &mut module.machines[1].blocks[0].operations[0].result
+    else {
+        unreachable!()
+    };
+    result.qualifications.clear();
+    validate_module(&module).expect_err("forwarding does not manufacture a qualification");
+}
+
 #[test]
 fn owned_byte_boundary_view_preserves_current_qualified_home() {
     let module = owned_byte_boundary_call();

@@ -38,10 +38,11 @@ pub use byte_sequence_concatenation::{
 };
 pub use byte_sequence_predicates::{
     byte_copied_field_predicates_at_call, byte_field_root, byte_literal_qualifications_hold,
-    byte_literal_qualifications_hold_in, byte_owned_result_predicates, byte_parameter_predicates,
-    byte_parameter_predicates_from_domains, byte_parameter_predicates_in,
-    byte_qualification_predicates_in, byte_sequence_concatenation_predicates,
-    byte_sequence_source_predicates, indexed_byte_store_goal,
+    byte_literal_qualifications_hold_in, byte_owned_call_result, byte_owned_result_predicates,
+    byte_parameter_predicates, byte_parameter_predicates_from_domains,
+    byte_parameter_predicates_in, byte_qualification_predicates_in,
+    byte_sequence_concatenation_predicates, byte_sequence_source_predicates,
+    indexed_byte_store_goal,
 };
 pub use call_composition::{
     CallArgumentRule, CallCompositionSchema, CallCompositionSemanticRow, CallCrashRule,

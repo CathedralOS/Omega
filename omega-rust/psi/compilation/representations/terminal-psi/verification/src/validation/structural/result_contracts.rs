@@ -69,6 +69,40 @@ pub(in crate::validation) fn call_result_matches(
     matches_function_result(operation_signature(result), callee)
 }
 
+/// A bounded byte result owns its backing, unlike a borrowed descriptor. The
+/// producing operation checks capacity and predicates (or imports an exact
+/// checked callee result); control-flow validation checks source availability.
+/// This judgment removes no claims and grants no qualification establishment.
+pub(in crate::validation) fn bounded_owned_byte_return_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    source: PlaceId,
+    declared: &terminal_psi::StructuralResultDeclaration,
+) -> bool {
+    if declared.multiplicity != StructuralMultiplicity::Unrestricted
+        || !declared.projected_qualifications.is_empty()
+        || !declared.reference_sources.is_empty()
+        || !module.structural_types.iter().any(|declaration| {
+            declaration.id == declared.structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
+    {
+        return false;
+    }
+    if let Some(result) =
+        crate::validation::byte_sequence::concatenation::owned_result(machine, source)
+    {
+        return matches_function_result(operation_signature(result), declared);
+    }
+    terminal_semantics::byte_owned_call_result(module, machine, source)
+        .is_some_and(|result| matches_function_result(operation_signature(result), declared))
+}
+
 /// Domains minted onto a return source by its producing operation's
 /// qualification establishment rows. Those memberships are authorized
 /// body-internal evidence — each row replays an authorized establishment

@@ -215,6 +215,20 @@ fn structural_result_type(
     }
     let multiplicity = crate::checks::type_multiplicity(program, result_type);
     let qualifications = parameter_qualifications(program, shapes, result_type, binders)?;
+    // A byte owner transfers its established predicate roster with its live
+    // bytes. Signature classification does not establish those predicates;
+    // the callee's completion and receiving replay still prove exact custody.
+    if multiplicity == Multiplicity::Unrestricted
+        && validation::bounded_byte_buffer_capacity(program, result_type).is_some()
+        && validation::has_plain_owned_contents_with_represented_constraints(program, result_type)
+    {
+        return Some(CheckedUnitStructuralResultBindingPlan {
+            statement_index: 0,
+            binding_ordinal: 0,
+            type_identity: shapes.add_type(result_type, binders, &[])?,
+            multiplicity,
+        });
+    }
     if is_unit(program, result_type)
         || program.primitive_type_reference(result_type).is_some()
         || is_reference(program, result_type)

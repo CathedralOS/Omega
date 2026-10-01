@@ -25,15 +25,27 @@ pub(crate) fn validate_primitive_structural_call(
     let Some(result) = operation.result.structural() else {
         return Ok(false);
     };
-    let primitive_payload =
-        crate::validation::scalar::case::plain_type(module, result.structural_type)
-            || crate::validation::record::plain_type(module, result.structural_type)
-            || (result.multiplicity == StructuralMultiplicity::Unrestricted
-                && terminal_semantics::scalar_array_leaf_shape(
-                    module.structural_types.iter(),
-                    result.structural_type,
+    // The callee establishes owned bytes and their predicates; this call
+    // transfers that exact normal result, not a descriptor or new evidence.
+    let owned_bytes = result.multiplicity == StructuralMultiplicity::Unrestricted
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
                 )
-                .is_some());
+        });
+    let primitive_payload = owned_bytes
+        || crate::validation::scalar::case::plain_type(module, result.structural_type)
+        || crate::validation::record::plain_type(module, result.structural_type)
+        || (result.multiplicity == StructuralMultiplicity::Unrestricted
+            && terminal_semantics::scalar_array_leaf_shape(
+                module.structural_types.iter(),
+                result.structural_type,
+            )
+            .is_some());
     if !primitive_payload
         || !matches!(
             result.multiplicity,
@@ -107,7 +119,8 @@ pub(crate) fn validate_primitive_structural_call(
     let signature = callee.result.structural().ok_or_else(failure)?;
     if !matches!(result.multiplicity, StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted)
         || !crate::validation::structural::result_contracts::call_result_matches(result, signature)
-        || !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
+        || (!result.qualifications.is_empty() && !owned_bytes) || !result.projected_qualifications.is_empty()
+        || (owned_bytes && (!signature.reference_sources.is_empty() || !result.qualification_establishments.is_empty()))
         || !result.claims.is_empty() || !claim_transfers.is_empty() || !returned_claim_transfers.is_empty()
         || !callee.entry_claims.is_empty() || !callee.content_entry_claims.is_empty()
         || !callee.content_identity_reshuffles.is_empty() || !callee.content_partition_compositions.is_empty()

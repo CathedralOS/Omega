@@ -235,6 +235,43 @@ pub(super) fn build_structural_call_result_field_store(
     Some(store)
 }
 
+/// A completed byte owner replaces live bytes and length together, not a raw
+/// fixed array or a borrowed descriptor. Destination selection is shared with
+/// authored byte values; only the already-evaluated source differs.
+pub(super) fn build_owned_byte_call_result_store(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    binding_ordinal: u32,
+    result_type: typed_trees::types::TypeReferenceHandle,
+    trace: &LocalConstructionTrace,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let [store] = <[_; 1]>::try_from(plan_assignment(
+        program,
+        facts,
+        machine,
+        state,
+        StoreRoots::Parameters {
+            structural: structural_parameters,
+            scalar: scalar_parameters,
+        },
+        statement_index,
+        assignment,
+        AssignmentSource::StructuralCallResult {
+            binding_ordinal,
+            result_type,
+        },
+        trace,
+    )?)
+    .ok()?;
+    matches!(store, CheckedUnitEffectOperationPlan::ByteSequenceStore(_)).then_some(store)
+}
+
 /// Test convenience: the traced builder without a trace.
 #[cfg(test)]
 pub(super) fn build_structural_scalar_field_store_sequence(
@@ -550,10 +587,8 @@ fn scalar_leaf(
         // The parameter lane keeps the field's own declaration, so a bound
         // the store carries as its range obligation peels to the carrier.
         StoreRoots::Parameters { .. } => {
-            let primitive_type = program.primitive_type_reference(interval_store_carrier(
-                program,
-                field.type_reference,
-            ))?;
+            let primitive_type = program
+                .primitive_type_reference(interval_store_carrier(program, field.type_reference))?;
             (matches!(
                 primitive_type,
                 PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
@@ -563,9 +598,8 @@ fn scalar_leaf(
         StoreRoots::RecordLocals => {
             let leaf_type = field.type_reference;
             let primitive_type = program.primitive_type_reference(leaf_type)?;
-            let TypeReferenceNode::Named { symbol, name } = program
-                .type_reference_table
-                .type_reference(leaf_type)
+            let TypeReferenceNode::Named { symbol, name } =
+                program.type_reference_table.type_reference(leaf_type)
             else {
                 return None;
             };
@@ -580,8 +614,7 @@ fn scalar_leaf(
                     | PrimitiveType::U16
                     | PrimitiveType::U32
                     | PrimitiveType::U64
-            ) && program
-                .arithmetic_domain_for_type_reference(leaf_type)
+            ) && program.arithmetic_domain_for_type_reference(leaf_type)
                 == numerics::arithmetic::ArithmeticDomain::Exact;
             (name.as_str() == atom.symbol_name()
                 && (exact_integer

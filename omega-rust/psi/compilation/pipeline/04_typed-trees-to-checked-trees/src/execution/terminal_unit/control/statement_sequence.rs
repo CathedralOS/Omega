@@ -829,6 +829,12 @@ pub(super) fn first_unsupported_statement(
                                 program.expression_table.expression(*expression),
                                 ExpressionNode::Indexed(_) | ExpressionNode::String(_)
                             ))
+                            || bounded_byte_literal::expression_octets(
+                                program,
+                                state.return_type,
+                                *expression,
+                            )
+                            .is_some()
                             || validation::is_closed_primitive_array_type(
                                 program,
                                 state.return_type,

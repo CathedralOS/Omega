@@ -304,23 +304,64 @@ pub(super) fn field_store(
             ),
         );
     }
-    let (AssignmentSource::Authored, Some(capacity)) = (source, capacity) else {
+    let Some(capacity) = capacity else {
         return None;
     };
     if !domains.iter().all(|symbol| plain_domain(*symbol, false)) {
         return None;
     }
     let mut value = checked_trees::CheckedByteSequenceValuePlan::default();
-    let (root, _) = byte_value_plan(
-        program,
-        facts,
-        state,
-        statement_index,
-        assignment.value,
-        &domains,
-        &mut value,
-        0,
-    )?;
+    let root = match source {
+        AssignmentSource::Authored => {
+            byte_value_plan(
+                program,
+                facts,
+                state,
+                statement_index,
+                assignment.value,
+                &domains,
+                &mut value,
+                0,
+            )?
+            .0
+        }
+        AssignmentSource::StructuralCallResult {
+            binding_ordinal,
+            result_type,
+        } => {
+            let source_capacity = validation::bounded_byte_buffer_capacity(program, result_type)?;
+            let source_domains =
+                crate::facts::field_domain::domain_constraint_symbols(program, result_type);
+            if program.type_multiplicity(result_type) != Multiplicity::Unrestricted
+                || !validation::has_plain_owned_contents_with_represented_constraints(
+                    program,
+                    result_type,
+                )
+                || !matches!(
+                    program.expression_table.expression(assignment.value),
+                    ExpressionNode::Call(_)
+                )
+                || !domains.iter().all(|domain| {
+                    source_domains.iter().any(|source| {
+                        crate::facts::field_domain::declared_domain_implies(
+                            program, *source, *domain,
+                        )
+                    })
+                })
+            {
+                return None;
+            }
+            value
+                .nodes
+                .insert(checked_trees::CheckedByteSequenceValue::CallResult {
+                    state: state.symbol,
+                    statement_index,
+                    binding_ordinal,
+                    capacity: u64::try_from(source_capacity).ok()?,
+                })
+        }
+        AssignmentSource::CallResult { .. } => return None,
+    };
     value.root = root;
     // Source checking owns the receiving bound. Each concat owns its separate
     // checked sum bound; never reject a short value merely for carrier capacity.

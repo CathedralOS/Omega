@@ -105,7 +105,9 @@ pub(super) fn selection_role(
 /// exit: a discarded result pairs with its call's cleanup continuation, a call
 /// result stored whole into a borrowed field's opened window moves into that
 /// field, and a construction authored as a call argument moves whole into the
-/// call that reads it. Named affine locals also retire at ordinary calls when
+/// call that reads it. An anonymous unrestricted byte result copied into its
+/// assignment's destination has no edge disposal or authored local.
+/// Named affine locals also retire at ordinary calls when
 /// their unique whole move rejoins exact establishment and transfer evidence.
 /// Shared call admission checks each authored operand before emission.
 fn retired_in_body(
@@ -157,6 +159,26 @@ fn retired_in_body(
                 .source_structural_result_binding_ordinal()
                 .into_iter()
                 .collect(),
+            CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
+                match store.value.nodes.get(store.value.root) {
+                    checked_trees::CheckedByteSequenceValue::CallResult {
+                        state: producer_state,
+                        statement_index,
+                        binding_ordinal,
+                        ..
+                    } if *producer_state == state.state
+                        && *statement_index == store.statement_index
+                        && state.operations.iter().filter_map(result).any(|result| {
+                            result.binding_ordinal == *binding_ordinal
+                                && result.statement_index == *statement_index
+                                && result.multiplicity == Multiplicity::Unrestricted
+                        }) =>
+                    {
+                        vec![*binding_ordinal]
+                    }
+                    _ => Vec::new(),
+                }
+            }
             _ => Vec::new(),
         })
         .chain(moved_into_calls)

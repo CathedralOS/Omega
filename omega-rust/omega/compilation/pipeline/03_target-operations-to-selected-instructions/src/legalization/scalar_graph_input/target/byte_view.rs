@@ -43,8 +43,17 @@ impl Checker<'_> {
             } => {
                 matches!(access, terminal_psi::StructuralAccess::SharedBorrow | terminal_psi::StructuralAccess::MutableBorrow)
                     && *place == source
-                    && super::super::byte_views::owned_concatenation(self.optimized, source)
+                    && super::super::byte_views::owned_byte_result(self.optimized, source, self.types)
                         == Some((*psi_operation, *structural_type))
+                    && self.types.iter().any(|declaration| {
+                        declaration.id == *structural_type
+                            && matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                            )
+                    })
             }
             TargetByteView::Literal {
                 psi_operation,

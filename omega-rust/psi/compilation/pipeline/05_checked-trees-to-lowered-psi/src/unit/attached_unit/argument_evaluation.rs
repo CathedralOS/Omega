@@ -196,6 +196,28 @@ impl Evaluation {
                 terminal_psi::OperationKind::EstablishByteSequenceConcatenation { .. }
             ) && operation.result.structural() == Some(&produced)
         });
+        // An ordinary byte-owner completion imports its declared primitive
+        // predicates from the exact call result, not nominal CallEnsures rows.
+        // Call emission reconstructs the signature; Terminal independently
+        // validates the callee's return and the receiving result roster.
+        let returned_bytes = multiplicity == StructuralMultiplicity::Unrestricted
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                )
+            )
+            && produced.qualification_establishments.is_empty()
+            && operations.iter().any(|operation| {
+                operation.result.structural() == Some(&produced)
+                    && direct_call_parts(&operation.kind)
+                        .is_some_and(|call| call.role == DirectCallRole::Structural)
+                    && operations.source_calls.iter().any(|occurrence| {
+                        occurrence.source_state == state
+                            && occurrence.statement_index == result.statement_index as usize
+                            && occurrence.terminal_operation == operation.id
+                    })
+            });
         if types.next().is_some()
             || declaration.identity != result.type_identity
             || produced.multiplicity != multiplicity
@@ -204,6 +226,7 @@ impl Evaluation {
             // domains replayed through CallEnsures evidence).
             || (multiplicity != StructuralMultiplicity::Linear
                 && !constructed_bytes
+                && !returned_bytes
                 && produced.qualifications.iter().any(|domain| {
                     !produced
                         .qualification_establishments
