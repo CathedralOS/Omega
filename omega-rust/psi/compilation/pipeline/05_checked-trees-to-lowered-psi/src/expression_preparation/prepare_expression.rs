@@ -585,9 +585,30 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 // A raw array uses its declared extent. A bounded byte owner
                 // instead observes its live length, which may be less than
                 // capacity; the established carrier below selects the rule.
-                if !path.is_empty() || !element_path.is_empty() {
+                if !path.is_empty() {
                     return unsupported("an owned local element read takes no projection path");
                 }
+                // A scalar member of a record element (`rooms[i].exits`)
+                // follows the selector with its static member steps, exactly
+                // as a parameter array's flat element read does. Terminal
+                // verification resolves the leaf's type from the local's own
+                // declaration and checks it against the read.
+                let element_path = element_path
+                    .iter()
+                    .map(|segment| match segment {
+                        checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                            Ok(LoweredElementPathSegment::Static(
+                                terminal_psi::StructuralPathSegment::Field(identity.clone()),
+                            ))
+                        }
+                        checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                            Ok(LoweredElementPathSegment::Static(
+                                terminal_psi::StructuralPathSegment::FixedIndex(*index),
+                            ))
+                        }
+                        _ => unsupported("an owned local element path takes static members only"),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let source = owned_local_observation(structural_locals, symbol)?;
                 let index = lower_checked_scalar_expression_with_parameters(
                     index,
@@ -607,6 +628,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     if local.place != source
                         || local.carrier != ViewCarrier::Bytes
                         || *primitive_type != PrimitiveType::U8
+                        || !element_path.is_empty()
                     {
                         return unsupported("owned byte read lost its established carrier");
                     }
@@ -624,7 +646,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     path: Vec::new(),
                     index: Box::new(exact_u64_index(index)?),
                     inner_indexes: Vec::new(),
-                    element_path: Vec::new(),
+                    element_path,
                     scalar_type: terminal_scalar_type(*primitive_type)?,
                 });
             }
