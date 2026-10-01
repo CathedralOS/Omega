@@ -311,6 +311,15 @@ pub(crate) fn parameter_shape(
     if parameter.access == StructuralAccess::Owned
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
     {
+        // Bounded bytes arrive as the same by-value `{length, bytes}`
+        // aggregate their declaration lays out. No borrowed-pointer shape or
+        // mutable-view authority follows from observing this owned payload.
+        if abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+            parameter,
+            declarations,
+        ) {
+            return shape(parameter.structural_type, declarations);
+        }
         return primitive_array_shape(parameter.structural_type, declarations).or_else(|| {
             declarations
                 .iter()

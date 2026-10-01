@@ -186,6 +186,15 @@ pub(super) fn validate_source(
                 |identity| structural_types.get(&identity).copied(),
             )
     };
+    // A by-value bounded owner supplies readable bytes from its own incoming
+    // payload. This does not make it a mutable view or a borrowed descriptor.
+    let owned_parameter = |parameter: &terminal_psi::StructuralParameterDeclaration| {
+        !matches!(operation, AbstractOperation::ByteSequenceWrite { .. })
+            && abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter(
+                parameter,
+                |identity| structural_types.get(&identity).copied(),
+            )
+    };
     let structural_type = match source_kind {
         Some(StructuralPlaceKind::BlockParameter {
             block: owner,
@@ -213,7 +222,8 @@ pub(super) fn validate_source(
                         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
                         && parameter.qualifications.is_empty()
                         && parameter.projected_qualifications.is_empty())
-                        || owner_loan(parameter))
+                        || owner_loan(parameter)
+                        || owned_parameter(parameter))
             })
             .map(|parameter| parameter.structural_type),
         Some(StructuralPlaceKind::ByteSequenceLiteral {
@@ -274,7 +284,9 @@ pub(super) fn validate_source(
                         .structural_parameters
                         .iter()
                         .chain(function.blocks.iter().flat_map(|block| &block.structural_parameters))
-                        .any(|parameter| parameter.place == source && owner_loan(parameter))))
+                        .any(|parameter| parameter.place == source && owner_loan(parameter))
+                    || function.structural_parameters.iter().any(|parameter|
+                        parameter.place == source && owned_parameter(parameter))))
         })
         && function
             .entry_claim_declarations

@@ -120,6 +120,10 @@ pub(super) fn lower(
                     || (parameter.access == StructuralAccess::Owned
                         && (parameter.multiplicity == StructuralMultiplicity::Affine
                             || owned_arguments::is_owned_parameter(parameter, structural_types)
+                            || super::scalar::byte_views::is_owned_byte_parameter(
+                                parameter,
+                                structural_types,
+                            )
                             || (parameter.multiplicity == StructuralMultiplicity::Unrestricted
                                 && structural_types
                                     .get(&parameter.structural_type)

@@ -86,7 +86,15 @@ impl Checker<'_> {
                         |parameters| {
                             parameters.iter().any(|parameter| {
                                 parameter.place == source
-                                    && parameter.access == access
+                                    && (parameter.access == access
+                                        || (access == terminal_psi::StructuralAccess::SharedBorrow
+                                            && parameter.access == terminal_psi::StructuralAccess::Owned
+                                            && super::super::byte_views::owned_parameter(
+                                                self.optimized, source, self.types,
+                                            ).is_some_and(|semantic|
+                                                semantic.structural_type == parameter.structural_type
+                                                    && semantic.multiplicity == parameter.multiplicity
+                                                    && semantic.projected_qualifications == parameter.projected_qualifications)))
                                     && &parameter.placement == placement
                             })
                         },
