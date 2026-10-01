@@ -22,62 +22,56 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    text: [u8; 8] in Utf8;
-    // Exact index: the byte read is bounded by the `.len` guard, and the
-    // increment is guard-proven by the `i < 8` edge into bump() (the carrier's
-    // capacity bound; i < text.len <= 8, so the re-guard never fails).
-    i: i32;
-    b: u8;
-    bw: u32 in Wrapping;
-    hash: u32 in Wrapping;
-    digest: u32 in Wrapping;
-    out: i32;
-    pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("string_hash: FNV-1a hashes the bytes of the string omega");
-    self.text = "omega";
-    self.hash = 2166136261;
-    self.i = 0;
-
-    transition {
-        _ -> step()
-    }
+// Only the borrowed input, position and rolling hash survive an iteration.
+machine hash_text(text: &[u8; 8] in Utf8) -> u32 in Wrapping {
+    transition { _ -> step(text, 0, 2166136261) }
 
     // Loop over the string's bytes, bounded by its runtime length.
-    state step(&mut self) {
-        transition self.i < self.text.len {
-            true -> mix()
-            _ -> done()
+    state step(text: &[u8; 8] in Utf8, position: i32,
+               hash: u32 in Wrapping) -> u32 in Wrapping
+    requires position >= 0
+    {
+        transition position < text.len {
+            true -> mix(text, position, hash)
+            _ -> (hash)
         }
     }
 
     // Fold the current byte into the hash (FNV-1a: xor then multiply).
-    state mix(&mut self) {
-        self.b = self.text[self.i];
-        self.bw = widen_u8_to_u32(self.b) as u32 in Wrapping;
-        self.hash = self.hash ^ self.bw;
-        self.hash = self.hash * 16777619;
-        transition self.i < 8 {
-            true -> bump()
-            _ -> done()
+    state mix(text: &[u8; 8] in Utf8, position: i32,
+              hash: u32 in Wrapping) -> u32 in Wrapping
+    requires position >= 0
+    {
+        let byte: u8 = text[position];
+        let widened: u32 in Wrapping = widen_u8_to_u32(byte) as u32 in Wrapping;
+        let mixed: u32 in Wrapping = hash ^ widened;
+        let next_hash: u32 in Wrapping = mixed * 16777619;
+        transition position < 8 {
+            true -> bump(text, position, next_hash)
+            _ -> (next_hash)
         }
     }
 
-    state bump(&mut self) {
-        self.i = self.i + 1;
-        transition {
-            _ -> step()
-        }
+    state bump(text: &[u8; 8] in Utf8, position: i32,
+               hash: u32 in Wrapping) -> u32 in Wrapping
+    requires position >= 0 && position < 8
+    {
+        let next_position: i32 = position + 1;
+        transition { _ -> step(text, next_position, hash) }
     }
+}
 
-    state done(&mut self) {
-        self.digest = self.hash & 255;
-        self.out = narrow_u32_to_i32_trapping(self.digest as u32);
-        self.console.write_line("result: the digest's low byte, 40 for omega (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.out);
-    }
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("string_hash: FNV-1a hashes the bytes of the string omega");
+    let text: [u8; 8] in Utf8 = "omega";
+    let hash: u32 in Wrapping = hash_text(&text);
+    let digest: u32 in Wrapping = hash & 255;
+    let output: i32 = narrow_u32_to_i32_trapping(digest as u32);
+    context.console.write_line("result: the digest's low byte, 40 for omega (the exit code)");
+    context.console.write_line("[press Enter to close]");
+    let mut pause: [u8; 256];
+    _ = block context.console.read_line(&mut pause);
+    context.console.exit_process(output);
 }
