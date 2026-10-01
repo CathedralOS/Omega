@@ -255,6 +255,7 @@ impl SyntaxTrees {
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),
+                subject: domain.subject.clone(),
                 type_parameters: self.copy_type_parameter_span(other, domain.type_parameters),
                 target_type: self.copy_type_reference_handle(other, domain.target_type),
                 index_arguments: self

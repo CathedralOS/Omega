@@ -6,6 +6,88 @@ use syntax_trees::statement::StatementNode;
 use syntax_trees::types::TypeReferenceNode;
 
 #[test]
+fn explicit_domain_subject_binds_only_its_predicate_operands() {
+    let source = r#"
+        data Player { health: u64; }
+        domain Player::Alive(player) requires player.health > 0 { }
+        machine health(player: Player) -> u64 { player.health }
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize domain subject");
+    let parsed = parse_syntax_trees(&tokens).expect("parse explicit domain subject");
+    let domain = parsed
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Domain(domain) => Some(domain),
+            _ => None,
+        })
+        .expect("domain");
+    assert_eq!(
+        domain.subject.as_ref().map(|name| name.as_str()),
+        Some("player")
+    );
+    assert_eq!(
+        parsed
+            .expressions
+            .iter_expressions()
+            .filter(|(_, node)| matches!(node, ExpressionNode::SelfValue))
+            .count(),
+        1
+    );
+    assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
+        let ExpressionNode::Name(path) = node else { return false; };
+        matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str() == "player")
+    }), "the machine's parameter reference must remain an ordinary name");
+    let mut copied = syntax_trees::SyntaxTrees::default();
+    copied.extend_from(&parsed);
+    let copied_subject = copied
+        .root_items()
+        .find_map(|item| match item {
+            syntax_trees::item::Item::Domain(domain) => domain.subject.as_ref(),
+            _ => None,
+        })
+        .expect("copied subject");
+    assert_eq!(copied_subject.as_str(), "player");
+}
+
+#[test]
+fn explicit_domain_subject_follows_indices_and_preserves_generic_references() {
+    let tokens =
+        Lexer::new("domain<const Limit: u64> u64::AtMost<Limit>(value) requires value <= Limit;")
+            .tokenize()
+            .expect("tokenize indexed domain");
+    let parsed = parse_syntax_trees(&tokens).expect("parse indexed domain subject");
+    assert_eq!(
+        parsed
+            .expressions
+            .iter_expressions()
+            .filter(|(_, node)| matches!(node, ExpressionNode::SelfValue))
+            .count(),
+        1
+    );
+    assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
+        let ExpressionNode::Name(path) = node else { return false; };
+        matches!(parsed.expressions.identifier_path_members(*path), [name] if name.as_str() == "Limit")
+    }));
+}
+
+#[test]
+fn explicit_domain_subject_rejects_runtime_parameter_shapes_and_duplicate_binders() {
+    for source in [
+        "domain u64::Positive(value: u64) requires value > 0;",
+        "domain u64::Positive(left, right) requires left > right;",
+        "domain u64::Positive(value) requires self > 0;",
+        "domain<const Limit: u64> u64::AtMost<Limit>(Limit) requires Limit > 0;",
+    ] {
+        let tokens = Lexer::new(source)
+            .tokenize()
+            .expect("tokenize invalid subject");
+        assert!(parse_syntax_trees(&tokens).is_err(), "accepted {source}");
+    }
+}
+
+#[test]
 fn rejects_exit_contract_clauses_on_explicit_states() {
     let source = r#"
         machine walk() {

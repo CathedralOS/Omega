@@ -5,6 +5,90 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
 
+#[test]
+fn explicit_domain_subject_renaming_preserves_semantic_identity() {
+    let resolve_subject = |subject: &str| {
+        let source = format!("domain u64::Positive({subject}) requires {subject} > 0;");
+        let tokens = Lexer::new(&source).tokenize().expect("tokenize subject");
+        let syntax = parse_syntax_trees(&tokens).expect("parse subject");
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve subject")
+    };
+    let first = resolve_subject("value");
+    let renamed = resolve_subject("candidate");
+    let identity = |program: &symbol_resolved_trees::SymbolResolvedTrees| {
+        program
+            .semantic_domains
+            .name(program.domain_definitions[0].semantic_id)
+            .expect("domain identity")
+            .to_owned()
+    };
+    assert_eq!(identity(&first), identity(&renamed));
+    assert_eq!(
+        first.proof_facts(first.domain_definitions[0].facts).len(),
+        1
+    );
+    assert_eq!(
+        renamed
+            .proof_facts(renamed.domain_definitions[0].facts)
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn explicit_domain_subject_substitutes_constant_membership_without_capturing_global_names() {
+    for (candidate, accepted) in [(7, true), (0, false), (11, false)] {
+        let source = format!(
+            r#"
+            const value: i64 = 0;
+            domain i64::Positive(value) requires value > 0;
+            domain i64::Positive::Small(candidate) requires candidate < 10;
+            data Checked<const N: i64> where N in i64::Positive::Small, {{ field: i64; }}
+            data Main {{ value: Checked<{candidate}>; }}
+        "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize qualified constant");
+        let syntax = parse_syntax_trees(&tokens).expect("parse qualified constant");
+        let result = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        );
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "candidate {candidate}: {:?}",
+            result.as_ref().err()
+        );
+    }
+}
+
+#[test]
+fn explicit_domain_subject_substitutes_indexed_membership() {
+    for (candidate, accepted) in [(7, true), (9, false)] {
+        let source = format!(
+            r#"
+            module example;
+            domain<const Limit: i64> i64::AtMost<Limit>(amount) requires amount <= Limit;
+            const value: i64 in i64::AtMost<8> = {candidate};
+        "#
+        );
+        let tokens = Lexer::new(&source)
+            .tokenize()
+            .expect("tokenize indexed membership");
+        let syntax = parse_syntax_trees(&tokens).expect("parse indexed membership");
+        let result = crate::preparation::generic_data::normalize_generic_data(
+            crate::preparation::generic_data::GenericDataRequest::new(syntax),
+        );
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "candidate {candidate}: {:?}",
+            result.as_ref().err()
+        );
+    }
+}
+
 mod semantic_identity_tests {
     use crate::resolution::{ResolutionRequest, resolve};
     use language_semantics::SemanticDomainTable;
