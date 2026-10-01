@@ -157,6 +157,41 @@ evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines
 the complete product bar; focused successes below do not establish that baseline.
 
+- **CYCLIC-CANDIDATE-PROOF-SEARCH-COST.** (new-scope) Bound the per-candidate
+  canonical proof search that dominates compiling an unranked cyclic scalar
+  loop. Three samples are blocked on compile time alone, not on any refusal:
+  `samples/cli/simulation/cellular_automaton` and
+  `samples/cli/systems/wire_protocol` exceed `tools/sample_native_gate.py`'s
+  300-second default, and `samples/cli/collections/array_max` needs about five
+  minutes and only passes at `--timeout 900`.
+  Frontier: measured with `OMEGA_PROOF_TIMINGS=1` on
+  [pass/collections/cyclic_shared_plain_array_parameter_exit](tests/omega/pass/collections/cyclic_shared_plain_array_parameter_exit/main.omg),
+  a three-state cycle over `&[i32; 3]` that takes **54 seconds**. Three
+  candidate verdict searches account for essentially all of it:
+  `canonical_ms=26108`, `25605` and `22993`, each over **878 to 889 axioms**,
+  each ending `proved=false`. Their relaxed counterparts answer the same goals
+  in `113`, `112` and `96` milliseconds — about 200x less for the same
+  question. The capacities in
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lowering_error.rs`
+  bound discovery work — roster rounds, candidate transport pools — but
+  nothing bounds one candidate's own canonical search, so a failing candidate
+  pays unbounded time before it is dropped.
+  Three routes, for the owner of
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants.rs`
+  to choose between: a new `ProofSearchCapacity` bounding the canonical search
+  per candidate, whose decline is already the modeled `Incomplete` outcome and
+  not a disproof; relevance filtering so a cyclic header does not present ~880
+  axioms to every candidate; or ordering the relaxed producer first for
+  candidate verdicts. The third needs care and is not obviously safe —
+  finalization proves the retained roster, so retaining a candidate the
+  canonical producer cannot prove may move the failure rather than remove it.
+  Not caused by `6422c069252`: the same fixture measures 55282ms with that
+  commit's `field_bounds` restatement reverted and 54185ms with it.
+  Acceptance: `cellular_automaton` and `wire_protocol` meet their documented
+  oracles inside the sample gate's default timeout, and the pinned fixture's
+  recorded millis fall far enough that it stops timing out under the full
+  corpus pool.
+
 - **REFERENCE-BEARING-RECORD-LOCAL-FILL.** (split-of:STATE-LOCAL-VALUE-FRONTIER)
   Root a field store at a declared record local whose fields include a
   borrowed view. `pass/text/runtime_string_stored_suffix_exit`,
