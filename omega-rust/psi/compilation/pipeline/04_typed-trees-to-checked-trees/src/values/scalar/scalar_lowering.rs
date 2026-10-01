@@ -1428,14 +1428,14 @@ pub(super) fn selected_element(
                     collection_type,
                 )
             } else {
-                let (symbol, collection_type) = structural_fields::owned_local_root(
+                let (symbol, path, collection_type) = structural_fields::owned_local_place(
                     program,
                     authored_parameters,
                     indexed.collection,
                 )?;
                 (
                     checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
-                    Vec::new(),
+                    path,
                     collection_type,
                 )
             }

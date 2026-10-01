@@ -9,6 +9,88 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceNode;
 
 #[test]
+fn local_record_array_guard_retains_exact_nested_storage_path() {
+    let typed = typed_program(
+        r#"
+        data Values { items: [i32; 4]; other: [i32; 4]; }
+        data Context { values: Values; }
+        machine verify() {
+            let mut context: Context;
+            context.values.items[1] = 7;
+            transition context.values.items[1] == 7 {
+                true -> passed()
+                false -> failed()
+            }
+            state passed() {}
+            state failed() {}
+        }
+    "#,
+    );
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "verify")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let statements = checked.statement_table.statements(state.statement_nodes);
+    let typed_trees::statement::StatementNode::LocalData(local) = &statements[0] else {
+        panic!("local context");
+    };
+    let typed_trees::statement::StatementNode::Assignment(assignment) = &statements[1] else {
+        panic!("indexed write");
+    };
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(assignment.target)
+    else {
+        panic!("array read");
+    };
+    let collection = indexed.collection;
+    let parameters = checked.state_parameters(state);
+    let (root, path, carrier) = super::owned_local_place(&checked, parameters, collection)
+        .expect("nested local collection");
+    assert_eq!(root, local.symbol);
+    assert_eq!(path.len(), 2);
+    assert!(matches!(
+        checked.type_reference_table.type_reference(carrier),
+        TypeReferenceNode::FixedArray { .. }
+    ));
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine.symbol)
+            .is_some(),
+        "indexed guard and indexed write compose"
+    );
+
+    let owner = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Values")
+        .unwrap();
+    let foreign = checked
+        .data_members(owner)
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Field(field) if field.name.as_str() == "other" => Some(field.symbol),
+            _ => None,
+        })
+        .unwrap();
+    let mut corrupted = checked.typed.clone();
+    let ExpressionNode::Member(member) = corrupted.expression_table.expression_mut(collection)
+    else {
+        panic!("array member");
+    };
+    member.member_symbol = foreign;
+    assert!(
+        super::owned_local_place(&corrupted, parameters, collection).is_none(),
+        "a same-typed sibling field must not replace the selected array"
+    );
+}
+
+#[test]
 fn named_state_owned_byte_guard_observes_live_length_after_indexed_writes() {
     let typed = typed_program(
         r#"
