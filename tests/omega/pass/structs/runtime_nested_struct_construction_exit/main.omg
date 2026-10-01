@@ -26,30 +26,30 @@ data Rect {
 
 data Main {
     console: Binding<Console>;
-    r: Rect;
-    w: i32 in Trapping;
-    h: i32 in Trapping;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.r = Rect {
+machine Main::main(context: &mut Main) reaches Console {
+    let rectangle: Rect = Rect {
         top_left: Point { x: 2, y: 3 },
         bottom_right: Point { x: 12, y: 9 },
     };
-    self.w = self.r.bottom_right.x - self.r.top_left.x;
-    self.h = self.r.bottom_right.y - self.r.top_left.y;
+    let width: i32 in Trapping = rectangle.bottom_right.x - rectangle.top_left.x;
+    let height: i32 in Trapping = rectangle.bottom_right.y - rectangle.top_left.y;
 
-    transition self.r.top_left.y == 3 { true -> check_w() _ -> bad() }
-    state check_w(&mut self) {
-        transition self.w == 10 { true -> check_h() _ -> bad() }
+    transition rectangle.top_left.y == 3 {
+        true -> check_width(context, width, height)
+        _ -> bad(context)
     }
-    state check_h(&mut self) {
-        transition self.h == 6 { true -> good() _ -> bad() }
+    state check_width(context: &mut Main, width: i32 in Trapping, height: i32 in Trapping) {
+        transition width == 10 { true -> check_height(context, height) _ -> bad(context) }
     }
-    state good(&mut self) {
-        self.console.exit_process(70);
+    state check_height(context: &mut Main, height: i32 in Trapping) {
+        transition height == 6 { true -> good(context) _ -> bad(context) }
     }
-    state bad(&mut self) {
-        self.console.exit_process(71);
+    state good(context: &mut Main) {
+        context.console.exit_process(70);
+    }
+    state bad(context: &mut Main) {
+        context.console.exit_process(71);
     }
 }
