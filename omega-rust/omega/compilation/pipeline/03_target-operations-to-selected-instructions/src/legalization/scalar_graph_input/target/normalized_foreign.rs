@@ -62,6 +62,14 @@ pub(super) fn validate(
     else {
         return Err(LegalizationError::custody());
     };
+    if matches!(
+        binding.mechanism,
+        target_operations::NormalizedForeignCallMechanism::SystemCall(_)
+    ) {
+        return Err(LegalizationError::UnsupportedSystemCallSelection {
+            boundary: *boundary,
+        });
+    }
     let mut declarations = plan
         .boundary_machines
         .iter()
@@ -237,12 +245,10 @@ pub(super) fn validate(
         || boundary != expected_boundary
         || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
-        || binding.locator.target().native_target() != native.target
-        || binding
-            .same_stack_contribution
-            .provider_plan_report_identity()
+        || binding.native_target() != Some(native.target)
+        || binding.provider_plan_report_identity()
             != provider_execution.provider_plan_report_identity().get()
-        || binding.same_stack_contribution.requirement_identity() != declaration.identity
+        || binding.requirement_identity() != declaration.identity
         || binding.boundary_entry_plan.call.policy
             != CallingPolicy::native_for_target(native.target)
         || binding.boundary_entry_plan.call.entry_control != EntryControl::CallReturn

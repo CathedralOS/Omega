@@ -1,13 +1,16 @@
 //! Complete evaluated normalized foreign-call custody.
 //!
-//! The wire row retains the typed locator, admitted provider execution,
-//! evaluated boundary-entry plan, same-stack contribution, and the exact
+//! The wire row retains the typed mechanism, admitted provider execution,
+//! evaluated boundary-entry plan, mechanism-specific custody, and the exact
 //! scalar/structural source placements selected by that plan. Decoding
 //! reconstructs every sealed value through its owning admission path rather
 //! than trusting wire bytes: the locator is re-normalized, the provider
 //! binding is re-derived from nonzero report coordinates, and the same-stack
 //! contribution is re-admitted so its recomputed report identity and
 //! commitment must equal the retained bytes.
+//! Kernel entries retain their exact target, number, requirement and plan
+//! commitment without an import locator or user-space stack contribution.
+//! Decoding checks their physical ABI, not their receiving trust admission.
 use calling_conventions::{
     BoundaryEntryPlan, CallbackBinderRequirement, CallbackMaterializationContext,
     CallbackRequirementId, EntryStack, MachineRegime, MachineState, MachineStateSet,
@@ -268,13 +271,30 @@ fn decode_machine_function_identity(
     .ok_or(FixedViewCopyDecodeError::InvalidMachineFunctionIdentity)
 }
 
-/// The complete evaluated binding: locator, boundary-entry plan, and the
-/// admitted same-stack claim.
+/// The complete evaluated binding and its mechanism-specific custody.
 fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
-    encode_locator(bytes, &binding.locator);
+    // Empty target names cannot be import locators. Reserve that discriminant
+    // for kernel entries while keeping existing import bytes unchanged.
+    let (locator, contribution) = match &binding.mechanism {
+        target_operations::NormalizedForeignCallMechanism::Import {
+            locator,
+            same_stack_contribution,
+        } => (locator, same_stack_contribution),
+        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
+            encode_string(bytes, "");
+            encode_string(bytes, kernel.target.target_name());
+            bytes.extend_from_slice(&kernel.number.to_le_bytes());
+            bytes.extend_from_slice(&kernel.provider_plan_report_identity.to_le_bytes());
+            bytes.extend_from_slice(&kernel.provider_plan_commitment);
+            encode_string(bytes, &kernel.requirement_identity);
+            encode_call_plan(bytes, &binding.boundary_entry_plan.call);
+            encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
+            return;
+        }
+    };
+    encode_locator(bytes, locator);
     encode_call_plan(bytes, &binding.boundary_entry_plan.call);
     encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
-    let contribution = &binding.same_stack_contribution;
     bytes.extend_from_slice(
         &contribution
             .report_identity()
@@ -293,7 +313,49 @@ fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBindi
 fn decode_call_binding(
     cursor: &mut Cursor<'_>,
 ) -> Result<NormalizedForeignCallBinding, FixedViewCopyDecodeError> {
-    let locator = decode_locator(cursor)?;
+    let target_name = decode_string(cursor)?;
+    if target_name.is_empty() {
+        let target_name = decode_string(cursor)?;
+        let target = TargetProfile::from_canonical_target_name(&target_name)
+            .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
+        let number = i64::from_le_bytes(cursor.array::<8>()?);
+        let provider_plan_report_identity = cursor.u64()?;
+        let provider_plan_commitment = cursor.array::<32>()?;
+        let requirement_identity = decode_string(cursor)?;
+        let call = decode_call_plan(cursor)?;
+        let state = decode_state_plan(cursor)?;
+        let signature = calling_conventions::CallSignature {
+            parameters: call
+                .parameters
+                .iter()
+                .map(|parameter| parameter.shape)
+                .collect(),
+            result: call.result.as_ref().map(|result| result.shape),
+        };
+        let binding = NormalizedForeignCallBinding {
+            boundary_entry_plan: BoundaryEntryPlan { call, state },
+            mechanism: target_operations::NormalizedForeignCallMechanism::SystemCall(
+                target_operations::NormalizedSystemCallBinding {
+                    target,
+                    number,
+                    provider_plan_report_identity,
+                    provider_plan_commitment,
+                    requirement_identity,
+                },
+            ),
+        };
+        if !binding.has_valid_entry_mechanism()
+            || calling_conventions::validate_boundary_entry_plan(
+                binding.boundary_entry_plan.clone(),
+                &signature,
+            )
+            .is_err()
+        {
+            return Err(FixedViewCopyDecodeError::InvalidSystemCallBinding);
+        }
+        return Ok(binding);
+    }
+    let locator = decode_locator_for_target(cursor, &target_name)?;
     let call = decode_call_plan(cursor)?;
     let state = decode_state_plan(cursor)?;
     let report_identity = cursor.u64()?;
@@ -327,9 +389,11 @@ fn decode_call_binding(
         return Err(FixedViewCopyDecodeError::InvalidSameStackContribution);
     }
     Ok(NormalizedForeignCallBinding {
-        locator,
         boundary_entry_plan: calling_conventions::BoundaryEntryPlan { call, state },
-        same_stack_contribution: contribution,
+        mechanism: target_operations::NormalizedForeignCallMechanism::Import {
+            locator,
+            same_stack_contribution: contribution,
+        },
     })
 }
 
@@ -370,11 +434,19 @@ fn encode_locator(bytes: &mut Vec<u8>, locator: &target::NormalizedForeignLocato
     }
 }
 
+#[cfg(test)]
 fn decode_locator(
     cursor: &mut Cursor<'_>,
 ) -> Result<target::NormalizedForeignLocator, FixedViewCopyDecodeError> {
     let target_name = decode_string(cursor)?;
-    let profile = TargetProfile::from_canonical_target_name(&target_name)
+    decode_locator_for_target(cursor, &target_name)
+}
+
+fn decode_locator_for_target(
+    cursor: &mut Cursor<'_>,
+    target_name: &str,
+) -> Result<target::NormalizedForeignLocator, FixedViewCopyDecodeError> {
+    let profile = TargetProfile::from_canonical_target_name(target_name)
         .map_err(|_| FixedViewCopyDecodeError::InvalidForeignTargetProfile)?;
     let candidate = match cursor.byte()? {
         1 => ForeignLocatorCandidate::PeByName {
@@ -673,9 +745,11 @@ mod tests {
         )
         .expect("same-stack admission");
         NormalizedForeignCallBinding {
-            locator,
             boundary_entry_plan,
-            same_stack_contribution,
+            mechanism: target_operations::NormalizedForeignCallMechanism::Import {
+                locator,
+                same_stack_contribution,
+            },
         }
     }
 
@@ -722,6 +796,100 @@ mod tests {
                 output: 12,
             },
             ownership: vec![optimization_unit::OwnershipEvent::ClaimTransfer(Vec::new())],
+        }
+    }
+
+    #[test]
+    fn system_call_binding_roundtrip_retains_custody_without_an_import_claim() {
+        use target_operations::{NormalizedForeignCallMechanism, NormalizedSystemCallBinding};
+        for profile in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
+            let signature = calling_conventions::CallSignature {
+                parameters: vec![
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(4, 4),
+                    ValueShape::integer(2, 2),
+                    ValueShape::integer(8, 8),
+                ],
+                result: Some(ValueShape::integer(8, 8)),
+            };
+            let binding = NormalizedForeignCallBinding {
+                boundary_entry_plan: calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                    calling_conventions::CallingPolicy::native_syscall_for_target(
+                        profile.native_target(),
+                    )
+                    .unwrap(),
+                    &signature,
+                )
+                .unwrap()
+                .plan()
+                .clone(),
+                mechanism: NormalizedForeignCallMechanism::SystemCall(
+                    NormalizedSystemCallBinding {
+                        target: profile,
+                        number: 211,
+                        requirement_identity: "Kernel::invoke".into(),
+                        provider_plan_report_identity: 0xA1,
+                        provider_plan_commitment: [0x42; 32],
+                    },
+                ),
+            };
+            assert!(binding.import().is_none());
+            let mut bytes = Vec::new();
+            encode_call_binding(&mut bytes, &binding);
+            let mut cursor = Cursor::new(&bytes);
+            assert_eq!(decode_call_binding(&mut cursor).unwrap(), binding);
+            assert_eq!(cursor.remaining(), 0);
+            for length in 0..bytes.len() {
+                assert!(decode_call_binding(&mut Cursor::new(&bytes[..length])).is_err());
+            }
+            for corruption in 0..7 {
+                let mut changed = binding.clone();
+                let NormalizedForeignCallMechanism::SystemCall(kernel) = &mut changed.mechanism
+                else {
+                    panic!("kernel");
+                };
+                match corruption {
+                    0 => kernel.number = -1,
+                    1 => kernel.target = TargetProfile::MacosArm64,
+                    2 => kernel.provider_plan_report_identity = 0,
+                    3 => kernel.requirement_identity.clear(),
+                    4 => kernel.target = TargetProfile::AlphaBootstrap,
+                    5 => kernel.target = TargetProfile::CrossPlatformCli,
+                    _ => {
+                        changed.boundary_entry_plan.call.ordinary_clobbers =
+                            calling_conventions::RegisterSet::new([])
+                    }
+                }
+                let mut changed_bytes = Vec::new();
+                encode_call_binding(&mut changed_bytes, &changed);
+                assert_ne!(bytes, changed_bytes);
+                assert_eq!(
+                    decode_call_binding(&mut Cursor::new(&changed_bytes)),
+                    Err(FixedViewCopyDecodeError::InvalidSystemCallBinding)
+                );
+            }
+            // A valid different number/commitment is retained, not admitted as
+            // trusted by decoding. The receiving provider ledger still owns
+            // that exact join; neither coordinate can disappear from identity.
+            for coordinate in 0..2 {
+                let mut changed = binding.clone();
+                let NormalizedForeignCallMechanism::SystemCall(kernel) = &mut changed.mechanism
+                else {
+                    panic!("kernel");
+                };
+                if coordinate == 0 {
+                    kernel.number += 1;
+                } else {
+                    kernel.provider_plan_commitment[31] ^= 1;
+                }
+                let mut changed_bytes = Vec::new();
+                encode_call_binding(&mut changed_bytes, &changed);
+                assert_ne!(bytes, changed_bytes);
+                assert_eq!(
+                    decode_call_binding(&mut Cursor::new(&changed_bytes)).unwrap(),
+                    changed
+                );
+            }
         }
     }
 
@@ -848,13 +1016,13 @@ mod tests {
         // plan encodings, so re-encode that prefix to find the exact offset.
         let binding = binding();
         let mut prefix = Vec::new();
-        encode_locator(&mut prefix, &binding.locator);
+        let (locator, contribution) = binding.import().unwrap();
+        encode_locator(&mut prefix, locator);
         encode_call_plan(&mut prefix, &binding.boundary_entry_plan.call);
         encode_state_plan_identity(&mut prefix, &binding.boundary_entry_plan.state);
         let contribution_offset = prefix.len();
         let mut bytes = Vec::new();
         encode_call_binding(&mut bytes, &binding);
-        let contribution = &binding.same_stack_contribution;
         assert_eq!(
             &bytes[contribution_offset..contribution_offset + 8],
             &contribution

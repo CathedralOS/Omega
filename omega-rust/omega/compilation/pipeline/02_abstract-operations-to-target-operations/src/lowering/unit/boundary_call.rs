@@ -1,4 +1,7 @@
-//! Boundary settlement lowering. Installed providers use ordinary call transport.
+//! Boundary settlement lowering. Imports and kernel entries share the evaluated
+//! plan's argument/result transport; only their retained mechanism differs.
+//! This stage does not emit supervisor instructions or create import relocations.
+//! Installed providers use ordinary in-module call transport.
 
 use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
 use super::super::control_flow::scalar_sources::ScalarSources;
@@ -130,11 +133,8 @@ pub(in crate::lowering) fn lower_boundary_call(
                 if arguments.len() != declaration.scalar_parameters.len()
                     || !completion_claim_sources.is_empty()
                     || !completion_receipts.is_empty()
-                    || foreign.boundary_entry_plan.call.policy
-                        != calling_conventions::CallingPolicy::native_for_target(target)
-                    || foreign.boundary_entry_plan.call.entry_control
-                        != calling_conventions::EntryControl::CallReturn
-                    || foreign.locator.target().native_target() != target
+                    || !foreign.has_valid_entry_mechanism()
+                    || foreign.native_target() != Some(target)
                     || native_callbacks_slice.iter().any(|callback| {
                         callback.terminal_operation != *psi_operation
                             || callback.registrar_boundary_entry_plan != foreign.boundary_entry_plan

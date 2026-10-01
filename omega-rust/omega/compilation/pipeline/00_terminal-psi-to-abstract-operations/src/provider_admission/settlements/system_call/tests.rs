@@ -68,8 +68,18 @@ fn retains_exact_kernel_number_target_and_abi_without_import_stack_custody() {
             profile.native_target(),
         )
         .unwrap();
-        assert_eq!(admitted.number, 211);
-        assert_eq!(admitted.target, profile.native_target());
+        let target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) =
+            &admitted.mechanism
+        else {
+            panic!("expected kernel binding");
+        };
+        assert_eq!(kernel.number, 211);
+        assert_eq!(kernel.target, profile);
+        assert_eq!(
+            kernel.provider_plan_commitment,
+            *plan.identity_digest().as_bytes()
+        );
+        assert_eq!(kernel.requirement_identity, "KernelBoundary::invoke");
         assert_eq!(
             Some(admitted.boundary_entry_plan),
             external.boundary_entry_plan

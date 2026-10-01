@@ -69,8 +69,10 @@ pub(super) fn rejoin_normalized_foreign_call(
         ))]);
     }
     Ok(NormalizedForeignCallBinding {
-        locator: retained_locator.clone(),
         boundary_entry_plan: boundary_entry_plan.clone(),
-        same_stack_contribution: same_stack.clone(),
+        mechanism: target_operations::NormalizedForeignCallMechanism::Import {
+            locator: retained_locator.clone(),
+            same_stack_contribution: same_stack.clone(),
+        },
     })
 }

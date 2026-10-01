@@ -15,8 +15,8 @@ pub use realizations::{
     DirectPortReadU8Realization, HostedExitProcessI32Realization, HostedReadByteRealization,
     HostedWriteByteI32Realization, LinuxWriteLineRealization, MetadataOnlyPortRealization,
     NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
-    NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument,
-    NormalizedSystemCallBinding,
+    NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
+    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
 };
 mod arguments;
 pub use arguments::{

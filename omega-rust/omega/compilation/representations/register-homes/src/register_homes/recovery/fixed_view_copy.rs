@@ -166,6 +166,7 @@ pub enum FixedViewCopyDecodeError {
     InvalidProviderExecution,
     InvalidForeignTargetProfile,
     InvalidForeignLocator,
+    InvalidSystemCallBinding,
     UnknownForeignLocatorCase(u8),
     UnknownMachineRegime(u8),
     UnknownEntryStack(u8),

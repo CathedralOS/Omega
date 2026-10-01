@@ -112,12 +112,23 @@ pub struct LinuxWriteLineRealization;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ClaimCompletionOnlyRealization;
 
-/// Exact source-free custody for one evaluated normalized import leaf.
+/// An evaluated external entry and its mechanism-specific custody. Argument
+/// and result transport belongs to the retained plan, not to an import-only
+/// lowering route. A kernel entry has neither a linker locator nor a claim on
+/// a user-space callee's stack; it must never manufacture either one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedForeignCallBinding {
-    pub locator: target::NormalizedForeignLocator,
     pub boundary_entry_plan: BoundaryEntryPlan,
-    pub same_stack_contribution: task_plans::AdmittedSameStackContribution,
+    pub mechanism: NormalizedForeignCallMechanism,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NormalizedForeignCallMechanism {
+    Import {
+        locator: target::NormalizedForeignLocator,
+        same_stack_contribution: task_plans::AdmittedSameStackContribution,
+    },
+    SystemCall(NormalizedSystemCallBinding),
 }
 
 /// Exact source-free custody for a direct kernel entry. Unlike an imported
@@ -126,9 +137,103 @@ pub struct NormalizedForeignCallBinding {
 /// the exact supervisor-entry instruction and clobbers in this retained plan.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedSystemCallBinding {
-    pub target: target::NativeTarget,
+    pub target: target::TargetProfile,
     pub number: i64,
-    pub boundary_entry_plan: BoundaryEntryPlan,
+    pub requirement_identity: String,
+    pub provider_plan_report_identity: u64,
+    pub provider_plan_commitment: [u8; 32],
+}
+
+impl NormalizedForeignCallBinding {
+    /// Resolve only a mechanism-supported native profile. In particular, an
+    /// untrusted kernel row cannot ask the native catalog to realize Alpha or
+    /// resolve a host-dependent alias while replaying portable custody.
+    pub fn native_target(&self) -> Option<target::NativeTarget> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import { locator, .. } => {
+                Some(locator.target().native_target())
+            }
+            NormalizedForeignCallMechanism::SystemCall(binding) => match binding.target {
+                target::TargetProfile::LinuxX64 | target::TargetProfile::LinuxArm64 => {
+                    Some(binding.target.native_target())
+                }
+                _ => None,
+            },
+        }
+    }
+
+    pub fn requirement_identity(&self) -> &str {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import {
+                same_stack_contribution,
+                ..
+            } => same_stack_contribution.requirement_identity(),
+            NormalizedForeignCallMechanism::SystemCall(binding) => &binding.requirement_identity,
+        }
+    }
+
+    pub fn provider_plan_report_identity(&self) -> u64 {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import {
+                same_stack_contribution,
+                ..
+            } => same_stack_contribution.provider_plan_report_identity(),
+            NormalizedForeignCallMechanism::SystemCall(binding) => {
+                binding.provider_plan_report_identity
+            }
+        }
+    }
+
+    /// Imports retain their ordinary calling policy. Kernel entries instead
+    /// require the exact target ABI, including clobbers and supervisor entry;
+    /// generic authored-plan validation alone permits weaker promises.
+    /// This physical check does not establish source argument/result custody.
+    pub fn has_valid_entry_mechanism(&self) -> bool {
+        use calling_conventions::{CallSignature, CallingPolicy, EntryControl};
+        let Some(target) = self.native_target() else {
+            return false;
+        };
+        let call = &self.boundary_entry_plan.call;
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import { .. } => {
+                call.policy == CallingPolicy::native_for_target(target)
+                    && call.entry_control == EntryControl::CallReturn
+            }
+            NormalizedForeignCallMechanism::SystemCall(binding) => {
+                let Some(policy) = CallingPolicy::native_syscall_for_target(target) else {
+                    return false;
+                };
+                let signature = CallSignature {
+                    parameters: call
+                        .parameters
+                        .iter()
+                        .map(|parameter| parameter.shape)
+                        .collect(),
+                    result: call.result.as_ref().map(|result| result.shape),
+                };
+                binding.number >= 0
+                    && !binding.requirement_identity.is_empty()
+                    && binding.provider_plan_report_identity != 0
+                    && calling_conventions::evaluate_call_plan(policy, &signature).as_ref()
+                        == Ok(call)
+            }
+        }
+    }
+
+    pub fn import(
+        &self,
+    ) -> Option<(
+        &target::NormalizedForeignLocator,
+        &task_plans::AdmittedSameStackContribution,
+    )> {
+        match &self.mechanism {
+            NormalizedForeignCallMechanism::Import {
+                locator,
+                same_stack_contribution,
+            } => Some((locator, same_stack_contribution)),
+            NormalizedForeignCallMechanism::SystemCall(_) => None,
+        }
+    }
 }
 
 /// One occurrence-specific fixed-width integer value materialized for an
@@ -154,7 +259,6 @@ pub type NormalizedForeignStructuralArgument = TargetStructuralArgument;
 pub enum BoundarySettlementRealization {
     Builtin(BoundaryRealization),
     NormalizedForeignCall(NormalizedForeignCallBinding),
-    SystemCall(NormalizedSystemCallBinding),
 }
 
 impl From<BoundaryRealization> for BoundarySettlementRealization {

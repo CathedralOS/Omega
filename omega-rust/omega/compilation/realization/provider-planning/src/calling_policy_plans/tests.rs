@@ -1197,6 +1197,84 @@ fn callback_closure_reconciliation_requires_the_preclosure_strong_commitment() {
 }
 
 #[test]
+fn syscall_compatibility_signature_preserves_widths_and_rejects_false_word_shapes() {
+    let mut signature = MaterializedBoundarySignature {
+        owner_requirement_identity: "Kernel::invoke#exact".to_owned(),
+        native_target: NativeTarget::linux_x64(),
+        opaque_representations: Vec::new(),
+        shapes: [8, 4, 2]
+            .into_iter()
+            .map(|width| BoundaryValueShape {
+                class: BoundaryValueClass::Integer,
+                byte_size: width,
+                alignment: width,
+            })
+            .collect(),
+        fields: Vec::new(),
+        parameters: vec![0, 1, 2, 0],
+        callback_binders: Vec::new(),
+        callback_demands: Vec::new(),
+        callback_layout_catalog: Vec::new(),
+        native_parameters: Vec::new(),
+        direct_callback_parameters: Vec::new(),
+        result: Some(1),
+    };
+    for policy in [
+        CallingPolicy::LinuxSyscallX86_64,
+        CallingPolicy::LinuxSyscallAarch64,
+    ] {
+        let wire = compatibility_call_signature(&signature, policy, 0).unwrap();
+        assert_eq!(
+            wire.parameters,
+            [
+                ValueShape::integer(8, 8),
+                ValueShape::integer(4, 4),
+                ValueShape::integer(2, 2),
+                ValueShape::integer(8, 8)
+            ]
+        );
+        assert_eq!(wire.result, Some(ValueShape::integer(4, 4)));
+        let entry = evaluate_ordinary_boundary_entry_plan(policy, &wire).unwrap();
+        let fourth_register = match policy {
+            CallingPolicy::LinuxSyscallX86_64 => calling_conventions::MachineRegister::X86R10,
+            _ => calling_conventions::MachineRegister::Aarch64X(3),
+        };
+        assert!(
+            matches!(entry.plan().call.parameters[3].locations.as_slice(),
+                [calling_conventions::ValueLocation::Register { register, .. }] if *register == fourth_register
+            )
+        );
+        for unsupported in [
+            BoundaryValueShape {
+                class: BoundaryValueClass::Float,
+                byte_size: 4,
+                alignment: 4,
+            },
+            BoundaryValueShape {
+                class: BoundaryValueClass::Integer,
+                byte_size: 16,
+                alignment: 16,
+            },
+        ] {
+            let mut changed = signature.clone();
+            changed.shapes[1] = unsupported;
+            let wire = compatibility_call_signature(&changed, policy, 0).unwrap();
+            assert!(evaluate_ordinary_boundary_entry_plan(policy, &wire).is_err());
+        }
+        let mut changed = signature.clone();
+        changed.parameters[0] = u16::MAX;
+        assert!(compatibility_call_signature(&changed, policy, 0).is_err());
+    }
+    signature.parameters.clear();
+    signature.result = None;
+    let empty =
+        compatibility_call_signature(&signature, CallingPolicy::LinuxSyscallX86_64, 0).unwrap();
+    assert!(empty.parameters.is_empty());
+    assert!(empty.result.is_none());
+    evaluate_ordinary_boundary_entry_plan(CallingPolicy::LinuxSyscallX86_64, &empty).unwrap();
+}
+
+#[test]
 fn compatibility_signature_excludes_dispatch_only_table_parameter() {
     let signature = MaterializedBoundarySignature {
         owner_requirement_identity: "test::Compatibility::call#exact".to_owned(),

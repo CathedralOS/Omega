@@ -8,14 +8,16 @@ use calling_conventions::{CallSignature, CallingPolicy, ExternalBindingKind, Ext
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use target::NativeTarget;
-use target_operations::NormalizedSystemCallBinding;
+use target_operations::{
+    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedSystemCallBinding,
+};
 
 pub(super) fn rejoin_system_call(
     selected_plan: &ProviderPlan,
     external_rows: &[ExternalBindingRow],
     requirement: &str,
     target: NativeTarget,
-) -> Result<NormalizedSystemCallBinding, Vec<Diagnostic>> {
+) -> Result<NormalizedForeignCallBinding, Vec<Diagnostic>> {
     let invalid = |reason| {
         vec![Diagnostic::error(format!(
             "syscall realization for `{requirement}` {reason}"
@@ -93,10 +95,15 @@ pub(super) fn rejoin_system_call(
     }
     calling_conventions::validate_boundary_entry_plan(entry.clone(), &signature)
         .map_err(|_| invalid("has a noncanonical syscall calling plan"))?;
-    Ok(NormalizedSystemCallBinding {
-        target,
-        number,
+    Ok(NormalizedForeignCallBinding {
         boundary_entry_plan: entry.clone(),
+        mechanism: NormalizedForeignCallMechanism::SystemCall(NormalizedSystemCallBinding {
+            target: profile,
+            number,
+            requirement_identity: requirement.to_owned(),
+            provider_plan_report_identity: selected_plan.report_fingerprint(),
+            provider_plan_commitment: *selected_plan.identity_digest().as_bytes(),
+        }),
     })
 }
 

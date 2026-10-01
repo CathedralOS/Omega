@@ -14,8 +14,8 @@ use crate::calling_policy_plans::opaque_representations::{
 pub use calling_conventions::{BoundaryValueClass, BoundaryValueField, BoundaryValueShape};
 use calling_conventions::{
     BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
-    NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan, ValueShape,
-    callback_requirement_id, nominal_callback_native_parameter_id,
+    NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan, callback_requirement_id,
+    nominal_callback_native_parameter_id,
 };
 use layout::{BoundaryTypeBinding, BoundaryValueLayout, substitute_boundary_type_reference};
 use representation_planning::OpaqueRepresentationSelection;
@@ -443,33 +443,22 @@ pub(crate) fn compatibility_call_signature(
             materialized.parameters.len()
         ));
     }
-    let syscall_words = matches!(
-        policy,
-        CallingPolicy::LinuxSyscallX86_64 | CallingPolicy::LinuxSyscallAarch64
-    );
+    // Register capacity is not the source value's width or class. The old
+    // syscall shortcut replaced every root with integer(8, 8), so an i32
+    // formal no longer matched native transport and floats/large aggregates
+    // bypassed the syscall evaluator's normal rejection. Classify every root
+    // through the same checked graph; the ABI evaluator decides placement.
     Ok(CallSignature {
         parameters: materialized
             .parameters
             .iter()
             .skip(dispatch_only_parameter_count)
             .copied()
-            .map(|root| {
-                if syscall_words {
-                    Ok(ValueShape::integer(8, 8))
-                } else {
-                    materialized.value_graph().classify(root, policy)
-                }
-            })
+            .map(|root| materialized.value_graph().classify(root, policy))
             .collect::<Result<Vec<_>, _>>()?,
         result: materialized
             .result
-            .map(|root| {
-                if syscall_words {
-                    Ok(ValueShape::integer(8, 8))
-                } else {
-                    materialized.value_graph().classify(root, policy)
-                }
-            })
+            .map(|root| materialized.value_graph().classify(root, policy))
             .transpose()?,
     })
 }

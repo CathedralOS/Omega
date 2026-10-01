@@ -41,7 +41,7 @@ pub(super) fn settle_boundary<'request>(
     }
     let realization = match settlement.realization {
         NativeBoundaryRealization::SystemCall => {
-            target_operations::BoundarySettlementRealization::SystemCall(
+            target_operations::BoundarySettlementRealization::NormalizedForeignCall(
                 super::system_call::rejoin_system_call(
                     selected_plan,
                     request.external_binding_rows,

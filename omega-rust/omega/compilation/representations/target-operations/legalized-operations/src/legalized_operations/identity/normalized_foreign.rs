@@ -1,4 +1,4 @@
-//! Evaluated normalized foreign call identity: the typed locator, admitted
+//! Evaluated normalized foreign call identity: the import or kernel mechanism, admitted
 //! provider execution, boundary-entry plan, and exact argument/result homes
 //! encode as one indivisible row.
 use super::calling::{encode_call_plan, encode_native_place, encode_placement, encode_shape};
@@ -103,14 +103,32 @@ fn encode_machine_function_identity(
     }
 }
 
-/// The complete evaluated binding: locator, boundary-entry plan, and the
-/// admitted same-stack claim. The claim's type is owned by task-plans and is
-/// reached through the binding so this crate keeps no new dependency edge.
+/// The complete evaluated binding: mechanism, boundary-entry plan and custody.
+/// Only imports carry an admitted same-stack claim. Kernel identity instead
+/// retains its target, number, exact requirement and provider-plan commitment.
 fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
-    encode_locator(bytes, &binding.locator);
+    // Empty target names cannot be import locators. Reserve that discriminant
+    // for kernel entries while keeping existing import bytes unchanged.
+    let (locator, contribution) = match &binding.mechanism {
+        target_operations::NormalizedForeignCallMechanism::Import {
+            locator,
+            same_stack_contribution,
+        } => (locator, same_stack_contribution),
+        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
+            encode_string(bytes, "");
+            encode_string(bytes, kernel.target.target_name());
+            bytes.extend_from_slice(&kernel.number.to_le_bytes());
+            bytes.extend_from_slice(&kernel.provider_plan_report_identity.to_le_bytes());
+            bytes.extend_from_slice(&kernel.provider_plan_commitment);
+            encode_string(bytes, &kernel.requirement_identity);
+            encode_call_plan(bytes, &binding.boundary_entry_plan.call);
+            encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
+            return;
+        }
+    };
+    encode_locator(bytes, locator);
     encode_call_plan(bytes, &binding.boundary_entry_plan.call);
     encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
-    let contribution = &binding.same_stack_contribution;
     bytes.extend_from_slice(
         &contribution
             .report_identity()

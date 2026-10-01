@@ -22,6 +22,99 @@ use terminal_psi::StructuralPathSegment;
 
 const REQUIREMENT: &str = "Foreign::leaf";
 
+/// Kernel entries use the same transport and result sequencing as imports.
+/// An extra call consumes the first call's result; the source has no Clock
+/// spelling, and neither a fixed arity nor an immediate-only path can pass it.
+#[test]
+fn system_calls_share_scalar_result_transport_and_independent_replay() {
+    use target_operations::{NormalizedForeignCallMechanism, NormalizedSystemCallBinding};
+    let (source, execution) = scalar_fixture();
+    for profile in [
+        target::TargetProfile::LinuxX64,
+        target::TargetProfile::LinuxArm64,
+    ] {
+        let native = profile.native_target();
+        let bindings = [false, true]
+            .into_iter()
+            .enumerate()
+            .map(|(index, returns)| {
+                let signature = CallSignature {
+                    parameters: vec![ValueShape::integer(4, 4)],
+                    result: returns.then_some(ValueShape::integer(4, 4)),
+                };
+                (
+                    index as u32 + 1,
+                    NormalizedForeignCallBinding {
+                        boundary_entry_plan:
+                            calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                                CallingPolicy::native_syscall_for_target(native).unwrap(),
+                                &signature,
+                            )
+                            .unwrap()
+                            .plan()
+                            .clone(),
+                        mechanism: NormalizedForeignCallMechanism::SystemCall(
+                            NormalizedSystemCallBinding {
+                                target: profile,
+                                number: 211,
+                                requirement_identity: REQUIREMENT.into(),
+                                provider_plan_report_identity: execution.plan_report,
+                                provider_plan_commitment: [0x42; 32],
+                            },
+                        ),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        let lowered = lower(&source, native, &execution, &bindings);
+        crate::validate_abstract_to_target_translation(&source, native, &lowered)
+            .expect("kernel calls replay through shared transport");
+        let TargetUnitOperation::NormalizedForeignCall {
+            scalar_arguments, ..
+        } = normalized_foreign_ref(&lowered, 9)
+        else {
+            panic!("expected consuming call");
+        };
+        assert!(matches!(
+            scalar_arguments[0].source,
+            target_operations::TargetUnitScalarArgumentSource::Home(_)
+        ));
+        for corruption in 0..4 {
+            let mut changed = lowered.clone();
+            let TargetUnitOperation::NormalizedForeignCall {
+                binding,
+                scalar_arguments,
+                ..
+            } = normalized_foreign_mut(&mut changed, 8)
+            else {
+                panic!("expected producing call");
+            };
+            match corruption {
+                0 => {
+                    binding.boundary_entry_plan.call.ordinary_clobbers =
+                        calling_conventions::RegisterSet::new([])
+                }
+                1 => {
+                    binding.boundary_entry_plan.call.entry_control =
+                        calling_conventions::EntryControl::CallReturn
+                }
+                2 => scalar_arguments[0].parameter_index = 1,
+                _ => {
+                    let NormalizedForeignCallMechanism::SystemCall(kernel) = &mut binding.mechanism
+                    else {
+                        panic!("kernel");
+                    };
+                    kernel.requirement_identity = "Other::leaf".into();
+                }
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&source, native, &changed).is_err(),
+                "corruption {corruption}"
+            );
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Execution {
     plan_report: u64,
@@ -123,9 +216,11 @@ fn binding_for_requirement(
     )
     .expect("same-stack admission");
     NormalizedForeignCallBinding {
-        locator,
         boundary_entry_plan,
-        same_stack_contribution,
+        mechanism: target_operations::NormalizedForeignCallMechanism::Import {
+            locator,
+            same_stack_contribution,
+        },
     }
 }
 
