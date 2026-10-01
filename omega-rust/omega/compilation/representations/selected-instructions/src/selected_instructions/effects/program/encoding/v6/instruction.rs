@@ -56,6 +56,7 @@ pub(super) fn decode_instruction(
     };
     let call = match cursor.byte()? {
         0 => MachineCallEffect::NoneV1,
+        3 if allow_scalar_call => MachineCallEffect::SupervisorNormalReturnV1,
         1 if allow_scalar_call => MachineCallEffect::DirectInternalNormalReturnV1 {
             pre_call_stack_alignment: cursor.u16()?,
         },
@@ -582,6 +583,7 @@ fn decode_alternative_for_version(
         11 => MachineAlternativeFamily::ConditionalBranchU64LessThan,
         12 if allow_i64_less_than => MachineAlternativeFamily::ConditionalBranchI64LessThan,
         13 if allow_scalar_call => MachineAlternativeFamily::CallScalar,
+        87 if allow_scalar_call => MachineAlternativeFamily::NormalizedForeignCall,
         14 if allow_jump => MachineAlternativeFamily::Jump,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
@@ -741,6 +743,7 @@ fn decode_encoded_effects(
             target: register_model::RegisterViewId(cursor.u16()?),
         },
         4 if allow_scalar_call => MachineEncodedControlEffect::DirectRelativeCallV1,
+        11 if allow_scalar_call => MachineEncodedControlEffect::SupervisorCallV1,
         5 if allow_jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };

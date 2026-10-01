@@ -50,6 +50,7 @@ fn encode_effect_tail(bytes: &mut Vec<u8>, instruction: &InstructionMachineEffec
     encode_barrier(bytes, instruction.barrier);
     match instruction.call {
         MachineCallEffect::NoneV1 => bytes.push(0),
+        MachineCallEffect::SupervisorNormalReturnV1 => bytes.push(3),
         MachineCallEffect::DirectInternalNormalReturnV1 {
             pre_call_stack_alignment,
         } => {

@@ -314,10 +314,18 @@ fn selected_keys(
         .into_iter()
         .chain(crate::aarch64_float_scalar_call_keys(darwin))
         .collect(),
-        call_normalized_foreign: match abi {
+        call_normalized_foreign: (match abi {
             Aarch64SelectedAbi::Aapcs64 => crate::aarch64_aapcs64_normalized_foreign_call_keys(),
             Aarch64SelectedAbi::Darwin => crate::aarch64_darwin_normalized_foreign_call_keys(),
-        },
+        })
+        .into_iter()
+        .chain(
+            (target.object_format == ObjectFormat::Elf)
+                .then(crate::aarch64_linux_system_call_keys)
+                .into_iter()
+                .flatten(),
+        )
+        .collect(),
         materialize_i64: AARCH64_MATERIALIZE_I64,
         materialize_boolean: crate::AARCH64_MATERIALIZE_BOOLEAN,
         call_aggregate: crate::aarch64_register_aggregate_call_keys(darwin)

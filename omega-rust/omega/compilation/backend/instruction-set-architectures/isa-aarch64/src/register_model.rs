@@ -14,6 +14,8 @@ mod indirect_results;
 mod mixed_calls;
 mod operation_keys;
 mod physical_model;
+mod system_calls;
+pub use system_calls::aarch64_linux_system_call_keys;
 #[cfg(test)]
 mod tests;
 

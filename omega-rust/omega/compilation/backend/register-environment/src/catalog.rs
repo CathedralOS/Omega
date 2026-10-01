@@ -213,7 +213,15 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
                     .into_iter()
                     .chain(isa_x86_64::x86_64_float_scalar_call_keys(false))
                     .collect(),
-                call_normalized_foreign: isa_x86_64::x86_64_system_v_normalized_foreign_call_keys(),
+                call_normalized_foreign: isa_x86_64::x86_64_system_v_normalized_foreign_call_keys()
+                    .into_iter()
+                    .chain(
+                        (target.object_format == ObjectFormat::Elf)
+                            .then(isa_x86_64::x86_64_linux_system_call_keys)
+                            .into_iter()
+                            .flatten(),
+                    )
+                    .collect(),
                 materialize_i64: X86_64_MATERIALIZE_I64,
                 materialize_boolean: isa_x86_64::X86_64_MATERIALIZE_BOOLEAN,
                 copy_i64: X86_64_COPY_I64,
@@ -377,7 +385,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
                 .into_iter()
                 .chain(isa_aarch64::aarch64_float_scalar_call_keys(false))
                 .collect(),
-            call_normalized_foreign: isa_aarch64::aarch64_aapcs64_normalized_foreign_call_keys(),
+            call_normalized_foreign: isa_aarch64::aarch64_aapcs64_normalized_foreign_call_keys()
+                .into_iter()
+                .chain(isa_aarch64::aarch64_linux_system_call_keys())
+                .collect(),
             materialize_i64: AARCH64_MATERIALIZE_I64,
             materialize_boolean: isa_aarch64::AARCH64_MATERIALIZE_BOOLEAN,
             copy_i64: AARCH64_COPY_I64,

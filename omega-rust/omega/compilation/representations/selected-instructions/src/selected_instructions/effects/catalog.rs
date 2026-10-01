@@ -626,6 +626,8 @@ pub enum MachineBarrier {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineCallEffect {
     NoneV1,
+    /// Returning supervisor entry, without a user-space call frame or callee.
+    SupervisorNormalReturnV1,
     DirectInternalNormalReturnV1 {
         pre_call_stack_alignment: u16,
     },
@@ -809,6 +811,8 @@ pub enum MachineEncodedControlEffect {
         target: RegisterViewId,
     },
     DirectRelativeCallV1,
+    /// Enter the kernel and resume at the following instruction on return.
+    SupervisorCallV1,
     UnconditionalRelativeBranchV1,
 }
 

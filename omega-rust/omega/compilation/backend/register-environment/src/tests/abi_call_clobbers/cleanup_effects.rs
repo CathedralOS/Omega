@@ -1,7 +1,7 @@
 //! Cleanup family: the declared `cleanup` surface is a closed `NoneV1`
 //! vocabulary today — admission fails closed if a second variant ever
 //! appears — and the only cleanup-capable encoded surface is the
-//! activation-stack lifecycle. An x86-64 call commits the return-address
+//! activation-stack lifecycle. An x86-64 user-space call commits the return-address
 //! extent below the stack pointer and an x86-64 return releases it;
 //! AArch64 transfers control through its link register, so no selected rule
 //! owns a lifecycle there. The lifecycle vocabulary itself is
@@ -24,7 +24,8 @@ use selected_instructions::{
 /// a call commits the return-address extent below the stack pointer, a
 /// return releases it — when the ISA's call pushes the return address at
 /// all. Only x86-64 does; AArch64 returns through its link register, so
-/// every selected rule there is lifecycle-free.
+/// every selected rule there is lifecycle-free. Supervisor entry is also
+/// lifecycle-free on both ISAs, despite sharing foreign-call operand transport.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LifecycleOwner {
     Call,
@@ -34,8 +35,11 @@ enum LifecycleOwner {
 fn lifecycle_owner(
     architecture: Architecture,
     semantic: MachineSemanticKind,
+    key: RegisterConstraintKey,
 ) -> Option<LifecycleOwner> {
-    if !matches!(architecture, Architecture::X86_64) {
+    if !matches!(architecture, Architecture::X86_64)
+        || key.family == register_model::RegisterConstraintFamily::SystemCall
+    {
         return None;
     }
     match semantic {
@@ -93,7 +97,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
             assert_eq!(declaration.cleanup, MachineCleanupEffect::NoneV1, "{key:?}");
             assert!(!declaration.alternatives.is_empty(), "{key:?}");
 
-            let lifecycle = lifecycle_owner(case.target.architecture, semantic);
+            let lifecycle = lifecycle_owner(case.target.architecture, semantic, key);
             for alternative in &declaration.alternatives {
                 let encoded = &alternative.encoded;
                 match lifecycle {
@@ -238,7 +242,7 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
             .collect::<Vec<_>>();
         for (semantic, key) in rules {
             let forgeries: Vec<(&'static str, MachineEncodedStackEffect)> =
-                match lifecycle_owner(case.target.architecture, semantic) {
+                match lifecycle_owner(case.target.architecture, semantic, key) {
                     // A rule that touches no activation-stack footprint cannot
                     // borrow either lifecycle shape: the vocabulary is closed
                     // to the semantics that own it. This also covers AArch64's
@@ -321,7 +325,7 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
 
             // A lifecycle dereferences the stack: understating its fault
             // surface leaves a (memory, stack, trap) triple no semantic owns.
-            if lifecycle_owner(case.target.architecture, semantic).is_some() {
+            if lifecycle_owner(case.target.architecture, semantic, key).is_some() {
                 let mut corrupted = catalog.clone();
                 semantic_declaration_mut(&mut corrupted, semantic, key).alternatives[0]
                     .encoded
@@ -372,7 +376,7 @@ fn every_selected_lifecycle_rule_rejects_consistent_coordinate_forgery() {
             .collect::<Vec<_>>();
         let mut saw_lifecycle = false;
         for (semantic, key) in rules {
-            let Some(owner) = lifecycle_owner(case.target.architecture, semantic) else {
+            let Some(owner) = lifecycle_owner(case.target.architecture, semantic, key) else {
                 continue;
             };
             saw_lifecycle = true;

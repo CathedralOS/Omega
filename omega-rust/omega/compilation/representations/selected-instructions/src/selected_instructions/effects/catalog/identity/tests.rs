@@ -1329,7 +1329,7 @@ fn encoded_trap_behavior_identity_bytes_are_pinned() {
 
 #[test]
 fn encoded_control_effect_identity_bytes_are_pinned() {
-    let cases: [(MachineEncodedControlEffect, &[u8]); 11] = [
+    let cases: [(MachineEncodedControlEffect, &[u8]); 12] = [
         (MachineEncodedControlEffect::FallThroughV1, &[0]),
         (
             MachineEncodedControlEffect::ConditionalRelativeBranchV1,
@@ -1355,6 +1355,7 @@ fn encoded_control_effect_identity_bytes_are_pinned() {
         (MachineEncodedControlEffect::HostedReadReturnOrTrapV1, &[8]),
         (MachineEncodedControlEffect::CrashV1, &[9]),
         (MachineEncodedControlEffect::FallThroughOrTrapV1, &[10]),
+        (MachineEncodedControlEffect::SupervisorCallV1, &[11]),
     ];
     for (control, expected) in cases {
         let mut wanted = EMPTY_LIST_PREFIX.to_vec();
