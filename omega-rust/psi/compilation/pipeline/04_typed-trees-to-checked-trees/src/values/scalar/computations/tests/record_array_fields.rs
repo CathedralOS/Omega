@@ -163,12 +163,25 @@ machine wrap(samples: [i32; 2]) -> Packet { Packet { samples: samples } }
         copies[0].1, copies[1].1,
         "reads retain the same source storage"
     );
-    assert!(
-        matches!(
-            copies[2].1,
-            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-        ),
-        "parameters use the same copied-place operation"
+    // Parameters use the same copied-place operation as locals, and since
+    // `cd54a8d27dd` they use the same source plan too: `StructuralLocal` names
+    // a named formal as well as a live local, because value planning precedes
+    // the final structural parameter roster. The variant alone therefore no
+    // longer tells the two apart, so the discrimination is the symbol --
+    // `wrap`'s copy names its own `samples`, not `build`'s `bare`.
+    let (
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: local },
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: formal },
+    ) = (copies[0].1, copies[2].1)
+    else {
+        panic!(
+            "a local and a named formal both copy from their authored symbol: {:?}, {:?}",
+            copies[0].1, copies[2].1
+        );
+    };
+    assert_ne!(
+        local, formal,
+        "the parameter copy names its own formal, not the other machine's local"
     );
 }
 

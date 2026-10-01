@@ -36,7 +36,13 @@ fn stores(source: &str, state_index: usize) -> Option<Vec<CheckedUnitEffectOpera
 /// row for it. A readable owned root supplies that copyable child as a copied
 /// structural value, which the statement sequence establishes and stores
 /// through its window pair; the value keeps its exact member path below the
-/// parameter root rather than standing for the whole root.
+/// authored root rather than standing for the whole root.
+///
+/// The root arrives as `StructuralLocal`, which names a named formal as well
+/// as a live local: `cd54a8d27dd` stopped planning a dense `Parameter`
+/// position here because value planning precedes the final structural
+/// parameter roster, so the leaf keeps its authored symbol until binding
+/// resolves that roster. The path below the root is what this pins.
 #[test]
 fn member_read_value_copies_its_exact_member_path() {
     let source = r#"
@@ -72,10 +78,14 @@ fn member_read_value_copies_its_exact_member_path() {
     else {
         panic!("the member read copies its leaf out of the readable root");
     };
-    assert!(matches!(
-        source.source,
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-    ));
+    assert!(
+        matches!(
+            source.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
+        ),
+        "the copy names its authored root: {:?}",
+        source.source
+    );
     assert_eq!(
         source.path,
         [checked_trees::CheckedUnitStructuralPathSegment::Field(
