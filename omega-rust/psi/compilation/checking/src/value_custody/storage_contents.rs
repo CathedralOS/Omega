@@ -25,6 +25,12 @@ enum ContentType {
     Slice(Box<ContentType>),
     Shared(Box<ContentType>),
     Data(SymbolHandle, Vec<ContentType>),
+    /// A shared-view member — `&[T]` or `&'a V` — under
+    /// [`ContentsRequirement::OwnedOrSharedView`]. A terminal descriptor leaf:
+    /// the carrier copies base and extent while the referent's loan stays
+    /// with the view's owner, so the referee's own contents never descend
+    /// into this classification.
+    View,
     /// A closed const argument. It fills a const parameter's slot so data
     /// arguments stay positional, and is never itself a member's contents.
     ConstValue,
@@ -33,7 +39,7 @@ enum ContentType {
 impl ContentType {
     fn size(&self) -> usize {
         match self {
-            Self::Scalar(_) | Self::ConstValue => 1,
+            Self::Scalar(_) | Self::ConstValue | Self::View => 1,
             Self::Array(element, _) => 1 + element.size(),
             Self::Slice(element) | Self::Shared(element) => 1 + element.size(),
             Self::Data(_, arguments) => 1 + arguments.iter().map(Self::size).sum::<usize>(),
@@ -73,6 +79,12 @@ enum ContentsRequirement {
     /// of this storage classification. Other `CleanupOwned` callers keep
     /// refusing declared domains.
     StructuralConstruction,
+    /// `NumericOwned` contents that may carry shared-view members at any
+    /// depth: a `&[T]` or `&'a V` member resolves to a terminal
+    /// [`ContentType::View`] descriptor instead of declining. Every other
+    /// obligation is `NumericOwned`'s — no loans that mutate, no erased or
+    /// generic members, no linear declarations, no drop carriers.
+    OwnedOrSharedView,
     StableObservation,
     /// Contents an opaque `Binding<R>`/boundary-trait call seam may marshal as
     /// a caller-owned ABI copy while the observed place keeps custody of the
@@ -192,6 +204,27 @@ pub fn has_stable_observable_contents(
 /// obligations.
 pub fn has_service_seam_contents(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     check_contents_requirement(program, reference, &[], ContentsRequirement::SeamMarshal)
+}
+
+/// Classify value contents that may nest shared-view members anywhere inside
+/// them — the whole-contents form of [`has_owned_or_shared_view_fields`]. A
+/// `&[T]` or `&'a V` member is a terminal view descriptor at any depth:
+/// copying its enclosing carrier copies the descriptor, while the referent's
+/// loan stays with the view's owner. Sums whose payloads are plain records or
+/// view-carrying records therefore classify beside plain records. Exclusive
+/// borrows, erased members, linear declarations, drop carriers, and genuinely
+/// generic members keep the type unclassified, as does a member with no shared
+/// view of the `&[T]`/`&'a V` shape.
+pub fn has_owned_or_shared_view_contents(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> bool {
+    check_contents_requirement(
+        program,
+        reference,
+        &[],
+        ContentsRequirement::OwnedOrSharedView,
+    )
 }
 
 /// Classify a record whose fields are each either plain owned contents or a
@@ -398,6 +431,23 @@ fn resolve(
                 requirement,
             )?)))
         }
+        // A shared view of slice or named shape is a member's terminal
+        // descriptor leaf under `OwnedOrSharedView` — the same shape
+        // [`has_owned_or_shared_view_fields`] admits one record deep. The
+        // referee's declared storage stays its owner's custody, so it is
+        // never resolved here. `&mut` and `&T` scalar loans do not match.
+        TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            referee,
+            ..
+        } if matches!(requirement, ContentsRequirement::OwnedOrSharedView)
+            && matches!(
+                program.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::Slice { .. } | TypeReferenceNode::Named { .. }
+            ) =>
+        {
+            Some(ContentType::View)
+        }
         TypeReferenceNode::Slice { element_type }
             if matches!(
                 requirement,
@@ -547,6 +597,9 @@ fn check_contents(
             | ContentType::Shared(element) => {
                 check_contents(program, element, active, complete, requirement)
             }
+            // A view descriptor is a terminal leaf — the member's custody is
+            // the descriptor alone.
+            ContentType::View => true,
             // A const parameter named where a member type belongs is not
             // storage the classifier understands.
             ContentType::ConstValue => false,
