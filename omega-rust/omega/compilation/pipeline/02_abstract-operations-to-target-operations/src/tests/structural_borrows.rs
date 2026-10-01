@@ -276,6 +276,70 @@ fn copied_call_argument_rejoins_its_exact_establishing_operation() {
     }
 }
 
+/// A record-array literal establishes a local home, so its element loan takes
+/// the live-graph route: the argument is a bare leaf pointer at the element's
+/// offset. The parameter-roster route's array transport metadata does not
+/// apply, and forging it, or another element's offset, still rejects.
+#[test]
+fn local_home_element_loan_lends_its_bare_leaf() {
+    let source = source_plan(
+        r#"
+            data Room { exit_count: u32; }
+            machine bump(room: &mut Room) { room.exit_count = 1; }
+            data Main {}
+            machine Main::run(&mut self) {
+                let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 5 }];
+                bump(&mut rooms[1]);
+            }
+        "#,
+    );
+    for native in [NativeTarget::macos_arm64(), NativeTarget::linux_x64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("a local element loan lowers");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let argument = target
+            .functions
+            .iter()
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match operation {
+                TargetUnitOperation::Call { arguments, .. } => arguments
+                    .iter()
+                    .find(|argument| argument.access == StructuralAccess::MutableBorrow),
+                _ => None,
+            })
+            .expect("the call lends one element");
+        assert_eq!(
+            argument.path,
+            [terminal_psi::StructuralPathSegment::FixedIndex(1)]
+        );
+        assert_eq!(argument.source_byte_offset, 4);
+        assert_eq!(
+            (argument.fixed_array_length, argument.element_stride),
+            (None, None)
+        );
+        for mutation in [
+            Box::new(|argument: &mut TargetStructuralArgument| {
+                argument.fixed_array_length = Some(2)
+            }) as Box<dyn Fn(&mut TargetStructuralArgument)>,
+            Box::new(|argument: &mut TargetStructuralArgument| argument.element_stride = Some(4)),
+            Box::new(|argument: &mut TargetStructuralArgument| argument.source_byte_offset = 0),
+        ] {
+            assert!(matches!(
+                crate::validate_abstract_to_target_translation(
+                    &source,
+                    native,
+                    &mutate_call_arguments(&target, mutation)
+                ),
+                Err(
+                    crate::AbstractToTargetTranslationValidationError::StructuralCallArgumentMismatch { .. }
+                )
+            ));
+        }
+    }
+}
+
 #[test]
 fn ordinary_calls_reject_missing_substituted_and_forged_scalar_homes() {
     let source = source_plan(
