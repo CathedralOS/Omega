@@ -3033,6 +3033,13 @@ completion syntax or other terminal service is a prerequisite.
   checked layout/validity, backing identity, lifetime, access and whole-place
   reads through ordinary expression sequencing and temporary loans.
 
+  Keep `runtime_bool_representation_recast_exit` and
+  `runtime_float_range_representation_recast_exit` as native/interpreter
+  exit-70 controls. Scalar and record-leaf cross-carrier observations use
+  Terminal `ScalarRepresentationView`; byte-to-bool guards retain and prove
+  the canonical 0/1 landing through ordinary scalar computations. Preserve
+  write-only rejection and the mutable bool-as-unconstrained-byte rejection.
+
   Fixed-index nested-array reads and stores through byte-backed record loans
   now retain normalized geometry and live backing identity through stage 05's
   `Evaluation` and `ScalarBindings`; shared read-only loans use the same route.
@@ -3060,17 +3067,6 @@ completion syntax or other terminal service is a prerequisite.
   byte-region views with the interpreter in agreement. The remaining executable
   customers stop at these missing capabilities:
 
-  - Boolean and IEEE float cross-carrier views (`bool` as `u8`, `f32` as
-    `u32`) need a Terminal Psi re-view operation (bit reinterpretation, 0/1
-    landing) through verification and Omega realization;
-    `representation_view::replay` names that refusal.
-    `runtime_bool_representation_recast_exit` stops first at `guard
-    expression` because `expression_plans/local_data::shared_loan_place`
-    excludes a `&bool` loan local, and Boolean view targets still retag their
-    leaf in `scalar_lowering::view_place_read`.
-    `runtime_float_range_representation_recast_exit` stops first at `state
-    signature: parameter signature: attached data shape` for its `f32 [0..=1]`
-    field.
   - Stores through a `&mut` recast loan
     (`runtime_mutable_equivalent_range_recast_exit`, `structural field store:
     target place`): `structural_scalar_store/destination.rs::rejoin_loan_local`

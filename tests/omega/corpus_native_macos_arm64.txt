@@ -849,10 +849,8 @@ pass/ranges/sum_payload_range_arith_narrowed_exit built 1581ms exit:70 @fb2178de
 pass/recast/nested_operand_view_compile checked 183ms
 pass/recast/runtime_aggregate_slice_representation_recast_exit rejected 948ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: parameter transfer` (state 0, statement 5)
-pass/recast/runtime_bool_representation_recast_exit rejected 857ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("a representation re-view between Boolean or IEEE float and other carriers has no Terminal Psi vocabulary"))
-pass/recast/runtime_float_range_representation_recast_exit rejected 3039ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
+pass/recast/runtime_bool_representation_recast_exit built 874ms exit:70 @43d1481401ed+wt
+pass/recast/runtime_float_range_representation_recast_exit built 1687ms exit:70 @43d1481401ed+wt
 pass/recast/runtime_guarded_offset_recast_exit built 1748ms exit:70 @fb2178def922
 pass/recast/runtime_integer_bit_view_recast_exit built 1515ms exit:70 @48008365d839
 pass/recast/runtime_interior_slice_congruent_offset_exit rejected 730ms @48008365d839
