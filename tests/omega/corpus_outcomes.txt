@@ -1199,7 +1199,8 @@ pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9
 pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c14+wt
 pass/borrows/runtime_whole_referent_scalar_store_exit checked 980ms @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read checked 1387ms @2d8ed253669f
-pass/borrows/transition_shared_borrow_result checked 1470ms @ca8c127c90c5
+pass/borrows/transition_shared_borrow_result rejected 442ms @4b33596b9ee1+wt
+	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidReferenceCustody { machine: MachineId(1), reason: "operation accesses suspended referent or treats reference carrier as owned data" }))
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
 pass/borrows/writeonly_record_field_store checked 1245ms @ca8c127c90c5
 pass/boundary/later_state_requirement_scalar_result_exit checked 2933ms @44d31b02f28e+wt
@@ -1346,7 +1347,7 @@ pass/calls/value_call_transition_argument checked 1269ms @2d8ed253669f
 pass/calls/value_tail_call_to_machine_exit checked 3937ms @d0cd22d4e92a+wt
 pass/calls/whole_byte_array_view_loans_exit checked 2901ms @45c8d6b8b1ce+wt
 pass/capabilities/aarch64_hfa_import_compile checked 1316ms @2d8ed253669f
-pass/capabilities/acquires_through_helper_return checked 807ms @2d8ed253669f
+pass/capabilities/acquires_through_helper_return checked 497ms @4b33596b9ee1+wt
 pass/capabilities/boundary_trait_multiple_effects checked 315ms @2d8ed253669f
 pass/capabilities/callback_direct_install_compile checked 2541ms @56c7f12ecb90+wt
 pass/capabilities/derives_through_helper checked 383ms @2d8ed253669f
@@ -2032,7 +2033,7 @@ pass/storage/runtime_machine_owned_indexed_integer_write_exit checked 947ms @2d8
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit checked 1242ms @2d8ed253669f
 pass/storage/runtime_primitive_local_literal_composition_exit checked 1234ms @2d8ed253669f
 pass/structs/affine_record_state_clone checked 1711ms @2d8ed253669f
-pass/structs/affine_result_constructor checked 1291ms @2d8ed253669f
+pass/structs/affine_result_constructor checked 514ms @4b33596b9ee1+wt
 pass/structs/case_field_type_store_shapes checked 1240ms @2d8ed253669f
 pass/structs/copied_array_field_shared_record checked 1310ms @2d8ed253669f
 pass/structs/deep_nested_write_paths_exit checked 1590ms @2d8ed253669f
