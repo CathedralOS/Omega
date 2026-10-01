@@ -3,7 +3,8 @@
 // `sub[index]` for element indexing, and `sub[1..]` to materialize a tail
 // subslice whose own `len` and element index are then exercised. The borrowed
 // descriptor must carry through the call boundary for every operation, not
-// just the length fact.
+// just the length fact. The callees take only the view: forwarding `&mut Main`
+// beside a live shared loan of `main.entries` would alias that loan.
 
 data Entry {
     value: i32;
@@ -20,18 +21,18 @@ machine Main::main(main: &mut Main) -> i32 {
     let index: u64 = 1;
 
     transition {
-        _ -> Main::inspect(main, view, index)
+        _ -> Main::inspect(view, index)
     }
 }
 
-machine Main::inspect(main: &mut Main, sub: &[Entry], index: u64) -> i32 {
+machine Main::inspect(sub: &[Entry], index: u64) -> i32 {
     transition sub.len >= 1 && index < sub.len {
-        true -> Main::confirm(main, sub[1..], sub[index].value)
+        true -> Main::confirm(sub[1..], sub[index].value)
         false -> 0
     }
 }
 
-machine Main::confirm(main: &mut Main, tail: &[Entry], chosen: i32) -> i32 {
+machine Main::confirm(tail: &[Entry], chosen: i32) -> i32 {
     transition tail.len >= 1 {
         true -> emit(tail[0].value)
         false -> chosen
