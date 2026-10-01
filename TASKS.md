@@ -2710,17 +2710,26 @@ completion syntax or other terminal service is a prerequisite.
 - **DEVICE-EXTENT-ACCESS.** Make `samples/cli/device/device_extent_access`
   execute provider-backed lending, completion and restored CPU access under
   [device custody and ordering](wiki/spec/resources/device_access.md). The
-  checked contract now checks clean: `build.omg` accepts both boundary slots,
-  `LoopbackDeviceLoanProvider` supplies eight
+  checked contract now checks clean: `build.omg` accepts the device boundary
+  slot, `LoopbackDeviceLoanProvider` supplies ten
   `via ForeignBinding::CompilerIntrinsic` crossings on macos_arm64 through
   `provider_defaults`, and `device.omg` declares `DeviceOrderingEvent` with
   Publication/CacheMaintenance/Notification/Completion roles plus retry
   carriers (`DeviceCompletionAttempt`, `DeviceAcquisitionAttempt`), with
-  `Extent::Granted` issued by `DeviceLoanProvider::acquire`'s `Acquired`
-  payload. The drivers stage publish -> notify -> settle, maintain_cache ->
-  settle, then complete -> acquire with Pending-retry states, and
-  `sample_gate` reports 1/1. The frontier is realization: the eight crossings
-  have no runtime bodies, so `omega run` cannot execute the sample.
+  `Extent::Granted` issued by `DeviceLoanProvider::reserve` and
+  `DeviceLoanProvider::acquire`'s `Acquired` payload. A hosted entry supplies
+  no arrival extents, so the provider owns the range pool: `reserve` mints
+  `Granted` ranges and `release` returns them, keeping the whole lifecycle —
+  reserve -> lend -> publish -> notify -> settle -> maintain_cache -> settle
+  -> complete -> acquire -> release — inside one authority. The drivers stage
+  both directions with Pending-retry states, and `sample_gate` reports 1/1.
+  The frontier is two gaps. First, Terminal unit plans admit no
+  `BoundaryOpaque` types in reachable state or callee signatures
+  (`shape_collector` only plans `CheckedShape` data), so no bound entry can
+  carry a live `DeviceLoan` or `DeviceOrderingEvent` across a transition —
+  the drivers are deliberately unreachable and `Main::main` is inert. Second,
+  the ten crossings have no runtime bodies, so `omega run` cannot execute the
+  protocol.
 
   Reuse `extents::{external_loans,ordering_events,mapping}`: exact confinement,
   release/fact checks, coverage rejection and retry custody already exist in

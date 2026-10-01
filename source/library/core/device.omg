@@ -93,6 +93,20 @@ pub data DeviceAcquisitionAttempt {
 // proxy, binding borrower, direction, space, provenance, rights, and the
 // completion obligation with an exact confinement receipt.
 pub boundary trait DeviceLoanProvider {
+    // Reserves `length` bytes in the provider's own address-space pool: the
+    // ranges a device may borrow are the ranges the same authority
+    // provisioned, so the pool owner — not an extent-geometry caller — mints
+    // the `Granted` claim. A hosted entry supplies no arrival extents; this
+    // is the only `Granted` source a hosted program reaches today.
+    machine reserve(length: u64) -> Extent
+    ensures
+        result in Extent::Granted;
+
+    // Returns a restored range's `Granted` authority to the provider's pool,
+    // ending the caller's claim. Every reserved extent terminates here or
+    // beneath a frame that never exits.
+    machine release(range: Extent in Granted);
+
     machine lend_for_read(range: Extent in Granted) -> DeviceLoan
     ensures
         result in DeviceLoan::DeviceReads;
