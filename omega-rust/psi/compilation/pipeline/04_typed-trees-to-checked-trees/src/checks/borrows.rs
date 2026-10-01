@@ -134,6 +134,9 @@ pub(crate) fn check_flow_call_borrows(
     check_view_return_escape(program, facts, &mut diagnostics);
     check_persistent_borrow_assignments(program, call_frames, &mut diagnostics);
 
+    // Receiver read footprints serve only this pass's whole-receiver call
+    // judgments; they build on the first call that needs them.
+    let receiver_reads = crate::flow::StateReceiverReadCache::default();
     for (_, state_flow) in facts.flow.control.states.iter() {
         if matching_borrow_state(facts, state_flow).is_none() {
             continue;
@@ -175,6 +178,7 @@ pub(crate) fn check_flow_call_borrows(
             &retained_mutation_certificates,
             &mut retained_mutation_certificates_consumed,
             mutation_summaries,
+            &receiver_reads,
             call_frames,
             &mut bound_lookup,
         );

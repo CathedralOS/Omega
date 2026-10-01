@@ -12,10 +12,12 @@ use super::evidence::CallCompatibility;
 use checked_trees::{BorrowCallCompatibilityOperand, BorrowCallCompatibilitySubject};
 
 mod aliases;
+mod footprint;
 mod returned;
-mod writes;
 
-pub(in crate::checks::borrows) use writes::check_receiver_writes_against_argument_loans;
+pub(in crate::checks::borrows) use footprint::{
+    ReceiverSummaries, check_receiver_footprint_against_argument_loans,
+};
 
 /// A compiler-owned operation borrows a checked place without invoking a
 /// source machine. Retained alias ancestry supplies authority, not competing
@@ -252,7 +254,8 @@ pub(super) fn check_receiver_conflicts<'p>(
     }
     // Whole mutable-receiver calls already use complete mutation summaries
     // for field-precise interference (including known-pure helpers), against
-    // live loans and this call's retained argument loans (`writes`). Keep that
+    // live loans, and their write and read footprints against this call's
+    // retained argument loans (`footprint`). Keep that
     // existing path after checking source authority; a projected receiver
     // introduces the exclusive child loan admitted here. Whole write-only
     // receivers remain strictly exclusive.

@@ -53,6 +53,10 @@ mod borrow_lifetimes;
 mod domain;
 mod mutation;
 
+// What a call reads through its receiver: the borrow checks compare it with the
+// same call's exclusive argument loans beside whole `&mut` receivers.
+mod receiver_reads;
+
 // Places, ownership, and reference and value origins: queries also used outside
 // `flow`.
 mod ownership;
@@ -120,6 +124,7 @@ use operator_calls::{
     resolve_operator_for_call, resolve_operator_statement_call,
 };
 pub(crate) use place::contextual_canonical_place_from_expression;
+pub(crate) use receiver_reads::{StateReceiverReadCache, call_receiver_read_accesses};
 pub(crate) use reference_spans::append_constraint_ref;
 use reference_spans::{
     append_flow_contexts, append_flow_contexts_for_points, append_place_segments,
