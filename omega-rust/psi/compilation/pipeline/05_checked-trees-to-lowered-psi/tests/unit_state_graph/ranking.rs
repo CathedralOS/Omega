@@ -408,7 +408,10 @@ const REMAINDER_COUNTDOWN: &str = r#"
 "#;
 
 /// The published rank names the formal carrying the subject's entry role —
-/// `pending`, not a name twin of `remaining` — and the composed plan keeps it.
+/// `pending`, not a name twin of `remaining` — in whichever producer owns the
+/// cycle. The free countdown is a checked scalar graph: its runtime rank
+/// judgment covers the remainder endpoint. A borrowed receiver keeps the same
+/// cycle on the Unit state graph, and the composed plan names the same formal.
 #[test]
 fn named_state_rank_names_the_carried_formal() {
     let source = crate::front_end::checked_program(&format!(
@@ -421,6 +424,58 @@ fn named_state_rank_names_the_carried_formal() {
         .iter()
         .find(|machine| machine.name.as_str() == "walk")
         .expect("walk resolves");
+    let iterate = source
+        .machine_states(walk)
+        .iter()
+        .find(|state| state.name.as_str() == "iterate")
+        .expect("iterate resolves");
+    let ranked = source
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(walk.symbol)
+        .and_then(|graph| graph.ranked_scc.as_ref())
+        .expect("the free countdown is a ranked scalar graph");
+    let pending_scalar = source
+        .state_parameters(iterate)
+        .iter()
+        .filter(|parameter| {
+            source
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        })
+        .position(|parameter| parameter.name.as_str() == "pending")
+        .expect("iterate binds a scalar pending");
+    assert_eq!(
+        (
+            ranked.header_state,
+            ranked.rank_scalar_parameter_index as usize
+        ),
+        (iterate.symbol, pending_scalar),
+        "the scalar graph ranks the formal carrying `remaining`'s entry role"
+    );
+    checked_trees_to_lowered_psi::lower_machine(
+        &source,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the carried rank lowers through the attached call closure");
+
+    let countdown = REMAINDER_COUNTDOWN
+        .replace(
+            "machine walk(remaining",
+            "machine Root::walk(&self, remaining",
+        )
+        .replace("state iterate(width", "state iterate(&self, width");
+    let source = crate::front_end::checked_program(&format!(
+        "data Root {{}}
+        {countdown}
+        machine Root::enter(&self) -> u64 {{ self.walk(5, 17, 4) }}"
+    ));
+    let walk = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::walk")
+        .expect("walk resolves");
     let plan = source
         .facts
         .flow
@@ -428,7 +483,7 @@ fn named_state_rank_names_the_carried_formal() {
         .composed_machines
         .iter()
         .find(|plan| plan.machine == walk.symbol)
-        .expect("walk keeps a composed plan");
+        .expect("the receiver countdown keeps a composed plan");
     let iterate = source
         .machine_states(walk)
         .iter()
