@@ -413,71 +413,91 @@ fn case_payload_copy_retains_verified_membership_and_local_identity() {
     );
 }
 
+/// `copy_module` with its envelope parameter replaced by `[u8; 8]` and its
+/// copy minting a `Desc { tag: u32 }` record out of the bytes at `index`.
+/// Source lowering reads static record overlays through byte-region
+/// observations, so no checked program mints this copy; Terminal still
+/// admits it for any producer, and the native lowering must keep its type.
+fn byte_carrier_copy_module(index: u64) -> (TerminalModule, StructuralTypeId) {
+    let byte = id::<StructuralTypeId>(3);
+    let bytes = id::<StructuralTypeId>(4);
+    let desc = id::<StructuralTypeId>(5);
+    let mut module = copy_module(StructuralAccess::SharedBorrow);
+    module.structural_types.extend([
+        StructuralTypeDeclaration {
+            id: byte,
+            identity: "u8".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .unwrap(),
+            )),
+        },
+        StructuralTypeDeclaration {
+            id: bytes,
+            identity: "[u8; 8]".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: byte,
+                length: 8,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: desc,
+            identity: "Desc".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: id::<StructuralFieldId>(1),
+                    identity: "tag".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(
+                        semantic_vocabulary::ScalarType::Integer(
+                            semantic_vocabulary::IntegerType::new(
+                                semantic_vocabulary::IntegerSign::Unsigned,
+                                32,
+                            )
+                            .unwrap(),
+                        ),
+                    ),
+                }],
+            },
+        },
+    ]);
+    let machine = &mut module.machines[0];
+    machine.structural_parameters[0].structural_type = bytes;
+    let TerminalMachineResult::Structural(result) = &mut machine.result else {
+        unreachable!("copy_machine returns its copied record")
+    };
+    result.structural_type = desc;
+    machine.structural_places[1].kind = StructuralPlaceKind::OperationResult {
+        producer: id::<OperationId>(1),
+        structural_type: desc,
+    };
+    let copy = &mut machine.blocks[0].operations[0];
+    copy.kind = OperationKind::StructuralLeafCopy {
+        source: id::<PlaceId>(1),
+        path: vec![StructuralPathSegment::FixedIndex(index)],
+    };
+    let OperationResult::Structural(copied) = &mut copy.result else {
+        unreachable!("copy_leaf produces a structural result")
+    };
+    copied.structural_type = desc;
+    (module, desc)
+}
+
 #[test]
 fn byte_carrier_copy_retains_the_overlaid_record_type() {
-    let source = r#"
-        data Desc { tag: u32; }
-        data Root { buf: [u8; 48]; }
-        machine Root::enter(&mut self) -> u32 {
-            let borrowed: &Desc = &self.buf[0] as &Desc;
-            transition borrowed.tag == 0 { true -> done() _ -> bad() }
-            state done() -> u32 { 0 }
-            state bad() -> u32 { 1 }
-        }
-    "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        checked_trees_to_lowered_psi::TerminalMachineSelection::Name("Root::enter"),
-    )
-    .unwrap();
-    let module = lowered.semantic_module;
-    let proof = lowered.proof_bundle;
     let profile = AdmissionProfile::default();
-    terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
-    let desc = module
-        .structural_types
-        .iter()
-        .find(|declaration| {
-            matches!(&declaration.shape, StructuralTypeShape::Record { fields }
-                if fields.len() == 1
-                    && matches!(fields[0].field_type, StructuralFieldType::Scalar(_)))
-        })
-        .expect("the overlay record declaration");
-    let expected: Vec<_> = module
-        .machines
-        .iter()
-        .flat_map(|machine| &machine.blocks)
-        .flat_map(|block| &block.operations)
-        .filter_map(|operation| match (&operation.kind, &operation.result) {
-            (
-                OperationKind::StructuralLeafCopy { source, path },
-                OperationResult::Structural(result),
-            ) => Some((operation.id, *source, path.clone(), result.structural_type)),
-            _ => None,
-        })
-        .collect();
+    // Four bytes past index 5 overrun the eight-byte carrier.
+    let (overrun, _) = byte_carrier_copy_module(5);
     assert!(
-        expected
-            .iter()
-            .any(|(_, _, path, structural_type)| *structural_type == desc.id
-                && matches!(path.last(), Some(StructuralPathSegment::FixedIndex(_)))),
-        "source must exercise a byte-carrier record copy"
+        terminal_verifier::verify_module(&overrun, &ProofBundle::default(), &profile).is_err(),
+        "a byte region too short for the record cannot host the copy"
     );
+    let (module, desc) = byte_carrier_copy_module(4);
+    let proof = ProofBundle::default();
+    terminal_verifier::verify_module(&module, &proof, &profile).unwrap();
     let semantic_bytes = encode_module(&module).unwrap();
     let proof_bytes = encode_proof_section(&module, &proof).unwrap();
     let admitted = terminal_psi_to_abstract_operations::lower_artifact(
@@ -497,22 +517,22 @@ fn byte_carrier_copy_retains_the_overlaid_record_type() {
     )
     .unwrap();
     optimization_unit_semantics::validate_psi_optimization_unit(verified.unit()).unwrap();
-    for (operation, source, expected_path, structural_type) in &expected {
-        assert!(
-            verified
-                .unit()
-                .functions
-                .iter()
-                .flat_map(|function| &function.blocks)
-                .flat_map(|block| &block.nodes)
-                .any(|node| matches!(&node.operation,
-                AbstractOperation::StructuralLeafCopy { psi_operation, source: retained_source,
+    let expected_path = vec![StructuralPathSegment::FixedIndex(4)];
+    assert!(
+        verified
+            .unit()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.nodes)
+            .any(|node| matches!(&node.operation,
+                AbstractOperation::StructuralLeafCopy { psi_operation, source,
                     path: abstract_operations::StructuralCopyPath::Ordinary(path),
                     result, .. }
-                if psi_operation == operation && retained_source == source
-                    && path == expected_path && result.structural_type == *structural_type))
-        );
-    }
+                if *psi_operation == id::<OperationId>(1) && *source == id::<PlaceId>(1)
+                    && *path == expected_path && result.structural_type == desc)),
+        "the copy keeps its overlaid record type and byte-region path"
+    );
 }
 
 #[test]
@@ -613,11 +633,9 @@ fn shared_borrow_case_copy_keeps_the_referent_leaf_type() {
             },
         });
         for block in machine.blocks.iter_mut() {
-            if !block
-                .operations
-                .iter()
-                .any(|operation| matches!(operation.kind, OperationKind::StructuralCaseLeafCopy { .. }))
-            {
+            if !block.operations.iter().any(|operation| {
+                matches!(operation.kind, OperationKind::StructuralCaseLeafCopy { .. })
+            }) {
                 continue;
             }
             block.operations.push(Operation {
