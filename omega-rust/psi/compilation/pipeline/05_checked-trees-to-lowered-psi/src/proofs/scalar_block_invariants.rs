@@ -611,11 +611,8 @@ fn retain_provable_roster_bounded(
         }
         proof_round += 1;
         let mut rejected = BTreeSet::new();
-        // Members of a rejected header's conjunction that fail on their own at
-        // some arrival, by position, with the conjunction's arity at that arrival.
-        let mut refuted = BTreeMap::<_, (usize, BTreeSet<usize>)>::new();
-        let mut member_goals = Vec::new();
-        let mut seen = BTreeSet::new();
+        // Each rejected header's failing conjunction arrivals, in pending order.
+        let mut failing_arrivals = BTreeMap::<_, Vec<_>>::new();
         for (machine, header, site, parameters) in &pending {
             let key = verdict_key(*machine, &site.obligation.proposition, site, parameters);
             if verdicts[&key] {
@@ -623,7 +620,43 @@ fn retain_provable_roster_bounded(
             }
             rejected.insert((*machine, *header));
             if let Proposition::Conjunction(members) = &site.obligation.proposition {
-                for member in members {
+                failing_arrivals
+                    .entry((*machine, *header))
+                    .or_default()
+                    .push((members, site, parameters));
+            }
+        }
+        // Members of a rejected header's conjunction that fail on their own at
+        // some arrival, by position, with the conjunction's arity at its first
+        // failing arrival. A member refuted at one arrival is pruned whatever
+        // it does at the header's other arrivals, so a later arrival probes
+        // only the members still standing: refused member searches are the
+        // pass's dominant cost. Arrivals go in waves -- every header's first
+        // failing arrival, then its second -- so each wave's searches still
+        // share the workers, and the refuted positions are exactly the union
+        // probing every failing arrival would find.
+        let mut refuted = BTreeMap::<_, (usize, BTreeSet<usize>)>::new();
+        for wave in 0.. {
+            let arrivals = failing_arrivals
+                .iter()
+                .filter_map(|(header, arrivals)| Some((*header, arrivals.get(wave)?)))
+                .collect::<Vec<_>>();
+            if arrivals.is_empty() {
+                break;
+            }
+            let mut member_goals = Vec::new();
+            let mut seen = BTreeSet::new();
+            for ((machine, header), (members, site, parameters)) in &arrivals {
+                let (arity, failing) = refuted
+                    .entry((*machine, *header))
+                    .or_insert_with(|| (members.len(), BTreeSet::new()));
+                if *arity != members.len() {
+                    continue;
+                }
+                for (index, member) in members.iter().enumerate() {
+                    if failing.contains(&index) {
+                        continue;
+                    }
                     let member_key = verdict_key(*machine, member, site, parameters);
                     if verdicts.contains_key(&member_key) || !seen.insert(member_key.clone()) {
                         crate::proofs::proof_timing::count_verdict_hit();
@@ -633,27 +666,20 @@ fn retain_provable_roster_bounded(
                     member_goals.push(member_key);
                 }
             }
-        }
-        run_verdict_searches(&member_goals, &contexts, &mut verdicts, declines);
-        for (machine, header, site, parameters) in &pending {
-            let key = verdict_key(*machine, &site.obligation.proposition, site, parameters);
-            if verdicts[&key] {
-                continue;
-            }
-            if let Proposition::Conjunction(members) = &site.obligation.proposition {
+            run_verdict_searches(&member_goals, &contexts, &mut verdicts, declines);
+            for ((machine, header), (members, site, parameters)) in &arrivals {
                 let (arity, failing) = refuted
-                    .entry((*machine, *header))
-                    .or_insert_with(|| (members.len(), BTreeSet::new()));
-                if *arity == members.len() {
-                    failing.extend(
-                        members
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, member)| {
-                                !verdicts[&verdict_key(*machine, member, site, parameters)]
-                            })
-                            .map(|(index, _)| index),
-                    );
+                    .get_mut(&(*machine, *header))
+                    .expect("every failing conjunction arrival seeds its header's entry");
+                if *arity != members.len() {
+                    continue;
+                }
+                for (index, member) in members.iter().enumerate() {
+                    if !failing.contains(&index)
+                        && !verdicts[&verdict_key(*machine, member, site, parameters)]
+                    {
+                        failing.insert(index);
+                    }
                 }
             }
         }
