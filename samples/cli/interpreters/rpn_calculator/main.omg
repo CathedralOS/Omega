@@ -47,140 +47,140 @@ machine Main::main(&mut self) reaches Console {
     self.pc = 0;
 
     transition {
-        _ -> loop()
+        _ -> loop(&mut self)
     }
 
     // Loop while there are tokens left.
-    state loop(&mut self) {
-        transition self.pc < self.nprog {
-            true -> bound_check()
-            _ -> finish()
+    state loop(main: &mut Main) {
+        transition main.pc < main.nprog {
+            true -> bound_check(main)
+            _ -> finish(main)
         }
     }
 
     // Admit the program index only where it is provably in range.
-    state bound_check(&mut self) {
-        transition self.pc >= 0 && self.pc < 16 {
-            true -> load_token()
-            _ -> finish()
+    state bound_check(main: &mut Main) {
+        transition main.pc >= 0 && main.pc < 16 {
+            true -> load_token(main)
+            _ -> finish(main)
         }
     }
 
-    state load_token(&mut self) {
-        self.tok = self.program[self.pc];
-        transition self.tok >= 0 {
-            true -> push_bound()
-            _ -> op_bound()
+    state load_token(main: &mut Main) {
+        main.tok = main.program[main.pc];
+        transition main.tok >= 0 {
+            true -> push_bound(main)
+            _ -> op_bound(main)
         }
     }
 
     // --- push a number ---
-    state push_bound(&mut self) {
-        transition self.sp >= 0 && self.sp < 16 {
-            true -> push_token()
-            _ -> finish()
+    state push_bound(main: &mut Main) {
+        transition main.sp >= 0 && main.sp < 16 {
+            true -> push_token(main)
+            _ -> finish(main)
         }
     }
-    state push_token(&mut self) {
-        self.stack[self.sp] = self.tok as i32;
-        self.sp = self.sp + 1;
+    state push_token(main: &mut Main) {
+        main.stack[main.sp] = main.tok as i32;
+        main.sp = main.sp + 1;
         transition {
-            _ -> advance()
+            _ -> advance(main)
         }
     }
 
     // --- apply a binary operator: pop b, pop a, push (a OP b) ---
-    state op_bound(&mut self) {
-        transition self.sp >= 2 && self.sp <= 16 {
-            true -> op_pop_b()
-            _ -> finish()
+    state op_bound(main: &mut Main) {
+        transition main.sp >= 2 && main.sp <= 16 {
+            true -> op_pop_b(main)
+            _ -> finish(main)
         }
     }
-    state op_pop_b(&mut self) {
-        self.sp = self.sp - 1;
-        transition self.sp >= 0 && self.sp < 16 { true -> op_read_b() _ -> finish() }
+    state op_pop_b(main: &mut Main) {
+        main.sp = main.sp - 1;
+        transition main.sp >= 0 && main.sp < 16 { true -> op_read_b(main) _ -> finish(main) }
     }
-    state op_read_b(&mut self) {
-        self.b = self.stack[self.sp];
-        transition self.sp >= 1 && self.sp <= 16 { true -> op_pop_a() _ -> finish() }
+    state op_read_b(main: &mut Main) {
+        main.b = main.stack[main.sp];
+        transition main.sp >= 1 && main.sp <= 16 { true -> op_pop_a(main) _ -> finish(main) }
     }
-    state op_pop_a(&mut self) {
-        self.sp = self.sp - 1;
-        transition self.sp >= 0 && self.sp < 16 { true -> op_read_a() _ -> finish() }
+    state op_pop_a(main: &mut Main) {
+        main.sp = main.sp - 1;
+        transition main.sp >= 0 && main.sp < 16 { true -> op_read_a(main) _ -> finish(main) }
     }
-    state op_read_a(&mut self) {
-        self.a = self.stack[self.sp];
+    state op_read_a(main: &mut Main) {
+        main.a = main.stack[main.sp];
         transition {
-            _ -> op_dispatch()
+            _ -> op_dispatch(main)
         }
     }
 
     // Decode the operator code and compute into `acc`.
-    state op_dispatch(&mut self) {
-        transition self.tok == 0 - 1 {
-            true -> op_add()
-            _ -> op_dispatch_mul()
+    state op_dispatch(main: &mut Main) {
+        transition main.tok == 0 - 1 {
+            true -> op_add(main)
+            _ -> op_dispatch_mul(main)
         }
     }
-    state op_dispatch_mul(&mut self) {
-        transition self.tok == 0 - 2 {
-            true -> op_mul()
-            _ -> op_sub()
+    state op_dispatch_mul(main: &mut Main) {
+        transition main.tok == 0 - 2 {
+            true -> op_mul(main)
+            _ -> op_sub(main)
         }
     }
-    state op_add(&mut self) {
-        self.acc = self.a + self.b;
-        transition { _ -> op_guard() }
+    state op_add(main: &mut Main) {
+        main.acc = main.a + main.b;
+        transition { _ -> op_guard(main) }
     }
-    state op_mul(&mut self) {
-        self.acc = self.a * self.b;
-        transition { _ -> op_guard() }
+    state op_mul(main: &mut Main) {
+        main.acc = main.a * main.b;
+        transition { _ -> op_guard(main) }
     }
-    state op_sub(&mut self) {
-        self.acc = self.a - self.b;
-        transition { _ -> op_guard() }
+    state op_sub(main: &mut Main) {
+        main.acc = main.a - main.b;
+        transition { _ -> op_guard(main) }
     }
 
     // The add/mul/sub arms join here, then a single re-guard puts `sp < 16` on
     // the one DIRECT edge into op_push -- the dominating-guard keystone is what
     // proves the `sp = sp + 1` after the result push. (After two pops sp <= 14,
     // so the else arm is unreachable.)
-    state op_guard(&mut self) {
-        transition self.sp >= 0 && self.sp < 16 {
-            true -> op_push()
-            _ -> finish()
+    state op_guard(main: &mut Main) {
+        transition main.sp >= 0 && main.sp < 16 {
+            true -> op_push(main)
+            _ -> finish(main)
         }
     }
 
     // Push the result back (sp points at the freed slot after the two pops).
-    state op_push(&mut self) {
-        self.stack[self.sp] = self.acc as i32;
-        self.sp = self.sp + 1;
+    state op_push(main: &mut Main) {
+        main.stack[main.sp] = main.acc as i32;
+        main.sp = main.sp + 1;
         transition {
-            _ -> advance()
+            _ -> advance(main)
         }
     }
 
     // Re-assert pc's headroom on the direct edge into the increment (pc < nprog
     // <= 16 always holds, so the else arm is unreachable).
-    state advance(&mut self) {
-        transition self.pc < 16 {
-            true -> bump()
-            _ -> finish()
+    state advance(main: &mut Main) {
+        transition main.pc < 16 {
+            true -> bump(main)
+            _ -> finish(main)
         }
     }
-    state bump(&mut self) {
-        self.pc = self.pc + 1;
+    state bump(main: &mut Main) {
+        main.pc = main.pc + 1;
         transition {
-            _ -> loop()
+            _ -> loop(main)
         }
     }
 
-    state finish(&mut self) {
+    state finish(main: &mut Main) {
         // The result is the bottom of the stack.
-        self.console.write_line("result: the RPN evaluation, 35 for this program (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.stack[0] as i32);
+        main.console.write_line("result: the RPN evaluation, 35 for this program (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.stack[0] as i32);
     }
 }

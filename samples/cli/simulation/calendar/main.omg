@@ -40,81 +40,81 @@ machine Main::main(&mut self) reaches Console {
     self.col = 3; // the month starts on Wednesday
     self.d = 1;
     self.console.write_line(self.header);
-    transition { _ -> day_loop() }
+    transition { _ -> day_loop(&mut self) }
 
-    state day_loop(&mut self) {
-        transition self.d >= 1 && self.d <= 30 { true -> place() _ -> flush() }
+    state day_loop(main: &mut Main) {
+        transition main.d >= 1 && main.d <= 30 { true -> place(main) _ -> flush(main) }
     }
-    state place(&mut self) {
-        self.o = self.col * 3;
-        self.o1 = self.o + 1;
-        self.tens = self.d / 10;
-        self.ones = self.d % 10;
-        self.oc = narrow_i32_to_u8_trapping((self.ones + 48) as i32);
-        transition self.tens > 0 { true -> place_tens() _ -> place_space() }
+    state place(main: &mut Main) {
+        main.o = main.col * 3;
+        main.o1 = main.o + 1;
+        main.tens = main.d / 10;
+        main.ones = main.d % 10;
+        main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as i32);
+        transition main.tens > 0 { true -> place_tens(main) _ -> place_space(main) }
     }
-    state place_tens(&mut self) {
-        self.tc = narrow_i32_to_u8_trapping((self.tens + 48) as i32);
-        transition { _ -> place_guard() }
+    state place_tens(main: &mut Main) {
+        main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as i32);
+        transition { _ -> place_guard(main) }
     }
-    state place_space(&mut self) {
-        self.tc = 32;
-        transition { _ -> place_guard() }
+    state place_space(main: &mut Main) {
+        main.tc = 32;
+        transition { _ -> place_guard(main) }
     }
-    state place_guard(&mut self) {
-        transition self.o >= 0 && self.o < 21 && self.o1 >= 0 && self.o1 < 21 {
-            true -> place_write()
-            _ -> bad()
+    state place_guard(main: &mut Main) {
+        transition main.o >= 0 && main.o < 21 && main.o1 >= 0 && main.o1 < 21 {
+            true -> place_write(main)
+            _ -> bad(main)
         }
     }
-    state place_write(&mut self) {
-        self.line[self.o] = self.tc;
-        self.line[self.o1] = self.oc;
-        self.col = self.col + 1;
-        transition { _ -> advance() }
+    state place_write(main: &mut Main) {
+        main.line[main.o] = main.tc;
+        main.line[main.o1] = main.oc;
+        main.col = main.col + 1;
+        transition { _ -> advance(main) }
     }
-    state advance(&mut self) {
-        transition self.col >= 7 { true -> emit_week() _ -> next_d() }
+    state advance(main: &mut Main) {
+        transition main.col >= 7 { true -> emit_week(main) _ -> next_d(main) }
     }
-    state emit_week(&mut self) {
-        self.console.write_line(self.line);
-        self.k = 0;
-        transition { _ -> clear_loop() }
+    state emit_week(main: &mut Main) {
+        main.console.write_line(main.line);
+        main.k = 0;
+        transition { _ -> clear_loop(main) }
     }
-    state clear_loop(&mut self) {
-        transition self.k >= 0 && self.k < 21 { true -> clear_cell() _ -> reset_col() }
+    state clear_loop(main: &mut Main) {
+        transition main.k >= 0 && main.k < 21 { true -> clear_cell(main) _ -> reset_col(main) }
     }
-    state clear_cell(&mut self) {
-        self.line[self.k] = 32;
-        self.k = self.k + 1;
-        transition { _ -> clear_loop() }
+    state clear_cell(main: &mut Main) {
+        main.line[main.k] = 32;
+        main.k = main.k + 1;
+        transition { _ -> clear_loop(main) }
     }
-    state reset_col(&mut self) {
-        self.col = 0;
-        transition { _ -> next_d() }
+    state reset_col(main: &mut Main) {
+        main.col = 0;
+        transition { _ -> next_d(main) }
     }
-    state next_d(&mut self) {
-        self.d = self.d + 1;
-        transition { _ -> day_loop() }
+    state next_d(main: &mut Main) {
+        main.d = main.d + 1;
+        transition { _ -> day_loop(main) }
     }
 
-    state flush(&mut self) {
-        transition self.col > 0 { true -> emit_partial() _ -> finish() }
+    state flush(main: &mut Main) {
+        transition main.col > 0 { true -> emit_partial(main) _ -> finish(main) }
     }
-    state emit_partial(&mut self) {
-        self.console.write_line(self.line);
-        transition { _ -> finish() }
+    state emit_partial(main: &mut Main) {
+        main.console.write_line(main.line);
+        transition { _ -> finish(main) }
     }
-    state finish(&mut self) {
-        self.console.write_line("done: all 30 dates laid out and flushed (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("done: all 30 dates laid out and flushed (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: a column offset left the 21-byte line (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: a column offset left the 21-byte line (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
 }

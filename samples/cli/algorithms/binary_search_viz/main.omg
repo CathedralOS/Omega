@@ -58,105 +58,105 @@ machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
     self.line = "                               ";
     self.chars = " -*#";
     self.x = 0;
-    transition { _ -> init_loop() }
+    transition { _ -> init_loop(&mut self) }
 
     // arr[i] = i, so the value `target` sits at index `target`
-    state init_loop(&mut self) {
-        transition self.x >= 0 && self.x < 31 { true -> init_cell() _ -> setup() }
+    state init_loop(main: &mut Main) {
+        transition main.x >= 0 && main.x < 31 { true -> init_cell(main) _ -> setup(main) }
     }
-    state init_cell(&mut self) {
-        self.arr[self.x] = self.x;
-        self.x = self.x + 1;
-        transition { _ -> init_loop() }
+    state init_cell(main: &mut Main) {
+        main.arr[main.x] = main.x;
+        main.x = main.x + 1;
+        transition { _ -> init_loop(main) }
     }
-    state setup(&mut self) {
-        self.lo = 0;
-        self.hi = 30;
-        self.target = 20;
-        transition { _ -> search() }
+    state setup(main: &mut Main) {
+        main.lo = 0;
+        main.hi = 30;
+        main.target = 20;
+        transition { _ -> search(main) }
     }
 
-    state search(&mut self) {
-        transition self.lo <= self.hi { true -> mid_calc() _ -> not_found() }
+    state search(main: &mut Main) {
+        transition main.lo <= main.hi { true -> mid_calc(main) _ -> not_found(main) }
     }
-    state mid_calc(&mut self) {
+    state mid_calc(main: &mut Main) {
         // The min/max clamps are the identity for the search's real values
         // (lo in [0,31], hi in [-1,30] whenever this state runs) while giving
         // the fold provable bounds, so the midpoint math is Exact -- no domain.
-        self.mid = (min(max(self.lo, 0), 31) + min(max(self.hi, 0 - 1), 30)) / 2;
-        transition self.mid >= 0 && self.mid < 31 { true -> render_init() _ -> bad() }
+        main.mid = (min(max(main.lo, 0), 31) + min(max(main.hi, 0 - 1), 30)) / 2;
+        transition main.mid >= 0 && main.mid < 31 { true -> render_init(main) _ -> bad(main) }
     }
 
     // --- render one row: priority mid '#' > target '*' > range '-' > excluded ' ' ---
-    state render_init(&mut self) {
-        self.x = 0;
-        transition { _ -> render_loop() }
+    state render_init(main: &mut Main) {
+        main.x = 0;
+        transition { _ -> render_loop(main) }
     }
-    state render_loop(&mut self) {
-        transition self.x >= 0 && self.x < 31 { true -> cell() _ -> emit() }
+    state render_loop(main: &mut Main) {
+        transition main.x >= 0 && main.x < 31 { true -> cell(main) _ -> emit(main) }
     }
-    state cell(&mut self) {
-        transition self.x == self.mid { true -> kind_mid() _ -> chk_target() }
+    state cell(main: &mut Main) {
+        transition main.x == main.mid { true -> kind_mid(main) _ -> chk_target(main) }
     }
-    state chk_target(&mut self) {
-        transition self.x == self.target { true -> kind_target() _ -> chk_range() }
+    state chk_target(main: &mut Main) {
+        transition main.x == main.target { true -> kind_target(main) _ -> chk_range(main) }
     }
-    state chk_range(&mut self) {
-        transition self.lo <= self.x && self.x <= self.hi { true -> kind_range() _ -> kind_none() }
+    state chk_range(main: &mut Main) {
+        transition main.lo <= main.x && main.x <= main.hi { true -> kind_range(main) _ -> kind_none(main) }
     }
-    state kind_mid(&mut self) { self.kind = 3; transition { _ -> put_cell() } }
-    state kind_target(&mut self) { self.kind = 2; transition { _ -> put_cell() } }
-    state kind_range(&mut self) { self.kind = 1; transition { _ -> put_cell() } }
-    state kind_none(&mut self) { self.kind = 0; transition { _ -> put_cell() } }
-    state put_cell(&mut self) {
-        transition self.kind >= 0 && self.kind < 4 { true -> glyph_lookup() _ -> bad() }
+    state kind_mid(main: &mut Main) { main.kind = 3; transition { _ -> put_cell(main) } }
+    state kind_target(main: &mut Main) { main.kind = 2; transition { _ -> put_cell(main) } }
+    state kind_range(main: &mut Main) { main.kind = 1; transition { _ -> put_cell(main) } }
+    state kind_none(main: &mut Main) { main.kind = 0; transition { _ -> put_cell(main) } }
+    state put_cell(main: &mut Main) {
+        transition main.kind >= 0 && main.kind < 4 { true -> glyph_lookup(main) _ -> bad(main) }
     }
-    state glyph_lookup(&mut self) {
-        self.glyph = self.chars[self.kind];
-        transition self.x >= 0 && self.x < 31 { true -> emit_cell() _ -> bad() }
+    state glyph_lookup(main: &mut Main) {
+        main.glyph = main.chars[main.kind];
+        transition main.x >= 0 && main.x < 31 { true -> emit_cell(main) _ -> bad(main) }
     }
-    state emit_cell(&mut self) {
-        self.line[self.x] = self.glyph;
-        self.x = self.x + 1;
-        transition { _ -> render_loop() }
+    state emit_cell(main: &mut Main) {
+        main.line[main.x] = main.glyph;
+        main.x = main.x + 1;
+        transition { _ -> render_loop(main) }
     }
-    state emit(&mut self) {
-        self.console.write_line(self.line);
-        self.clock.sleep(250);
-        transition { _ -> probe() }
+    state emit(main: &mut Main) {
+        main.console.write_line(main.line);
+        main.clock.sleep(250);
+        transition { _ -> probe(main) }
     }
 
     // --- the actual binary search step (reads arr[mid]) ---
-    state probe(&mut self) {
-        transition self.mid >= 0 && self.mid < 31 { true -> probe_read() _ -> bad() }
+    state probe(main: &mut Main) {
+        transition main.mid >= 0 && main.mid < 31 { true -> probe_read(main) _ -> bad(main) }
     }
-    state probe_read(&mut self) {
-        self.vmid = self.arr[self.mid];
-        transition self.vmid == self.target { true -> finish() _ -> narrow() }
+    state probe_read(main: &mut Main) {
+        main.vmid = main.arr[main.mid];
+        transition main.vmid == main.target { true -> finish(main) _ -> narrow(main) }
     }
-    state narrow(&mut self) {
-        transition self.vmid < self.target { true -> go_right() _ -> go_left() }
+    state narrow(main: &mut Main) {
+        transition main.vmid < main.target { true -> go_right(main) _ -> go_left(main) }
     }
     // The clamp on `mid` is the identity (mid is always in [0,30] here) and
     // bounds the +1 / -1 folds, keeping the narrowing steps Exact.
-    state go_right(&mut self) {
-        self.lo = min(max(self.mid, 0), 30) + 1;
-        transition { _ -> search() }
+    state go_right(main: &mut Main) {
+        main.lo = min(max(main.mid, 0), 30) + 1;
+        transition { _ -> search(main) }
     }
-    state go_left(&mut self) {
-        self.hi = min(max(self.mid, 0), 30) - 1;
-        transition { _ -> search() }
+    state go_left(main: &mut Main) {
+        main.hi = min(max(main.mid, 0), 30) - 1;
+        transition { _ -> search(main) }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state not_found(&mut self) {
-        self.console.exit_process(1);
+    state not_found(main: &mut Main) {
+        main.console.exit_process(1);
     }
-    state bad(&mut self) {
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.exit_process(1);
     }
 }

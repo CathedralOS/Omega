@@ -43,36 +43,36 @@ machine Main::main(&mut self) reaches Console {
 
     // After 4 advances the light should be Green and advances == 4.
     transition self.light.advances == 4 {
-        true -> check_phase()
-        false -> bad_count()
+        true -> check_phase(&mut self)
+        false -> bad_count(&mut self)
     }
 
-    state check_phase(&mut self) {
-        transition self.light.phase {
-            Phase::Green -> good()
-            _ -> bad_phase()
+    state check_phase(main: &mut Main) {
+        transition main.light.phase {
+            Phase::Green -> good(main)
+            _ -> bad_phase(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: 4 advances landed on Green as expected (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: 4 advances landed on Green as expected (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad_count(&mut self) {
-        self.console.write_line("FAIL: the advance count was not 4 (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_count(main: &mut Main) {
+        main.console.write_line("FAIL: the advance count was not 4 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state bad_phase(&mut self) {
-        self.console.write_line("FAIL: the final phase was not Green (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_phase(main: &mut Main) {
+        main.console.write_line("FAIL: the final phase was not Green (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 }
 

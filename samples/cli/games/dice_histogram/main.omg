@@ -41,76 +41,76 @@ machine Main::main(&mut self) reaches Console {
     self.line = "                        ";
     self.st = 1;
     self.n = 0;
-    transition { _ -> roll_loop() }
+    transition { _ -> roll_loop(&mut self) }
 
     // --- roll 60 dice, tally each face ---
-    state roll_loop(&mut self) {
-        transition self.n >= 0 && self.n < 60 { true -> roll() _ -> draw_init() }
+    state roll_loop(main: &mut Main) {
+        transition main.n >= 0 && main.n < 60 { true -> roll(main) _ -> draw_init(main) }
     }
-    state roll(&mut self) {
-        self.sc = self.st << 13;
-        self.st = self.st ^ self.sc;
-        self.sc = self.st >> 17;
-        self.st = self.st ^ self.sc;
-        self.sc = self.st << 5;
-        self.st = self.st ^ self.sc;
-        self.v = (self.st % 6) as i32 in Wrapping;
-        transition self.v >= 0 && self.v < 6 { true -> tally() _ -> bad() }
+    state roll(main: &mut Main) {
+        main.sc = main.st << 13;
+        main.st = main.st ^ main.sc;
+        main.sc = main.st >> 17;
+        main.st = main.st ^ main.sc;
+        main.sc = main.st << 5;
+        main.st = main.st ^ main.sc;
+        main.v = (main.st % 6) as i32 in Wrapping;
+        transition main.v >= 0 && main.v < 6 { true -> tally(main) _ -> bad(main) }
     }
-    state tally(&mut self) {
+    state tally(main: &mut Main) {
         // Read-modify-write straight into the runtime-indexed element (`counts[v] += 1`).
         // The face `v` is proven `>= 0 && < 6` by the guard that reaches this state.
-        self.counts[self.v] = (self.counts[self.v] + 1) as i32;
-        self.n = self.n + 1;
-        transition { _ -> roll_loop() }
+        main.counts[main.v] = (main.counts[main.v] + 1) as i32;
+        main.n = main.n + 1;
+        transition { _ -> roll_loop(main) }
     }
 
     // --- render the bar chart, one row per face ---
-    state draw_init(&mut self) {
-        self.val = 0;
-        transition { _ -> draw_loop() }
+    state draw_init(main: &mut Main) {
+        main.val = 0;
+        transition { _ -> draw_loop(main) }
     }
-    state draw_loop(&mut self) {
-        transition self.val >= 0 && self.val < 6 { true -> draw_row() _ -> finish() }
+    state draw_loop(main: &mut Main) {
+        transition main.val >= 0 && main.val < 6 { true -> draw_row(main) _ -> finish(main) }
     }
-    state draw_row(&mut self) {
+    state draw_row(main: &mut Main) {
         // clear, then label "v: " at the start
-        self.lab = narrow_i32_to_u8_trapping((self.val + 49) as i32); // '1'..'6'
-        self.line = "                        ";
-        self.line[0] = self.lab;
-        self.line[1] = 58; // ':'
-        self.cnt = self.counts[self.val];
-        self.k = 0;
-        transition { _ -> bar_loop() }
+        main.lab = narrow_i32_to_u8_trapping((main.val + 49) as i32); // '1'..'6'
+        main.line = "                        ";
+        main.line[0] = main.lab;
+        main.line[1] = 58; // ':'
+        main.cnt = main.counts[main.val];
+        main.k = 0;
+        transition { _ -> bar_loop(main) }
     }
-    state bar_loop(&mut self) {
-        transition self.k >= 0 && self.k < self.cnt { true -> bar_cell() _ -> emit_row() }
+    state bar_loop(main: &mut Main) {
+        transition main.k >= 0 && main.k < main.cnt { true -> bar_cell(main) _ -> emit_row(main) }
     }
-    state bar_cell(&mut self) {
-        self.bo = self.k + 3;
-        transition self.bo >= 0 && self.bo < 24 { true -> bar_write() _ -> emit_row() }
+    state bar_cell(main: &mut Main) {
+        main.bo = main.k + 3;
+        transition main.bo >= 0 && main.bo < 24 { true -> bar_write(main) _ -> emit_row(main) }
     }
-    state bar_write(&mut self) {
-        self.line[self.bo] = 35; // '#'
-        self.k = self.k + 1;
-        transition { _ -> bar_loop() }
+    state bar_write(main: &mut Main) {
+        main.line[main.bo] = 35; // '#'
+        main.k = main.k + 1;
+        transition { _ -> bar_loop(main) }
     }
-    state emit_row(&mut self) {
-        self.console.write_line(self.line);
-        self.val = self.val + 1;
-        transition { _ -> draw_loop() }
+    state emit_row(main: &mut Main) {
+        main.console.write_line(main.line);
+        main.val = main.val + 1;
+        transition { _ -> draw_loop(main) }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("done: all 6 face frequencies charted (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("done: all 6 face frequencies charted (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: a rolled face left the 0..5 range (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: a rolled face left the 0..5 range (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
 }

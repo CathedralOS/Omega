@@ -24,69 +24,69 @@ machine Main::main(&mut self) reaches Console {
     self.console.write_line("bitset_sieve: Sieve of Eratosthenes over a u32 bitset -- counting primes in 2..30");
     self.bits = 0;
     self.i = 2;
-    transition { _ -> outer() }
+    transition { _ -> outer(&mut self) }
 
-    state outer(&mut self) {
-        transition self.i <= 30 { true -> check_prime() _ -> count_init() }
+    state outer(main: &mut Main) {
+        transition main.i <= 30 { true -> check_prime(main) _ -> count_init(main) }
     }
-    state check_prime(&mut self) {
-        self.m = self.bits >> self.i;
-        self.m = self.m & 1;
-        transition self.m == 0 { true -> mark_init() _ -> outer_next() }
+    state check_prime(main: &mut Main) {
+        main.m = main.bits >> main.i;
+        main.m = main.m & 1;
+        transition main.m == 0 { true -> mark_init(main) _ -> outer_next(main) }
     }
-    state mark_init(&mut self) {
-        self.j = self.i + self.i;
-        transition { _ -> mark() }
+    state mark_init(main: &mut Main) {
+        main.j = main.i + main.i;
+        transition { _ -> mark(main) }
     }
-    state mark(&mut self) {
-        transition self.j <= 30 { true -> set_bit() _ -> outer_next() }
+    state mark(main: &mut Main) {
+        transition main.j <= 30 { true -> set_bit(main) _ -> outer_next(main) }
     }
-    state set_bit(&mut self) {
-        self.m = 1;
-        self.m = self.m << self.j;
-        self.bits = self.bits | self.m;
-        self.j = self.j + self.i;
-        transition { _ -> mark() }
+    state set_bit(main: &mut Main) {
+        main.m = 1;
+        main.m = main.m << main.j;
+        main.bits = main.bits | main.m;
+        main.j = main.j + main.i;
+        transition { _ -> mark(main) }
     }
-    state outer_next(&mut self) {
-        self.i = self.i + 1;
-        transition { _ -> outer() }
+    state outer_next(main: &mut Main) {
+        main.i = main.i + 1;
+        transition { _ -> outer(main) }
     }
 
-    state count_init(&mut self) {
-        self.count = 0;
-        self.k = 2;
-        transition { _ -> count_loop() }
+    state count_init(main: &mut Main) {
+        main.count = 0;
+        main.k = 2;
+        transition { _ -> count_loop(main) }
     }
-    state count_loop(&mut self) {
-        transition self.k <= 30 { true -> count_test() _ -> done() }
+    state count_loop(main: &mut Main) {
+        transition main.k <= 30 { true -> count_test(main) _ -> done(main) }
     }
-    state count_test(&mut self) {
-        self.m = self.bits >> self.k;
-        self.m = self.m & 1;
-        transition self.m == 0 { true -> inc() _ -> count_next() }
+    state count_test(main: &mut Main) {
+        main.m = main.bits >> main.k;
+        main.m = main.m & 1;
+        transition main.m == 0 { true -> inc(main) _ -> count_next(main) }
     }
-    state inc(&mut self) {
-        self.count = self.count + 1;
-        transition { _ -> count_next() }
+    state inc(main: &mut Main) {
+        main.count = main.count + 1;
+        transition { _ -> count_next(main) }
     }
-    state count_next(&mut self) {
-        self.k = self.k + 1;
-        transition { _ -> count_loop() }
+    state count_next(main: &mut Main) {
+        main.k = main.k + 1;
+        transition { _ -> count_loop(main) }
     }
-    state done(&mut self) {
-        transition self.count == 10 { true -> ok() _ -> bad() }
+    state done(main: &mut Main) {
+        transition main.count == 10 { true -> ok(main) _ -> bad(main) }
     }
-    state ok(&mut self) {
-        self.console.write_line("PASS: 10 primes found in 2..30 (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state ok(main: &mut Main) {
+        main.console.write_line("PASS: 10 primes found in 2..30 (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: prime count != 10 -- exiting the actual count (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.count as i32);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: prime count != 10 -- exiting the actual count (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.count as i32);
     }
 }

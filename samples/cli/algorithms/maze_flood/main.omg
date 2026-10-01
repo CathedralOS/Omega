@@ -71,144 +71,144 @@ machine Main::main(&mut self) reaches Console {
     self.head = 0;
     self.tail = 1;
     self.count = 1;
-    transition { _ -> bfs_loop() }
+    transition { _ -> bfs_loop(&mut self) }
 
     // --- BFS (grid pathfinding) ---
-    state bfs_loop(&mut self) {
-        transition self.count > 0 { true -> deq() _ -> render_init() }
+    state bfs_loop(main: &mut Main) {
+        transition main.count > 0 { true -> deq(main) _ -> render_init(main) }
     }
-    state deq(&mut self) {
-        transition self.head >= 0 && self.head < 32 { true -> deq_read() _ -> bad() }
+    state deq(main: &mut Main) {
+        transition main.head >= 0 && main.head < 32 { true -> deq_read(main) _ -> bad(main) }
     }
-    state deq_read(&mut self) {
-        self.c = self.queue[self.head];
-        self.head = self.head + 1;
-        self.count = self.count - 1;
-        self.row = self.c / 5;
-        self.col = self.c % 5;
-        self.d = 0;
-        transition { _ -> dir_loop() }
+    state deq_read(main: &mut Main) {
+        main.c = main.queue[main.head];
+        main.head = main.head + 1;
+        main.count = main.count - 1;
+        main.row = main.c / 5;
+        main.col = main.c % 5;
+        main.d = 0;
+        transition { _ -> dir_loop(main) }
     }
-    state dir_loop(&mut self) {
-        transition self.d >= 0 && self.d < 4 { true -> dir_read() _ -> bfs_loop() }
+    state dir_loop(main: &mut Main) {
+        transition main.d >= 0 && main.d < 4 { true -> dir_read(main) _ -> bfs_loop(main) }
     }
-    state dir_read(&mut self) {
-        self.ddr = self.dr[self.d];
-        self.ddc = self.dc[self.d];
-        self.nr = self.row + self.ddr;
-        self.nc = self.col + self.ddc;
-        transition self.nr >= 0 && self.nr < 5 && self.nc >= 0 && self.nc < 5 {
-            true -> nbr_cell()
-            _ -> next_d()
+    state dir_read(main: &mut Main) {
+        main.ddr = main.dr[main.d];
+        main.ddc = main.dc[main.d];
+        main.nr = main.row + main.ddr;
+        main.nc = main.col + main.ddc;
+        transition main.nr >= 0 && main.nr < 5 && main.nc >= 0 && main.nc < 5 {
+            true -> nbr_cell(main)
+            _ -> next_d(main)
         }
     }
-    state nbr_cell(&mut self) {
-        self.ncell = self.nr * 5 + self.nc;
-        transition self.ncell >= 0 && self.ncell < 25 { true -> nbr_wall() _ -> bad() }
+    state nbr_cell(main: &mut Main) {
+        main.ncell = main.nr * 5 + main.nc;
+        transition main.ncell >= 0 && main.ncell < 25 { true -> nbr_wall(main) _ -> bad(main) }
     }
-    state nbr_wall(&mut self) {
-        self.w = self.wall[self.ncell];
-        transition self.w == 0 { true -> nbr_vis() _ -> next_d() }
+    state nbr_wall(main: &mut Main) {
+        main.w = main.wall[main.ncell];
+        transition main.w == 0 { true -> nbr_vis(main) _ -> next_d(main) }
     }
-    state nbr_vis(&mut self) {
-        self.dn = self.dist[self.ncell];
-        transition self.dn < 0 { true -> visit_guard() _ -> next_d() }
+    state nbr_vis(main: &mut Main) {
+        main.dn = main.dist[main.ncell];
+        transition main.dn < 0 { true -> visit_guard(main) _ -> next_d(main) }
     }
-    state visit_guard(&mut self) {
-        transition self.c >= 0 && self.c < 25 && self.ncell >= 0 && self.ncell < 25
-            && self.tail >= 0 && self.tail < 32 {
-            true -> do_visit()
-            _ -> bad()
+    state visit_guard(main: &mut Main) {
+        transition main.c >= 0 && main.c < 25 && main.ncell >= 0 && main.ncell < 25
+            && main.tail >= 0 && main.tail < 32 {
+            true -> do_visit(main)
+            _ -> bad(main)
         }
     }
-    state do_visit(&mut self) {
-        self.cd = self.dist[self.c];
-        self.nd = self.cd + 1;
-        self.dist[self.ncell] = self.nd as i32;
-        self.queue[self.tail] = self.ncell as i32;
-        self.tail = self.tail + 1;
-        self.count = self.count + 1;
-        transition { _ -> next_d() }
+    state do_visit(main: &mut Main) {
+        main.cd = main.dist[main.c];
+        main.nd = main.cd + 1;
+        main.dist[main.ncell] = main.nd as i32;
+        main.queue[main.tail] = main.ncell as i32;
+        main.tail = main.tail + 1;
+        main.count = main.count + 1;
+        transition { _ -> next_d(main) }
     }
-    state next_d(&mut self) {
-        self.d = self.d + 1;
-        transition { _ -> dir_loop() }
+    state next_d(main: &mut Main) {
+        main.d = main.d + 1;
+        transition { _ -> dir_loop(main) }
     }
 
     // --- render the distance grid (## for walls, two-digit distance otherwise) ---
-    state render_init(&mut self) {
-        self.ry = 0;
-        transition { _ -> render_row() }
+    state render_init(main: &mut Main) {
+        main.ry = 0;
+        transition { _ -> render_row(main) }
     }
-    state render_row(&mut self) {
-        transition self.ry >= 0 && self.ry < 5 { true -> render_col_init() _ -> finish() }
+    state render_row(main: &mut Main) {
+        transition main.ry >= 0 && main.ry < 5 { true -> render_col_init(main) _ -> finish(main) }
     }
-    state render_col_init(&mut self) {
-        self.cx = 0;
-        transition { _ -> render_col() }
+    state render_col_init(main: &mut Main) {
+        main.cx = 0;
+        transition { _ -> render_col(main) }
     }
-    state render_col(&mut self) {
-        transition self.cx >= 0 && self.cx < 5 { true -> render_cell() _ -> emit_row() }
+    state render_col(main: &mut Main) {
+        transition main.cx >= 0 && main.cx < 5 { true -> render_cell(main) _ -> emit_row(main) }
     }
-    state render_cell(&mut self) {
-        self.cell = self.ry * 5 + self.cx;
-        self.o0 = self.cx * 3;
-        self.o1 = self.o0 + 1;
-        transition self.cell >= 0 && self.cell < 25 && self.o0 >= 0 && self.o0 < 16 && self.o1 >= 0 && self.o1 < 16 {
-            true -> render_read()
-            _ -> bad()
+    state render_cell(main: &mut Main) {
+        main.cell = main.ry * 5 + main.cx;
+        main.o0 = main.cx * 3;
+        main.o1 = main.o0 + 1;
+        transition main.cell >= 0 && main.cell < 25 && main.o0 >= 0 && main.o0 < 16 && main.o1 >= 0 && main.o1 < 16 {
+            true -> render_read(main)
+            _ -> bad(main)
         }
     }
-    state render_read(&mut self) {
-        self.w = self.wall[self.cell];
-        transition self.w == 1 { true -> render_wall() _ -> render_num() }
+    state render_read(main: &mut Main) {
+        main.w = main.wall[main.cell];
+        transition main.w == 1 { true -> render_wall(main) _ -> render_num(main) }
     }
-    state render_wall(&mut self) {
-        self.line[self.o0] = 35; // '#'
-        self.line[self.o1] = 35;
-        self.cx = self.cx + 1;
-        transition { _ -> render_col() }
+    state render_wall(main: &mut Main) {
+        main.line[main.o0] = 35; // '#'
+        main.line[main.o1] = 35;
+        main.cx = main.cx + 1;
+        transition { _ -> render_col(main) }
     }
-    state render_num(&mut self) {
-        self.val = self.dist[self.cell];
-        self.tens = self.val / 10;
-        self.ones = self.val % 10;
-        self.oc = narrow_i32_to_u8_trapping((self.ones + 48) as i32);
-        transition self.tens > 0 { true -> num_tens() _ -> num_space() }
+    state render_num(main: &mut Main) {
+        main.val = main.dist[main.cell];
+        main.tens = main.val / 10;
+        main.ones = main.val % 10;
+        main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as i32);
+        transition main.tens > 0 { true -> num_tens(main) _ -> num_space(main) }
     }
     // Both carrier bytes are computed, so they arrive as plain `u8` with no range
     // facts and cannot re-establish the carrier's `valid_utf8` domain on their own.
     // Each path into the write proves they are ASCII first.
-    state num_tens(&mut self) {
-        self.tc = narrow_i32_to_u8_trapping((self.tens + 48) as i32);
-        transition self.tc < 128 && self.oc < 128 { true -> num_write() _ -> bad() }
+    state num_tens(main: &mut Main) {
+        main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as i32);
+        transition main.tc < 128 && main.oc < 128 { true -> num_write(main) _ -> bad(main) }
     }
-    state num_space(&mut self) {
-        self.tc = 32;
-        transition self.tc < 128 && self.oc < 128 { true -> num_write() _ -> bad() }
+    state num_space(main: &mut Main) {
+        main.tc = 32;
+        transition main.tc < 128 && main.oc < 128 { true -> num_write(main) _ -> bad(main) }
     }
-    state num_write(&mut self) {
-        self.line[self.o0] = self.tc;
-        self.line[self.o1] = self.oc;
-        self.cx = self.cx + 1;
-        transition { _ -> render_col() }
+    state num_write(main: &mut Main) {
+        main.line[main.o0] = main.tc;
+        main.line[main.o1] = main.oc;
+        main.cx = main.cx + 1;
+        transition { _ -> render_col(main) }
     }
-    state emit_row(&mut self) {
-        self.console.write_line(self.line);
-        self.ry = self.ry + 1;
-        transition { _ -> render_row() }
+    state emit_row(main: &mut Main) {
+        main.console.write_line(main.line);
+        main.ry = main.ry + 1;
+        transition { _ -> render_row(main) }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("PASS: distance map rendered, far corner is 16 away (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("PASS: distance map rendered, far corner is 16 away (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: internal bounds check failed (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(1);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: internal bounds check failed (exit 1)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(1);
     }
 }

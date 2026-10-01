@@ -36,12 +36,12 @@ machine Main::main(&mut self) reaches Console {
     self.ones = self.ones - 48;
     self.value = self.tens * 10 + self.ones;
 
-    transition { _ -> done() }
+    transition { _ -> done(&mut self) }
 
-    state done(&mut self) {
-        self.console.write_line("result: the parsed value, 25 for this text (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.value);
+    state done(main: &mut Main) {
+        main.console.write_line("result: the parsed value, 25 for this text (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.value);
     }
 }

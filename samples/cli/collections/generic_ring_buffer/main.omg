@@ -237,52 +237,52 @@ machine Main::main(&mut self) reaches Console {
 
     // Verify size == 3.
     transition self.ring.size == 3 {
-        true -> check_last_pop()
-        _ -> bad_size()
+        true -> check_last_pop(&mut self)
+        _ -> bad_size(&mut self)
     }
 
-    state check_last_pop(&mut self) {
+    state check_last_pop(main: &mut Main) {
         // last popped value should be 40.
-        transition self.ring.last_pop == 40 {
-            true -> check_sum()
-            _ -> bad_pop()
+        transition main.ring.last_pop == 40 {
+            true -> check_sum(main)
+            _ -> bad_pop(main)
         }
     }
 
-    state check_sum(&mut self) {
+    state check_sum(main: &mut Main) {
         // Remaining elements: slots[3]=50, slots[4]=5, slots[5]=15 -> sum=70.
-        let sum: i32 in Saturating = self.ring.slots[3] + self.ring.slots[4] + self.ring.slots[5];
+        let sum: i32 in Saturating = main.ring.slots[3] + main.ring.slots[4] + main.ring.slots[5];
         transition sum == 70 {
-            true -> good()
-            _ -> bad_sum()
+            true -> good(main)
+            _ -> bad_sum(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: size=3, last pop 40, remaining sum 70 (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: size=3, last pop 40, remaining sum 70 (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad_size(&mut self) {
-        self.console.write_line("FAIL: wrong ring size (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_size(main: &mut Main) {
+        main.console.write_line("FAIL: wrong ring size (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state bad_pop(&mut self) {
-        self.console.write_line("FAIL: wrong last-popped value (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_pop(main: &mut Main) {
+        main.console.write_line("FAIL: wrong last-popped value (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 
-    state bad_sum(&mut self) {
-        self.console.write_line("FAIL: wrong sum of remaining slots (exit 73)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(73);
+    state bad_sum(main: &mut Main) {
+        main.console.write_line("FAIL: wrong sum of remaining slots (exit 73)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(73);
     }
 }

@@ -1,7 +1,7 @@
 // Owned `[u8; N] in Utf8` text carriers: build a greeting by concatenation, print
 // it, and verify it. Omega has no `String` keyword -- text is bytes refined by a
 // `Utf8` domain, stored inline in a fixed-capacity carrier (`len` + `[u8; N]`).
-// `let greeting = "Hello, " + name + "!"` materializes the literal and the
+// `self.greeting = "Hello, " + self.name + "!"` materializes the literal and the
 // `name` carrier's content into greeting's inline bytes; `write_line` prints them;
 // `==` compares content. Prints "Hello, Ada!" and exits 70 only if the carrier
 // holds exactly that.
@@ -11,43 +11,44 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain [u8]::Utf8(bytes)
+domain [u8]::Utf8
 requires
-    valid_utf8(bytes);
-domain [u8; 8]::Utf8(bytes)
+    valid_utf8(self);
+domain [u8; 8]::Utf8
 requires
-    valid_utf8(bytes);
-domain [u8; 32]::Utf8(bytes)
+    valid_utf8(self);
+domain [u8; 32]::Utf8
 requires
-    valid_utf8(bytes);
+    valid_utf8(self);
 
 data Main {
     console: Binding<Console>;
+    name: [u8; 8] in Utf8;
+    greeting: [u8; 32] in Utf8;
+    pause: [u8; 256];
 }
 
-machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("text_greeting: builds Hello, Ada! by carrier concatenation");
-    let name: [u8; 8] in Utf8 = "Ada";
-    let greeting: [u8; 32] in Utf8 = "Hello, " + name + "!";
-    context.console.write_line(greeting);
+machine Main::main(&mut self) reaches Console {
+    self.console.write_line("text_greeting: builds Hello, Ada! by carrier concatenation");
+    self.name = "Ada";
+    self.greeting = "Hello, " + self.name + "!";
+    self.console.write_line(self.greeting);
 
-    transition greeting == "Hello, Ada!" {
-        true -> ok(context)
-        _ -> mismatch(context)
+    transition self.greeting == "Hello, Ada!" {
+        true -> ok(&mut self)
+        _ -> mismatch(&mut self)
     }
 
-    state ok(context: &mut Main) {
-        context.console.write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
-        context.console.write_line("[press Enter to close]");
-        let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(70);
+    state ok(main: &mut Main) {
+        main.console.write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
-    state mismatch(context: &mut Main) {
-        context.console.write_line("FAIL: the concatenated greeting did not match (exit 71)");
-        context.console.write_line("[press Enter to close]");
-        let mut pause: [u8; 256];
-        _ = block context.console.read_line(&mut pause);
-        context.console.exit_process(71);
+    state mismatch(main: &mut Main) {
+        main.console.write_line("FAIL: the concatenated greeting did not match (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }

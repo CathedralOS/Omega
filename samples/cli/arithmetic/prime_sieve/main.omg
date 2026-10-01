@@ -39,69 +39,69 @@ machine Main::main(&mut self) reaches Console {
     self.line = "                                                ";
     self.pos = 0;
     self.i = 2;
-    transition { _ -> outer() }
+    transition { _ -> outer(&mut self) }
 
-    state outer(&mut self) {
-        transition self.i >= 2 && self.i < 50 { true -> read_marked() _ -> write_out() }
+    state outer(main: &mut Main) {
+        transition main.i >= 2 && main.i < 50 { true -> read_marked(main) _ -> write_out(main) }
     }
-    state read_marked(&mut self) {
-        self.mi = self.marked[self.i];
-        transition self.mi == 0 { true -> mark_init() _ -> next_i() }
+    state read_marked(main: &mut Main) {
+        main.mi = main.marked[main.i];
+        transition main.mi == 0 { true -> mark_init(main) _ -> next_i(main) }
     }
     // i is prime: cross out its multiples starting at i*i
-    state mark_init(&mut self) {
-        self.j = self.i * self.i;
-        transition { _ -> mark_loop() }
+    state mark_init(main: &mut Main) {
+        main.j = main.i * main.i;
+        transition { _ -> mark_loop(main) }
     }
-    state mark_loop(&mut self) {
-        transition self.j >= 0 && self.j < 50 { true -> mark_set() _ -> append() }
+    state mark_loop(main: &mut Main) {
+        transition main.j >= 0 && main.j < 50 { true -> mark_set(main) _ -> append(main) }
     }
-    state mark_set(&mut self) {
-        self.marked[self.j] = 1;
-        self.j = self.j + self.i;
-        transition { _ -> mark_loop() }
+    state mark_set(main: &mut Main) {
+        main.marked[main.j] = 1;
+        main.j = main.j + main.i;
+        transition { _ -> mark_loop(main) }
     }
     // append the prime i to the output line as two space-padded digit chars
-    state append(&mut self) {
-        self.tens = self.i / 10;
-        self.ones = self.i % 10;
-        self.oc = narrow_i32_to_u8_trapping((self.ones + 48) as i32);
-        transition self.tens > 0 { true -> append_tens() _ -> append_space() }
+    state append(main: &mut Main) {
+        main.tens = main.i / 10;
+        main.ones = main.i % 10;
+        main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as i32);
+        transition main.tens > 0 { true -> append_tens(main) _ -> append_space(main) }
     }
-    state append_tens(&mut self) {
-        self.tc = narrow_i32_to_u8_trapping((self.tens + 48) as i32);
-        transition { _ -> append_write() }
+    state append_tens(main: &mut Main) {
+        main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as i32);
+        transition { _ -> append_write(main) }
     }
-    state append_space(&mut self) {
-        self.tc = 32;
-        transition { _ -> append_write() }
+    state append_space(main: &mut Main) {
+        main.tc = 32;
+        transition { _ -> append_write(main) }
     }
-    state append_write(&mut self) {
-        self.p1 = self.pos + 1;
-        transition self.pos >= 0 && self.pos < 48 && self.p1 >= 0 && self.p1 < 48 {
-            true -> append_store()
-            _ -> next_i()
+    state append_write(main: &mut Main) {
+        main.p1 = main.pos + 1;
+        transition main.pos >= 0 && main.pos < 48 && main.p1 >= 0 && main.p1 < 48 {
+            true -> append_store(main)
+            _ -> next_i(main)
         }
     }
-    state append_store(&mut self) {
-        self.line[self.pos] = self.tc;
-        self.line[self.p1] = self.oc;
-        self.pos = self.pos + 3;
-        transition { _ -> next_i() }
+    state append_store(main: &mut Main) {
+        main.line[main.pos] = main.tc;
+        main.line[main.p1] = main.oc;
+        main.pos = main.pos + 3;
+        transition { _ -> next_i(main) }
     }
-    state next_i(&mut self) {
-        self.i = self.i + 1;
-        transition { _ -> outer() }
+    state next_i(main: &mut Main) {
+        main.i = main.i + 1;
+        transition { _ -> outer(main) }
     }
 
-    state write_out(&mut self) {
-        self.console.write_line(self.line);
-        transition { _ -> finish() }
+    state write_out(main: &mut Main) {
+        main.console.write_line(main.line);
+        transition { _ -> finish(main) }
     }
-    state finish(&mut self) {
-        self.console.write_line("PASS: primes below 50 printed (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("PASS: primes below 50 printed (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
 }

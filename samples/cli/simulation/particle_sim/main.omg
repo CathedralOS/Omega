@@ -52,29 +52,29 @@ machine Main::main(&mut self) reaches Console {
     // position should be exactly 10.0 after 5 steps.
     // Guard: 10.0 > 9.5 (true) and 10.0 < 10.5 (true) -> exit 70.
     transition self.p.position > 9.5 {
-        true -> check_upper()
-        _ -> bad()
+        true -> check_upper(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state check_upper(&mut self) {
-        transition self.p.position < 10.5 {
-            true -> good()
-            _ -> bad()
+    state check_upper(main: &mut Main) {
+        transition main.p.position < 10.5 {
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: position landed at 10.0 after 5 steps (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: position landed at 10.0 after 5 steps (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self) {
-        self.console.write_line("FAIL: position outside (9.5, 10.5) after 5 steps (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: position outside (9.5, 10.5) after 5 steps (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }
 

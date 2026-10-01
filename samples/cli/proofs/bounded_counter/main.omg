@@ -29,31 +29,31 @@ machine Main::main(&mut self) reaches Console {
     Main::add(&mut self, 40);   // 120, saturates to 100
 
     transition self.counter.value == 100 {
-        true -> good_msg()
-        _ -> not_hundred()
+        true -> good_msg(&mut self)
+        _ -> not_hundred(&mut self)
     }
-    state good_msg(&mut self) {
-        self.console.write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");
-        transition { _ -> report(70) }
+    state good_msg(main: &mut Main) {
+        main.console.write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");
+        transition { _ -> report(main, 70) }
     }
-    state not_hundred(&mut self) {
-        transition self.counter.value == 120 {
-            true -> bad_sat_msg()   // saturation didn't apply
-            _ -> bad_other_msg()    // some other wrong value
+    state not_hundred(main: &mut Main) {
+        transition main.counter.value == 120 {
+            true -> bad_sat_msg(main)   // saturation didn't apply
+            _ -> bad_other_msg(main)    // some other wrong value
         }
     }
-    state bad_sat_msg(&mut self) {
-        self.console.write_line("FAIL: counter reached 120 -- saturation did not apply (exit 81)");
-        transition { _ -> report(81) }
+    state bad_sat_msg(main: &mut Main) {
+        main.console.write_line("FAIL: counter reached 120 -- saturation did not apply (exit 81)");
+        transition { _ -> report(main, 81) }
     }
-    state bad_other_msg(&mut self) {
-        self.console.write_line("FAIL: counter holds an unexpected value -- neither 100 nor 120 (exit 82)");
-        transition { _ -> report(82) }
+    state bad_other_msg(main: &mut Main) {
+        main.console.write_line("FAIL: counter holds an unexpected value -- neither 100 nor 120 (exit 82)");
+        transition { _ -> report(main, 82) }
     }
-    state report(&mut self, code: i32) {
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(code);
+    state report(main: &mut Main, code: i32) {
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(code);
     }
 }
 

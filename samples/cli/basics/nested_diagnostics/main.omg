@@ -57,24 +57,24 @@ machine Main::main(&mut self) reaches Console {
     let batt: i32 = Battery::reading(&self.dash.battery);
 
     transition rpm == 3000 {
-        true -> check_battery(batt)
-        false -> fault()
+        true -> check_battery(&mut self, batt)
+        false -> fault(&mut self)
     }
 
-    state check_battery(&mut self, batt: i32) {
+    state check_battery(main: &mut Main, batt: i32) {
         transition batt == 85 {
-            true -> nominal()
-            false -> fault()
+            true -> nominal(main)
+            false -> fault(main)
         }
     }
 
-    state nominal(&self) {
-        self.console.write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
-        self.console.exit_process(85);
+    state nominal(main: &mut Main) {
+        main.console.write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
+        main.console.exit_process(85);
     }
 
-    state fault(&self) {
-        self.console.write_line("reading mismatch -> fault (exit 1)");
-        self.console.exit_process(1);
+    state fault(main: &mut Main) {
+        main.console.write_line("reading mismatch -> fault (exit 1)");
+        main.console.exit_process(1);
     }
 }

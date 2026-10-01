@@ -38,18 +38,18 @@ machine Main::main(&mut self) reaches Console {
     self.command = Command::SetLevel { level: 65 };
 
     transition self.command {
-        Command::SetLevel { level } -> apply(level)
-        Command::Dim { amount }     -> apply(amount * 10)
-        Command::Off                -> apply(0)
+        Command::SetLevel { level } -> apply(&mut self, level)
+        Command::Dim { amount }     -> apply(&mut self, amount * 10)
+        Command::Off                -> apply(&mut self, 0)
     }
 
-    state apply(&mut self, target: i32 [0..=100]) {
-        self.brightness = target;
-        transition { _ -> report() }
+    state apply(main: &mut Main, target: i32 [0..=100]) {
+        main.brightness = target;
+        transition { _ -> report(main) }
     }
 
-    state report(&mut self) {
-        self.console.write_line("brightness settled at the applied level (the exit code)");
-        self.console.exit_process(self.brightness);
+    state report(main: &mut Main) {
+        main.console.write_line("brightness settled at the applied level (the exit code)");
+        main.console.exit_process(main.brightness);
     }
 }

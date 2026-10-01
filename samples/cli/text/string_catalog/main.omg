@@ -95,63 +95,63 @@ machine Main::main(&mut self) reaches Console {
 
     // Check entry1.name.
     transition self.catalog.entry1.name == "Alpha" {
-        true -> check_name2()
-        _ -> bad_name1()
+        true -> check_name2(&mut self)
+        _ -> bad_name1(&mut self)
     }
 
-    state bad_name1(&mut self) {
-        self.console.write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_name1(main: &mut Main) {
+        main.console.write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state check_name2(&mut self) {
-        transition self.catalog.entry2.name == "Beta" {
-            true -> check_label()
-            _ -> bad_name2()
+    state check_name2(main: &mut Main) {
+        transition main.catalog.entry2.name == "Beta" {
+            true -> check_label(main)
+            _ -> bad_name2(main)
         }
     }
 
-    state bad_name2(&mut self) {
-        self.console.write_line("FAIL: entry2.name did not equal Beta (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_name2(main: &mut Main) {
+        main.console.write_line("FAIL: entry2.name did not equal Beta (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 
-    state check_label(&mut self) {
-        transition self.catalog.label == "[Alpha+Beta]" {
-            true -> check_total()
-            _ -> bad_label()
+    state check_label(main: &mut Main) {
+        transition main.catalog.label == "[Alpha+Beta]" {
+            true -> check_total(main)
+            _ -> bad_label(main)
         }
     }
 
-    state bad_label(&mut self) {
-        self.console.write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(73);
+    state bad_label(main: &mut Main) {
+        main.console.write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(73);
     }
 
-    state check_total(&mut self) {
-        transition self.catalog.total == 70 {
-            true -> good()
-            _ -> bad_total()
+    state check_total(main: &mut Main) {
+        transition main.catalog.total == 70 {
+            true -> good(main)
+            _ -> bad_total(main)
         }
     }
 
-    state bad_total(&mut self) {
-        self.console.write_line("FAIL: score total was not 70 (exit 74)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(74);
+    state bad_total(main: &mut Main) {
+        main.console.write_line("FAIL: score total was not 70 (exit 74)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(74);
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 }

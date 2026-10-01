@@ -31,46 +31,46 @@ machine Main::main(&mut self) reaches Console {
     self.console.write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
     self.out = "XXX";
     self.k = 1;
-    transition { _ -> outer() }
+    transition { _ -> outer(&mut self) }
 
-    state outer(&mut self) {
-        transition self.k <= 9 { true -> compute_sq() _ -> finish() }
+    state outer(main: &mut Main) {
+        transition main.k <= 9 { true -> compute_sq(main) _ -> finish(main) }
     }
-    state compute_sq(&mut self) {
-        self.sq = self.k * self.k;
-        self.place = 100;
-        self.p = 0;
-        transition { _ -> itoa_loop() }
+    state compute_sq(main: &mut Main) {
+        main.sq = main.k * main.k;
+        main.place = 100;
+        main.p = 0;
+        transition { _ -> itoa_loop(main) }
     }
-    state itoa_loop(&mut self) {
-        transition self.p < 3 { true -> digit_div() _ -> print_row() }
+    state itoa_loop(main: &mut Main) {
+        transition main.p < 3 { true -> digit_div(main) _ -> print_row(main) }
     }
-    state digit_div(&mut self) {
-        self.d = self.sq / self.place;
-        transition { _ -> digit_mod() }
+    state digit_div(main: &mut Main) {
+        main.d = main.sq / main.place;
+        transition { _ -> digit_mod(main) }
     }
-    state digit_mod(&mut self) {
-        self.d = self.d % 10;
-        transition { _ -> digit_write() }
+    state digit_mod(main: &mut Main) {
+        main.d = main.d % 10;
+        transition { _ -> digit_write(main) }
     }
-    state digit_write(&mut self) {
-        self.ch = self.d + 48;
-        self.byte = narrow_u32_to_u8_wrapping(self.ch as u32) as u8 in Wrapping;
-        self.out[self.p] = self.byte as u8;
-        self.place = self.place / 10;
-        self.p = self.p + 1;
-        transition { _ -> itoa_loop() }
+    state digit_write(main: &mut Main) {
+        main.ch = main.d + 48;
+        main.byte = narrow_u32_to_u8_wrapping(main.ch as u32) as u8 in Wrapping;
+        main.out[main.p] = main.byte as u8;
+        main.place = main.place / 10;
+        main.p = main.p + 1;
+        transition { _ -> itoa_loop(main) }
     }
-    state print_row(&mut self) {
-        self.console.write_line(self.out);
-        self.k = self.k + 1;
-        transition { _ -> outer() }
+    state print_row(main: &mut Main) {
+        main.console.write_line(main.out);
+        main.k = main.k + 1;
+        transition { _ -> outer(main) }
     }
 
-    state finish(&mut self) {
-        self.console.write_line("PASS: 9 squares printed, ending at 081 (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state finish(main: &mut Main) {
+        main.console.write_line("PASS: 9 squares printed, ending at 081 (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
 }

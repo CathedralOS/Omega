@@ -23,12 +23,12 @@ machine Main::main(&mut self) reaches Console {
     let bytes: i32 in Wrapping = kibibytes << 10;
     let recovered: i32 in Wrapping = bytes >> 10;
 
-    transition { _ -> done(recovered) }
+    transition { _ -> done(&mut self, recovered) }
 
-    state done(&mut self, recovered: i32 in Wrapping) {
-        self.console.write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(recovered as i32);
+    state done(main: &mut Main, recovered: i32 in Wrapping) {
+        main.console.write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(recovered as i32);
     }
 }

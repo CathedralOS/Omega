@@ -49,51 +49,51 @@ machine Main::main(&mut self) reaches Console {
     self.k = 0;
 
     transition {
-        _ -> tally_loop()
+        _ -> tally_loop(&mut self)
     }
 
     // Walk the samples; the loop counter `k` is bounded by the array length.
-    state tally_loop(&mut self) {
-        transition self.k < 8 {
-            true -> load_sample()
-            _ -> done()
+    state tally_loop(main: &mut Main) {
+        transition main.k < 8 {
+            true -> load_sample(main)
+            _ -> done(main)
         }
     }
 
-    state load_sample(&mut self) {
-        self.v = self.samples[self.k];
+    state load_sample(main: &mut Main) {
+        main.v = main.samples[main.k];
         transition {
-            _ -> bounded_tally()
+            _ -> bounded_tally(main)
         }
     }
 
     // Admit the histogram index only where it is provably in range.
-    state bounded_tally(&mut self) {
-        transition self.v < 4 {
-            true -> bump()
-            _ -> advance()
+    state bounded_tally(main: &mut Main) {
+        transition main.v < 4 {
+            true -> bump(main)
+            _ -> advance(main)
         }
     }
 
-    state bump(&mut self) {
-        self.histogram[self.v] = (self.histogram[self.v] + 1) as i32;
+    state bump(main: &mut Main) {
+        main.histogram[main.v] = (main.histogram[main.v] + 1) as i32;
         transition {
-            _ -> advance()
+            _ -> advance(main)
         }
     }
 
-    state advance(&mut self) {
-        self.k = self.k + 1;
+    state advance(main: &mut Main) {
+        main.k = main.k + 1;
         transition {
-            _ -> tally_loop()
+            _ -> tally_loop(main)
         }
     }
 
-    state done(&mut self) {
-        self.result = self.histogram[2];
-        self.console.write_line("result: the count for category 2, 4 for this dataset (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.result as i32);
+    state done(main: &mut Main) {
+        main.result = main.histogram[2];
+        main.console.write_line("result: the count for category 2, 4 for this dataset (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.result as i32);
     }
 }

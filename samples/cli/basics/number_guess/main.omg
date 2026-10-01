@@ -86,36 +86,36 @@ machine Main::main(&mut self) reaches Console {
 
     // Verify found within 7 guesses.
     transition self.search.found == 1 {
-        true -> check_guesses()
-        _ -> not_found_error()
+        true -> check_guesses(&mut self)
+        _ -> not_found_error(&mut self)
     }
 
-    state check_guesses(&mut self) {
+    state check_guesses(main: &mut Main) {
         // Exactly 7 guesses needed: 7 * 10 = 70.
-        transition self.search.guesses == 7 {
-            true -> good()
-            _ -> bad_guesses()
+        transition main.search.guesses == 7 {
+            true -> good(main)
+            _ -> bad_guesses(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: found 42 in exactly 7 guesses (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: found 42 in exactly 7 guesses (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state not_found_error(&mut self) {
-        self.console.write_line("FAIL: target never found (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state not_found_error(main: &mut Main) {
+        main.console.write_line("FAIL: target never found (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state bad_guesses(&mut self) {
-        self.console.write_line("FAIL: wrong guess count (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_guesses(main: &mut Main) {
+        main.console.write_line("FAIL: wrong guess count (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 }

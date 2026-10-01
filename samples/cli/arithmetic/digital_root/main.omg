@@ -29,52 +29,52 @@ machine Main::main(&mut self) reaches Console {
     self.state.n = 12345;
 
     transition {
-        _ -> collapse()
+        _ -> collapse(&mut self)
     }
 
     // Outer loop: stop once n is a single digit, else sum its digits.
-    state collapse(&mut self) {
-        transition self.state.n < 10 {
-            true -> done()
-            _ -> begin_sum()
+    state collapse(main: &mut Main) {
+        transition main.state.n < 10 {
+            true -> done(main)
+            _ -> begin_sum(main)
         }
     }
 
-    state begin_sum(&mut self) {
-        self.state.sum = 0;
+    state begin_sum(main: &mut Main) {
+        main.state.sum = 0;
         transition {
-            _ -> digits()
+            _ -> digits(main)
         }
     }
 
     // Inner loop: peel off decimal digits, adding each to the running sum.
-    state digits(&mut self) {
-        transition self.state.n == 0 {
-            true -> fold_in()
-            _ -> add_digit()
+    state digits(main: &mut Main) {
+        transition main.state.n == 0 {
+            true -> fold_in(main)
+            _ -> add_digit(main)
         }
     }
 
-    state add_digit(&mut self) {
-        self.state.sum = self.state.sum + self.state.n % 10;
-        self.state.n = self.state.n / 10;
+    state add_digit(main: &mut Main) {
+        main.state.sum = main.state.sum + main.state.n % 10;
+        main.state.n = main.state.n / 10;
         transition {
-            _ -> digits()
+            _ -> digits(main)
         }
     }
 
     // The digit sum becomes the new value; loop until it is a single digit.
-    state fold_in(&mut self) {
-        self.state.n = self.state.sum;
+    state fold_in(main: &mut Main) {
+        main.state.n = main.state.sum;
         transition {
-            _ -> collapse()
+            _ -> collapse(main)
         }
     }
 
-    state done(&mut self) {
-        self.console.write_line("result: the digital root, 6 for 12345 (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.state.n as i32);
+    state done(main: &mut Main) {
+        main.console.write_line("result: the digital root, 6 for 12345 (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.state.n as i32);
     }
 }

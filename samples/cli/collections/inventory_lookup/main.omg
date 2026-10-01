@@ -36,39 +36,39 @@ machine Main::main(&mut self) reaches Console {
     self.items[2].name = "Potion";
 
     transition self.items[0].name == "Shield" {
-        true -> found0()
-        _ -> check1()
+        true -> found0(&mut self)
+        _ -> check1(&mut self)
     }
 
-    state check1(&mut self) {
-        transition self.items[1].name == "Shield" { true -> found1() _ -> check2() }
+    state check1(main: &mut Main) {
+        transition main.items[1].name == "Shield" { true -> found1(main) _ -> check2(main) }
     }
-    state check2(&mut self) {
-        transition self.items[2].name == "Shield" { true -> found2() _ -> missing() }
+    state check2(main: &mut Main) {
+        transition main.items[2].name == "Shield" { true -> found2(main) _ -> missing(main) }
     }
 
-    state found0(&mut self) {
-        self.console.write_line("FAIL: matched the wrong slot 0, Sword (exits its id, 10)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.items[0].id);
+    state found0(main: &mut Main) {
+        main.console.write_line("FAIL: matched the wrong slot 0, Sword (exits its id, 10)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.items[0].id);
     }
-    state found1(&mut self) {
-        self.console.write_line("PASS: found Shield at slot 1, id 20 (exit 20)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.items[1].id);
+    state found1(main: &mut Main) {
+        main.console.write_line("PASS: found Shield at slot 1, id 20 (exit 20)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.items[1].id);
     }
-    state found2(&mut self) {
-        self.console.write_line("FAIL: matched the wrong slot 2, Potion (exits its id, 30)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.items[2].id);
+    state found2(main: &mut Main) {
+        main.console.write_line("FAIL: matched the wrong slot 2, Potion (exits its id, 30)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.items[2].id);
     }
-    state missing(&mut self) {
-        self.console.write_line("FAIL: Shield not found in the table (exit 0)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(0);
+    state missing(main: &mut Main) {
+        main.console.write_line("FAIL: Shield not found in the table (exit 0)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(0);
     }
 }

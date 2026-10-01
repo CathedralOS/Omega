@@ -466,691 +466,691 @@ machine Main::main(&mut self) reaches Clock + Console + CoreGraphics + DarwinClo
 
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; client is approximately 512x512.
     self.hwnd = self.gui.window_create(self.cls, self.title, 282001408, 160, 120, 528, 551);
-    transition self.hwnd > 0 { true -> dc() _ -> bad() }
+    transition self.hwnd > 0 { true -> dc(&mut self) _ -> bad(&mut self) }
 
-    state dc(&mut self) {
-        self.hdc = self.gui.get_dc(self.hwnd);
-        transition self.hdc > 0 { true -> frame_loop() _ -> bad() }
+    state dc(main: &mut Main) {
+        main.hdc = main.gui.get_dc(main.hwnd);
+        transition main.hdc > 0 { true -> frame_loop(main) _ -> bad(main) }
     }
 
-    state frame_loop(&mut self) {
-        transition self.frame < 16384 { true -> pump_init() _ -> wrap_frame() }
+    state frame_loop(main: &mut Main) {
+        transition main.frame < 16384 { true -> pump_init(main) _ -> wrap_frame(main) }
     }
-    state wrap_frame(&mut self) { self.frame = 0; transition { _ -> pump_init() } }
+    state wrap_frame(main: &mut Main) { main.frame = 0; transition { _ -> pump_init(main) } }
 
     // Drain at most 16 messages so the title bar, move loop, and close button stay alive.
-    state pump_init(&mut self) { self.pumped = 0; transition { _ -> pump_loop() } }
-    state pump_loop(&mut self) {
-        self.have = self.gui.msg_peek(self.message);
-        transition self.have > 0 { true -> pump_check_close() _ -> liveness() }
+    state pump_init(main: &mut Main) { main.pumped = 0; transition { _ -> pump_loop(main) } }
+    state pump_loop(main: &mut Main) {
+        main.have = main.gui.msg_peek(main.message);
+        transition main.have > 0 { true -> pump_check_close(main) _ -> liveness(main) }
     }
-    state pump_check_close(&mut self) {
-        self.msg_code = self.message[1] % 65536;
-        transition self.msg_code == 16 { true -> quit_self() _ -> pump_check_xdown() }
+    state pump_check_close(main: &mut Main) {
+        main.msg_code = main.message[1] % 65536;
+        transition main.msg_code == 16 { true -> quit_self(main) _ -> pump_check_xdown(main) }
     }
     // The X button arrives as posted WM_NCLBUTTONDOWN (161) with wParam
     // HTCLOSE (20) -- the #32770 dialog proc never turns it into a close, so
     // the pump does. Other non-client presses (caption drag) dispatch normally.
-    state pump_check_xdown(&mut self) {
-        transition self.msg_code == 161 { true -> pump_check_xhit() _ -> pump_check_syscommand() }
+    state pump_check_xdown(main: &mut Main) {
+        transition main.msg_code == 161 { true -> pump_check_xhit(main) _ -> pump_check_syscommand(main) }
     }
-    state pump_check_xhit(&mut self) {
-        transition self.message[2] == 20 { true -> quit_self() _ -> pump_handle() }
+    state pump_check_xhit(main: &mut Main) {
+        transition main.message[2] == 20 { true -> quit_self(main) _ -> pump_handle(main) }
     }
-    state pump_check_syscommand(&mut self) {
-        transition self.msg_code == 274 { true -> pump_check_sysclose() _ -> pump_handle() }
+    state pump_check_syscommand(main: &mut Main) {
+        transition main.msg_code == 274 { true -> pump_check_sysclose(main) _ -> pump_handle(main) }
     }
-    state pump_check_sysclose(&mut self) {
-        transition self.message[2] >= 61536 && self.message[2] < 61552 { true -> quit_self() _ -> pump_handle() }
+    state pump_check_sysclose(main: &mut Main) {
+        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main) _ -> pump_handle(main) }
     }
-    state pump_handle(&mut self) {
-        self.translated = self.gui.msg_translate(self.message);
-        self.dispatched = self.gui.msg_dispatch(self.message);
-        transition self.pumped < 16 { true -> pump_next() _ -> liveness() }
+    state pump_handle(main: &mut Main) {
+        main.translated = main.gui.msg_translate(main.message);
+        main.dispatched = main.gui.msg_dispatch(main.message);
+        transition main.pumped < 16 { true -> pump_next(main) _ -> liveness(main) }
     }
-    state pump_next(&mut self) {
-        self.pumped = self.pumped + 1;
-        transition { _ -> pump_loop() }
+    state pump_next(main: &mut Main) {
+        main.pumped = main.pumped + 1;
+        transition { _ -> pump_loop(main) }
     }
 
-    state liveness(&mut self) {
-        self.alive = self.gui.is_window(self.hwnd);
-        transition self.alive > 0 { true -> focus_check() _ -> closed() }
+    state liveness(main: &mut Main) {
+        main.alive = main.gui.is_window(main.hwnd);
+        transition main.alive > 0 { true -> focus_check(main) _ -> closed(main) }
     }
 
     // GetAsyncKeyState is GLOBAL: without this gate, typing digits (or ESC --
     // even the Ctrl+Shift+Esc chord) in ANY app would drive this calculator.
-    state focus_check(&mut self) {
-        self.fw = self.gui.foreground_window();
-        transition self.fw == self.hwnd { true -> input_escape() _ -> render_prepare() }
+    state focus_check(main: &mut Main) {
+        main.fw = main.gui.foreground_window();
+        transition main.fw == main.hwnd { true -> input_escape(main) _ -> render_prepare(main) }
     }
 
     // Input is deliberately serialized: one accepted key per frame, with a
     // short repeat cooldown. This makes held keys visible but controlled.
-    state input_escape(&mut self) {
-        self.key = self.input.key_state(27);
-        transition self.key > 0 { true -> quit_self() _ -> input_cooldown() }
+    state input_escape(main: &mut Main) {
+        main.key = main.input.key_state(27);
+        transition main.key > 0 { true -> quit_self(main) _ -> input_cooldown(main) }
     }
-    state input_cooldown(&mut self) {
-        transition self.cooldown > 0 { true -> input_cooldown_step() _ -> input_clear_key() }
+    state input_cooldown(main: &mut Main) {
+        transition main.cooldown > 0 { true -> input_cooldown_step(main) _ -> input_clear_key(main) }
     }
-    state input_cooldown_step(&mut self) {
-        self.cooldown = self.cooldown - 1;
-        transition { _ -> render_prepare() }
+    state input_cooldown_step(main: &mut Main) {
+        main.cooldown = main.cooldown - 1;
+        transition { _ -> render_prepare(main) }
     }
-    state input_clear_key(&mut self) {
-        self.last_key = 31;
-        transition { _ -> poll_clear() }
+    state input_clear_key(main: &mut Main) {
+        main.last_key = 31;
+        transition { _ -> poll_clear(main) }
     }
-    state poll_clear(&mut self) {
-        self.key = self.input.key_state(67);
-        transition self.key > 0 { true -> hit_clear() _ -> poll_backspace() }
+    state poll_clear(main: &mut Main) {
+        main.key = main.input.key_state(67);
+        transition main.key > 0 { true -> hit_clear(main) _ -> poll_backspace(main) }
     }
-    state poll_backspace(&mut self) {
-        self.key = self.input.key_state(8);
-        transition self.key > 0 { true -> hit_backspace() _ -> poll_enter() }
+    state poll_backspace(main: &mut Main) {
+        main.key = main.input.key_state(8);
+        transition main.key > 0 { true -> hit_backspace(main) _ -> poll_enter(main) }
     }
-    state poll_enter(&mut self) {
-        self.key = self.input.key_state(13);
-        transition self.key > 0 { true -> hit_equals() _ -> poll_equals_key() }
+    state poll_enter(main: &mut Main) {
+        main.key = main.input.key_state(13);
+        transition main.key > 0 { true -> hit_equals(main) _ -> poll_equals_key(main) }
     }
-    state poll_equals_key(&mut self) {
-        self.key = self.input.key_state(187);
-        transition self.key > 0 { true -> hit_equals() _ -> poll_plus() }
+    state poll_equals_key(main: &mut Main) {
+        main.key = main.input.key_state(187);
+        transition main.key > 0 { true -> hit_equals(main) _ -> poll_plus(main) }
     }
-    state poll_plus(&mut self) {
-        self.key = self.input.key_state(107);
-        transition self.key > 0 { true -> hit_plus() _ -> poll_minus() }
+    state poll_plus(main: &mut Main) {
+        main.key = main.input.key_state(107);
+        transition main.key > 0 { true -> hit_plus(main) _ -> poll_minus(main) }
     }
-    state poll_minus(&mut self) {
-        self.key = self.input.key_state(109);
-        transition self.key > 0 { true -> hit_minus() _ -> poll_multiply() }
+    state poll_minus(main: &mut Main) {
+        main.key = main.input.key_state(109);
+        transition main.key > 0 { true -> hit_minus(main) _ -> poll_multiply(main) }
     }
-    state poll_multiply(&mut self) {
-        self.key = self.input.key_state(106);
-        transition self.key > 0 { true -> hit_multiply() _ -> poll_divide() }
+    state poll_multiply(main: &mut Main) {
+        main.key = main.input.key_state(106);
+        transition main.key > 0 { true -> hit_multiply(main) _ -> poll_divide(main) }
     }
-    state poll_divide(&mut self) {
-        self.key = self.input.key_state(111);
-        transition self.key > 0 { true -> hit_divide() _ -> poll_sign() }
+    state poll_divide(main: &mut Main) {
+        main.key = main.input.key_state(111);
+        transition main.key > 0 { true -> hit_divide(main) _ -> poll_sign(main) }
     }
-    state poll_sign(&mut self) {
-        self.key = self.input.key_state(83);
-        transition self.key > 0 { true -> hit_sign() _ -> poll_memory_add() }
+    state poll_sign(main: &mut Main) {
+        main.key = main.input.key_state(83);
+        transition main.key > 0 { true -> hit_sign(main) _ -> poll_memory_add(main) }
     }
-    state poll_memory_add(&mut self) {
-        self.key = self.input.key_state(77);
-        transition self.key > 0 { true -> hit_memory_add() _ -> poll_memory_recall() }
+    state poll_memory_add(main: &mut Main) {
+        main.key = main.input.key_state(77);
+        transition main.key > 0 { true -> hit_memory_add(main) _ -> poll_memory_recall(main) }
     }
-    state poll_memory_recall(&mut self) {
-        self.key = self.input.key_state(82);
-        transition self.key > 0 { true -> hit_memory_recall() _ -> poll_digit0() }
+    state poll_memory_recall(main: &mut Main) {
+        main.key = main.input.key_state(82);
+        transition main.key > 0 { true -> hit_memory_recall(main) _ -> poll_digit0(main) }
     }
-    state poll_digit0(&mut self) {
-        self.key = self.input.key_state(48);
-        transition self.key > 0 { true -> hit_digit0() _ -> poll_digit1() }
+    state poll_digit0(main: &mut Main) {
+        main.key = main.input.key_state(48);
+        transition main.key > 0 { true -> hit_digit0(main) _ -> poll_digit1(main) }
     }
-    state poll_digit1(&mut self) {
-        self.key = self.input.key_state(49);
-        transition self.key > 0 { true -> hit_digit1() _ -> poll_digit2() }
+    state poll_digit1(main: &mut Main) {
+        main.key = main.input.key_state(49);
+        transition main.key > 0 { true -> hit_digit1(main) _ -> poll_digit2(main) }
     }
-    state poll_digit2(&mut self) {
-        self.key = self.input.key_state(50);
-        transition self.key > 0 { true -> hit_digit2() _ -> poll_digit3() }
+    state poll_digit2(main: &mut Main) {
+        main.key = main.input.key_state(50);
+        transition main.key > 0 { true -> hit_digit2(main) _ -> poll_digit3(main) }
     }
-    state poll_digit3(&mut self) {
-        self.key = self.input.key_state(51);
-        transition self.key > 0 { true -> hit_digit3() _ -> poll_digit4() }
+    state poll_digit3(main: &mut Main) {
+        main.key = main.input.key_state(51);
+        transition main.key > 0 { true -> hit_digit3(main) _ -> poll_digit4(main) }
     }
-    state poll_digit4(&mut self) {
-        self.key = self.input.key_state(52);
-        transition self.key > 0 { true -> hit_digit4() _ -> poll_digit5() }
+    state poll_digit4(main: &mut Main) {
+        main.key = main.input.key_state(52);
+        transition main.key > 0 { true -> hit_digit4(main) _ -> poll_digit5(main) }
     }
-    state poll_digit5(&mut self) {
-        self.key = self.input.key_state(53);
-        transition self.key > 0 { true -> hit_digit5() _ -> poll_digit6() }
+    state poll_digit5(main: &mut Main) {
+        main.key = main.input.key_state(53);
+        transition main.key > 0 { true -> hit_digit5(main) _ -> poll_digit6(main) }
     }
-    state poll_digit6(&mut self) {
-        self.key = self.input.key_state(54);
-        transition self.key > 0 { true -> hit_digit6() _ -> poll_digit7() }
+    state poll_digit6(main: &mut Main) {
+        main.key = main.input.key_state(54);
+        transition main.key > 0 { true -> hit_digit6(main) _ -> poll_digit7(main) }
     }
-    state poll_digit7(&mut self) {
-        self.key = self.input.key_state(55);
-        transition self.key > 0 { true -> hit_digit7() _ -> poll_digit8() }
+    state poll_digit7(main: &mut Main) {
+        main.key = main.input.key_state(55);
+        transition main.key > 0 { true -> hit_digit7(main) _ -> poll_digit8(main) }
     }
-    state poll_digit8(&mut self) {
-        self.key = self.input.key_state(56);
-        transition self.key > 0 { true -> hit_digit8() _ -> poll_digit9() }
+    state poll_digit8(main: &mut Main) {
+        main.key = main.input.key_state(56);
+        transition main.key > 0 { true -> hit_digit8(main) _ -> poll_digit9(main) }
     }
-    state poll_digit9(&mut self) {
-        self.key = self.input.key_state(57);
-        transition self.key > 0 { true -> hit_digit9() _ -> render_prepare() }
+    state poll_digit9(main: &mut Main) {
+        main.key = main.input.key_state(57);
+        transition main.key > 0 { true -> hit_digit9(main) _ -> render_prepare(main) }
     }
 
-    state hit_digit0(&mut self) { Main::accept_digit(&mut self, 0, 0); transition { _ -> render_prepare() } }
-    state hit_digit1(&mut self) { Main::accept_digit(&mut self, 1, 1); transition { _ -> render_prepare() } }
-    state hit_digit2(&mut self) { Main::accept_digit(&mut self, 2, 2); transition { _ -> render_prepare() } }
-    state hit_digit3(&mut self) { Main::accept_digit(&mut self, 3, 3); transition { _ -> render_prepare() } }
-    state hit_digit4(&mut self) { Main::accept_digit(&mut self, 4, 4); transition { _ -> render_prepare() } }
-    state hit_digit5(&mut self) { Main::accept_digit(&mut self, 5, 5); transition { _ -> render_prepare() } }
-    state hit_digit6(&mut self) { Main::accept_digit(&mut self, 6, 6); transition { _ -> render_prepare() } }
-    state hit_digit7(&mut self) { Main::accept_digit(&mut self, 7, 7); transition { _ -> render_prepare() } }
-    state hit_digit8(&mut self) { Main::accept_digit(&mut self, 8, 8); transition { _ -> render_prepare() } }
-    state hit_digit9(&mut self) { Main::accept_digit(&mut self, 9, 9); transition { _ -> render_prepare() } }
-    state hit_plus(&mut self) { Main::accept_operator(&mut self, 1, 11); transition { _ -> render_prepare() } }
-    state hit_minus(&mut self) { Main::accept_operator(&mut self, 2, 12); transition { _ -> render_prepare() } }
-    state hit_multiply(&mut self) { Main::accept_operator(&mut self, 3, 13); transition { _ -> render_prepare() } }
-    state hit_divide(&mut self) { Main::accept_operator(&mut self, 4, 14); transition { _ -> render_prepare() } }
-    state hit_equals(&mut self) { Main::accept_equals(&mut self); transition { _ -> render_prepare() } }
-    state hit_clear(&mut self) { Main::clear_all(&mut self, 22); transition { _ -> render_prepare() } }
-    state hit_backspace(&mut self) { Main::backspace(&mut self); transition { _ -> render_prepare() } }
-    state hit_sign(&mut self) { Main::toggle_sign(&mut self); transition { _ -> render_prepare() } }
-    state hit_memory_add(&mut self) { Main::memory_add(&mut self); transition { _ -> render_prepare() } }
-    state hit_memory_recall(&mut self) { Main::memory_recall(&mut self); transition { _ -> render_prepare() } }
+    state hit_digit0(main: &mut Main) { Main::accept_digit(&mut main, 0, 0); transition { _ -> render_prepare(main) } }
+    state hit_digit1(main: &mut Main) { Main::accept_digit(&mut main, 1, 1); transition { _ -> render_prepare(main) } }
+    state hit_digit2(main: &mut Main) { Main::accept_digit(&mut main, 2, 2); transition { _ -> render_prepare(main) } }
+    state hit_digit3(main: &mut Main) { Main::accept_digit(&mut main, 3, 3); transition { _ -> render_prepare(main) } }
+    state hit_digit4(main: &mut Main) { Main::accept_digit(&mut main, 4, 4); transition { _ -> render_prepare(main) } }
+    state hit_digit5(main: &mut Main) { Main::accept_digit(&mut main, 5, 5); transition { _ -> render_prepare(main) } }
+    state hit_digit6(main: &mut Main) { Main::accept_digit(&mut main, 6, 6); transition { _ -> render_prepare(main) } }
+    state hit_digit7(main: &mut Main) { Main::accept_digit(&mut main, 7, 7); transition { _ -> render_prepare(main) } }
+    state hit_digit8(main: &mut Main) { Main::accept_digit(&mut main, 8, 8); transition { _ -> render_prepare(main) } }
+    state hit_digit9(main: &mut Main) { Main::accept_digit(&mut main, 9, 9); transition { _ -> render_prepare(main) } }
+    state hit_plus(main: &mut Main) { Main::accept_operator(&mut main, 1, 11); transition { _ -> render_prepare(main) } }
+    state hit_minus(main: &mut Main) { Main::accept_operator(&mut main, 2, 12); transition { _ -> render_prepare(main) } }
+    state hit_multiply(main: &mut Main) { Main::accept_operator(&mut main, 3, 13); transition { _ -> render_prepare(main) } }
+    state hit_divide(main: &mut Main) { Main::accept_operator(&mut main, 4, 14); transition { _ -> render_prepare(main) } }
+    state hit_equals(main: &mut Main) { Main::accept_equals(&mut main); transition { _ -> render_prepare(main) } }
+    state hit_clear(main: &mut Main) { Main::clear_all(&mut main, 22); transition { _ -> render_prepare(main) } }
+    state hit_backspace(main: &mut Main) { Main::backspace(&mut main); transition { _ -> render_prepare(main) } }
+    state hit_sign(main: &mut Main) { Main::toggle_sign(&mut main); transition { _ -> render_prepare(main) } }
+    state hit_memory_add(main: &mut Main) { Main::memory_add(&mut main); transition { _ -> render_prepare(main) } }
+    state hit_memory_recall(main: &mut Main) { Main::memory_recall(&mut main); transition { _ -> render_prepare(main) } }
 
     // Turn the current display value into sign + four decimal digits before
     // the framebuffer loop reads it.
-    state render_prepare(&mut self) {
-        transition self.typing > 0 { true -> prepare_current() _ -> prepare_accumulator() }
+    state render_prepare(main: &mut Main) {
+        transition main.typing > 0 { true -> prepare_current(main) _ -> prepare_accumulator(main) }
     }
-    state prepare_current(&mut self) {
-        self.display_value = self.current;
-        transition { _ -> prepare_sign() }
+    state prepare_current(main: &mut Main) {
+        main.display_value = main.current;
+        transition { _ -> prepare_sign(main) }
     }
-    state prepare_accumulator(&mut self) {
-        self.display_value = self.accumulator;
-        transition { _ -> prepare_sign() }
+    state prepare_accumulator(main: &mut Main) {
+        main.display_value = main.accumulator;
+        transition { _ -> prepare_sign(main) }
     }
-    state prepare_sign(&mut self) {
-        transition self.display_value < 0 { true -> prepare_negative() _ -> prepare_positive() }
+    state prepare_sign(main: &mut Main) {
+        transition main.display_value < 0 { true -> prepare_negative(main) _ -> prepare_positive(main) }
     }
-    state prepare_negative(&mut self) {
-        self.sign = 1;
-        self.display_work = 0 - self.display_value;
-        transition { _ -> prepare_digits() }
+    state prepare_negative(main: &mut Main) {
+        main.sign = 1;
+        main.display_work = 0 - main.display_value;
+        transition { _ -> prepare_digits(main) }
     }
-    state prepare_positive(&mut self) {
-        self.sign = 0;
-        self.display_work = self.display_value;
-        transition { _ -> prepare_digits() }
+    state prepare_positive(main: &mut Main) {
+        main.sign = 0;
+        main.display_work = main.display_value;
+        transition { _ -> prepare_digits(main) }
     }
-    state prepare_digits(&mut self) {
-        self.display_work = self.display_work % 10000;
-        self.digit0 = self.display_work % 10;
-        self.display_work = self.display_work / 10;
-        self.digit1 = self.display_work % 10;
-        self.display_work = self.display_work / 10;
-        self.digit2 = self.display_work % 10;
-        self.display_work = self.display_work / 10;
-        self.digit3 = self.display_work % 10;
-        self.i = 0;
-        transition { _ -> fill_loop() }
-    }
-
-    state fill_loop(&mut self) {
-        transition self.i >= 0 && self.i < 4096 { true -> fill_cell() _ -> present() }
-    }
-    state fill_cell(&mut self) {
-        self.row = min(max(self.i / 64, 0), 63);
-        self.col = min(max(self.i % 64, 0), 63);
-        self.px = 1318440 + ((self.frame % 32) * 1024);
-        transition self.row < 16 { true -> display_pixel() _ -> keypad_region() }
-    }
-    state display_pixel(&mut self) {
-        self.px = 461325;
-        transition self.row >= 2 && self.row < 13 && self.col >= 28 && self.col < 60 {
-            true -> display_digit_slot()
-            _ -> display_sign()
-        }
-    }
-    state display_sign(&mut self) {
-        transition self.sign > 0 && self.row == 8 && self.col >= 20 && self.col <= 25 {
-            true -> display_mark()
-            _ -> display_error()
-        }
-    }
-    state display_error(&mut self) {
-        transition self.error > 0 && self.row >= 4 && self.row <= 10 && self.col >= 6 && self.col <= 14 {
-            true -> display_mark()
-            _ -> write_pixel_guard()
-        }
-    }
-    state display_mark(&mut self) {
-        self.px = 16759616;
-        transition { _ -> write_pixel_guard() }
-    }
-    state display_digit_slot(&mut self) {
-        self.local_x = (self.col - 28) % 8;
-        self.local_y = self.row - 2;
-        transition self.col < 36 { true -> use_digit3() _ -> display_digit_slot1() }
-    }
-    state display_digit_slot1(&mut self) {
-        transition self.col < 44 { true -> use_digit2() _ -> display_digit_slot2() }
-    }
-    state display_digit_slot2(&mut self) {
-        transition self.col < 52 { true -> use_digit1() _ -> use_digit0() }
-    }
-    state use_digit3(&mut self) { self.draw_digit = self.digit3; transition { _ -> segment_a() } }
-    state use_digit2(&mut self) { self.draw_digit = self.digit2; transition { _ -> segment_a() } }
-    state use_digit1(&mut self) { self.draw_digit = self.digit1; transition { _ -> segment_a() } }
-    state use_digit0(&mut self) { self.draw_digit = self.digit0; transition { _ -> segment_a() } }
-
-    state segment_a(&mut self) {
-        transition self.local_y == 0 && self.local_x >= 2 && self.local_x <= 5 {
-            true -> segment_set_a()
-            _ -> segment_b()
-        }
-    }
-    state segment_set_a(&mut self) { self.segment = 0; transition { _ -> segment_apply() } }
-    state segment_b(&mut self) {
-        transition self.local_x == 6 && self.local_y >= 1 && self.local_y <= 4 {
-            true -> segment_set_b()
-            _ -> segment_c()
-        }
-    }
-    state segment_set_b(&mut self) { self.segment = 1; transition { _ -> segment_apply() } }
-    state segment_c(&mut self) {
-        transition self.local_x == 6 && self.local_y >= 6 && self.local_y <= 9 {
-            true -> segment_set_c()
-            _ -> segment_d()
-        }
-    }
-    state segment_set_c(&mut self) { self.segment = 2; transition { _ -> segment_apply() } }
-    state segment_d(&mut self) {
-        transition self.local_y == 10 && self.local_x >= 2 && self.local_x <= 5 {
-            true -> segment_set_d()
-            _ -> segment_e()
-        }
-    }
-    state segment_set_d(&mut self) { self.segment = 3; transition { _ -> segment_apply() } }
-    state segment_e(&mut self) {
-        transition self.local_x == 1 && self.local_y >= 6 && self.local_y <= 9 {
-            true -> segment_set_e()
-            _ -> segment_f()
-        }
-    }
-    state segment_set_e(&mut self) { self.segment = 4; transition { _ -> segment_apply() } }
-    state segment_f(&mut self) {
-        transition self.local_x == 1 && self.local_y >= 1 && self.local_y <= 4 {
-            true -> segment_set_f()
-            _ -> segment_g()
-        }
-    }
-    state segment_set_f(&mut self) { self.segment = 5; transition { _ -> segment_apply() } }
-    state segment_g(&mut self) {
-        transition self.local_y == 5 && self.local_x >= 2 && self.local_x <= 5 {
-            true -> segment_set_g()
-            _ -> write_pixel_guard()
-        }
-    }
-    state segment_set_g(&mut self) { self.segment = 6; transition { _ -> segment_apply() } }
-
-    state segment_apply(&mut self) {
-        transition self.draw_digit == 0 { true -> digit0_segment() _ -> digit1_check() }
-    }
-    state digit1_check(&mut self) {
-        transition self.draw_digit == 1 { true -> digit1_segment() _ -> digit2_check() }
-    }
-    state digit2_check(&mut self) {
-        transition self.draw_digit == 2 { true -> digit2_segment() _ -> digit3_check() }
-    }
-    state digit3_check(&mut self) {
-        transition self.draw_digit == 3 { true -> digit3_segment() _ -> digit4_check() }
-    }
-    state digit4_check(&mut self) {
-        transition self.draw_digit == 4 { true -> digit4_segment() _ -> digit5_check() }
-    }
-    state digit5_check(&mut self) {
-        transition self.draw_digit == 5 { true -> digit5_segment() _ -> digit6_check() }
-    }
-    state digit6_check(&mut self) {
-        transition self.draw_digit == 6 { true -> digit6_segment() _ -> digit7_check() }
-    }
-    state digit7_check(&mut self) {
-        transition self.draw_digit == 7 { true -> digit7_segment() _ -> digit8_check() }
-    }
-    state digit8_check(&mut self) {
-        transition self.draw_digit == 8 { true -> digit8_segment() _ -> digit9_segment() }
-    }
-    state digit0_segment(&mut self) {
-        transition self.segment != 6 { true -> segment_on() _ -> write_pixel_guard() }
-    }
-    state digit1_segment(&mut self) {
-        transition self.segment == 1 || self.segment == 2 { true -> segment_on() _ -> write_pixel_guard() }
-    }
-    state digit2_segment(&mut self) {
-        transition self.segment == 0 || self.segment == 1 || self.segment == 6 || self.segment == 4 || self.segment == 3 {
-            true -> segment_on()
-            _ -> write_pixel_guard()
-        }
-    }
-    state digit3_segment(&mut self) {
-        transition self.segment == 0 || self.segment == 1 || self.segment == 2 || self.segment == 3 || self.segment == 6 {
-            true -> segment_on()
-            _ -> write_pixel_guard()
-        }
-    }
-    state digit4_segment(&mut self) {
-        transition self.segment == 5 || self.segment == 6 || self.segment == 1 || self.segment == 2 {
-            true -> segment_on()
-            _ -> write_pixel_guard()
-        }
-    }
-    state digit5_segment(&mut self) {
-        transition self.segment == 0 || self.segment == 5 || self.segment == 6 || self.segment == 2 || self.segment == 3 {
-            true -> segment_on()
-            _ -> write_pixel_guard()
-        }
-    }
-    state digit6_segment(&mut self) {
-        transition self.segment == 0 || self.segment == 5 || self.segment == 4 || self.segment == 3 || self.segment == 2 || self.segment == 6 {
-            true -> segment_on()
-            _ -> write_pixel_guard()
-        }
-    }
-    state digit7_segment(&mut self) {
-        transition self.segment == 0 || self.segment == 1 || self.segment == 2 { true -> segment_on() _ -> write_pixel_guard() }
-    }
-    state digit8_segment(&mut self) { transition { _ -> segment_on() } }
-    state digit9_segment(&mut self) {
-        transition self.segment != 4 { true -> segment_on() _ -> write_pixel_guard() }
-    }
-    state segment_on(&mut self) {
-        self.px = 52991;
-        transition { _ -> write_pixel_guard() }
+    state prepare_digits(main: &mut Main) {
+        main.display_work = main.display_work % 10000;
+        main.digit0 = main.display_work % 10;
+        main.display_work = main.display_work / 10;
+        main.digit1 = main.display_work % 10;
+        main.display_work = main.display_work / 10;
+        main.digit2 = main.display_work % 10;
+        main.display_work = main.display_work / 10;
+        main.digit3 = main.display_work % 10;
+        main.i = 0;
+        transition { _ -> fill_loop(main) }
     }
 
-    state keypad_region(&mut self) {
-        transition self.row >= 18 && self.row < 63 { true -> button_prepare() _ -> write_pixel_guard() }
+    state fill_loop(main: &mut Main) {
+        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main) _ -> present(main) }
     }
-    state button_prepare(&mut self) {
-        self.button_row = min(max((self.row - 18) / 9, 0), 4);
-        self.button_col = min(max(self.col / 16, 0), 3);
-        self.button_lx = self.col % 16;
-        self.button_ly = (self.row - 18) % 9;
-        transition self.button_row == 0 { true -> button_row0() _ -> button_row1_check() }
+    state fill_cell(main: &mut Main) {
+        main.row = min(max(main.i / 64, 0), 63);
+        main.col = min(max(main.i % 64, 0), 63);
+        main.px = 1318440 + ((main.frame % 32) * 1024);
+        transition main.row < 16 { true -> display_pixel(main) _ -> keypad_region(main) }
     }
-    state button_row1_check(&mut self) {
-        transition self.button_row == 1 { true -> button_row1() _ -> button_row2_check() }
-    }
-    state button_row2_check(&mut self) {
-        transition self.button_row == 2 { true -> button_row2() _ -> button_row3_check() }
-    }
-    state button_row3_check(&mut self) {
-        transition self.button_row == 3 { true -> button_row3() _ -> button_row4() }
-    }
-    state button_row0(&mut self) {
-        transition self.button_col == 0 { true -> button_code_memory_add() _ -> button_row0_col1() }
-    }
-    state button_row0_col1(&mut self) {
-        transition self.button_col == 1 { true -> button_code_memory_recall() _ -> button_row0_col2() }
-    }
-    state button_row0_col2(&mut self) {
-        transition self.button_col == 2 { true -> button_code_clear() _ -> button_code_backspace() }
-    }
-    state button_row1(&mut self) {
-        transition self.button_col == 0 { true -> button_code7() _ -> button_row1_col1() }
-    }
-    state button_row1_col1(&mut self) {
-        transition self.button_col == 1 { true -> button_code8() _ -> button_row1_col2() }
-    }
-    state button_row1_col2(&mut self) {
-        transition self.button_col == 2 { true -> button_code9() _ -> button_code_divide() }
-    }
-    state button_row2(&mut self) {
-        transition self.button_col == 0 { true -> button_code4() _ -> button_row2_col1() }
-    }
-    state button_row2_col1(&mut self) {
-        transition self.button_col == 1 { true -> button_code5() _ -> button_row2_col2() }
-    }
-    state button_row2_col2(&mut self) {
-        transition self.button_col == 2 { true -> button_code6() _ -> button_code_multiply() }
-    }
-    state button_row3(&mut self) {
-        transition self.button_col == 0 { true -> button_code1() _ -> button_row3_col1() }
-    }
-    state button_row3_col1(&mut self) {
-        transition self.button_col == 1 { true -> button_code2() _ -> button_row3_col2() }
-    }
-    state button_row3_col2(&mut self) {
-        transition self.button_col == 2 { true -> button_code3() _ -> button_code_minus() }
-    }
-    state button_row4(&mut self) {
-        transition self.button_col == 0 { true -> button_code_sign() _ -> button_row4_col1() }
-    }
-    state button_row4_col1(&mut self) {
-        transition self.button_col == 1 { true -> button_code0() _ -> button_row4_col2() }
-    }
-    state button_row4_col2(&mut self) {
-        transition self.button_col == 2 { true -> button_code_equals() _ -> button_code_plus() }
-    }
-    state button_code0(&mut self) { self.button_code = 0; transition { _ -> button_paint() } }
-    state button_code1(&mut self) { self.button_code = 1; transition { _ -> button_paint() } }
-    state button_code2(&mut self) { self.button_code = 2; transition { _ -> button_paint() } }
-    state button_code3(&mut self) { self.button_code = 3; transition { _ -> button_paint() } }
-    state button_code4(&mut self) { self.button_code = 4; transition { _ -> button_paint() } }
-    state button_code5(&mut self) { self.button_code = 5; transition { _ -> button_paint() } }
-    state button_code6(&mut self) { self.button_code = 6; transition { _ -> button_paint() } }
-    state button_code7(&mut self) { self.button_code = 7; transition { _ -> button_paint() } }
-    state button_code8(&mut self) { self.button_code = 8; transition { _ -> button_paint() } }
-    state button_code9(&mut self) { self.button_code = 9; transition { _ -> button_paint() } }
-    state button_code_plus(&mut self) { self.button_code = 11; transition { _ -> button_paint() } }
-    state button_code_minus(&mut self) { self.button_code = 12; transition { _ -> button_paint() } }
-    state button_code_multiply(&mut self) { self.button_code = 13; transition { _ -> button_paint() } }
-    state button_code_divide(&mut self) { self.button_code = 14; transition { _ -> button_paint() } }
-    state button_code_sign(&mut self) { self.button_code = 15; transition { _ -> button_paint() } }
-    state button_code_equals(&mut self) { self.button_code = 16; transition { _ -> button_paint() } }
-    state button_code_memory_add(&mut self) { self.button_code = 20; transition { _ -> button_paint() } }
-    state button_code_memory_recall(&mut self) { self.button_code = 21; transition { _ -> button_paint() } }
-    state button_code_clear(&mut self) { self.button_code = 22; transition { _ -> button_paint() } }
-    state button_code_backspace(&mut self) { self.button_code = 23; transition { _ -> button_paint() } }
-
-    state button_paint(&mut self) {
-        self.px = 2171169;
-        transition self.button_code == self.last_key { true -> button_active() _ -> button_border() }
-    }
-    state button_active(&mut self) {
-        self.px = 5335039;
-        transition { _ -> button_border() }
-    }
-    state button_border(&mut self) {
-        transition self.button_lx == 0 || self.button_lx == 15 || self.button_ly == 0 || self.button_ly == 8 {
-            true -> button_border_paint()
-            _ -> button_label()
+    state display_pixel(main: &mut Main) {
+        main.px = 461325;
+        transition main.row >= 2 && main.row < 13 && main.col >= 28 && main.col < 60 {
+            true -> display_digit_slot(main)
+            _ -> display_sign(main)
         }
     }
-    state button_border_paint(&mut self) {
-        self.px = 8421504;
-        transition { _ -> write_pixel_guard() }
+    state display_sign(main: &mut Main) {
+        transition main.sign > 0 && main.row == 8 && main.col >= 20 && main.col <= 25 {
+            true -> display_mark(main)
+            _ -> display_error(main)
+        }
+    }
+    state display_error(main: &mut Main) {
+        transition main.error > 0 && main.row >= 4 && main.row <= 10 && main.col >= 6 && main.col <= 14 {
+            true -> display_mark(main)
+            _ -> write_pixel_guard(main)
+        }
+    }
+    state display_mark(main: &mut Main) {
+        main.px = 16759616;
+        transition { _ -> write_pixel_guard(main) }
+    }
+    state display_digit_slot(main: &mut Main) {
+        main.local_x = (main.col - 28) % 8;
+        main.local_y = main.row - 2;
+        transition main.col < 36 { true -> use_digit3(main) _ -> display_digit_slot1(main) }
+    }
+    state display_digit_slot1(main: &mut Main) {
+        transition main.col < 44 { true -> use_digit2(main) _ -> display_digit_slot2(main) }
+    }
+    state display_digit_slot2(main: &mut Main) {
+        transition main.col < 52 { true -> use_digit1(main) _ -> use_digit0(main) }
+    }
+    state use_digit3(main: &mut Main) { main.draw_digit = main.digit3; transition { _ -> segment_a(main) } }
+    state use_digit2(main: &mut Main) { main.draw_digit = main.digit2; transition { _ -> segment_a(main) } }
+    state use_digit1(main: &mut Main) { main.draw_digit = main.digit1; transition { _ -> segment_a(main) } }
+    state use_digit0(main: &mut Main) { main.draw_digit = main.digit0; transition { _ -> segment_a(main) } }
+
+    state segment_a(main: &mut Main) {
+        transition main.local_y == 0 && main.local_x >= 2 && main.local_x <= 5 {
+            true -> segment_set_a(main)
+            _ -> segment_b(main)
+        }
+    }
+    state segment_set_a(main: &mut Main) { main.segment = 0; transition { _ -> segment_apply(main) } }
+    state segment_b(main: &mut Main) {
+        transition main.local_x == 6 && main.local_y >= 1 && main.local_y <= 4 {
+            true -> segment_set_b(main)
+            _ -> segment_c(main)
+        }
+    }
+    state segment_set_b(main: &mut Main) { main.segment = 1; transition { _ -> segment_apply(main) } }
+    state segment_c(main: &mut Main) {
+        transition main.local_x == 6 && main.local_y >= 6 && main.local_y <= 9 {
+            true -> segment_set_c(main)
+            _ -> segment_d(main)
+        }
+    }
+    state segment_set_c(main: &mut Main) { main.segment = 2; transition { _ -> segment_apply(main) } }
+    state segment_d(main: &mut Main) {
+        transition main.local_y == 10 && main.local_x >= 2 && main.local_x <= 5 {
+            true -> segment_set_d(main)
+            _ -> segment_e(main)
+        }
+    }
+    state segment_set_d(main: &mut Main) { main.segment = 3; transition { _ -> segment_apply(main) } }
+    state segment_e(main: &mut Main) {
+        transition main.local_x == 1 && main.local_y >= 6 && main.local_y <= 9 {
+            true -> segment_set_e(main)
+            _ -> segment_f(main)
+        }
+    }
+    state segment_set_e(main: &mut Main) { main.segment = 4; transition { _ -> segment_apply(main) } }
+    state segment_f(main: &mut Main) {
+        transition main.local_x == 1 && main.local_y >= 1 && main.local_y <= 4 {
+            true -> segment_set_f(main)
+            _ -> segment_g(main)
+        }
+    }
+    state segment_set_f(main: &mut Main) { main.segment = 5; transition { _ -> segment_apply(main) } }
+    state segment_g(main: &mut Main) {
+        transition main.local_y == 5 && main.local_x >= 2 && main.local_x <= 5 {
+            true -> segment_set_g(main)
+            _ -> write_pixel_guard(main)
+        }
+    }
+    state segment_set_g(main: &mut Main) { main.segment = 6; transition { _ -> segment_apply(main) } }
+
+    state segment_apply(main: &mut Main) {
+        transition main.draw_digit == 0 { true -> digit0_segment(main) _ -> digit1_check(main) }
+    }
+    state digit1_check(main: &mut Main) {
+        transition main.draw_digit == 1 { true -> digit1_segment(main) _ -> digit2_check(main) }
+    }
+    state digit2_check(main: &mut Main) {
+        transition main.draw_digit == 2 { true -> digit2_segment(main) _ -> digit3_check(main) }
+    }
+    state digit3_check(main: &mut Main) {
+        transition main.draw_digit == 3 { true -> digit3_segment(main) _ -> digit4_check(main) }
+    }
+    state digit4_check(main: &mut Main) {
+        transition main.draw_digit == 4 { true -> digit4_segment(main) _ -> digit5_check(main) }
+    }
+    state digit5_check(main: &mut Main) {
+        transition main.draw_digit == 5 { true -> digit5_segment(main) _ -> digit6_check(main) }
+    }
+    state digit6_check(main: &mut Main) {
+        transition main.draw_digit == 6 { true -> digit6_segment(main) _ -> digit7_check(main) }
+    }
+    state digit7_check(main: &mut Main) {
+        transition main.draw_digit == 7 { true -> digit7_segment(main) _ -> digit8_check(main) }
+    }
+    state digit8_check(main: &mut Main) {
+        transition main.draw_digit == 8 { true -> digit8_segment(main) _ -> digit9_segment(main) }
+    }
+    state digit0_segment(main: &mut Main) {
+        transition main.segment != 6 { true -> segment_on(main) _ -> write_pixel_guard(main) }
+    }
+    state digit1_segment(main: &mut Main) {
+        transition main.segment == 1 || main.segment == 2 { true -> segment_on(main) _ -> write_pixel_guard(main) }
+    }
+    state digit2_segment(main: &mut Main) {
+        transition main.segment == 0 || main.segment == 1 || main.segment == 6 || main.segment == 4 || main.segment == 3 {
+            true -> segment_on(main)
+            _ -> write_pixel_guard(main)
+        }
+    }
+    state digit3_segment(main: &mut Main) {
+        transition main.segment == 0 || main.segment == 1 || main.segment == 2 || main.segment == 3 || main.segment == 6 {
+            true -> segment_on(main)
+            _ -> write_pixel_guard(main)
+        }
+    }
+    state digit4_segment(main: &mut Main) {
+        transition main.segment == 5 || main.segment == 6 || main.segment == 1 || main.segment == 2 {
+            true -> segment_on(main)
+            _ -> write_pixel_guard(main)
+        }
+    }
+    state digit5_segment(main: &mut Main) {
+        transition main.segment == 0 || main.segment == 5 || main.segment == 6 || main.segment == 2 || main.segment == 3 {
+            true -> segment_on(main)
+            _ -> write_pixel_guard(main)
+        }
+    }
+    state digit6_segment(main: &mut Main) {
+        transition main.segment == 0 || main.segment == 5 || main.segment == 4 || main.segment == 3 || main.segment == 2 || main.segment == 6 {
+            true -> segment_on(main)
+            _ -> write_pixel_guard(main)
+        }
+    }
+    state digit7_segment(main: &mut Main) {
+        transition main.segment == 0 || main.segment == 1 || main.segment == 2 { true -> segment_on(main) _ -> write_pixel_guard(main) }
+    }
+    state digit8_segment(main: &mut Main) { transition { _ -> segment_on(main) } }
+    state digit9_segment(main: &mut Main) {
+        transition main.segment != 4 { true -> segment_on(main) _ -> write_pixel_guard(main) }
+    }
+    state segment_on(main: &mut Main) {
+        main.px = 52991;
+        transition { _ -> write_pixel_guard(main) }
+    }
+
+    state keypad_region(main: &mut Main) {
+        transition main.row >= 18 && main.row < 63 { true -> button_prepare(main) _ -> write_pixel_guard(main) }
+    }
+    state button_prepare(main: &mut Main) {
+        main.button_row = min(max((main.row - 18) / 9, 0), 4);
+        main.button_col = min(max(main.col / 16, 0), 3);
+        main.button_lx = main.col % 16;
+        main.button_ly = (main.row - 18) % 9;
+        transition main.button_row == 0 { true -> button_row0(main) _ -> button_row1_check(main) }
+    }
+    state button_row1_check(main: &mut Main) {
+        transition main.button_row == 1 { true -> button_row1(main) _ -> button_row2_check(main) }
+    }
+    state button_row2_check(main: &mut Main) {
+        transition main.button_row == 2 { true -> button_row2(main) _ -> button_row3_check(main) }
+    }
+    state button_row3_check(main: &mut Main) {
+        transition main.button_row == 3 { true -> button_row3(main) _ -> button_row4(main) }
+    }
+    state button_row0(main: &mut Main) {
+        transition main.button_col == 0 { true -> button_code_memory_add(main) _ -> button_row0_col1(main) }
+    }
+    state button_row0_col1(main: &mut Main) {
+        transition main.button_col == 1 { true -> button_code_memory_recall(main) _ -> button_row0_col2(main) }
+    }
+    state button_row0_col2(main: &mut Main) {
+        transition main.button_col == 2 { true -> button_code_clear(main) _ -> button_code_backspace(main) }
+    }
+    state button_row1(main: &mut Main) {
+        transition main.button_col == 0 { true -> button_code7(main) _ -> button_row1_col1(main) }
+    }
+    state button_row1_col1(main: &mut Main) {
+        transition main.button_col == 1 { true -> button_code8(main) _ -> button_row1_col2(main) }
+    }
+    state button_row1_col2(main: &mut Main) {
+        transition main.button_col == 2 { true -> button_code9(main) _ -> button_code_divide(main) }
+    }
+    state button_row2(main: &mut Main) {
+        transition main.button_col == 0 { true -> button_code4(main) _ -> button_row2_col1(main) }
+    }
+    state button_row2_col1(main: &mut Main) {
+        transition main.button_col == 1 { true -> button_code5(main) _ -> button_row2_col2(main) }
+    }
+    state button_row2_col2(main: &mut Main) {
+        transition main.button_col == 2 { true -> button_code6(main) _ -> button_code_multiply(main) }
+    }
+    state button_row3(main: &mut Main) {
+        transition main.button_col == 0 { true -> button_code1(main) _ -> button_row3_col1(main) }
+    }
+    state button_row3_col1(main: &mut Main) {
+        transition main.button_col == 1 { true -> button_code2(main) _ -> button_row3_col2(main) }
+    }
+    state button_row3_col2(main: &mut Main) {
+        transition main.button_col == 2 { true -> button_code3(main) _ -> button_code_minus(main) }
+    }
+    state button_row4(main: &mut Main) {
+        transition main.button_col == 0 { true -> button_code_sign(main) _ -> button_row4_col1(main) }
+    }
+    state button_row4_col1(main: &mut Main) {
+        transition main.button_col == 1 { true -> button_code0(main) _ -> button_row4_col2(main) }
+    }
+    state button_row4_col2(main: &mut Main) {
+        transition main.button_col == 2 { true -> button_code_equals(main) _ -> button_code_plus(main) }
+    }
+    state button_code0(main: &mut Main) { main.button_code = 0; transition { _ -> button_paint(main) } }
+    state button_code1(main: &mut Main) { main.button_code = 1; transition { _ -> button_paint(main) } }
+    state button_code2(main: &mut Main) { main.button_code = 2; transition { _ -> button_paint(main) } }
+    state button_code3(main: &mut Main) { main.button_code = 3; transition { _ -> button_paint(main) } }
+    state button_code4(main: &mut Main) { main.button_code = 4; transition { _ -> button_paint(main) } }
+    state button_code5(main: &mut Main) { main.button_code = 5; transition { _ -> button_paint(main) } }
+    state button_code6(main: &mut Main) { main.button_code = 6; transition { _ -> button_paint(main) } }
+    state button_code7(main: &mut Main) { main.button_code = 7; transition { _ -> button_paint(main) } }
+    state button_code8(main: &mut Main) { main.button_code = 8; transition { _ -> button_paint(main) } }
+    state button_code9(main: &mut Main) { main.button_code = 9; transition { _ -> button_paint(main) } }
+    state button_code_plus(main: &mut Main) { main.button_code = 11; transition { _ -> button_paint(main) } }
+    state button_code_minus(main: &mut Main) { main.button_code = 12; transition { _ -> button_paint(main) } }
+    state button_code_multiply(main: &mut Main) { main.button_code = 13; transition { _ -> button_paint(main) } }
+    state button_code_divide(main: &mut Main) { main.button_code = 14; transition { _ -> button_paint(main) } }
+    state button_code_sign(main: &mut Main) { main.button_code = 15; transition { _ -> button_paint(main) } }
+    state button_code_equals(main: &mut Main) { main.button_code = 16; transition { _ -> button_paint(main) } }
+    state button_code_memory_add(main: &mut Main) { main.button_code = 20; transition { _ -> button_paint(main) } }
+    state button_code_memory_recall(main: &mut Main) { main.button_code = 21; transition { _ -> button_paint(main) } }
+    state button_code_clear(main: &mut Main) { main.button_code = 22; transition { _ -> button_paint(main) } }
+    state button_code_backspace(main: &mut Main) { main.button_code = 23; transition { _ -> button_paint(main) } }
+
+    state button_paint(main: &mut Main) {
+        main.px = 2171169;
+        transition main.button_code == main.last_key { true -> button_active(main) _ -> button_border(main) }
+    }
+    state button_active(main: &mut Main) {
+        main.px = 5335039;
+        transition { _ -> button_border(main) }
+    }
+    state button_border(main: &mut Main) {
+        transition main.button_lx == 0 || main.button_lx == 15 || main.button_ly == 0 || main.button_ly == 8 {
+            true -> button_border_paint(main)
+            _ -> button_label(main)
+        }
+    }
+    state button_border_paint(main: &mut Main) {
+        main.px = 8421504;
+        transition { _ -> write_pixel_guard(main) }
     }
     // Re-assert the in-button coordinates: button_hit computed them many
     // dispatch states back, and the label arithmetic below needs them bounded
     // (always true: `col % 16` and `(row - 18) % 9` inside the button grid).
-    state button_label(&mut self) {
-        transition self.button_lx >= 0 && self.button_lx <= 15 && self.button_ly >= 0 && self.button_ly <= 8 {
-            true -> button_label_kind()
-            _ -> write_pixel_guard()
+    state button_label(main: &mut Main) {
+        transition main.button_lx >= 0 && main.button_lx <= 15 && main.button_ly >= 0 && main.button_ly <= 8 {
+            true -> button_label_kind(main)
+            _ -> write_pixel_guard(main)
         }
     }
-    state button_label_kind(&mut self) {
-        transition self.button_code <= 9 { true -> button_digit_label() _ -> button_operator_label() }
+    state button_label_kind(main: &mut Main) {
+        transition main.button_code <= 9 { true -> button_digit_label(main) _ -> button_operator_label(main) }
     }
-    state button_digit_label(&mut self) {
-        self.draw_digit = self.button_code as i32 in Saturating;
-        self.local_x = self.button_lx - 4;
-        self.local_y = self.button_ly - 1;
-        transition { _ -> button_segment_a() }
+    state button_digit_label(main: &mut Main) {
+        main.draw_digit = main.button_code as i32 in Saturating;
+        main.local_x = main.button_lx - 4;
+        main.local_y = main.button_ly - 1;
+        transition { _ -> button_segment_a(main) }
     }
-    state button_segment_a(&mut self) {
-        transition self.local_y == 0 && self.local_x >= 1 && self.local_x <= 5 {
-            true -> segment_set_a()
-            _ -> button_segment_b()
+    state button_segment_a(main: &mut Main) {
+        transition main.local_y == 0 && main.local_x >= 1 && main.local_x <= 5 {
+            true -> segment_set_a(main)
+            _ -> button_segment_b(main)
         }
     }
-    state button_segment_b(&mut self) {
-        transition self.local_x == 6 && self.local_y >= 1 && self.local_y <= 3 {
-            true -> segment_set_b()
-            _ -> button_segment_c()
+    state button_segment_b(main: &mut Main) {
+        transition main.local_x == 6 && main.local_y >= 1 && main.local_y <= 3 {
+            true -> segment_set_b(main)
+            _ -> button_segment_c(main)
         }
     }
-    state button_segment_c(&mut self) {
-        transition self.local_x == 6 && self.local_y >= 5 && self.local_y <= 6 {
-            true -> segment_set_c()
-            _ -> button_segment_d()
+    state button_segment_c(main: &mut Main) {
+        transition main.local_x == 6 && main.local_y >= 5 && main.local_y <= 6 {
+            true -> segment_set_c(main)
+            _ -> button_segment_d(main)
         }
     }
-    state button_segment_d(&mut self) {
-        transition self.local_y == 7 && self.local_x >= 1 && self.local_x <= 5 {
-            true -> segment_set_d()
-            _ -> button_segment_e()
+    state button_segment_d(main: &mut Main) {
+        transition main.local_y == 7 && main.local_x >= 1 && main.local_x <= 5 {
+            true -> segment_set_d(main)
+            _ -> button_segment_e(main)
         }
     }
-    state button_segment_e(&mut self) {
-        transition self.local_x == 0 && self.local_y >= 5 && self.local_y <= 6 {
-            true -> segment_set_e()
-            _ -> button_segment_f()
+    state button_segment_e(main: &mut Main) {
+        transition main.local_x == 0 && main.local_y >= 5 && main.local_y <= 6 {
+            true -> segment_set_e(main)
+            _ -> button_segment_f(main)
         }
     }
-    state button_segment_f(&mut self) {
-        transition self.local_x == 0 && self.local_y >= 1 && self.local_y <= 3 {
-            true -> segment_set_f()
-            _ -> button_segment_g()
+    state button_segment_f(main: &mut Main) {
+        transition main.local_x == 0 && main.local_y >= 1 && main.local_y <= 3 {
+            true -> segment_set_f(main)
+            _ -> button_segment_g(main)
         }
     }
-    state button_segment_g(&mut self) {
-        transition self.local_y == 4 && self.local_x >= 1 && self.local_x <= 5 {
-            true -> segment_set_g()
-            _ -> write_pixel_guard()
+    state button_segment_g(main: &mut Main) {
+        transition main.local_y == 4 && main.local_x >= 1 && main.local_x <= 5 {
+            true -> segment_set_g(main)
+            _ -> write_pixel_guard(main)
         }
     }
-    state button_operator_label(&mut self) {
-        transition self.button_code == 11 { true -> label_plus() _ -> label_minus_check() }
+    state button_operator_label(main: &mut Main) {
+        transition main.button_code == 11 { true -> label_plus(main) _ -> label_minus_check(main) }
     }
-    state label_minus_check(&mut self) {
-        transition self.button_code == 12 { true -> label_minus() _ -> label_multiply_check() }
+    state label_minus_check(main: &mut Main) {
+        transition main.button_code == 12 { true -> label_minus(main) _ -> label_multiply_check(main) }
     }
-    state label_multiply_check(&mut self) {
-        transition self.button_code == 13 { true -> label_multiply() _ -> label_divide_check() }
+    state label_multiply_check(main: &mut Main) {
+        transition main.button_code == 13 { true -> label_multiply(main) _ -> label_divide_check(main) }
     }
-    state label_divide_check(&mut self) {
-        transition self.button_code == 14 { true -> label_divide() _ -> label_sign_check() }
+    state label_divide_check(main: &mut Main) {
+        transition main.button_code == 14 { true -> label_divide(main) _ -> label_sign_check(main) }
     }
-    state label_sign_check(&mut self) {
-        transition self.button_code == 15 { true -> label_sign() _ -> label_equals_check() }
+    state label_sign_check(main: &mut Main) {
+        transition main.button_code == 15 { true -> label_sign(main) _ -> label_equals_check(main) }
     }
-    state label_equals_check(&mut self) {
-        transition self.button_code == 16 { true -> label_equals() _ -> label_utility() }
+    state label_equals_check(main: &mut Main) {
+        transition main.button_code == 16 { true -> label_equals(main) _ -> label_utility(main) }
     }
-    state label_plus(&mut self) {
-        transition self.button_lx == 8 && self.button_ly >= 2 && self.button_ly <= 6 { true -> label_paint() _ -> label_plus_bar() }
+    state label_plus(main: &mut Main) {
+        transition main.button_lx == 8 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main) _ -> label_plus_bar(main) }
     }
-    state label_plus_bar(&mut self) {
-        transition self.button_ly == 4 && self.button_lx >= 5 && self.button_lx <= 11 { true -> label_paint() _ -> write_pixel_guard() }
+    state label_plus_bar(main: &mut Main) {
+        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main) _ -> write_pixel_guard(main) }
     }
-    state label_minus(&mut self) {
-        transition self.button_ly == 4 && self.button_lx >= 5 && self.button_lx <= 11 { true -> label_paint() _ -> write_pixel_guard() }
+    state label_minus(main: &mut Main) {
+        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main) _ -> write_pixel_guard(main) }
     }
-    state label_multiply(&mut self) {
-        transition self.button_lx == self.button_ly + 4 && self.button_ly >= 2 && self.button_ly <= 6 { true -> label_paint() _ -> label_multiply_backslash() }
+    state label_multiply(main: &mut Main) {
+        transition main.button_lx == main.button_ly + 4 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main) _ -> label_multiply_backslash(main) }
     }
-    state label_multiply_backslash(&mut self) {
-        transition self.button_lx + self.button_ly == 12 && self.button_ly >= 2 && self.button_ly <= 6 { true -> label_paint() _ -> write_pixel_guard() }
+    state label_multiply_backslash(main: &mut Main) {
+        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main) _ -> write_pixel_guard(main) }
     }
-    state label_divide(&mut self) {
-        transition self.button_lx + self.button_ly == 12 && self.button_ly >= 2 && self.button_ly <= 6 { true -> label_paint() _ -> label_divide_dot_top() }
+    state label_divide(main: &mut Main) {
+        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main) _ -> label_divide_dot_top(main) }
     }
-    state label_divide_dot_top(&mut self) {
-        transition self.button_lx == 8 && self.button_ly == 2 { true -> label_paint() _ -> label_divide_dot_bottom() }
+    state label_divide_dot_top(main: &mut Main) {
+        transition main.button_lx == 8 && main.button_ly == 2 { true -> label_paint(main) _ -> label_divide_dot_bottom(main) }
     }
-    state label_divide_dot_bottom(&mut self) {
-        transition self.button_lx == 8 && self.button_ly == 6 { true -> label_paint() _ -> write_pixel_guard() }
+    state label_divide_dot_bottom(main: &mut Main) {
+        transition main.button_lx == 8 && main.button_ly == 6 { true -> label_paint(main) _ -> write_pixel_guard(main) }
     }
-    state label_sign(&mut self) {
-        transition self.button_lx == 7 && self.button_ly >= 2 && self.button_ly <= 5 { true -> label_paint() _ -> label_sign_plus_bar() }
+    state label_sign(main: &mut Main) {
+        transition main.button_lx == 7 && main.button_ly >= 2 && main.button_ly <= 5 { true -> label_paint(main) _ -> label_sign_plus_bar(main) }
     }
-    state label_sign_plus_bar(&mut self) {
-        transition self.button_ly == 4 && self.button_lx >= 5 && self.button_lx <= 9 { true -> label_paint() _ -> label_sign_minus_bar() }
+    state label_sign_plus_bar(main: &mut Main) {
+        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main) _ -> label_sign_minus_bar(main) }
     }
-    state label_sign_minus_bar(&mut self) {
-        transition self.button_ly == 6 && self.button_lx >= 5 && self.button_lx <= 9 { true -> label_paint() _ -> write_pixel_guard() }
+    state label_sign_minus_bar(main: &mut Main) {
+        transition main.button_ly == 6 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main) _ -> write_pixel_guard(main) }
     }
-    state label_equals(&mut self) {
-        transition self.button_ly == 3 && self.button_lx >= 5 && self.button_lx <= 11 { true -> label_paint() _ -> label_equals_bottom() }
+    state label_equals(main: &mut Main) {
+        transition main.button_ly == 3 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main) _ -> label_equals_bottom(main) }
     }
-    state label_equals_bottom(&mut self) {
-        transition self.button_ly == 5 && self.button_lx >= 5 && self.button_lx <= 11 { true -> label_paint() _ -> write_pixel_guard() }
+    state label_equals_bottom(main: &mut Main) {
+        transition main.button_ly == 5 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main) _ -> write_pixel_guard(main) }
     }
-    state label_utility(&mut self) {
-        transition self.button_lx >= 5 && self.button_lx <= 11 && self.button_ly >= 2 && self.button_ly <= 6 {
-            true -> label_paint()
-            _ -> write_pixel_guard()
+    state label_utility(main: &mut Main) {
+        transition main.button_lx >= 5 && main.button_lx <= 11 && main.button_ly >= 2 && main.button_ly <= 6 {
+            true -> label_paint(main)
+            _ -> write_pixel_guard(main)
         }
     }
-    state label_paint(&mut self) {
-        self.px = 15794175;
-        transition { _ -> write_pixel_guard() }
+    state label_paint(main: &mut Main) {
+        main.px = 15794175;
+        transition { _ -> write_pixel_guard(main) }
     }
 
-    state write_pixel_guard(&mut self) {
-        transition self.i >= 0 && self.i < 4096 { true -> write_pixel() _ -> bad() }
+    state write_pixel_guard(main: &mut Main) {
+        transition main.i >= 0 && main.i < 4096 { true -> write_pixel(main) _ -> bad(main) }
     }
-    state write_pixel(&mut self) {
-        self.pixels[self.i] = self.px;
-        self.i = self.i + 1;
-        transition self.col == 63 { true -> render_pump_peek() _ -> fill_loop() }
+    state write_pixel(main: &mut Main) {
+        main.pixels[main.i] = main.px;
+        main.i = main.i + 1;
+        transition main.col == 63 { true -> render_pump_peek(main) _ -> fill_loop(main) }
     }
-    state render_pump_peek(&mut self) {
-        self.have = self.gui.msg_peek(self.message);
-        transition self.have > 0 { true -> render_pump_check_close() _ -> fill_loop() }
+    state render_pump_peek(main: &mut Main) {
+        main.have = main.gui.msg_peek(main.message);
+        transition main.have > 0 { true -> render_pump_check_close(main) _ -> fill_loop(main) }
     }
-    state render_pump_check_close(&mut self) {
-        self.msg_code = self.message[1] % 65536;
-        transition self.msg_code == 16 { true -> quit_self() _ -> render_pump_check_syscommand() }
+    state render_pump_check_close(main: &mut Main) {
+        main.msg_code = main.message[1] % 65536;
+        transition main.msg_code == 16 { true -> quit_self(main) _ -> render_pump_check_syscommand(main) }
     }
-    state render_pump_check_syscommand(&mut self) {
-        transition self.msg_code == 274 { true -> render_pump_check_sysclose() _ -> render_pump_handle() }
+    state render_pump_check_syscommand(main: &mut Main) {
+        transition main.msg_code == 274 { true -> render_pump_check_sysclose(main) _ -> render_pump_handle(main) }
     }
-    state render_pump_check_sysclose(&mut self) {
-        transition self.message[2] >= 61536 && self.message[2] < 61552 { true -> quit_self() _ -> render_pump_handle() }
+    state render_pump_check_sysclose(main: &mut Main) {
+        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main) _ -> render_pump_handle(main) }
     }
-    state render_pump_handle(&mut self) {
-        self.translated = self.gui.msg_translate(self.message);
-        self.dispatched = self.gui.msg_dispatch(self.message);
-        transition { _ -> render_pump_liveness() }
+    state render_pump_handle(main: &mut Main) {
+        main.translated = main.gui.msg_translate(main.message);
+        main.dispatched = main.gui.msg_dispatch(main.message);
+        transition { _ -> render_pump_liveness(main) }
     }
-    state render_pump_liveness(&mut self) {
-        self.alive = self.gui.is_window(self.hwnd);
-        transition self.alive > 0 { true -> fill_loop() _ -> closed() }
-    }
-
-    state present(&mut self) {
-        self.copied = self.gui.blit(self.hdc, 512, 512, 64, 64, self.pixels, self.info);
-        transition self.copied == 64 { true -> pace() _ -> present_failed() }
-    }
-    state present_failed(&mut self) {
-        self.alive = self.gui.is_window(self.hwnd);
-        transition self.alive > 0 { true -> bad() _ -> closed() }
-    }
-    state pace(&mut self) {
-        self.clock.sleep(16);
-        transition self.frame >= 0 && self.frame < 16384 { true -> advance() _ -> wrap_frame() }
-    }
-    state advance(&mut self) {
-        self.frame = self.frame + 1;
-        transition { _ -> frame_loop() }
+    state render_pump_liveness(main: &mut Main) {
+        main.alive = main.gui.is_window(main.hwnd);
+        transition main.alive > 0 { true -> fill_loop(main) _ -> closed(main) }
     }
 
-    state quit_self(&mut self) {
-        self.killed = self.gui.window_destroy(self.hwnd);
-        transition { _ -> closed() }
+    state present(main: &mut Main) {
+        main.copied = main.gui.blit(main.hdc, 512, 512, 64, 64, main.pixels, main.info);
+        transition main.copied == 64 { true -> pace(main) _ -> present_failed(main) }
     }
-    state closed(&mut self) {
-        self.console.write_line("windowed calculator closed (exit 0)");
-        self.console.exit_process(0);
+    state present_failed(main: &mut Main) {
+        main.alive = main.gui.is_window(main.hwnd);
+        transition main.alive > 0 { true -> bad(main) _ -> closed(main) }
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: windowed_calculator hit a renderer or host assertion (exit 1)");
-        self.console.exit_process(1);
+    state pace(main: &mut Main) {
+        main.clock.sleep(16);
+        transition main.frame >= 0 && main.frame < 16384 { true -> advance(main) _ -> wrap_frame(main) }
+    }
+    state advance(main: &mut Main) {
+        main.frame = main.frame + 1;
+        transition { _ -> frame_loop(main) }
+    }
+
+    state quit_self(main: &mut Main) {
+        main.killed = main.gui.window_destroy(main.hwnd);
+        transition { _ -> closed(main) }
+    }
+    state closed(main: &mut Main) {
+        main.console.write_line("windowed calculator closed (exit 0)");
+        main.console.exit_process(0);
+    }
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: windowed_calculator hit a renderer or host assertion (exit 1)");
+        main.console.exit_process(1);
     }
 }
 

@@ -123,22 +123,22 @@ machine Main::main(&mut self) reaches Console {
     let total: i32 in Saturating = p0 + p1 + p2 + p3;
 
     transition total == 70 {
-        true -> good()
-        _ -> bad(total)
+        true -> good(&mut self)
+        _ -> bad(&mut self, total)
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: channel sum is 70 (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: channel sum is 70 (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad(&mut self, total: i32 in Saturating) {
+    state bad(main: &mut Main, total: i32 in Saturating) {
         // Exit with a code that encodes the wrong total for debugging.
-        self.console.write_line("FAIL: wrong channel sum (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+        main.console.write_line("FAIL: wrong channel sum (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }

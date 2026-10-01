@@ -1,7 +1,7 @@
 // Convert a Celsius temperature to Fahrenheit with f64 floating-point arithmetic --
 // the first sample to exercise floats, the backbone of measurement/scientific code.
 // `fahrenheit = celsius * 1.8 + 32.0` evaluates the standard formula (a multiply and
-// an add over f64 locals and literals), then `as i32` truncates the result for the
+// an add over f64 fields and literals), then `as i32` truncates the result for the
 // process exit code. 20 C -> 20*1.8 + 32 = 68 F.
 // Expected exit: 68.
 
@@ -11,17 +11,24 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
+    celsius: f64;
+    fahrenheit: f64;
+    result: i32;
+    pause: [u8; 256];
 }
 
-machine Main::main(context: &mut Main) reaches Console {
-    context.console.write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
-    let celsius: f64 = 20.0;
-    let fahrenheit: f64 = celsius * 1.8 + 32.0;
-    let result: i32 = (fahrenheit as i32 in Saturating) as i32;
+machine Main::main(&mut self) reaches Console {
+    self.console.write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
+    self.celsius = 20.0;
+    self.fahrenheit = self.celsius * 1.8 + 32.0;
+    self.result = (self.fahrenheit as i32 in Saturating) as i32; // F4: proof-or-policy, then explicit policy erasure
 
-    context.console.write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");
-    context.console.write_line("[press Enter to close]");
-    let mut pause: [u8; 256];
-    _ = block context.console.read_line(&mut pause);
-    context.console.exit_process(result);
+    transition { _ -> done(&mut self) }
+
+    state done(main: &mut Main) {
+        main.console.write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.result);
+    }
 }

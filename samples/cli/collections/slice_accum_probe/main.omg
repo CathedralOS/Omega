@@ -81,35 +81,35 @@ machine Main::main(&mut self) reaches Console {
     let b: i32 = Walker::sum_entries(&mut self.walker, se, 0);
 
     transition a == 70 {
-        true -> check_b(b)
-        _ -> bad_a()
+        true -> check_b(&mut self, b)
+        _ -> bad_a(&mut self)
     }
 
-    state bad_a(&mut self) {
-        self.console.write_line("FAIL: probe A (i32 slice) sum did not equal 70 (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_a(main: &mut Main) {
+        main.console.write_line("FAIL: probe A (i32 slice) sum did not equal 70 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state check_b(&mut self, b: i32) {
+    state check_b(main: &mut Main, b: i32) {
         transition b == 70 {
-            true -> good()
-            _ -> bad_b()
+            true -> good(main)
+            _ -> bad_b(main)
         }
     }
 
-    state bad_b(&mut self) {
-        self.console.write_line("FAIL: probe B (struct slice) sum did not equal 70 (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_b(main: &mut Main) {
+        main.console.write_line("FAIL: probe B (struct slice) sum did not equal 70 (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: both slice accumulations summed to 70 (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: both slice accumulations summed to 70 (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 }

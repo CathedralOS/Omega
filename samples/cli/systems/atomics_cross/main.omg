@@ -30,54 +30,54 @@ machine Main::main(&mut self) reaches Console {
 
     let old1: u32 in Wrapping = self.counter.fetch_add(5, NoOrdering);
     transition old1 == 10 {
-        true -> after_add()
-        _ -> bad()
+        true -> after_add(&mut self)
+        _ -> bad(&mut self)
     }
 
-    state after_add(&mut self) {
+    state after_add(main: &mut Main) {
         // counter is now 15 (a field, so it survived the transition).
-        let prior: u32 in Wrapping = self.counter.compare_exchange(15, 99, ReceivePublish, Receive);
+        let prior: u32 in Wrapping = main.counter.compare_exchange(15, 99, ReceivePublish, Receive);
         transition prior == 15 {
-            true -> after_cas()
-            _ -> bad()
+            true -> after_cas(main)
+            _ -> bad(main)
         }
     }
 
-    state after_cas(&mut self) {
-        transition self.counter == 99 {
-            true -> publish_receive()
-            _ -> bad()
+    state after_cas(main: &mut Main) {
+        transition main.counter == 99 {
+            true -> publish_receive(main)
+            _ -> bad(main)
         }
     }
 
-    state publish_receive(&mut self) {
-        self.counter.store(100, Publish);
-        let observed: u32 = self.counter.load(Receive);
+    state publish_receive(main: &mut Main) {
+        main.counter.store(100, Publish);
+        let observed: u32 = main.counter.load(Receive);
         transition observed == 100 {
-            true -> global_order()
-            _ -> bad()
+            true -> global_order(main)
+            _ -> bad(main)
         }
     }
 
-    state global_order(&mut self) {
-        self.counter.store(101, GlobalOrder);
-        let observed: u32 = self.counter.load(GlobalOrder);
+    state global_order(main: &mut Main) {
+        main.counter.store(101, GlobalOrder);
+        let observed: u32 = main.counter.load(GlobalOrder);
         transition observed == 101 {
-            true -> good()
-            _ -> bad()
+            true -> good(main)
+            _ -> bad(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: RMW and every load/store ordering round-tripped (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: RMW and every load/store ordering round-tripped (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
-    state bad(&mut self) {
-        self.console.write_line("FAIL: an atomic RMW or ordered load/store misbehaved (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad(main: &mut Main) {
+        main.console.write_line("FAIL: an atomic RMW or ordered load/store misbehaved (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 }

@@ -32,32 +32,32 @@ machine Main::main(&mut self) reaches Console {
     self.trial.d = 2;
 
     transition {
-        _ -> probe()
+        _ -> probe(&mut self)
     }
 
     // Re-assert d's bounds on the edge into the square test: d starts at 2 and
     // only grows by guarded steps below 200, so the else arm is unreachable
     // and routes to prime() as the give-up answer.
-    state probe(&mut self) {
-        transition self.trial.d >= 0 && self.trial.d <= 200 {
-            true -> probe_square()
-            _ -> prime()
+    state probe(main: &mut Main) {
+        transition main.trial.d >= 0 && main.trial.d <= 200 {
+            true -> probe_square(main)
+            _ -> prime(main)
         }
     }
 
     // If d has passed sqrt(n) with no divisor found, n is prime.
-    state probe_square(&mut self) {
-        transition self.trial.d * self.trial.d > self.trial.n {
-            true -> prime()
-            _ -> test_divisor()
+    state probe_square(main: &mut Main) {
+        transition main.trial.d * main.trial.d > main.trial.n {
+            true -> prime(main)
+            _ -> test_divisor(main)
         }
     }
 
     // Does the current d divide n? (modulo in the guard subject)
-    state test_divisor(&mut self) {
-        transition self.trial.n % self.trial.d == 0 {
-            true -> found()
-            _ -> adv_guard()
+    state test_divisor(main: &mut Main) {
+        transition main.trial.n % main.trial.d == 0 {
+            true -> found(main)
+            _ -> adv_guard(main)
         }
     }
 
@@ -65,31 +65,31 @@ machine Main::main(&mut self) reaches Console {
     // the direct edge into `advance` is what proves `d + 1` cannot overflow.
     // (d never nears 200 -- the probe stops at sqrt(n) -- so the else arm is
     // unreachable and routes to prime() as the give-up answer.)
-    state adv_guard(&mut self) {
-        transition self.trial.d < 200 {
-            true -> advance()
-            _ -> prime()
+    state adv_guard(main: &mut Main) {
+        transition main.trial.d < 200 {
+            true -> advance(main)
+            _ -> prime(main)
         }
     }
 
-    state advance(&mut self) {
-        self.trial.d = self.trial.d + 1;
+    state advance(main: &mut Main) {
+        main.trial.d = main.trial.d + 1;
         transition {
-            _ -> probe()
+            _ -> probe(main)
         }
     }
 
-    state found(&mut self) {
-        self.console.write_line("PASS: smallest prime factor found, 13 for n=169 (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.trial.d);
+    state found(main: &mut Main) {
+        main.console.write_line("PASS: smallest prime factor found, 13 for n=169 (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.trial.d);
     }
 
-    state prime(&mut self) {
-        self.console.write_line("result: n has no divisor up to sqrt(n), so n is prime and exits as its own factor (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.trial.n);
+    state prime(main: &mut Main) {
+        main.console.write_line("result: n has no divisor up to sqrt(n), so n is prime and exits as its own factor (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.trial.n);
     }
 }

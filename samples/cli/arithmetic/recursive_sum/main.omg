@@ -72,40 +72,40 @@ machine Main::main(&mut self) reaches Console {
 
     // Check sum == 50 directly on the local.
     transition sum_result == 50 {
-        true -> check_count()
-        _ -> bad_sum()
+        true -> check_count(&mut self)
+        _ -> bad_sum(&mut self)
     }
 
-    state bad_sum(&mut self) {
-        self.console.write_line("FAIL: recursive sum did not equal 50 (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_sum(main: &mut Main) {
+        main.console.write_line("FAIL: recursive sum did not equal 50 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state check_count(&mut self) {
+    state check_count(main: &mut Main) {
         // Compute count via recursive value-returning call.
-        let s2: &[i32 in Wrapping] = self.arr.as_slice();
+        let s2: &[i32 in Wrapping] = main.arr.as_slice();
         let cnt: i32 = count(s2, 0);
 
         // Check element count == 4.
         transition cnt == 4 {
-            true -> good()
-            _ -> bad_count()
+            true -> good(main)
+            _ -> bad_count(main)
         }
     }
 
-    state bad_count(&mut self) {
-        self.console.write_line("FAIL: recursive count did not equal 4 (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_count(main: &mut Main) {
+        main.console.write_line("FAIL: recursive count did not equal 4 (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: sum=50 and count=4 both verified (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: sum=50 and count=4 both verified (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 }

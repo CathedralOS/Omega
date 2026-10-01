@@ -54,77 +54,77 @@ machine Main::main(&mut self) reaches Console {
 
     // Check sum_f32 is ~7.0.
     transition self.f.sum_f32 > 6.9 {
-        true -> check_sum_upper()
-        _ -> bad_sum_low()
+        true -> check_sum_upper(&mut self)
+        _ -> bad_sum_low(&mut self)
     }
 
-    state bad_sum_low(&mut self) {
-        self.console.write_line("FAIL: f32 sum <= 6.9 -- expected ~7.0 (exit 71)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(71);
+    state bad_sum_low(main: &mut Main) {
+        main.console.write_line("FAIL: f32 sum <= 6.9 -- expected ~7.0 (exit 71)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(71);
     }
 
-    state check_sum_upper(&mut self) {
-        transition self.f.sum_f32 < 7.1 {
-            true -> check_diff_low()
-            _ -> bad_sum_high()
+    state check_sum_upper(main: &mut Main) {
+        transition main.f.sum_f32 < 7.1 {
+            true -> check_diff_low(main)
+            _ -> bad_sum_high(main)
         }
     }
-    state bad_sum_high(&mut self) {
-        self.console.write_line("FAIL: f32 sum >= 7.1 -- expected ~7.0 (exit 72)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(72);
+    state bad_sum_high(main: &mut Main) {
+        main.console.write_line("FAIL: f32 sum >= 7.1 -- expected ~7.0 (exit 72)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(72);
     }
 
     // Check diff_f64 is ~3.5.
-    state check_diff_low(&mut self) {
-        transition self.f.diff_f64 > 3.4 {
-            true -> check_diff_high()
-            _ -> bad_diff_low()
+    state check_diff_low(main: &mut Main) {
+        transition main.f.diff_f64 > 3.4 {
+            true -> check_diff_high(main)
+            _ -> bad_diff_low(main)
         }
     }
-    state bad_diff_low(&mut self) {
-        self.console.write_line("FAIL: f64 diff <= 3.4 -- expected ~3.5 (exit 73)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(73);
+    state bad_diff_low(main: &mut Main) {
+        main.console.write_line("FAIL: f64 diff <= 3.4 -- expected ~3.5 (exit 73)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(73);
     }
 
-    state check_diff_high(&mut self) {
-        transition self.f.diff_f64 < 3.6 {
-            true -> store_result()
-            _ -> bad_diff_high()
+    state check_diff_high(main: &mut Main) {
+        transition main.f.diff_f64 < 3.6 {
+            true -> store_result(main)
+            _ -> bad_diff_high(main)
         }
     }
-    state bad_diff_high(&mut self) {
-        self.console.write_line("FAIL: f64 diff >= 3.6 -- expected ~3.5 (exit 74)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(74);
+    state bad_diff_high(main: &mut Main) {
+        main.console.write_line("FAIL: f64 diff >= 3.6 -- expected ~3.5 (exit 74)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(74);
     }
 
     // All checks passed: encode exit 70.
-    state store_result(&mut self) {
-        self.f.result = 70;
-        transition self.f.result == 70 {
-            true -> good()
-            _ -> bad_result()
+    state store_result(main: &mut Main) {
+        main.f.result = 70;
+        transition main.f.result == 70 {
+            true -> good(main)
+            _ -> bad_result(main)
         }
     }
 
-    state good(&mut self) {
-        self.console.write_line("PASS: both float widths computed and compared correctly (exit 70)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(70);
+    state good(main: &mut Main) {
+        main.console.write_line("PASS: both float widths computed and compared correctly (exit 70)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(70);
     }
 
-    state bad_result(&mut self) {
-        self.console.write_line("FAIL: integer result field readback != 70 (exit 75)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(75);
+    state bad_result(main: &mut Main) {
+        main.console.write_line("FAIL: integer result field readback != 70 (exit 75)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(75);
     }
 }

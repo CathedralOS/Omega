@@ -59,14 +59,14 @@ machine Main::main(&mut self) reaches Console {
     Main::step(&mut self, Dir::S);
 
     transition {
-        _ -> report()
+        _ -> report(&mut self)
     }
 
-    state report(&mut self) {
-        self.px = self.px * 10 + self.py;
-        self.console.write_line("result: x*10+y, 32 for this walk (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.px as i32);
+    state report(main: &mut Main) {
+        main.px = main.px * 10 + main.py;
+        main.console.write_line("result: x*10+y, 32 for this walk (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.px as i32);
     }
 }

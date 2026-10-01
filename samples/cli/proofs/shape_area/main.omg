@@ -32,40 +32,40 @@ machine Main::main(&mut self) reaches Console {
     self.shape = Shape::Rectangle { width: 6, height: 7 };
 
     transition self.shape {
-        Shape::Circle { radius } -> circle(radius)
-        Shape::Rectangle { width, height } -> rect(width, height)
+        Shape::Circle { radius } -> circle(&mut self, radius)
+        Shape::Rectangle { width, height } -> rect(&mut self, width, height)
     }
 
     // The payload arrives as a plain i32; a guard hop re-establishes its bound on
     // the direct edge into the compute state, whose contract admits it.
-    state circle(&mut self, radius: i32) {
+    state circle(main: &mut Main, radius: i32) {
         transition radius >= 0 && radius < 101 {
-            true -> circle_area(radius)
-            _ -> emit()
+            true -> circle_area(main, radius)
+            _ -> emit(main)
         }
     }
-    state circle_area(&mut self, radius: i32) requires radius >= 0 requires radius < 101 {
-        self.area = radius * radius * 3;
-        transition { _ -> emit() }
+    state circle_area(main: &mut Main, radius: i32) requires radius >= 0 requires radius < 101 {
+        main.area = radius * radius * 3;
+        transition { _ -> emit(main) }
     }
-    state rect(&mut self, width: i32, height: i32) {
+    state rect(main: &mut Main, width: i32, height: i32) {
         transition width >= 0 && width < 101 && height >= 0 && height < 101 {
-            true -> rect_area(width, height)
-            _ -> emit()
+            true -> rect_area(main, width, height)
+            _ -> emit(main)
         }
     }
-    state rect_area(&mut self, width: i32, height: i32)
+    state rect_area(main: &mut Main, width: i32, height: i32)
     requires width >= 0
     requires width < 101
     requires height >= 0
     requires height < 101 {
-        self.area = width * height;
-        transition { _ -> emit() }
+        main.area = width * height;
+        transition { _ -> emit(main) }
     }
-    state emit(&mut self) {
-        self.console.write_line("result: the matched shape's area, 42 for this 6x7 rectangle (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.area);
+    state emit(main: &mut Main) {
+        main.console.write_line("result: the matched shape's area, 42 for this 6x7 rectangle (the exit code)");
+        main.console.write_line("[press Enter to close]");
+        _ = block main.console.read_line(&mut main.pause);
+        main.console.exit_process(main.area);
     }
 }
