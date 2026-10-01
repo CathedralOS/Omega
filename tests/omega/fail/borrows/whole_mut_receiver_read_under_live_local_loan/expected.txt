@@ -1,0 +1,2 @@
+statement 1 calls `peek_count`, whose mutable receiver reads `self.count` while local borrow `view` is still active
+statement 1 calls `peek_through`, whose mutable receiver reads `self.count` while local borrow `other_view` is still active

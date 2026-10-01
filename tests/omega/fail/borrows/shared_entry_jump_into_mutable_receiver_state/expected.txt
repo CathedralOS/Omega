@@ -1,0 +1,2 @@
+state `next` requires a mutable receiver, but its machine's entry receiver is not writable
+state `write` requires a mutable receiver, but its machine's entry receiver is not writable

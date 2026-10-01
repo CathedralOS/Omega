@@ -292,6 +292,42 @@ fn jumps_without_receiver_overlap_accept() {
 }
 
 #[test]
+fn a_shared_machine_entry_lends_no_state_a_mutable_receiver() {
+    const ENTRY_AUTHORITY: &str = "state `next` requires a mutable receiver, but its machine's entry receiver is not writable";
+    for source in [
+        // The successor writes the entry's shared `self`.
+        "data Main { count: u64; other: u64; }
+        machine Main::run(&self) -> u64 {
+            transition { _ -> next() }
+            state next(&mut self) -> u64 {
+                self.count = 4;
+                (self.count)
+            }
+        }",
+        // Declaring `&mut self` claims the authority even without a write.
+        "data Main { count: u64; other: u64; }
+        machine Main::run(&self) -> u64 {
+            transition { _ -> next() }
+            state next(&mut self) -> u64 { (self.count) }
+        }",
+        // An intermediate `&self` state does not change the entry's authority.
+        "data Main { count: u64; other: u64; }
+        machine Main::run(&self) -> u64 {
+            transition { _ -> look() }
+            state look(&self) -> u64 {
+                transition { _ -> next() }
+            }
+            state next(&mut self) -> u64 {
+                self.count = 4;
+                (0)
+            }
+        }",
+    ] {
+        assert_rejected(source, ENTRY_AUTHORITY);
+    }
+}
+
+#[test]
 fn local_loans_the_jump_does_not_carry_and_receiver_authority_accept() {
     for source in [
         // A local loan the guard last uses ends at the source state's exit.

@@ -21,6 +21,7 @@ mod returned;
 
 pub(in crate::checks::borrows) use footprint::{
     ReceiverSummaries, check_receiver_footprint_against_argument_loans,
+    check_receiver_reads_against_live_loans, returns_through_mutable_receiver,
 };
 
 /// Whether `call` runs its target on the caller's implicit receiver.
@@ -272,14 +273,21 @@ pub(super) fn check_receiver_conflicts<'p>(
     // source state's declared access. A jump's successor reaches `self` under
     // its machine's receiver authority instead, which that narrower access
     // does not bound: a `&self` state of a `&mut self` machine may hand
-    // control to a `&mut self` sibling.
-    if receiver_access.is_exclusive()
-        && !named_jump
-        && !receiver_is_writable(program, facts, state_flow, entry_constraints, &receiver)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "state `{target_name}` requires a {receiver_name} receiver, but its source is not writable in this state"
-        )));
+    // control to a `&mut self` sibling. That authority is the one the
+    // machine's entry received, which no state declaration widens: a machine
+    // entered through `&self` lends no state exclusive access to `self`.
+    if receiver_access.is_exclusive() {
+        if named_jump {
+            if !entry_receiver_allows_mutation(program, machine) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "state `{target_name}` requires a {receiver_name} receiver, but its machine's entry receiver is not writable"
+                )));
+            }
+        } else if !receiver_is_writable(program, facts, state_flow, entry_constraints, &receiver) {
+            diagnostics.push(Diagnostic::error(format!(
+                "state `{target_name}` requires a {receiver_name} receiver, but its source is not writable in this state"
+            )));
+        }
     }
     // Whole mutable-receiver calls already use complete mutation summaries
     // for field-precise interference (including known-pure helpers), against
@@ -393,6 +401,20 @@ pub(super) fn check_receiver_conflicts<'p>(
             )));
         }
     }
+}
+
+/// The machine's top-level body is its entry state; its `self` parameter is
+/// the receiver authority every state of the invocation shares.
+fn entry_receiver_allows_mutation(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+) -> bool {
+    program
+        .machine_states(machine)
+        .first()
+        .is_some_and(|entry| {
+            validation::receiver_allows_mutation(program, program.state_parameters(entry))
+        })
 }
 
 fn receiver_is_writable(
