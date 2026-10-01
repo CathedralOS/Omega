@@ -171,13 +171,17 @@ pub(super) fn emit_prefix(
     state: &CheckedComposedUnitControlStatePlan,
     parameters: &[(u32, StructuralParameterDeclaration)],
     structural_types: &[StructuralTypeDeclaration],
+    byte_record_loans: &std::sync::Arc<
+        [crate::expression_preparation::bindings::recast_records::ByteRecordLoan],
+    >,
     values: &mut Vec<ValueDeclaration>,
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<ScalarBindings, LoweringError> {
     let mut bindings = ScalarBindings::new(values.iter().map(|value| value.scalar_type))
         .with_structural_parameters(parameters)
-        .with_structural_observations(structural_types);
+        .with_structural_observations(structural_types)
+        .with_byte_record_loans(byte_record_loans);
     let (_, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
     for (position, parameter) in state.scalar_parameters.iter().enumerate() {

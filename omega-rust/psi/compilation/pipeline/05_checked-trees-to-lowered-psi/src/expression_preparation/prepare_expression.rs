@@ -533,6 +533,19 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             element_path,
             primitive_type,
         } => {
+            if let checked_trees::CheckedStorageRoot::ViewLocal { symbol } = *root
+                && let Some(bindings) = scalar_bindings
+                && let Some(observation) = bindings.byte_record_observation(
+                    symbol,
+                    path,
+                    index,
+                    inner_indexes,
+                    element_path,
+                    *primitive_type,
+                )?
+            {
+                return Ok(observation);
+            }
             // Nested selectors read a structural parameter or its static
             // projection; every selector keeps its own
             // `RuntimeIndex` segment and obligation.

@@ -61,11 +61,122 @@ enum RepresentationSegment {
 
 /// A scalar observation's physical geometry, derived by the same normalization
 /// that checks recast compatibility. This describes storage, not loan authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecastScalarProjection {
     pub offset: usize,
     pub footprint: usize,
     pub primitive: typed_trees::types::PrimitiveType,
     pub stored_integer: Option<semantic_vocabulary::IntegerType>,
+}
+
+/// One referee's immutable normalized scalar geometry, shared across captured
+/// loans and evaluation namespaces without retaining source trees. These are
+/// type-owned leaves, not source-expression or selector specializations.
+#[derive(Debug, Clone)]
+pub struct RecastScalarLayout {
+    leaves: std::sync::Arc<[RecastScalarLayoutLeaf]>,
+}
+
+#[derive(Debug)]
+struct RecastScalarLayoutLeaf {
+    path: Box<[checked_trees::CheckedUnitStructuralPathSegment]>,
+    projection: RecastScalarProjection,
+}
+
+impl RecastScalarLayout {
+    /// Select an exact scalar leaf. Missing fields, aggregate endpoints,
+    /// out-of-bounds fixed indices and runtime selectors have no matching
+    /// normalized leaf and remain rejected.
+    pub fn scalar_path_projection(
+        &self,
+        path: &[checked_trees::CheckedUnitStructuralPathSegment],
+    ) -> Option<RecastScalarProjection> {
+        let mut matching = self.leaves.iter().filter(|leaf| leaf.path.as_ref() == path);
+        let selected = matching.next()?;
+        matching.next().is_none().then_some(selected.projection)
+    }
+}
+
+/// Prepare the existing recast normalization once. Field path identities are
+/// derived from each normalized leaf's exact owning declaration and symbol;
+/// this publishes geometry only, never backing custody or write permission.
+pub fn recast_scalar_layout(
+    program: &TypedTrees,
+    root: TypeReferenceHandle,
+) -> Option<RecastScalarLayout> {
+    let representation = shared_projection_type_representation(program, root)?;
+    let mut leaves = Vec::new();
+    leaves.try_reserve_exact(representation.leaves.len()).ok()?;
+    for leaf in &representation.leaves {
+        if !leaf.byte_projection {
+            continue;
+        }
+        let path = checked_projection_path(program, root, &leaf.path)?;
+        leaves.push(RecastScalarLayoutLeaf {
+            path: path.into_boxed_slice(),
+            projection: scalar_leaf_projection(representation.size, leaf)?,
+        });
+    }
+    Some(RecastScalarLayout {
+        leaves: leaves.into(),
+    })
+}
+
+fn checked_projection_path(
+    program: &TypedTrees,
+    root: TypeReferenceHandle,
+    path: &[RepresentationSegment],
+) -> Option<Vec<checked_trees::CheckedUnitStructuralPathSegment>> {
+    use checked_trees::CheckedUnitStructuralPathSegment as CheckedSegment;
+    let mut carrier = root;
+    let mut checked_path = Vec::new();
+    checked_path.try_reserve_exact(path.len()).ok()?;
+    for segment in path {
+        match segment {
+            RepresentationSegment::Field(symbol) => {
+                let owner = crate::program_scope::data_definitions::data_definition_by_symbol(
+                    program,
+                    program.type_reference_symbol(carrier),
+                )?;
+                let mut fields =
+                    program
+                        .data_members(owner)
+                        .iter()
+                        .filter_map(|member| match member {
+                            typed_trees::data::DataMember::Field(field)
+                                if field.symbol == *symbol && !field.relevance.is_erased() =>
+                            {
+                                Some(field)
+                            }
+                            _ => None,
+                        });
+                let selected = fields.next()?;
+                if fields.next().is_some() {
+                    return None;
+                }
+                checked_path.push(CheckedSegment::Field(selected.path_identity()));
+                carrier = selected.type_reference;
+            }
+            RepresentationSegment::Element(index) => {
+                let TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                } = program.type_reference_table.type_reference(carrier)
+                else {
+                    return None;
+                };
+                if index >= length {
+                    return None;
+                }
+                checked_path.push(CheckedSegment::FixedIndex(u64::try_from(*index).ok()?));
+                carrier = *element_type;
+            }
+        }
+    }
+    // Replay the public path through the same owner-qualified resolver used
+    // by one-shot queries. Same-spelled or ambiguous members cannot replace
+    // the exact symbols retained by normalization.
+    (recast_projection_path(program, root, &checked_path)? == path).then_some(checked_path)
 }
 
 /// Resolve an already checked record path under its exact field owners, then
@@ -162,12 +273,19 @@ fn normalized_scalar_projection(
         .leaves
         .iter()
         .find(|leaf| leaf.path == path)?;
+    scalar_leaf_projection(representation.size, leaf)
+}
+
+fn scalar_leaf_projection(
+    footprint: usize,
+    leaf: &MutableRecordLeaf,
+) -> Option<RecastScalarProjection> {
     if !leaf.byte_projection {
         return None;
     }
     Some(RecastScalarProjection {
         offset: leaf.offset,
-        footprint: representation.size,
+        footprint,
         primitive: leaf.primitive,
         stored_integer: match leaf.stored_integer {
             Some((width, interpretation)) => {

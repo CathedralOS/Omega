@@ -306,6 +306,13 @@ pub(super) fn emit(
     let structural_value_temporaries = Vec::<StructuralPlaceDeclaration>::new();
     let mut evaluation = argument_evaluation::Evaluation::new(&mut next_block)?;
     evaluation.erased_scalar_formals = signature.erased_scalar_parameters.clone();
+    evaluation.byte_record_loans =
+        crate::scalar_graph::scalar_computations::fields::prepare_byte_record_loans(
+            checked,
+            plan.machine,
+            plan.state,
+            structural_types,
+        )?;
     evaluation.record_fields = crate::scalar_graph::scalar_computations::fields::prepare(
         checked,
         plan.machine,

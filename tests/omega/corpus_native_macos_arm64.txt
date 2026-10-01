@@ -665,8 +665,7 @@ pass/layouts/private_callback_slot_untaken_compile checked 214ms
 pass/layouts/runtime_plan_laid_compact_bits_exit built 705ms exit:70
 pass/layouts/runtime_plan_laid_erased_field_exit built 906ms exit:70 @d9d22369cd7b+wt
 pass/layouts/runtime_plan_laid_integer_at_proved_write_exit built 1010ms exit:72 @2517a050d7b4+wt
-pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit rejected 882ms @48008365d839
-	terminal-artifact production failed: Lowering(Unsupported("primitive store lost its structural local destination"))
+pass/layouts/runtime_plan_laid_nested_fixed_array_mutable_write_exit built 1642ms exit:70 @633757114264+wt
 pass/layouts/runtime_plan_laid_record_array_mutable_write_exit built 3323ms exit:70 @6bd4d1a87ff4+wt
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 1022ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: byte sequence carrier` (state 0, statement 2)
