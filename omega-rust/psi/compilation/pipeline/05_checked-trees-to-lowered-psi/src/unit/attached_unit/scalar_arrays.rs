@@ -241,7 +241,7 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
             Some(result.statement_index)

@@ -1721,7 +1721,7 @@ fn successor_bindings(
                 let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
                 if place.segments.is_empty() {
                     let mut matches = operations.iter().filter_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+                        CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
                         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
                         _ => (!operand_owned_construction(operation))
                             .then(|| retained_structural_result(operation))
@@ -1921,7 +1921,7 @@ fn successor_bindings(
                     });
                     let result_subject = |local_index: usize| {
                         let mut matches = operations.iter().filter_map(|operation| match operation {
-                            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                            CheckedUnitEffectOperationPlan::EstablishByteSequence {
                                 result,
                                 ..
                             }

@@ -16,15 +16,15 @@ pub(crate) fn validate(
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+    let CheckedUnitEffectOperationPlan::EstablishByteSequence {
         result,
-        bytes,
+        value,
         qualifications,
     } = operation
     else {
         return unsupported("literal local has no establishment");
     };
-    let (_, authored) =
+    let (owner, authored) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     let statements = checked.statement_table.statements(authored.statement_nodes);
     let (reference, expression, is_mutable, local) = match statements
@@ -103,17 +103,19 @@ pub(crate) fn validate(
         return unsupported("literal local changed its authored qualifications");
     }
     let reference = super::parameters::structural_carrier_type(checked, declared_reference)?;
-    if let Some(capacity) =
-        validation::bounded_byte_buffer_capacity(&checked.typed, declared_reference)
-    {
-        if bytes.len() > capacity
-            || checked.normalized_type_identity(reference).as_str() != result.type_identity
-            || !matches!(checked.expression_table.expression(expression), checked_trees::expression::ExpressionNode::String(authored) if authored.as_ref() == bytes.as_slice())
-        {
-            return unsupported("owned literal local changed its authored bytes or carrier");
+    if validation::bounded_byte_buffer_capacity(&checked.typed, declared_reference).is_some() {
+        if checked.normalized_type_identity(reference).as_str() != result.type_identity {
+            return unsupported("owned byte value changed its authored carrier");
         }
+        crate::emission::structural_byte_sequence_store::validate_value(
+            checked, owner.symbol, state, result.statement_index as usize,
+            expression, value, value.root, 0,
+        )?;
         return Ok(());
     }
+    let bytes = value.literal_bytes().ok_or(LoweringError::Unsupported(
+        "borrowed byte local requires literal storage",
+    ))?;
     if !local || is_mutable {
         return unsupported("literal view local changed its binding custody");
     }
@@ -134,7 +136,7 @@ pub(crate) fn validate(
     if checked.primitive_type_reference(*element_type)
         != Some(checked_trees::types::PrimitiveType::U8)
         || checked.normalized_type_identity(carrier).as_str() != result.type_identity
-        || !matches!(checked.expression_table.expression(expression), checked_trees::expression::ExpressionNode::String(authored) if authored.as_ref() == bytes.as_slice())
+        || !matches!(checked.expression_table.expression(expression), checked_trees::expression::ExpressionNode::String(authored) if authored.as_ref() == bytes)
     {
         return unsupported("literal local changed its authored bytes or type");
     }

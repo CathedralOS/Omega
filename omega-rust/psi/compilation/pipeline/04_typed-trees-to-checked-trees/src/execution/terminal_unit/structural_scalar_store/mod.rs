@@ -38,6 +38,7 @@ pub(in crate::execution::terminal_unit) use primitive::{
 pub(in crate::execution::terminal_unit) use selectors::TargetSelectors;
 
 mod byte_stores;
+pub(in crate::execution::terminal_unit) use byte_stores::byte_value_plan;
 mod destination;
 mod frame;
 mod primitive;

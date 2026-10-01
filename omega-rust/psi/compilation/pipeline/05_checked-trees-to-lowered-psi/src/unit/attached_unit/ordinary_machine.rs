@@ -1222,7 +1222,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                 return self.emit_through_frame(operation, step.source_value_count);

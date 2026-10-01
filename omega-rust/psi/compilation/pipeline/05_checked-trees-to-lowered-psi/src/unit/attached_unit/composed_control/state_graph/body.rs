@@ -63,7 +63,7 @@ pub(super) fn validate(
             let result = match operation {
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. } => Some(result),
+                | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => Some(result),
                 // Any call with a structural result, ordinary or boundary.
                 CheckedUnitEffectOperationPlan::Call(call) => call.structural_result(),
                 _ => None,
@@ -222,7 +222,7 @@ pub(super) fn validate(
             }
             // A view-subslice local binds its narrowed view in the same
             // namespace an `as_slice` view local's value does.
-            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             // A `let`-bound closed scalar array takes the next structural
             // ordinal when checking plans it (`local_data`), so a later
@@ -857,10 +857,10 @@ pub(super) fn validate(
                 validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
             (
-                CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. },
+                CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. },
                 StatementNode::LocalData(_) | StatementNode::Expression(_) | StatementNode::Transition(_),
             ) if result.statement_index as usize == ordinal => {
-                super::super::super::literal_locals::validate(checked, state.state, operation)?;
+                super::super::super::byte_locals::validate(checked, state.state, operation)?;
             }
             (
                 CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. },
@@ -1301,7 +1301,7 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
             Some(result.statement_index)
         }
         CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
             Some(result.statement_index)
         }

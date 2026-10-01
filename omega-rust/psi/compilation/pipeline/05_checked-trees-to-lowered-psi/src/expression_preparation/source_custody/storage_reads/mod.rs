@@ -232,7 +232,15 @@ fn validate_reads(
         &mut retained_reads,
         &mut needs_value_replay,
     );
-    if retained_reads != authored_reads {
+    if retained_reads != authored_reads
+        && !super::value_correspondence::matches_expanded_byte_comparison(
+            checked,
+            state.symbol,
+            scope.preceding_statements(),
+            expression,
+            retained,
+        )
+    {
         return unsupported("scalar read differs from its authored binding or mutable place");
     }
     // Account for every authored value member, including receivers changed into

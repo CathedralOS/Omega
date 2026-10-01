@@ -32,6 +32,166 @@ machine main() -> u64 {
 "#;
 
 #[test]
+fn owned_local_byte_comparisons_observe_live_contents() {
+    for (comparison, expected) in [
+        ("text == \"Ada\"", true),
+        ("\"Ada\" == text", true),
+        ("text == \"ada\"", false),
+        ("text == \"A\"", false),
+        ("text == other", true),
+    ] {
+        let checked = crate::front_end::checked_program(&format!(
+            r#"
+            domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+            machine compare() -> bool {{
+                let mut text: [u8; 8] in Utf8 = "ada";
+                let other: [u8; 8] in Utf8 = "Ada";
+                text[0] = 65;
+                transition {comparison} {{
+                    true -> (true)
+                    _ -> (false)
+                }}
+            }}
+        "#
+        ));
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("compare"),
+        )
+        .unwrap_or_else(|error| panic!("owned byte comparison {comparison}: {error:?}"));
+        verify(&lowered).expect("each indexed observation is bounded by live length");
+        let module = &lowered.semantic_module;
+        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+            &terminal_codec::encode_module(module).unwrap(),
+            &terminal_codec::encode_proof_section(module, &lowered.proof_bundle).unwrap(),
+            &AdmissionProfile::default(),
+            &[],
+            terminal_interpreter::TerminalStructuralInputs::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            execution
+                .resume(
+                    &mut terminal_fuel::TerminalFuelMeter::with_allowance(500),
+                    &mut terminal_interpreter::AcceptTerminalEffects,
+                )
+                .unwrap(),
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Boolean(expected),
+                ),
+            ),
+            "{comparison}",
+        );
+    }
+}
+
+#[test]
+fn concatenated_local_owns_its_snapshot_and_declared_capacity() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);
+        domain [u8; 16]::Utf8(bytes) requires valid_utf8(bytes);
+        data Greeting [copy] { bytes: [u8; 16] in Utf8; }
+        machine greet(output: &mut Greeting) {
+            let mut name: [u8; 8] in Utf8 = "ada";
+            name[0] = 65;
+            let greeting: [u8; 16] in Utf8 = "Hi " + name + "!";
+            name[1] = 98;
+            output.bytes = greeting;
+        }
+    "#,
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("greet"),
+    )
+    .expect("a concatenated local uses ordinary byte value construction");
+    verify(&lowered).expect("the constructed local proves capacity and UTF-8");
+    let module = &lowered.semantic_module;
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let (path, field) = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            OperationKind::StructuralByteSequenceFieldStore { path, field, .. } => {
+                Some((path, *field))
+            }
+            _ => None,
+        })
+        .expect("output field replacement");
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        &terminal_codec::encode_module(module).unwrap(),
+        &terminal_codec::encode_proof_section(module, &lowered.proof_bundle).unwrap(),
+        &AdmissionProfile::default(),
+        &[],
+        terminal_interpreter::TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 92,
+                structural_type: entry.structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        execution
+            .resume(
+                &mut terminal_fuel::TerminalFuelMeter::with_allowance(200),
+                &mut terminal_interpreter::AcceptTerminalEffects,
+            )
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+    assert_eq!(
+        execution.structural_byte_sequence_field(92, path, field),
+        Some(b"Hi Ada!".as_slice()),
+        "the local snapshots current Ada, neither initial ada nor later Aba"
+    );
+
+    let mut corrupted = checked.clone();
+    let mut changed = 0;
+    for operation in corrupted
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.operations)
+    {
+        if let checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequence {
+            value, ..
+        } = operation
+            && matches!(
+                value.nodes.get(value.root),
+                checked_trees::CheckedByteSequenceValue::Concatenation { .. }
+            )
+        {
+            *value = checked_trees::CheckedByteSequenceValuePlan::literal(b"wrong".to_vec());
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &corrupted,
+            TerminalMachineSelection::Name("greet")
+        )
+        .is_err(),
+        "a producer cannot replace the authored initializer"
+    );
+}
+
+#[test]
 fn whole_local_byte_operand_observes_completed_element_mutation() {
     let checked = crate::front_end::checked_program(
         r#"

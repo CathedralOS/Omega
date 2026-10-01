@@ -11,7 +11,7 @@ use super::super::{
     TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_literal;
+use crate::execution::terminal_unit::control::statement_sequence::bounded_byte_values;
 use crate::execution::terminal_unit::types::terminal_field_identity;
 
 /// The storage roots one planner lane can write through.
@@ -270,11 +270,18 @@ fn owned_local_root<'a>(
     let (local_ordinal, local) = program.state_local_declaration(state, root_symbol)?;
     // Bounded byte owners keep their declared predicates and live extent;
     // they are not plain fixed arrays. Only an explicitly mutable whole local
-    // with an admitted literal establishment supplies this indexed write root.
+    // with an admitted value establishment supplies this indexed write root.
     let bounded_byte_local = local.is_mutable
         && place.segments.is_empty()
         && dynamic_index.is_some()
-        && bounded_byte_literal::literal_octets(program, local).is_some();
+        && bounded_byte_values::value_plan(
+            program,
+            operators,
+            state,
+            u32::try_from(local_ordinal).ok()?,
+            local,
+        )
+        .is_some();
     // A declared-zeroed local has no initializer but owns its zeroed shape:
     // the declaration established the affine root, so the store resolves its
     // live home place the same way an initialized owned local does. `mut`

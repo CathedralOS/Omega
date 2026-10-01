@@ -3,7 +3,7 @@
 use crate::tests::front_end::checked_program_result;
 use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
-const DOMAIN: &str = "domain [u8; 8]::Utf8 requires valid_utf8(self);";
+const DOMAIN: &str = "domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);";
 
 fn checked(source: &str) -> CheckedTrees {
     checked_program_result(&format!("{DOMAIN}\n{source}"))
@@ -31,14 +31,14 @@ fn literal_establishments(checked: &CheckedTrees, name: &str) -> Vec<(u32, Strin
             plan.operations
                 .iter()
                 .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                    CheckedUnitEffectOperationPlan::EstablishByteSequence {
                         result,
-                        bytes,
+                        value,
                         ..
                     } => Some((
                         result.statement_index,
                         result.type_identity.clone(),
-                        bytes.clone(),
+                        value.literal_bytes()?.to_vec(),
                     )),
                     _ => None,
                 })
@@ -104,7 +104,7 @@ fn mutable_bounded_literals_keep_their_declared_qualification_roster() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+            CheckedUnitEffectOperationPlan::EstablishByteSequence {
                 qualifications, ..
             } => Some(qualifications),
             _ => None,
@@ -122,7 +122,7 @@ fn mutable_bounded_literals_keep_their_declared_qualification_roster() {
 fn bounded_byte_domain_family_keeps_distinct_carriers_and_rejects_pair_conflicts() {
     let checked = checked(
         r#"
-        domain [u8; 10]::Utf8 requires valid_utf8(self);
+        domain [u8; 10]::Utf8(bytes) requires valid_utf8(bytes);
         machine hold() {
             let digits: [u8; 10] in Utf8 = "0123456789";
             let mut line: [u8; 8] in Utf8 = "ab";
@@ -190,7 +190,7 @@ fn bounded_byte_domain_family_keeps_distinct_carriers_and_rejects_pair_conflicts
 fn bounded_byte_domain_catalog_uses_the_selected_carrier_declaration() {
     let checked = checked(
         r#"
-        domain [u8; 10]::Utf8 requires valid_utf8(self);
+        domain [u8; 10]::Utf8(bytes) requires valid_utf8(bytes);
         machine hold() {
             let digits: [u8; 10] in Utf8 = "0123456789";
             let text: [u8; 8] in Utf8 = "ab";

@@ -238,7 +238,7 @@ fn owned_byte_write_retains_utf8_without_freezing_incidental_no_nul() {
         .flat_map(|plan| &mut plan.states)
         .flat_map(|state| &mut state.operations)
         .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+            CheckedUnitEffectOperationPlan::EstablishByteSequence {
                 qualifications, ..
             } => Some(qualifications),
             _ => None,

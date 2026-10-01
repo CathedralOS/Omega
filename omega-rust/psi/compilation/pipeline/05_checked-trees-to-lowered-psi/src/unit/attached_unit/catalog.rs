@@ -325,7 +325,7 @@ pub(super) fn lower_unit_structural_types_including(
                 // its view type: a range over a fixed-array field narrows a
                 // view no earlier binding or parameter declared.
                 CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
                     roots.push(result.type_identity.clone());
                 }
@@ -861,7 +861,7 @@ pub(super) fn lower_unit_structural_domains_including(
             })
             .chain(body.qualifications())
             .chain(body.operations().flat_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                CheckedUnitEffectOperationPlan::EstablishByteSequence {
                     qualifications,
                     ..
                 } => qualifications.as_slice(),
@@ -1249,7 +1249,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
                 | CheckedUnitEffectOperationPlan::EstablishReference { .. }
                 | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }

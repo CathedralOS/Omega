@@ -483,8 +483,21 @@ fn comparable_byte_carrier(
             carrier,
         ));
     }
-    // A view local is observed whole: its root never carries a projection,
-    // and a bounded owner is never a view local.
+    if let Some((symbol, type_reference)) =
+        structural_fields::owned_local_root(program, authored_parameters, carrier)
+    {
+        let carrier = comparable_byte_carrier_type(program, type_reference)?;
+        return matches!(
+            carrier,
+            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+        )
+        .then_some((
+            checked_trees::CheckedStorageRoot::OwnedLocal { symbol },
+            Vec::new(),
+            carrier,
+        ));
+    }
+    // Borrowed locals retain their distinct loan-backed root.
     let (symbol, type_reference) =
         structural_fields::view_local_root(program, authored_parameters, carrier)?;
     let carrier = comparable_byte_carrier_type(program, type_reference)?;

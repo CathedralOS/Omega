@@ -76,7 +76,7 @@ mod field_replacement;
 pub(crate) use field_replacement::{
     array_literal_leaves, replaced_array_literal, validate_array_element_replacements,
 };
-pub(crate) mod literal_locals;
+pub(crate) mod byte_locals;
 mod ordinary_calls;
 mod parameters;
 pub(crate) mod primitive_locals;
@@ -318,13 +318,13 @@ pub(crate) fn lower_unit_closure(
             }
             if let CheckedUnitEffectOperationPlan::ByteSequenceStore(store) = operation {
                 crate::emission::structural_byte_sequence_store::prepare_types(
-                    store,
+                    &store.value,
                     &mut structural_types,
                 )?;
             }
             // An owned bounded literal local copies its octets from a
             // generated literal view into its declared owner.
-            if let CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. } =
+            if let CheckedUnitEffectOperationPlan::EstablishByteSequence { result, value, .. } =
                 operation
                 && let Ok(declared) = lookup_type_id(&type_ids, &result.type_identity)
                 && structural_types.iter().any(|declaration| {
@@ -337,7 +337,8 @@ pub(crate) fn lower_unit_closure(
                         )
                 })
             {
-                crate::emission::structural_byte_sequence_store::literal_view_type(
+                crate::emission::structural_byte_sequence_store::prepare_types(
+                    value,
                     &mut structural_types,
                 )?;
             }

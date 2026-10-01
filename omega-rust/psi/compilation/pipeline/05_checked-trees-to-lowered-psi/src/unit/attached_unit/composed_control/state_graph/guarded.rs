@@ -102,7 +102,7 @@ pub(super) fn validate(
                 discard_result_on_return: false,
                 ..
             }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. } => result,
+            | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => result,
             _ => return unsupported("ordered return lost its structural producer"),
         };
         let expression = match statements.get(*statement_ordinal as usize) {
@@ -153,7 +153,7 @@ pub(super) fn validate(
                 operation,
             )?;
         } else {
-            super::super::super::literal_locals::validate(checked, state.state, operation)?;
+            super::super::super::byte_locals::validate(checked, state.state, operation)?;
         }
     }
     edges::return_discards(checked, plan.machine, source, state)?;
@@ -350,7 +350,7 @@ pub(super) fn emit_return(
     )?;
     let result = match operation {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. } => result,
+        | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. } => result,
         _ => return unsupported("ordered return has no structural producer"),
     };
     let source = operations

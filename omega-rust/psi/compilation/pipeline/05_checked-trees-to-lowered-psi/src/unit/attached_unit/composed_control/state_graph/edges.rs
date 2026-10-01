@@ -210,7 +210,7 @@ pub(super) fn validate_bindings(
                 .operations
                 .iter()
                 .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                    CheckedUnitEffectOperationPlan::EstablishByteSequence {
                         result, ..
                     }
                     | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
@@ -220,7 +220,7 @@ pub(super) fn validate_bindings(
                             result,
                             matches!(
                                 operation,
-                                CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                                CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                             ),
                         ))
                     }
@@ -1096,7 +1096,7 @@ fn view_local_result<'a>(
     let mut matching = state.operations.iter().filter_map(|operation| {
         let result = match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequence { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => result,
             _ => return None,
         };

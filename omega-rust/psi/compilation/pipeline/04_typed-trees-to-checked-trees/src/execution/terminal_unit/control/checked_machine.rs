@@ -433,7 +433,7 @@ pub(crate) fn build_checked_machine_residual_parts(
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
             | CheckedUnitEffectOperationPlan::EstablishReference { .. }
             | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }

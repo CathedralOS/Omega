@@ -164,18 +164,21 @@ pub(super) fn plan(
         structural_local_symbols.push(local.symbol);
         let qualifications =
             parameter_qualifications(program, shapes, local.type_reference, binders)?;
-        operations.push(
-            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
-                result,
-                bytes,
-                qualifications,
-            },
-        );
+        operations.push(CheckedUnitEffectOperationPlan::EstablishByteSequence {
+            result,
+            value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),
+            qualifications,
+        });
         return Some(LocalPlan::Planned);
     }
-    // A bounded owner (`[u8; 8] in Utf8`) constructed from a literal copies
-    // its octets and live length through the same literal establishment.
-    if let Some(bytes) = super::bounded_byte_literal::literal_octets(program, local) {
+    // A bounded owner snapshots its initializer's bytes and live length.
+    if let Some(value) = super::bounded_byte_values::value_plan(
+        program,
+        &facts.operators,
+        state,
+        statement_index,
+        local,
+    ) {
         local_phase("statement sequence: local data: bounded byte literal");
         let result = CheckedUnitStructuralResultBindingPlan {
             statement_index,
@@ -188,13 +191,11 @@ pub(super) fn plan(
         structural_local_symbols.push(local.symbol);
         let qualifications =
             parameter_qualifications(program, shapes, local.type_reference, binders)?;
-        operations.push(
-            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
-                result,
-                bytes,
-                qualifications,
-            },
-        );
+        operations.push(CheckedUnitEffectOperationPlan::EstablishByteSequence {
+            result,
+            value,
+            qualifications,
+        });
         return Some(LocalPlan::Planned);
     }
     // An atomic carrier's result placeholder plans nothing: it

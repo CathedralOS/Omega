@@ -536,7 +536,7 @@ pub(super) fn literal_result_operation(
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let bytes = control::statement_sequence::bounded_byte_literal::expression_octets(
+    let bytes = control::statement_sequence::bounded_byte_values::expression_octets(
         program,
         state.return_type,
         expression,
@@ -550,9 +550,9 @@ pub(super) fn literal_result_operation(
     let qualifications = parameter_qualifications(program, shapes, state.return_type, &[])?;
     *count = count.checked_add(1)?;
     Some(
-        CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+        CheckedUnitEffectOperationPlan::EstablishByteSequence {
             result,
-            bytes,
+            value: checked_trees::CheckedByteSequenceValuePlan::literal(bytes),
             qualifications,
         },
     )

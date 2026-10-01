@@ -222,7 +222,7 @@ fn a_mutated_bounded_owner_lends_its_live_bytes_to_a_shared_boundary_view() {
             .operations
             .iter()
             .find_map(|operation| match operation {
-                checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishByteSequence {
                     result,
                     qualifications,
                     ..

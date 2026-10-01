@@ -179,7 +179,7 @@ pub(crate) fn validate_assignment(
     Ok(())
 }
 
-fn validate_value(
+pub(crate) fn validate_value(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
@@ -525,14 +525,18 @@ fn validate_whole_parameter_custody(
 
 /// Generated owned carriers are shared by capacity, independently of live extent.
 pub(crate) fn prepare_types(
-    store: &checked_trees::CheckedByteSequenceStorePlan,
+    value: &CheckedByteSequenceValuePlan,
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<(), LoweringError> {
     literal_view_type(types)?;
-    for (identity, node) in store.value.nodes.iter() {
+    for (identity, node) in value.nodes.iter() {
         let capacity = match node {
             ByteValue::Concatenation { capacity, .. } => Some(capacity),
-            ByteValue::Field { capacity, .. } if identity == store.value.root => Some(capacity),
+            ByteValue::Field { capacity, .. } | ByteValue::Whole { capacity, .. }
+                if identity == value.root =>
+            {
+                Some(capacity)
+            }
             _ => None,
         };
         if let Some(capacity) = capacity {
@@ -774,14 +778,25 @@ pub(crate) fn emit(
     };
     let (operand, capacity) = emitter.emit(store.value.root, 0)?;
     let (source, length) = match operand {
-        ByteSequenceOperand::Whole { source, length } => (source, length),
-        field @ ByteSequenceOperand::Field { .. } => {
-            // A mutable field cannot back an immutable store source. The
-            // existing two-span materialization with an empty second span
-            // snapshots its live bytes into fresh owned backing before any
-            // destination write, including a write through an alias.
+        ByteSequenceOperand::Whole { source, length }
+            if !matches!(
+                store.value.nodes.get(store.value.root),
+                ByteValue::Whole {
+                    root: checked_trees::CheckedStoreRoot::Local { .. },
+                    ..
+                }
+            ) =>
+        {
+            (source, length)
+        }
+        source => {
+            // Local owners and fields must be snapshotted before the
+            // destination write, including writes through an alias.
+            // Parameter sources retain the store's exact formal-access
+            // contract; generated literals and concatenations are already
+            // independent sources.
             let (empty, _) = emitter.emission.literal(&[])?;
-            emitter.owned(field, empty, capacity)?
+            emitter.owned(source, empty, capacity)?
         }
     };
     let obligation = obligation_id(allocate_dense(next_obligation)?);
@@ -911,19 +926,70 @@ fn emit_view_field_store(
     })
 }
 
-/// Establish an owned bounded byte local from a quoted literal.
+/// Establish an owned bounded byte local from its checked initializer.
 ///
 /// `let text: [u8; 8] in Utf8 = "150";` owns capacity 8 and live length 3
 /// (wiki/spec/language/domains.md, "Byte containers and encoding domains").
-/// The octets are copied, not lent from image storage: the literal view and
-/// an empty view concatenate into fresh backing of the local's declared
-/// carrier, exactly the materialization a bounded field store uses. The
-/// concatenation's capacity obligation proves the literal fits; Terminal
-/// replays the local's byte predicates from the literal operand.
+/// The initializer's live bytes are copied into fresh backing of the local's
+/// declared carrier. Later mutations of an operand cannot change the local.
+/// Concatenation proves capacity and Terminal replays the byte predicates.
 ///
 /// Returns the result place's declaration and the established result. The
 /// caller publishes the declaration in its own result roster.
 #[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_owned_value(
+    value: &CheckedByteSequenceValuePlan,
+    structural_type: StructuralTypeId,
+    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
+    parameters: &[(u32, StructuralParameterDeclaration)],
+    locals: &[(symbols::SymbolHandle, terminal_psi::StructuralArgument)],
+    structural_types: &[StructuralTypeDeclaration],
+    places: &mut Vec<StructuralPlaceDeclaration>,
+    next_place: &mut u64,
+    next_value: &mut u64,
+    next_obligation: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<
+    (
+        StructuralPlaceDeclaration,
+        terminal_psi::StructuralOperationResult,
+    ),
+    LoweringError,
+> {
+    let Some(StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+        capacity,
+    })) = structural_types
+        .iter()
+        .find(|row| row.id == structural_type)
+        .map(|row| &row.shape)
+    else {
+        return unsupported("owned byte local has no bounded carrier");
+    };
+    let mut emitter = ValueEmitter {
+        plan: value,
+        parameters,
+        locals,
+        emission: ByteEmission {
+            structural_types,
+            places,
+            next_place,
+            next_value,
+            next_obligation,
+            operations,
+        },
+    };
+    let (operand, maximum_length) = emitter.emit(value.root, 0)?;
+    if maximum_length > *capacity {
+        return unsupported("owned byte initializer exceeds its declared capacity");
+    }
+    // Snapshot into the declaration's carrier even when the operand is an
+    // existing owner. The local is an independent value, never an alias.
+    let (empty, _) = emitter.emission.literal(&[])?;
+    emitter
+        .emission
+        .concatenate(operand, empty, structural_type, qualifications)
+}
+
 pub(crate) fn emit_owned_literal(
     bytes: &[u8],
     structural_type: StructuralTypeId,

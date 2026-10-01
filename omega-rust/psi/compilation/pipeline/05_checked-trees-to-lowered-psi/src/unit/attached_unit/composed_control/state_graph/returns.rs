@@ -495,7 +495,7 @@ pub(super) fn validate_structural(
                     // A `&mut` view tail return's producer is the reference
                     // establishment minted at the transition.
                     CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                    | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral {
+                    | CheckedUnitEffectOperationPlan::EstablishByteSequence {
                         result, ..
                     } => Some(result),
                     _ => super::result_custody::result(operation),
@@ -542,9 +542,9 @@ pub(super) fn validate_structural(
                     )?;
                 } else if matches!(
                     operation,
-                    CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                    CheckedUnitEffectOperationPlan::EstablishByteSequence { .. }
                 ) {
-                    super::super::super::literal_locals::validate(checked, state.state, operation)?;
+                    super::super::super::byte_locals::validate(checked, state.state, operation)?;
                 } else if let CheckedUnitEffectOperationPlan::EstablishReference {
                     source, ..
                 } = operation
