@@ -156,8 +156,13 @@ fn address_join_edges_reject_substituted_referents_widened_access_and_forged_roo
             "{label} must not lower as an address join"
         );
     }
-    // Widening the join itself leaves no carrier: an exclusive primitive join
-    // is neither an address join nor a descriptor view.
+}
+
+#[test]
+fn owned_scalar_fields_can_back_mutable_address_joins() {
+    // Both roots are owned locals, so exclusive loans are valid when the edge
+    // and declaration agree. Address transport is identical; Terminal admission
+    // independently checks whether the producer had permission to take a loan.
     let mut plan = source_plan(PRIMITIVE_CALL_SOURCE);
     let (function, place) = join(&plan);
     edit_join_bindings(&mut plan, |binding| {
@@ -171,13 +176,11 @@ fn address_join_edges_reject_substituted_referents_widened_access_and_forged_roo
     {
         parameter.access = StructuralAccess::MutableBorrow;
     }
-    assert!(
-        crate::lower_to_target_operations(
-            &plan,
-            crate::TargetLoweringRequest::new(NativeTarget::macos_arm64())
-        )
-        .is_err()
-    );
+    let native = NativeTarget::macos_arm64();
+    let target =
+        crate::lower_to_target_operations(&plan, crate::TargetLoweringRequest::new(native))
+            .expect("owned scalar fields can back mutable address joins");
+    crate::validate_abstract_to_target_translation(&plan, native, &target).unwrap();
 }
 
 #[test]

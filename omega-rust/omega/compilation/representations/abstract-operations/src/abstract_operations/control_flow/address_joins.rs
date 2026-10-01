@@ -1,8 +1,8 @@
 //! Borrowed joins whose runtime carrier is the referent's address.
 //!
 //! Shared joins admit primitive scalars, service binding leaves and plain records
-//! through static projections. Mutable joins admit plain aggregates and binding
-//! leaves, whole or statically projected, while transferring the exact incoming
+//! through static projections. Mutable joins admit the same plain referents,
+//! whole or statically projected, while transferring the exact incoming
 //! mutable permission. Neither carrier copies the referent.
 //! A shared bounded byte owner loan (`owner_loans`) is also carried as its
 //! owner's address; it keeps the owner's plain byte qualifications, and each
@@ -36,19 +36,10 @@ fn is_plain_address_join<'a>(
     parameter: &StructuralParameterDeclaration,
     lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
 ) -> bool {
-    (parameter.access == StructuralAccess::SharedBorrow
-        || parameter.access == StructuralAccess::MutableBorrow
-            && lookup(parameter.structural_type).is_some_and(|declaration| {
-                matches!(
-                    declaration.shape,
-                    StructuralTypeShape::Record { .. }
-                        | StructuralTypeShape::FusedServiceBinding
-                        | StructuralTypeShape::Sum { .. }
-                        | StructuralTypeShape::Mixed { .. }
-                        | StructuralTypeShape::FixedArray { .. }
-                )
-            }))
-        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+    matches!(
+        parameter.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
         && !parameter.is_self
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()

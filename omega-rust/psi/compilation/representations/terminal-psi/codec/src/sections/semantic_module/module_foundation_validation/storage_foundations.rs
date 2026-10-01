@@ -7,8 +7,7 @@ use crate::codec_error::{CodecError, malformed};
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralFieldType, StructuralMultiplicity,
-    StructuralPlaceDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
-    is_bounded_structural_scalar_store_path,
+    StructuralTypeShape, TerminalMachine, TerminalModule, is_bounded_structural_scalar_store_path,
 };
 
 /// Resolve only the reference shell's declared geometry. Origin, live loan
@@ -837,73 +836,57 @@ pub(super) fn validate_write_only_primitive_store(
     if operation.result != OperationResult::Unit {
         return malformed("write-only primitive store declares a non-Unit result");
     }
-    let destination_type = if !path.is_empty() {
-        if let Some(parameter) = machine
-            .structural_parameters
-            .iter()
-            .chain(
-                machine
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
-            .find(|parameter| parameter.place == *destination)
-        {
-            if !matches!(
-                parameter.access,
-                terminal_psi::StructuralAccess::Owned
-                    | terminal_psi::StructuralAccess::MutableBorrow
-                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
-            ) || !matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            ) || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
-                || machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == *destination)
-                || machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == *destination)
-            {
-                return malformed("projected primitive store has invalid destination custody");
-            }
-            parameter.structural_type
-        } else {
-            let Some(result) = machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .filter_map(|producer| producer.result.structural())
-                .find(|result| {
-                    result.place == *destination
-                        && result.claims.is_empty()
-                        && result.qualifications.is_empty()
-                        && result.projected_qualifications.is_empty()
-                        && matches!(
-                            result.multiplicity,
-                            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                        )
-                })
-            else {
-                return malformed("projected primitive store has no owned root");
-            };
-            // Exact producer, liveness and reference custody belong to independent verification.
-            result.structural_type
-        }
-    } else if let Some(parameter) = machine
+    // Entry and block parameters carry the same storage authority. A path
+    // selects inside an aggregate; it does not select a different parameter
+    // lookup or permit an undeclared destination.
+    let projected = !path.is_empty();
+    let destination_type = if let Some(parameter) = machine
         .structural_parameters
         .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
         .find(|parameter| parameter.place == *destination)
     {
-        if !matches!(
+        let declaration_matches = machine.structural_places.iter().any(|place| {
+            if place.id != *destination {
+                return false;
+            }
+            match place.kind {
+                StructuralPlaceKind::Parameter { position, is_self } => {
+                    position == parameter.position
+                        && is_self == parameter.is_self
+                        && machine.structural_parameters.contains(parameter)
+                }
+                StructuralPlaceKind::BlockParameter { block, position } => {
+                    position == parameter.position
+                        && !parameter.is_self
+                        && machine
+                            .blocks
+                            .iter()
+                            .find(|candidate| candidate.id == block)
+                            .and_then(|block| block.structural_parameters.get(position as usize))
+                            == Some(parameter)
+                }
+                _ => false,
+            }
+        });
+        let writable = matches!(
             parameter.access,
             terminal_psi::StructuralAccess::MutableBorrow
                 | terminal_psi::StructuralAccess::WriteOnlyBorrow
-        ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+        ) || (projected
+            && parameter.access == terminal_psi::StructuralAccess::Owned);
+        let multiplicity = parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            || (projected && parameter.multiplicity == StructuralMultiplicity::Affine);
+        if !writable
+            || !multiplicity
+            || !declaration_matches
             || !parameter.qualifications.is_empty()
+            || !parameter.projected_qualifications.is_empty()
             || machine
                 .entry_claims
                 .iter()
@@ -912,13 +895,6 @@ pub(super) fn validate_write_only_primitive_store(
                 .content_entry_claims
                 .iter()
                 .any(|claim| claim.input.root == *destination)
-            || !matches!(
-                machine.structural_places.iter().find(|place| place.id == *destination),
-                Some(StructuralPlaceDeclaration {
-                    kind: StructuralPlaceKind::Parameter { position, is_self },
-                    ..
-                }) if *position == parameter.position && *is_self == parameter.is_self
-            )
         {
             return malformed("write-only primitive store has invalid destination custody");
         }
@@ -929,17 +905,24 @@ pub(super) fn validate_write_only_primitive_store(
             .iter()
             .flat_map(|block| &block.operations)
             .filter(|producer| {
-                matches!(producer.kind, OperationKind::EstablishPrimitiveLocal { .. })
+                projected || matches!(producer.kind, OperationKind::EstablishPrimitiveLocal { .. })
             })
             .filter_map(|producer| producer.result.structural())
-            .find(|result| result.place == *destination)
+            .find(|result| {
+                result.place == *destination
+                    && result.claims.is_empty()
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && (result.multiplicity == StructuralMultiplicity::Unrestricted
+                        || (projected && result.multiplicity == StructuralMultiplicity::Affine))
+            })
         else {
             return malformed(
                 "primitive store destination is neither a parameter nor an initialized local",
             );
         };
-        // Each establishment is independently checked against its exact
-        // operation-result declaration below; the verifier checks dominance.
+        // Each producer validates its exact operation-result declaration;
+        // independent verification checks dominance and reference custody.
         if machine
             .entry_claims
             .iter()
