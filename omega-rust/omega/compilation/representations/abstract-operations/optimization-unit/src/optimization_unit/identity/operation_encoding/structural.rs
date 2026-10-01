@@ -162,20 +162,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         } => {
             bytes.u8(if path.is_empty() { 49 } else { 74 });
             bytes.id(*psi_operation);
-            match destination {
-                abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
-                    bytes.u8(0);
-                    encode_structural_parameter(bytes, parameter);
-                }
-                abstract_operations::StructuralScalarStoreDestination::OwnedResult {
-                    producer,
-                    result,
-                } => {
-                    bytes.u8(1);
-                    bytes.id(*producer);
-                    encode_structural_operation_result(bytes, result);
-                }
-            }
+            encode_store_destination(bytes, destination);
             if !path.is_empty() {
                 bytes.slice(path, encode_structural_path_segment);
             }
@@ -191,20 +178,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         } => {
             bytes.u8(if range_obligation.is_some() { 75 } else { 50 });
             bytes.id(*psi_operation);
-            match destination {
-                abstract_operations::StructuralScalarStoreDestination::Parameter(parameter) => {
-                    bytes.u8(0);
-                    encode_structural_parameter(bytes, parameter);
-                }
-                abstract_operations::StructuralScalarStoreDestination::OwnedResult {
-                    producer,
-                    result,
-                } => {
-                    bytes.u8(1);
-                    bytes.id(*producer);
-                    encode_structural_operation_result(bytes, result);
-                }
-            }
+            encode_store_destination(bytes, destination);
             bytes.slice(path, encode_structural_path_segment);
             bytes.id(*field);
             encode_abstract_result(bytes, *value);
@@ -387,6 +361,32 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
 
 /// A window's field identity, or zero for a root window: no declared field
 /// takes identity zero, so every field window keeps its previous spelling.
+/// Both scalar store forms share one destination encoding, so a rewrite
+/// that substitutes an owned block home for a loan, or one block's home for
+/// another's, changes the canonical identity.
+fn encode_store_destination(
+    bytes: &mut CanonicalBytes,
+    destination: &abstract_operations::StructuralScalarStoreDestination,
+) {
+    use abstract_operations::StructuralScalarStoreDestination as Destination;
+    match destination {
+        Destination::Parameter(parameter) => {
+            bytes.u8(0);
+            encode_structural_parameter(bytes, parameter);
+        }
+        Destination::OwnedResult { producer, result } => {
+            bytes.u8(1);
+            bytes.id(*producer);
+            encode_structural_operation_result(bytes, result);
+        }
+        Destination::OwnedBlockParameter { block, parameter } => {
+            bytes.u8(2);
+            bytes.id(*block);
+            encode_structural_parameter(bytes, parameter);
+        }
+    }
+}
+
 fn encode_window_field(
     bytes: &mut CanonicalBytes,
     field: Option<semantic_vocabulary::StructuralFieldId>,

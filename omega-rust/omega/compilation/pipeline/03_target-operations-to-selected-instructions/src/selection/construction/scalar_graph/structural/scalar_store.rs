@@ -1,6 +1,7 @@
-//! Exact writes through original borrowed pointers or owned result homes. A path
-//! through runtime-selected elements scales each selector into the address
-//! first (`runtime_address`); the store then applies the static offset.
+//! Exact writes through original borrowed pointers, owned result homes, or an
+//! owned arrival's block home. A path through runtime-selected elements scales
+//! each selector into the address first (`runtime_address`); the store then
+//! applies the static offset.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
     SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess,
@@ -98,6 +99,19 @@ pub(super) fn emit(
         abstract_operations::StructuralScalarStoreDestination::OwnedResult { producer, result } => {
             crate::selection::aggregate_result_input::owned_store_destination(
                 source, *producer, result,
+            )
+        }
+        // An owned arrival's field lands in its own block home, the slot
+        // whose address `block_entry` placed in the transport pointers.
+        abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            block,
+            parameter,
+        } => {
+            matches!(
+                row.kind,
+                LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+            ) && crate::selection::owned_block_home_input::store_destination(
+                source, *block, parameter,
             )
         }
     };

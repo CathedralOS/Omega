@@ -98,6 +98,19 @@ fn lower_store(
         })
         .map(StructuralScalarStoreDestination::Parameter)
         .or_else(|| owned_store_destination(machine, destination))
+        // An owned arrival writes the home its block entry established, the
+        // one every incoming edge moved its whole source into; Terminal
+        // verification admits an owned block parameter as write authority.
+        .or_else(|| {
+            let (block, parameter) =
+                super::primitive_storage::owned_state_parameter(machine, destination)?;
+            (block != machine.entry).then(|| {
+                StructuralScalarStoreDestination::OwnedBlockParameter {
+                    block,
+                    parameter: parameter.clone(),
+                }
+            })
+        })
         .ok_or_else(invalid)?;
     let scalar_type =
         dominating_scalar_type(machine, block, operation.id, value).ok_or_else(invalid)?;
@@ -988,5 +1001,165 @@ mod tests {
             observed_scalar_field(&types, root, &path(1)[..1], first),
             None
         );
+    }
+
+    /// One owned record arrival at block 4 (not the entry, block 2) whose
+    /// field 1 a store writes from a value defined earlier in that block.
+    fn owned_arrival_store(
+        access: StructuralAccess,
+        multiplicity: StructuralMultiplicity,
+    ) -> (TerminalMachine, Vec<StructuralTypeDeclaration>, Operation) {
+        let place = PlaceId::new(20).unwrap();
+        let store = Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(11).unwrap(),
+            result: OperationResult::Unit,
+            kind: OperationKind::StructuralScalarFieldStore {
+                destination: place,
+                path: Vec::new(),
+                field: StructuralFieldId::new(1).unwrap(),
+                value: ValueId::new(5).unwrap(),
+                range_obligation: None,
+            },
+        };
+        let mut arrival = test_block(vec![producer(10, 5), store.clone()]);
+        arrival.id = BlockId::new(4).unwrap();
+        arrival
+            .structural_parameters
+            .push(structural_parameter(20, 0, multiplicity, access));
+        let mut machine = machine(
+            Vec::new(),
+            Vec::new(),
+            vec![StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::BlockParameter {
+                    block: BlockId::new(4).unwrap(),
+                    position: 0,
+                },
+            }],
+        );
+        machine.blocks = vec![test_block(Vec::new()), arrival];
+        let types = vec![record_type(
+            1,
+            vec![field(1, "total", StructuralFieldType::Scalar(i32_type()))],
+        )];
+        (machine, types, store)
+    }
+
+    fn lower_arrival_store(
+        machine: &TerminalMachine,
+        types: &[StructuralTypeDeclaration],
+        store: &Operation,
+    ) -> Result<abstract_operations::AbstractOperation, crate::lowering::LoweringError> {
+        super::lower(store, &machine.blocks[1], machine, types)
+    }
+
+    #[test]
+    fn owned_block_arrival_is_its_own_store_destination() {
+        for multiplicity in [
+            StructuralMultiplicity::Affine,
+            StructuralMultiplicity::Unrestricted,
+        ] {
+            let (machine, types, store) =
+                owned_arrival_store(StructuralAccess::Owned, multiplicity);
+            let lowered = lower_arrival_store(&machine, &types, &store).unwrap();
+            let abstract_operations::AbstractOperation::StructuralScalarFieldStore {
+                destination,
+                ..
+            } = lowered
+            else {
+                panic!("a field store lowers to a field store");
+            };
+            // The arrival keeps its block as establishment identity and its
+            // exact declaration; it never becomes a loan.
+            assert_eq!(
+                destination,
+                abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+                    block: BlockId::new(4).unwrap(),
+                    parameter: machine.blocks[1].structural_parameters[0].clone(),
+                }
+            );
+            assert!(destination.parameter().is_none());
+        }
+    }
+
+    #[test]
+    fn shared_linear_and_claimed_arrivals_are_not_store_destinations() {
+        let refused = |machine: &TerminalMachine, types: &[StructuralTypeDeclaration], store| {
+            assert!(matches!(
+                lower_arrival_store(machine, types, store),
+                Err(crate::lowering::LoweringError::InvalidStructuralScalarFieldStore(_))
+            ));
+        };
+        // A shared loan grants no write, and a linear arrival is not plain
+        // record storage.
+        let (machine, types, store) = owned_arrival_store(
+            StructuralAccess::SharedBorrow,
+            StructuralMultiplicity::Affine,
+        );
+        refused(&machine, &types, &store);
+        let (machine, types, store) =
+            owned_arrival_store(StructuralAccess::Owned, StructuralMultiplicity::Linear);
+        refused(&machine, &types, &store);
+        // Qualified or claimed storage carries custody this write would break.
+        let (mut machine, types, store) =
+            owned_arrival_store(StructuralAccess::Owned, StructuralMultiplicity::Affine);
+        machine.blocks[1].structural_parameters[0].qualifications =
+            vec![semantic_vocabulary::StructuralDomainId::new(30).unwrap()];
+        refused(&machine, &types, &store);
+        let (mut machine, types, store) =
+            owned_arrival_store(StructuralAccess::Owned, StructuralMultiplicity::Affine);
+        machine.entry_claims.push(terminal_psi::EntryClaim {
+            claim: semantic_vocabulary::ClaimId::new(31).unwrap(),
+            input: PlaceId::new(20).unwrap(),
+            path: Vec::new(),
+        });
+        refused(&machine, &types, &store);
+    }
+
+    #[test]
+    fn copied_entry_parameters_and_substituted_places_are_not_store_destinations() {
+        let refused = |machine: &TerminalMachine, types: &[StructuralTypeDeclaration], store| {
+            assert!(matches!(
+                lower_arrival_store(machine, types, store),
+                Err(crate::lowering::LoweringError::InvalidStructuralScalarFieldStore(_))
+            ));
+        };
+        // An unrestricted record copied in by value is the caller's ABI
+        // placement, not a block home this route writes.
+        let (mut machine, types, store) = owned_arrival_store(
+            StructuralAccess::Owned,
+            StructuralMultiplicity::Unrestricted,
+        );
+        let copied = machine.blocks[1].structural_parameters.remove(0);
+        machine.structural_parameters.push(copied);
+        machine.structural_places[0].kind = StructuralPlaceKind::Parameter {
+            position: 0,
+            is_self: false,
+        };
+        refused(&machine, &types, &store);
+        // A place row naming another block, or another position, does not
+        // describe this arrival.
+        let (mut machine, types, store) =
+            owned_arrival_store(StructuralAccess::Owned, StructuralMultiplicity::Affine);
+        machine.structural_places[0].kind = StructuralPlaceKind::BlockParameter {
+            block: BlockId::new(2).unwrap(),
+            position: 0,
+        };
+        refused(&machine, &types, &store);
+        let (mut machine, types, store) =
+            owned_arrival_store(StructuralAccess::Owned, StructuralMultiplicity::Affine);
+        machine.structural_places[0].kind = StructuralPlaceKind::BlockParameter {
+            block: BlockId::new(4).unwrap(),
+            position: 1,
+        };
+        refused(&machine, &types, &store);
+        // An arrival declared on the entry block has no edge that moved a
+        // value into it.
+        let (mut machine, types, store) =
+            owned_arrival_store(StructuralAccess::Owned, StructuralMultiplicity::Affine);
+        machine.entry = BlockId::new(4).unwrap();
+        refused(&machine, &types, &store);
     }
 }

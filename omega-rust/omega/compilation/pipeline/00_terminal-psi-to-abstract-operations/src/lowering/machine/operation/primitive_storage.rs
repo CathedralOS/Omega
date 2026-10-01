@@ -47,11 +47,15 @@ pub(super) fn parameter<'a>(
 /// A state's owned structural parameter: the value arrives whole on its block
 /// edge and lives in the block's own value storage, exactly as the root a
 /// structural field read observes. Only a projected read below it is a
-/// primitive leaf; the whole owned record never is.
-fn owned_state_parameter(
+/// primitive leaf; the whole owned record never is. The owning block is the
+/// home's establishment identity, which a field store retains.
+pub(super) fn owned_state_parameter(
     machine: &TerminalMachine,
     place: PlaceId,
-) -> Option<&terminal_psi::StructuralParameterDeclaration> {
+) -> Option<(
+    semantic_vocabulary::BlockId,
+    &terminal_psi::StructuralParameterDeclaration,
+)> {
     let mut declarations = machine
         .structural_places
         .iter()
@@ -79,7 +83,7 @@ fn owned_state_parameter(
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
         && super::structural_scalar_fields::has_empty_structural_custody(machine, place))
-    .then_some(parameter)
+    .then_some((block, parameter))
 }
 
 pub(super) fn local(
@@ -237,7 +241,7 @@ pub(super) fn lower(
                     (!path.is_empty())
                         .then(|| owned_state_parameter(machine, source))
                         .flatten()
-                        .map(|parameter| parameter.structural_type)
+                        .map(|(_, parameter)| parameter.structural_type)
                 })
                 .or_else(|| {
                     parameter(machine, types, source)

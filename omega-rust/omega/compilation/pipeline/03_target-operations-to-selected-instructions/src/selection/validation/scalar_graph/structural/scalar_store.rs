@@ -100,6 +100,19 @@ pub(super) fn validate(
                 source, *producer, result,
             )
         }
+        // An owned arrival's field lands in its own block home, the slot
+        // whose address `block_entry` placed in the transport pointers.
+        abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            block,
+            parameter,
+        } => {
+            matches!(
+                row.kind,
+                LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. }
+            ) && crate::selection::owned_block_home_input::store_destination(
+                source, *block, parameter,
+            )
+        }
     };
     if row.result.is_some() || !declared {
         return Err(replay.invalid());

@@ -20,6 +20,7 @@ mod address_joins;
 mod mutable;
 mod owned;
 mod owned_authority;
+mod owned_block_store;
 
 fn transfer_unit() -> PsiOptimizationUnit {
     let machine = id(1, MachineId::new);

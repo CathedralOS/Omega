@@ -234,12 +234,13 @@ pub enum AbstractOperation {
         value: AbstractResult,
     },
     /// One verifier-approved scalar replacement at an exact field beneath a
-    /// borrowed parameter or owned result root. The exact destination retains
-    /// root authority, `path` and `field` retain the selected structural location,
-    /// and `value` rejoins the exact typed dominating scalar definition. The
-    /// carrier `path` composes record fields and literal or runtime-selected
-    /// elements in any order (`ents[i].pos` for `ents[i].pos.x`); each
-    /// runtime element's bound is an obligation this operation owns.
+    /// borrowed parameter, owned result or owned block parameter root. The
+    /// exact destination retains root authority, `path` and `field` retain the
+    /// selected structural location, and `value` rejoins the exact typed
+    /// dominating scalar definition. The carrier `path` composes record fields
+    /// and literal or runtime-selected elements in any order (`ents[i].pos`
+    /// for `ents[i].pos.x`); each runtime element's bound is an obligation
+    /// this operation owns.
     StructuralScalarFieldStore {
         psi_operation: OperationId,
         destination: super::StructuralScalarStoreDestination,

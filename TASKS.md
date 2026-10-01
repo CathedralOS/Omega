@@ -3690,22 +3690,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `premised_disjoint_writes.rs` and stated/sum/guard/domain/returned-window/
   proposition/chained controls. Route CANARY-CORPUS borrow-obligation failures here.
 
-- **STATE-LOAN-CHAIN-NATIVE.** (new-scope) Realize the transferred-storage form
-  of later-state loan chains natively. Stage 05's
-  `composed_control/state_graph/emission/loan_chains.rs` lowers a chain whose
-  member is reached from several lenders, or whose member lends a fresh local
-  while holding the chain, as owned block parameters that each arrival moves
-  its home into. `control_flow/runtime_nonentry_state_local_loans_shared_successor_exit`
-  (two states lend their own locals to one successor) verifies in Terminal and
-  exits 70 on the interpreter, but Omega stage 00 stops at
-  `InvalidStructuralScalarFieldStore`: `structural_scalar_fields.rs` stores
-  only through exclusive parameters and owned operation results, not through
-  owned block parameters. Admit the owned block parameter as a store
-  destination there and in the later stages that replay it, with the same
-  frontier custody the entry home keeps. Acceptance: the fixture exits 70
-  natively on macOS ARM64, its negative control exits 72, and the corpus is
-  otherwise unchanged.
-
 - **TERMINAL-REFERENCE-CARRIER-READS.** (new-scope) Restore field reads through
   a live readable reference carrier in trusted Terminal verification.
   `pass/borrows/transition_shared_borrow_result` (`let seen: &Node =

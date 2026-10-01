@@ -162,6 +162,50 @@ pub(in crate::lowering) fn lower_field_store(
                 )
             }
         }
+        // An owned arrival writes its own block home, the one every incoming
+        // edge moved its whole source into; it never writes a predecessor's
+        // producer home and never becomes a loan of one.
+        abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter {
+            block,
+            parameter,
+        } => {
+            let home = structural_homes
+                .get(&parameter.place)
+                .filter(|home| {
+                    matches!(
+                        &home.origin,
+                        target_operations::TargetStructuralHomeOrigin::BlockParameter {
+                            block: owner,
+                            declaration,
+                        } if owner == block && declaration == parameter
+                    )
+                })
+                .ok_or(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ))?;
+            if parameter.access != StructuralAccess::Owned
+                || home.has_claims()
+                || !home.qualifications().is_empty()
+                || !home.projected_qualifications().is_empty()
+                || !matches!(
+                    home.multiplicity(),
+                    terminal_psi::StructuralMultiplicity::Affine
+                        | terminal_psi::StructuralMultiplicity::Unrestricted
+                )
+            {
+                return Err(LoweringError::UnsupportedOperationInUnitFunction(
+                    function.machine,
+                ));
+            }
+            (
+                destination.clone(),
+                path.clone(),
+                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                    block: *block,
+                    place: parameter.place,
+                },
+            )
+        }
     };
     if !terminal_psi::is_structural_scalar_store_path(&path) {
         return Err(LoweringError::UnsupportedOperationInUnitFunction(

@@ -140,6 +140,10 @@ pub(crate) fn primitive_store(
                 return None;
             }
         }
+        // Only the scalar field store writes an owned block home natively.
+        abstract_operations::StructuralScalarStoreDestination::OwnedBlockParameter { .. } => {
+            return None;
+        }
     }
     primitive_geometry(destination.structural_type(), path, scalar, declarations)
 }

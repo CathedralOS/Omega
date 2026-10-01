@@ -474,22 +474,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     indices,
                 } => {
                     bytes.push(13);
-                    match destination {
-                        abstract_operations::StructuralScalarStoreDestination::Parameter(
-                            parameter,
-                        ) => {
-                            bytes.push(0);
-                            super::structural_types::encode_structural_parameter(bytes, parameter);
-                        }
-                        abstract_operations::StructuralScalarStoreDestination::OwnedResult {
-                            producer,
-                            result,
-                        } => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&producer.get().to_le_bytes());
-                            super::structural_result::encode_operation_result(bytes, result);
-                        }
-                    }
+                    encode_store_destination(bytes, destination);
                     super::structural_types::encode_structural_path(bytes, path);
                     bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     bytes.extend_from_slice(&value.value.get().to_le_bytes());
@@ -517,22 +502,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     indices,
                 } => {
                     bytes.push(12);
-                    match destination {
-                        abstract_operations::StructuralScalarStoreDestination::Parameter(
-                            parameter,
-                        ) => {
-                            bytes.push(0);
-                            super::structural_types::encode_structural_parameter(bytes, parameter);
-                        }
-                        abstract_operations::StructuralScalarStoreDestination::OwnedResult {
-                            producer,
-                            result,
-                        } => {
-                            bytes.push(1);
-                            bytes.extend_from_slice(&producer.get().to_le_bytes());
-                            super::structural_result::encode_operation_result(bytes, result);
-                        }
-                    }
+                    encode_store_destination(bytes, destination);
                     super::structural_types::encode_structural_path(bytes, path);
                     bytes.extend_from_slice(&field.get().to_le_bytes());
                     bytes.extend_from_slice(&value.value.get().to_le_bytes());
@@ -1191,6 +1161,31 @@ const fn saturating_tag(operation: SaturatingOperation, carrier: SaturatingCarri
 /// Each runtime traversal's operand, stride, and bounds evidence, in path
 /// order, so identity separates two accesses that differ only in the element
 /// a selector or its certificate names.
+/// Both scalar store rows share one destination encoding: a substituted
+/// owned block home or loan changes the legalized identity.
+fn encode_store_destination(
+    bytes: &mut Vec<u8>,
+    destination: &abstract_operations::StructuralScalarStoreDestination,
+) {
+    use abstract_operations::StructuralScalarStoreDestination as Destination;
+    match destination {
+        Destination::Parameter(parameter) => {
+            bytes.push(0);
+            super::structural_types::encode_structural_parameter(bytes, parameter);
+        }
+        Destination::OwnedResult { producer, result } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&producer.get().to_le_bytes());
+            super::structural_result::encode_operation_result(bytes, result);
+        }
+        Destination::OwnedBlockParameter { block, parameter } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            super::structural_types::encode_structural_parameter(bytes, parameter);
+        }
+    }
+}
+
 fn encode_runtime_indices(
     bytes: &mut Vec<u8>,
     indices: &[crate::legalized_operations::LegalizedRuntimeIndexOperand],
