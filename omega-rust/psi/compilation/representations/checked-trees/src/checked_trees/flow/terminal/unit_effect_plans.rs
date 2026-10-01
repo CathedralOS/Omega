@@ -345,6 +345,7 @@ impl CheckedUnitEffectOperationPlan {
             } => Some(*statement_index),
             Self::StructuralScalarFieldStore(store) => Some(store.statement_index),
             Self::StructuralCaseFieldStore(store) => Some(store.statement_index),
+            Self::StructuralCaseLiteralFieldStore(store) => Some(store.statement_index),
             Self::ByteSequenceStore(store) => Some(store.statement_index),
             Self::StructuralByteSequenceFieldByteStore(store) => Some(store.statement_index),
             Self::ByteSequenceWrite(write) => Some(write.statement_index),

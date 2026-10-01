@@ -1431,9 +1431,16 @@ impl OperationFrame<'_, '_> {
             }))
             .cloned()
             .collect::<Vec<_>>();
-        let Some(bindings) = &self.evaluation.scalar_bindings else {
-            return unsupported("case literal field store has no scalar operand namespace");
-        };
+        // Case construction uses the same current assignment namespace as
+        // ordinary field stores. A single-state body has no preinstalled
+        // state namespace, including when this case has no scalar payload.
+        let bindings = self.evaluation.scalar_bindings.clone().unwrap_or_else(|| {
+            self.dense_assignment_namespace()
+                .with_resolved_structural_observations(
+                    &self.evaluation.structural_fields,
+                    &self.evaluation.structural_cases,
+                )
+        });
         let mut initialized = Vec::new();
         for field_plan in &store.fields {
             let (position, target) = shape_fields
