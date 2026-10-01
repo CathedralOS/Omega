@@ -55,6 +55,12 @@ Boolean view targets still retag their guard leaf until that form exists.
 Reads through an immutable `&mut` place-loan local re-evaluate the loaned place
 like shared loan locals do.
 
+A shared record-as-record view erases at Terminal: stage 05 reads each view
+field as the source leaf at the same offset under the source's declaration
+(`recast_record_source_leaf`), which the identical-geometry judgment makes
+exact. A leaf whose carrier differs (`i16` seen as `u16`) and mutable record
+views do not lower yet.
+
 Native and interpreter projection/state forwarding preserve backing identity.
 `Placed<P, T>` and its accessors are excluded: representation equivalence
 cannot replace the placement access plan. Focused source cases live in
