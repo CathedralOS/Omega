@@ -23,6 +23,7 @@ pub(crate) fn capacity(
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == destination)
+        .or_else(|| crate::validation::block_views::parameter(machine, destination))
         .ok_or_else(invalid)?;
     if operation.result != OperationResult::Unit
         || destination == source
@@ -33,11 +34,13 @@ pub(crate) fn capacity(
         || parameter.multiplicity != StructuralMultiplicity::Unrestricted
         || !machine.structural_places.iter().any(|place| {
             place.id == destination
-                && place.kind
+                && (place.kind
                     == StructuralPlaceKind::Parameter {
                         position: parameter.position,
                         is_self: parameter.is_self,
                     }
+                    || crate::validation::block_views::parameter(machine, destination)
+                        == Some(parameter))
         })
         || machine
             .entry_claims

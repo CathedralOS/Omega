@@ -547,7 +547,8 @@ pub(super) fn build_traced(
             if parameter.multiplicity != Multiplicity::Linear
                 && !parameter.qualifications.is_empty()
                 && !(state_index == 0 && invocation_only_entry)
-                && !forwards_qualified_shared_loan(
+                && !forwards_qualified_loan(
+                    shapes,
                     &planned,
                     &live_states,
                     state_index,
@@ -748,13 +749,15 @@ pub(super) fn build_traced(
 /// A returning exit disposes whole roots only: a partial affine drop or a
 /// residual discard at the return has no Terminal return-cleanup row here.
 #[allow(clippy::too_many_arguments)]
-/// A shared loan freezes its referent, so a qualification the loan carried
-/// into one state still holds when that same loan is forwarded whole. A
-/// successor's qualified shared parameter is admitted only when every live
+/// A shared loan freezes its referent. A mutable bounded byte owner instead
+/// preserves its primitive byte predicates through independently checked stores.
+/// Neither rule grants transport for arbitrary mutable qualified values.
+/// A successor's qualified parameter is admitted only when every live
 /// edge into its state forwards a source parameter with exactly the same
 /// carrier, access, multiplicity and qualifications. The entry state keeps
 /// its invocation rule: a re-entered entry is a separate arrival.
-fn forwards_qualified_shared_loan(
+fn forwards_qualified_loan(
+    shapes: &ShapeCollector<'_>,
     planned: &[CheckedComposedUnitControlStatePlan],
     live: &[bool],
     target_index: usize,
@@ -768,7 +771,28 @@ fn forwards_qualified_shared_loan(
     };
     if target_index == 0
         || parameter.is_self
-        || parameter.access != CheckedStructuralAccess::SharedBorrow
+        || !(parameter.access == CheckedStructuralAccess::SharedBorrow
+            || (parameter.access == CheckedStructuralAccess::MutableBorrow
+                && parameter.projected_qualifications.is_empty()
+                && shapes
+                    .types
+                    .get(&parameter.type_identity)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                                CheckedByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                    })
+                && parameter.qualifications.iter().all(|qualification| {
+                    shapes.domains.iter().any(|domain| {
+                        domain.domain == *qualification
+                            && domain.carrier_type_identity == parameter.type_identity
+                            && domain.byte_predicate.is_some()
+                            && domain.establishment_routes.is_empty()
+                    })
+                })))
         || parameter.multiplicity != Multiplicity::Unrestricted
     {
         return false;

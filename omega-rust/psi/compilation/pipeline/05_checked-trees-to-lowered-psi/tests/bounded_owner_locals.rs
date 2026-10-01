@@ -32,6 +32,105 @@ machine main() -> u64 {
 "#;
 
 #[test]
+fn mutable_qualified_byte_owner_survives_branch_and_joined_state_transfers() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        machine edit(output: &mut [u8; 8] in Utf8, choose: bool)
+        ensures output in Utf8 {
+            transition choose {
+                true -> first(output)
+                false -> second(output)
+            }
+            state first(text: &mut [u8; 8] in Utf8) {
+                text = "first";
+                transition { _ -> finish(text) }
+            }
+            state second(text: &mut [u8; 8] in Utf8) {
+                text = "second";
+                transition { _ -> finish(text) }
+            }
+            state finish(text: &mut [u8; 8] in Utf8) {
+                text = "done";
+            }
+        }
+        "#,
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("edit"),
+    )
+    .expect("each state retains the same mutable qualified owner");
+    verify(&lowered).expect("every incoming edge and replacement preserves the byte invariant");
+
+    let mut stale_entry = lowered.semantic_module.clone();
+    let entry = stale_entry.entry;
+    let machine = stale_entry
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .unwrap();
+    let old_name = machine.structural_parameters[0].place;
+    let store = machine
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            OperationKind::ByteSequenceStore { destination, .. } => Some(destination),
+            _ => None,
+        })
+        .expect("state replacement");
+    *store = old_name;
+    assert!(
+        matches!(
+            terminal_verifier::validate_module(&stale_entry),
+            Err(terminal_verifier::ModuleError::ByteSequenceViewNotEstablished { .. })
+        ),
+        "a transferred entry name cannot write the buffer again"
+    );
+
+    let mut weakened = lowered.semantic_module.clone();
+    weakened
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .unwrap()
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.structural_parameters)
+        .find(|parameter| !parameter.qualifications.is_empty())
+        .unwrap()
+        .qualifications
+        .clear();
+    assert!(
+        terminal_verifier::validate_module(&weakened).is_err(),
+        "a mutable state loan cannot erase its incoming invariant"
+    );
+
+    let mut invalid_bytes = lowered.semantic_module.clone();
+    let bytes = invalid_bytes
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .unwrap()
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            OperationKind::EstablishByteSequenceLiteral { bytes, .. } if !bytes.is_empty() => {
+                Some(bytes)
+            }
+            _ => None,
+        })
+        .expect("authored replacement bytes");
+    bytes[0] = 0x80;
+    assert!(
+        terminal_verifier::validate_module(&invalid_bytes).is_err(),
+        "state-local storage still requires valid UTF-8 replacement bytes"
+    );
+}
+
+#[test]
 fn owned_literal_call_argument_establishes_its_declared_byte_predicates() {
     let checked = crate::front_end::checked_program(
         r#"

@@ -57,7 +57,7 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
                             && (parameter.qualifications.is_empty()
                                 || parameter.multiplicity == Multiplicity::Linear
                                 || (index == 0 && qualified_invocation)
-                                || forwards_qualified_shared_loan(plan, &live, index, parameter_index))
+                                || forwards_qualified_loan(checked, plan, &live, index, parameter_index))
                     })
                 })
                 && claim_transport_supported(checked, plan, &live)
@@ -306,7 +306,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             if qualifications != parameter.qualifications
                 || (!qualifications.is_empty()
                     && !(state_index == 0 && qualified_invocation)
-                    && !forwards_qualified_shared_loan(plan, &live, state_index, parameter_index))
+                    && !forwards_qualified_loan(checked, plan, &live, state_index, parameter_index))
             {
                 return unsupported(
                     "Unit graph borrowed parameter qualifications differ from invocation custody",
@@ -1280,12 +1280,14 @@ fn validate_guard(
 /// Qualified invocation inputs already have their caller-established domains.
 /// Only their original entry uses that custody; every actual incoming edge,
 /// including entry reentry, still needs separately supported domain transport.
-/// A shared loan freezes its referent, so the qualifications it carried into
-/// one state still hold when that same loan is forwarded whole. A successor's
-/// qualified shared parameter is admitted only when every live edge into its
+/// A shared loan freezes its referent. Mutable bounded byte owners retain only
+/// primitive byte predicates whose preservation every write independently
+/// checks; arbitrary mutable domain transport remains unsupported. A successor's
+/// qualified parameter is admitted only when every live edge into its
 /// state forwards a source parameter with exactly the same carrier, access,
 /// multiplicity and qualifications. The entry keeps its invocation rule.
-fn forwards_qualified_shared_loan(
+fn forwards_qualified_loan(
+    checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     live: &[bool],
     target_index: usize,
@@ -1299,7 +1301,38 @@ fn forwards_qualified_shared_loan(
     };
     if target_index == 0
         || parameter.is_self
-        || parameter.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+        || !(parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+            || (parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
+                && parameter.projected_qualifications.is_empty()
+                && checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .structural_types
+                    .iter()
+                    .any(|declaration| {
+                        declaration.identity == parameter.type_identity
+                            && matches!(
+                                declaration.shape,
+                                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                                    checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                            )
+                    })
+                && parameter.qualifications.iter().all(|qualification| {
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .structural_domains
+                        .iter()
+                        .any(|domain| {
+                            domain.domain == *qualification
+                                && domain.carrier_type_identity == parameter.type_identity
+                                && domain.byte_predicate.is_some()
+                                && domain.establishment_routes.is_empty()
+                        })
+                })))
         || parameter.multiplicity != Multiplicity::Unrestricted
     {
         return false;
