@@ -125,9 +125,10 @@ fn review_retains_contract_entailment_stand_downs_as_open_later_discharge_obliga
         return;
     };
     let package = TempPackage::new();
-    // The ensures goal restates the requires hypothesis verbatim: it
-    // discharges by assumption alone, and the retained stand-down row marks
-    // the body judgment it never reached.
+    // The ensures goal restates the requires hypothesis verbatim. The
+    // entailment engine stands down on the body, so review retains the open
+    // question; only fresh reconstruction of the live facts at every exit
+    // may close it, and projection-only recovery leaves it open.
     package.write(
         "main.omg",
         r#"machine unchecked_claim(a: u64, b: u64)
@@ -224,10 +225,15 @@ ensures
     assert_eq!(recovered.key_bytes(), row.key_bytes());
     assert_eq!(recovered.canonical_bytes(), row.canonical_bytes());
 
-    let results = reconstruct_ordinary_package_obligation_results(&checked)
-        .expect("ordinary reconstruction retains the exact open obligation");
-    let [result] = results.open_contract_entailment_obligations() else {
-        panic!("one reconstructed open contract-entailment result")
+    let review = package_evidence::ledger::reconstruct_package_review(&checked)
+        .expect("ordinary reconstruction replays the retained obligation");
+    let inert = package_evidence::ledger::ordinary_package_obligation_results_from_projection(
+        &review.ledger,
+        &review.projection,
+    )
+    .expect("projection-only recovery retains the open question");
+    let [result] = inert.open_contract_entailment_obligations() else {
+        panic!("one recovered open contract-entailment result")
     };
     assert_eq!(
         result.status(),
@@ -235,6 +241,27 @@ ensures
     );
     assert_eq!(result.obligation(), obligation);
     assert_eq!(result.row().canonical_bytes(), row.canonical_bytes());
+    // The requirement's own fact proves the goal at the single normal exit,
+    // so fresh reconstruction closes the question with exit evidence rather
+    // than leaving it for a later decision.
+    assert!(
+        review
+            .results
+            .open_contract_entailment_obligations()
+            .is_empty()
+    );
+    let [discharge] = review
+        .results
+        .contract_entailment_exit_membership_discharges()
+    else {
+        panic!("one exit-evidence discharge")
+    };
+    assert_eq!(discharge.obligation(), obligation);
+    assert_eq!(
+        discharge.status(),
+        OrdinaryPackageObligationStatus::Discharged
+    );
+    assert_eq!(discharge.covered_exits().len(), 1);
 }
 
 #[test]

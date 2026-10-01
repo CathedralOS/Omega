@@ -233,9 +233,10 @@ pub(in crate::capture) fn project_package_contract_entailment_exit_membership_di
         PackageReviewContractEntailmentExitMembershipDischarge,
     };
 
-    if !open_obligations.iter().any(|open| {
-        open.row.reason == PackageReviewContractEntailmentOpenReason::UnsupportedEnsuresFact
-    }) {
+    if !open_obligations
+        .iter()
+        .any(|open| exit_evidence_reason(open.row.reason))
+    {
         return Ok(Vec::new());
     }
     let custody = PackageReviewInput::from(compilation.custody);
@@ -294,7 +295,7 @@ pub(in crate::capture) fn project_package_contract_entailment_exit_membership_di
                 "exit-membership certificate does not rejoin exactly one package-evidence obligation",
             )]);
         };
-        if open.row.reason != PackageReviewContractEntailmentOpenReason::UnsupportedEnsuresFact {
+        if !exit_evidence_reason(open.row.reason) {
             return Err(vec![Diagnostic::error(
                 "exit-membership certificate has the wrong open-obligation reason",
             )]);
@@ -338,4 +339,17 @@ pub(in crate::capture) fn project_package_contract_entailment_exit_membership_di
         )]);
     }
     Ok(projected)
+}
+
+/// Stand-downs whose postcondition the flow checker can prove at every exit:
+/// a membership the entailment engine does not consume, and a scalar
+/// predicate over post-state storage that its requires-only language or its
+/// transition-shaped inductive reading cannot judge.
+fn exit_evidence_reason(reason: PackageReviewContractEntailmentOpenReason) -> bool {
+    matches!(
+        reason,
+        PackageReviewContractEntailmentOpenReason::UnsupportedEnsuresFact
+            | PackageReviewContractEntailmentOpenReason::OutsideEntailmentLanguage
+            | PackageReviewContractEntailmentOpenReason::UnrecognizedInductiveBody
+    )
 }
