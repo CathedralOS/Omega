@@ -44,6 +44,29 @@ pub(super) fn account(
         let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
         };
+        // An operand constructed for a call argument belongs to that call.
+        // Its statement declares the call's result local, not the operand,
+        // so the statement local's disposal permit would book a second owner
+        // beside the call that takes it.
+        let call_operand = matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                operand_source: Some(
+                    checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
+                ),
+                ..
+            }
+        );
+        let permits_disposal = |successors: &[&CheckedStructuralControlSuccessorPlan]| {
+            !call_operand
+                && local_results::permits_disposal(
+                    program,
+                    state,
+                    result,
+                    successors,
+                    disposable_locals,
+                )
+        };
         let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
             edge.transfers.iter().filter(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
         };
@@ -98,17 +121,10 @@ pub(super) fn account(
             CheckedComposedUnitControlTerminatorPlan::ReturnUnit
             | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
             | CheckedComposedUnitControlTerminatorPlan::ConditionalCompletion { .. } => {
-                local_results::permits_disposal(program, state, result, &[], disposable_locals)
+                permits_disposal(&[])
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { successor } => {
-                transferred(successor)
-                    || local_results::permits_disposal(
-                        program,
-                        state,
-                        result,
-                        &[successor],
-                        disposable_locals,
-                    )
+                transferred(successor) || permits_disposal(&[successor])
             }
             CheckedComposedUnitControlTerminatorPlan::Conditional {
                 when_true,
@@ -116,13 +132,7 @@ pub(super) fn account(
                 ..
             } => {
                 (transferred(when_true) && transferred(when_false))
-                    || local_results::permits_disposal(
-                        program,
-                        state,
-                        result,
-                        &[when_true, when_false],
-                        disposable_locals,
-                    )
+                    || permits_disposal(&[when_true, when_false])
             }
             CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
                 jump,
@@ -133,13 +143,7 @@ pub(super) fn account(
                 // `EstablishStructuralValue` operands like Guarded; only
                 // the named edge participates in transfer custody.
                 transferred(jump)
-                    || local_results::permits_disposal(
-                        program,
-                        state,
-                        result,
-                        &[jump],
-                        disposable_locals,
-                    )
+                    || permits_disposal(&[jump])
                     || matches!(return_arm,
                     checked_trees::CheckedConditionalReturnArm::Structural(operation)
                         if operation.with_value_calls().skip(1).any(|operation| {
@@ -167,13 +171,7 @@ pub(super) fn account(
                     ) if operation.with_value_calls().skip(1).any(|operation| {
                         terminator_call_consumes_result(operation, result.binding_ordinal)
                     }))
-                    || local_results::permits_disposal(
-                        program,
-                        state,
-                        result,
-                        &successors,
-                        disposable_locals,
-                    )
+                    || permits_disposal(&successors)
             }
             CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases, .. } => {
                 if matches!(subject.source, CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)
@@ -194,13 +192,7 @@ pub(super) fn account(
                                 })
                             )
                         })
-                        || local_results::permits_disposal(
-                            program,
-                            state,
-                            result,
-                            &case_successors,
-                            disposable_locals,
-                        )
+                        || permits_disposal(&case_successors)
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } => {
