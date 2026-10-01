@@ -8,6 +8,9 @@ use crate::emission::indexed_write::{self, IndexedWriteLeaf};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
+mod case_fields;
+pub(crate) use case_fields::validate as validate_case_store;
+
 pub(crate) fn validate(
     checked: &CheckedTrees,
     plan: &CheckedUnitEffectMachinePlan,
@@ -19,6 +22,24 @@ pub(crate) fn validate(
         return unsupported("structural scalar store has a different authored machine");
     }
     let statements = checked.statement_table.statements(state.statement_nodes);
+    // Replay every case row, including an orphan whose ordinal names no
+    // assignment. Walking authored assignments alone would miss that row.
+    for operation in &plan.operations {
+        if matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
+        ) {
+            validate_case_store(
+                checked,
+                plan.machine,
+                plan.state,
+                operation,
+                &plan.operations,
+                &plan.structural_parameters,
+            )?;
+        }
+    }
     let stores = plan
         .operations
         .iter()
@@ -254,8 +275,8 @@ pub(crate) fn validate(
         }) {
             continue;
         }
-        // A whole-sum field store covers its authored assignment with ordinary
-        // write custody; scalar-store validation does not apply to it.
+        // Sum replacement owns the complete assignment, independently of
+        // scalar-store custody. Rejoin the authored destination and value.
         if statement_stores.iter().any(|operation| {
             matches!(
                 operation,
@@ -263,6 +284,8 @@ pub(crate) fn validate(
                     | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
             )
         }) {
+            // The operation sweep above already checked exact source and
+            // exclusive replacement custody for this assignment.
             continue;
         }
         let matching = statement_stores
@@ -450,20 +473,11 @@ pub(crate) fn validate(
 }
 
 /// Whether a store-family row outside `own` claims the same assignment.
-/// Whole-sum field stores have never been part of this conflict matrix, so an
-/// assignment one shares with another family is not rejected here.
 fn has_other_store(
     statement_stores: &[&CheckedUnitEffectOperationPlan],
     own: impl Fn(&CheckedUnitEffectOperationPlan) -> bool,
 ) -> bool {
-    statement_stores.iter().any(|operation| {
-        !own(operation)
-            && !matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
-                    | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
-            )
-    })
+    statement_stores.iter().any(|operation| !own(operation))
 }
 
 /// The authored statement an operation of a structural field replacement

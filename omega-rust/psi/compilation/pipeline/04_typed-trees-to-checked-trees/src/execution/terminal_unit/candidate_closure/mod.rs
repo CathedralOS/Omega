@@ -368,6 +368,10 @@ pub(super) fn retain_available(
                     // frame and the authored value is a dense scalar.
                     | CheckedUnitEffectOperationPlan::RepresentationViewStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    // Complete case replacement has no callee dependency;
+                    // its exact construction/copy and repair stay in-frame.
+                    | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::AtomicAccess(_)
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }

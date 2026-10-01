@@ -172,6 +172,10 @@ fn selected_roots(
             }) else {
                 match operation {
                     CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
+                    // Case literals retain pure bound payload expressions;
+                    // whole-case copies evaluate no scalar helper calls.
+                    | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::StructuralCaseLiteralFieldStore(_)
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                     // Whole structural moves and stores evaluate no scalar.
