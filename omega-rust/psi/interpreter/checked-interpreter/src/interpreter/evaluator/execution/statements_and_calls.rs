@@ -6,6 +6,10 @@ use crate::interpreter::evaluator::{
 };
 use language_core::is_self_receiver;
 use language_semantics::declaration_selection::BuildOperation;
+use typed_trees::statement::TransitionExit;
+
+#[cfg(test)]
+mod crash_tests;
 
 /// Whether a call target is a build declaration the build-config pass
 /// harvests statically, which evaluation serves as a no-op so the build
@@ -308,6 +312,14 @@ impl<'program> Evaluator<'program> {
         };
         if !holds {
             return Ok(None);
+        }
+
+        // A crash and an ordinary return may both have a terminal target.
+        // Preserve the exit kind before dispatching that target; otherwise a
+        // failed runtime assertion silently becomes successful completion.
+        match transition.exit {
+            TransitionExit::Ordinary => {}
+            TransitionExit::Crash(cause) => return trap(format!("explicit crash {cause:?}")),
         }
 
         let target = self
