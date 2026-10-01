@@ -12,12 +12,7 @@
 
 data Walker {}
 
-data Main {
-    arr: [i32 in Wrapping; 4];
-    walker: Walker;
-}
-
-machine Walker::walk(walker: &mut Walker, s: &[u8]) -> i32
+machine Walker::walk(s: &[u8]) -> i32
 terminates by s -> Slice::Length;
 {
     transition { _ -> scan(s) }
@@ -39,14 +34,15 @@ terminates by s -> Slice::Length;
     state done() -> i32 { (0) }
 }
 
-machine Main::main(&mut self) {
-    self.arr[0] = 5;
-    self.arr[1] = 10;
-    self.arr[2] = 15;
-    self.arr[3] = 20;
+machine main() {
+    let mut items: [i32 in Wrapping; 4];
+    items[0] = 5;
+    items[1] = 10;
+    items[2] = 15;
+    items[3] = 20;
 
-    let s: &[i32 in Wrapping] = self.arr.as_slice();
-    let n: i32 = Walker::walk(&mut self.walker, s);
+    let s: &[i32 in Wrapping] = items.as_slice();
+    let n: i32 = Walker::walk(s);
 
     transition n == 0 {
         true -> good()

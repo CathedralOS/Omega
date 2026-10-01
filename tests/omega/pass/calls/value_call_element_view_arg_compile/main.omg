@@ -1,62 +1,57 @@
-// COMPILE CANARY (element-argument type checking at machine-call boundaries):
+// Element-argument type checking at static machine-call boundaries:
 // a value call binding an element-view argument whose element type AGREES with
 // the callee's declared parameter checks cleanly -- both a forwarded view
-// local (`walk(s)`) and an owned-array lend (`walk(&self.arr)`). The
+// local (`walk(view)`) and an owned local-array lend (`walk(&items)`). The
 // element-view argument check only compares concrete element types; the
 // matching shapes it must keep admitting exercise both the slice-view and
 // fixed-array element extraction.
+// Both paths must return the final element, not merely accept the argument.
 
-data Walker {}
-
-data Main {
-    arr: [i32 in Wrapping; 4];
-    walker: Walker;
-}
-
-machine walk(s: &[i32 in Wrapping]) -> i32
-terminates by s -> Slice::Length;
+machine walk(values: &[i32 in Wrapping]) -> i32
+terminates by values -> Slice::Length;
 {
-    transition { _ -> scan(s) }
+    transition { _ -> scan(values) }
 
-    state scan(s: &[i32 in Wrapping]) -> i32 {
-        transition s.len > 0 {
-            true -> emit(s[0], s[1..])
+    state scan(values: &[i32 in Wrapping]) -> i32 {
+        transition values.len > 0 {
+            true -> emit(values[0], values[1..])
             false -> done()
         }
     }
 
-    state emit(b: i32 in Wrapping, s: &[i32 in Wrapping]) -> i32 {
-        transition s.len > 0 {
-            true -> emit(s[0], s[1..])
-            false -> done()
+    state emit(element: i32 in Wrapping, values: &[i32 in Wrapping]) -> i32 {
+        transition values.len > 0 {
+            true -> emit(values[0], values[1..])
+            false -> (element as i32)
         }
     }
 
     state done() -> i32 { (0) }
 }
 
-machine Main::main(main: &mut Main) {
-    main.arr[0] = 5;
-    main.arr[1] = 10;
-    main.arr[2] = 15;
-    main.arr[3] = 20;
+machine main() crashes Trap {
+    let mut items: [i32 in Wrapping; 4];
+    items[0] = 5;
+    items[1] = 10;
+    items[2] = 15;
+    items[3] = 20;
 
-    let s: &[i32 in Wrapping] = main.arr.as_slice();
-    let n: i32 = walk(s);
-    let m: i32 = walk(&main.arr);
+    let view: &[i32 in Wrapping] = items.as_slice();
+    let from_view: i32 = walk(view);
+    let from_array: i32 = walk(&items);
 
-    transition n == 0 {
-        true -> count(m)
+    transition from_view == 20 {
+        true -> check_array(from_array)
         _ -> bad()
     }
 
-    state count(r: i32) {
-        transition r == 0 {
+    state check_array(result: i32) {
+        transition result == 20 {
             true -> good()
             _ -> bad()
         }
     }
 
     state good() {}
-    state bad() {}
+    state bad() { crash Trap; }
 }
