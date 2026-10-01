@@ -338,7 +338,7 @@ pub(super) fn validate(
                 | StatementNode::Expression(_)
                 | StatementNode::Call(_),
             ) if result.statement_index as usize == ordinal
-                && guarded_view_discard(checked, machine, state, index, result, *value) =>
+                && returning_view_discard(checked, machine, state, index, result, *value) =>
             {
                 crate::expression_preparation::source_custody::structural::validate(
                     checked,
@@ -361,7 +361,7 @@ pub(super) fn validate(
                 // the transition's own statement — the value arm's source.
                 | StatementNode::Transition(_),
             ) if result.statement_index as usize == ordinal
-                && !guarded_view_discard(checked, machine, state, index, result, *value) =>
+                && !returning_view_discard(checked, machine, state, index, result, *value) =>
             {
                 crate::expression_preparation::source_custody::structural::validate(
                     checked,
@@ -983,10 +983,10 @@ pub(super) fn validate(
 }
 
 /// Replay the one checked loan release that makes an affine slice-view
-/// carrier disposable on every guarded return arm. The returned reference is
+/// carrier disposable on every return arm. The returned reference is
 /// established separately inside the arm; this prefix carrier has no later
 /// reborrow rooted at that view which could own the same release.
-fn guarded_view_discard(
+fn returning_view_discard(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: &CheckedComposedUnitControlStatePlan,
@@ -1042,11 +1042,43 @@ fn guarded_view_discard(
         _ => argument.source == view_source.source,
     };
 
+    // Enum dispatch and ordered guards have the same physical cleanup only
+    // when every selected exit returns. A successor may carry this view into
+    // another state, so it cannot borrow an all-return disposal permission.
+    let all_returning = match &state.terminator {
+        CheckedComposedUnitControlTerminatorPlan::Guarded { .. } => true,
+        CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
+            !cases.is_empty()
+                && cases.iter().all(|case| {
+                    let checked_trees::CheckedClosedSumCaseOutcomePlan::Return(
+                        checked_trees::CheckedConditionalReturnArm::Structural(
+                            CheckedUnitEffectOperationPlan::EstablishReference { source, .. },
+                        ),
+                    ) = &case.outcome
+                    else {
+                        return false;
+                    };
+                    same_root(source)
+                        && matches!(
+                            (view_source.access, source.access),
+                            (
+                                checked_trees::CheckedStructuralAccess::MutableBorrow,
+                                checked_trees::CheckedStructuralAccess::MutableBorrow
+                                    | checked_trees::CheckedStructuralAccess::SharedBorrow,
+                            ) | (
+                                checked_trees::CheckedStructuralAccess::SharedBorrow,
+                                checked_trees::CheckedStructuralAccess::SharedBorrow,
+                            )
+                        )
+                        && source.path.starts_with(&view_source.path)
+                        && (source.path.len() > view_source.path.len()
+                            || source.type_identity == view_source.type_identity)
+                })
+        }
+        _ => false,
+    };
     result.multiplicity == Multiplicity::Affine
-        && matches!(
-            state.terminator,
-            CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
-        )
+        && all_returning
         && !state.operations[operation_index + 1..]
             .iter()
             .any(|operation| {

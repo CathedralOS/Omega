@@ -46,6 +46,7 @@ mod copied_call_operands;
 mod crash_member_source;
 mod direct_primitive_store_source;
 mod entry_requirement_crash_coverage;
+mod enum_view_reference_source;
 mod evidence_identity_source;
 mod exact_add_conjunction_source;
 mod exact_affine_sibling_source;

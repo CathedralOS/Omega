@@ -497,6 +497,14 @@ pub(super) fn validate(
         return unsupported("Unit case result or complete case roster drifted");
     }
     let mut previous_case_order = None;
+    let mutable_reference_result = validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        source.return_type,
+    )
+    .is_some();
+    if mutable_reference_result {
+        super::guarded::validate_reference_roster(plan)?;
+    }
     for (offset, case) in cases.iter().enumerate() {
         let successor_plan = match &case.outcome {
             checked_trees::CheckedClosedSumCaseOutcomePlan::Successor(successor) => Some(successor),
@@ -651,12 +659,30 @@ pub(super) fn validate(
             checked.statement_table.transition_target(transition.target),
         )
         else {
-            if successor_plan.is_none()
-                && matches!(
-                    checked.statement_table.transition_target(transition.target),
-                    checked_trees::statement::TransitionTargetNode::Value(_)
-                )
-            {
+            if let (
+                checked_trees::CheckedClosedSumCaseOutcomePlan::Return(arm),
+                checked_trees::statement::TransitionTargetNode::Value(expression),
+            ) = (
+                &case.outcome,
+                checked.statement_table.transition_target(transition.target),
+            ) {
+                if mutable_reference_result {
+                    let checked_trees::CheckedConditionalReturnArm::Structural(operation) = arm
+                    else {
+                        return unsupported(
+                            "Unit case reference return lost its structural producer",
+                        );
+                    };
+                    super::guarded::validate_reference_return(
+                        checked,
+                        plan,
+                        source,
+                        state,
+                        *expression,
+                        case.statement_ordinal(),
+                        operation,
+                    )?;
+                }
                 super::result_custody::local_discards(checked, plan.machine, source, state, None)?;
                 continue;
             }
