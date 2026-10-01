@@ -123,13 +123,17 @@ fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
         }
         let error = lower_machine(&changed, TerminalMachineSelection::Name("choose"))
             .expect_err("source contract changed");
+        // The state contract replay rebuilds every requirement from source.
+        // A changed kind or membership leaves no predicate reading; a
+        // membership replaced by an expression reads as a predicate the
+        // retained roster never carried.
+        let expected = if mutation == 3 {
+            "scalar state requirement roster disagrees with source"
+        } else {
+            "scalar state contract has no retained predicate reading"
+        };
         assert!(
-            matches!(
-                error,
-                LoweringError::Unsupported(
-                    "scalar state contract is not carried by its qualified signature"
-                )
-            ),
+            matches!(error, LoweringError::Unsupported(message) if message == expected),
             "wrong rejection: {error:?}"
         );
     }
