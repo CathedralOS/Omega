@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 
 mod conditional_return;
 mod guarded_chain;
+mod loan_chains;
 mod loaned_local_homes;
 mod seal;
 mod state;
@@ -58,6 +59,8 @@ pub(super) struct StateGraphEmission<'a, 'c> {
     structural_places: Vec<StructuralPlaceDeclaration>,
     blocks: Vec<Block>,
     loaned_local_homes: BTreeMap<u32, semantic_vocabulary::PlaceId>,
+    /// Exclusive loan chains a later state's local backs.
+    loan_chains: loan_chains::LoanChains,
     occurrences: super::super::ComposedOccurrences,
     block_ranks: BTreeMap<BlockId, ValueId>,
     rank_edges: BTreeMap<EdgeId, (ValueId, terminal_psi::TerminalNaturalRankComparison)>,
@@ -356,6 +359,13 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             },
         });
     }
+    let loan_chains = loan_chains::LoanChains::plan(
+        plan,
+        &admitted.live,
+        &admitted.claim_transport.aliased,
+        entry_reentered,
+        &state_views,
+    )?;
     let occurrences = super::super::ComposedOccurrences::default();
     let block_ranks = std::collections::BTreeMap::new();
     let rank_edges = std::collections::BTreeMap::new();
@@ -380,6 +390,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         structural_places,
         blocks,
         loaned_local_homes: BTreeMap::new(),
+        loan_chains,
         occurrences,
         block_ranks,
         rank_edges,
@@ -408,6 +419,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         mut structural_places,
         mut blocks,
         loaned_local_homes,
+        loan_chains,
         occurrences,
         block_ranks,
         rank_edges,
@@ -593,6 +605,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         },
     };
     loaned_local_homes::finish(&mut machine, &loaned_local_homes)?;
+    loan_chains.finish(&mut machine, &state_ids, &live_states)?;
     machine.contract.crash_routes =
         lower_checked_crash_route_buckets(&catalogs.root_crash_routes, &machine.parameters)?;
     ranking::retain(&mut machine, &block_ranks, &rank_edges)?;

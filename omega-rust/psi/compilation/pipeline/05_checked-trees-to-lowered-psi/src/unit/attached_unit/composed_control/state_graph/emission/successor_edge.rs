@@ -659,14 +659,44 @@ impl StateGraphEmission<'_, '_> {
                             );
                         }
                     };
+                // A member of a later state's loan chain (`loan_chains`)
+                // either keeps an exclusive view of its one lender's home or
+                // receives the moved storage; neither retains an entry home.
+                let chain_arrival = self.loan_chains.arrival(target, target_index as u32);
+                if chain_arrival.is_some()
+                    && let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                        subject:
+                            checked_trees::CheckedUnitStructuralArgumentPlan {
+                                source:
+                                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                        binding_ordinal,
+                                    },
+                                ..
+                            },
+                        ..
+                    }
+                    | checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } = transfer.source
+                {
+                    let result = case_emission::result(state, binding_ordinal, operations)?;
+                    if !result.claims().is_empty() || !argument_path.is_empty() {
+                        return unsupported(
+                            "Unit graph state loan chain home is not plain whole storage",
+                        );
+                    }
+                    self.loan_chains.lend(target, target_index as u32, place)?;
+                }
                 // Shared loan subjects keep their backing local's storage
                 // for the loan's duration exactly like mutable ones: the
                 // activation-entry home dies once at the machine's return.
-                if matches!(
-                    target_parameter.access,
-                    checked_trees::CheckedStructuralAccess::MutableBorrow
-                        | checked_trees::CheckedStructuralAccess::SharedBorrow
-                ) {
+                if chain_arrival.is_none()
+                    && matches!(
+                        target_parameter.access,
+                        checked_trees::CheckedStructuralAccess::MutableBorrow
+                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    )
+                {
                     let loaned_binding = match transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => Some(binding_ordinal),
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { ref subject, .. } => match subject.source {
@@ -707,6 +737,11 @@ impl StateGraphEmission<'_, '_> {
                     // Not `terminal_access`: a write-only target parameter
                     // receives a shared argument on this edge.
                     access: match target_parameter.access {
+                        _ if chain_arrival
+                            == Some(super::loan_chains::ChainArrival::Transferred) =>
+                        {
+                            StructuralAccess::Owned
+                        }
                         checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                         checked_trees::CheckedStructuralAccess::MutableBorrow => {
                             StructuralAccess::MutableBorrow

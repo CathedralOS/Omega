@@ -219,6 +219,10 @@ impl StateGraphEmission<'_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph state root disappeared during evaluation",
                 ))?;
+            // A chain member holding moved storage is declared as that owned
+            // storage now, after the body emitted against its exclusive view
+            // and before private-borrow transport would forward it.
+            let loan_chains = &self.loan_chains;
             root.structural_parameters = std::mem::take(&mut self.state_views[position])
                 .into_iter()
                 .enumerate()
@@ -228,7 +232,10 @@ impl StateGraphEmission<'_, '_> {
                             .get(position)
                             .is_some_and(|aliased| aliased.contains_key(&(*dense as u32)))
                 })
-                .map(|(_, parameter)| parameter)
+                .map(|(dense, mut parameter)| {
+                    loan_chains.declare(position, dense as u32, &mut parameter);
+                    parameter
+                })
                 .collect();
             // The authored state's own erased roster rides on its root block;
             // a plain entry's formals already live on the machine contract.
