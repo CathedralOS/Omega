@@ -4,13 +4,15 @@ use compiler::CheckedCompileRequest;
 #[test]
 fn authored_synchronous_invocations_retain_exact_review_source_spans() {
     let package = TempPackage::new();
-    let source = r#"pub boundary trait Host {
+    let source = r#"use omega::language::core::binding;
+
+pub boundary trait Host {
     machine ping()
     reaches Host
     invokes Host;
 }
 
-pub machine dispatch(host: &mut Host)
+pub machine dispatch(host: &mut Binding<Host>)
 reaches Host
 invokes host;
 invokes Host;

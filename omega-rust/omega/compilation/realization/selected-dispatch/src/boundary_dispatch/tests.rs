@@ -92,10 +92,8 @@ const SOURCE: &str = r#"
     machine StatefulProvider::touch(&mut self) satisfies Stateful::touch {}
 
     data ForwardProvider {}
-    machine ForwardProvider::send_adapter(service: Forward, value: i32)
-        satisfies Forward::send {}
-    machine ForwardProvider::reflect_adapter(service: Forward, value: i32) -> i32
-        satisfies Forward::reflect {
+    machine ForwardProvider::send_adapter(value: i32) satisfies Forward::send {}
+    machine ForwardProvider::reflect_adapter(value: i32) -> i32 satisfies Forward::reflect {
         transition { _ -> (value) }
     }
 
@@ -123,8 +121,25 @@ struct Fixture {
     plans: Vec<ProviderPlan>,
 }
 
+/// A trait adapter that prepends a `Forward` receiver no longer checks: a bare
+/// boundary trait in value position is not a service carrier. The receiver
+/// shape matcher still reads typed trees before checking, so its negative
+/// cases keep this typed-only fixture.
+const RECEIVER_SHAPE_SOURCE: &str = r#"
+    pub boundary trait Forward {
+        machine send(value: i32);
+    }
+    data ForwardProvider {}
+    machine ForwardProvider::send_adapter(service: Forward, value: i32)
+        satisfies Forward::send {}
+"#;
+
 fn fixture() -> Fixture {
-    let mut typed = typed_with_core_service("selected-dispatch/dispatch.omg", SOURCE);
+    fixture_from(SOURCE)
+}
+
+fn fixture_from(source: &str) -> Fixture {
+    let mut typed = typed_with_core_service("selected-dispatch/dispatch.omg", source);
     let plans = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
         provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
         None,
@@ -323,7 +338,7 @@ fn selected_rows_reject_every_exact_identity_drift() {
 
 #[test]
 fn wrong_nonleading_or_multiple_non_self_receivers_never_forward() {
-    let fixture = fixture();
+    let fixture = fixture_from(RECEIVER_SHAPE_SOURCE);
     let selected = plan(&fixture.plans, "Forward");
     let row = &selected.rows[checked_row(selected, "send")];
     let ProviderBinding::CheckedAdapter {

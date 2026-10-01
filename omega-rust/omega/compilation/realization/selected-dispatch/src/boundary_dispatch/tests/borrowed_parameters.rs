@@ -1,11 +1,11 @@
 use super::{Arc, CheckedTrees, selected_plan, settle_selected_boundary_adapter_dispatch};
 use provider_planning::ProviderPlanDerivation;
 const BORROWED_SOURCE: &str = r#"
-    boundary trait Output {
+    pub boundary trait Output {
         machine emit(value: i32);
         machine echo(value: i32) -> i32;
     }
-    boundary trait Other {
+    pub boundary trait Other {
         machine emit(value: i32);
         machine echo(value: i32) -> i32;
     }
@@ -16,34 +16,19 @@ const BORROWED_SOURCE: &str = r#"
     machine OtherProvider::emit(value: i32) satisfies Other::emit {}
     machine OtherProvider::echo(value: i32) -> i32 satisfies Other::echo { value }
 
-    machine output(service: &mut Output, value: i32) reaches Output {
+    machine output(service: &mut Binding<Output>, value: i32) reaches Output {
         transition { _ -> send(service, value) }
-        state send(service: &mut Output, value: i32) { service.emit(value); }
+        state send(service: &mut Binding<Output>, value: i32) { service.emit(value); }
     }
-    machine query(service: &Output) -> i32 reaches Output { service.echo(35) }
-    machine other(service: &mut Other) reaches Other { service.emit(2); }
+    machine query(service: &Binding<Output>) -> i32 reaches Output { service.echo(35) }
+    machine other(service: &mut Binding<Other>) reaches Other { service.emit(2); }
 "#;
 
 fn borrowed_fixture() -> (CheckedTrees, effects::SelectedProviderPlanFacts) {
-    let mut sources = source::SourceMap::default();
-    sources.add(
-        "selected-dispatch/borrowed.omg".into(),
-        BORROWED_SOURCE.into(),
+    let mut typed = crate::core_service_fixture::typed_with_core_service(
+        "selected-dispatch/borrowed.omg",
+        BORROWED_SOURCE,
     );
-    let tokens = source_files_to_tokens::Lexer::new(BORROWED_SOURCE)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
     let plans = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
         provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
         None,
@@ -51,6 +36,7 @@ fn borrowed_fixture() -> (CheckedTrees, effects::SelectedProviderPlanFacts) {
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();
+    super::bind_fixture_fused_service_erasures(&mut typed, &super::selected_every_plan(&plans));
     let selected = selected_plan(&plans, "Output");
     let checked = typed_trees_to_checked_trees::lower_typed_trees(
         typed,
