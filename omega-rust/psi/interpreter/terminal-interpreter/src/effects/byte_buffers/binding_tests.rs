@@ -15,16 +15,18 @@ use semantic_vocabulary::OperationId;
 use semantic_vocabulary::PlaceId;
 use semantic_vocabulary::StructuralFieldId;
 use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use semantic_vocabulary::{ObligationId, ScalarType, ValueId};
 use std::collections::BTreeSet;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_psi::Block;
-use terminal_psi::OperationKind;
 use terminal_psi::StructuralAffineDiscard;
 use terminal_psi::StructuralOperationResult;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::TerminalMachineResult;
 use terminal_psi::Terminator;
 use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
+use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 
 mod array_tests;
 #[cfg(test)]
@@ -306,6 +308,182 @@ fn mutable_field_forwarding_reads_current_backing_and_survives_nested_return_and
         ),
         Some(&[99][..])
     );
+}
+
+#[test]
+fn deep_static_byte_field_observations_resolve_both_fixed_indices() {
+    let mut execution = execution();
+    let children = structural_type(4);
+    let child = structural_type(5);
+    let children_field = StructuralFieldId::new(2).unwrap();
+    let bytes_field = StructuralFieldId::new(3).unwrap();
+    execution.insert_structural_type(StructuralTypeDeclaration {
+        id: children,
+        identity: "children".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: child,
+            length: 2,
+        },
+    });
+    execution.insert_structural_type(StructuralTypeDeclaration {
+        id: child,
+        identity: "child".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: bytes_field,
+                identity: "bytes".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                    capacity: 8,
+                }),
+            }],
+        },
+    });
+    execution.mutate_structural_type(structural_type(1), |declaration| {
+        let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+            panic!("record")
+        };
+        fields.push(StructuralFieldDeclaration {
+            id: children_field,
+            identity: "children".into(),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(children),
+        });
+    });
+    let root_parameter = StructuralParameterDeclaration {
+        place: place(1),
+        position: 0,
+        is_self: false,
+        structural_type: structural_type(2),
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::MutableBorrow,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    std::sync::Arc::get_mut(&mut execution.program)
+        .unwrap()
+        .machines
+        .get_mut(&execution.current_machine)
+        .unwrap()
+        .structural_parameters = vec![root_parameter];
+    let nested_field = |outer, inner| StructuralByteSequenceRuntimeField {
+        parent: StructuralRuntimePlace {
+            opaque_identity: 101,
+            path: vec![
+                StructuralPathSegment::FixedIndex(outer),
+                StructuralPathSegment::Field("children".into()),
+                StructuralPathSegment::FixedIndex(inner),
+            ],
+        },
+        field: bytes_field,
+    };
+    execution.structural_byte_sequence_fields.extend([
+        (nested_field(0, 1), ByteSequenceView::new(vec![1])),
+        (nested_field(1, 0), ByteSequenceView::new(vec![4, 5])),
+        (nested_field(1, 1), ByteSequenceView::new(vec![10, 20, 30])),
+    ]);
+    let path = nested_field(1, 1).parent.path;
+    let count_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_result = |identity, scalar_type| {
+        OperationResult::Scalar(ValueDeclaration {
+            id: ValueId::new(identity).unwrap(),
+            scalar_type: ScalarType::Integer(scalar_type),
+            qualifications: Default::default(),
+        })
+    };
+    let operation = |identity, kind, result| Operation {
+        id: OperationId::new(identity).unwrap(),
+        kind,
+        result,
+        static_reach_binding: None,
+        suspension_crossing: None,
+    };
+    let length = operation(
+        20,
+        OperationKind::StructuralByteSequenceFieldLength {
+            source: place(1),
+            path: path.clone(),
+            field: bytes_field,
+        },
+        scalar_result(20, count_type),
+    );
+    execution
+        .execute_structural_byte_sequence_field_length(&length)
+        .unwrap();
+    assert_eq!(
+        execution.values[&ValueId::new(20).unwrap()],
+        crate::values::TerminalScalarValue::Integer {
+            scalar_type: count_type,
+            value: IntegerValue::Unsigned(3),
+        }
+    );
+
+    execution.values.insert(
+        ValueId::new(21).unwrap(),
+        crate::values::TerminalScalarValue::Integer {
+            scalar_type: count_type,
+            value: IntegerValue::Unsigned(1),
+        },
+    );
+    let read = operation(
+        22,
+        OperationKind::StructuralByteSequenceFieldRead {
+            source: place(1),
+            path: path.clone(),
+            field: bytes_field,
+            index: ValueId::new(21).unwrap(),
+            length: ValueId::new(20).unwrap(),
+            obligation: ObligationId::new(1).unwrap(),
+        },
+        scalar_result(22, byte_type),
+    );
+    execution
+        .execute_structural_byte_sequence_field_read(&read)
+        .unwrap();
+    assert_eq!(
+        execution.values[&ValueId::new(22).unwrap()],
+        crate::values::TerminalScalarValue::Integer {
+            scalar_type: byte_type,
+            value: IntegerValue::Unsigned(20),
+        }
+    );
+
+    for invalid_path in [
+        {
+            let mut changed = path.clone();
+            changed[2] = StructuralPathSegment::FixedIndex(2);
+            changed
+        },
+        {
+            let mut changed = path.clone();
+            changed.insert(0, StructuralPathSegment::Referent);
+            changed
+        },
+        {
+            let mut changed = path.clone();
+            changed[2] = StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(21).unwrap(),
+                obligation: ObligationId::new(2).unwrap(),
+            };
+            changed
+        },
+    ] {
+        let invalid = operation(
+            23,
+            OperationKind::StructuralByteSequenceFieldLength {
+                source: place(1),
+                path: invalid_path,
+                field: bytes_field,
+            },
+            scalar_result(23, count_type),
+        );
+        assert!(
+            execution
+                .execute_structural_byte_sequence_field_length(&invalid)
+                .is_err()
+        );
+    }
 }
 
 #[test]

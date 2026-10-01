@@ -154,7 +154,7 @@ fn byte_observation_geometry_accepts_only_exact_deep_static_paths() {
     let rooms_field = StructuralFieldId::new(2).unwrap();
     let exits_field = StructuralFieldId::new(3).unwrap();
     let command_field = StructuralFieldId::new(4).unwrap();
-    let structural_field = |id, identity, structural_type| StructuralFieldDeclaration {
+    let structural_field = |id, identity: &str, structural_type| StructuralFieldDeclaration {
         id,
         identity: identity.into(),
         relevance: BindingRelevance::Relevant,
@@ -216,9 +216,9 @@ fn byte_observation_geometry_accepts_only_exact_deep_static_paths() {
     let path = vec![
         StructuralPathSegment::Field("bag".into()),
         StructuralPathSegment::Field("rooms".into()),
-        StructuralPathSegment::FixedIndex(0),
+        StructuralPathSegment::FixedIndex(1),
         StructuralPathSegment::Field("exits".into()),
-        StructuralPathSegment::FixedIndex(0),
+        StructuralPathSegment::FixedIndex(1),
     ];
     let length_type = ScalarType::Integer(
         semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -227,11 +227,11 @@ fn byte_observation_geometry_accepts_only_exact_deep_static_paths() {
 
     assert_eq!(
         observed_byte_field_length(main, &path, command_field, length_type, &declarations),
-        Some((0, 8)),
+        Some((48, 8)),
     );
     assert_eq!(
         observed_byte_field_storage(main, &path, command_field, &declarations),
-        Some((0, 8)),
+        Some((48, 8)),
     );
     // Mutation geometry deliberately retains the narrower, established
     // carrier grammar even though the same leaf is readable.
@@ -271,6 +271,17 @@ fn byte_observation_geometry_accepts_only_exact_deep_static_paths() {
             "{invalid:?}",
         );
     }
+
+    let mut element_view = declarations.clone();
+    element_view[2].shape = StructuralTypeShape::ElementView { element: room };
+    assert_eq!(
+        observed_byte_field_length(main, &path, command_field, length_type, &element_view),
+        None,
+    );
+    assert_eq!(
+        observed_byte_field_storage(main, &path, command_field, &element_view),
+        None,
+    );
 }
 
 #[test]

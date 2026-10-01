@@ -1787,9 +1787,15 @@ fn byte_field_length_for(
 ) -> Option<(u32, u8)> {
     match use_ {
         ByteFieldGeometryUse::Observation => {
-            // `project` admits only exact Field/FixedIndex chains and checks
-            // every declared type and literal bound. Runtime selectors,
-            // referents and byte windows remain separate capabilities.
+            // The semantic resolver admits only exact record fields and
+            // in-bounds FixedArray indices. In particular, it excludes an
+            // ElementView index whose bound is dynamic. `project` then
+            // independently reconstructs the admitted path's physical offset.
+            terminal_semantics::runtime_structural_path_tip(
+                declarations.iter(),
+                structural_type,
+                path,
+            )?;
             project(structural_type, path, declarations)?;
         }
         ByteFieldGeometryUse::BoundedStore => {

@@ -252,9 +252,13 @@ pub(crate) fn validate_structural_root_operations(
                             let Some((structural_type, storage_path)) = geometry else { return false; };
                             (access != terminal_psi::StructuralAccess::WriteOnlyBorrow
                                 || matches!(node.operation, O::StructuralByteSequenceFieldLength { .. }))
-                            // Static observations follow the exact catalog,
-                            // not the narrower store grammar. Reference
-                            // crossings retain their separate bound above.
+                            // Deep observations use fixed storage only; the
+                            // general catalog resolver also serves operations
+                            // with explicit runtime selector obligations.
+                            && (terminal_psi::is_bounded_structural_scalar_store_path(storage_path)
+                                || terminal_semantics::runtime_structural_path_tip(
+                                    structural_types.values().copied(), structural_type, storage_path,
+                                ).is_some())
                             && super::super::structural_catalog::resolve_structural_path(
                                 structural_types, structural_type, storage_path,
                             ).and_then(|parent| structural_types.get(&parent))

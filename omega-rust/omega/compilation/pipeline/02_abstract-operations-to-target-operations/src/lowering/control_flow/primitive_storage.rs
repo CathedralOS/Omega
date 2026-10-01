@@ -70,9 +70,9 @@ pub(super) fn readable_byte_field(
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
     let unsupported = || LoweringError::unsupported_control_flow(function.machine);
-    // The projection resolver below checks every static field/index and its
-    // physical extent. Observations need not share the narrower store grammar;
-    // that resolver still refuses runtime indices and reference crossings.
+    // Observations need not share the narrower store grammar. The semantic
+    // check below constrains newly admitted deep paths to fixed storage before
+    // the general projection resolver computes their physical extent.
     if super::references::check_root_access(live, source)
         || function
             .entry_claims
@@ -111,6 +111,16 @@ pub(super) fn readable_byte_field(
         }
         (parameter.structural_type, parameter.access)
     };
+    if !terminal_psi::is_bounded_structural_scalar_store_path(path)
+        && terminal_semantics::runtime_structural_path_tip(
+            types.values().copied(),
+            structural_type,
+            path,
+        )
+        .is_none()
+    {
+        return Err(unsupported());
+    }
     let carrier = if path.is_empty() {
         structural_type
     } else {

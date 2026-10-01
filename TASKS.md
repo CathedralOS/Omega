@@ -1241,7 +1241,8 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega run samples/cli/games/dungeon_crawler_cli/main.omg` with
   closed stdin, then `help`, `exit`, and a blank pause line, without bypassing
-  `RoomLookup`, `MazeBuilder` or game-state field validity. At `f14e818bdc`
+  `RoomLookup`, `MazeBuilder` or game-state field validity. On `afca99a109`
+  plus the composed-receiver and static byte-field observation repairs,
   on macOS ARM64, closed stdin still exits 200 before Terminal production:
   `Game::initialize` → `Dungeon::initialize` → `DungeonGenerator::generate` →
   `MazeBuilder::build` → `MazeBuilder::carve_room` → `RoomEvents::roll_event` →
@@ -1254,15 +1255,15 @@ the complete product bar; focused successes below do not establish that baseline
   real bounds evidence, never relabel a typed operand to force lowering.
 
   The composed receiver reproduction
-  `borrows/branch_selected_record_composed_receiver_exit` now passes source
-  receiver reconciliation and attached-reference ingress replay, but Terminal
-  rejects `InvalidStructuralByteSequenceFieldAccess(OperationId(11))`.
-  Trace the emitted operation and exact source place before changing emission
-  or receiving validation. It combines a selected reference result, a nested
-  qualified-byte result, copied enum operands and a composed mutable receiver;
-  its authored native exit 70 is still required. The independent nested owned
-  byte-record literal witness executes 70, and 15 existing native controls
-  retain their authored results. None of those closes the application.
+  `borrows/branch_selected_record_composed_receiver_exit` and nested owned
+  byte-record literal witness both execute their authored exit 70. The receiver
+  case combines a selected reference result, a nested qualified-byte result,
+  copied enum operands and a composed mutable receiver. Exact static record/
+  fixed-array observation paths now reach the same storage through verification,
+  interpretation and native lowering without acquiring runtime-index, view
+  crossing or mutation authority. Sixteen existing native controls retain their
+  authored results, and four invalid-borrow controls still reject. None of those
+  closes the application; its next dependency is the numeric expression above.
 
   Preserve exact initializer identity, nested consuming-call coordinates,
   finite reference-origin coverage, selected result addresses and loan release;

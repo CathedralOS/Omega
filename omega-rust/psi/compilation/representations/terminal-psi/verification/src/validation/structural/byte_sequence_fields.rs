@@ -39,7 +39,8 @@ pub(in crate::validation) fn validate(
         } => (*source, path, *field, false, true),
         _ => return Err(invalid()),
     };
-    let (_, access) = terminal_semantics::byte_field_root(machine, root).ok_or_else(invalid)?;
+    let (structural_type, access) =
+        terminal_semantics::byte_field_root(machine, root).ok_or_else(invalid)?;
     let access_admitted = if writing {
         matches!(
             access,
@@ -58,8 +59,19 @@ pub(in crate::validation) fn validate(
     // Observations compose through the complete static path resolver below:
     // each field and fixed index must match its declaration and extent. The
     // narrower store grammar is not a restriction on reading nested storage.
-    // Dynamic indices and reference crossings still fail path resolution.
-    if !access_admitted || (writing && !terminal_psi::is_bounded_structural_scalar_store_path(path))
+    // The general resolver also handles view-backed indices for other
+    // operations. Newly admitted deep observations require fixed storage;
+    // they do not acquire those operations' runtime-bound authority.
+    let bounded_path = terminal_psi::is_bounded_structural_scalar_store_path(path);
+    if !access_admitted
+        || (!bounded_path
+            && (writing
+                || terminal_semantics::runtime_structural_path_tip(
+                    module.structural_types.iter(),
+                    structural_type,
+                    path,
+                )
+                .is_none()))
     {
         return Err(invalid());
     }
