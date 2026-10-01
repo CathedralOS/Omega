@@ -13,7 +13,7 @@
 //! child with every argument in `check_receiver_conflicts`. A named jump into
 //! a `&mut self` sibling state is judged here too, with the successor as
 //! callee and the caller's `self` as its receiver: the arguments' loans stay
-//! live for the successor's whole run.
+//! live until that individual loan is no longer forwarded by a state jump.
 //!
 //! The loans live around a call that returns to its caller constrain the
 //! callee the same way, whether or not an operand names them. A receiver
@@ -63,38 +63,46 @@ pub(in crate::checks::borrows) fn check_receiver_footprint_against_argument_loan
         .iter()
         .filter(|argument| argument.end_before_access.is_none())
         .collect();
-    let writes = attached(crate::flow::call_receiver_write_accesses(
-        program,
-        state_flow.machine_symbol,
-        state_flow.state_symbol,
-        &facts.borrow,
-        call,
-        summaries.writes,
-    ));
-    // Reads interfere only with exclusive loans, and most calls retain none.
-    let reads = if retained_arguments
-        .iter()
-        .any(|argument| argument.kind.is_exclusive())
-    {
-        attached(crate::flow::call_receiver_read_accesses(
-            program,
-            state_flow.machine_symbol,
-            state_flow.state_symbol,
-            &facts.borrow,
-            call,
-            summaries.reads,
-        ))
-    } else {
-        Vec::new()
-    };
-    if writes.is_empty() && reads.is_empty() {
-        return;
-    }
     let entry_constraints = super::super::call_borrow_constraints(call, state_flow, facts);
     for argument in retained_arguments {
         let operand = CapturedPlace {
             root_symbol: argument.root_symbol,
             segments: facts.borrow.access_segments(argument).to_vec(),
+        };
+        let mut loan = CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(operand.root_symbol),
+            segments: operand.segments.clone(),
+        };
+        crate::flow::normalize_attached_place_root(
+            program,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
+            &mut loan,
+        );
+        // Each loan has its own state-exit boundary. A shared footprint for
+        // the whole argument roster would prolong dropped loans whenever an
+        // unrelated argument survives.
+        let writes = attached(crate::flow::call_receiver_write_accesses(
+            program,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
+            &facts.borrow,
+            call,
+            summaries.writes,
+            &loan,
+        ));
+        let reads = if argument.kind.is_exclusive() {
+            attached(crate::flow::call_receiver_read_accesses(
+                program,
+                state_flow.machine_symbol,
+                state_flow.state_symbol,
+                &facts.borrow,
+                call,
+                summaries.reads,
+                Some(&loan),
+            ))
+        } else {
+            Vec::new()
         };
         // A local reference operand lends the storage its own loan captured,
         // so an exclusive one suspends that storage, not the local's name.
@@ -235,6 +243,7 @@ pub(in crate::checks::borrows) fn check_receiver_reads_against_live_loans<'p>(
             &facts.borrow,
             call,
             reads,
+            None,
         ),
     );
     for loan_handle in suspending_loans {

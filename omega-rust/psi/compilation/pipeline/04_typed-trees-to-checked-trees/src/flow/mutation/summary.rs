@@ -15,7 +15,7 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_from_expression_in_state;
-use crate::flow::jump_loans::{TargetRun, target_run};
+use crate::flow::jump_loans::{HeldAccesses, TargetRun, held_accesses, target_run};
 use crate::flow::mutation::WritePlaceNamespace;
 use crate::semantic::calls::call_site_argument_expressions;
 use crate::semantic::calls::find_call_site;
@@ -50,9 +50,8 @@ struct StateMutationSummary {
     complete: bool,
     /// The whole run's writes, which a call holds its argument loans across.
     writes: Vec<MutationWrite>,
-    /// The held run's writes, which a jump into the state holds its argument
-    /// loans across (`crate::flow::jump_loans`): a subset of `writes`.
-    held_writes: Vec<MutationWrite>,
+    /// Writes while each incoming parameter's loans remain held.
+    held_writes: Vec<HeldAccesses<MutationWrite>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -113,20 +112,19 @@ pub(super) fn instantiate_known_call_receiver_summary_places(
     borrow: &BorrowFacts,
     borrow_call: &BorrowCallFact,
     cache: &StateMutationSummaryCache,
+    loan: &CanonicalPlace,
 ) -> Option<Vec<CanonicalPlace>> {
     let target_state = find_state(program, borrow_call.target_symbol)?;
     let target_machine_symbol = machine_symbol_for_state(program, target_state);
     let summary = state_mutation_summary(program, borrow, cache, target_state, None)?;
-    let summary_places = match target_run(
+    let run = target_run(
         program,
         caller_machine_symbol,
         caller_state_symbol,
         borrow,
         borrow_call,
-    ) {
-        TargetRun::Whole => &summary.writes,
-        TargetRun::Held | TargetRun::Released => &summary.held_writes,
-    };
+    );
+    let summary_places = run.accesses(program, &summary.writes, &summary.held_writes, Some(loan));
 
     let mut instantiated = Vec::new();
     for write in summary_places {
@@ -222,7 +220,7 @@ fn build_state_mutation_summaries(
         let writes = direct_writes.unwrap_or_default();
         states.push(StateMutationSummary {
             state_symbol: state.symbol,
-            held_writes: writes.clone(),
+            held_writes: held_accesses(program, state, &writes),
             complete: direct_complete
                 && state_has_concrete_body_signature(program, state)
                 && inferred_completeness
@@ -298,12 +296,11 @@ fn propagate_state_mutation_summaries(
             };
             let caller = &states[caller_index];
             let mut additions = Vec::new();
-            let mut held_additions = Vec::new();
-            let mut expose = |writes: Vec<MutationWrite>, held_writes: Vec<MutationWrite>| {
-                for (existing, pending, writes) in [
-                    (&caller.writes, &mut additions, writes),
-                    (&caller.held_writes, &mut held_additions, held_writes),
-                ] {
+            let mut held_additions = vec![Vec::new(); caller.held_writes.len()];
+            let mut expose = |writes: Vec<MutationWrite>, held_writes: Vec<Vec<MutationWrite>>| {
+                let retain = |existing: &[MutationWrite],
+                              pending: &mut Vec<MutationWrite>,
+                              writes: Vec<MutationWrite>| {
                     for write in writes {
                         if state_summary_exposes_place(program, caller_state, &write.place)
                             && !existing.contains(&write)
@@ -312,6 +309,15 @@ fn propagate_state_mutation_summaries(
                             pending.push(write);
                         }
                     }
+                };
+                retain(&caller.writes, &mut additions, writes);
+                for ((held, pending), writes) in caller
+                    .held_writes
+                    .iter()
+                    .zip(&mut held_additions)
+                    .zip(held_writes)
+                {
+                    retain(&held.accesses, pending, writes);
                 }
             };
             let mut complete = true;
@@ -339,7 +345,8 @@ fn propagate_state_mutation_summaries(
                             requires_exclusive_access: true,
                         })
                         .collect();
-                    expose(writes.clone(), writes);
+                    let held = vec![writes.clone(); caller.held_writes.len()];
+                    expose(writes, held);
                     continue;
                 };
                 let target = &states[*target_index];
@@ -362,18 +369,31 @@ fn propagate_state_mutation_summaries(
                     complete = false;
                     break;
                 };
-                let held = match run {
-                    TargetRun::Whole => Some(whole.clone()),
-                    TargetRun::Held => instantiate(&target.held_writes),
-                    TargetRun::Released => Some(Vec::new()),
-                };
+                let held = caller
+                    .held_writes
+                    .iter()
+                    .map(|incoming| {
+                        let loan = CanonicalPlace {
+                            root: facts::PlaceRoot::Symbol(incoming.parameter),
+                            segments: Vec::new(),
+                        };
+                        let selected: Vec<_> = run
+                            .accesses(program, &target.writes, &target.held_writes, Some(&loan))
+                            .cloned()
+                            .collect();
+                        instantiate(&selected)
+                    })
+                    .collect::<Option<Vec<_>>>();
                 let Some(held) = held else {
                     complete = false;
                     break;
                 };
                 expose(whole, held);
             }
-            if !complete || !additions.is_empty() || !held_additions.is_empty() {
+            if !complete
+                || !additions.is_empty()
+                || held_additions.iter().any(|pending| !pending.is_empty())
+            {
                 updates.push((caller_index, complete, additions, held_additions));
             }
         }
@@ -382,7 +402,9 @@ fn propagate_state_mutation_summaries(
             summary.complete = complete;
             if complete {
                 summary.writes.extend(additions);
-                summary.held_writes.extend(held_additions);
+                for (held, additions) in summary.held_writes.iter_mut().zip(held_additions) {
+                    held.accesses.extend(additions);
+                }
             } else {
                 summary.writes.clear();
                 summary.held_writes.clear();
