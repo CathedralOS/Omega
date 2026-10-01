@@ -124,11 +124,14 @@ pub(crate) fn resolve(
 
 /// Resolve a case observation through one runtime-selected element
 /// (`self.items[self.w] is Color::Red`): `prefix` walks from the bound
-/// parameter to a fixed array and `element_path` walks the selected element to
-/// the sum. Returns the source, the two lowered halves the caller places the
-/// `RuntimeIndex` segment between, and the selected case. The element's
+/// parameter to a fixed array or whole element view, and `element_path` walks
+/// the selected element to the sum. Returns the source, the two lowered halves
+/// surrounding `RuntimeIndex`, the selected case, and whether the exact carrier
+/// needs a live element-view length observation. The element's
 /// bound is not checked here: the observation owns that obligation and the
-/// verifier reconstructs it against the array's declared extent.
+/// verifier reconstructs it against the array's declared extent or the exact
+/// view's dominating live-length observation. A nested view needs a separately
+/// established descriptor root before its length can be observed.
 pub(crate) fn resolve_runtime_element(
     bindings: &[StructuralCaseBinding],
     parameter_position: u32,
@@ -141,6 +144,7 @@ pub(crate) fn resolve_runtime_element(
         Vec<terminal_psi::StructuralPathSegment>,
         Vec<terminal_psi::StructuralPathSegment>,
         semantic_vocabulary::StructuralCaseId,
+        bool,
     ),
     LoweringError,
 > {
@@ -154,13 +158,22 @@ pub(crate) fn resolve_runtime_element(
         return unsupported("case observation has ambiguous source bindings");
     }
     let (array, prefix) = walk(binding, binding.structural_type, prefix)?;
-    let StructuralTypeShape::FixedArray { element, .. } = &declaration(binding, array)?.shape
-    else {
-        return unsupported("runtime case observation does not select in a fixed array");
+    let (element, observes_element_view_length) = match &declaration(binding, array)?.shape {
+        StructuralTypeShape::FixedArray { element, .. } => (*element, false),
+        StructuralTypeShape::ElementView { element } if prefix.is_empty() => (*element, true),
+        _ => {
+            return unsupported("runtime case observation requires an array or whole element view");
+        }
     };
-    let (sum, element_path) = walk(binding, *element, element_path)?;
+    let (sum, element_path) = walk(binding, element, element_path)?;
     let case = selected_case(binding, sum, identity)?;
-    Ok((binding.source, prefix, element_path, case))
+    Ok((
+        binding.source,
+        prefix,
+        element_path,
+        case,
+        observes_element_view_length,
+    ))
 }
 
 fn declaration(

@@ -139,6 +139,8 @@ impl Builder<'_, '_> {
             statement_index,
             subject,
         )?;
+        // Admission follows the authored selector even when an immutable
+        // selector later folds to a fixed index in the observation path.
         if !place
             .segments
             .iter()
@@ -146,6 +148,39 @@ impl Builder<'_, '_> {
         {
             return None;
         }
+        let (_, mut argument) = self.parameter_case_subject(subject, statement_index)?;
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } =
+            argument.source
+        else {
+            return None;
+        };
+        let position = self
+            .authored_parameters
+            .iter()
+            .position(|parameter| parameter.symbol == symbol)?;
+        argument.source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: self.dense_structural_parameter_index(position)?,
+        };
+        Some(argument)
+    }
+
+    /// Resolve the same readable parameter place for membership and intrinsic
+    /// enum equality. This route contains only place reads: calls and computed
+    /// selectors must already have ordinary captured results before observation.
+    pub(super) fn parameter_case_subject(
+        &self,
+        subject: ExpressionHandle,
+        statement_index: usize,
+    ) -> Option<(
+        typed_trees::types::TypeReferenceHandle,
+        checked_trees::CheckedUnitStructuralArgumentPlan,
+    )> {
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            statement_index,
+            subject,
+        )?;
         let facts::PlaceRoot::Symbol(root) =
             crate::flow::normalized_event_place_root(self.program, place.root)
         else {
@@ -158,7 +193,6 @@ impl Builder<'_, '_> {
                     facts::PlaceRoot::Symbol(parameter.symbol),
                 ) == facts::PlaceRoot::Symbol(root)
         })?;
-        let parameter_index = self.dense_structural_parameter_index(authored_position)?;
         let (projected, path) = crate::execution::terminal_unit::calls::projected_observed_path(
             self.program,
             self.machine,
@@ -167,18 +201,23 @@ impl Builder<'_, '_> {
             &place,
             &|selector| self.local_selector(selector),
         )?;
-        Some(checked_trees::CheckedUnitStructuralArgumentPlan {
-            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index,
+        Some((
+            projected,
+            checked_trees::CheckedUnitStructuralArgumentPlan {
+                // Formal symbols survive until the receiving stage has the
+                // actual retained structural roster, including its receiver.
+                source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: self.authored_parameters[authored_position].symbol,
+                },
+                path,
+                type_identity: self
+                    .program
+                    .normalized_type_identity(projected)
+                    .as_str()
+                    .to_owned(),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
             },
-            path,
-            type_identity: self
-                .program
-                .normalized_type_identity(projected)
-                .as_str()
-                .to_owned(),
-            access: checked_trees::CheckedStructuralAccess::SharedBorrow,
-        })
+        ))
     }
 
     /// A runtime selector naming an immutable integer scalar local of this

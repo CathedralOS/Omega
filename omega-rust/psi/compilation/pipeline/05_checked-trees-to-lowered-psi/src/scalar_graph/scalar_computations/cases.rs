@@ -328,42 +328,52 @@ impl Expansion<'_> {
     ) -> Result<usize, LoweringError> {
         let subject = match subject {
             CheckedScalarComputationStructuralArgument::Case(subject) => subject,
-            CheckedScalarComputationStructuralArgument::Place(argument)
-                if !argument.path.iter().all(|segment| {
-                    !matches!(
+            CheckedScalarComputationStructuralArgument::Place(argument) => {
+                let (machine, state) =
+                    crate::expression_preparation::source_custody::authored_state(
+                        self.checked,
+                        site.state,
+                    )?;
+                let parameter_argument = site.bindings.case_parameter_argument(
+                    argument,
+                    machine,
+                    self.checked.state_parameters(state),
+                )?;
+                if argument.path.iter().any(|segment| {
+                    matches!(
                         segment,
                         checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
                     )
-                }) =>
-            {
-                // A runtime-selected element observes "some element": its
-                // selector is read before the tag and the observation owns
-                // the element's bound.
-                let identity = structural_case_identity(self.checked, observed_case)?;
-                let expression = site.bindings.parameter_element_case_observation(
-                    argument,
-                    &identity,
-                    input_types,
-                )?;
-                return Ok(self.binding(
-                    input_types,
-                    input_types.len(),
-                    target,
-                    LoweredScalarBinding::Expression(LoweredDirectExpression::Boolean {
-                        expression: Box::new(expression),
-                    }),
-                ));
-            }
-            CheckedScalarComputationStructuralArgument::Place(argument) => {
-                let (place, path, case) = match argument.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                        ..
-                    } => {
+                }) {
+                    // A runtime-selected element observes "some element": its
+                    // selector is read before the tag and the observation owns
+                    // the element's bound.
+                    let identity = structural_case_identity(self.checked, observed_case)?;
+                    let expression = site.bindings.parameter_element_case_observation(
+                        parameter_argument
+                            .as_ref()
+                            .ok_or(LoweringError::Unsupported(
+                                "runtime case observation requires an exact parameter source",
+                            ))?,
+                        &identity,
+                        input_types,
+                    )?;
+                    return Ok(self.binding(
+                        input_types,
+                        input_types.len(),
+                        target,
+                        LoweredScalarBinding::Expression(LoweredDirectExpression::Boolean {
+                            expression: Box::new(expression),
+                        }),
+                    ));
+                }
+                let (place, path, case) = match parameter_argument {
+                    Some(parameter_argument) => {
                         let identity = structural_case_identity(self.checked, observed_case)?;
                         site.bindings
-                            .parameter_case_observation(argument, &identity)?
+                            .parameter_case_observation(&parameter_argument, &identity)?
                     }
-                    _ => {
+                    None => {
                         let (place, case) = site
                             .bindings
                             .structural_local_observation(argument, observed_case)?;

@@ -63,6 +63,7 @@ pub(crate) mod flow_calls;
 // and dispatch, and the literal or operator meaning of retained operations.
 pub(crate) mod array_sources;
 pub(crate) mod case_sources;
+pub(crate) mod enum_equality;
 pub(crate) mod structural;
 pub(crate) mod value_correspondence;
 

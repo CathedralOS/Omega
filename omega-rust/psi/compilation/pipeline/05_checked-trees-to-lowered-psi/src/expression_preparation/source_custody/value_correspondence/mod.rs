@@ -322,6 +322,20 @@ impl Context<'_> {
                 expression,
                 operands,
             } => {
+                // A synthesized enum comparison owns its complete ordered
+                // observation roster. Its children cannot independently claim
+                // to implement the enclosing equality source occurrence.
+                match super::enum_equality::validate_application(self.checked, self.state, root) {
+                    Ok(true) => {
+                        active.pop();
+                        return true;
+                    }
+                    Err(_) => {
+                        active.pop();
+                        return false;
+                    }
+                    Ok(false) => {}
+                }
                 let operands = plans.operands.span_or_empty(*operands);
                 let sources = match self.checked.expression_table.expression(*source_expression) {
                     ExpressionNode::Binary(binary) if operands.len() == 2 => {

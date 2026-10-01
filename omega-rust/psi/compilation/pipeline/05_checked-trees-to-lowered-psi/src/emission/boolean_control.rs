@@ -350,6 +350,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
     blocks: &mut Vec<Option<Block>>,
 ) -> LoweredBooleanDecisionTarget {
     let incoming_lengths = all_operations.byte_lengths.len();
+    let incoming_element_lengths = all_operations.element_lengths.len();
     let incoming_field_lengths = all_operations.field_byte_lengths.len();
     let target = match decision {
         LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant { value: true }) => {
@@ -580,6 +581,9 @@ fn emit_reserved_boolean_guard_decision_blocks(
     };
     all_operations.byte_lengths.truncate(incoming_lengths);
     all_operations
+        .element_lengths
+        .truncate(incoming_element_lengths);
+    all_operations
         .field_byte_lengths
         .truncate(incoming_field_lengths);
     target
@@ -598,6 +602,7 @@ fn emit_reserved_boolean_value_blocks(
     blocks: &mut Vec<Option<Block>>,
 ) -> BlockId {
     let incoming_lengths = all_operations.byte_lengths.len();
+    let incoming_element_lengths = all_operations.element_lengths.len();
     let incoming_field_lengths = all_operations.field_byte_lengths.len();
     let block_index = blocks.len();
     let block = block_id(
@@ -720,6 +725,9 @@ fn emit_reserved_boolean_value_blocks(
     });
     all_operations.byte_lengths.truncate(incoming_lengths);
     all_operations
+        .element_lengths
+        .truncate(incoming_element_lengths);
+    all_operations
         .field_byte_lengths
         .truncate(incoming_field_lengths);
     block
@@ -820,6 +828,7 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
     blocks: &mut Vec<Option<Block>>,
 ) -> BlockId {
     let incoming_lengths = all_operations.byte_lengths.len();
+    let incoming_element_lengths = all_operations.element_lengths.len();
     let incoming_field_lengths = all_operations.field_byte_lengths.len();
     let block_index = blocks.len();
     let block = block_id(
@@ -940,6 +949,9 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
         terminator,
     });
     all_operations.byte_lengths.truncate(incoming_lengths);
+    all_operations
+        .element_lengths
+        .truncate(incoming_element_lengths);
     all_operations
         .field_byte_lengths
         .truncate(incoming_field_lengths);

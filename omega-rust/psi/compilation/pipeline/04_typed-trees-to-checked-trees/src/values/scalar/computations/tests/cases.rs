@@ -4,6 +4,133 @@ use super::{
 use crate::values::scalar::computations::tests::checked_source;
 
 #[test]
+fn enum_equality_observes_complete_left_then_right_case_rosters() {
+    for operator in ["==", "!="] {
+        let checked = checked_source(
+            &format!(
+                "data Choice [copy] {{ case Empty; case First; case Second; }}
+             machine same(left: Choice, right: Choice) -> bool {{ left {operator} right }}"
+            ),
+            false,
+        );
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "same")
+            .unwrap();
+        let state = &checked.machine_states(machine)[0];
+        let plans = &checked.facts.values.scalar_computations;
+        let root = plans
+            .root_at(state.symbol, 0, CheckedScalarExpressionRole::Return)
+            .expect("executable enum equality");
+        let CheckedScalarComputationKind::Apply {
+            source_expression,
+            expression,
+            operands,
+        } = &plans.nodes.get(root.root).kind
+        else {
+            panic!("equality must sequence observations before combining them");
+        };
+        assert_eq!(
+            matches!(expression, checked_trees::CheckedScalarExpression::Boolean(value) if matches!(value.as_ref(), checked_trees::CheckedBooleanExpression::Not(_))),
+            operator == "!="
+        );
+        let owner = checked
+            .data_definitions()
+            .iter()
+            .find(|owner| owner.name.as_str() == "Choice")
+            .unwrap();
+        let cases: Vec<_> = checked
+            .data_members(owner)
+            .iter()
+            .filter_map(|member| match member {
+                checked_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+                _ => None,
+            })
+            .collect();
+        let observations = plans.operands.span(*operands).unwrap();
+        assert_eq!(observations.len(), cases.len() * 2);
+        for (ordinal, observation) in observations.iter().enumerate() {
+            let CheckedScalarComputationKind::CaseMembership {
+                source_expression: source,
+                subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
+                case,
+            } = &plans.nodes.get(*observation).kind
+            else {
+                panic!("one tag observation per declared case");
+            };
+            assert_eq!(source, source_expression);
+            assert_eq!(*case, cases[ordinal % cases.len()]);
+            assert_eq!(
+                subject.source,
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: checked.state_parameters(state)[ordinal / cases.len()].symbol
+                }
+            );
+            assert!(subject.path.is_empty());
+        }
+    }
+}
+
+#[test]
+fn enum_equality_retains_indexed_subject_and_formal_identity_after_receiver() {
+    let checked = checked_source(
+        "data Choice [copy] { case Empty; case First; }
+         data Room [copy] { cell: Choice; }
+         data Lookup {}
+         machine Lookup::same(&mut self, rooms: &[Room], cell: Choice, index: u64) -> bool
+         requires index < rooms.len
+         { rooms[index].cell == cell }",
+        false,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Lookup::same")
+        .unwrap();
+    let state = &checked.machine_states(machine)[0];
+    let parameters = checked.state_parameters(state);
+    let plans = &checked.facts.values.scalar_computations;
+    let root = plans
+        .root_at(state.symbol, 0, CheckedScalarExpressionRole::Return)
+        .expect("indexed enum comparison");
+    let CheckedScalarComputationKind::Apply { operands, .. } = &plans.nodes.get(root.root).kind
+    else {
+        panic!("comparison application");
+    };
+    let observations = plans.operands.span(*operands).unwrap();
+    assert_eq!(observations.len(), 4);
+    for (ordinal, observation) in observations.iter().enumerate() {
+        let CheckedScalarComputationKind::CaseMembership {
+            subject: checked_trees::CheckedScalarComputationStructuralArgument::Place(subject),
+            ..
+        } = &plans.nodes.get(*observation).kind
+        else {
+            panic!("tag observation");
+        };
+        assert_eq!(
+            subject.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                symbol: parameters[if ordinal < 2 { 1 } else { 2 }].symbol,
+            }
+        );
+        if ordinal < 2 {
+            assert!(matches!(
+                subject.path.as_slice(),
+                [
+                    checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::Parameter { position: 0 }
+                    ),
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                ]
+            ));
+        } else {
+            assert!(subject.path.is_empty());
+        }
+    }
+}
+
+#[test]
 fn scalar_match_does_not_leave_structural_operand_roots() {
     let checked = checked_source(
         "machine choose(selector: bool) -> u32 { match selector { true -> 17, false -> 37 } }",

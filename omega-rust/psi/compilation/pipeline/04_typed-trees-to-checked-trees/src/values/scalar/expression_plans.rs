@@ -13,7 +13,6 @@ use crate::values::scalar::call_lowering::{
     retain_call_arguments, scalar_qualified_call_expression,
 };
 use crate::values::scalar::expression_facts::operator_is_builtin;
-use crate::values::scalar::machine_parameter_booleans::lower_machine_parameter_boolean_expression;
 use crate::values::scalar::scalar_lowering::{lower_index_expression, lower_return_expression};
 use crate::values::scalar::selected_operator_operands::lower_selected_operator_operands;
 use crate::values::scalar::semantic_casts;

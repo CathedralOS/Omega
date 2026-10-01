@@ -39,6 +39,7 @@ mod boundary_calls;
 mod call_arguments;
 mod cases;
 mod dispatch;
+mod enum_equality;
 mod integers;
 mod normal_return;
 mod slice_view;
@@ -1185,6 +1186,11 @@ impl Builder<'_, '_> {
                 self.insert(expected_type, CheckedScalarComputationKind::Value(value));
             self.plans.nodes.get_mut(computation).value_source = expression;
             return Some(computation);
+        }
+        if expected_type == PrimitiveType::Bool
+            && let Some(equality) = self.enum_equality(expression)
+        {
+            return Some(equality);
         }
         if expected_type == PrimitiveType::Bool
             && let Some(membership) = self.case_membership(expression)

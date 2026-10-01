@@ -1,7 +1,9 @@
 //! Boolean leaves and comparisons; short-circuit expressions belong to control lowering.
 
 use super::buffer::OperationBuffer;
-use super::expressions::{LoweredDirectExpression, emit_direct_expression, emit_scalar_leaf};
+use super::expressions::{
+    LoweredDirectExpression, emit_direct_expression, emit_element_length, emit_scalar_leaf,
+};
 use super::integer::LoweredIntegerComparisonKind;
 use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
@@ -16,14 +18,16 @@ pub(crate) enum LoweredBooleanReturnExpression {
         case: semantic_vocabulary::StructuralCaseId,
     },
     /// Observe the active case of a runtime-selected element
-    /// (`self.items[self.w] is Color::Red`): `path` reaches the fixed array,
+    /// (`self.items[self.w] is Color::Red`): `path` reaches the collection,
     /// `index` is the selector, evaluated first and spelled as the
     /// observation's `RuntimeIndex` segment, and `element_path` walks the
     /// selected element to the sum. The observation owns the selector's bound
-    /// obligation, which the verifier reconstructs against the array's
-    /// declared extent; it keys no case fact.
+    /// obligation, reconstructed against the fixed array's declared extent or
+    /// the exact element view's live length; it keys no case fact.
     IndexedCaseMembership {
         source: PlaceId,
+        /// Derived from the exact bound carrier declaration, not path spelling.
+        observes_element_view_length: bool,
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
         element_path: Vec<terminal_psi::StructuralPathSegment>,
@@ -154,12 +158,16 @@ pub(crate) fn emit_boolean_expression(
         }
         LoweredBooleanReturnExpression::IndexedCaseMembership {
             source,
+            observes_element_view_length,
             path,
             index,
             element_path,
             case,
         } => {
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
+            if *observes_element_view_length {
+                emit_element_length(*source, next_value_identity, operations);
+            }
             let obligation = obligation_id(
                 operations
                     .next_identity
