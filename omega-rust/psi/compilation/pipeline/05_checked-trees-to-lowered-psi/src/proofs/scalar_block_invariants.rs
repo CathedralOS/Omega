@@ -126,8 +126,14 @@ type VerdictKey = (
     BTreeSet<ValueId>,
 );
 
+/// The smallest verdict batch spread across workers. A refused verdict can
+/// cost seconds to a minute in a large scope, and member-probe waves are
+/// often a handful of searches: one serial wave of five refusals left seven
+/// workers idle for minutes. A worker costs microseconds to start.
+const VERDICT_WORKER_THRESHOLD: usize = 2;
+
 /// Run each pending verdict search, sharing the host across bounded workers
-/// once the batch is large enough to justify them. Searches read only the
+/// whenever the batch has more than one search. Searches read only the
 /// resolved inputs — a machine context, the goal, and the reconstructed
 /// requirements and axioms — so work-stealing over the batch cannot change
 /// any answer, and results join in batch order.
@@ -198,7 +204,7 @@ fn run_verdict_searches(
         drop(counted);
         (verdict, search_declines)
     };
-    if goals.len() < super::operation_proofs::PARALLEL_PROOF_THRESHOLD {
+    if goals.len() < VERDICT_WORKER_THRESHOLD {
         for key in goals {
             let (verdict, local) = produce(key);
             declines.extend(local);
