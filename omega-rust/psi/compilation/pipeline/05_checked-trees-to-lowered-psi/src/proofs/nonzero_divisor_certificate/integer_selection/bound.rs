@@ -20,6 +20,7 @@ pub(super) fn prove(
     if let Some(proof) = definitions.cached_bound_proof(goal) {
         return proof;
     }
+    super::super::search_context::spend_scope(assumptions.len(), semantic_axioms.len())?;
     definitions.begin_bound_proof(goal);
     let proof = prove_uncached(context, goal, assumptions, semantic_axioms, definitions);
     definitions.cache_bound_proof(goal, proof.clone());
@@ -85,6 +86,7 @@ pub(super) fn prove_candidate_endpoint(
     if let Some(proof) = definitions.cached_endpoint_proof(goal) {
         return proof;
     }
+    super::super::search_context::spend_scope(assumptions.len(), semantic_axioms.len())?;
     definitions.begin_endpoint_proof(goal);
     let proof =
         prove_candidate_endpoint_uncached(context, goal, assumptions, semantic_axioms, definitions);

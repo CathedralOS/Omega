@@ -69,6 +69,7 @@ pub(super) fn build_with_machine_parameters(
     if let Some(proof) = definitions.cached_build_proof(goal, machine_parameter_values) {
         return proof;
     }
+    super::search_context::spend(1)?;
     definitions.begin_build_proof(goal, machine_parameter_values);
     let ordinary = |goal: &Proposition, assumptions: &[Proposition]| {
         build_without_cases(
@@ -108,6 +109,7 @@ pub(super) fn prove_relaxed_with_machine_parameters(
     if let Some(proof) = definitions.cached_relaxed_proof(goal, machine_parameter_values) {
         return proof;
     }
+    super::search_context::spend(1)?;
     definitions.begin_relaxed_proof(goal, machine_parameter_values);
     let ordinary = |goal: &Proposition, assumptions: &[Proposition]| {
         build_without_cases(
@@ -158,6 +160,7 @@ fn build_without_cases(
     if let Some(proof) = definitions.cached_selection_proof(goal, machine_parameter_values) {
         return proof;
     }
+    super::search_context::spend_scope(assumptions.len(), semantic_axioms.len())?;
     definitions.begin_selection_proof(goal, machine_parameter_values);
     let proof = build_without_cases_uncached(
         context,

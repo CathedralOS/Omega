@@ -24,6 +24,9 @@ pub enum ProofSearchCapacity {
     /// The shared candidate-transport pool the roster pass's field-bound
     /// and join producers draw from (`proof_search_candidate_work`).
     ScalarInvariantCandidateWork,
+    /// Scope-row visits across one complete canonical or relaxed integer
+    /// certificate search, including nested implication and endpoint queries.
+    IntegerCertificateSearchWork,
     /// The separate transport pool of the cyclic-guarantee strengthening
     /// pass (`proof_search_cyclic_guarantee_work`).
     CyclicGuaranteeCandidateWork,
@@ -56,6 +59,7 @@ impl ProofSearchCapacity {
         match self {
             Self::ScalarInvariantRosterRounds => "proof_search_roster_rounds",
             Self::ScalarInvariantCandidateWork => "proof_search_candidate_work",
+            Self::IntegerCertificateSearchWork => "proof_search_integer_certificate_work",
             Self::CyclicGuaranteeCandidateWork => "proof_search_cyclic_guarantee_work",
             Self::ScalarResultGuaranteeWork => "proof_search_result_guarantee_work",
             Self::TerminalObligationIdentities => "proof_obligation_identities",
@@ -75,6 +79,7 @@ impl ProofSearchCapacity {
             // 16,384 exhausts with its clamp-result bound still unmet. This provisions
             // discovery only; every retained predicate still needs evidence.
             Self::ScalarInvariantCandidateWork => 65_536,
+            Self::IntegerCertificateSearchWork => 65_536,
             Self::CyclicGuaranteeCandidateWork => 4096,
             Self::ScalarResultGuaranteeWork => 4096,
             // Each minted identity is one arrival or clause the pass must
