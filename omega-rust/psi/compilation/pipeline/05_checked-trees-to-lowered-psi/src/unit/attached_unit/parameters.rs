@@ -1005,11 +1005,12 @@ pub(crate) fn validate_transfer_shape(
                         )
                 });
             // A live result binding lends one of its record's scalar leaves
-            // through an exclusive borrow; the projected path resolves to the
-            // same plain leaf shape the argument presents.
+            // through a shared or exclusive borrow; the projected path
+            // resolves to the same plain leaf shape the argument presents.
             let scalar_leaf_borrow = matches!(
                 argument.access,
-                checked_trees::CheckedStructuralAccess::MutableBorrow
+                checked_trees::CheckedStructuralAccess::SharedBorrow
+                    | checked_trees::CheckedStructuralAccess::MutableBorrow
                     | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
             ) && lookup_type_id(type_ids, &argument.type_identity)
                 .ok()
