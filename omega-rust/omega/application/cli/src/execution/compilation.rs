@@ -10,8 +10,8 @@ use compiler::{CompileOptions, CompileReport, CompileRequest};
 use diagnostics::Diagnostic;
 use package_manager::operations::LocalProjectPreparationOptions;
 use package_manager::operations::{
-    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
-    prepare_local_project,
+    CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,
+    compile_prepared_local_project_for_native, prepare_local_project,
 };
 
 pub(super) struct ProbeCompilation {
@@ -42,7 +42,13 @@ pub(super) fn compile(
         compile_prepared_local_project_for_native(request, |checked| {
             interpreter_input.map(|input| interpret_checked(checked, input))
         })
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?
+        .map_err(|error| match error {
+            // Realization diagnostics keep their exceeded provisions, so a
+            // compile that stopped at a private provision reads as
+            // `Incomplete` rather than as one flattened rejection message.
+            CompilePreparedLocalProjectNativeError::Native(diagnostics) => diagnostics,
+            error => vec![Diagnostic::error(error.to_string())],
+        })?
     } else {
         let report = compiler::compile(
             CompileRequest::new(options.clone())

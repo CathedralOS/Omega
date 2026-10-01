@@ -91,8 +91,9 @@ a proof-search capacity — without a verdict on the source. Several targets exi
 Argument errors exit 64 (`EX_USAGE`) before any compilation starts, so they
 never read as a compile outcome. `omega run`
 keeps its own statuses: the program's exit status, 200 when compilation or
-launch fails (including `Incomplete`), and 201 when `--both` interpretation
-diverges or fails to compile.
+launch fails, 202 when compilation stopped at a named private provision
+(`Incomplete`), and 201 when `--both` interpretation diverges or fails to
+compile.
 
 Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;

@@ -1,6 +1,7 @@
 //! Shell output and exit-code policy for the reusable run operation.
 
 use super::{admissions::report_unsettled_admissions, arguments::RunArguments};
+use compiler::CompilerRequestOutcome;
 use omega::execution::{
     ExecutionOutcome, InterpreterComparison, RunError, RunRequest, run_project,
 };
@@ -19,7 +20,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         }
         Err(error) => {
             eprintln!("{error}");
-            std::process::exit(200);
+            std::process::exit(compile_failure_status(&error));
         }
     };
     for pair in outcome.report.pcc_publications() {
@@ -73,4 +74,70 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         eprintln!("build dir kept: {}", outcome.build_dir.display());
     }
     std::process::exit(status);
+}
+
+/// A compile that stopped at a named private provision without a verdict on
+/// the source (the compiler request's `Incomplete`) exits 202; any other
+/// compile or launch failure exits 200. Both stay above the program's own
+/// statuses.
+fn compile_failure_status(error: &RunError) -> i32 {
+    match error {
+        RunError::Compilation(diagnostics)
+            if matches!(
+                CompilerRequestOutcome::of_refusal(diagnostics),
+                CompilerRequestOutcome::Incomplete(_)
+            ) =>
+        {
+            202
+        }
+        _ => 200,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compile_failure_status;
+    use diagnostics::{Diagnostic, ExceededProvision};
+    use omega::execution::RunError;
+
+    fn exhausted() -> Diagnostic {
+        Diagnostic::incomplete(
+            "proof search stopped",
+            ExceededProvision {
+                resource: "proof_search_candidate_work",
+                limit: 65_536,
+                requested: 65_537,
+                coordinate: 107,
+            },
+        )
+    }
+
+    #[test]
+    fn a_compile_stopped_at_a_provision_exits_202() {
+        assert_eq!(
+            compile_failure_status(&RunError::Compilation(vec![exhausted()])),
+            202
+        );
+    }
+
+    #[test]
+    fn any_rejection_beside_a_provision_still_exits_200() {
+        assert_eq!(
+            compile_failure_status(&RunError::Compilation(vec![
+                exhausted(),
+                Diagnostic::error("operation proof unavailable"),
+            ])),
+            200
+        );
+        assert_eq!(
+            compile_failure_status(&RunError::Compilation(vec![Diagnostic::error(
+                "operation proof unavailable"
+            )])),
+            200
+        );
+        assert_eq!(
+            compile_failure_status(&RunError::Publication("refused".to_owned())),
+            200
+        );
+    }
 }
