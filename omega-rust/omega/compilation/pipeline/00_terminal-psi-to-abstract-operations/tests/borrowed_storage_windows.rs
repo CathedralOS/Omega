@@ -109,7 +109,7 @@ fn extract(operation: OperationId, result: u64) -> Operation {
         kind: OperationKind::MoveStructuralField {
             source: id::<PlaceId>(1),
             path: Vec::new(),
-            field: left(),
+            field: Some(left()),
         },
     }
 }
@@ -124,7 +124,7 @@ fn repair(value: u64) -> Operation {
         kind: OperationKind::StoreStructuralField {
             destination: id::<PlaceId>(1),
             path: Vec::new(),
-            field: left(),
+            field: Some(left()),
             value: StructuralArgument {
                 place: id::<PlaceId>(value),
                 path: Vec::new(),
@@ -470,11 +470,61 @@ fn a_store_into_a_live_field_rejects() {
     else {
         unreachable!()
     };
-    *field = right();
+    *field = Some(right());
     assert!(matches!(
         encode_module(&module),
         Err(CodecError::InvalidModule(
             ModuleError::BorrowedStorageRepairMismatch { .. }
         ))
+    ));
+}
+
+/// Whole-value assignment through `&mut Envelope`: a root window names no
+/// field and an empty path. The pair survives the codec, verification and
+/// lowering with the loan's complete parameter row and the referent's type.
+#[test]
+fn a_root_window_replaces_the_whole_referent_of_its_loan() {
+    let mut module = window_module();
+    let machine = &mut module.machines[0];
+    machine.structural_places[1].kind = StructuralPlaceKind::OperationResult {
+        producer: id::<OperationId>(1),
+        structural_type: envelope(),
+    };
+    let operations = &mut machine.blocks[0].operations;
+    let OperationResult::Structural(result) = &mut operations[0].result else {
+        unreachable!()
+    };
+    result.structural_type = envelope();
+    for operation in operations.iter_mut() {
+        match &mut operation.kind {
+            OperationKind::MoveStructuralField { field, .. }
+            | OperationKind::StoreStructuralField { field, .. } => *field = None,
+            _ => {}
+        }
+    }
+    let plan = lower(&module).expect("a root window lowers");
+    let operations = &plan.functions[0].operations;
+    assert!(operations.iter().any(|operation| matches!(
+        operation,
+        AbstractOperation::MoveStructuralField { path, field: None, source, .. }
+            if path.is_empty()
+                && matches!(source, abstract_operations::StructuralWindowRoot::BorrowedParameter(_))
+    )));
+    assert!(operations.iter().any(|operation| matches!(
+        operation,
+        AbstractOperation::StoreStructuralField { path, field: None, .. } if path.is_empty()
+    )));
+
+    // A fieldless window that still spells a projection is not canonical.
+    let mut projected = module.clone();
+    let OperationKind::MoveStructuralField { path, .. } =
+        &mut projected.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    path.push(terminal_psi::StructuralPathSegment::Field("left".into()));
+    assert!(matches!(
+        encode_module(&projected),
+        Err(CodecError::MalformedStructuralFoundation(_))
     ));
 }

@@ -21,6 +21,17 @@
 //! Byte-sequence views are deliberately outside this scope: they are
 //! whole-place loans on a disjoint place namespace, and no view is ever a
 //! restoration target.
+//!
+//! A root window (`field: None`, empty path) vacates the whole referent of an
+//! exclusive `MutableBorrow` parameter: whole-value assignment through
+//! `&mut T`. Its hole is the empty canonical path, so every observation of
+//! the root overlaps it until the repair. The moved-out value is an ordinary
+//! owned result under its declared multiplicity, exactly as a field window's:
+//! displaced affine contents stay an obligation the frontier requires
+//! disposed, plain contents need nothing. A borrowed parameter's multiplicity
+//! describes its loan carrier, not the referent, so it is no evidence for
+//! either value's. Owned homes never open a root window; their whole value
+//! moves by ordinary transfer.
 
 use super::structural::operations::{canonical_field_path, structural_field_store_write_path};
 use super::structural::result_contracts::source_signature;
@@ -534,8 +545,9 @@ pub(super) fn apply_operation(
 }
 
 /// The declared `Structural` type of the field the window operation names,
-/// resolved beneath its root through the spelled path. `None` means the
-/// destination does not host a structural field there.
+/// resolved beneath its root through the spelled path. A root window names
+/// the whole referent, spelled with no path. `None` means the destination
+/// does not host a structural field there.
 fn declared_window_field_type(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -556,6 +568,9 @@ fn declared_window_field_type(
         _ => return None,
     };
     let root_type = source_signature(machine, root)?.structural_type;
+    let Some(field) = field else {
+        return path.is_empty().then_some(root_type);
+    };
     if matches!(
         path.last(),
         Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })
@@ -668,6 +683,18 @@ fn borrowed_window_root(
     .then_some(())
 }
 
+/// Whether `place` is an exclusive loan whose whole referent a root window
+/// may replace: an eligible mutable-borrowed machine or block parameter. An
+/// owned home is no loan, so it never opens a root window.
+fn is_root_window_loan(module: &TerminalModule, machine: &TerminalMachine, place: PlaceId) -> bool {
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .any(|parameter| parameter.place == place)
+        || super::block_views::parameter(machine, place).is_some();
+    parameter && borrowed_window_root(module, machine, place).is_some()
+}
+
 /// Static shape of a `MoveStructuralField`: a structural result on a fresh
 /// operation-result place, a borrowed-window root as its source, and a
 /// declared structural field beneath the spelled path carrying exactly the
@@ -714,6 +741,13 @@ pub(super) fn validate_move_static(
     {
         return Err(invalid());
     }
+    // A root window displaces the whole referent of an exclusive loan; an
+    // owned home is no loan.
+    if let OperationKind::MoveStructuralField { field: None, .. } = &operation.kind
+        && !is_root_window_loan(module, machine, *source)
+    {
+        return Err(invalid());
+    }
     Ok(())
 }
 
@@ -752,6 +786,11 @@ pub(super) fn validate_store_static(
     if source.structural_type != field_type
         || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
+    {
+        return Err(invalid());
+    }
+    if let OperationKind::StoreStructuralField { field: None, .. } = &operation.kind
+        && !is_root_window_loan(module, machine, *destination)
     {
         return Err(invalid());
     }

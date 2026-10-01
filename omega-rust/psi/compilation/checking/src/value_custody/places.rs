@@ -242,7 +242,7 @@ pub(crate) fn declared_place_type(
     unwrapped_type_reference(program, raw)
 }
 
-pub(crate) fn assignment_value_type(
+pub fn assignment_value_type(
     program: &TypedTrees,
     destination: TypeReferenceHandle,
 ) -> TypeReferenceHandle {

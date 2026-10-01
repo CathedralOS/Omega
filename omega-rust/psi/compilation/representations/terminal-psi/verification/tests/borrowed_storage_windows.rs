@@ -166,7 +166,7 @@ fn extract(operation: OperationId, result: u64) -> Operation {
         kind: OperationKind::MoveStructuralField {
             source: id(1, PlaceId::new),
             path: Vec::new(),
-            field: left(),
+            field: Some(left()),
         },
     }
 }
@@ -181,7 +181,7 @@ fn repair(value: u64) -> Operation {
         kind: OperationKind::StoreStructuralField {
             destination: id(1, PlaceId::new),
             path: Vec::new(),
-            field: left(),
+            field: Some(left()),
             value: StructuralArgument {
                 place: id(value, PlaceId::new),
                 path: Vec::new(),
@@ -835,7 +835,7 @@ fn a_store_at_the_wrong_place_rejects() {
     else {
         unreachable!()
     };
-    *field = right();
+    *field = Some(right());
     assert_rejects(
         &module,
         ModuleError::BorrowedStorageRepairMismatch {
@@ -877,7 +877,7 @@ fn a_scalar_field_cannot_open_a_window() {
             kind: OperationKind::MoveStructuralField {
                 source: id(1, PlaceId::new),
                 path: vec![terminal_psi::StructuralPathSegment::Field("left".into())],
-                field: flag(),
+                field: Some(flag()),
             },
         },
     );

@@ -13,8 +13,9 @@
 //! borrowed root and the repair writes back into it.
 //!
 //! The ledger fails closed. Every shape the checked facts do not pin exactly
-//! — a root that is not a mutable-borrowed parameter, a whole-root or
-//! indexed/referent route, a scalar or ambiguous field, a moved type that
+//! — a root that is not a mutable-borrowed parameter, a whole-root route
+//! beneath anything but an exclusive parameter loan, an indexed/referent
+//! route, a scalar or ambiguous field, a moved type that
 //! differs from the declared field, extraction over an open hole, a repair at
 //! another place, a repair value that is not a whole owned value of the hole's
 //! type, an open hole at an exit, or reconverging paths that disagree on the
@@ -22,6 +23,12 @@
 //! the place. Terminal verification reconstructs the same debt independently
 //! (`terminal-verifier/src/validation/borrowed_windows.rs`); nothing here is
 //! evidence for it.
+//!
+//! A whole-root route under an exclusive `&mut` parameter loan is a root
+//! window: `MoveStructuralField`/`StoreStructuralField` with no field and an
+//! empty path, the whole-value assignment `referent = value` through the
+//! loan. Its hole is the whole referent, so it overlaps every other place
+//! beneath that root.
 //!
 //! Caller: `unit/attached_unit/operation_frame.rs`, the operation emitter
 //! both the ordinary single-state machine (a local move-out/restore) and the
@@ -54,7 +61,8 @@ use terminal_psi::{StructuralArgument, StructuralOperationResult};
 pub(crate) struct OpenBorrowedWindow {
     pub(crate) source: PlaceId,
     pub(crate) path: Vec<StructuralPathSegment>,
-    pub(crate) field: StructuralFieldId,
+    /// The vacated field, or `None` for a root window's whole referent.
+    pub(crate) field: Option<StructuralFieldId>,
     pub(crate) hole_type: StructuralTypeId,
     pub(crate) moved: PlaceId,
     /// The checked route the authored statement spelled, leaf included: hole
@@ -98,12 +106,12 @@ pub(crate) struct BorrowedWindowLedger {
 /// The resolved exact place a move or repair names beneath a window root:
 /// the carrier's projection steps (a runtime element evaluates when the
 /// operation emits), the checked route as the hole's key, the leaf's field
-/// declaration id, and the hole's declared type.
+/// declaration id (`None` for a root window), and the hole's declared type.
 struct ResolvedWindowPlace {
     source: PlaceId,
     steps: Vec<ProjectionStep>,
     checked_path: Vec<CheckedUnitStructuralPathSegment>,
-    field: StructuralFieldId,
+    field: Option<StructuralFieldId>,
     hole_type: StructuralTypeId,
     spelling: String,
 }
@@ -472,10 +480,37 @@ fn resolve_window_place(
             "the place is not taken as an owned value",
         ));
     }
+    // A whole-root route replaces the referent of an exclusive parameter
+    // loan: the hole is the loan's whole referent, of the parameter's own
+    // declared type. An owned local's whole value moves by ordinary
+    // transfer, never through a window.
+    if plan.path.is_empty() {
+        if !matches!(
+            plan.source,
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+        ) {
+            return Err(unpinned(
+                &spelling,
+                "whole-root routes open a window only beneath an exclusive `&mut` parameter loan",
+            ));
+        }
+        if lookup_type_id(type_ids, &plan.type_identity)? != root_type {
+            return Err(unpinned(
+                &spelling,
+                "the checked place type differs from the loan's referent type",
+            ));
+        }
+        return Ok(ResolvedWindowPlace {
+            source,
+            steps: Vec::new(),
+            checked_path: Vec::new(),
+            field: None,
+            hole_type: root_type,
+            spelling,
+        });
+    }
     let (steps, leaf) = lower_window_path(root_type, &plan.path, structural_types).map_err(|_| {
-        let reason = if plan.path.is_empty() {
-            "whole-root routes are not pinned windows"
-        } else if plan.path.iter().any(|segment| {
+        let reason = if plan.path.iter().any(|segment| {
             !matches!(segment, CheckedUnitStructuralPathSegment::Field(_))
         }) {
             "index or referent routes do not resolve through the declared records and              fixed arrays"
@@ -493,12 +528,12 @@ fn resolve_window_place(
                      window",
                 ));
             };
-            (field.id, hole_type)
+            (Some(field.id), hole_type)
         }
         WindowLeaf::Element {
             field,
             element_type,
-        } => (field.id, element_type),
+        } => (Some(field.id), element_type),
     };
     if lookup_type_id(type_ids, &plan.type_identity)? != hole_type {
         return Err(unpinned(
@@ -1187,12 +1222,14 @@ mod tests {
     fn routes_the_checked_facts_do_not_pin_reject() {
         let receiver = envelope_receiver();
         let mut emission = Emission::new();
+        // The whole root resolves to the loan's referent, so a binding of
+        // another type cannot take it.
         assert_unpinned(
             emission
                 .emit_move(&receiver, &checked_place(&[], ENVELOPE))
                 .unwrap_err(),
             "self",
-            "whole-root",
+            "moved binding's type differs",
         );
         let indexed = vec![
             CheckedUnitStructuralPathSegment::FixedIndex(0),
@@ -1272,6 +1309,61 @@ mod tests {
             "moved binding's type differs",
         );
         assert!(emission.operations.operations.is_empty());
+    }
+
+    /// Whole-value assignment through `&mut` is a root window: no field, an
+    /// empty path, the hole the loan's whole referent. It overlaps every
+    /// place beneath the root until the repair.
+    #[test]
+    fn a_root_window_vacates_and_reseats_the_whole_referent_of_its_loan() {
+        let receiver = envelope_receiver();
+        let mut emission = Emission::new();
+        let envelope_binding = CheckedUnitStructuralResultBindingPlan {
+            type_identity: ENVELOPE.into(),
+            ..cell_binding()
+        };
+        let displaced = emission
+            .harness
+            .emit_move(
+                &mut emission.ledger,
+                &checked_place(&[], ENVELOPE),
+                &envelope_binding,
+                &receiver,
+                &mut emission.next_place,
+                &mut emission.operations,
+            )
+            .expect("the loan's whole referent opens a root window");
+        assert!(matches!(
+            &emission.operations.operations[0].kind,
+            OperationKind::MoveStructuralField { path, field: None, .. } if path.is_empty()
+        ));
+        assert_unpinned(
+            emission
+                .emit_move(&receiver, &checked_place(&fields(&["left"]), CELL))
+                .unwrap_err(),
+            "self.left",
+            "overlaps an open window",
+        );
+        emission
+            .emit_store(
+                &receiver,
+                &checked_place(&[], ENVELOPE),
+                BorrowedWindowRepairValue {
+                    place: displaced,
+                    structural_type: envelope(),
+                },
+            )
+            .expect("the repair reseats the whole referent");
+        emission
+            .ledger
+            .require_closed()
+            .expect("root window closed");
+        assert!(matches!(
+            &emission.operations.operations[1].kind,
+            OperationKind::StoreStructuralField { path, field: None, .. } if path.is_empty()
+        ));
+        terminal_verifier::validate_module(&module(&emission, &receiver))
+            .expect("the root window pair verifies");
     }
 
     #[test]

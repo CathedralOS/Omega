@@ -88,9 +88,10 @@ pub(super) fn operation(
         // leaf: a field leaf extends the spelled window path by exactly one
         // field segment; an element leaf keeps the spelled path unchanged
         // (it already ends in the element selection) and carries one runtime
-        // operand per runtime segment. Source replay binds the leaf to the
+        // operand per runtime segment; a root window keeps the empty path of
+        // the loan's whole referent. Source replay binds the leaf to the
         // declared field and its offset.
-        AbstractOperation::MoveStructuralField { psi_operation, result, source, path, .. } => {
+        AbstractOperation::MoveStructuralField { psi_operation, result, source, path, field } => {
             let element_leaf = matches!(
                 path.last(),
                 Some(terminal_psi::StructuralPathSegment::FixedIndex(_)
@@ -105,7 +106,10 @@ pub(super) fn operation(
                     if indices.len() != runtime_segments {
                         return false;
                     }
-                    if element_leaf {
+                    if field.is_none() {
+                        // A root window copies the loan's whole referent.
+                        indices.is_empty() && path.is_empty() && retained_path.is_empty()
+                    } else if element_leaf {
                         retained_path == path
                             && matches!(retained_path.last(),
                                 Some(terminal_psi::StructuralPathSegment::FixedIndex(_)

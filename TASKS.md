@@ -645,7 +645,7 @@ the complete product bar; focused successes below do not establish that baseline
   | Customer group | Capability owner and remaining acceptance |
   | --- | --- |
   | std `Clock` on Linux hosts (`rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`) | Both linux `nanosleep` leaves stop target lowering with `MissingBoundarySettlement`: provider admission classifies an authored syscall leaf's mechanism but settles no native realization for it. Then linux_x86_64 can take the darwin leg's shape, a checked adapter over a std-private wait requirement, through the integer-only `poll` syscall (7); linux_arm64 has only `ppoll` and `nanosleep`, whose `timespec*` needs a pointer argument that syscall plans do not admit. |
-  | `systems/wire_protocol` | **RECORD-LITERAL-ARRAY-FIELD** owns its operations: the generated decoder's whole-referent `verdict = WireVerdict::Sound` store, then the codec states' view-length arrivals (**TERMINAL-SLICE-VIEW-VOCABULARY**). |
+  | `systems/wire_protocol` | **RECORD-LITERAL-ARRAY-FIELD** owns its operations. The generated decoder's whole-referent `verdict = WireVerdict::Sound` store lowers; production stops at the codec states' view-length arrivals (**TERMINAL-SLICE-VIEW-VOCABULARY**, same-view length join). |
   | `gui/{image_viewer,window_app,window_demo}` | At `0d3a0f15b72` plus the borrowed-reference boundary plans on macOS ARM64, `sample_native_gate.py --filter gui/window_demo,gui/window_app,gui/windowed_calculator --jobs 3 --timeout 1800` builds none of the three. Borrowed `&u8`/`&i32` requirements (`ObjectiveC::get_class`, `register_selector`, `send_string`, `send_byte_string`, `CoreGraphics::bitmap_context`) now have boundary plans, and a provider body's forwarded `&u8` loan and fixed element `&words.bytes[2]` reach libSystem `_strlen` natively (`pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit`, exit **70**). `window_demo` and `windowed_calculator` stop in stage 05 `structural_calls/result_uses.rs` ("Unit structural result argument has invalid claim-free custody") at `objc_get_class(&cbuf1[0])`, a shared loan of a local array's fixed element. Ordinary scalar callees now read through `&u8` formals and affine local records lend single leaves (`pass/calls/{scalar_callee_borrowed_primitive_reads_exit,local_record_leaf_loan_scalar_calls_exit}`, exit **70**), but trusted Terminal verification still refuses every element loan rooted at a local array, ordinary or boundary: `validation/operations.rs` admits an owned scalar-array payload source only with an empty path (`ScalarArrayResultMismatch`) and `argument_checks.rs` resolves no projected path on an `EstablishScalarArray` result (`UnknownStructuralArgument`); then `attached_unit/parameters.rs` ("invalid checked custody"); the by-value parameter element `&title[0]` next stops at "primitive array parameter requires exact whole owned transport", and Omega's normalized foreign call still admits only caller-parameter-rooted loans, not a local array's structural home. `window_app` composes `let padded: [u8; 11]; padded[0] = title[0];` (`pass/locals/runtime_local_array_member_stores_without_mut_exit`, exit **70**) and stops at stage 05's `call_catalog.rs` fence: "write-only stores and atomic events in opaque provider candidates require a pinned non-observation judgment". The providers' fields remain owner question `provider-private-state-home`. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the argument/result matrix. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault` | At `96b196739593` on macOS ARM64, `omega run samples/cli/systems/file_journal/main.omg` exits 200 during fresh package review: `Main::fs` and `Main::files::host` have no selected Fused `FilesystemHost` provider. The canonical table in `provider-planning/src/provider_settlement/canonical_filesystem_host.rs` covers only limited Linux x86-64 leaves. The raw boundary's mixed-platform full-schema contract needs the `filesystem-host-platform-coverage` decision in **OWNER_QUESTIONS.md** before a complete Darwin provider can be supplied honestly. Next acceptance is the real seven-step workflow, exit 7; no filesystem effects occurred in this run. Subsequent result custody, library callee composition and indexed nested-field initialization remain with **STATE-LOCAL-VALUE-FRONTIER**; `note_vault`'s `Main::main` now plans past `readback`, a closed-sum dispatch over `IoResult` whose unread `Error` case holds an `ErrorKind` payload (`pass/control_flow/case_dispatch_unread_structural_payload_exit`, exit **70**). It stops inside `Filesystem::create_dir_all` → `Filesystem::mkall_walk` state 0 at `state graph: state signature: parameter custody shape: qualified non-linear parameter`: the walker re-enters its entry state carrying `path: &[u8] in Path`, and stage 04 `forwards_qualified_loan` (`state_graph/mod.rs`) refuses every qualified loan into state 0. After that it needs the same `FilesystemHost` provider. |
   | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the remaining native customers are `windowed_calculator` on the GUI row's stage 05 local-array element loan (`objc_get_class(&cbuf1[0])`) and `dungeon_crawler_cli` on borrowed `Binding<Console>` transport (**ENTRY-CONTENT-ROOTS**; frontier in **NOMINAL-FIELD-FLOW**). |
@@ -1743,27 +1743,21 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
   The wire customers construct their records and call the checked codec
   machines `omega/packages/compilation-inputs/src/wire_codec_sources.rs`
-  generates per called schema. `samples/cli/systems/wire_protocol` and
-  `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit` stop inside the
-  generated `SensorPacket::decode`/`RoomPacket::decode` at state 104
-  (`decode_sound`), `structural field store: record literal source`:
-  `verdict = WireVerdict::Sound` replaces the whole referent of a
-  `&mut WireVerdict` parameter. Stage 04's empty-path destination
-  (`structural_scalar_store/mod.rs::plan_assignment`) decomposes only a record
-  literal, and Terminal Psi has no whole-referent replacement: the
-  `MoveStructuralField`/`StoreStructuralField` window names a parent field.
-  A payload-free case store at a canonical path, or a root window, needs
-  verifier, codec, interpreter and Omega support.
-  `pass/wire/runtime_wire_decode_rejects_{wrong_era,noncanonical_varint}_exit`
-  and `pass/wire/runtime_wire_policy_authored_plan_exit` stop at the same
-  store in their generated decoders. Past it, a copy of the generated codec that
-  carries the verdict as `&mut u64` checks and interprets to exit 70, then
-  stops in Terminal production at its states' arrival requirements
-  (`requires at < out.len`, `at < buffer.len`): the guard's length
-  observation has no equation to the transferred view's `ViewExtent`, the
-  same-view length join **TERMINAL-SLICE-VIEW-VOCABULARY** owns. Without
-  those requirements the same copy builds natively in 134 s and exits 70 on
-  macOS ARM64 with the checked interpreter agreeing. Acceptance stays unchanged `samples/cli/systems/wire_protocol`
+  generates per called schema. The generated decoder's final
+  `verdict = WireVerdict::Sound` replaces the whole referent of its
+  `&mut WireVerdict` state loan through a root window
+  (`MoveStructuralField`/`StoreStructuralField` with no field and an empty
+  path; `pass/borrows/runtime_whole_referent_*_exit` exit 70 natively). On
+  macOS ARM64 `samples/cli/systems/wire_protocol`,
+  `pass/wire/runtime_wire_decode_rejects_{wrong_era,noncanonical_varint}_exit`,
+  `pass/wire/runtime_wire_policy_authored_plan_exit` and
+  `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit` now lower through
+  stage 05 and stop in Terminal production at their codec states' arrival
+  requirements (`requires at < out.len`, `at < buffer.len`): a scalar block
+  invariant obligation (identity 2^63 and above) asks `at < ViewExtent` of the
+  successor's view, and the guard's `buffer.len` observation has no equation
+  to that `ViewExtent`, the same-view length join
+  **TERMINAL-SLICE-VIEW-VOCABULARY** owns. Acceptance stays unchanged `samples/cli/systems/wire_protocol`
   and `pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit`: exit 70 with
   13-byte encode/decode, room 300, samples [150, -2], depth -64. The borrowed
   customer `pass/wire/runtime_wire_decode_byte_slice_exit` must exit 70 after
@@ -3785,6 +3779,16 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   on macOS ARM64 while completing the remaining joins below.
 
   Remaining joins:
+  - Join a guard's length observation of a forwarded view to that view's
+    `ViewExtent`. The generated wire codec states declare `requires at <
+    buffer.len` (decode) and `at < out.len` (encode); the predecessor
+    compares `at` against a length read of the view it forwards, but the
+    successor's scalar block invariant obligation names `ViewExtent` of its
+    own view parameter and no equation joins the two. The five wire
+    customers in **RECORD-LITERAL-ARRAY-FIELD** stop there on macOS ARM64,
+    either exhausting `proof_search_candidate_work` (65536) or with
+    `OperationProofUnavailable`, on scalar block invariant obligations
+    (identity 2^63 and above).
   - Retain the primitive `u8` child of a byte view through stage 04's
     `types/shape_collector.rs::retain_transitive`. Stage 05's
     `unit/attached_unit/catalog.rs` requires that child when building the

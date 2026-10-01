@@ -247,6 +247,10 @@ unit, charged before execution.
 
 These are non-observing Unit operations. Their names describe effects: a mutable
 borrow may perform a non-observing store without first discarding read authority.
+Replacing a whole structural referent through an exclusive mutable loan is not a
+leaf store: it opens and repairs the loan's root
+[restoration window](ownership.md#borrowed-storage-restoration), which accounts
+for the displaced value's custody.
 The admitted whole-primitive store has an unrestricted, unqualified, claim-free
 mutable or write-only parameter, or an established owned primitive local.
 A projected primitive store retains the corresponding mutable/write-only borrow

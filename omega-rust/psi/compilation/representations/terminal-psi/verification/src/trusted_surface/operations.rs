@@ -307,8 +307,8 @@ static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
 );
 static OP_MOVE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "operation:move-structural-field",
-    "a live mutable-borrowed machine parameter, an eligible completed owned home, or a mutable-borrowed block carrier whose possible origins all have that authority; a canonical field path to a declared non-erased structural subtree with no overlapping restoration debt or observation",
-    "the extraction observation; the subtree leaves its borrowed home as restoration debt until an exact-type repair store reseats it, and every proposition observing the vacated path is invalidated",
+    "a live mutable-borrowed machine parameter, an eligible completed owned home, or a mutable-borrowed block carrier whose possible origins all have that authority; a canonical field path to a declared non-erased structural subtree with no overlapping restoration debt or observation; a root window (no field, empty path) names only a mutable-borrowed machine or block loan, and its result carries the referent's exact type",
+    "the extraction observation; the subtree leaves its borrowed home as restoration debt until an exact-type repair store reseats it, and every proposition observing the vacated path is invalidated; a root window's debt is the empty path, so every observation of the root overlaps it, and an affine displaced value keeps its disposal obligation on the frontier",
     &[
         "invalidation:structural-field-store",
         "fact:borrowed-storage-restoration-debt",
@@ -325,7 +325,7 @@ static OP_MOVE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
 );
 static OP_STORE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "operation:store-structural-field",
-    "an open restoration-debt hole under the exact carrier that opened it and a consumed same-typed value reseating it; possible aliasing alone does not establish repair identity",
+    "an open restoration-debt hole under the exact carrier that opened it and a consumed same-typed value reseating it; possible aliasing alone does not establish repair identity; a root repair names only the mutable-borrowed loan whose whole referent it vacated",
     "the repair observation closing the exact debt; propositions observing the reseated path are invalidated and no field equation survives the move boundary",
     &[
         "invalidation:structural-field-store",

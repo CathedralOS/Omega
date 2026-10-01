@@ -735,16 +735,29 @@ pub(super) fn decode_integer_structural_field(
     })
 }
 
+/// A window's field identity on the wire: the declared field's nonzero
+/// identity, or zero for a root window that vacates the whole referent.
+/// Nonzero identities keep their previous spelling, so every field window
+/// encodes exactly as before; the root form is the one value a field
+/// identity never takes.
+fn encode_window_field(writer: &mut Writer, field: Option<StructuralFieldId>) {
+    writer.u64(field.map_or(0, StructuralFieldId::get));
+}
+
+fn decode_window_field(reader: &mut Reader<'_>) -> Result<Option<StructuralFieldId>, CodecError> {
+    Ok(StructuralFieldId::new(reader.u64()?))
+}
+
 pub(super) fn encode_move_structural_field(
     writer: &mut Writer,
     source: PlaceId,
     path: Vec<StructuralPathSegment>,
-    field: StructuralFieldId,
+    field: Option<StructuralFieldId>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::MOVE_STRUCTURAL_FIELD);
     writer.id(source);
     encode_structural_path(writer, "structural field move path", &path)?;
-    writer.id(field);
+    encode_window_field(writer, field);
     Ok(())
 }
 
@@ -754,7 +767,7 @@ pub(super) fn decode_move_structural_field(
     Ok(OperationKind::MoveStructuralField {
         source: reader.id("PlaceId")?,
         path: decode_structural_path(reader)?,
-        field: reader.id("StructuralFieldId")?,
+        field: decode_window_field(reader)?,
     })
 }
 
@@ -762,13 +775,13 @@ pub(super) fn encode_store_structural_field(
     writer: &mut Writer,
     destination: PlaceId,
     path: Vec<StructuralPathSegment>,
-    field: StructuralFieldId,
+    field: Option<StructuralFieldId>,
     value: StructuralArgument,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::STORE_STRUCTURAL_FIELD);
     writer.id(destination);
     encode_structural_path(writer, "structural field store path", &path)?;
-    writer.id(field);
+    encode_window_field(writer, field);
     writer.id(value.place);
     super::super::structural_signature_wire::encode_structural_access(writer, value.access);
     encode_structural_path(writer, "structural field store value path", &value.path)?;
@@ -781,7 +794,7 @@ pub(super) fn decode_store_structural_field(
     Ok(OperationKind::StoreStructuralField {
         destination: reader.id("PlaceId")?,
         path: decode_structural_path(reader)?,
-        field: reader.id("StructuralFieldId")?,
+        field: decode_window_field(reader)?,
         value: StructuralArgument {
             place: reader.id("PlaceId")?,
             access: super::super::structural_signature_wire::decode_structural_access(reader)?,

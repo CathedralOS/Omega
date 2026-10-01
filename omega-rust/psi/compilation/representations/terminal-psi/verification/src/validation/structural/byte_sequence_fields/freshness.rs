@@ -222,35 +222,29 @@ fn changes_length(
         }
         // A whole-field move or reseat replaces the stored view descriptor an
         // element-view extent observation measured, so the observation is not
-        // current across it.
+        // current across it. A root window replaces the whole referent, which
+        // contains every observed field.
         OperationKind::MoveStructuralField {
-            source,
-            path: moved,
+            source: window,
+            path: windowed,
             field,
-        } => {
-            *source == root
-                && stored_field_identity(module, machine, root, moved, field).is_some_and(
-                    |identity| {
-                        let mut moved = moved.clone();
-                        moved.push(StructuralPathSegment::Field(identity));
-                        overlaps(path, &moved)
-                    },
-                )
         }
-        OperationKind::StoreStructuralField {
-            destination,
-            path: stored,
+        | OperationKind::StoreStructuralField {
+            destination: window,
+            path: windowed,
             field,
             ..
         } => {
-            *destination == root
-                && stored_field_identity(module, machine, root, stored, field).is_some_and(
-                    |identity| {
-                        let mut stored = stored.clone();
-                        stored.push(StructuralPathSegment::Field(identity));
-                        overlaps(path, &stored)
-                    },
-                )
+            *window == root
+                && match field {
+                    None => true,
+                    Some(field) => stored_field_identity(module, machine, root, windowed, field)
+                        .is_some_and(|identity| {
+                            let mut windowed = windowed.clone();
+                            windowed.push(StructuralPathSegment::Field(identity));
+                            overlaps(path, &windowed)
+                        }),
+                }
         }
         OperationKind::WriteOnlyPrimitiveStore {
             destination,

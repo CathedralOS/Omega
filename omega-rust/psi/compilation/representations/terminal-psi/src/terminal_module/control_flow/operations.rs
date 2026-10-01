@@ -310,10 +310,16 @@ pub enum OperationKind {
     /// authority: owned roots already have partial-custody moves, block
     /// parameters reach the same storage through alias expansion, and shared
     /// or write-only loans never admit extraction.
+    ///
+    /// `field: None` with an empty `path` vacates the whole referent of an
+    /// exclusive `MutableBorrow` loan (machine or block parameter): the window
+    /// is the root itself, the result carries the referent's own type and its
+    /// loan's multiplicity, so displaced affine contents keep their ordinary
+    /// disposal obligation and plain contents need none.
     MoveStructuralField {
         source: PlaceId,
         path: Vec<StructuralPathSegment>,
-        field: StructuralFieldId,
+        field: Option<StructuralFieldId>,
     },
     /// Move one already-owned structural subtree into the exact vacant field
     /// `path` + `field` beneath `destination`, closing the restoration window
@@ -321,11 +327,12 @@ pub enum OperationKind {
     /// window exactly — a store into storage that was never vacated is a
     /// replacement-with-cleanup contract this operation does not carry. The
     /// moved `value` is consumed like an owned call argument, once; it is not
-    /// re-disposed at the store.
+    /// re-disposed at the store. `field: None` with an empty `path` reseats the
+    /// whole referent a root window vacated.
     StoreStructuralField {
         destination: PlaceId,
         path: Vec<StructuralPathSegment>,
-        field: StructuralFieldId,
+        field: Option<StructuralFieldId>,
         value: StructuralArgument,
     },
     /// Atomically establish one exact scalar-payload case of a declared sum.

@@ -22,3 +22,4 @@ mod structural_scalar_fields;
 mod structural_unit;
 mod suspension_call_plan;
 mod trusted_surface;
+mod whole_referent_windows;

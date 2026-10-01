@@ -938,7 +938,7 @@ pub(super) fn validate_move_structural_field(
     {
         return malformed("structural field move result carries attached custody");
     }
-    let Some(root_type) = borrowed_field_store_root_type(machine, *source) else {
+    let Some(root_type) = window_root_type(machine, *source, *field) else {
         return malformed("structural field move requires a mutable-borrowed parameter");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
@@ -968,7 +968,7 @@ pub(super) fn validate_store_structural_field(
     if value.access != terminal_psi::StructuralAccess::Owned || !value.path.is_empty() {
         return malformed("structural field store value must be a whole owned place");
     }
-    let Some(root_type) = borrowed_field_store_root_type(machine, *destination) else {
+    let Some(root_type) = window_root_type(machine, *destination, *field) else {
         return malformed("structural field store requires a mutable-borrowed parameter");
     };
     let field_type = window_field_type(module, root_type, path, *field)?;
@@ -976,6 +976,22 @@ pub(super) fn validate_store_structural_field(
         return malformed("structural field store value type does not match field");
     }
     Ok(())
+}
+
+/// The declared root type a window operation may name. A field window may
+/// open beneath a mutable-borrowed parameter or a completed owned home; a
+/// root window (`field: None`) vacates a whole referent, which only an
+/// exclusive loan lends — an owned home's whole value moves by ordinary
+/// transfer instead.
+fn window_root_type(
+    machine: &TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    match field {
+        Some(_) => borrowed_field_store_root_type(machine, place),
+        None => mutable_borrowed_parameter_type(machine, place),
+    }
 }
 
 /// The declared type of the root storage a window operation may name: either
@@ -987,35 +1003,8 @@ fn borrowed_field_store_root_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    if let Some(parameter) = machine
-        .structural_parameters
-        .iter()
-        .chain(
-            machine
-                .blocks
-                .iter()
-                .flat_map(|block| &block.structural_parameters),
-        )
-        .find(|parameter| {
-            parameter.place == place
-                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-                && matches!(
-                    parameter.multiplicity,
-                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-                )
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
-                && !machine
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == place)
-                && !machine
-                    .content_entry_claims
-                    .iter()
-                    .any(|claim| claim.input.root == place)
-        })
-    {
-        return Some(parameter.structural_type);
+    if let Some(structural_type) = mutable_borrowed_parameter_type(machine, place) {
+        return Some(structural_type);
     }
     machine
         .blocks
@@ -1046,16 +1035,59 @@ fn borrowed_field_store_root_type(
         .map(|result| result.structural_type)
 }
 
-/// The declared hole type a window operation opens: a field leaf resolves
-/// through the walked parent record; an element leaf (the path ends in an
-/// index step) names the array's own field declaration in the enclosing
-/// record, and the hole's type is the element the spelled path selects.
+/// A declared mutable-borrowed machine or block parameter with transferable
+/// multiplicity and no qualifications or entry claims.
+fn mutable_borrowed_parameter_type(
+    machine: &TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| {
+            parameter.place == place
+                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                && matches!(
+                    parameter.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                )
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && !machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == place)
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == place)
+        })
+        .map(|parameter| parameter.structural_type)
+}
+
+/// The declared hole type a window operation opens: a root window is the
+/// whole referent and spells no path; a field leaf resolves through the
+/// walked parent record; an element leaf (the path ends in an index step)
+/// names the array's own field declaration in the enclosing record, and the
+/// hole's type is the element the spelled path selects.
 fn window_field_type(
     module: &TerminalModule,
     root_type: semantic_vocabulary::StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Result<semantic_vocabulary::StructuralTypeId, CodecError> {
+    let Some(field) = field else {
+        if !path.is_empty() {
+            return malformed("structural root window spells a projection path");
+        }
+        return Ok(root_type);
+    };
     if matches!(
         path.last(),
         Some(terminal_psi::StructuralPathSegment::FixedIndex(_))

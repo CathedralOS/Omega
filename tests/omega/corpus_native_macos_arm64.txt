@@ -74,6 +74,10 @@ pass/borrows/runtime_affine_local_scalar_exit built 885ms exit:42 @48008365d839
 pass/borrows/runtime_index_mut_loan_write_exit built 2117ms exit:0 @af9f91f2fb06+wt
 pass/borrows/runtime_record_byte_region_loan_exit built 30261ms exit:50 @48008365d839
 pass/borrows/runtime_shared_temporary_call_exit built 945ms exit:42 @48008365d839
+pass/borrows/runtime_whole_referent_case_store_exit built 1291ms exit:70 @6ec9ff444c14+wt
+pass/borrows/runtime_whole_referent_payload_case_store_exit built 1289ms exit:70 @6ec9ff444c14+wt
+pass/borrows/runtime_whole_referent_record_store_exit built 1395ms exit:70 @6ec9ff444c14+wt
+pass/borrows/runtime_whole_referent_scalar_store_exit built 1098ms exit:70 @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read built 746ms exit:0 @d629c0d993ca+wt
 pass/borrows/transition_shared_borrow_result built 915ms exit:181 @48008365d839
 pass/borrows/view_field_record_exit_disposal checked 246ms @48008365d839
@@ -1090,20 +1094,20 @@ pass/wire/runtime_wire_decode_byte_slice_exit rejected 1562ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 3)
 pass/wire/runtime_wire_decode_ranged_field_exit rejected 1678ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 7)
-pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit rejected 1600ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Scalar::decode`), which was itself omitted at local construction at `structural field store: record literal source` (state 17, statement 0)
-pass/wire/runtime_wire_decode_rejects_wrong_era_exit rejected 1632ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`CounterMessage::decode`), which was itself omitted at local construction at `structural field store: record literal source` (state 41, statement 0)
+pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit rejected 1442ms @6ec9ff444c14+wt
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
+pass/wire/runtime_wire_decode_rejects_wrong_era_exit incomplete 20306ms @6ec9ff444c14+wt
+	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775808 unproved; the module is not shown invalid
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 1646ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 4)
 pass/wire/runtime_wire_encode_byte_slice_exit rejected 1422ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: caller structural result` (state 0, statement 3)
 pass/wire/runtime_wire_exact_array_without_count_exit rejected 5737ms @48008365d839
 	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775820)))
-pass/wire/runtime_wire_policy_authored_plan_exit rejected 3354ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`CounterMessage::decode`), which was itself omitted at local construction at `structural field store: record literal source` (state 41, statement 0)
-pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit rejected 1839ms @48008365d839
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at an unavailable callee (`RoomPacket::decode`), which was itself omitted at local construction at `structural field store: record literal source` (state 104, statement 0)
+pass/wire/runtime_wire_policy_authored_plan_exit incomplete 22588ms @6ec9ff444c14+wt
+	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775818 unproved; the module is not shown invalid
+pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit incomplete 64107ms @6ec9ff444c14+wt
+	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775823 unproved; the module is not shown invalid
 pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 808ms @48008365d839
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: destination parameter` (state 0, statement 9)
 pass/wire/wire_compatibility_migration_across_shapes built 448ms

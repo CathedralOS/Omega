@@ -109,7 +109,7 @@ fn window_module() -> terminal_psi::TerminalModule {
             kind: OperationKind::MoveStructuralField {
                 source: place_id(1),
                 path: Vec::new(),
-                field: structural_field_id(1),
+                field: Some(structural_field_id(1)),
             },
         },
         Operation {
@@ -146,7 +146,7 @@ fn window_module() -> terminal_psi::TerminalModule {
             kind: OperationKind::StoreStructuralField {
                 destination: place_id(1),
                 path: Vec::new(),
-                field: structural_field_id(1),
+                field: Some(structural_field_id(1)),
                 value: StructuralArgument {
                     place: place_id(3),
                     path: Vec::new(),

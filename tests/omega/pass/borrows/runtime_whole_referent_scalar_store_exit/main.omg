@@ -1,0 +1,38 @@
+// Whole-referent replacement of a scalar through `&mut`, from a state that
+// received the loan as a block parameter. exits: 70 = the store reached
+// the caller; 71 = it did not.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    count: u64;
+}
+
+machine publish(count: &mut u64, at: u64) {
+    transition at > 0 && at < 1000 {
+        true -> store(count, at)
+        _ -> store(count, 1)
+    }
+
+    state store(count: &mut u64, at: u64) requires at < 1000 {
+        count = at + 2;
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    publish(&mut self.count, 11);
+    transition self.count == 13 {
+        true -> good(&mut self)
+        _ -> bad(&mut self)
+    }
+
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
+    }
+
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
+    }
+}

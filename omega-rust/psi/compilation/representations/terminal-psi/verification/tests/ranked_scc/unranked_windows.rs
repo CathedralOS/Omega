@@ -154,7 +154,7 @@ fn extract(
         kind: OperationKind::MoveStructuralField {
             source: id(RECEIVER, PlaceId::new),
             path: Vec::new(),
-            field: window,
+            field: Some(window),
         },
     }
 }
@@ -169,7 +169,7 @@ fn repair(operation: u64, window: StructuralFieldId, value: u64) -> Operation {
         kind: OperationKind::StoreStructuralField {
             destination: id(RECEIVER, PlaceId::new),
             path: Vec::new(),
-            field: window,
+            field: Some(window),
             value: StructuralArgument {
                 place: id(value, PlaceId::new),
                 path: Vec::new(),

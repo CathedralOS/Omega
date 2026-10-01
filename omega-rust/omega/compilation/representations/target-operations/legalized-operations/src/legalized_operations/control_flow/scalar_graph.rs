@@ -428,11 +428,12 @@ pub enum LegalizedScalarInstructionKind {
     /// Reseat the field a borrowed-window move vacated: the inverse byte
     /// copy of `StructuralLeafCopy`. The consumed `value` home's `shape`
     /// bytes land at `byte_offset` beneath `destination`'s referent, the
-    /// resolved offset of `field` under the spelled `path`.
+    /// resolved offset of `field` under the spelled `path`, or offset zero
+    /// for a root window's whole referent (`field: None`).
     StoreStructuralField {
         destination: abstract_operations::StructuralWindowRoot,
         path: Vec<terminal_psi::StructuralPathSegment>,
-        field: semantic_vocabulary::StructuralFieldId,
+        field: Option<semantic_vocabulary::StructuralFieldId>,
         value: semantic_vocabulary::PlaceId,
         byte_offset: u32,
         shape: calling_conventions::ValueShape,

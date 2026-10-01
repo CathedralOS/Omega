@@ -85,13 +85,13 @@ fn element_window_unit(nested: bool) -> PsiOptimizationUnit {
         result: result.clone(),
         source: StructuralWindowRoot::BorrowedParameter(parameter.clone()),
         path: path.clone(),
-        field,
+        field: Some(field),
     };
     function.blocks[0].nodes[1].operation = O::StoreStructuralField {
         psi_operation: id(4_822, OperationId::new),
         destination: StructuralWindowRoot::BorrowedParameter(parameter),
         path,
-        field,
+        field: Some(field),
         value: StructuralArgument {
             place: result.place,
             path: Vec::new(),
@@ -124,7 +124,7 @@ fn element_windows_replay_array_field_and_selected_element() {
                 };
                 match mutation {
                     "out of bounds" => path[1] = Path::FixedIndex(2),
-                    "wrong field" => *field = id(4_899, StructuralFieldId::new),
+                    "wrong field" => *field = Some(id(4_899, StructuralFieldId::new)),
                     "missing field" => path[0] = Path::Field("absent".into()),
                     "wrong type" => {
                         path.pop();

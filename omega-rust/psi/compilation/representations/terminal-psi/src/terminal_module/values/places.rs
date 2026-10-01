@@ -678,7 +678,7 @@ mod tests {
         let mut store = OperationKind::StoreStructuralField {
             destination: place(1),
             path: vec![runtime()],
-            field: StructuralFieldId::new(1).unwrap(),
+            field: StructuralFieldId::new(1),
             value: argument(2),
         };
         let mut expected = store.clone();

@@ -968,19 +968,38 @@ impl TerminalExecution {
     }
 
     /// The resolved runtime hole path one window operation names and the
-    /// hole's declared type. A field leaf resolves `path` to the containing
-    /// record, then the hole sits one `Field` segment deeper under the
-    /// field's spelled identity. An element leaf ends `path` in an element
-    /// selection, so the resolved place already is the hole and `field`
-    /// names the array's field declaration in the last record the path
-    /// crosses.
+    /// hole's declared type. A root window (no field, empty path) is the
+    /// loan's whole referent: the resolved root place itself. A field leaf
+    /// resolves `path` to the containing record, then the hole sits one
+    /// `Field` segment deeper under the field's spelled identity. An element
+    /// leaf ends `path` in an element selection, so the resolved place
+    /// already is the hole and `field` names the array's field declaration in
+    /// the last record the path crosses.
     fn structural_window_hole(
         &self,
         root: semantic_vocabulary::PlaceId,
         path: &[StructuralPathSegment],
-        field: semantic_vocabulary::StructuralFieldId,
+        field: Option<semantic_vocabulary::StructuralFieldId>,
     ) -> Result<(StructuralRuntimePlace, StructuralTypeId), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let Some(field) = field else {
+            if !path.is_empty() {
+                return Err(invalid());
+            }
+            let referent = resolve_structural_arguments(
+                &self.program.structural_types,
+                &self.structural_values,
+                &[StructuralArgument {
+                    place: root,
+                    path: Vec::new(),
+                    access: StructuralAccess::MutableBorrow,
+                }],
+            )?
+            .pop()
+            .ok_or_else(invalid)?;
+            let declared = referent.structural_type;
+            return Ok((StructuralRuntimePlace::from(&referent), declared));
+        };
         if matches!(
             path.last(),
             Some(StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. })

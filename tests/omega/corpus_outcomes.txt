@@ -164,6 +164,10 @@ fail/borrows/runtime_index_mut_borrow rejected 779ms expected @2d8ed253669f
 fail/borrows/whole_mut_receiver_write_under_argument_view rejected 194ms expected @7010d65ad299+wt
 	state `overwrite_then_read` receives `main.arr[0..2]` as read-only while its mutable receiver writes `main.arr[0]`
 	state `overwrite_then_read` receives `self.arr[0..2]` as read-only while its mutable receiver writes `self.arr[0]`
+fail/borrows/whole_referent_store_through_shared_loan rejected 99ms expected @6ec9ff444c14+wt
+	machine `settle` state `entry` assignment cannot write `verdict` because it is not mutable in this state (if `verdict` is undeclared -- a typo -- no such field or local exists)
+fail/borrows/whole_referent_store_type_mismatch rejected 107ms expected @6ec9ff444c14+wt
+	machine `settle` state `entry` assignment expects the `Verdict` data type but got `Outcome` in the `place` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/boundary/bare_field_value_rejected rejected 459ms expected @2d8ed253669f
 	field `console` on data `Main` names bare boundary trait `Console` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling
 fail/build/build_effects_undeclared rejected 940ms expected @2d8ed253669f
@@ -1180,6 +1184,10 @@ pass/borrows/runtime_affine_local_scalar_exit checked 1529ms @ca8c127c90c5
 pass/borrows/runtime_index_mut_loan_write_exit checked 2022ms @af9f91f2fb06+wt
 pass/borrows/runtime_record_byte_region_loan_exit checked 35290ms @ca8c127c90c5
 pass/borrows/runtime_shared_temporary_call_exit checked 1592ms @ca8c127c90c5
+pass/borrows/runtime_whole_referent_case_store_exit checked 975ms @6ec9ff444c14+wt
+pass/borrows/runtime_whole_referent_payload_case_store_exit checked 1005ms @6ec9ff444c14+wt
+pass/borrows/runtime_whole_referent_record_store_exit checked 1034ms @6ec9ff444c14+wt
+pass/borrows/runtime_whole_referent_scalar_store_exit checked 980ms @6ec9ff444c14+wt
 pass/borrows/shared_recast_loan_member_read checked 1387ms @2d8ed253669f
 pass/borrows/transition_shared_borrow_result checked 1470ms @ca8c127c90c5
 pass/borrows/view_field_record_exit_disposal checked 320ms @ca8c127c90c5
@@ -2192,20 +2200,20 @@ pass/wire/runtime_wire_decode_byte_slice_exit rejected 1608ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
 pass/wire/runtime_wire_decode_ranged_field_exit rejected 1638ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 6)
-pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit rejected 1740ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 2)
-pass/wire/runtime_wire_decode_rejects_wrong_era_exit rejected 1644ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 2)
+pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit rejected 1311ms @6ec9ff444c14+wt
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(9223372036854775808)))
+pass/wire/runtime_wire_decode_rejects_wrong_era_exit incomplete 18471ms @6ec9ff444c14+wt
+	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775808 unproved; the module is not shown invalid
 pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit rejected 1585ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 3)
 pass/wire/runtime_wire_encode_byte_slice_exit rejected 1642ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 2)
 pass/wire/runtime_wire_exact_array_without_count_exit rejected 1743ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 1)
-pass/wire/runtime_wire_policy_authored_plan_exit rejected 2588ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 1)
-pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit rejected 1815ms @2d8ed253669f
-	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: call: flow call` (state 0, statement 1)
+pass/wire/runtime_wire_policy_authored_plan_exit incomplete 21365ms @6ec9ff444c14+wt
+	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775818 unproved; the module is not shown invalid
+pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit incomplete 41105ms @6ec9ff444c14+wt
+	incomplete: terminal-artifact production stopped at the private `proof_search_candidate_work` proof-search capacity (provision 65536) with obligation 9223372036854775823 unproved; the module is not shown invalid
 pass/wire/runtime_wire_utf8_edge_verdicts_exit rejected 1733ms @2d8ed253669f
 	selected ProgramEntry establishment rejoins 0 Terminal context identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement` (state 0)
 pass/wire/wire_compatibility_migration_across_shapes checked 971ms @2d8ed253669f

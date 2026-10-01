@@ -114,15 +114,19 @@ fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
 }
 
 /// The spelled hole one `MoveStructuralField` opens beneath `root`: the
-/// operation's path plus the declared identity of the field it vacates.
-/// `None` means the destination does not host a structural field there —
-/// the unit's catalog contract rejects that shape separately.
+/// operation's path plus the declared identity of the field it vacates, or
+/// the empty path of a root window's whole referent. `None` means the
+/// destination does not host a structural field there — the unit's catalog
+/// contract rejects that shape separately.
 fn window_hole(
     types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: StructuralTypeId,
     path: &[terminal_psi::StructuralPathSegment],
-    field: semantic_vocabulary::StructuralFieldId,
+    field: Option<semantic_vocabulary::StructuralFieldId>,
 ) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
+    let Some(field) = field else {
+        return path.is_empty().then(Vec::new);
+    };
     let parent =
         crate::unit_validation::structural_catalog::resolve_structural_path(types, root, path)?;
     if matches!(

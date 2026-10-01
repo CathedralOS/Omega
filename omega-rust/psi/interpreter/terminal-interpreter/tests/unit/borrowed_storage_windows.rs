@@ -125,7 +125,7 @@ fn window_module() -> TerminalModule {
             kind: OperationKind::MoveStructuralField {
                 source: place_id(1),
                 path: Vec::new(),
-                field: structural_field_id(1),
+                field: Some(structural_field_id(1)),
             },
         },
         Operation {
@@ -162,7 +162,7 @@ fn window_module() -> TerminalModule {
             kind: OperationKind::StoreStructuralField {
                 destination: place_id(1),
                 path: Vec::new(),
-                field: structural_field_id(1),
+                field: Some(structural_field_id(1)),
                 value: StructuralArgument {
                     place: place_id(3),
                     path: Vec::new(),
@@ -178,7 +178,7 @@ fn window_module() -> TerminalModule {
             kind: OperationKind::MoveStructuralField {
                 source: place_id(1),
                 path: Vec::new(),
-                field: structural_field_id(2),
+                field: Some(structural_field_id(2)),
             },
         },
         Operation {
@@ -189,7 +189,7 @@ fn window_module() -> TerminalModule {
             kind: OperationKind::StoreStructuralField {
                 destination: place_id(1),
                 path: Vec::new(),
-                field: structural_field_id(2),
+                field: Some(structural_field_id(2)),
                 value: StructuralArgument {
                     place: place_id(2),
                     path: Vec::new(),
@@ -371,7 +371,9 @@ fn a_replaced_window_body_fails_the_sealed_proof() {
     for operation in &mut replaced.machines[0].blocks[0].operations {
         match &mut operation.kind {
             OperationKind::MoveStructuralField { field, .. }
-            | OperationKind::StoreStructuralField { field, .. } => *field = structural_field_id(2),
+            | OperationKind::StoreStructuralField { field, .. } => {
+                *field = Some(structural_field_id(2))
+            }
             _ => {}
         }
     }

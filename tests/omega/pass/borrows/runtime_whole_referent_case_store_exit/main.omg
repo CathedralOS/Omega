@@ -1,0 +1,49 @@
+// Whole-referent replacement of a payload-free case through `&mut`.
+// `settle` replaces every bit of the borrowed verdict from inside a state
+// that received the loan as a block parameter, exactly as a generated
+// decoder's final state does. exits: 70 = Sound reached the caller;
+// 71 = the caller still saw Invalid.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Verdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    console: Binding<Console>;
+    verdict: Verdict;
+}
+
+machine settle(verdict: &mut Verdict, bad: u64) {
+    transition bad == 0 {
+        true -> sound(verdict)
+        _ -> invalid(verdict)
+    }
+
+    state sound(verdict: &mut Verdict) {
+        verdict = Verdict::Sound;
+    }
+
+    state invalid(verdict: &mut Verdict) {
+        verdict = Verdict::Invalid;
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    settle(&mut self.verdict, 0);
+    transition self.verdict {
+        Verdict::Sound -> good(&mut self)
+        Verdict::Invalid -> bad(&mut self)
+    }
+
+    state good(main: &mut Main) {
+        main.console.exit_process(70);
+    }
+
+    state bad(main: &mut Main) {
+        main.console.exit_process(71);
+    }
+}
