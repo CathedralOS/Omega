@@ -284,3 +284,47 @@ fn an_ieee_range_row_is_restored_from_the_final_store() {
         "a final 2.0 cannot establish the returned `level <= 1.0` row"
     );
 }
+
+/// Terminal admits no unranked control cycle whose requirements observe a
+/// mutable borrow, so a looping callee cannot assume or restore exclusive
+/// rows and publishes none. Its caller still requires its rows at entry but
+/// cannot restore them after the call, so it publishes no guarantee; a
+/// read-only loop over a `Grid` keeps executing.
+#[test]
+fn a_looping_callee_publishes_no_rows_and_its_caller_restores_none() {
+    let checked = crate::front_end::checked_program(&format!(
+        "{PREDICATE}
+         machine Main::scan(context: &mut Main) {{
+             transition {{ _ -> step(context, 0) }}
+             state step(context: &mut Main, round: u8) {{
+                 transition round < 3 {{
+                     true -> again(context, round)
+                     _ -> done(context)
+                 }}
+             }}
+             state again(context: &mut Main, round: u8) {{
+                 context.total = context.g.offset;
+                 transition {{ _ -> step(context, round + 1) }}
+             }}
+             state done(context: &mut Main) {{ }}
+         }}
+         machine Main::main(context: &mut Main) {{ Main::scan(context); }}"
+    ));
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("a looping callee lowers without exclusive rows");
+    assert!(verify(&lowered.semantic_module, &lowered));
+    let rows = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .map(|machine| {
+            (
+                machine.contract.requires.len(),
+                machine.contract.ensures.len(),
+            )
+        })
+        .collect::<Vec<_>>();
+    // `main` requires both arrays' eight cells and restores nothing; `scan`
+    // has no rows.
+    assert_eq!(rows, vec![(16, 0), (0, 0)]);
+}

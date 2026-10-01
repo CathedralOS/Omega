@@ -590,10 +590,12 @@ fn plain_checked_shape(
         && retained_record_owner_application(data, program)
         && data.quotient.is_none()
         // A store may break a `where` fact only where Terminal re-proves the
-        // whole default domain: interval-only facts bound the fields' own
-        // carriers, and every other fact must be carried exactly by the
-        // declaration predicate roster, whose rows each call, arrival and
-        // return re-proves. Zero validity alone proves nothing per store.
+        // whole default domain before relying on it: interval-only facts bound
+        // the fields' own carriers, and every other fact must be carried
+        // exactly by the declaration predicate roster, whose rows a call
+        // proves before entry and a published guarantee proves at return. A
+        // machine without rows relies on none. Zero validity alone proves
+        // nothing per store.
         && validation::declaration_facts_carried(program, operators, data)
         && !data.zero_gated
 }

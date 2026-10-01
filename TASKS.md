@@ -1765,8 +1765,11 @@ crash and native exit behavior. Use affected check/native corpus slices under
   non-vacuous or unsupported evidence": the state parameter
   `value: f32 in Finite` carries the compiler-known `Finite` value domain,
   which the closed scalar qualification catalog cannot hold because it has a
-  predicate. Cyclic state graphs have no state-arrival rows, so facts cut at
-  a back edge cannot restore a guarantee after the loop. Coordinate the
+  predicate. A machine whose named states loop drops its exclusive rows,
+  because Terminal's unranked cycles admit no requirement observing a `&mut`
+  loan, and an acyclic caller of such a machine keeps its entry rows but
+  restores none; state-arrival rows over the loop are the missing consumer
+  that would carry the facts through it. Coordinate the
   state-arrival consumer with `COMPOSITE-TRANSITION-ARGUMENT`, and signature,
   guarantee and namespace consumers with `STATIC-MACHINE-MIGRATION`. Native
   exit 77 and the three recast customers remain open.
