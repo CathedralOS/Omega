@@ -176,6 +176,7 @@ pass/calls/runtime_guarded_effectful_transition_argument_exit built 1284ms exit:
 pass/calls/runtime_indexed_scalar_calls_exit built 1035ms exit:70 @68f254e61364+wt
 pass/calls/runtime_let_mut_reassign_exit built 591ms exit:2
 pass/calls/runtime_lifetime_only_constructor_result_exit built 1050ms exit:70
+pass/calls/runtime_local_scalar_array_element_loan_exit built 925ms exit:70 @54b18fcb782e
 pass/calls/runtime_loop_rotation_exit built 643ms exit:1
 pass/calls/runtime_measured_tail_recursion_exit built 660ms exit:70
 pass/calls/runtime_mut_ref_forward_exit built 1147ms exit:70 @48008365d839

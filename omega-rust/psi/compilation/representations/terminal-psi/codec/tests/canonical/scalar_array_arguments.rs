@@ -105,7 +105,7 @@ fn owned_array_argument_encoding_rejects_borrow_and_signature_forgery() {
     assert!(matches!(
         encode_module(&module),
         Err(CodecError::MalformedStructuralFoundation(
-            "primitive-array argument requires whole plain array call custody"
+            "primitive-array argument requires plain array transfer or loan custody"
         ))
     ));
 
@@ -222,7 +222,7 @@ fn boundary_array_encoding_rejects_access_mismatch_and_changed_shape() {
         assert!(matches!(
             encode_module(&changed),
             Err(CodecError::MalformedStructuralFoundation(
-                "primitive-array argument requires whole plain array call custody"
+                "primitive-array argument requires plain array transfer or loan custody"
             ))
         ));
     }
@@ -250,7 +250,7 @@ fn boundary_array_encoding_rejects_access_mismatch_and_changed_shape() {
     assert!(matches!(
         encode_module(&changed),
         Err(CodecError::MalformedStructuralFoundation(
-            "primitive-array argument requires whole plain array call custody"
+            "primitive-array argument requires plain array transfer or loan custody"
         ))
     ));
 }
@@ -299,6 +299,98 @@ fn boundary_array_result_loans_roundtrip_with_exact_presentation() {
             wrong_type.boundary_machines[0].structural_parameters[0].structural_type =
                 structural_type_id(2);
             assert!(encode_module(&wrong_type).is_err());
+        }
+    }
+}
+
+#[test]
+fn array_element_loans_roundtrip_without_changing_backing_or_projection() {
+    for copied in [false, true] {
+        for boundary in [false, true] {
+            for access in [
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::MutableBorrow,
+            ] {
+                let mut module = boundary_array_argument_module(2, copied);
+                let call_position = usize::from(copied);
+                module.boundary_machines[0].structural_parameters[0].structural_type =
+                    structural_type_id(2);
+                module.boundary_machines[0].structural_parameters[0].access = access;
+                if !boundary {
+                    let mut callee = array_argument_module(2).machines.remove(1);
+                    callee.structural_parameters =
+                        module.boundary_machines[0].structural_parameters.clone();
+                    let OperationKind::BoundaryCall {
+                        structural_arguments,
+                        ..
+                    } = &module.machines[0].blocks[0].operations[call_position].kind
+                    else {
+                        unreachable!()
+                    };
+                    module.machines[0].blocks[0].operations[call_position].kind =
+                        OperationKind::CallUnit {
+                            erased_arguments: vec![],
+                            erased_proof_arguments: vec![],
+                            callee: callee.id,
+                            arguments: vec![],
+                            structural_arguments: structural_arguments.clone(),
+                            claim_transfers: vec![],
+                            requirement_obligations: vec![],
+                            crash_continuations: vec![],
+                        };
+                    module.machines.push(callee);
+                    module.boundary_machines.clear();
+                }
+                let arguments =
+                    match &mut module.machines[0].blocks[0].operations[call_position].kind {
+                        OperationKind::CallUnit {
+                            structural_arguments,
+                            ..
+                        }
+                        | OperationKind::BoundaryCall {
+                            structural_arguments,
+                            ..
+                        } => structural_arguments,
+                        _ => unreachable!(),
+                    };
+                arguments[0].access = access;
+                arguments[0].path = vec![terminal_psi::StructuralPathSegment::FixedIndex(1)];
+                let bytes = encode_module(&module).expect("array element loan encodes");
+                let decoded = decode_module(&bytes).expect("array element loan decodes");
+                assert_eq!(decoded, module);
+                terminal_verifier::verify_module(
+                    &decoded,
+                    &terminal_verifier::ProofBundle::default(),
+                    &proof_admission::AdmissionProfile::default(),
+                )
+                .expect("decoded array element loan verifies independently");
+                assert_eq!(encode_module(&decoded).unwrap(), bytes);
+
+                let mut out_of_bounds = module.clone();
+                let arguments =
+                    match &mut out_of_bounds.machines[0].blocks[0].operations[call_position].kind {
+                        OperationKind::CallUnit {
+                            structural_arguments,
+                            ..
+                        }
+                        | OperationKind::BoundaryCall {
+                            structural_arguments,
+                            ..
+                        } => structural_arguments,
+                        _ => unreachable!(),
+                    };
+                arguments[0].path = vec![terminal_psi::StructuralPathSegment::FixedIndex(2)];
+                assert!(encode_module(&out_of_bounds).is_err());
+
+                let mut wrong_type = module;
+                let formal = if boundary {
+                    &mut wrong_type.boundary_machines[0].structural_parameters[0]
+                } else {
+                    &mut wrong_type.machines[1].structural_parameters[0]
+                };
+                formal.structural_type = structural_type_id(1);
+                assert!(encode_module(&wrong_type).is_err());
+            }
         }
     }
 }

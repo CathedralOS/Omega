@@ -603,9 +603,9 @@ rows! {
         "formation:scalar-array",
         SharedFormation,
         "a whole unrestricted primitive-array parameter, complete typed or checked zero initialization, validated exact leaf snapshot, or ordinary or boundary call result with the declared array shape",
-        "the array payload source validates without additional proposition authority; zero initialization must satisfy the ordinary zero-establishment rules and cannot manufacture qualifications or claims; leaf snapshots preserve their readable source, and control-flow availability independently requires each producer to dominate its uses",
+        "the array payload source validates without additional proposition authority; zero initialization must satisfy the ordinary zero-establishment rules and cannot manufacture qualifications or claims; leaf snapshots preserve their readable source, and control-flow availability independently requires each producer to dominate its uses; owned transfers remain whole, while shared or exclusive call-scoped loans may select an exact checked subtree of an initialized parameter or producer without moving its backing; projection bounds, exact formal type and access, and exclusive overlap remain independent checks",
         &["formation:operation-validation"],
-        &[tv!( "validation/scalar/array.rs"), ts!( "scalar_array.rs")]
+        &[tv!( "validation/scalar/array.rs"), tv!( "validation/operations.rs"), tv!( "validation/structural/operations/structural_arguments/argument_checks.rs"), tv!( "validation/structural/operations/claim_transfers.rs"), ts!( "scalar_array.rs")]
     );
     FORM_SCALAR_CASE => (
         "formation:scalar-case",

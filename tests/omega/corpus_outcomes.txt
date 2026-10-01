@@ -1295,6 +1295,7 @@ pass/calls/runtime_guarded_effectful_transition_argument_exit checked 9012ms @2d
 pass/calls/runtime_indexed_scalar_calls_exit checked 2511ms @2d8ed253669f
 pass/calls/runtime_let_mut_reassign_exit checked 1342ms @2d8ed253669f
 pass/calls/runtime_lifetime_only_constructor_result_exit checked 1883ms @2d8ed253669f
+pass/calls/runtime_local_scalar_array_element_loan_exit checked 868ms @54b18fcb782e+wt
 pass/calls/runtime_loop_rotation_exit checked 1398ms @2d8ed253669f
 pass/calls/runtime_measured_tail_recursion_exit checked 1346ms @2d8ed253669f
 pass/calls/runtime_mut_ref_forward_exit checked 1509ms @8778c440081
