@@ -7,6 +7,71 @@ use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use semantic_vocabulary::BoundaryMachineId;
 
 #[test]
+fn local_byte_windows_keep_their_producer_bounds_and_access() {
+    let source = r#"
+        boundary trait Output { machine count(value: u64) reaches Output; }
+        machine consume(bytes: &[u8]) reaches Output { Output::count(bytes.len); }
+        machine enter() reaches Output {
+            let bytes: [u8; 3];
+            consume(&bytes[1..3]);
+        }
+    "#;
+    let baseline = crate::tests::structural_cases::source_machine_unit(source, "enter", true);
+    validate_psi_optimization_unit(&baseline).expect("a completed local lends its bounded window");
+    for widen_access in [false, true] {
+        let mut changed = baseline.clone();
+        let (function_index, block_index, node_index) = changed
+            .functions
+            .iter_mut()
+            .enumerate()
+            .find_map(|(function_index, function)| {
+                function
+                    .blocks
+                    .iter_mut()
+                    .enumerate()
+                    .find_map(|(block_index, block)| {
+                        block
+                            .nodes
+                            .iter_mut()
+                            .enumerate()
+                            .find_map(|(node_index, node)| {
+                                let AbstractOperation::CallStructural {
+                                    structural_arguments,
+                                    ..
+                                } = &mut node.operation
+                                else {
+                                    return None;
+                                };
+                                let argument =
+                                    structural_arguments.iter_mut().find(|argument| {
+                                        argument.path.iter().any(|segment| {
+                                            matches!(segment,
+                                terminal_psi::StructuralPathSegment::FixedByteRange { .. })
+                                        })
+                                    })?;
+                                if widen_access {
+                                    argument.access = terminal_psi::StructuralAccess::MutableBorrow;
+                                } else {
+                                    *argument.path.last_mut().unwrap() =
+                                        terminal_psi::StructuralPathSegment::FixedByteRange {
+                                            start: 1,
+                                            end: 4,
+                                        };
+                                }
+                                Some((function_index, block_index, node_index))
+                            })
+                    })
+            })
+            .expect("the abstract call keeps the window path");
+        refresh_node_derivatives(&mut changed, function_index, block_index, node_index);
+        assert!(
+            validate_psi_optimization_unit(&changed).is_err(),
+            "window geometry cannot widen bounds or access"
+        );
+    }
+}
+
+#[test]
 fn rejects_structural_call_argument_arity_and_access_corruption() {
     let baseline = structural_call_unit();
     validate_psi_optimization_unit(&baseline)
