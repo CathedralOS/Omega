@@ -242,6 +242,12 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
 
 ## Hard rules
 
+- **Do not add required feature-combination special cases. Clean as you go.**
+  Generalize the touched operation or representation and remove its superseded
+  path in the same change; do not land another source-shape recognizer, fallback
+  or mode with cleanup deferred to a task. Preserve genuine semantic and ABI
+  distinctions and independent verification. Optional optimization specialization
+  requires a correct general path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
 - **Never push to `main` directly.** Reserve and publish through
   `tools/landing.py` ([tools/landing.md](tools/landing.md)); history is
   linear — rebase onto `main` and fast-forward, never merge

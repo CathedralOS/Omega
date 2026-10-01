@@ -33,11 +33,23 @@ Read the reference the decision needs. A simple change may need none of these pa
 ## Shape the implementation
 
 For compiler lowering, apply [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering).
-When a recognizer for an incidental source arrangement is in the path, trace
-whether ordinary operation sequencing or explicit data/control/ownership joins
-replace it. Keep semantic and ABI restrictions explicit and independently
-verified; a failed proof stays a rejection. Test the composition the general
-case needs.
+**Do not reinforce feature-combination special cases. Clean as you go is
+mandatory.** When a fix encounters a required recognizer for an incidental
+source arrangement, repair the owning operation or data/control/ownership join
+and remove the superseded path in the same change. Do not add another producer
+family, fallback, mode flag, or eligibility exception for combinations such as
+local versus parameter, call result versus initializer, or scalar versus Unit
+caller when they require the same semantic operation. Wrapping the branches in
+a shared helper does not generalize them. A follow-up cleanup task does not
+justify landing another special case.
+
+Keep real type, ownership, effect and ABI distinctions explicit and independently
+verified. Optional optimizations may specialize only over a correct general
+path. If a general repair cannot be completed in scope, report the precise
+missing dependency; do not ship a narrower accepted-source workaround. This is
+cleanup of the touched mechanism, not permission for an unrelated rewrite.
+Before handoff, name the removed special path and exercise a valid composition
+variation plus an invalid ownership/evidence control through the real customer.
 
 Identify which facts change per request, partition, and element. Prepare reusable facts at the outer lifetime; specialize local choices where their inputs become known; keep the inner operation narrow. Borrow immutable context, own mutable working state, and transfer useful output storage to the consumer.
 

@@ -466,7 +466,14 @@ produce another organization commit.
 
 ## Compositional lowering
 
-Source-shape admission is a code-rot warning: supported assignment, call, branch,
+Reinforcing required source-shape admission is prohibited, not a cleanup
+preference. Clean the touched mechanism as you go: generalize its operation or
+explicit data relationship and delete the superseded path in the same change.
+Another task promising later consolidation is not an exception. If the general
+repair is blocked, identify that dependency rather than publishing another
+required special case. This does not require an unrelated whole-pipeline rewrite.
+
+Supported assignment, call, branch,
 and transfer operations must compose under their actual type, effect, ownership,
 and control-flow rules. Do not add another required producer family for an
 incidental arrangement such as "locals before calls", "call immediately followed
