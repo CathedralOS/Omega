@@ -1,11 +1,13 @@
 //! Checked compilation and the source custody sealed against it.
 
+use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 use package_compilation::CheckedSourceCustody;
 use package_compilation::PackageCompilationInputs;
+use provider_planning::ProviderSettlement;
 use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
 
@@ -18,44 +20,26 @@ pub use terminal::{
     validate_lowered_ieee_float_comparison_custody, validate_lowered_integer_comparison_custody,
 };
 
-/// Whole stage products supplied when sealing a checked compilation.
-/// These inputs are not an admission receipt. Sealing retains them immutably;
-/// downstream consumers still independently reconstruct their evidence.
+/// Whole stage products supplied when sealing a checked compilation, each as
+/// the record its producing owner returned. These inputs are not an admission
+/// receipt. Sealing retains them immutably; downstream consumers still
+/// independently reconstruct their evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilationInputs {
+    /// Checked semantics with target/entry custody and every selected-execution
+    /// sidecar, produced by selected dispatch.
     pub settled: SelectedExecution,
     /// One immutable evaluated Build shared by target products and review clones.
-    /// Authored choices stay distinct from the realized settlements below.
-    pub build: std::sync::Arc<crate::ComputedBuildConfig>,
-    /// The validated authored `builder.application` declaration; its name
-    /// supplies the `.app` basename and inner executable leaf at publication
-    /// and its artifact-only intent narrows the admitted route.
-    pub application: Option<build_declarations::ApplicationDeclaration>,
-    pub selected_build_machine_identity: Option<String>,
-    pub boundary_calling_plan_realizations:
-        Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
+    /// Authored choices stay distinct from the realized settlements beside it.
+    pub build: Arc<ComputedBuildConfig>,
+    pub build_admission: BuildAdmission,
+    pub providers: ProviderSettlement,
     /// Identity-bearing checked-tree product selection evidence, present only
     /// when the effective build selection named `CheckedTreeProductPruning`.
+    /// `None` means the checked-tree phase ran as the identity boundary. The
+    /// retained roots and pruned roster re-derive the exact product; they are
+    /// not a reselection input.
     pub product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
-    pub provider_plans: Vec<effects::provider_plan::ProviderPlan>,
-    pub evaluated_via_bindings: provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
-    pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
-    pub root_grants: Vec<String>,
-    /// The normalized restricted build-host requests the admitted build
-    /// activation asked of the host before it executed.
-    pub restricted_build_requests:
-        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
-    /// The component descriptions this package compilation attached and
-    /// provider settlement verified, in package-identity order. Retained as
-    /// custody so consumers replaying the selected-provider join can re-verify
-    /// the same admission instead of rediscovering unattached inputs.
-    pub independent_component_descriptions:
-        Vec<package_compilation::IndependentComponentDescription>,
-    /// The component-assumption digests the authoritative build machine
-    /// accepted through `builder.accept_component_assumption`. Retained
-    /// beside the admitted descriptions so a replay re-verifies them under
-    /// the same acceptance set the original settlement applied.
-    pub accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]>,
 }
 
 /// Psi-checked semantics paired with the Omega-owned provider realization
@@ -118,8 +102,28 @@ impl CheckedCompilation {
     /// The one evaluated Build retained by this compilation. Authored choices
     /// remain distinct from the selected execution and its independently
     /// reconstructed provider evidence.
-    pub fn build(&self) -> &crate::ComputedBuildConfig {
+    pub fn build(&self) -> &ComputedBuildConfig {
         &self.execution.build
+    }
+
+    /// This compilation's admitted Build facts: the application declaration,
+    /// the evaluated build machine's identity and its restricted host requests.
+    pub const fn build_admission(&self) -> &BuildAdmission {
+        &self.execution.build_admission
+    }
+
+    /// Provider-planning custody retained for package review, trust replay
+    /// and native realization. Its presence publishes no package ABI or
+    /// admission row.
+    pub const fn providers(&self) -> &ProviderSettlement {
+        &self.execution.providers
+    }
+
+    /// The exact physical/generated source closure sealed against this
+    /// program, with its package subject when package-aware. Source IDs are
+    /// private join coordinates and never enter canonical product bytes.
+    pub const fn sources(&self) -> &CheckedSourceCustody {
+        &self.sources
     }
 
     /// Reconstruct this product's trust obligations against explicit owner
@@ -131,8 +135,8 @@ impl CheckedCompilation {
     ) -> Result<trust_model::TrustAdmissionSettlement, Vec<Diagnostic>> {
         trust_model::reconstruct_trust_settlement(
             self,
-            self.root_grants(),
-            self.provider_plans(),
+            &self.build().config.root_grant_selectors(),
+            &self.providers().provider_plans,
             &self.execution().selected_provider_plan_facts,
             &self.execution().accepted_template_classifications,
             self.package_identity().is_some(),
@@ -150,38 +154,11 @@ impl CheckedCompilation {
         self.sources.source_file_count()
     }
 
-    /// Project the build-owned image metadata as one retention unit. The name
-    /// comes from the application declaration; intent, signing identity and
-    /// subsystem come from evaluated configuration and remain distinct facts.
-    /// The ELF loader is the realized target's effective selection: the
-    /// build's explicit row, else the target environment's declared default.
-    /// Retaining it here carries a defaulted path through the same proposal,
-    /// report and package custody as an authored one.
     pub fn project_native_application_metadata(&self) -> target::NativeApplicationMetadata {
-        target::NativeApplicationMetadata {
-            name: self
-                .execution
-                .application
-                .as_ref()
-                .map(|application| application.name.as_str().to_owned()),
-            intent: self.execution.build.config.settings.application_intent,
-            identifier: self
-                .execution
-                .build
-                .config
-                .settings
-                .application_identifier
-                .clone(),
-            subsystem: self.execution.build.config.settings.subsystem,
-            elf_interpreter: self.selected_target_profile().and_then(|profile| {
-                self.execution
-                    .build
-                    .config
-                    .settings
-                    .elf_interpreters
-                    .effective(profile)
-            }),
-        }
+        self.execution.build_admission.native_application_metadata(
+            &self.execution.build.config.settings,
+            self.selected_target_profile(),
+        )
     }
 
     /// The validated `builder.artifact_only()` intent retained at source
@@ -189,19 +166,13 @@ impl CheckedCompilation {
     /// modifier; package/workspace builds and missing build roots return
     /// `false`.
     pub const fn application_artifact_only(&self) -> bool {
-        match self.execution.application.as_ref() {
-            Some(application) => application.artifact_only,
-            None => false,
-        }
+        self.execution.build_admission.artifact_only()
     }
 
     /// Reconciled root package identity for package-aware compilation.
     /// Standalone compilation has no package identity.
     pub const fn package_identity(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-        match self.sources.package_subject() {
-            Some(subject) => Some(subject.root()),
-            None => None,
-        }
+        self.sources.package_identity()
     }
 
     /// Exact source-path-free dependency closure consumed by package-aware
@@ -209,10 +180,7 @@ impl CheckedCompilation {
     pub const fn dependency_closure(
         &self,
     ) -> Option<&package_compilation::PackageDependencyClosure> {
-        match self.sources.package_subject() {
-            Some(subject) => Some(subject.dependency_closure()),
-            None => None,
-        }
+        self.sources.dependency_closure()
     }
 
     /// Canonical commitment to the exact source bytes consumed by this
@@ -221,10 +189,7 @@ impl CheckedCompilation {
     pub const fn source_consumption_commitment(
         &self,
     ) -> Option<package_compilation::PackageSourceConsumptionCommitment> {
-        match self.sources.package_subject() {
-            Some(subject) => Some(subject.source_consumption_commitment()),
-            None => None,
-        }
+        self.sources.source_consumption_commitment()
     }
 
     /// Canonical commitment to the exact package-aware source closure admitted
@@ -250,11 +215,7 @@ impl CheckedCompilation {
         &self,
         role: package_compilation::AcceptedSemanticBindingRole,
     ) -> Option<&selected_dispatch::ResolvedAcceptedSemanticBinding> {
-        self.execution
-            .settled
-            .resolved_semantic_bindings
-            .iter()
-            .find(|binding| binding.role() == role)
+        self.execution.settled.resolved_semantic_binding(role)
     }
 
     /// Exact consumer-policy semantic bindings that were resolved and
@@ -264,11 +225,7 @@ impl CheckedCompilation {
     pub fn resolved_semantic_bindings(
         &self,
     ) -> impl ExactSizeIterator<Item = &package_compilation::AcceptedSemanticBinding> {
-        self.execution
-            .settled
-            .resolved_semantic_bindings
-            .iter()
-            .map(selected_dispatch::ResolvedAcceptedSemanticBinding::accepted)
+        self.execution.settled.accepted_semantic_bindings()
     }
 
     /// Retain permission rows from the exact semantic bindings this checked
@@ -277,10 +234,7 @@ impl CheckedCompilation {
     pub fn package_terminal_authority_permissions(
         &self,
     ) -> Vec<effects::ServiceTerminalAuthorityPermission> {
-        self.resolved_semantic_bindings()
-            .flat_map(|binding| binding.terminal_authority_permissions())
-            .cloned()
-            .collect()
+        self.execution.settled.terminal_authority_permissions()
     }
 
     /// Project and validate this checked package's accepted Terminal permission
@@ -316,56 +270,9 @@ impl CheckedCompilation {
         package: semantic_vocabulary::PackageKeyIdentity,
         declaration_path: &str,
     ) -> Result<package_compilation::AcceptedSemanticBinding, Diagnostic> {
-        let matches = self
-            .execution
+        self.execution
             .settled
-            .program
-            .typed
-            .traits()
-            .iter()
-            .filter(|definition| {
-                definition.is_boundary
-                    && self
-                        .execution
-                        .settled
-                        .program
-                        .typed
-                        .symbols
-                        .symbol_package_identity(definition.symbol)
-                        == Some(package)
-                    && self
-                        .execution
-                        .settled
-                        .program
-                        .typed
-                        .symbols
-                        .display_path(definition.symbol, "::")
-                        == declaration_path
-            })
-            .filter_map(|definition| {
-                provider_planning::service_schema::from_typed(
-                    provider_planning::ProviderPlanningContext::new(
-                        &self.execution.settled.program.typed,
-                        source::DependencyScope::Product,
-                    ),
-                    definition,
-                )
-            })
-            .collect::<Vec<_>>();
-        let [schema] = matches.as_slice() else {
-            return Err(Diagnostic::error(format!(
-                "semantic-binding candidate {:?} resolved to {} exact package-owned boundary schemas instead of one",
-                role,
-                matches.len(),
-            )));
-        };
-        package_compilation::AcceptedSemanticBinding::new_service(
-            role,
-            package,
-            declaration_path,
-            package_compilation::accepted_service_schema_digest(role, schema),
-        )
-        .map_err(Diagnostic::error)
+            .candidate_service_binding(role, package, declaration_path)
     }
 
     /// Compiler-validated exact source owners used while projecting
@@ -401,10 +308,7 @@ impl CheckedCompilation {
     /// Exact native target selected for this checked compilation. Semantic-only
     /// checking has no selected target and therefore cannot be staged.
     pub fn selected_native_target(&self) -> Option<target::NativeTarget> {
-        self.execution
-            .settled
-            .selected_target_profile
-            .map(target::TargetProfile::native_target)
+        self.execution.settled.selected_native_target()
     }
 
     /// Exact deployment-policy target selected for this checked compilation.
@@ -442,23 +346,17 @@ impl CheckedCompilation {
     /// program, so a compile answering `true` is not interchangeable with the
     /// result a pass without the tolerance would produce.
     pub fn tolerated_unsettled_service_fields(&self) -> bool {
-        let Some(entry) = &self.execution.settled.selected_program_entry else {
-            return false;
-        };
-        let program = &self.execution.settled.program;
-        selected_dispatch::program_entry_service_requirements(
-            program,
-            entry.source_signature().machine_symbol(),
-        )
-        .iter()
-        .any(|requirement| program.fused_service_erasure(*requirement).is_none())
+        self.execution.settled.tolerated_unsettled_service_fields()
     }
 
     /// Canonical semantic identity of the build machine actually evaluated.
     /// This is derived while the final typed declarations remain available;
     /// downstream custody must not rediscover it by short name.
     pub fn selected_build_machine_identity(&self) -> Option<&str> {
-        self.execution.selected_build_machine_identity.as_deref()
+        self.execution
+            .build_admission
+            .selected_build_machine_identity
+            .as_deref()
     }
 
     /// Exact validated boundary calling-plan realizations retained while the
@@ -468,7 +366,7 @@ impl CheckedCompilation {
     pub fn boundary_calling_plan_realizations(
         &self,
     ) -> &[provider_planning::calling_policy_plans::BoundaryCallingPlanRealization] {
-        &self.execution.boundary_calling_plan_realizations
+        &self.execution.providers.boundary_calling_plan_realizations
     }
 
     /// Identity-bearing evidence of the checked-tree product selection this
@@ -485,7 +383,7 @@ impl CheckedCompilation {
 
     #[doc(hidden)]
     pub fn provider_plans(&self) -> &[effects::provider_plan::ProviderPlan] {
-        &self.execution.provider_plans
+        &self.execution.providers.provider_plans
     }
 
     /// Complete exact ordinary-`via` evaluation population, including leaves
@@ -496,7 +394,7 @@ impl CheckedCompilation {
     pub const fn evaluated_via_bindings(
         &self,
     ) -> &provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable {
-        &self.execution.evaluated_via_bindings
+        &self.execution.providers.evaluated_via_bindings
     }
 
     /// Exact selected normalized-import bindings and their evaluated calling
@@ -504,21 +402,13 @@ impl CheckedCompilation {
     /// the only source of normalized foreign-locator custody in native
     /// realization; other provider mechanisms keep their specialized lanes.
     pub fn external_binding_rows(&self) -> &[calling_conventions::ExternalBindingRow] {
-        &self.execution.external_binding_rows
-    }
-
-    #[doc(hidden)]
-    pub fn root_grants(&self) -> &[String] {
-        &self.execution.root_grants
+        &self.execution.providers.external_binding_rows
     }
 
     pub fn build_observation_identity(
         &self,
     ) -> Option<package_compilation::BuildObservationIdentity> {
-        self.build()
-            .observation_summary
-            .as_ref()
-            .map(package_compilation::BuildObservationSummary::identity)
+        self.build().observation_identity()
     }
 
     /// Select the completed-file product from this checked execution. Compiler
@@ -527,13 +417,7 @@ impl CheckedCompilation {
     pub fn completed_build_outputs(
         &self,
     ) -> Result<Option<crate::RetainedBuildOutputs>, Vec<Diagnostic>> {
-        self.build()
-            .observation_summary
-            .as_ref()
-            .map(crate::RetainedBuildOutputs::from_observation)
-            .transpose()
-            .map(Option::flatten)
-            .map_err(|message| vec![Diagnostic::error(message)])
+        self.build().completed_outputs()
     }
 
     /// The normalized restricted build-host requests this compilation's
@@ -545,7 +429,7 @@ impl CheckedCompilation {
     pub fn restricted_build_requests(
         &self,
     ) -> &[package_compilation::build_execution::RestrictedBuildRequest] {
-        &self.execution.restricted_build_requests
+        &self.execution.build_admission.restricted_build_requests
     }
 
     /// The component descriptions this package compilation attached and
@@ -557,15 +441,7 @@ impl CheckedCompilation {
     pub fn independent_component_descriptions(
         &self,
     ) -> &[package_compilation::IndependentComponentDescription] {
-        &self.execution.independent_component_descriptions
-    }
-
-    /// The component-assumption digests the authoritative build machine
-    /// accepted for this compilation's attached independent-component
-    /// descriptions, or an empty set when no build accepted any. Replay
-    /// reads the same set the original settlement applied.
-    pub fn accepted_component_assumptions(&self) -> &std::collections::BTreeSet<[u8; 32]> {
-        &self.execution.accepted_component_assumptions
+        &self.execution.providers.independent_component_descriptions
     }
 
     pub const fn timings(&self) -> &CompileTimings {
@@ -588,13 +464,7 @@ impl CheckedCompilation {
     /// same one, so every field nominated here is a field establishment
     /// later requires a selected Fused provider for.
     pub fn selected_program_entry_service_requirements(&self) -> Vec<symbols::SymbolHandle> {
-        let Some(entry) = self.execution.settled.selected_program_entry.as_ref() else {
-            return Vec::new();
-        };
-        selected_dispatch::program_entry_service_requirements(
-            &self.execution.settled.program,
-            entry.source_signature().machine_symbol(),
-        )
+        self.execution.settled.program_entry_service_requirements()
     }
 
     pub fn into_program(self) -> CheckedTrees {

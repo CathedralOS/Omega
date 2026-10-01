@@ -4,7 +4,7 @@
 //! missing frontend/Build step itself. Only successful continuations are retained;
 //! this owner neither executes stages nor shares target-specific checking.
 
-use crate::ComputedBuildConfig;
+use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
 use package_compilation::{BuildExecutionInputs, BuildSourceCustody};
 use std::sync::Arc;
@@ -18,12 +18,7 @@ pub struct BuiltTypedProgram {
         provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
-    /// Normalized restricted requests admitted before Build executed.
-    pub restricted_build_requests:
-        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
-    /// Source-admitted application name and artifact-only route intent.
-    pub application: Option<build_declarations::ApplicationDeclaration>,
-    pub selected_build_machine_identity: Option<String>,
+    pub admission: BuildAdmission,
 }
 
 /// One completed continuation with its source custody and inclusive timing ladder.

@@ -59,7 +59,8 @@ pub use compile_request::{
     RetainedNativeRealizationRequest, TargetCompileConfiguration,
 };
 pub use evaluated_build::{
-    BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery, IndependentComponentSelection,
+    BuildAdmission, BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery,
+    IndependentComponentSelection,
 };
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,

@@ -39,6 +39,122 @@ pub struct SelectedExecution {
     pub task_activations: task_plans::TaskActivationPlanSet,
 }
 
+impl SelectedExecution {
+    /// Native ABI of the selected deployment profile. Profiles that share an
+    /// ABI, notably `windows_x64` and `uefi_x64`, stay distinct in
+    /// `selected_target_profile`. Semantic-only checking selects neither and
+    /// therefore cannot be staged.
+    pub fn selected_native_target(&self) -> Option<target::NativeTarget> {
+        self.selected_target_profile
+            .map(target::TargetProfile::native_target)
+    }
+
+    /// Boundaries demanded by the selected ProgramEntry's receiver
+    /// `Binding<R>` fields, including those nested in record fields. A
+    /// ProgramEntry is root-bound rather than a package callable, so its
+    /// service usage never surfaces in callable reach rows: the receiver's
+    /// carrier requirements are the consumer's own nomination surface.
+    /// Establishment reads the same traversal, so every field nominated here
+    /// is a field establishment later requires a selected Fused provider for.
+    pub fn program_entry_service_requirements(&self) -> Vec<symbols::SymbolHandle> {
+        let Some(entry) = self.selected_program_entry.as_ref() else {
+            return Vec::new();
+        };
+        crate::program_entry_service_requirements(
+            &self.program,
+            entry.source_signature().machine_symbol(),
+        )
+    }
+
+    /// Whether the selected program entry tolerated a `Binding` field whose
+    /// Fused provider was never selected. Only a discovery pass may carry such
+    /// a result: a strict recompile must reject the same program, so a result
+    /// answering `true` is not interchangeable with one produced without the
+    /// tolerance.
+    pub fn tolerated_unsettled_service_fields(&self) -> bool {
+        self.program_entry_service_requirements()
+            .iter()
+            .any(|requirement| self.program.fused_service_erasure(*requirement).is_none())
+    }
+
+    pub fn resolved_semantic_binding(
+        &self,
+        role: AcceptedSemanticBindingRole,
+    ) -> Option<&crate::ResolvedAcceptedSemanticBinding> {
+        self.resolved_semantic_bindings
+            .iter()
+            .find(|binding| binding.role() == role)
+    }
+
+    /// Exact consumer-policy semantic bindings that were resolved and consumed
+    /// by this checked package compilation. Unconsumed or stale input bindings
+    /// reject before selected execution settles.
+    pub fn accepted_semantic_bindings(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &package_compilation::AcceptedSemanticBinding> {
+        self.resolved_semantic_bindings
+            .iter()
+            .map(crate::ResolvedAcceptedSemanticBinding::accepted)
+    }
+
+    /// Permission rows from the exact semantic bindings this execution
+    /// consumed. Proposal construction and accepted-policy admission project
+    /// from the checked source independently, never from each other.
+    pub fn terminal_authority_permissions(
+        &self,
+    ) -> Vec<effects::ServiceTerminalAuthorityPermission> {
+        self.accepted_semantic_bindings()
+            .flat_map(|binding| binding.terminal_authority_permissions())
+            .cloned()
+            .collect()
+    }
+
+    /// Construct a non-authoritative review candidate for one exact package-
+    /// owned requirement-only boundary. Readable role nomination happens
+    /// outside the compiler; this contributes only checked owner, nominal, and
+    /// normalized-schema coordinates for a required bound replay.
+    pub fn candidate_service_binding(
+        &self,
+        role: AcceptedSemanticBindingRole,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        declaration_path: &str,
+    ) -> Result<package_compilation::AcceptedSemanticBinding, Diagnostic> {
+        let typed = &self.program.typed;
+        let matches = typed
+            .traits()
+            .iter()
+            .filter(|definition| {
+                definition.is_boundary
+                    && typed.symbols.symbol_package_identity(definition.symbol) == Some(package)
+                    && typed.symbols.display_path(definition.symbol, "::") == declaration_path
+            })
+            .filter_map(|definition| {
+                provider_planning::service_schema::from_typed(
+                    provider_planning::ProviderPlanningContext::new(
+                        typed,
+                        source::DependencyScope::Product,
+                    ),
+                    definition,
+                )
+            })
+            .collect::<Vec<_>>();
+        let [schema] = matches.as_slice() else {
+            return Err(Diagnostic::error(format!(
+                "semantic-binding candidate {:?} resolved to {} exact package-owned boundary schemas instead of one",
+                role,
+                matches.len(),
+            )));
+        };
+        package_compilation::AcceptedSemanticBinding::new_service(
+            role,
+            package,
+            declaration_path,
+            package_compilation::accepted_service_schema_digest(role, schema),
+        )
+        .map_err(Diagnostic::error)
+    }
+}
+
 /// Whole owner inputs, not independently projected service bindings or a
 /// second asserted component root. This remains a checked-tree realization
 /// boundary; it does not claim the intended Terminal-only provider handoff.

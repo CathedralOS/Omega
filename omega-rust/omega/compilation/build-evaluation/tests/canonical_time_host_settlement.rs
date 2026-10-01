@@ -197,7 +197,7 @@ impl Fixture {
             Some(&inputs),
             &[],
             &std::collections::BTreeSet::new(),
-            &[],
+            Vec::new(),
             &[],
         )
         .unwrap_or_else(|diagnostics| panic!("fixture settlement: {diagnostics:#?}"))

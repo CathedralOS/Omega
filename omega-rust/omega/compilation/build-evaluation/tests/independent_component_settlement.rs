@@ -263,7 +263,7 @@ impl Build {
             Some(&package_inputs),
             &[selection],
             &std::collections::BTreeSet::new(),
-            &[],
+            Vec::new(),
             &[],
         )
     }

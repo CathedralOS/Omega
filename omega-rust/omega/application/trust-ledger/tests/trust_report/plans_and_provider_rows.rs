@@ -45,9 +45,9 @@ fn planning_target_field() -> String {
 
 fn trust_report(checked: &CheckedCompilation) -> trust_model::TrustReport {
     trust_model::reconstruct_trust_report(
-        checked.terminal_production_trees(),
-        checked.root_grants(),
-        checked.provider_plans(),
+        &checked.execution().program,
+        &checked.build().config.root_grant_selectors(),
+        &checked.providers().provider_plans,
         &checked.execution().selected_provider_plan_facts,
         &checked.execution().accepted_template_classifications,
     )
