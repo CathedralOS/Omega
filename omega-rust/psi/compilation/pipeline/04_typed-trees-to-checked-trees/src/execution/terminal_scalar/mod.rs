@@ -722,17 +722,31 @@ fn checked_state_graph(
                 *reason = "machine has no source-independent checked scalar control plan (statement bindings)";
                 return None;
             };
-            // Call-free primitive-reference leaves retain their existing
-            // structural scalar-return owner, including its admission fences.
+            // Call-free leaves whose loans all ride the structural scalar-return
+            // owner's lanes retain that owner, including its admission fences:
+            // a `&primitive` referent, a borrowed byte view, or a borrowed
+            // receiver left on the ambient attachment
+            // (`returns::primitive_effects::has_plain_primitive_borrows`).
+            // Callers reach a machine through exactly one of the two families
+            // (`scalar_targets::available_target`), so a leaf that owner keeps
+            // must not also register here. A borrowed record is not one of
+            // those lanes; its state stays on this graph.
             if mixed
                 && structural_parameters.iter().all(|parameter| {
                     parameter.access != checked_trees::CheckedStructuralAccess::Owned
                         && parameters.get(parameter.position as usize).is_some_and(|source| {
-                            matches!(
-                                program.type_reference_table.type_reference(source.type_reference),
-                                typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-                                    if program.primitive_type_reference(*referee).is_some()
-                            )
+                            source.is_self
+                                || matches!(
+                                    program.type_reference_table.type_reference(source.type_reference),
+                                    typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+                                        if program.primitive_type_reference(*referee).is_some()
+                                )
+                                || crate::execution::terminal_unit::types::byte_sequence_carrier(
+                                    program,
+                                    source.type_reference,
+                                    &[],
+                                )
+                                .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
                         })
                 })
                 && matches!(statements, [StatementNode::Expression(_)])
