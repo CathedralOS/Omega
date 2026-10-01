@@ -672,7 +672,17 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             *position == parameter_position
                                 && parameter.access == StructuralAccess::Owned
                         });
-                    if !path.is_empty() || !element_path.is_empty() || owned_parameter {
+                    // A whole element view carries its runtime extent even
+                    // when the selected element has fields. Field selection
+                    // does not turn that descriptor into a fixed array.
+                    let whole_element_view = path.is_empty()
+                        && structural_parameters.iter().any(|(position, parameter)| {
+                            *position == parameter_position
+                                && element_views.contains_key(&parameter.structural_type)
+                        });
+                    if !path.is_empty()
+                        || (!whole_element_view && (!element_path.is_empty() || owned_parameter))
+                    {
                         let index = lower_checked_scalar_expression_with_parameters(
                             index,
                             structural_parameters,

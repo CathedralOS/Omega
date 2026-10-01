@@ -1562,15 +1562,14 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `slices/runtime_bounded_fixed_array_subslice_arg_exit` (exit 3) shares the
   phase through its field range `self.arr[lo..hi]`, which `admit_replayed`
   admits only at a local binding.
-  `termination/runtime_shrinking_slice_recursion_exit` exits 70 from
-  10+20+15+25 (the interpreter already does): its element-view
-  `Slice::Length` rank is emitted as `ByteSequenceLength`
-  (`InvalidByteSequenceLengthSource`), and the Terminal ranked-cycle validator
-  (`verification/src/control_cycles/validation.rs::observed_view`, trusted
-  surface) admits only byte-length rank observations. The recursive case must
-  still snapshot the subslice and head read before overwriting argument slots.
-  `termination/runtime_receiver_byte_slice_recursion_exit` is its byte-view
-  control and exits 70.
+  `termination/runtime_shrinking_slice_recursion_exit` now executes unchanged
+  with native exit **70** on macOS ARM64, summing 10+20+15+25 through staged
+  subslices and head reads. Whole element views use their existing element
+  reader even when selecting record fields; entry and arrival ranks observe
+  the declared carrier's length. Independent rank replay preserves descriptor
+  identity and byte/element units; a prior descriptor or missing decrease
+  evidence rejects. Its byte-view control
+  `termination/runtime_receiver_byte_slice_recursion_exit` still exits **70**.
   `wire/runtime_wire_decode_byte_slice_exit` stays with
   **RECORD-LITERAL-ARRAY-FIELD** and **REFERENCE-LOCAL-BINDING-ROUTES**;
   `wire/runtime_wire_utf8_edge_verdicts_exit` stays with

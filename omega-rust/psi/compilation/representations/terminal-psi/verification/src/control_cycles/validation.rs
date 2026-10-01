@@ -177,7 +177,15 @@ fn available(
         || definition(machine, value).is_some_and(|owner| dominators.dominates(owner, block))
 }
 
-fn observed_view(machine: &TerminalMachine, value: ValueId) -> Option<PlaceId> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LengthUnit {
+    Bytes,
+    Elements,
+}
+
+// Substitution preserves both the descriptor and its observation: a byte
+// count cannot stand in for an element count, even if scalar types agree.
+fn observed_view(machine: &TerminalMachine, value: ValueId) -> Option<(PlaceId, LengthUnit)> {
     machine
         .blocks
         .iter()
@@ -191,14 +199,15 @@ fn observed_view(machine: &TerminalMachine, value: ValueId) -> Option<PlaceId> {
                 return None;
             }
             match operation.kind {
-                OperationKind::ByteSequenceLength { source } => Some(source),
+                OperationKind::ByteSequenceLength { source } => Some((source, LengthUnit::Bytes)),
+                OperationKind::ElementViewLength { source } => Some((source, LengthUnit::Elements)),
                 _ => None,
             }
         })
 }
 
 /// A rank is a value whose arrival the verifier can substitute: a scalar
-/// parameter, an actual byte-length observation, or a computed rank.
+/// parameter, an actual view-length observation, or a computed rank.
 fn rank_origin(machine: &TerminalMachine, value: ValueId) -> bool {
     scalar_parameter(machine, value)
         || observed_view(machine, value).is_some()
@@ -313,7 +322,7 @@ fn substituted_rank(
     {
         return arguments.get(position).copied() == Some(successor_rank);
     }
-    if let Some(target_view) = observed_view(machine, target_rank) {
+    if let Some((target_view, unit)) = observed_view(machine, target_rank) {
         let arriving = if let Some(position) = target_block
             .structural_parameters
             .iter()
@@ -343,7 +352,7 @@ fn substituted_rank(
         // Ordinary validation gives each descriptor one establishing block
         // (and one producer for an operation result). Its length observation
         // dominates this edge, so reestablishment cannot bypass that read.
-        return observed_view(machine, successor_rank) == Some(arriving);
+        return observed_view(machine, successor_rank) == Some((arriving, unit));
     }
     if let Some(recomputed) = computed_rank(machine, target_rank)
         && definition(machine, target_rank) == Some(target)
