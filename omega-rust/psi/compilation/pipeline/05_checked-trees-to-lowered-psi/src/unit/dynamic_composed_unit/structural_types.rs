@@ -5,30 +5,18 @@ use checked_trees::{
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypeShape,
 };
-use language_semantics::Multiplicity;
 use terminal_psi::StructuralMultiplicity;
 
-pub(crate) fn terminal_structural_multiplicity(
-    multiplicity: Multiplicity,
-) -> StructuralMultiplicity {
-    match multiplicity {
-        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-        Multiplicity::Affine => StructuralMultiplicity::Affine,
-        Multiplicity::Linear => StructuralMultiplicity::Linear,
-    }
-}
-
-/// A shared field projection retains its caller root's consumption bound even
-/// when the projected field's own declared carrier is copyable.
-pub(crate) fn terminal_projected_source_multiplicity_for(
-    caller_multiplicity: Multiplicity,
-) -> StructuralMultiplicity {
-    match caller_multiplicity {
-        Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
-        Multiplicity::Affine => StructuralMultiplicity::Affine,
-        Multiplicity::Linear => StructuralMultiplicity::Linear,
-    }
-}
+/// Terminal multiplicity of a borrowed caller `self` and of the field subloan
+/// it lends to a realization's borrowed `self`. A loan never owns its
+/// referent; the attachment's own multiplicity stays with the place that owns
+/// the attachment. Ordinary signatures declare every `&T` and `&mut T`
+/// parameter this way (`TypedTrees::type_multiplicity`), and the verifier
+/// requires it of any loan whose type carries a `Binding`: an `Affine` loan
+/// would claim custody of service authority that the loan does not hold.
+/// The checked plan still carries the attachment multiplicity, and plan
+/// validation replays it; only the loan's own declaration is fixed here.
+pub(crate) const LOAN_MULTIPLICITY: StructuralMultiplicity = StructuralMultiplicity::Unrestricted;
 
 pub(crate) fn lower_dynamic_structural_types_for_source(
     checked: &CheckedTrees,

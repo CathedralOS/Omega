@@ -33,7 +33,7 @@ use crate::unit::dynamic_composed_unit::source_lowering::{
     lower_dynamic_call_custody, validate_and_lower_dynamic_source,
 };
 use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
-use crate::unit::dynamic_composed_unit::structural_types::terminal_structural_multiplicity;
+use crate::unit::dynamic_composed_unit::structural_types::LOAN_MULTIPLICITY;
 
 pub(super) fn lower(
     checked: &CheckedTrees,
@@ -66,7 +66,7 @@ pub(super) fn lower(
         position: 0,
         is_self: true,
         structural_type: caller_attachment,
-        multiplicity: terminal_structural_multiplicity(plan.caller_multiplicity),
+        multiplicity: LOAN_MULTIPLICITY,
         access: match plan.caller_parameter_access {
             CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
             CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
